@@ -67,6 +67,11 @@ SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".ASM": "asm",
 }
 SRC_FILE_EXTENSIONS = list(SOURCE_KIND_FOR_SUFFIX)
+# Suffixes that count as headers when probing whether a library has any
+# usable files at all (compare against Path.suffix.lower())
+HEADER_FILE_EXTENSIONS = frozenset(
+    {".h", ".hpp", ".hh", ".hxx", ".inc", ".ipp", ".tcc"}
+)
 
 DOMAIN = "pio_components"
 
@@ -683,7 +688,7 @@ def normalize_dependencies(
     for entry in dependencies:
         if isinstance(entry, dict):
             name = entry.get("name")
-            if "name" in entry and (not isinstance(name, str) or not name):
+            if not isinstance(name, str) or not name:
                 # A dependency name must be a non-empty string; every
                 # consumer indexes or joins it
                 _LOGGER.warning(
@@ -929,7 +934,7 @@ def convert_libraries(
     resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
     # (name, requester) pairs reconciled against the final resolution set
-    skipped_versionless: list[tuple[Any, str]] = []
+    skipped_versionless: list[tuple[Any, Any, str]] = []
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
         key = worklist.popleft()
@@ -1029,7 +1034,9 @@ def convert_libraries(
                     dependency.get("name"),
                     component.name,
                 )
-                skipped_versionless.append((dependency.get("name"), component.name))
+                skipped_versionless.append(
+                    (dependency.get("name"), dependency.get("owner"), component.name)
+                )
                 continue
             if not dependency_is_usable(
                 dependency, backend.platform, backend.framework, component.name
@@ -1126,7 +1133,7 @@ def convert_libraries(
     # surface as link errors far from the cause.
     resolved_manifest_names = {c.data.get("name") for c in components.values()}
     warned: set[str] = set()
-    for dep_name, requester in skipped_versionless:
+    for dep_name, dep_owner, requester in skipped_versionless:
         if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
             continue
         if dep_name in components:
@@ -1134,7 +1141,14 @@ def convert_libraries(
             continue
         if dep_name in resolved_manifest_names:
             continue
-        if backend.provides is not None and backend.provides(dep_name):
+        if (
+            not dep_owner
+            and backend.provides is not None
+            and backend.provides(dep_name)
+        ):
+            # provides() only satisfies owner-less names: the walk's
+            # backend-provided skip has the same owner guard, so an
+            # owner-qualified version-less dep was added by nobody
             continue
         warned.add(dep_name)
         _LOGGER.warning(
