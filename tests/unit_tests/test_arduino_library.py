@@ -774,7 +774,9 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     (local_lib / "library.json").write_text(
         '{"name": "LocalLib", "version": "1.0.0", "dependencies": {"Wire": "*"}}'
     )
-    _add_library(f"file://{local_lib}", None)
+    # as_uri() forms a valid file:// URL on every platform (file:///C:/...
+    # on Windows; a bare f-string would embed backslashes)
+    _add_library(local_lib.as_uri(), None)
     # The real converter writes its component cache under the config dir
     CORE.config_path = tmp_path / "test.yaml"
     CORE.config_path.write_text("")
