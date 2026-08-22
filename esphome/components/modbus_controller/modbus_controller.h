@@ -325,8 +325,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @param values the register values to write
    * @return ModbusCommandItem with the prepared command
    */
-  ESPDEPRECATED("Use ModbusController::create_command() and call write_multiple_registers() on the item instead. "
-                "Removed in 2027.3.0",
+  ESPDEPRECATED("Use the modbus_client.write_multiple_registers action, or subclass modbus::ModbusClientDevice, "
+                "instead. Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_multiple_command(ModbusController *controller, uint16_t start_address,
                                                          uint16_t register_count, const std::vector<uint16_t> &values);
@@ -338,8 +338,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @param value uint16_t single register value to write
    * @return ModbusCommandItem with the prepared command
    */
-  ESPDEPRECATED("Use ModbusController::create_command() and call write_single_register() on the item instead. "
-                "Removed in 2027.3.0",
+  ESPDEPRECATED("Use the modbus_client.write_single_register action, or subclass modbus::ModbusClientDevice, "
+                "instead. Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_single_command(ModbusController *controller, uint16_t start_address,
                                                        uint16_t value);
@@ -350,8 +350,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @param value uint16_t data to be written to the registers
    * @return ModbusCommandItem with the prepared command
    */
-  ESPDEPRECATED("Use ModbusController::create_command() and call write_single_coil() on the item instead. "
-                "Removed in 2027.3.0",
+  ESPDEPRECATED("Use the modbus_client.write_single_coil action, or subclass modbus::ModbusClientDevice, "
+                "instead. Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_single_coil(ModbusController *controller, uint16_t address, bool value);
 
@@ -362,8 +362,8 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
    * @param value bool vector of values to be written to the registers
    * @return ModbusCommandItem with the prepared command
    */
-  ESPDEPRECATED("Use ModbusController::create_command() and call write_multiple_coils() on the item instead. "
-                "Removed in 2027.3.0",
+  ESPDEPRECATED("Use the modbus_client.write_multiple_coils action, or subclass modbus::ModbusClientDevice, "
+                "instead. Removed in 2027.3.0",
                 "2026.8.0")
   static ModbusCommandItem create_write_multiple_coils(ModbusController *controller, uint16_t start_address,
                                                        const std::vector<bool> &values);
@@ -466,8 +466,8 @@ class ModbusController final : public PollingComponent {
   }
 
   /// Queues a one-shot modbus command (writes, custom commands); taken by value, so std::move to avoid a copy.
-  ESPDEPRECATED("Own a ModbusCommandItem that outlives the call (e.g. a std::optional member) and call a write "
-                "helper on it instead; for ad-hoc custom PDUs use a modbus_client component. Removed in 2027.3.0",
+  ESPDEPRECATED("Use a modbus_client component action (e.g. modbus_client.write_single_register or "
+                "modbus_client.send), or subclass modbus::ModbusClientDevice, instead. Removed in 2027.3.0",
                 "2026.8.0")
   void queue_command(ModbusCommandItem command);
   /// Flags a finished one-shot command for removal. Called by the command as the last action of its own
