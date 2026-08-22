@@ -302,11 +302,10 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// pending frame is silently retired.
   bool send();
 
-  /// factory methods (deprecated: use ModbusController::create_command() and the item's write helpers / queue_pdu())
-  /** Create modbus read command
-   *  Function code 02-04
+  /// factory methods (deprecated: use the modbus_client component actions, or subclass modbus::ModbusClientDevice)
+  /** Create modbus read command (function codes 0x02-0x04)
    * @param controller the controller whose hub and address the command uses
-   * @param function_code modbus function code for the read command
+   * @param register_type the entity type to read (coil, discrete input, holding or input register)
    * @param start_address modbus address of the first register to read
    * @param register_count number of registers to read
    * @param handler function called when the response is received
@@ -330,12 +329,10 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
                 "2026.8.0")
   static ModbusCommandItem create_write_multiple_command(ModbusController *controller, uint16_t start_address,
                                                          uint16_t register_count, const std::vector<uint16_t> &values);
-  /** Create modbus write multiple registers command
-   *  Function 16 (10hex) Write Multiple Registers
+  /** Create modbus write single register command (function code 0x06)
    * @param controller the controller whose hub and address the command uses
-   * @param start_address modbus address of the first register to read
-   * @param register_count number of registers to read
-   * @param value uint16_t single register value to write
+   * @param start_address modbus address of the register to write
+   * @param value the register value to write
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.write_single_register action, or subclass modbus::ModbusClientDevice, "
@@ -343,11 +340,10 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
                 "2026.8.0")
   static ModbusCommandItem create_write_single_command(ModbusController *controller, uint16_t start_address,
                                                        uint16_t value);
-  /** Create modbus write single registers command
-   *  Function 05 (05hex) Write Single Coil
+  /** Create modbus write single coil command (function code 0x05)
    * @param controller the controller whose hub and address the command uses
-   * @param start_address modbus address of the first register to read
-   * @param value uint16_t data to be written to the registers
+   * @param address modbus address of the coil to write
+   * @param value the coil state to write
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.write_single_coil action, or subclass modbus::ModbusClientDevice, "
@@ -355,11 +351,10 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
                 "2026.8.0")
   static ModbusCommandItem create_write_single_coil(ModbusController *controller, uint16_t address, bool value);
 
-  /** Create modbus write multiple registers command
-   *  Function 15 (0Fhex) Write Multiple Coils
+  /** Create modbus write multiple coils command (function code 0x0F)
    * @param controller the controller whose hub and address the command uses
-   * @param start_address modbus address of the first register to read
-   * @param value bool vector of values to be written to the registers
+   * @param start_address modbus address of the first coil to write
+   * @param values the coil states to write
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use the modbus_client.write_multiple_coils action, or subclass modbus::ModbusClientDevice, "
