@@ -89,16 +89,33 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     if ninja_changed or not (build_dir / "compile_commands.json").is_file():
         _write_compile_commands(paths.ninja, build_dir, env)
 
-    cmd = [str(paths.ninja), "-C", str(build_dir)]
+    cmd = [str(paths.ninja)]
     if verbose:
         cmd.append("-v")
     if jobs := config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT):
         cmd += ["-j", str(jobs)]
 
-    _LOGGER.debug("Running: %s", " ".join(cmd))
-    rc = subprocess.run(cmd, env=env, check=False, close_fds=False).returncode
-    if rc != 0:
-        return rc
+    # A dry-run probe keeps a no-op rebuild quiet: ninja would only print
+    # "no work to do". cwd instead of -C also drops the "Entering
+    # directory" banner on real builds.
+    probe = subprocess.run(
+        [str(paths.ninja), "-n"],
+        cwd=build_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        close_fds=False,
+    )
+    if probe.returncode == 0 and "no work to do" in probe.stdout:
+        _LOGGER.debug("ninja: nothing to rebuild")
+    else:
+        _LOGGER.debug("Running: %s", " ".join(cmd))
+        rc = subprocess.run(
+            cmd, cwd=build_dir, env=env, check=False, close_fds=False
+        ).returncode
+        if rc != 0:
+            return rc
 
     _print_size_summary(build_dir, paths)
     try:

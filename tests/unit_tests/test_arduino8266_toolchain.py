@@ -92,11 +92,39 @@ def test_run_compile_success(tmp_path: Path) -> None:
             {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}, verbose=False
         )
     assert rc == 0
-    cmd = mock_run.call_args[0][0]
+    # The -n probe runs first, then the real build (cwd, no -C banner)
+    ninja_calls = [c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0])]
+    assert ninja_calls[0][0][0][-1] == "-n"
+    cmd = ninja_calls[1][0][0]
     assert cmd[-2:] == ["-j", "4"]
+    assert "-C" not in cmd
+    assert ninja_calls[1][1]["cwd"] is not None
     mock_compdb.assert_called_once()
     mock_size.assert_called_once()
     mock_idedata.assert_called_once()
+
+
+def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
+    """A no-op rebuild stays quiet: the -n probe answers "no work to do"
+    and the real ninja spawn (and its banner) never happens."""
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project"),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="ninja: no work to do.\n"),
+        ) as mock_run,
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary"),
+        patch.object(toolchain, "get_idedata"),
+    ):
+        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    assert rc == 0
+    ninja_calls = [c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0])]
+    assert len(ninja_calls) == 1
+    assert ninja_calls[0][0][0][-1] == "-n"
 
 
 def test_run_compile_warns_when_idedata_fails(
