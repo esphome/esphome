@@ -727,11 +727,22 @@ def _prefetch_idf_tool_archives(
             )
             return
         dist_path = get_idf_tools_path() / "dist"
-        entries = [
+        pending = [
             entry
             for entry in json.loads(stdout)
             if not (dist_path / entry["dest"]).is_file()
         ]
+        # tools.json always carries sha256 and size; an entry missing either
+        # must not be downloaded unverified here, so leave it to the
+        # installer (which fails loudly on a bad archive).
+        entries = [e for e in pending if e.get("sha256") and e.get("size")]
+        for entry in pending:
+            if entry not in entries:
+                _LOGGER.warning(
+                    "Tool %s has no sha256/size in the download list; "
+                    "leaving it to the installer",
+                    entry["name"],
+                )
         if not entries:
             return
         _LOGGER.info(
@@ -739,14 +750,12 @@ def _prefetch_idf_tool_archives(
             len(entries),
             ", ".join(entry["name"] for entry in entries),
         )
-        # tools.json always carries sizes; should one be missing the combined
-        # bar could not be trusted, so show no bar at all rather than a wrong
-        # one. Unlike the library prefetch there is no sequential fallback:
-        # per-file bars from several threads would interleave, and skipping
-        # the prefetch would lose the resume workaround for #17703.
-        sizes = [entry.get("size") or 0 for entry in entries]
+        # Every entry carries a size (checked above), so the combined bar can
+        # be trusted. Unlike the library prefetch there is no sequential
+        # fallback: per-file bars from several threads would interleave, and
+        # skipping the prefetch would lose the resume workaround for #17703.
         progress = BatchDownloadProgress(
-            "Downloading ESP-IDF tools", sum(sizes) if all(sizes) else 0
+            "Downloading ESP-IDF tools", sum(entry["size"] for entry in entries)
         )
         # Reported after the bar is done so the warnings do not land on
         # its row; list.append is atomic under the GIL.
@@ -758,8 +767,8 @@ def _prefetch_idf_tool_archives(
                 download_with_resume(
                     entry["url"],
                     dist_path / entry["dest"],
-                    sha256=entry.get("sha256"),
-                    size=entry.get("size"),
+                    sha256=entry["sha256"],
+                    size=entry["size"],
                     progress=tracker,
                 )
             except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
