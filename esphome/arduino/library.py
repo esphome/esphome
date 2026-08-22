@@ -219,9 +219,13 @@ def _collect_lib_sources(
             len(dropped),
             ", ".join(sorted(dropped)),
         )
-    if not lib.sources and not matched and ("srcFilter" in build or "srcDir" in build):
-        # A default probe finding nothing is a header-only library; a
-        # declared filter matching nothing is a manifest/tree problem.
+    if (
+        not lib.sources
+        and ("srcFilter" in build or "srcDir" in build)
+        and not any(Path(f).suffix.lower() in HEADER_FILE_EXTENSIONS for f in matched)
+    ):
+        # A declared filter matching nothing (or only inert files) is a
+        # manifest/tree problem; matched headers mean a header-only library
         _LOGGER.warning(
             "Library %s declares srcFilter/srcDir but no source files matched",
             name,
@@ -361,6 +365,12 @@ def resolve_libraries(
             component.data.get("dependencies"), component.name
         ):
             name = dep.get("name")
+            if isinstance(name, str) and "/" in name:
+                owner, _, pkg = name.partition("/")
+                if _is_safe_library_name(owner) and _is_safe_library_name(pkg):
+                    # PIO's owner-qualified spelling ("Owner/Pkg"); the
+                    # converter resolves it from the registry
+                    continue
             if not _is_safe_library_name(name):
                 # The name becomes a path component under the framework
                 # tree; never join a traversal or a non-string
@@ -370,11 +380,17 @@ def resolve_libraries(
                     component.name,
                 )
                 continue
-            if (
-                name in bundled_names
-                or name in external_short_names
-                or is_lib_ignored(name, lib_ignore)
-            ):
+            if name in external_short_names:
+                # Deliberate when the external really is this library;
+                # attributable when the short-name match is accidental
+                _LOGGER.debug(
+                    "Dependency %s of %s assumed satisfied by a requested "
+                    "external library",
+                    name,
+                    component.name,
+                )
+                continue
+            if name in bundled_names or is_lib_ignored(name, lib_ignore):
                 continue
             if dep.get("owner") or not _provided(name):
                 # Owner-less names in the framework tree prefer the bundled
