@@ -708,7 +708,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
     board = esp8266_data[KEY_BOARD]
-    # Backstop; config validation already rejects unknown boards
+    # The only in-tree rejection until the native-toolchain validator
+    # (_validate_native_toolchain, final PR of the chain) gates boards at
+    # config time; CONF_BOARD itself is a free-form string
     if board not in ESP8266_BOARD_BUILD:
         raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
@@ -970,7 +972,9 @@ def get_flash_ld_path(build_dir: Path, paths: InstalledPaths) -> Path:
     """The flash linker script the link actually uses (for size reporting).
 
     Reads the same install the ninja file linked against instead of
-    re-resolving the framework version.
+    re-resolving the framework version. A user-shipped override living in a
+    custom -L dir resolves to a nonexistent path here; the size consumer
+    warns and skips the Flash summary then.
     """
     name = _active_flash_ld_name(_flash_ld_name(CORE.data[KEY_ESP8266][KEY_BOARD]))
     if CORE.testing_mode:
