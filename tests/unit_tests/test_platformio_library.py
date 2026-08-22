@@ -644,6 +644,50 @@ def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     assert lib._content_lengths(["https://x/a", "https://x/bad"]) == [123, 0]
 
 
+def test_prefetch_wave_cache_probe_failure_still_prefetches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The cache probe is best-effort; a failing probe prefetches anyway."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        ConvertedLibrary,
+        "download",
+        lambda self, **kw: calls.append(self.source.url),
+    )
+    monkeypatch.setattr(
+        URLSource,
+        "is_cached",
+        lambda self, *a, **kw: (_ for _ in ()).throw(RuntimeError("no core")),
+    )
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+    assert sorted(calls) == ["https://x/a.tar.gz", "https://x/b.tar.gz"]
+
+
+def test_prefetch_wave_warm_cache_is_silent(
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Already-extracted archives download nothing; a warm build must not
+    print a Downloading line or draw a bar."""
+    monkeypatch.setattr(
+        ConvertedLibrary,
+        "download",
+        lambda self, **kw: (_ for _ in ()).throw(AssertionError("downloaded")),
+    )
+    wave = []
+    for name in ("a", "b", "c"):
+        comp = ConvertedLibrary(name, "1.0", URLSource(f"https://x/{name}.tar.gz"))
+        marker_dir = comp.source._cache_dir(comp.get_sanitized_name(), "", "idf")
+        marker_dir.mkdir(parents=True)
+        (marker_dir / ".esphome_extracted").touch()
+        wave.append((name, comp))
+    lib._prefetch_wave(wave, "", "idf")
+    assert "Downloading" not in caplog.text
+
+
 def test_prefetch_wave_single_archive_skips_the_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
