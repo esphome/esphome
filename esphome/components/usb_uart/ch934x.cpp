@@ -646,7 +646,7 @@ void USBUartTypeCH934X::start_command_reader_() {
   }
 }
 
-void USBUartTypeCH934X::handle_command_data_(const uint8_t *data, size_t len) {
+void USBUartTypeCH934X::handle_command_data_(const uint8_t * /*data*/, size_t len) {
   ESP_LOGV(TAG, "CMD data received: %u bytes", len);
 }
 
