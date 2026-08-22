@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from unittest.mock import MagicMock, patch
@@ -186,6 +187,20 @@ def test_surplus_arguments_error(capsys: pytest.CaptureFixture[str]) -> None:
     ):
         assert build_tool.main() == 1
     assert "expected 2 arguments, got 3" in capsys.readouterr().err
+
+
+def test_copy_same_file_keeps_the_input(tmp_path: Path) -> None:
+    """A same-file copy (dst IS src) must not unlink the input."""
+    src = tmp_path / "firmware.bin"
+    src.write_bytes(b"image")
+    with (
+        patch.object(
+            build_tool.sys, "argv", ["build_tool", "copy", str(src), str(src)]
+        ),
+        pytest.raises(shutil.SameFileError),
+    ):
+        build_tool.main()
+    assert src.read_bytes() == b"image"
 
 
 def test_copy_failure_leaves_no_partial_output(tmp_path: Path) -> None:

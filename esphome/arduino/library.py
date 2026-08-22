@@ -99,14 +99,18 @@ def _resolve_src_dir(name: str, read_path: Path, build: dict) -> str:
 
 
 def _reject_unsupported_link_fields(name: str, data: dict) -> None:
-    for dropped_key in ("precompiled", "ldflags"):
-        if data.get(dropped_key):
-            # PIO's Arduino lib builder honors these; building without them
-            # would fail at link with no stated cause
-            raise EsphomeError(
-                f"Library {name} declares {dropped_key}, which this backend "
-                "does not support"
-            )
+    # PIO's Arduino lib builder honors these; building without them would
+    # fail at link with no stated cause. library.properties values are
+    # strings, so "false" (the spec's explicit opt-out) is not a declaration.
+    precompiled = data.get("precompiled")
+    if precompiled and str(precompiled).strip().lower() != "false":
+        raise EsphomeError(
+            f"Library {name} declares precompiled, which this backend does not support"
+        )
+    if data.get("ldflags"):
+        raise EsphomeError(
+            f"Library {name} declares ldflags, which this backend does not support"
+        )
 
 
 def _resolve_lib_archive(name: str, data: dict, build: dict) -> bool:
@@ -218,18 +222,14 @@ def _collect_lib_sources(
             len(dropped),
             ", ".join(sorted(dropped)),
         )
-    if (
-        not lib.sources
-        and ("srcFilter" in build or "srcDir" in build)
-        and not any(Path(f).suffix.lower() in LIBRARY_HEADER_SUFFIXES for f in matched)
+    if not lib.sources and not any(
+        Path(f).suffix.lower() in LIBRARY_HEADER_SUFFIXES for f in matched
     ):
-        # Matched headers mean a header-only library; a declared filter
-        # matching nothing (or only inert files) is a manifest/tree problem.
-        # The truly empty tree raises via _assert_tree_has_code.
-        _LOGGER.warning(
-            "Library %s declares srcFilter/srcDir but no source files matched",
-            name,
-        )
+        # Matched headers mean a header-only library; a filter matching
+        # nothing (or only inert files) is a manifest/tree problem whether
+        # or not it was declared. The truly empty tree raises via
+        # _assert_tree_has_code.
+        _LOGGER.warning("Library %s: no source files matched", name)
 
 
 def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
