@@ -750,7 +750,7 @@ def _prefetch_idf_tool_archives(
         # tools.json always carries sizes; should one be missing the combined
         # bar could not be trusted, so show no bar at all (per-file bars from
         # several threads would interleave) rather than a wrong one.
-        sizes = [entry["size"] for entry in entries]
+        sizes = [entry.get("size") or 0 for entry in entries]
         progress = BatchDownloadProgress(
             "Downloading ESP-IDF tools", sum(sizes) if all(sizes) else 0
         )
@@ -764,8 +764,8 @@ def _prefetch_idf_tool_archives(
                 download_with_resume(
                     entry["url"],
                     dist_path / entry["dest"],
-                    sha256=entry["sha256"],
-                    size=entry["size"],
+                    sha256=entry.get("sha256"),
+                    size=entry.get("size"),
                     progress=tracker,
                 )
             except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
