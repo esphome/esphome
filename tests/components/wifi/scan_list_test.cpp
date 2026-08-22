@@ -93,6 +93,14 @@ TEST(ScanList, HiddenEntriesNeverShown) {
   EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -70, true}}));
 }
 
+// On ESP8266 the hidden flag comes from the driver alongside a real SSID, so a
+// hidden access point can share its name with a visible one. It must not
+// outrank that visible entry and leave the network unlisted.
+TEST(ScanList, HiddenEntryDoesNotSuppressVisibleSameSsid) {
+  std::vector<Entry> results = {{"Home", -40, true, true}, {"Home", -70}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -70, true}}));
+}
+
 // An open access point and a secured one sharing an SSID collapse to one row that
 // still asks for a password, whichever of them is strongest.
 TEST(ScanList, LockSetWhenAnyEntryRequiresAuth) {
