@@ -47,11 +47,8 @@ DEFAULT_BUILD_SRC_FILTER = (
 DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
-# Source suffix -> compiler kind, PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES
-# split. Native build generators map the kind to their compile rules. "asm"
-# deliberately merges SCons's AS (.s/.asm) and ASPP (.S/.spp/.sx) sets: the
-# ninja rules compile all of them as assembler-with-cpp, whose asm-mode
-# preprocessor passes non-directive text through unchanged.
+# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES).
+# "asm" merges SCons's AS and ASPP sets: all compile as assembler-with-cpp.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
@@ -301,10 +298,9 @@ class LibraryBackend:
     framework: str
     emit: Callable[["ConvertedLibrary"], None]
     cache_key: str
-    # When set, an owner-less manifest dependency this returns True for is
-    # skipped by the graph walk: the backend provides it outside the
-    # registry (e.g. a library bundled with the Arduino core), mirroring
-    # PlatformIO's process_dependencies preference for bundled builders.
+    # Owner-less dependency names this returns True for are skipped by the
+    # walk; the backend supplies them outside the registry (e.g. core-bundled
+    # libraries).
     provides: Callable[[str], bool] | None = None
 
 
@@ -633,13 +629,8 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
 def dependency_is_usable(
     dep: dict, platform: str | None, framework: str, requester: str
 ) -> bool:
-    """Whether a manifest dependency passes the compatibility filter.
-
-    The routine cross-platform skip logs at debug; any other
-    ``InvalidLibrary`` cause is a dropped dependency and warns naming the
-    requester (unreachable from ``check_library_data`` today, which raises
-    only for the platform filter).
-    """
+    """Compatibility filter for a manifest dependency: platform mismatches
+    skip at debug, any other ``InvalidLibrary`` warns naming the requester."""
     try:
         check_library_data(dep, platform, framework)
     except IncompatiblePlatform as e:
@@ -699,9 +690,7 @@ def normalize_dependencies(
                 continue
             normalized.append(entry)
         elif isinstance(entry, str) and entry:
-            # PIO also accepts a bare list of names ("dependencies":
-            # ["Wire"]); dropping them here would hide a real dependency
-            # from every caller's visibility warning
+            # PIO also accepts a bare list of names ("dependencies": ["Wire"])
             normalized.append({"name": entry})
         else:
             _LOGGER.warning(
@@ -1025,10 +1014,8 @@ def convert_libraries(
             component.data.get("dependencies"), component.name
         ):
             if "name" not in dependency or "version" not in dependency:
-                # Version-less deps cannot resolve from the registry.
-                # Deferred: only the final resolution set can tell a real
-                # drop from a name another manifest resolves later, so the
-                # reconciliation after emit owns the warning
+                # Version-less deps cannot resolve from the registry; the
+                # post-emit reconciliation owns the drop warning
                 _LOGGER.debug(
                     "Skip version-less dependency %r of %s",
                     dependency.get("name"),
@@ -1056,9 +1043,8 @@ def convert_libraries(
                 # The backend adds it from its own tree; resolving it here
                 # would fetch a same-named registry package instead
                 if (pin := dependency.get("version")) and pin != "*":
-                    # The declared constraint is discarded for the bundled
-                    # copy; a too-old bundled library must not surface as
-                    # link errors with no stated cause
+                    # The version pin is discarded for the bundled copy; make
+                    # the substitution visible
                     _LOGGER.warning(
                         "Dependency %s pins version %s; using the library "
                         "bundled with the framework instead",
@@ -1126,11 +1112,9 @@ def convert_libraries(
     for component in components.values():
         backend.emit(component)
 
-    # A version-less dependency is satisfied when its request key resolved,
-    # a resolved component's manifest name matches, or the backend provides
-    # it from its own tree (e.g. the arduino bundled libraries, added by the
-    # backend after emit). Anything else is a real drop that would otherwise
-    # surface as link errors far from the cause.
+    # Warn for version-less deps nothing satisfied (request key, manifest
+    # name, or backend provides()); a silent drop surfaces as link errors
+    # far from the cause.
     resolved_manifest_names = {c.data.get("name") for c in components.values()}
     warned: set[str] = set()
     for dep_name, dep_owner, requester in skipped_versionless:

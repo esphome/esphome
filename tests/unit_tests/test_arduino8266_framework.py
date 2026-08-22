@@ -26,9 +26,8 @@ def test_framework_package_version() -> None:
     # A future major bump needs its own encoding, not a doomed registry lookup
     with pytest.raises(EsphomeError, match="not supported yet"):
         framework.framework_package_version(cv.Version(4, 0, 0))
-    # Cores up to 2.6.2 use other encodings; the helper is total, not wrong,
-    # and its boundary matches the PlatformIO era guard: a 2.6.2 pre-release
-    # sorts above 2.6.2 and keeps the package-major-3 encoding
+    # The boundary matches the PlatformIO era guard; a 2.6.2 pre-release
+    # keeps this encoding
     with pytest.raises(EsphomeError, match="older package encoding"):
         framework.framework_package_version(cv.Version(2, 6, 2))
     assert framework.framework_package_version(cv.Version(2, 6, 2, "b1")) == "3.20602.0"
@@ -102,9 +101,8 @@ def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
 def test_ccache_path_delegates_uncached(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The wrapper delegates to the shared policy (covered in
-    build_helpers/test_ccache.py) on every call: the env/PATH decision
-    must not freeze for the process lifetime in a long-lived host."""
+    """Delegates on every call; the env/PATH decision must not freeze for
+    the process lifetime."""
     monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
     with patch.object(
         framework, "resolve_ccache_path", return_value="/usr/bin/ccache"

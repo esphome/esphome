@@ -566,11 +566,7 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
     if CORE.using_native_toolchain:
         # The native builds don't read platformio.ini; honor the options
         # with a native equivalent and warn about the rest, which would
-        # otherwise be silently ignored. Every dispatch site that tests a
-        # specific using_toolchain_* as a stand-in for "native" (project
-        # writing, compile, upload, firmware paths) must agree with this
-        # gate: a toolchain treated as native here must never fall through
-        # to a PlatformIO code path there.
+        # otherwise be silently ignored.
         for key, val in pio_options.items():
             vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
@@ -600,12 +596,8 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # discovered dependencies
                 cg.add_platformio_option(key, vals)
             elif key in NATIVE_ARDUINO_PIO_OPTIONS and CORE.using_toolchain_arduino:
-                # Real-world knobs many published ESP8266 configs rely on:
-                # f_cpu 160000000L for timing-sensitive integrations, and a
-                # custom ldscript to reserve a filesystem region or correct
-                # a board's flash size. The esp8266 native generator reads
-                # both; other native toolchains have no equivalent and fall
-                # through to the warning.
+                # The esp8266 native generator reads these; other native
+                # toolchains have no equivalent and fall through to the warning.
                 cg.add_platformio_option(key, val)
             elif key != "upload_speed":
                 # upload_speed needs no handling: it is read from the raw

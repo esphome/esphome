@@ -13,6 +13,7 @@ import pytest
 from esphome.core import EsphomeError, Library
 import esphome.platformio.library as lib
 from esphome.platformio.library import (
+    SOURCE_KIND_FOR_SUFFIX,
     ConvertedLibrary,
     GitSource,
     InvalidLibrary,
@@ -23,6 +24,8 @@ from esphome.platformio.library import (
     _resolve_registry_version,
     check_library_data,
     convert_libraries,
+    join_flag_args,
+    split_flag_entry,
 )
 
 
@@ -539,7 +542,6 @@ def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
 
 def test_split_flag_entry_unbalanced_quote_is_clean() -> None:
     """A malformed flags entry raises EsphomeError, not a raw ValueError."""
-    from esphome.platformio.library import split_flag_entry
 
     assert split_flag_entry('-DX="a b"', "library x") == ["-DX=a b"]
     with pytest.raises(EsphomeError, match=r"Malformed build flag.*library x"):
@@ -548,7 +550,6 @@ def test_split_flag_entry_unbalanced_quote_is_clean() -> None:
 
 def test_join_flag_args_reglues_spaced_define() -> None:
     """A spaced -D re-glues to its argument, as ParseFlags does."""
-    from esphome.platformio.library import join_flag_args
 
     assert join_flag_args(["-D", "FOO=1", "-Os"], "x") == ["-DFOO=1", "-Os"]
 
@@ -556,7 +557,6 @@ def test_join_flag_args_reglues_spaced_define() -> None:
 def test_join_flag_args_trailing_bare_flag_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    from esphome.platformio.library import join_flag_args
 
     assert join_flag_args(["-Os", "-l"], "library x") == ["-Os"]
     assert "Ignoring trailing '-l'" in caplog.text
@@ -576,7 +576,6 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
 def test_split_flag_entry_non_string_is_clean() -> None:
     """A dict or number from a third-party manifest fails naming the entry,
     not with an opaque shlex traceback."""
-    from esphome.platformio.library import split_flag_entry
 
     with pytest.raises(EsphomeError, match="Malformed build flag"):
         split_flag_entry({"esp32": ["-DX"]}, "lib x")
@@ -587,7 +586,6 @@ def test_split_flag_entry_non_string_is_clean() -> None:
 def test_source_kind_map_shape() -> None:
     """The kind values the native compile rules key on, and the deliberate
     AS/ASPP merge (.s and .S both map to asm)."""
-    from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX
 
     assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm"}
     assert SOURCE_KIND_FOR_SUFFIX[".s"] == "asm"
@@ -681,9 +679,8 @@ def test_walk_warns_for_nonplatform_invalid_library(
 def test_versionless_owner_qualified_dependency_warns_despite_provides(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The backend's provides() only covers owner-less names (the walk's
-    backend-provided skip has the same guard), so an owner-qualified
-    version-less dependency that nobody adds must still warn."""
+    """An owner-qualified version-less dependency is not satisfied by
+    provides(); it must still warn."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
@@ -758,9 +755,8 @@ def test_versionless_url_ish_dependency_name_warns_cleanly(
 def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A bare dependency name satisfied by a component requested under an
-    owner-qualified spec (manifest names match) is not a drop; a nameless
-    entry is skipped without a reconciliation warning."""
+    """A bare name satisfied by an owner-qualified component's manifest
+    name is not a drop."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,

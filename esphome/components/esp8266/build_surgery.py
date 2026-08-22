@@ -84,8 +84,6 @@ def apply_testing_memory_patches(content: str, segments: Collection[str]) -> str
     """
     for segment in _TESTING_SEGMENT_SIZES:
         if segment not in segments and _segment_line_re(segment).search(content):
-            # A known segment left unpatched would keep its real memory limit
-            # and silently under-provision the testing build
             raise RuntimeError(
                 f"Testing-mode segment {segment} is present in the linker "
                 "script but was not selected for patching"
@@ -111,12 +109,8 @@ def segment_length(content: str, segment_name: str) -> int | None:
 
 
 def surgery_fingerprint() -> str:
-    """Fingerprint of this module's source, covering every behavioral input.
-
-    Linker-script caches include it so an edit here invalidates them; hashing
-    the source over-invalidates on comment edits, which is the safe direction.
-    Native-toolchain-only, like ``segment_length``; no script twin.
-    """
+    """Hash of this module's source; linker-script caches include it so an
+    edit here invalidates them."""
     import inspect
     import sys
 
