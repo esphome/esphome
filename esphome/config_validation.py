@@ -2540,12 +2540,8 @@ def platformio_version_constraint(value):
 def _check_supported_toolchain(
     platform_name: str, supported: tuple[Toolchain, ...]
 ) -> None:
-    """Raise when the resolved ``CORE.toolchain`` is not in ``supported``.
-
-    One message shape for every platform, so a ``--toolchain`` a platform
-    cannot serve always fails by name instead of silently building with a
-    different backend.
-    """
+    """Raise when the resolved ``CORE.toolchain`` is not in ``supported``
+    (one message shape for every platform)."""
     toolchain = CORE.toolchain
     if toolchain is None:
         # A caller ran the check before resolving; an ordering bug, not a
@@ -2591,14 +2587,8 @@ def resolve_toolchain(
 def require_platformio_toolchain(
     platform_name: str,
 ) -> Callable[[ConfigType], ConfigType]:
-    """Reject a CLI-selected toolchain other than PlatformIO.
-
-    For platforms with only the PlatformIO backend. Without this a
-    ``--toolchain`` they cannot serve would either build with PlatformIO
-    while claiming another backend, or (for a toolchain another platform
-    owns, like ``esp-idf``) dispatch to a native backend that cannot
-    build this platform at all.
-    """
+    """Reject a CLI-selected toolchain other than PlatformIO, for platforms
+    with only the PlatformIO backend."""
     return resolve_toolchain(
         platform_name, (Toolchain.PLATFORMIO,), Toolchain.PLATFORMIO
     )

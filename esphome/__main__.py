@@ -2734,12 +2734,8 @@ def run_esphome(argv):
     cache_write_eligible = (
         args.command in ("upload", "logs") and not command_line_substitutions
     )
-    # An explicit CLI toolchain must run the per-platform validators; the
-    # cache was validated under whatever the last compile used. Only the
-    # read is gated: the refresh below still saves the freshly validated
-    # config. The sidecar is only written when none exists; a
-    # compile-written one keeps the compile's toolchain (the firmware on
-    # disk was built by it), which upload/logs then restore.
+    # An explicit --toolchain must re-run the per-platform validators, so
+    # gate only the cache read; the refresh below still saves the result.
     cache_read_eligible = cache_write_eligible and args.toolchain is None
     if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
@@ -2765,11 +2761,8 @@ def run_esphome(argv):
             return 2
     CORE.config = config
 
-    # Every platform resolves the toolchain during validation now, but the
-    # compiled-config cache fast path skips validation entirely and a
-    # sidecar written before the toolchain field existed restores nothing;
-    # this fallback covers that path. Must run before the cache refresh
-    # below so its sidecar records the same toolchain a compile would.
+    # The cache fast path skips validation, and legacy sidecars lack the
+    # toolchain field. Must run before the cache refresh below.
     if CORE.toolchain is None:
         CORE.toolchain = Toolchain.PLATFORMIO
 

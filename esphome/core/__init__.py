@@ -985,12 +985,8 @@ class EsphomeCore:
 
     @property
     def using_toolchain_arduino(self):
-        """The native (PlatformIO-free) ESP8266 Arduino build backend.
-
-        Unlike ``using_arduino`` (the target *framework*, true for any
-        platform compiling Arduino code), this is a build *toolchain*
-        choice, like its ``using_toolchain_*`` siblings.
-        """
+        """The native ESP8266 Arduino build toolchain (unlike
+        ``using_arduino``, which is the target framework)."""
         return self.toolchain == Toolchain.ARDUINO
 
     @property
