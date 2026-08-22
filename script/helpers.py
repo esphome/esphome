@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 from collections.abc import Callable
 from dataclasses import dataclass, field
-import functools
 from functools import cache
 import hashlib
 import json
@@ -1249,7 +1248,6 @@ def get_components_graph_cache_key() -> str:
     return hasher.hexdigest()
 
 
-@functools.cache
 def create_components_graph() -> dict[str, list[str]]:
     """Create a graph of component dependencies (cached).
 
