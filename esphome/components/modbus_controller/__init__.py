@@ -193,14 +193,14 @@ def validate_modbus_register(config):
     return config
 
 
-def migrate_custom_command(config: ConfigType) -> ConfigType:
+def migrate_custom_command(config: ConfigType) -> None:
     """Final-validate: auto-migrate the deprecated custom_command (raw frame incl. device address)
     to custom_pdu (PDU only). custom_pdu is always sent to the controller's own address, so a frame
     whose address byte does not match the controller's address is a hard error (it targeted a
-    different unit)."""
+    different unit). Mutates config in place; final validate discards the return value."""
     frame = config.get(CONF_CUSTOM_COMMAND)
     if frame is None:
-        return config
+        return
     fconf = fv.full_config.get()
     path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
     controller = fconf.get_config_for_path(path)
@@ -220,11 +220,8 @@ def migrate_custom_command(config: ConfigType) -> ConfigType:
         "auto-migrated to 'custom_pdu' (dropped the leading device address byte). Rename the key "
         "and drop that byte to silence this warning."
     )
-    # Mutate the live config in place: final validate discards the return value, so a copy would be
-    # lost and to_code would never see custom_pdu.
     config[CONF_CUSTOM_PDU] = list(frame[1:])
     del config[CONF_CUSTOM_COMMAND]
-    return config
 
 
 def _final_validate(config: ConfigType) -> None:
