@@ -6,7 +6,9 @@ library builds its own archive; all include dirs join one global path.
 
 Deviations from PlatformIO: flat-layout libraries get the recursive default
 source filter; ``dot_a_linkage`` is honored; bundled libraries never run a
-manifest ``extraScript``; manifest ``-I`` flags join the global include path.
+manifest ``extraScript``; manifest ``-I`` flags join the global include path;
+``precompiled``/``ldflags`` properties are not honored (a warning names the
+library).
 """
 
 from __future__ import annotations
@@ -36,6 +38,7 @@ from esphome.platformio.library import (
     normalize_dependencies,
     parse_library_json,
     parse_library_properties,
+    warn_properties_depends,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,21 +75,6 @@ def _is_safe_library_name(name: object) -> bool:
     )
 
 
-def _warn_properties_depends(name: str, data: object) -> None:
-    """Warn when a manifest declares dependencies only as ``depends=``.
-
-    The dependency walk reads the JSON ``dependencies`` key; the raw
-    ``library.properties`` spelling would otherwise drop silently.
-    """
-    if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
-        _LOGGER.warning(
-            "Library %s declares dependencies via library.properties "
-            "depends=, which are not resolved automatically; add them with "
-            "add_library() if needed",
-            name,
-        )
-
-
 def _manifest_build(name: str, data: object) -> dict:
     """The manifest's ``build`` section; a malformed manifest must fail
     naming the library, not with an AttributeError."""
@@ -114,6 +102,15 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     else:
         src_dir = next((d for d in ("src", "Src") if (read_path / d).is_dir()), ".")
 
+    for dropped_key in ("precompiled", "ldflags"):
+        if data.get(dropped_key):
+            # PIO's Arduino lib builder honors these; building without them
+            # would fail far away at link with no stated cause
+            _LOGGER.warning(
+                "Library %s declares %s, which this backend does not honor",
+                name,
+                dropped_key,
+            )
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
     if not all(isinstance(entry, str) for entry in src_filter):
         raise EsphomeError(f"Library {name} has a malformed srcFilter")
@@ -170,24 +167,38 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         if (path := (read_path / d)).is_dir():
             lib.include_dirs.append(path.resolve())
         elif explicit:
-            # The includeDir/srcDir defaults are probes; an explicitly
-            # declared path that does not resolve is a manifest error
+            # Warn-and-drop is intended (unlike srcDir, which raises): a
+            # missing include dir is harmless until a header is actually
+            # needed, and the compile names it then
             _LOGGER.warning(
                 "Library %s declares include dir %s which does not exist", name, d
             )
 
+    matched = collect_filtered_files(read_path / src_dir, src_filter)
     lib.sources = sorted(
         path.resolve()
-        for f in collect_filtered_files(read_path / src_dir, src_filter)
+        for f in matched
         if (path := Path(f)).suffix in SRC_FILE_EXTENSIONS
     )
-    if not lib.sources and ("srcFilter" in build or "srcDir" in build):
-        # A default probe finding nothing is a header-only library; a
-        # declared filter matching nothing is a manifest/tree problem.
-        _LOGGER.warning(
-            "Library %s declares srcFilter/srcDir but no source files matched",
-            name,
+    if skipped := [f for f in matched if Path(f).suffix not in SRC_FILE_EXTENSIONS]:
+        _LOGGER.debug(
+            "Library %s: %d matched files are not sources", name, len(skipped)
         )
+    if not lib.sources:
+        if matched:
+            # Every matched file fell through the suffix map: an empty
+            # archive would fail far away at link
+            _LOGGER.warning(
+                "Library %s: no matched file has a recognized source suffix",
+                name,
+            )
+        elif "srcFilter" in build or "srcDir" in build:
+            # A default probe finding nothing is a header-only library; a
+            # declared filter matching nothing is a manifest/tree problem.
+            _LOGGER.warning(
+                "Library %s declares srcFilter/srcDir but no source files matched",
+                name,
+            )
     return lib
 
 
@@ -213,7 +224,7 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
                 "resolved automatically; add them with add_library() if needed",
                 name,
             )
-        _warn_properties_depends(name, data)
+        warn_properties_depends(name, data)
         build = data.get("build")
         if isinstance(build, dict) and build.get("extraScript"):
             # apply_extra_script only runs on the converted path; a bundled
@@ -302,7 +313,6 @@ def resolve_libraries(
         # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
         # is a core-bundled library; the shared converter skips it because
         # it cannot be resolved from the registry.
-        _warn_properties_depends(component.name, component.data)
         for dep in normalize_dependencies(
             component.data.get("dependencies"), component.name
         ):
