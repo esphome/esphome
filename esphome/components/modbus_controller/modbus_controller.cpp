@@ -218,7 +218,7 @@ void ModbusController::update() {
     for (auto &cmd : this->polling_command_items_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-      if (!cmd.send())
+      if (!cmd.send(this->read_options_))
         ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
     }
   }
@@ -495,16 +495,18 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
-bool ModbusCommandItem::send() {
+bool ModbusCommandItem::send(modbus::CommandOptions options) {
+  // Options pass straight through to the hub
   bool accepted;
   if (this->custom_pdu_ != nullptr) {
     // Custom polling command: send the sensor's ready-made PDU (function code + data, no address byte)
     // to this controller's own device address; the hub prepends the address and appends the CRC.
-    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_));
+    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
   } else if (this->function_code_ != FunctionCode::CUSTOM) {
     accepted = this->queue_pdu(modbus::helpers::create_client_pdu(
-        this->function_code_, this->start_address_, this->register_count_,
-        this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()));
+                                   this->function_code_, this->start_address_, this->register_count_,
+                                   this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()),
+                               options);
   } else {
     // Factory custom command: payload holds a complete raw frame (address + PDU). Send the PDU to the
     // frame's own address (which may differ from this controller's); the hub appends the CRC and routes
@@ -514,7 +516,7 @@ bool ModbusCommandItem::send() {
       ESP_LOGW(TAG, "Empty custom command frame, not sent");
       accepted = false;
     } else {
-      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this, options);
     }
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.

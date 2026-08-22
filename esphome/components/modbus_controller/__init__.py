@@ -125,6 +125,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            **modbus.command_options_schema(direction="read"),
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.invalid(
@@ -314,6 +315,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
+    cg.add(
+        var.set_read_options(
+            modbus.command_options_expression(config, direction="read")
+        )
+    )
     await register_modbus_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

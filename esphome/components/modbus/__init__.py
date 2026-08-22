@@ -45,6 +45,7 @@ ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
+CommandOptions = modbus_ns.struct("CommandOptions")
 MULTI_CONF = True
 
 CONF_ROLE = "role"
@@ -96,6 +97,25 @@ def command_options_schema(
         )
         for option in _command_options(direction)
     }
+
+
+def command_options_expression(
+    config: ConfigType, *, direction: Literal["read", "write"]
+) -> cg.StructInitializer:
+    """Build the modbus::CommandOptions initializer for a config validated with
+    command_options_schema() of the same direction. For static (non-templatable) options only;
+    actions with lambda values use register_templatable_command_options() instead.
+    """
+    return cg.StructInitializer(
+        CommandOptions,
+        *(
+            (field, config[conf_key])
+            for conf_key, field, _validator, _cpp_type, _default in _command_options(
+                direction
+            )
+            if conf_key in config
+        ),
+    )
 
 
 async def register_templatable_command_options(
