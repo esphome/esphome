@@ -257,7 +257,7 @@ ENCRYPTION_SCHEMA = cv.Schema(
 )
 
 
-def _encryption_schema(config: ConfigType) -> ConfigType:
+def _encryption_schema(config: ConfigType | None) -> ConfigType:
     if config is None:
         config = {}
     return ENCRYPTION_SCHEMA(config)
