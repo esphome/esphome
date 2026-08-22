@@ -18,10 +18,16 @@ CONF_MK2PVROUTER_ID = "mk2pvrouter_id"
 
 DOMAIN = "mk2pvrouter"
 
+# Tags are copied into a fixed-size buffer (MAX_TAG_SIZE = 8 in mk2pvrouter.h),
+# which needs room for a trailing null terminator.
+MAX_TAG_LEN = 7
+
 MK2PVROUTER_LISTENER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MK2PVROUTER_ID): cv.use_id(Mk2PVRouter),
-        cv.Required(CONF_TAG): cv.All(cv.string, lambda x: x.upper()),
+        cv.Required(CONF_TAG): cv.All(
+            cv.string_strict, cv.Length(min=1, max=MAX_TAG_LEN), lambda x: x.upper()
+        ),
     }
 )
 
