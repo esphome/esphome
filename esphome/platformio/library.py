@@ -900,8 +900,8 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
 _DOWNLOAD_WORKERS = 4
 
 
-def _content_lengths(urls: list[str]) -> list[int]:
-    """Content-Length per URL via HEAD requests; 0 for any that fail."""
+def _content_lengths(urls: list[str]) -> list[int | None]:
+    """Content-Length per URL via HEAD requests; None when unknown."""
     import requests
 
     def head(url: str) -> int | None:
