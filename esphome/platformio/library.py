@@ -628,13 +628,15 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     return out
 
 
-def normalize_dependencies(dependencies: Any, owner: str = "manifest") -> list[dict]:
+def normalize_dependencies(
+    dependencies: Any, manifest_name: str = "manifest"
+) -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
     PIO's library.json accepts the list-of-dicts form, the shorthand dict
     form (``{"owner/Name": "version_spec"}``), bare name strings inside the
     list, and a plain (possibly comma-separated) string; normalize them all
-    so callers see a uniform list. ``owner`` names the manifest in the
+    so callers see a uniform list. ``manifest_name`` names the manifest in the
     warning for entries that cannot be normalized.
     """
     if not dependencies:
@@ -668,7 +670,9 @@ def normalize_dependencies(dependencies: Any, owner: str = "manifest") -> list[d
             normalized.append({"name": entry})
         else:
             _LOGGER.warning(
-                "Ignoring unrecognized dependency entry %r of %s", entry, owner
+                "Ignoring unrecognized dependency entry %r of %s",
+                entry,
+                manifest_name,
             )
     return normalized
 
@@ -987,18 +991,41 @@ def convert_libraries(
             component.data.get("dependencies"), component.name
         ):
             if "name" not in dependency or "version" not in dependency:
-                # Version-less deps cannot resolve from the registry; the
-                # arduino backend picks bundled ones up after emit
-                _LOGGER.debug(
-                    "Skip version-less dependency %r of %s",
-                    dependency.get("name"),
-                    component.name,
-                )
+                if backend.provides is None:
+                    # No backend tree can supply it and the registry cannot
+                    # resolve it: a real drop, not a routine skip
+                    _LOGGER.warning(
+                        "Dependency %r of %s has no version to resolve; skipping",
+                        dependency.get("name"),
+                        component.name,
+                    )
+                else:
+                    # The backend (e.g. the arduino bundled tree) picks
+                    # these up after emit
+                    _LOGGER.debug(
+                        "Skip version-less dependency %r of %s",
+                        dependency.get("name"),
+                        component.name,
+                    )
                 continue
             try:
                 check_library_data(dependency, backend.platform, backend.framework)
             except InvalidLibrary as e:
-                _LOGGER.debug("Skip dependency %s: %s", dependency.get("name"), str(e))
+                if isinstance(e, IncompatiblePlatform):
+                    # Routine cross-platform skip
+                    _LOGGER.debug(
+                        "Skip dependency %s: %s", dependency.get("name"), str(e)
+                    )
+                else:
+                    # Any other cause is a dropped dependency and must be
+                    # visible (unreachable from check_library_data today,
+                    # which raises only for the platform filter)
+                    _LOGGER.warning(
+                        "Skipping dependency %s of %s: %s",
+                        dependency.get("name"),
+                        component.name,
+                        e,
+                    )
                 continue
             dep_name = _owner_pkgname_to_name(
                 dependency.get("owner"), dependency.get("name")

@@ -760,7 +760,7 @@ def test_bundled_library_non_dict_manifest_skips_probes_and_raises(
 
 
 def test_dict_shorthand_dependency_skips_registry_through_real_converter(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """{"Wire": "*"} in a real manifest must never reach the registry: the
     graph walk skips backend-provided names and the bundled copy is added
@@ -777,9 +777,9 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     # as_uri() forms a valid file:// URL on every platform (file:///C:/...
     # on Windows; a bare f-string would embed backslashes)
     _add_library(local_lib.as_uri(), None)
-    # The real converter writes its component cache under the config dir
-    CORE.config_path = tmp_path / "test.yaml"
-    CORE.config_path.write_text("")
+    # Pin the component cache to tmp_path (data_dir honors an ambient
+    # ESPHOME_DATA_DIR otherwise)
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
     with patch.object(
         pio_library,
         "_resolve_registry_version",
@@ -891,7 +891,9 @@ def test_bundled_dependency_string_list_form(
 
 
 def test_pinned_bundled_dependency_substitution_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A non-* version pin on a backend-provided dependency is discarded
     for the bundled copy; the substitution must be visible."""

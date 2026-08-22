@@ -300,7 +300,9 @@ def resolve_libraries(
                 "with add_library() if needed",
                 component.name,
             )
-        for dep in normalize_dependencies(component.data.get("dependencies")):
+        for dep in normalize_dependencies(
+            component.data.get("dependencies"), component.name
+        ):
             name = dep.get("name")
             if (
                 not name
