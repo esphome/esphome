@@ -8,14 +8,21 @@ static const char *const TAG = "pzemac";
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
+// Installation sanity limits, expressed in raw register units.
+// Voltage headroom allows recording an open-neutral fault in a 230/400 V system.
+static const uint16_t PZEM_MAX_VOLTAGE = 4500;         // 450.0 V
+static const uint32_t PZEM_MAX_CURRENT = 100000;       // 100.000 A
+static const uint32_t PZEM_MAX_ACTIVE_POWER = 450000;  // 45.0 kW at 450 V / 100 A
+static const uint16_t PZEM_MIN_FREQUENCY = 450;        // 45.0 Hz
+static const uint16_t PZEM_MAX_FREQUENCY = 650;        // 65.0 Hz
+static const uint16_t PZEM_MAX_POWER_FACTOR = 100;     // 1.00
+
 void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < 20) {
     ESP_LOGW(TAG, "Invalid size for PZEM AC!");
     return;
   }
-
-  this->last_update_time_ = millis();
 
   // See https://github.com/esphome/feature-requests/issues/49#issuecomment-538636809
   //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
@@ -31,95 +38,51 @@ void PZEMAC::on_response(std::span<const uint8_t> request_pdu, std::span<const u
   };
 
   uint16_t raw_voltage = pzem_get_16bit(0);
-  float voltage = raw_voltage / 10.0f;  // max 6553.5 V
-
   uint32_t raw_current = pzem_get_32bit(2);
-  float current = raw_current / 1000.0f;  // max 4294967.295 A
-
   uint32_t raw_active_power = pzem_get_32bit(6);
-  float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
-
-  float active_energy = static_cast<float>(pzem_get_32bit(10));
-
+  uint32_t raw_active_energy = pzem_get_32bit(10);
   uint16_t raw_frequency = pzem_get_16bit(14);
-  float frequency = raw_frequency / 10.0f;
-
   uint16_t raw_power_factor = pzem_get_16bit(16);
+  uint16_t raw_alarm = pzem_get_16bit(18);
+
+  // The meter can return a CRC-valid but nonsensical frame while powering up.
+  // Reject the whole frame so no sensor receives a mixture of fresh and stale data.
+  if (raw_voltage > PZEM_MAX_VOLTAGE || raw_current > PZEM_MAX_CURRENT || raw_active_power > PZEM_MAX_ACTIVE_POWER ||
+      raw_frequency < PZEM_MIN_FREQUENCY || raw_frequency > PZEM_MAX_FREQUENCY ||
+      raw_power_factor > PZEM_MAX_POWER_FACTOR || (raw_alarm != 0 && raw_alarm != 0xFFFF)) {
+    ESP_LOGW(TAG, "Ignoring implausible PZEM AC response");
+    return;
+  }
+
+  float voltage = raw_voltage / 10.0f;            // max 6553.5 V
+  float current = raw_current / 1000.0f;          // max 4294967.295 A
+  float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
+  float active_energy = static_cast<float>(raw_active_energy);
+  float frequency = raw_frequency / 10.0f;
   float power_factor = raw_power_factor / 100.0f;
 
-  ESP_LOGD(TAG,
-           "PZEM AC: Addr 0x%02X, V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, E(pre)=%.1f Wh, E-E(pre)=%.1f Wh, F=%.1f "
-           "Hz, PF=%.2f",
-           int(this->address_), voltage, current, active_power, active_energy, this->last_energy_sensor_,
-           active_energy - this->last_energy_sensor_, frequency, power_factor);
-  if (this->voltage_sensor_ != nullptr) {
-    if (voltage < 450) {
-      this->voltage_sensor_->publish_state(voltage);
-    }
-  }
-  if (this->current_sensor_ != nullptr) {
-    if (current < 150) {
-      this->current_sensor_->publish_state(current);
-    }
-  }
-  if (this->power_sensor_ != nullptr) {
-    if (active_power < 16000) {
-      this->power_sensor_->publish_state(active_power);
-    }
-  }
-  if (this->energy_sensor_ != nullptr) {
-    if (this->last_energy_sensor_ == 0) {
-      this->energy_sensor_->publish_state(active_energy);
-      this->last_energy_sensor_ = active_energy;
-    } else {
-      if (abs(active_energy - this->last_energy_sensor_) < 1000) {
-        this->energy_sensor_->publish_state(active_energy);
-        this->last_energy_sensor_ = active_energy;
-      } else {
-        this->energy_sensor_->publish_state(this->last_energy_sensor_);
-      }
-    }
-  }
-  if (this->frequency_sensor_ != nullptr) {
-    if (frequency < 200) {
-      this->frequency_sensor_->publish_state(frequency);
-    }
-  }
-  if (this->power_factor_sensor_ != nullptr) {
+  ESP_LOGD(TAG, "PZEM AC: Addr 0x%02X, V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", this->address_,
+           voltage, current, active_power, active_energy, frequency, power_factor);
+  if (this->voltage_sensor_ != nullptr)
+    this->voltage_sensor_->publish_state(voltage);
+  if (this->current_sensor_ != nullptr)
+    this->current_sensor_->publish_state(current);
+  if (this->power_sensor_ != nullptr)
+    this->power_sensor_->publish_state(active_power);
+  if (this->energy_sensor_ != nullptr)
+    this->energy_sensor_->publish_state(active_energy);
+  if (this->frequency_sensor_ != nullptr)
+    this->frequency_sensor_->publish_state(frequency);
+  if (this->power_factor_sensor_ != nullptr)
     this->power_factor_sensor_->publish_state(power_factor);
-  }
 }
 
-void PZEMAC::update() {
-  this->read_input_registers(0, PZEM_REGISTER_COUNT);
-
-  if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
-      (millis() - this->last_update_time_) > this->get_update_interval() * 2) {
-    ESP_LOGE(TAG, "PZEM AC Addr 0x%02X: Timeout!!!", int(this->address_));
-    if (this->voltage_sensor_ != nullptr) {
-      this->voltage_sensor_->publish_state(0.0f);
-    }
-    if (this->current_sensor_ != nullptr) {
-      this->current_sensor_->publish_state(0.0f);
-    }
-    if (this->power_sensor_ != nullptr) {
-      this->power_sensor_->publish_state(0.0f);
-    }
-    if (this->energy_sensor_ != nullptr) {
-      this->energy_sensor_->publish_state(this->last_energy_sensor_);
-    }
-    if (this->frequency_sensor_ != nullptr) {
-      this->frequency_sensor_->publish_state(0.0f);
-    }
-    if (this->power_factor_sensor_ != nullptr) {
-      this->power_factor_sensor_->publish_state(0.0f);
-    }
-  }
-}
-
+void PZEMAC::update() { this->read_input_registers(0, PZEM_REGISTER_COUNT); }
 void PZEMAC::dump_config() {
-  ESP_LOGCONFIG(TAG, "PZEMAC:");
-  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  ESP_LOGCONFIG(TAG,
+                "PZEMAC:\n"
+                "  Address: 0x%02X",
+                this->address_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
