@@ -666,6 +666,40 @@ def test_convert_libraries_malformed_manifest_raises(
         convert_libraries([Library("esphome/A", None, None)], _backend())
 
 
+def test_walk_warns_for_properties_only_depends(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A manifest declaring dependencies only as library.properties depends=
+    warns in the shared walk, so every backend reports the drop."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": "name=A\nversion=1.0\ndepends=Wire, SPI\n"},
+        properties=("esphome/A",),
+    )
+    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+    assert "declares dependencies via library.properties" in caplog.text
+
+
+def test_versionless_platform_filtered_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less dependency the platform filter excludes is
+    deliberately absent, not a drop to warn about."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "Hash", "platforms": "espressif8266"}],
+            }
+        },
+    )
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "has no version to resolve" not in caplog.text
+
+
 def test_versionless_ignored_dependency_stays_quiet(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:

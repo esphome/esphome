@@ -6,6 +6,9 @@ started esphome and must not depend on the package being importable.
 Subcommands:
     ar <ar-binary> <archive> <rspfile>   remove stale archive, then ``ar rc``
     copy <src> <dst>                     copy a file
+
+The ar rspfile carries one object path per line (the generating rule must
+use ``$in_newline``, never ``$in``).
 """
 
 from pathlib import Path
@@ -24,8 +27,10 @@ def main() -> int:
         # GNU ar treats backslashes in response files as escapes (corrupts
         # Windows paths), so expand the rspfile into argv, stripping the
         # simple surrounding quote ninja adds to special paths.
+        # After stripping the outer pair, undo ninja's POSIX escape for an
+        # embedded quote ('a'\''b.o' -> a'b.o)
         objects = [
-            line[1:-1]
+            line[1:-1].replace("'\\''", "'")
             if len(line) >= 2 and line[0] == line[-1] and line[0] in "'\""
             else line
             for line in Path(rspfile).read_text(encoding="utf-8").splitlines()
