@@ -1,5 +1,13 @@
 """Tests for the deep sleep component."""
 
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components import deep_sleep
+from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
+
+from ..types import SetCoreConfigCallable
+
 
 def test_deep_sleep_setup(generate_main):
     """
@@ -96,3 +104,30 @@ def test_deep_sleep_esp32_nested_wakeup_pin_mode(generate_main):
     assert "deepsleep->set_wakeup_pin(" in main_cpp
     assert "deepsleep->set_wakeup_pin_mode(" in main_cpp
     assert "WAKEUP_PIN_MODE_KEEP_AWAKE" in main_cpp
+
+
+def test_deep_sleep_esp32_wakeup_pin_mode_at_both_levels_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On ESP32, wakeup_pin_mode at the top level and under the pin entry is an error."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = {
+        CONF_WAKEUP_PIN: [
+            {"pin": "GPIO12", deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+        ],
+        deep_sleep.CONF_WAKEUP_PIN_MODE: "INVERT_WAKEUP",
+    }
+    with pytest.raises(cv.Invalid, match="not both"):
+        deep_sleep.validate_config(config)
+
+
+def test_deep_sleep_nested_wakeup_pin_mode_not_hoisted_off_esp32(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Only ESP32 has a top-level wakeup_pin_mode, so nothing is hoisted elsewhere."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    pin_entry = {"pin": "GPIO12", deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+    config = {CONF_WAKEUP_PIN: [pin_entry]}
+    deep_sleep.validate_config(config)
+    assert deep_sleep.CONF_WAKEUP_PIN_MODE not in config
+    assert pin_entry[deep_sleep.CONF_WAKEUP_PIN_MODE] == "KEEP_AWAKE"
