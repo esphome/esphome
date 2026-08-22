@@ -655,7 +655,10 @@ bool USBUartTypeCH934X::parse_descriptors_(usb_device_handle_t dev_hdl) {
 }
 
 void USBUartTypeCH934X::start_rx_reader_() {
-  if (this->rx_running_.load())
+  // Called from both the main loop (start_input on every read_array) and the USB task (the
+  // success callback re-arming), so the running guard must be atomic to avoid a double submit.
+  bool expected = false;
+  if (!this->rx_running_.compare_exchange_strong(expected, true))
     return;
 
   const auto *ep = this->uart_host_dev_.in_ep;
@@ -672,7 +675,6 @@ void USBUartTypeCH934X::start_rx_reader_() {
     this->start_rx_reader_();
   };
 
-  this->rx_running_.store(true);
   if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
     ESP_LOGW(TAG, "Failed to submit RX transfer");
     this->rx_running_.store(false);
@@ -718,7 +720,9 @@ void USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
 }
 
 void USBUartTypeCH934X::start_command_reader_() {
-  if (this->cmd_running_.load())
+  // Re-armed from both the main loop and the USB task (see start_rx_reader_); atomic guard.
+  bool expected = false;
+  if (!this->cmd_running_.compare_exchange_strong(expected, true))
     return;
 
   const auto *ep = this->uart_host_dev_.ep_cmd_read;
@@ -735,7 +739,6 @@ void USBUartTypeCH934X::start_command_reader_() {
     this->start_command_reader_();
   };
 
-  this->cmd_running_.store(true);
   if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
     ESP_LOGW(TAG, "Failed to submit CMD transfer");
     this->cmd_running_.store(false);
