@@ -77,6 +77,12 @@ extern struct bd_addr common_default_bdaddr;
 // ble_entry() brings up the BDK BLE stack; it is not declared in ble_api.h, so
 // declare it here.
 void ble_entry(void);
+
+// Flash-partition API used to validate the BLE bonding partition before the
+// BDK bond store can erase it — see the bootloader-erase guard in enable()
+// (esphome#18646). Provides bk_flash_get_info(), bk_logic_partition_t and the
+// BK_PARTITION_* enum, including BK_PARTITION_BLE_BONDING_FLASH.
+#include "BkDriverFlash.h"
 }
 
 namespace esphome::bk72xx_ble {
@@ -156,6 +162,29 @@ void BK72xxBLE::enable() {
   if (this->state_ != BLEComponentState::STATE_OFF)
     return;
   this->state_ = BLEComponentState::ENABLING;
+
+  // Guard against a BDK bond-store path that can permanently brick the device
+  // (esphome#18646). The BDK's bond init (app_sec.c) erases the flash sector at
+  // BK_PARTITION_BLE_BONDING_FLASH's start address on first boot, when the
+  // stored bond CRC fails against blank flash. bk_flash_get_info() returns a
+  // non-NULL pointer even for a partition the active flash-type table never
+  // populated, so on such a layout partition_start_addr reads back 0 and the
+  // erase destroys flash sector 0 — the bootloader — leaving the device
+  // unbootable, also via OTA, with safe mode unable to run. Refuse to bring up
+  // BLE unless the bonding partition sits above the application partition.
+  const bk_logic_partition_t *bond = bk_flash_get_info(BK_PARTITION_BLE_BONDING_FLASH);
+  const bk_logic_partition_t *app = bk_flash_get_info(BK_PARTITION_APPLICATION);
+  const uint32_t app_end = app != nullptr ? app->partition_start_addr + app->partition_length : 0;
+  if (bond == nullptr || bond->partition_length == 0 || bond->partition_start_addr < app_end) {
+    ESP_LOGE(TAG,
+             "BLE bonding partition invalid (start=0x%06lX len=0x%lX); refusing BLE init to avoid erasing the "
+             "bootloader on this flash layout",
+             static_cast<unsigned long>(bond != nullptr ? bond->partition_start_addr : 0),
+             static_cast<unsigned long>(bond != nullptr ? bond->partition_length : 0));
+    this->mark_failed();
+    this->state_ = BLEComponentState::STATE_OFF;
+    return;
+  }
 
   // One-time BLE stack init: register the notice callback, then bring up the
   // BDK BLE stack. The BDK has no teardown path — init happens at most once.
