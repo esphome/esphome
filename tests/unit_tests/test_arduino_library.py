@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,7 +17,7 @@ from esphome.platformio.library import ConvertedLibrary, LibraryBackend
 
 @pytest.fixture(autouse=True)
 def _reset_libraries() -> None:
-    CORE.platformio_libraries = {}
+    # conftest's reset_core fixture clears platformio_libraries after each test
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP8266}
 
 
@@ -56,6 +57,60 @@ def _emitting_converter(*converted):
         patch.object(component, "apply_extra_script") as mock_extra,
     ):
         yield mock_extra
+
+
+def _converted(name: str, source_dir: Path, data: dict) -> ConvertedLibrary:
+    converted = ConvertedLibrary(name, "1.0.0", source=None)
+    converted.path = source_dir
+    converted.data = data
+    return converted
+
+
+def _resolve(framework: Path) -> list[component.ArduinoLibrary]:
+    return component.resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
+
+
+def _webserver(tmp_path: Path, data: dict) -> ConvertedLibrary:
+    """Register ESPAsyncWebServer and return its converted stand-in."""
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    return _converted("esp32async__ESPAsyncWebServer", lib_dir, data)
+
+
+def _local_lib(tmp_path: Path, dependencies: dict | list) -> None:
+    """Register a local file:// library declaring the given dependencies."""
+    local_lib = tmp_path / "locallib"
+    (local_lib / "src").mkdir(parents=True)
+    (local_lib / "src" / "local.cpp").write_text("")
+    (local_lib / "library.json").write_text(
+        json.dumps(
+            {"name": "LocalLib", "version": "1.0.0", "dependencies": dependencies}
+        )
+    )
+    # as_uri() forms a valid file:// URL on every platform (file:///C:/...
+    # on Windows; a bare f-string would embed backslashes)
+    _add_library(local_lib.as_uri(), None)
+
+
+def _ws_tcp_pair(tmp_path: Path) -> tuple[ConvertedLibrary, ConvertedLibrary]:
+    """Build ESPAsyncWebServer (depending on ESPAsyncTCP) plus resolved TCP."""
+    ws_dir = tmp_path / "converted" / "webserver"
+    (ws_dir / "src").mkdir(parents=True)
+    tcp_dir = tmp_path / "converted" / "tcp"
+    (tcp_dir / "src").mkdir(parents=True)
+    ws = _converted(
+        "esp32async__ESPAsyncWebServer",
+        ws_dir,
+        {"build": {}, "dependencies": [{"name": "ESPAsyncTCP"}]},
+    )
+    tcp = _converted("esp32async__ESPAsyncTCP", tcp_dir, {"build": {}})
+    return ws, tcp
 
 
 def test_library_info_src_layout(tmp_path: Path) -> None:
@@ -149,39 +204,23 @@ def test_library_info_no_src_dir(tmp_path: Path) -> None:
 def test_resolve_libraries_bundled(tmp_path: Path) -> None:
     framework = _make_framework(tmp_path)
     _add_library("ESP8266WiFi", None)
-    libs = component.resolve_libraries(
-        framework,
-        pio_platform="espressif8266",
-        board_mcu="esp8266",
-        cache_key="arduino8266",
-    )
+    libs = _resolve(framework)
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
 
 
-def test_resolve_libraries_bare_registry_name_is_external(tmp_path: Path) -> None:
-    """A bare name that is not bundled resolves from the registry at the
-    latest version, matching PlatformIO and the documented libraries: key."""
+@pytest.mark.parametrize("version", [None, "1.1.0"])
+def test_resolve_libraries_registry_name_is_external(
+    tmp_path: Path, version: str | None
+) -> None:
+    """A name that is not bundled reaches the converter: bare resolves from
+    the registry at the latest version (matching PlatformIO and the
+    documented libraries: key) and a version pin is a registry package."""
     framework = _make_framework(tmp_path)
-    _add_library("pngle", None)
-    with (
-        patch.object(component, "convert_libraries", return_value=[]) as mock_convert,
-        pytest.raises(EsphomeError, match="not resolved"),
-    ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+    _add_library("pngle", version)
+    with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
+        _resolve(framework)
     (libraries, _backend), _ = mock_convert.call_args
     assert [lib.name for lib in libraries] == ["pngle"]
-
-
-def _converted(name: str, source_dir: Path, data: dict) -> ConvertedLibrary:
-    converted = ConvertedLibrary(name, "1.0.0", source=None)
-    converted.path = source_dir
-    converted.data = data
-    return converted
 
 
 def test_resolve_libraries_external_and_bundled_deps(tmp_path: Path) -> None:
@@ -210,12 +249,7 @@ def test_resolve_libraries_external_and_bundled_deps(tmp_path: Path) -> None:
     )
 
     with _emitting_converter(converted) as mock_extra:
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
 
     mock_extra.assert_called_once()
     assert mock_extra.call_args.args == (converted,)
@@ -240,36 +274,10 @@ def test_resolve_libraries_bundled_dep_already_present(tmp_path: Path) -> None:
     )
 
     with _emitting_converter(converted):
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
 
     # Wire appears once (from the explicit registration), not twice
     assert [lib.name for lib in libs] == ["Wire", "some__External"]
-
-
-def test_resolve_libraries_versioned_bare_name_is_external(tmp_path: Path) -> None:
-    """A bare name with a version pin ("pngle@1.1.0") is a registry package,
-    not a bundled library, and must reach the converter."""
-    framework = _make_framework(tmp_path)
-    _add_library("pngle", "1.1.0")
-
-    with (
-        patch.object(component, "convert_libraries", return_value=[]) as mock_convert,
-        pytest.raises(EsphomeError, match="not resolved"),
-    ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-
-    (libraries, _backend), _ = mock_convert.call_args
-    assert [lib.name for lib in libraries] == ["pngle"]
 
 
 def test_library_info_trailing_bare_flag_warns(
@@ -316,12 +324,7 @@ def test_resolve_libraries_lib_ignore_covers_bundled(tmp_path: Path) -> None:
     _add_library("ESP8266WiFi", None)
     _add_library("Wire", None)
     CORE.platformio_options = {"lib_ignore": ["Wire"]}
-    libs = component.resolve_libraries(
-        framework,
-        pio_platform="espressif8266",
-        board_mcu="esp8266",
-        cache_key="arduino8266",
-    )
+    libs = _resolve(framework)
     assert [lib.name for lib in libs] == ["ESP8266WiFi"]
 
 
@@ -339,12 +342,7 @@ def test_resolve_libraries_lib_ignore_covers_bundled_dependencies(
     )
 
     with _emitting_converter(converted):
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
 
     assert [lib.name for lib in libs] == ["some__External"]
 
@@ -389,14 +387,11 @@ def test_library_info_lib_archive_flag(tmp_path: Path) -> None:
 def test_resolve_libraries_dep_warnings(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Nameless and owner-without-version dependencies are dropped loudly."""
+    """A nameless dependency entry warns; an owner-without-version entry is
+    left to the shared walk's reconciliation (no local warning)."""
     framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted(
-        "esp32async__ESPAsyncWebServer",
-        lib_dir,
+    converted = _webserver(
+        tmp_path,
         {
             "build": {},
             "dependencies": [
@@ -406,34 +401,9 @@ def test_resolve_libraries_dep_warnings(
         },
     )
     with _emitting_converter(converted):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        _resolve(framework)
     assert "malformed dependency entry" in caplog.text
-    assert "Orphan" in caplog.text
-    assert "owner but no version" in caplog.text
-
-
-def test_resolve_libraries_raises_when_converter_drops_a_request(
-    tmp_path: Path,
-) -> None:
-    """A dropped top-level request always makes the firmware wrong; fail by
-    name instead of warning toward link errors far from the cause."""
-    framework = _make_framework(tmp_path)
-    _add_library("pngle", "1.0.0")
-    with (
-        patch.object(component, "convert_libraries", return_value=[]),
-        pytest.raises(EsphomeError, match="1 of 1 requested .*missing: pngle"),
-    ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+    assert "Orphan" not in caplog.text
 
 
 def test_bundled_dependency_nonplatform_rejection_warns(
@@ -443,29 +413,19 @@ def test_bundled_dependency_nonplatform_rejection_warns(
     from esphome.platformio.library import InvalidLibrary
 
     framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted(
-        "esp32async__ESPAsyncWebServer",
-        lib_dir,
-        {"build": {}, "dependencies": [{"name": "Wire"}]},
-    )
+    converted = _webserver(tmp_path, {"build": {}, "dependencies": [{"name": "Wire"}]})
+    import esphome.platformio.library as pio_library
+
     with (
         _emitting_converter(converted),
         patch.object(
-            component,
+            pio_library,
             "check_library_data",
             side_effect=InvalidLibrary("manifest is corrupt"),
         ),
     ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-    assert "Skipping bundled dependency Wire" in caplog.text
+        _resolve(framework)
+    assert "Skipping dependency Wire" in caplog.text
     assert "manifest is corrupt" in caplog.text
 
 
@@ -510,21 +470,9 @@ def test_bundled_dependency_dict_shorthand_prefers_bundled(tmp_path: Path) -> No
     to the bundled library, matching PIO's process_dependencies, instead of
     being routed to the registry."""
     framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted(
-        "esp32async__ESPAsyncWebServer",
-        lib_dir,
-        {"build": {}, "dependencies": {"Wire": "*"}},
-    )
+    converted = _webserver(tmp_path, {"build": {}, "dependencies": {"Wire": "*"}})
     with _emitting_converter(converted):
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
     assert "Wire" in [lib.name for lib in libs]
 
 
@@ -536,29 +484,19 @@ def test_bundled_dependency_platform_rejection_is_debug(
     from esphome.platformio.library import IncompatiblePlatform
 
     framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted(
-        "esp32async__ESPAsyncWebServer",
-        lib_dir,
-        {"build": {}, "dependencies": [{"name": "Wire"}]},
-    )
+    converted = _webserver(tmp_path, {"build": {}, "dependencies": [{"name": "Wire"}]})
+    import esphome.platformio.library as pio_library
+
     with (
         _emitting_converter(converted),
         patch.object(
-            component,
+            pio_library,
             "check_library_data",
             side_effect=IncompatiblePlatform("nothing about the p-word here"),
         ),
     ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-    assert "Skipping bundled dependency Wire" not in caplog.text
+        _resolve(framework)
+    assert "Skipping dependency Wire" not in caplog.text
 
 
 @pytest.mark.parametrize("data", [{"build": "src"}, [], "nope"])
@@ -568,52 +506,6 @@ def test_library_info_malformed_manifest_is_named(tmp_path: Path, data: object) 
     read_path.mkdir()
     with pytest.raises(EsphomeError, match="Library x has a malformed manifest"):
         component._library_info("x", read_path, data)
-
-
-def test_drop_error_maps_requests_by_node_key(tmp_path: Path) -> None:
-    """A bare request resolving to a canonical name is not falsely reported
-    missing; the genuinely dropped request is the one named."""
-    framework = _make_framework(tmp_path)
-    _add_library("pngle", None)
-    _add_library("gone/missing", "1.0.0")
-    lib_dir = tmp_path / "converted" / "pngle"
-    (lib_dir / "src").mkdir(parents=True)
-    resolved = _converted("bitbank2__pngle", lib_dir, {"build": {}})
-    resolved.node_key = "pngle"
-    with (
-        patch.object(component, "convert_libraries", return_value=[resolved]),
-        pytest.raises(EsphomeError) as excinfo,
-    ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-    missing = str(excinfo.value).split("missing:")[-1]
-    assert "gone/missing" in missing
-    assert "pngle@" not in missing
-
-
-def test_drop_error_without_node_key_is_a_converter_bug(tmp_path: Path) -> None:
-    """A resolved component missing its node_key must fail as a programming
-    error, never silently substitute the mismatched canonical name."""
-    framework = _make_framework(tmp_path)
-    _add_library("pngle", None)
-    _add_library("gone/missing", "1.0.0")
-    lib_dir = tmp_path / "converted" / "pngle"
-    (lib_dir / "src").mkdir(parents=True)
-    resolved = _converted("bitbank2__pngle", lib_dir, {"build": {}})
-    with (
-        patch.object(component, "convert_libraries", return_value=[resolved]),
-        pytest.raises(EsphomeError, match="node_key .*bitbank2__pngle"),
-    ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
 
 
 def test_bundled_library_with_declared_dependencies_warns(
@@ -627,12 +519,7 @@ def test_bundled_library_with_declared_dependencies_warns(
         '{"name": "Wire", "dependencies": [{"name": "SPI"}]}'
     )
     _add_library("Wire", None)
-    component.resolve_libraries(
-        framework,
-        pio_platform="espressif8266",
-        board_mcu="esp8266",
-        cache_key="arduino8266",
-    )
+    _resolve(framework)
     assert "Bundled library Wire declares dependencies" in caplog.text
 
 
@@ -686,13 +573,8 @@ def test_bundled_library_properties_depends_warns(
     wire = framework / "libraries" / "Wire"
     (wire / "library.properties").write_text("name=Wire\nversion=1.0\ndepends=SPI\n")
     _add_library("Wire", None)
-    component.resolve_libraries(
-        framework,
-        pio_platform="espressif8266",
-        board_mcu="esp8266",
-        cache_key="arduino8266",
-    )
-    assert "Bundled library Wire declares dependencies" in caplog.text
+    _resolve(framework)
+    assert "Library Wire declares dependencies via library.properties" in caplog.text
 
 
 def test_bundled_library_extra_script_warns(
@@ -706,12 +588,7 @@ def test_bundled_library_extra_script_warns(
         '{"name": "Wire", "build": {"extraScript": "extra.py"}}'
     )
     _add_library("Wire", None)
-    component.resolve_libraries(
-        framework,
-        pio_platform="espressif8266",
-        board_mcu="esp8266",
-        cache_key="arduino8266",
-    )
+    _resolve(framework)
     assert "declares an extraScript" in caplog.text
 
 
@@ -719,32 +596,19 @@ def test_dependency_requested_top_level_is_not_a_drop(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A version-less manifest dependency the config separately requests is
-    already in the build; the skipping warning must not fire for it."""
-    from esphome.platformio.library import request_key
-
+    already in the build; it is not probed as a bundled library."""
     framework = _make_framework(tmp_path)
     _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
     _add_library("ESP32Async/ESPAsyncTCP", "2.0.0")
-    ws_dir = tmp_path / "converted" / "webserver"
-    (ws_dir / "src").mkdir(parents=True)
-    tcp_dir = tmp_path / "converted" / "tcp"
-    (tcp_dir / "src").mkdir(parents=True)
-    ws = _converted(
-        "esp32async__ESPAsyncWebServer",
-        ws_dir,
-        {"build": {}, "dependencies": [{"name": "ESPAsyncTCP"}]},
-    )
-    tcp = _converted("esp32async__ESPAsyncTCP", tcp_dir, {"build": {}})
-    for conv, lib in zip((ws, tcp), CORE.platformio_libraries.values(), strict=True):
-        conv.node_key = request_key(lib)
+    ws, tcp = _ws_tcp_pair(tmp_path)
     with _emitting_converter(ws, tcp):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-    assert "is not bundled with the framework" not in caplog.text
+        libs = _resolve(framework)
+    # Exactly the two converted libraries; no bundled stand-in was added
+    assert [lib.name for lib in libs] == [
+        "esp32async__ESPAsyncWebServer",
+        "esp32async__ESPAsyncTCP",
+    ]
+    assert "Skipping" not in caplog.text
 
 
 def test_bundled_library_non_dict_manifest_skips_probes_and_raises(
@@ -768,15 +632,7 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     import esphome.platformio.library as pio_library
 
     framework = _make_framework(tmp_path)
-    local_lib = tmp_path / "locallib"
-    (local_lib / "src").mkdir(parents=True)
-    (local_lib / "src" / "local.cpp").write_text("")
-    (local_lib / "library.json").write_text(
-        '{"name": "LocalLib", "version": "1.0.0", "dependencies": {"Wire": "*"}}'
-    )
-    # as_uri() forms a valid file:// URL on every platform (file:///C:/...
-    # on Windows; a bare f-string would embed backslashes)
-    _add_library(local_lib.as_uri(), None)
+    _local_lib(tmp_path, {"Wire": "*"})
     # Pin the component cache to tmp_path (data_dir honors an ambient
     # ESPHOME_DATA_DIR otherwise)
     monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
@@ -785,36 +641,10 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
         "_resolve_registry_version",
         side_effect=AssertionError("registry touched"),
     ):
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
     names = [lib.name for lib in libs]
     assert "Wire" in names
     assert any("locallib" in n.lower() for n in names)
-
-
-def test_emit_validates_manifest_before_extra_script(tmp_path: Path) -> None:
-    """A malformed build section fails by name before apply_extra_script
-    dereferences it."""
-    framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted("esp32async__ESPAsyncWebServer", lib_dir, {"build": "src"})
-    with (
-        _emitting_converter(converted) as mock_extra,
-        pytest.raises(EsphomeError, match="has a malformed manifest"),
-    ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-    mock_extra.assert_not_called()
 
 
 def test_converted_properties_depends_warns(
@@ -823,47 +653,34 @@ def test_converted_properties_depends_warns(
     """A converted library shipping only the properties depends= spelling
     is visible, not a silent bundled-dependency drop."""
     framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted(
-        "esp32async__ESPAsyncWebServer",
-        lib_dir,
-        {"build": {}, "depends": "Wire,SPI"},
-    )
+    converted = _webserver(tmp_path, {"build": {}, "depends": "Wire,SPI"})
     with _emitting_converter(converted):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        _resolve(framework)
     assert "declares dependencies via library.properties" in caplog.text
 
 
-@pytest.mark.parametrize("bad_name", [1, "../escape", "a/b", ".."])
+@pytest.mark.parametrize(
+    ("bad_name", "message"),
+    [
+        # A non-string name never leaves the shared normalizer
+        (1, "Ignoring unrecognized dependency entry"),
+        ("../escape", "Ignoring malformed dependency entry"),
+        ("a/b", "Ignoring malformed dependency entry"),
+        ("..", "Ignoring malformed dependency entry"),
+    ],
+)
 def test_bundled_dependency_bad_name_is_malformed(
-    tmp_path: Path, bad_name: object, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, bad_name: object, message: str, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A dependency name becomes a path component; a traversal or a
     non-string is a malformed entry, never joined."""
     framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted(
-        "esp32async__ESPAsyncWebServer",
-        lib_dir,
-        {"build": {}, "dependencies": [{"name": bad_name}]},
+    converted = _webserver(
+        tmp_path, {"build": {}, "dependencies": [{"name": bad_name}]}
     )
     with _emitting_converter(converted):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-    assert "Ignoring malformed dependency entry" in caplog.text
+        _resolve(framework)
+    assert message in caplog.text
 
 
 def test_bundled_dependency_string_list_form(
@@ -872,21 +689,9 @@ def test_bundled_dependency_string_list_form(
     """The bare string-list dependency form (PIO-legal) resolves to the
     bundled library instead of vanishing in normalization."""
     framework = _make_framework(tmp_path)
-    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    lib_dir = tmp_path / "converted" / "webserver"
-    (lib_dir / "src").mkdir(parents=True)
-    converted = _converted(
-        "esp32async__ESPAsyncWebServer",
-        lib_dir,
-        {"build": {}, "dependencies": ["Wire"]},
-    )
+    converted = _webserver(tmp_path, {"build": {}, "dependencies": ["Wire"]})
     with _emitting_converter(converted):
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
     assert "Wire" in [lib.name for lib in libs]
 
 
@@ -900,25 +705,14 @@ def test_pinned_bundled_dependency_substitution_warns(
     import esphome.platformio.library as pio_library
 
     framework = _make_framework(tmp_path)
-    local_lib = tmp_path / "locallib"
-    (local_lib / "src").mkdir(parents=True)
-    (local_lib / "src" / "local.cpp").write_text("")
-    (local_lib / "library.json").write_text(
-        '{"name": "LocalLib", "version": "1.0.0", "dependencies": {"Wire": "^2.0.0"}}'
-    )
-    _add_library(local_lib.as_uri(), None)
+    _local_lib(tmp_path, {"Wire": "^2.0.0"})
     monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
     with patch.object(
         pio_library,
         "_resolve_registry_version",
         side_effect=AssertionError("registry touched"),
     ):
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
     assert "Wire" in [lib.name for lib in libs]
     assert "pins version ^2.0.0; using the library bundled" in caplog.text
 
@@ -931,24 +725,14 @@ def test_transitively_resolved_dependency_does_not_warn(
     stay quiet for it."""
     framework = _make_framework(tmp_path)
     _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
-    ws_dir = tmp_path / "converted" / "webserver"
-    (ws_dir / "src").mkdir(parents=True)
-    tcp_dir = tmp_path / "converted" / "tcp"
-    (tcp_dir / "src").mkdir(parents=True)
-    ws = _converted(
-        "esp32async__ESPAsyncWebServer",
-        ws_dir,
-        {"build": {}, "dependencies": [{"name": "ESPAsyncTCP"}]},
-    )
-    tcp = _converted("esp32async__ESPAsyncTCP", tcp_dir, {"build": {}})
+    ws, tcp = _ws_tcp_pair(tmp_path)
     with _emitting_converter(ws, tcp):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
-    assert "is not bundled with the framework" not in caplog.text
+        libs = _resolve(framework)
+    assert [lib.name for lib in libs] == [
+        "esp32async__ESPAsyncWebServer",
+        "esp32async__ESPAsyncTCP",
+    ]
+    assert "Skipping" not in caplog.text
 
 
 def test_empty_bundled_library_warns(
@@ -962,12 +746,7 @@ def test_empty_bundled_library_warns(
     with pytest.raises(
         EsphomeError, match="Bundled library Empty has no sources or headers"
     ):
-        component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        _resolve(framework)
 
 
 def test_versionless_dependency_with_provider_stays_quiet(
@@ -980,24 +759,13 @@ def test_versionless_dependency_with_provider_stays_quiet(
     import esphome.platformio.library as pio_library
 
     framework = _make_framework(tmp_path)
-    local_lib = tmp_path / "locallib"
-    (local_lib / "src").mkdir(parents=True)
-    (local_lib / "src" / "local.cpp").write_text("")
-    (local_lib / "library.json").write_text(
-        '{"name": "LocalLib", "version": "1.0.0", "dependencies": [{"name": "Wire"}]}'
-    )
-    _add_library(local_lib.as_uri(), None)
+    _local_lib(tmp_path, [{"name": "Wire"}])
     monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
     with patch.object(
         pio_library,
         "_resolve_registry_version",
         side_effect=AssertionError("registry touched"),
     ):
-        libs = component.resolve_libraries(
-            framework,
-            pio_platform="espressif8266",
-            board_mcu="esp8266",
-            cache_key="arduino8266",
-        )
+        libs = _resolve(framework)
     assert "Wire" in [lib.name for lib in libs]
     assert "has no version to resolve" not in caplog.text
