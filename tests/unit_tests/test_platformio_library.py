@@ -665,3 +665,17 @@ def test_versionless_dependency_requested_top_level_stays_quiet(
         _backend(),
     )
     assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_url_ish_dependency_name_warns_cleanly(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed URL-ish dependency name falls to the drop warning, never
+    a RuntimeError out of the key parser."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "file://"}]}},
+    )
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "'file://' of esphome/A has no version to resolve" in caplog.text
