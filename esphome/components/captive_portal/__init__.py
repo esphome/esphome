@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     wifi_conf = full_config.get("wifi")
 
@@ -87,8 +87,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     socket.consume_sockets(3, "captive_portal")(config)
     socket.consume_sockets(1, "captive_portal", socket.SocketType.UDP)(config)
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

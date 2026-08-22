@@ -68,12 +68,11 @@ def _unsupported_family_message(family: str) -> str | None:
     return None
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # Warn only: a hard error here would break the validate-only CI fixtures,
     # which run on a BLE 4.2 board. The hard error is raised at codegen.
     if msg := _unsupported_family_message(libretiny.get_libretiny_family()):
         _LOGGER.warning("%s (this configuration cannot compile)", msg)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

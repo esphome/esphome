@@ -11,7 +11,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.arduino_rp2";
+static const char *const TAG = "ota";
 
 std::unique_ptr<ArduinoRP2OTABackend> make_ota_backend() { return make_unique<ArduinoRP2OTABackend>(); }
 

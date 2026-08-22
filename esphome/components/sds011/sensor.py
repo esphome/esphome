@@ -63,7 +63,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     # In the default mode setup() writes config commands, so tx is required;
     # rx_only mode never writes, so tx is optional.
     uart.final_validate_device_schema(
@@ -75,7 +75,6 @@ def _final_validate(config):
         parity="NONE",
         stop_bits=1,
     )(config)
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

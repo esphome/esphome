@@ -64,7 +64,7 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_sdio(config):
+def _validate_sdio(config: ConfigType) -> ConfigType:
     if config[CONF_BUS_WIDTH] == 4:
         for pin in (CONF_D1_PIN, CONF_D2_PIN, CONF_D3_PIN):
             if pin not in config:
@@ -98,7 +98,7 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_spi(config):
+def _validate_spi(config: ConfigType) -> ConfigType:
     variant = config[CONF_VARIANT]
     defaults = _SPI_VARIANT_DEFAULTS.get(variant, _SPI_DEFAULT)
 
@@ -126,7 +126,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     # The esp_hosted releases compatible with older ESP-IDF versions crash at
     # boot with a heap double free in the SDIO RX path (fixed in esp_hosted
     # 2.11.0, which requires ESP-IDF 5.3), so reject them at validation time.
@@ -136,13 +136,12 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "Remove the framework version from your configuration to use the "
             "recommended version, or pin a version at or above 5.3."
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _configure_sdio(config):
+def _configure_sdio(config: ConfigType) -> None:
     slot = config[CONF_SLOT]
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_SDIO_SLOT_{slot}",
@@ -184,7 +183,7 @@ def _configure_sdio(config):
     )
 
 
-def _configure_spi(config):
+def _configure_spi(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_HOST_INTERFACE", True)
     # SPI mode is set via per-variant choice options
     variant = config[CONF_VARIANT]
@@ -232,7 +231,7 @@ def _configure_spi(config):
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DR_ACTIVE_LOW", True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     add_define("USE_ESP32_HOSTED")
     transport = config[CONF_TYPE]
     transport_prefix = "SDIO" if transport == "sdio" else "SPI"
