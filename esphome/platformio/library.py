@@ -584,9 +584,7 @@ def _resolve_registry_version(
 
 def split_flag_entry(entry: Any, owner: str) -> list[str]:
     """``shlex.split`` with a clean error naming the offending flags entry."""
-    # Late import: this module loads with the esp32 platform on every
-    # validate/compile; shlex (and its linecache pull-in) is only needed
-    # when actually lexing flags
+    # Late import: shlex is only needed when actually lexing flags
     import shlex
 
     try:
@@ -598,13 +596,8 @@ def split_flag_entry(entry: Any, owner: str) -> list[str]:
 
 
 def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
-    """Shell-lex a manifest ``build.flags`` list into joined tokens.
-
-    Each entry is lexed the way PlatformIO's ParseFlags does, and bare
-    ``-I``/``-L``/``-l``/``-D`` tokens re-glue to their argument across the
-    whole stream. Used by the espidf and arduino backends; zephyr still
-    classifies raw entries.
-    """
+    """Shell-lex ``build.flags`` entries the way PlatformIO's ParseFlags
+    does; bare -I/-L/-l/-D tokens re-glue to their argument."""
     # Join per entry, as SCons's ParseFlags lexes each string independently:
     # a dangling -I ending one entry must warn, not absorb the next entry's
     # first token.
@@ -1046,11 +1039,8 @@ def convert_libraries(
             key = worklist.popleft()
             node = nodes[key]
 
-            # A node is queued once per referring edge; skip the (uncached)
-            # registry lookup + download + dependency walk unless its
-            # requirement set grew since the last resolve. Requirements only
-            # ever grow, so this still converges the fixpoint and terminates
-            # dependency cycles.
+            # Re-resolve only when the requirement set grew; requirements
+            # only ever grow, so the fixpoint converges and cycles terminate
             requirements = frozenset(node.requirements)
             if resolved_requirements.get(key) == requirements:
                 continue
@@ -1079,11 +1069,8 @@ def convert_libraries(
             has_json = library_json_path.is_file()
             has_properties = library_properties_path.is_file()
             if not has_json and not has_properties and not node.is_local:
-                # The shared cache can hold a broken copy (e.g. a clone or an
-                # extraction interrupted by a killed process). Force one
-                # re-download so a bad cache entry self-heals instead of failing
-                # every build until the user runs a full clean. A local source is
-                # read in place, so there is nothing to re-download.
+                # An interrupted clone/extraction self-heals with one forced
+                # re-download; a local source has nothing to re-download
                 _LOGGER.warning(
                     "Library %s at %s is missing library.json and library.properties; "
                     "re-downloading",
@@ -1098,10 +1085,8 @@ def convert_libraries(
             elif has_properties:
                 component.data = parse_library_properties(library_properties_path)
             else:
-                # For a local library a missing manifest is user input, so raise
-                # EsphomeError (clean CLI message) like the missing-directory case;
-                # for registry/git a missing manifest means a corrupt cache, which
-                # is not user error, so keep RuntimeError.
+                # Local sources are user input (EsphomeError); a registry/git
+                # miss means a corrupt cache (RuntimeError)
                 error_cls = EsphomeError if node.is_local else RuntimeError
                 raise error_cls(
                     f"Invalid PIO library {key}: missing library.json and "
@@ -1119,10 +1104,8 @@ def convert_libraries(
             try:
                 check_library_data(component.data, backend.platform, backend.framework)
             except InvalidLibrary as e:
-                # Fail fast if a top-level library the build explicitly requested
-                # is incompatible; the routine cross-platform skip stays at
-                # debug, any other cause warns (a silent drop resurfaces as
-                # undefined symbols at link)
+                # An explicitly requested library fails fast; the routine
+                # cross-platform skip stays at debug, other causes warn
                 if key in top_level_keys:
                     raise RuntimeError(
                         f"Requested library {key} is not compatible with "
