@@ -596,12 +596,12 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
     Returns:
         Sorted list of component names to compile.
     """
-    return _native_components_to_test(
+    return _toolchain_components_to_test(
         branch, ESP32_PLATFORMIO_TEST_COMPONENTS, _esp32_platformio_path_or_file_trigger
     )
 
 
-def _native_components_to_test(
+def _toolchain_components_to_test(
     branch: str | None,
     test_set: frozenset[str] | set[str],
     infra_trigger: Callable[[list[str]], bool],
@@ -690,7 +690,7 @@ def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
     list on core or infrastructure changes, otherwise the intersection with
     the changed-component dependency closure (empty list skips the job).
     """
-    return _native_components_to_test(
+    return _toolchain_components_to_test(
         branch, ESP8266_NATIVE_TEST_COMPONENTS, _esp8266_native_path_or_file_trigger
     )
 

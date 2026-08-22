@@ -7223,9 +7223,15 @@ def test_command_analyze_memory_native_toolchains(
     CORE.toolchain = toolchain
 
     config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    # The tools must exist: a missing binutils now fails by name instead of
+    # silently falling back to host tools
+    objdump = tmp_path / "objdump"
+    readelf = tmp_path / "readelf"
+    objdump.write_text("")
+    readelf.write_text("")
     with (
-        patch(f"{module}.get_objdump_path", return_value=Path("/tc/objdump")),
-        patch(f"{module}.get_readelf_path", return_value=Path("/tc/readelf")),
+        patch(f"{module}.get_objdump_path", return_value=objdump),
+        patch(f"{module}.get_readelf_path", return_value=readelf),
         patch(f"{module}.get_elf_path", return_value=Path("/build/firmware.elf")),
     ):
         result = command_analyze_memory(MockArgs(), config)
@@ -7234,11 +7240,31 @@ def test_command_analyze_memory_native_toolchains(
     # str(Path(...)) so the expectation matches the platform's separators
     mock_memory_analyzer_cli.assert_called_once_with(
         str(Path("/build/firmware.elf")),
-        str(Path("/tc/objdump")),
-        str(Path("/tc/readelf")),
+        str(objdump),
+        str(readelf),
         set(),
         idedata=None,
     )
+
+
+def test_command_analyze_memory_missing_binutils_fails_by_name(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A truncated toolchain install fails naming the missing tool instead
+    of silently analyzing with host binutils."""
+    setup_core(platform="esp8266", tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    module = "esphome.arduino8266.toolchain"
+    with (
+        patch(f"{module}.get_objdump_path", return_value=tmp_path / "missing-objdump"),
+        patch(f"{module}.get_readelf_path", return_value=tmp_path / "readelf"),
+        patch("esphome.__main__.write_cpp", return_value=0),
+        patch("esphome.__main__.compile_program", return_value=0),
+    ):
+        assert command_analyze_memory(MockArgs(), config) == 1
+    assert "missing-objdump" in caplog.text
+    assert "toolchain install may be incomplete" in caplog.text
 
 
 def test_command_idedata_incompatible_toolchain(tmp_path: Path) -> None:

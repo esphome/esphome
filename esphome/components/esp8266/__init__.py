@@ -131,7 +131,10 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
     # platform_version is a PlatformIO concept; drop it (as esp32's native
     # toolchain does), warning when a custom pin is discarded. The floor
     # above guarantees the schema-derived default is the ARDUINO_4 spec.
-    if conf.pop(CONF_PLATFORM_VERSION, None) != _ARDUINO_4_PLATFORM_SPEC:
+    if (
+        conf.pop(CONF_PLATFORM_VERSION, _ARDUINO_4_PLATFORM_SPEC)
+        != _ARDUINO_4_PLATFORM_SPEC
+    ):
         _LOGGER.warning(
             "'platform_version' is ignored by 'toolchain: arduino'; the native "
             "toolchain downloads the framework and compiler directly"

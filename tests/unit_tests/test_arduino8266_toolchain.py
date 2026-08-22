@@ -158,10 +158,19 @@ def test_write_compile_commands(tmp_path: Path) -> None:
     assert (build_dir / "compile_commands.json").read_text() == entries
 
 
-@pytest.mark.parametrize("stdout", ["[]\n", "not json"])
-def test_write_compile_commands_empty_db_raises(tmp_path: Path, stdout: str) -> None:
-    """An empty compile database (compdb exits 0 with [] for unknown rule
-    names) must fail the build and drop any stale database."""
+@pytest.mark.parametrize(
+    ("stdout", "match"),
+    [
+        ("[]\n", "empty compile database"),
+        # A parse failure names its cause, not the rule-name story
+        ("not json", "unparsable compile database.*not json"),
+    ],
+)
+def test_write_compile_commands_bad_db_raises(
+    tmp_path: Path, stdout: str, match: str
+) -> None:
+    """An empty or unparsable compile database fails the build with its
+    actual cause and drops any stale database."""
     build_dir = tmp_path / "build"
     build_dir.mkdir()
     (build_dir / "compile_commands.json").write_text("[stale]")
@@ -171,7 +180,7 @@ def test_write_compile_commands_empty_db_raises(tmp_path: Path, stdout: str) -> 
             "run",
             return_value=MagicMock(returncode=0, stdout=stdout),
         ),
-        pytest.raises(EsphomeError, match="empty compile database"),
+        pytest.raises(EsphomeError, match=match),
     ):
         toolchain._write_compile_commands(tmp_path / "ninja", build_dir, {})
     assert not (build_dir / "compile_commands.json").exists()

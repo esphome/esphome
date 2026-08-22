@@ -2022,6 +2022,19 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     # Get idedata for analysis
     idedata = None
     if native_toolchain is not None:
+        for tool in (
+            native_toolchain.get_objdump_path(),
+            native_toolchain.get_readelf_path(),
+        ):
+            if not tool.is_file():
+                # The analyzer would silently fall back to host binutils,
+                # which cannot read the target ELF
+                _LOGGER.error(
+                    "%s is missing; the toolchain install may be incomplete "
+                    "(run 'esphome clean-all')",
+                    tool,
+                )
+                return 1
         objdump_path = str(native_toolchain.get_objdump_path())
         readelf_path = str(native_toolchain.get_readelf_path())
 

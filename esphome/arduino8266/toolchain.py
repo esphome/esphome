@@ -151,8 +151,12 @@ def _write_compile_commands(
         raise EsphomeError(f"Could not generate compile_commands.json: {result.stderr}")
     try:
         entries = json.loads(result.stdout)
-    except ValueError:
-        entries = None
+    except ValueError as err:
+        (build_dir / "compile_commands.json").unlink(missing_ok=True)
+        raise EsphomeError(
+            f"ninja produced an unparsable compile database: {err} "
+            f"(output starts {result.stdout[:120]!r})"
+        ) from err
     if not entries:
         # compdb exits 0 with [] for unknown rule names; a renamed compile
         # rule must fail the build, not silently strand every consumer

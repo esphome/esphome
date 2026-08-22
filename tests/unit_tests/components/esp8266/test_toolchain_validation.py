@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -29,9 +30,12 @@ from esphome.types import ConfigType
 
 
 @pytest.fixture(autouse=True)
-def _arduino_toolchain() -> None:
+def _arduino_toolchain() -> Generator[None]:
     # The suite-wide reset_core fixture clears CORE.toolchain after each test
     CORE.toolchain = Toolchain.ARDUINO
+    esp8266._DECODE_WARNED_AT.clear()
+    yield
+    esp8266._DECODE_WARNED_AT.clear()
 
 
 def _config(
@@ -123,7 +127,6 @@ def test_decode_pc_native_missing_tools_warns_once(
 ) -> None:
     """A stack dump of many addresses produces one missing-tool warning."""
 
-    esp8266._DECODE_WARNED_AT.clear()
     with (
         patch(
             "esphome.arduino8266.toolchain.get_addr2line_path",
@@ -137,7 +140,6 @@ def test_decode_pc_native_missing_tools_warns_once(
         esp8266._decode_pc({}, "40201234")
         esp8266._decode_pc({}, "40201238")
     assert caplog.text.count("Cannot decode crash addresses") == 1
-    esp8266._DECODE_WARNED_AT.clear()
 
 
 def test_decode_pc_platformio_missing_tools_warns_once(
@@ -147,14 +149,12 @@ def test_decode_pc_platformio_missing_tools_warns_once(
     warning level as the native one; raw undecoded addresses with no
     stated reason are undiagnosable at default log level."""
 
-    esp8266._DECODE_WARNED_AT.clear()
     CORE.toolchain = Toolchain.PLATFORMIO
     idedata = SimpleNamespace(addr2line_path=None, firmware_elf_path=None)
     with patch("esphome.platformio.toolchain.get_idedata", return_value=idedata):
         esp8266._decode_pc({}, "40201234")
         esp8266._decode_pc({}, "40201238")
     assert caplog.text.count("Cannot decode crash addresses") == 1
-    esp8266._DECODE_WARNED_AT.clear()
 
 
 def test_resolve_toolchain_rejects_unsupported() -> None:
