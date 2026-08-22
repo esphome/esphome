@@ -133,3 +133,11 @@ def test_ninja_probe_success() -> None:
     with patch("esphome.framework_helpers.subprocess.run") as mock_run:
         assert ninja_helper._ninja_runs("/usr/bin/ninja") is True
     assert mock_run.call_args.kwargs["close_fds"] is False
+
+
+def test_shell_token_windows_branch_uses_argv_rule() -> None:
+    """The nt branch quotes with the CreateProcess argv rule (the ubuntu
+    coverage run never takes it naturally)."""
+    with patch.object(os, "name", "nt"):
+        assert ninja_helper.shell_token("a b") == '"a b"'
+        assert ninja_helper.shell_token("", force=True) == '""'
