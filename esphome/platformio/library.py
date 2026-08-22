@@ -628,6 +628,21 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     return out
 
 
+def warn_properties_depends(name: str, data: object) -> None:
+    """Warn when a manifest declares dependencies only as ``depends=``.
+
+    The dependency walk reads the JSON ``dependencies`` key; the raw
+    ``library.properties`` spelling would otherwise drop silently.
+    """
+    if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
+        _LOGGER.warning(
+            "Library %s declares dependencies via library.properties "
+            "depends=, which are not resolved automatically; add them with "
+            "add_library() if needed",
+            name,
+        )
+
+
 def dependency_is_usable(
     dep: dict, platform: str | None, framework: str, requester: str
 ) -> bool:
@@ -1001,6 +1016,7 @@ def convert_libraries(
             # A bare json.load imposes no shape; every backend dereferences
             # data/build, so validate once here and name the library
             raise EsphomeError(f"Library {key} has a malformed manifest")
+        warn_properties_depends(component.name, component.data)
 
         try:
             check_library_data(component.data, backend.platform, backend.framework)
@@ -1036,7 +1052,13 @@ def convert_libraries(
                     dependency.get("name"),
                     component.name,
                 )
-                if not is_lib_ignored(dependency.get("name"), lib_ignore):
+                if not is_lib_ignored(
+                    dependency.get("name"), lib_ignore
+                ) and dependency_is_usable(
+                    dependency, backend.platform, backend.framework, component.name
+                ):
+                    # A platform-filtered or ignored dep is deliberately
+                    # absent, not a drop to reconcile
                     skipped_versionless.append(
                         (
                             dependency.get("name"),

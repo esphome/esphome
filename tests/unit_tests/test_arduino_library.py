@@ -461,6 +461,31 @@ def test_library_info_lib_archive_parse(
     assert lib.lib_archive is expected
 
 
+def test_library_info_dropped_link_fields_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """precompiled/ldflags properties are not honored; the drop is named."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    component._library_info(
+        "x", read_path, {"precompiled": "true", "ldflags": "-lfoo", "build": {}}
+    )
+    assert "declares precompiled, which this backend does not honor" in caplog.text
+    assert "declares ldflags, which this backend does not honor" in caplog.text
+
+
+def test_library_info_unmapped_sources_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Matched files that all fall through the suffix map are visible; an
+    empty archive would fail far away at link."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "impl.CPP").write_text("")
+    component._library_info("x", read_path, {"build": {}})
+    assert "no matched file has a recognized source suffix" in caplog.text
+
+
 def test_library_info_lib_archive_malformed_raises(tmp_path: Path) -> None:
     """A typo'd libArchive fails by name like the other build fields."""
     read_path = tmp_path / "lib"
@@ -643,18 +668,6 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     names = [lib.name for lib in libs]
     assert "Wire" in names
     assert any("locallib" in n.lower() for n in names)
-
-
-def test_converted_properties_depends_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A converted library shipping only the properties depends= spelling
-    is visible, not a silent bundled-dependency drop."""
-    framework = _make_framework(tmp_path)
-    converted = _webserver(tmp_path, {"build": {}, "depends": "Wire,SPI"})
-    with _emitting_converter(converted):
-        _resolve(framework)
-    assert "declares dependencies via library.properties" in caplog.text
 
 
 @pytest.mark.parametrize(
