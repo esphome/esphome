@@ -603,30 +603,6 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
     assert "Ignoring trailing '-I'" in caplog.text
 
 
-def test_split_flag_entry_non_string_is_clean() -> None:
-    """A dict or number from a third-party manifest fails naming the entry,
-    not with an opaque shlex traceback."""
-
-    with pytest.raises(EsphomeError, match="Malformed build flag"):
-        split_flag_entry({"esp32": ["-DX"]}, "lib x")
-    with pytest.raises(EsphomeError, match="Malformed build flag 5"):
-        split_flag_entry(5, "lib x")
-
-
-def test_source_kind_map_shape() -> None:
-    """The kind values the native compile rules key on, and the deliberate
-    AS/ASPP merge (.s and .S both map to asm)."""
-
-    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm"}
-    assert SOURCE_KIND_FOR_SUFFIX[".s"] == "asm"
-    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
-    assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
-    assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
-    # SCons's case-sensitive C++ suffixes: PIO compiles .C as C++
-    assert SOURCE_KIND_FOR_SUFFIX[".C"] == "cxx"
-    assert SOURCE_KIND_FOR_SUFFIX[".C++"] == "cxx"
-
-
 def test_normalize_dependencies_forms(caplog) -> None:
     """Every PIO-legal spelling normalizes; unrecognizable entries warn."""
     from esphome.platformio.library import normalize_dependencies
@@ -682,6 +658,54 @@ def test_walk_warns_for_properties_only_depends(
     )
     convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
     assert "declares dependencies via library.properties" in caplog.text
+
+
+def test_walk_warns_for_nonplatform_invalid_library(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency dropped for any cause other than the routine platform
+    filter is visible in every backend."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "B", "version": "1.0"}]}},
+    )
+    calls = {"n": 0}
+    real = lib.check_library_data
+
+    def flaky(data, platform, framework):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework)
+
+    monkeypatch.setattr(lib, "check_library_data", flaky)
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
+
+
+def test_split_flag_entry_non_string_is_clean() -> None:
+    """A dict or number from a third-party manifest fails naming the entry,
+    not with an opaque shlex traceback."""
+
+    with pytest.raises(EsphomeError, match="Malformed build flag"):
+        split_flag_entry({"esp32": ["-DX"]}, "lib x")
+    with pytest.raises(EsphomeError, match="Malformed build flag 5"):
+        split_flag_entry(5, "lib x")
+
+
+def test_source_kind_map_shape() -> None:
+    """The kind values the native compile rules key on, and the deliberate
+    AS/ASPP merge (.s and .S both map to asm)."""
+
+    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm"}
+    assert SOURCE_KIND_FOR_SUFFIX[".s"] == "asm"
+    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
+    assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
+    assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
+    # SCons's case-sensitive C++ suffixes: PIO compiles .C as C++
+    assert SOURCE_KIND_FOR_SUFFIX[".C"] == "cxx"
+    assert SOURCE_KIND_FOR_SUFFIX[".C++"] == "cxx"
 
 
 def test_versionless_platform_filtered_dependency_stays_quiet(
@@ -741,30 +765,6 @@ def test_versionless_dependency_without_provider_warns(
         )
         == 1
     )
-
-
-def test_walk_warns_for_nonplatform_invalid_library(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A dependency dropped for any cause other than the routine platform
-    filter is visible in every backend."""
-    _patch_download_with_manifests(
-        monkeypatch,
-        tmp_path,
-        {"esphome/A": {"name": "A", "dependencies": [{"name": "B", "version": "1.0"}]}},
-    )
-    calls = {"n": 0}
-    real = lib.check_library_data
-
-    def flaky(data, platform, framework):
-        calls["n"] += 1
-        if calls["n"] > 1:
-            raise InvalidLibrary("manifest is corrupt")
-        return real(data, platform, framework)
-
-    monkeypatch.setattr(lib, "check_library_data", flaky)
-    convert_libraries([Library("esphome/A", None, None)], _backend())
-    assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
 
 
 def test_versionless_owner_qualified_dependency_warns_despite_provides(
