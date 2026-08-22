@@ -740,8 +740,10 @@ def _prefetch_idf_tool_archives(
             ", ".join(entry["name"] for entry in entries),
         )
         # tools.json always carries sizes; should one be missing the combined
-        # bar could not be trusted, so show no bar at all (per-file bars from
-        # several threads would interleave) rather than a wrong one.
+        # bar could not be trusted, so show no bar at all rather than a wrong
+        # one. Unlike the library prefetch there is no sequential fallback:
+        # per-file bars from several threads would interleave, and skipping
+        # the prefetch would lose the resume workaround for #17703.
         sizes = [entry.get("size") or 0 for entry in entries]
         progress = BatchDownloadProgress(
             "Downloading ESP-IDF tools", sum(sizes) if all(sizes) else 0
