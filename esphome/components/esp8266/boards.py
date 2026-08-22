@@ -375,7 +375,7 @@ BOARDS = {
 # -DESP8266 and -DARDUINO_ARCH_ESP8266 are shared by every board and added by
 # the generator; only the per-board defines are listed here.
 #
-# ESP8266_BOARD_BUILD generate with (v4.2.1 is the platform version the
+# Regenerate ESP8266_BOARD_BUILD with (v4.2.1 is the platform version the
 # native toolchain mirrors; regenerate against the tag when bumping it):
 #
 # git clone -b v4.2.1 https://github.com/platformio/platform-espressif8266
