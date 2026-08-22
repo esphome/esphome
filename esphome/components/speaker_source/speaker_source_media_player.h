@@ -81,6 +81,7 @@ struct SourceBinding : public media_source::MediaSourceListener {
   size_t write_audio(const uint8_t *data, size_t length, uint32_t timeout_ms,
                      const audio::AudioStreamInfo &stream_info) override;
   void report_state(media_source::MediaSourceState state) override;
+  bool buffered_bytes(size_t &bytes) const override;
   void request_volume(float volume) override;
   void request_mute(bool is_muted) override;
   void request_play_uri(const std::string &uri) override;
@@ -193,6 +194,8 @@ class SpeakerSourceMediaPlayer final : public Component, public media_player::Me
   void handle_play_uri_request_(uint8_t pipeline, const std::string &uri);
 
   void handle_speaker_playback_callback_(uint32_t frames, int64_t timestamp, uint8_t pipeline);
+  /// Speaker for a pipeline index, or nullptr. Set once at setup, so safe to read from any thread.
+  speaker::Speaker *get_pipeline_speaker_(uint8_t pipeline) const { return this->pipelines_[pipeline].speaker; }
 
   // Receives commands from HA or from the voice assistant component
   // Sends commands to the media_control_command_queue_

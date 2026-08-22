@@ -45,6 +45,16 @@ class MediaSourceListener {
   /// @brief Notify listener of state changes
   virtual void report_state(MediaSourceState state) = 0;
 
+  /// @brief Bytes of audio buffered downstream of this listener, if it can report it.
+  ///
+  /// A source that schedules playback needs to know how far behind the audio it hands over will be
+  /// rendered. It can count what it wrote and be told what was played, but the fill between those two
+  /// points is otherwise invisible to it, so a pipeline restart at an unobserved level leaves playback
+  /// offset by that amount with no metric reflecting it.
+  /// @param bytes Set to the buffered byte count on success. Untouched on failure.
+  /// @return false when the listener cannot report a count -- distinct from reporting zero.
+  virtual bool buffered_bytes(size_t & /*bytes*/) const { return false; }
+
   // Callbacks from smart sources requesting the orchestrator to change volume, mute, or start a new URI.
   // Simple sources never invoke these.
   /// @brief Request the orchestrator to change volume
@@ -117,6 +127,16 @@ class MediaSource {
       return this->listener_->write_audio(data, length, timeout_ms, stream_info);
     }
     return 0;
+  }
+
+  /// @brief Queries buffered audio downstream of the listener (see MediaSourceListener::buffered_bytes)
+  /// @param bytes Set to the buffered byte count on success. Untouched on failure.
+  /// @return false when there is no listener, or it cannot report a count
+  bool output_buffered_bytes(size_t &bytes) const {
+    if (this->listener_ != nullptr) {
+      return this->listener_->buffered_bytes(bytes);
+    }
+    return false;
   }
 
   // === Callbacks: Orchestrator -> Source ===

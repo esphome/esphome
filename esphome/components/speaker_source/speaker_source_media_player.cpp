@@ -22,6 +22,16 @@ size_t SourceBinding::write_audio(const uint8_t *data, size_t length, uint32_t t
   return this->player->handle_media_output_(this->pipeline, this->source, data, length, timeout_ms, stream_info);
 }
 
+// THREAD CONTEXT: Called from the media source's task, same as write_audio(). Reads the pipeline's
+// speaker pointer, which is fixed at setup, and defers to that speaker's own thread safety.
+bool SourceBinding::buffered_bytes(size_t &bytes) const {
+  speaker::Speaker *spk = this->player->get_pipeline_speaker_(this->pipeline);
+  if (spk == nullptr) {
+    return false;
+  }
+  return spk->buffered_bytes(bytes);
+}
+
 // THREAD CONTEXT: Called from main loop (media source's loop() calls set_state_ which calls report_state)
 void SourceBinding::report_state(media_source::MediaSourceState state) {
   this->player->handle_media_state_changed_(this->pipeline, this->source, state);
