@@ -21,6 +21,7 @@ import requests as req
 from esphome import framework_helpers
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
+    BatchDownloadProgress,
     _7z_extract_all,
     _detect_archive_root,
     _is_transient_download_error,
@@ -1112,6 +1113,108 @@ class TestDownloadWithResume:
         assert mock_get.call_args[1]["headers"] == {}
         assert dest.read_bytes() == b"data"
 
+    def test_progress_callback_reports_absolute_bytes(self, tmp_path: Path) -> None:
+        """With a callback no bar is drawn; the callback sees the running
+        byte count of this file, then its final verified size."""
+        dest = tmp_path / "tool.tar.gz"
+        resp = _mock_response(b"")
+        resp.headers = {"content-length": "7"}
+        resp.iter_content.return_value = [b"1234", b"567"]
+        seen: list[int] = []
+        with (
+            patch("requests.get", return_value=resp),
+            patch("esphome.framework_helpers.ProgressBar") as bar,
+        ):
+            download_with_resume(
+                "https://example.com/t", dest, size=7, progress=seen.append
+            )
+        assert seen == [0, 4, 7, 7]
+        bar.assert_not_called()
+
+    def test_progress_callback_seeds_with_resume_offset(self, tmp_path: Path) -> None:
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"12345")
+        good = hashlib.sha256(b"12345678").hexdigest()
+        seen: list[int] = []
+        with patch("requests.get", return_value=_resumed_response(b"678")):
+            download_with_resume(
+                "https://example.com/t", dest, sha256=good, size=8, progress=seen.append
+            )
+        assert seen[0] == 5
+        assert seen[-1] == 8
+
+    def test_progress_callback_credits_already_complete_download(
+        self, tmp_path: Path
+    ) -> None:
+        """A verified dest from an earlier run still counts toward the batch."""
+        dest = tmp_path / "tool.tar.gz"
+        dest.write_bytes(b"12345678")
+        seen: list[int] = []
+        with patch("requests.get") as mock_get:
+            download_with_resume(
+                "https://example.com/t", dest, size=8, progress=seen.append
+            )
+        mock_get.assert_not_called()
+        assert seen == [8]
+
+
+class TestBatchDownloadProgress:
+    def test_sums_trackers_into_one_bar(self) -> None:
+        with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
+            progress = BatchDownloadProgress("Downloading", 100)
+            a = progress.tracker()
+            b = progress.tracker()
+            a(10)
+            b(20)
+            a(30)
+            a(0)  # a restart from zero takes that file's bytes back out
+        bar_cls.assert_called_once_with("Downloading")
+        updates = [c[0][0] for c in bar_cls.return_value.update.call_args_list]
+        assert updates == [0.1, 0.3, 0.5, 0.2]
+
+    def test_clamps_at_one(self) -> None:
+        """Sizes are advisory; an over-delivering server never pushes past 100%."""
+        with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
+            progress = BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(25)
+        assert bar_cls.return_value.update.call_args[0][0] == 1
+
+    def test_unknown_total_draws_nothing(self) -> None:
+        with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
+            progress = BatchDownloadProgress("Downloading", 0)
+            progress.tracker()(5)
+            progress.done()
+        bar_cls.assert_not_called()
+
+    def test_done_ends_an_unfinished_bar(self) -> None:
+        """A batch that stops short of 100% (a failed archive) still ends its
+        line so the next log message starts on a fresh row."""
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            progress = BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(5)
+            progress.done()
+        assert stream.getvalue().endswith("50% \n")
+
+    def test_done_before_any_frame_writes_nothing(self) -> None:
+        """A batch aborted before any tracker fired must not emit a stray
+        newline for a bar that was never drawn."""
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            BatchDownloadProgress("Downloading", 10).done()
+        assert stream.getvalue() == ""
+
+    def test_done_after_full_bar_adds_nothing(self) -> None:
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            progress = BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(10)
+            progress.done()
+        assert stream.getvalue().endswith("100% Done...\r\n")
+
 
 class TestDownloadFromMirrors:
     def test_success_returns_url_and_writes_content(self, tmp_path: Path) -> None:
@@ -2125,21 +2228,3 @@ def test_strip_win_long_path_prefix(
     r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
     with patch("esphome.framework_helpers.sys.platform", platform):
         assert framework_helpers.strip_win_long_path_prefix(input_path) == expected
-
-
-def test_suppress_download_progress_is_thread_local() -> None:
-    """The bar suppression only affects the thread that entered the context."""
-    import threading
-
-    from esphome import framework_helpers as fh
-
-    seen: list[bool] = []
-    with fh.suppress_download_progress():
-        assert getattr(fh._PROGRESS_LOCAL, "disabled", False) is True
-        thread = threading.Thread(
-            target=lambda: seen.append(getattr(fh._PROGRESS_LOCAL, "disabled", False))
-        )
-        thread.start()
-        thread.join()
-    assert seen == [False]
-    assert getattr(fh._PROGRESS_LOCAL, "disabled", False) is False
