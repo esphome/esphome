@@ -188,14 +188,16 @@ def test_library_info_declared_filter_matches_nothing_warns(
     assert "declares srcFilter/srcDir but no source files matched" in caplog.text
 
 
-def test_library_info_header_only_does_not_warn(
+def test_library_info_empty_tree_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
+    """No sources and no headers is an empty archive waiting to fail at
+    link; warn by name even without a declared filter."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
     lib = component._library_info("x", read_path, {})
     assert not lib.sources
-    assert "no source files matched" not in caplog.text
+    assert "has no sources or headers" in caplog.text
 
 
 def test_library_info_no_src_dir(tmp_path: Path) -> None:
@@ -456,6 +458,26 @@ def test_nonplatform_rejection_warns_once_through_real_converter(
     ):
         _resolve(framework)
     assert caplog.text.count("manifest is corrupt") == 1
+
+
+def test_short_name_collision_with_bundled_name_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Suppressing a genuinely bundled name on a short-name match warns;
+    an accidental collision would otherwise surface at link."""
+    framework = _make_framework(tmp_path)
+    _add_library("Someone/Wire", "1.0.0")
+    converted = _converted(
+        "someone__Wire",
+        tmp_path / "conv",
+        {"build": {}, "dependencies": [{"name": "Wire"}]},
+    )
+    (tmp_path / "conv" / "src").mkdir(parents=True)
+    with _emitting_converter(converted):
+        libs = _resolve(framework)
+    assert "Wire" not in [lib.name for lib in libs]
+    assert "assumed satisfied by a requested external library" in caplog.text
+    assert any(r.levelname == "WARNING" for r in caplog.records)
 
 
 def test_missing_libraries_dir_is_a_broken_install(tmp_path: Path) -> None:

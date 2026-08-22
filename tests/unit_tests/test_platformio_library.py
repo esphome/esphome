@@ -814,6 +814,34 @@ def test_versionless_dependency_without_provider_warns(
     )
 
 
+def test_url_version_dependency_is_not_substituted_by_provides(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A URL-valued version names one specific source; the backend-provided
+    skip must not replace it with the bundled copy."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [
+                    {"name": "Hash", "version": "https://github.com/o/Hash.git"}
+                ],
+            },
+            "o/Hash": {"name": "Hash"},
+        },
+    )
+    emitted: list[str] = []
+    convert_libraries(
+        [Library("esphome/A", "1.0.0", None)],
+        _backend(emit=lambda c: emitted.append(c.name), provides=lambda name: True),
+    )
+    assert "Skip backend-provided" not in caplog.text
+    assert "using the library bundled" not in caplog.text
+    assert any("o/hash" in n.lower() for n in emitted)
+
+
 def test_versionless_owner_qualified_dependency_warns_despite_provides(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -899,10 +927,7 @@ def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
         monkeypatch,
         tmp_path,
         {
-            "esphome/A": {
-                "name": "A",
-                "dependencies": [{"name": "B"}, {"version": "1.0"}],
-            },
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
             "esphome/B": {"name": "B"},
         },
     )
