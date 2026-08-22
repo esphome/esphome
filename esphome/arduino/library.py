@@ -35,6 +35,7 @@ from esphome.platformio.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
     DEFAULT_BUILD_SRC_FILTER,
+    HEADER_FILE_EXTENSIONS,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
     LibraryBackend,
@@ -253,9 +254,7 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
             )
     lib = _library_info(name, lib_dir, data)
     if not lib.sources and not any(
-        Path(p).suffix in (".h", ".hpp", ".hh", ".inc")
-        for d in lib.include_dirs
-        for p in walk_files(d)
+        Path(p).suffix.lower() in HEADER_FILE_EXTENSIONS for p in walk_files(lib_dir)
     ):
         # An empty or half-extracted bundled directory can never link; a
         # warning would scroll away and resurface as undefined symbols
@@ -264,6 +263,19 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
             "framework install may be incomplete (run 'esphome clean-all')"
         )
     return lib
+
+
+def _external_short_name(name: str) -> str:
+    """The short library name of a requested spec.
+
+    "owner/Name" and plain names take the last path segment; the
+    "Name=<url>" custom-name form takes the declared name (the URL tail is
+    a repository path, not a library name).
+    """
+    head, sep, tail = name.partition("=")
+    if sep and "://" in tail:
+        return head
+    return name.rsplit("/", maxsplit=1)[-1]
 
 
 def resolve_libraries(
@@ -313,10 +325,15 @@ def resolve_libraries(
 
     converted: list[ArduinoLibrary] = []
     bundled_names = {lib.name for lib in bundled}
+    converted_manifest_names: set[str] = set()
+    # Ordered set of bundled dependency names to add once conversion is done
+    pending_bundled: dict[str, None] = {}
     # Short names of the separately-requested externals: a manifest
-    # dependency matching one is already in the build, not a drop (a false
-    # "skipping" warning teaches users to ignore the real one)
-    external_short_names = {lib.name.split("/")[-1] for lib in external if lib.name}
+    # dependency matching one is already in the build, not a bundled name to
+    # add (a duplicate archive shows up as duplicate-symbol link errors)
+    external_short_names = {
+        _external_short_name(lib.name) for lib in external if lib.name
+    }
 
     def _add_bundled_dependencies(component: ConvertedLibrary) -> None:
         # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
@@ -342,26 +359,27 @@ def resolve_libraries(
                 or is_lib_ignored(name, lib_ignore)
             ):
                 continue
-            if "version" in dep and (dep.get("owner") or not _provided(name)):
-                # The converter resolves versioned deps from the registry. An
-                # owner-less versioned name that exists in the framework tree
-                # ({"Wire": "*"} normalizes to version="*") falls through to
-                # the bundled path below, matching PlatformIO's
-                # process_dependencies preference for bundled builders.
-                continue
             if dep.get("owner") or not _provided(name):
-                # The shared walk's post-emit reconciliation reports drops
-                # (it alone knows the final resolution set); nothing to add
+                # The converter resolves owner-qualified and non-bundled
+                # names from the registry; an owner-less name that exists in
+                # the framework tree prefers the bundled copy ({"Wire": "*"}
+                # normalizes to version="*"), matching PlatformIO's
+                # process_dependencies. The shared walk's post-emit
+                # reconciliation reports any real drops.
                 continue
             if not dependency_is_usable(dep, pio_platform, "arduino", component.name):
                 continue
-            bundled_names.add(name)
-            bundled.append(_bundled_library(framework_path, name))
+            # Deferred: a later-emitted converted library may satisfy this
+            # name (its manifest name is only known at its own emit), and
+            # adding the bundled copy too would double the archive
+            pending_bundled.setdefault(name)
 
     def _emit(component: ConvertedLibrary) -> None:
         apply_extra_script(
             component, board_mcu=lambda: board_mcu, pio_platform=pio_platform
         )
+        if isinstance(manifest_name := component.data.get("name"), str):
+            converted_manifest_names.add(manifest_name)
         converted.append(
             _library_info(
                 component.get_require_name(), component.source_dir, component.data
@@ -387,5 +405,10 @@ def resolve_libraries(
                 provides=_provided,
             ),
         )
+    for name in pending_bundled:
+        if name in converted_manifest_names or name in bundled_names:
+            continue
+        bundled_names.add(name)
+        bundled.append(_bundled_library(framework_path, name))
 
     return bundled + converted
