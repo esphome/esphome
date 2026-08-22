@@ -1,7 +1,7 @@
 """Generic toolchain installation helpers shared across framework implementations."""
 
-from collections.abc import Iterable
-from contextlib import ExitStack, contextmanager
+from collections.abc import Callable, Iterable
+from contextlib import ExitStack
 import hashlib
 import io
 import json
@@ -23,20 +23,6 @@ if TYPE_CHECKING:
 PathType = str | os.PathLike
 
 _LOGGER = logging.getLogger(__name__)
-
-# Concurrent downloads would interleave their progress bars; a worker thread
-# suppresses its bar for the download it runs.
-_PROGRESS_LOCAL = threading.local()
-
-
-@contextmanager
-def suppress_download_progress():
-    """Silence the per-download progress bar in the current thread."""
-    _PROGRESS_LOCAL.disabled = True
-    try:
-        yield
-    finally:
-        _PROGRESS_LOCAL.disabled = False
 
 
 # Attempts per mirror URL before falling through to the next mirror; only
@@ -713,7 +699,11 @@ def _response_validator(resp: "requests.Response") -> str | None:
 
 
 def _stream_response_to_file(
-    resp: "requests.Response", f: IO[bytes], offset: int, size: int | None = None
+    resp: "requests.Response",
+    f: IO[bytes],
+    offset: int,
+    size: int | None = None,
+    progress: Callable[[int], None] | None = None,
 ) -> None:
     """Stream an open ``_open_ranged`` response body into ``f`` at ``offset``.
 
@@ -721,25 +711,72 @@ def _stream_response_to_file(
     (effective offset 0) discards the stale bytes. ``offset`` also seeds the
     progress bar so a resumed download shows overall progress. ``size`` is
     the known full file size; when None it is derived from the response's
-    content-length, and without either there is no progress bar.
+    content-length, and without either there is no progress bar. With
+    ``progress`` set, no bar is drawn here; the callback gets the absolute
+    byte count, seeded with ``offset`` and then after each chunk.
     """
     f.seek(offset)
     f.truncate(offset)
     total_size = size or offset + _content_length(resp)
     downloaded = offset
-    progress = (
-        ProgressBar("Downloading")
-        if total_size > 0 and not getattr(_PROGRESS_LOCAL, "disabled", False)
-        else None
-    )
+    own_bar: ProgressBar | None = None
+    if progress is None:
+        own_bar = ProgressBar("Downloading") if total_size > 0 else None
+        progress = (
+            (lambda done: own_bar.update(done / total_size))
+            if own_bar
+            else (lambda _: None)
+        )
+    progress(downloaded)
     for chunk in resp.iter_content(chunk_size=256 * 1024):
         if chunk:
             f.write(chunk)
             downloaded += len(chunk)
-        if progress is not None:
-            progress.update(downloaded / total_size)
-    if progress is not None:
-        progress.update(1)
+        progress(downloaded)
+    if own_bar is not None:
+        own_bar.update(1)
+
+
+class BatchDownloadProgress:
+    """One progress bar across several concurrent ``download_with_resume`` calls.
+
+    Each ``tracker()`` is a ``progress`` callback for one download; it reports
+    that file's absolute byte count and the bar shows the sum over ``total``.
+    The lock also serialises the bar's stderr writes, so worker threads never
+    interleave frames. With an unknown ``total`` (0) nothing is drawn. Call
+    ``done()`` once every download has finished (or failed) so a bar that
+    never reached 100% still ends its line before the next log message.
+    """
+
+    def __init__(self, header: str, total: int) -> None:
+        self._bar = ProgressBar(header) if total > 0 else None
+        self._total = total
+        self._sum = 0
+        self._lock = threading.Lock()
+
+    def tracker(self) -> Callable[[int], None]:
+        last = 0
+
+        def update(done: int) -> None:
+            nonlocal last
+            if self._bar is None:
+                return
+            with self._lock:
+                self._sum += done - last
+                last = done
+                self._bar.update(min(self._sum / self._total, 1))
+
+        return update
+
+    def done(self) -> None:
+        # Nothing to end unless a frame was drawn and it was not the final
+        # one (update(1) already emitted its own newline).
+        if (
+            self._bar is not None
+            and self._bar.last_progress is not None
+            and self._bar.last_progress != 100
+        ):
+            self._bar.done()
 
 
 def download_with_resume(
@@ -752,6 +789,7 @@ def download_with_resume(
     attempts: int = 5,
     timeout: int = 30,
     retry_connect_errors: bool = True,
+    progress: Callable[[int], None] | None = None,
 ) -> None:
     """Download ``url`` to ``dest``, resuming partial downloads.
 
@@ -773,6 +811,12 @@ def download_with_resume(
     flow (connect error, HTTP error status) propagates immediately instead
     of consuming attempts — for callers with their own fallback, like
     ``download_from_mirrors``.
+
+    ``progress``, when given, replaces the built-in progress bar: it is called
+    with the absolute number of bytes of ``dest`` obtained so far (including
+    a resumed prefix, and the final size once the file is verified), so a
+    caller running several downloads at once can draw one combined bar (see
+    ``BatchDownloadProgress``).
 
     Raises EsphomeError when all attempts are exhausted.
     """
@@ -797,6 +841,8 @@ def download_with_resume(
     if dest.is_file() and (sha256 is not None or size is not None):
         try:
             _verify_file(dest, sha256, size)
+            if progress is not None:
+                progress(size if size is not None else dest.stat().st_size)
             return
         except EsphomeError:
             dest.unlink()
@@ -842,7 +888,7 @@ def download_with_resume(
                             # Recorded so a later run can prove an If-Range
                             # resume of this part file safe.
                             _write_download_meta(meta, url, validator, expected_total)
-                        _stream_response_to_file(resp, f, offset, size)
+                        _stream_response_to_file(resp, f, offset, size, progress)
             # else: a previous run already wrote every byte (or more) but
             # was killed before the rename below. Skip the network entirely
             # — a Range request past EOF would draw HTTP 416 — and let
@@ -851,6 +897,10 @@ def download_with_resume(
 
             expected_size = size if size is not None else expected_total
             _verify_file(part, sha256, expected_size or None)
+            if progress is not None:
+                # Also credits a part file an earlier run completed without
+                # streaming anything this time.
+                progress(expected_size or part.stat().st_size)
             if not expected_size and sha256 is None:
                 # No sha, no size, and the server sent no usable
                 # content-length: nothing can prove the download complete
@@ -953,6 +1003,7 @@ def _try_mirrors_once(
     f: IO[bytes] | None,
     timeout: int,
     failures: list[tuple[str, Exception]],
+    progress: Callable[[int], None] | None = None,
 ) -> str | None:
     """Single pass over the resolved mirror ``urls``, one try per URL.
 
@@ -981,6 +1032,7 @@ def _try_mirrors_once(
                     # next mirror immediately; only mid-stream drops
                     # retry-with-resume on the same URL.
                     retry_connect_errors=False,
+                    progress=progress,
                 )
                 return url
             except (requests.RequestException, OSError, EsphomeError) as e:
@@ -1022,7 +1074,7 @@ def _try_mirrors_once(
                         if offset == 0:
                             validator = _response_validator(resp)
                             expected_total = _content_length(resp)
-                        _stream_response_to_file(resp, f, offset)
+                        _stream_response_to_file(resp, f, offset, progress=progress)
 
                 if expected_total and f.tell() != expected_total:
                     raise EsphomeError(
@@ -1071,6 +1123,7 @@ def download_from_mirrors(
     substitutions: dict[str, str],
     target: io.RawIOBase | IO[bytes] | PathType,
     timeout: int = 30,
+    progress: Callable[[int], None] | None = None,
 ) -> str:
     """
     Download file from multiple mirrors with substitution support.
@@ -1080,6 +1133,8 @@ def download_from_mirrors(
         substitutions: Dictionary of substitutions to apply to URLs
         target: Target file path or file-like object
         timeout: Download timeout in seconds
+        progress: Passed through to the download (see ``download_with_resume``);
+            replaces the built-in per-file bar
 
     Returns:
         The source URL.
@@ -1144,7 +1199,9 @@ def download_from_mirrors(
     for sweep in range(1, _MIRROR_SWEEP_ATTEMPTS + 1):
         sweep_failures: list[tuple[str, Exception]] = []
         if (
-            url := _try_mirrors_once(urls, path_target, f, timeout, sweep_failures)
+            url := _try_mirrors_once(
+                urls, path_target, f, timeout, sweep_failures, progress
+            )
         ) is not None:
             return url
         failures.extend(sweep_failures)
