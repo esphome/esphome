@@ -1071,6 +1071,41 @@ def test_generate_ld_scripts_unreadable_stamp_regenerates(tmp_path: Path) -> Non
     mock_run.assert_called_once()
 
 
+def test_vtables_valued_define_raises() -> None:
+    """A VTABLES_IN_* body would split the compile line from the linker
+    script, which always defines the bare name."""
+    with pytest.raises(EsphomeError, match="take no value.*VTABLES_IN_FLASH=0"):
+        _resolve("-DVTABLES_IN_FLASH=0")
+
+
+def test_defines_flags_invalid_board_raises() -> None:
+    """The board name lands unquoted in two -D bodies; reject it by name."""
+    with pytest.raises(EsphomeError, match="Invalid board name"):
+        _defines_flags(_resolve(), "dout", "evil board", ())
+
+
+def test_generate_ld_scripts_invalid_flash_ld_name_raises(tmp_path: Path) -> None:
+    """The script name joins under the SDK and build ld dirs; a traversal
+    or path is rejected by name."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    config = _resolve()
+    with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
+        arduino8266.generate_ld_scripts(paths, config, "../evil.ld")
+
+
+def test_write_generated_replaces_damaged_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-UTF-8 existing copy is logged and overwritten; the write path
+    still raises for real failures."""
+    target = tmp_path / "gen.ld"
+    target.write_bytes(b"\xff\xfe")
+    arduino8266._write_generated(target, "SECTIONS { }")
+    assert target.read_text(encoding="utf-8") == "SECTIONS { }"
+    assert "Replacing damaged generated file" in caplog.text
+
+
 def test_generate_ld_scripts_edited_output_regenerates(tmp_path: Path) -> None:
     """The stamp records the content hash, so an externally edited cached
     script regenerates instead of linking untrusted content."""
