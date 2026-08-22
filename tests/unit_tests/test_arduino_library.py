@@ -984,6 +984,9 @@ def test_transitively_resolved_dependency_does_not_warn(
         # An "=" without a URL is a registry name, not the custom-name form
         ("FOO=BAR", "FOO=BAR"),
         ("https://github.com/x/Wire", "Wire"),
+        # Git tails are stripped like the walk's URL normalization
+        ("https://github.com/x/Wire.git", "Wire"),
+        ("git+https://github.com/x/Wire.git#v1", "Wire"),
     ],
 )
 def test_external_short_name(spec: str, expected: str) -> None:
@@ -991,10 +994,11 @@ def test_external_short_name(spec: str, expected: str) -> None:
 
 
 def test_converted_manifest_name_suppresses_bundled_dependency(
-    tmp_path: Path,
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A name a converted library's manifest provides is not also added
-    from the framework tree, even when the provider emits later."""
+    from the framework tree, even when the provider emits later; the
+    suppression warns like its external_short_names twin."""
     framework = _make_framework(tmp_path)
     _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
     # Requested under a different short name; only the manifest says "Wire"
@@ -1020,6 +1024,7 @@ def test_converted_manifest_name_suppresses_bundled_dependency(
         "esp32async__ESPAsyncWebServer",
         "someone__WireLib",
     ]
+    assert "Dependency Wire is assumed satisfied by a converted" in caplog.text
 
 
 def test_bundled_library_root_headers_pass_the_probe(tmp_path: Path) -> None:
