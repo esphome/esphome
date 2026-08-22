@@ -2125,3 +2125,21 @@ def test_strip_win_long_path_prefix(
     r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
     with patch("esphome.framework_helpers.sys.platform", platform):
         assert framework_helpers.strip_win_long_path_prefix(input_path) == expected
+
+
+def test_suppress_download_progress_is_thread_local() -> None:
+    """The bar suppression only affects the thread that entered the context."""
+    import threading
+
+    from esphome import framework_helpers as fh
+
+    seen: list[bool] = []
+    with fh.suppress_download_progress():
+        assert getattr(fh._PROGRESS_LOCAL, "disabled", False) is True
+        thread = threading.Thread(
+            target=lambda: seen.append(getattr(fh._PROGRESS_LOCAL, "disabled", False))
+        )
+        thread.start()
+        thread.join()
+    assert seen == [False]
+    assert getattr(fh._PROGRESS_LOCAL, "disabled", False) is False

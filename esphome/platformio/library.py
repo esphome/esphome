@@ -14,6 +14,7 @@ regardless of which toolchain consumes the result.
 
 from collections import deque
 from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 import glob
 import hashlib
@@ -30,7 +31,12 @@ from urllib.request import url2pathname
 
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
-from esphome.framework_helpers import archive_extract_all, download_from_mirrors, rmdir
+from esphome.framework_helpers import (
+    archive_extract_all,
+    download_from_mirrors,
+    rmdir,
+    suppress_download_progress,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -850,6 +856,44 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
+# A few streams saturate most links without hammering the registry
+_DOWNLOAD_WORKERS = 4
+
+
+def _prefetch_wave(
+    wave: list[tuple[str, ConvertedLibrary]], salt: str, namespace: str
+) -> None:
+    """Best-effort parallel download of a wave's registry archives.
+
+    The walk's own ``download()`` call stays authoritative (it surfaces real
+    failures, with resume); bars are suppressed since parallel bars would
+    interleave. Duplicate URLs prefetch once so two threads never extract
+    into the same cache directory.
+    """
+    components: list[ConvertedLibrary] = []
+    seen: set[str] = set()
+    for _key, component in wave:
+        if not isinstance(component.source, URLSource):
+            continue
+        if component.source.url in seen:
+            continue
+        seen.add(component.source.url)
+        components.append(component)
+    if len(components) < 2:
+        return
+
+    def _fetch(component: ConvertedLibrary) -> None:
+        try:
+            with suppress_download_progress():
+                component.download(salt=salt, namespace=namespace)
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # The sequential call below retries and reports the failure
+            pass
+
+    with ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(components))) as ex:
+        list(ex.map(_fetch, components))
+
+
 def convert_libraries(
     libraries: list[Library], backend: LibraryBackend
 ) -> list[ConvertedLibrary]:
@@ -946,119 +990,129 @@ def convert_libraries(
     top_level_keys = set(top_level)
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
-        key = worklist.popleft()
-        node = nodes[key]
+        # Drain the frontier sequentially (spec resolution mutates shared
+        # node state), then prefetch the wave's registry archives in
+        # parallel; the per-component download() below stays authoritative.
+        wave: list[tuple[str, ConvertedLibrary]] = []
+        while worklist:
+            key = worklist.popleft()
+            node = nodes[key]
 
-        # A node is queued once per referring edge; skip the (uncached) registry
-        # lookup + download + dependency walk unless its requirement set grew
-        # since the last resolve. Requirements only ever grow, so this still
-        # converges the fixpoint and terminates dependency cycles.
-        requirements = frozenset(node.requirements)
-        if resolved_requirements.get(key) == requirements:
-            continue
-        resolved_requirements[key] = requirements
+            # A node is queued once per referring edge; skip the (uncached)
+            # registry lookup + download + dependency walk unless its
+            # requirement set grew since the last resolve. Requirements only
+            # ever grow, so this still converges the fixpoint and terminates
+            # dependency cycles.
+            requirements = frozenset(node.requirements)
+            if resolved_requirements.get(key) == requirements:
+                continue
+            resolved_requirements[key] = requirements
 
-        if node.is_git:
-            component = ConvertedLibrary(key, "*", GitSource(node.url, node.ref))
-        elif node.is_local:
-            component = ConvertedLibrary(key, "*", LocalSource(node.local_path))
-        else:
-            owner, name, version, url = _resolve_registry_version(
-                node.owner, node.pkgname, node.requirements
-            )
-            component = ConvertedLibrary(
-                _owner_pkgname_to_name(owner, name), version, URLSource(url)
-            )
-        component.download(salt=salt, namespace=backend.cache_key)
+            if node.is_git:
+                component = ConvertedLibrary(key, "*", GitSource(node.url, node.ref))
+            elif node.is_local:
+                component = ConvertedLibrary(key, "*", LocalSource(node.local_path))
+            else:
+                owner, name, version, url = _resolve_registry_version(
+                    node.owner, node.pkgname, node.requirements
+                )
+                component = ConvertedLibrary(
+                    _owner_pkgname_to_name(owner, name), version, URLSource(url)
+                )
+            wave.append((key, component))
+        _prefetch_wave(wave, salt, backend.cache_key)
+        for key, component in wave:
+            node = nodes[key]
+            component.download(salt=salt, namespace=backend.cache_key)
 
-        source_dir = component.source_dir
-        library_json_path = source_dir / "library.json"
-        library_properties_path = source_dir / "library.properties"
-        has_json = library_json_path.is_file()
-        has_properties = library_properties_path.is_file()
-        if not has_json and not has_properties and not node.is_local:
-            # The shared cache can hold a broken copy (e.g. a clone or an
-            # extraction interrupted by a killed process). Force one
-            # re-download so a bad cache entry self-heals instead of failing
-            # every build until the user runs a full clean. A local source is
-            # read in place, so there is nothing to re-download.
-            _LOGGER.warning(
-                "Library %s at %s is missing library.json and library.properties; "
-                "re-downloading",
-                key,
-                source_dir,
-            )
-            component.download(force=True, salt=salt, namespace=backend.cache_key)
+            source_dir = component.source_dir
+            library_json_path = source_dir / "library.json"
+            library_properties_path = source_dir / "library.properties"
             has_json = library_json_path.is_file()
             has_properties = library_properties_path.is_file()
-        if has_json:
-            component.data = parse_library_json(library_json_path)
-        elif has_properties:
-            component.data = parse_library_properties(library_properties_path)
-        else:
-            # For a local library a missing manifest is user input, so raise
-            # EsphomeError (clean CLI message) like the missing-directory case;
-            # for registry/git a missing manifest means a corrupt cache, which
-            # is not user error, so keep RuntimeError.
-            error_cls = EsphomeError if node.is_local else RuntimeError
-            raise error_cls(
-                f"Invalid PIO library {key}: missing library.json and "
-                f"library.properties in {source_dir}"
-            )
-
-        if not isinstance(component.data, dict) or not isinstance(
-            component.data.get("build", {}), dict
-        ):
-            # A bare json.load imposes no shape; every backend dereferences
-            # data/build, so validate once here and name the library
-            raise EsphomeError(f"Library {key} has a malformed manifest")
-        warn_properties_depends(component.name, component.data)
-
-        try:
-            check_library_data(component.data, backend.platform, backend.framework)
-        except InvalidLibrary as e:
-            # Fail fast if a top-level library the build explicitly requested
-            # is incompatible; the routine cross-platform skip stays at
-            # debug, any other cause warns (a silent drop resurfaces as
-            # undefined symbols at link)
-            if key in top_level_keys:
-                raise RuntimeError(
-                    f"Requested library {key} is not compatible with "
-                    f"{backend.framework}: {e}"
-                ) from e
-            if isinstance(e, IncompatiblePlatform):
-                _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            if not has_json and not has_properties and not node.is_local:
+                # The shared cache can hold a broken copy (e.g. a clone or an
+                # extraction interrupted by a killed process). Force one
+                # re-download so a bad cache entry self-heals instead of failing
+                # every build until the user runs a full clean. A local source is
+                # read in place, so there is nothing to re-download.
+                _LOGGER.warning(
+                    "Library %s at %s is missing library.json and library.properties; "
+                    "re-downloading",
+                    key,
+                    source_dir,
+                )
+                component.download(force=True, salt=salt, namespace=backend.cache_key)
+                has_json = library_json_path.is_file()
+                has_properties = library_properties_path.is_file()
+            if has_json:
+                component.data = parse_library_json(library_json_path)
+            elif has_properties:
+                component.data = parse_library_properties(library_properties_path)
             else:
-                _LOGGER.warning("Skipping dependency %s: %s", key, str(e))
-            continue
-        components[key] = component
+                # For a local library a missing manifest is user input, so raise
+                # EsphomeError (clean CLI message) like the missing-directory case;
+                # for registry/git a missing manifest means a corrupt cache, which
+                # is not user error, so keep RuntimeError.
+                error_cls = EsphomeError if node.is_local else RuntimeError
+                raise error_cls(
+                    f"Invalid PIO library {key}: missing library.json and "
+                    f"library.properties in {source_dir}"
+                )
 
-        # Requirements changed (we got past the short-circuit above), so
-        # (re)walk this component's dependencies.
-        node.edges = set()
-        for dependency in normalize_dependencies(
-            component.data.get("dependencies"), component.name
-        ):
-            if "name" not in dependency or "version" not in dependency:
-                continue
-            if not dependency_is_usable(
-                dependency, backend.platform, backend.framework, component.name
+            if not isinstance(component.data, dict) or not isinstance(
+                component.data.get("build", {}), dict
             ):
+                # A bare json.load imposes no shape; every backend dereferences
+                # data/build, so validate once here and name the library
+                raise EsphomeError(f"Library {key} has a malformed manifest")
+            warn_properties_depends(component.name, component.data)
+
+            try:
+                check_library_data(component.data, backend.platform, backend.framework)
+            except InvalidLibrary as e:
+                # Fail fast if a top-level library the build explicitly requested
+                # is incompatible; the routine cross-platform skip stays at
+                # debug, any other cause warns (a silent drop resurfaces as
+                # undefined symbols at link)
+                if key in top_level_keys:
+                    raise RuntimeError(
+                        f"Requested library {key} is not compatible with "
+                        f"{backend.framework}: {e}"
+                    ) from e
+                if isinstance(e, IncompatiblePlatform):
+                    _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+                else:
+                    _LOGGER.warning("Skipping dependency %s: %s", key, str(e))
                 continue
-            dep_name = _owner_pkgname_to_name(
-                dependency.get("owner"), dependency.get("name")
-            )
-            if is_lib_ignored(dep_name, lib_ignore):
-                _LOGGER.debug("Skip ignored dependency %s", dep_name)
-                continue
-            # The version field may actually be a URL (git/archive dependency).
-            dep_version = dependency["version"]
-            dep_url = _url_or_none(dep_version)
-            if dep_url is not None:
-                dep_version = None
-            dep_key = add_spec(dep_name, dep_version, dep_url)
-            node.edges.add(dep_key)
-            worklist.append(dep_key)
+            components[key] = component
+
+            # Requirements changed (we got past the short-circuit above), so
+            # (re)walk this component's dependencies.
+            node.edges = set()
+            for dependency in normalize_dependencies(
+                component.data.get("dependencies"), component.name
+            ):
+                if "name" not in dependency or "version" not in dependency:
+                    continue
+                if not dependency_is_usable(
+                    dependency, backend.platform, backend.framework, component.name
+                ):
+                    continue
+                dep_name = _owner_pkgname_to_name(
+                    dependency.get("owner"), dependency.get("name")
+                )
+                if is_lib_ignored(dep_name, lib_ignore):
+                    _LOGGER.debug("Skip ignored dependency %s", dep_name)
+                    continue
+                # The version field may actually be a URL (git/archive dependency).
+                dep_version = dependency["version"]
+                dep_url = _url_or_none(dep_version)
+                if dep_url is not None:
+                    dep_version = None
+                dep_key = add_spec(dep_name, dep_version, dep_url)
+                node.edges.add(dep_key)
+                worklist.append(dep_key)
 
     # A git or local source wins over the same component requested from the
     # registry. That's intentional, but warn so the dropped registry spec isn't
