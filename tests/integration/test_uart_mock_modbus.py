@@ -9,6 +9,10 @@ test_uart_mock_modbus_no_threshold :
   Test modbus with no rx_full_threshold set (simulating USB UART / non-hardware UART).
   Verifies the 50ms fallback timeout handles chunked data with USB packet gaps.
 
+test_uart_mock_modbus_fairness :
+  Two controllers sharing one client bus, both polling far faster than the bus
+  can service. Verifies the hub schedules them fairly (request counts within 1).
+
 """
 
 from __future__ import annotations
@@ -17,7 +21,7 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from aioesphomeapi import NumberInfo
+from aioesphomeapi import ButtonInfo, NumberInfo, SwitchInfo
 import pytest
 
 from .state_utils import SensorTracker, find_entity
@@ -200,6 +204,99 @@ async def test_uart_mock_modbus_server(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_server_read_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus server FC 0x17 (read/write multiple registers).
+
+    Injects raw 0x17 request frames and checks the round-trip through the
+    server's read_lambda/write_lambda, independent of how the hub dispatches
+    0x17 internally:
+      * one request writes reg 0x01 then reads regs 0x01+0x02 -- reg 0x01 reads
+        back the just-written value (the write happens before the read per
+        Modbus 6.17), and the second register is returned by the same
+        multi-register read;
+      * a second request writes and reads a different register block.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        ["rw_write_1", "rw_read_1", "rw_read_2", "rw_write_3", "rw_read_3"]
+    )
+    futures = tracker.expect_all(
+        {
+            "rw_write_1": 4660,  # 0x1234 written to reg 0x0001
+            "rw_read_1": 4660,  # reg 0x0001 reads back the just-written value
+            "rw_read_2": 170,  # 0x00AA read from reg 0x0002 in the same request
+            "rw_write_3": 22136,  # 0x5678 written to reg 0x0003
+            "rw_read_3": 22136,  # reg 0x0003 reads back the just-written value
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_read_write_invalid(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus server FC 0x17 invalid-frame handling.
+
+    Injects a well-formed (valid CRC) 0x17 request whose write byte count (2)
+    does not match 2x the write quantity (2 registers need 4 bytes), so the hub
+    must reject it with ILLEGAL_DATA_VALUE before touching any register. A valid
+    read is injected right after as a processing marker.
+
+    The invalid frame is verified via bus-level signals rather than the reply
+    frame on the wire: the mock UART cannot observe the server's TX reliably on
+    the host platform (the server's transmission is gated by a millis()-based tx
+    delay), so instead we assert the request is rejected exactly once and never
+    applied to a register.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(["write_seen", "probe"])
+    probe_seen = tracker.expect("probe", 1)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        # The probe read is injected after the malformed frame, so once it fires
+        # the malformed frame has already been processed.
+        await tracker.await_change(probe_seen, "probe")
+
+    # Exactly one bus-level rejection for the malformed frame (no cascade)...
+    invalid_warnings = [
+        line for line in warning_log_lines if "Invalid number of registers" in line
+    ]
+    assert len(invalid_warnings) == 1, (
+        "Expected exactly one invalid-frame rejection, got warnings:\n"
+        + "\n".join(warning_log_lines)
+    )
+    assert len(error_log_lines) == 0, (
+        "Expected no modbus errors, but got:\n" + "\n".join(error_log_lines)
+    )
+    # ...and the rejected write is never applied to the target register.
+    assert not tracker.sensor_states["write_seen"], (
+        f"malformed 0x17 must not write, but write_seen fired: {tracker.sensor_states['write_seen']}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -211,7 +308,10 @@ async def test_uart_mock_modbus_server_controller(
 
     expected_values = {
         "reg_u_word": 99,
+        "reg_u_word_s": 4660,
+        "reg_u_word_s_raw": 13330,
         "reg_s_word": -99,
+        "reg_s_word_s": -2,
         "reg_u_dword": 16909060,
         "reg_s_dword": -16909060,
         "reg_u_dword_r": pytest.approx(67305985),
@@ -230,7 +330,10 @@ async def test_uart_mock_modbus_server_controller(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the first values can already be in
+        # the states the device sends on connect; matching them there saves
+        # waiting for the next poll
+        await tracker.setup_and_start_scenario(client, match_initial_states=True)
         await tracker.await_all(futures)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
@@ -245,14 +348,16 @@ async def test_uart_mock_modbus_server_controller_write(
 
     Verifies that writing to modbus server registers via the controller updates
     the server's stored values, which are then read back correctly on the next poll.
-    All 12 value types are tested: U/S_WORD, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
+    All 14 value types are tested: U/S_WORD, U/S_WORD_S, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     register_test_cases: dict[str, RegisterTestCase] = {
         "reg_u_word": RegisterTestCase(11, "write_u_word", 42, 42),
+        "reg_u_word_s": RegisterTestCase(4660, "write_u_word_s", 17185, 17185),
         "reg_s_word": RegisterTestCase(-11, "write_s_word", -42, -42),
+        "reg_s_word_s": RegisterTestCase(-2, "write_s_word_s", -257, -257),
         "reg_u_dword": RegisterTestCase(1001, "write_u_dword", 2002, 2002),
         "reg_s_dword": RegisterTestCase(-1001, "write_s_dword", -2002, -2002),
         "reg_u_dword_r": RegisterTestCase(3003, "write_u_dword_r", 4004, 4004),
@@ -290,7 +395,12 @@ async def test_uart_mock_modbus_server_controller_write(
         run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
-        entities = await tracker.setup_and_start_scenario(client)
+        # The controller polls from boot, so the baseline can already be in the
+        # states the device sends on connect; matching it there saves waiting for
+        # the next poll
+        entities = await tracker.setup_and_start_scenario(
+            client, match_initial_states=True
+        )
 
         # Wait for initial baseline values to confirm the controller <-> server
         # connection is working before issuing writes
@@ -310,6 +420,72 @@ async def test_uart_mock_modbus_server_controller_write(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_server_controller_bits(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test coil/discrete-input round trips between controller and server bits.
+
+    The server serves four bits from one shared table. The controller reads
+    each of them both as a coil (FC 0x01) and as a discrete input (FC 0x02),
+    so the two views must always agree. Two bits are then written back, one
+    via the single-coil write (FC 0x05) and one via the multiple-coils write
+    (FC 0x0F), and the new values must show up in both read views.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    initial_values = {
+        "bit_coil_0": True,
+        "bit_coil_1": False,
+        "bit_coil_2": False,
+        "bit_coil_3": True,
+        "bit_di_0": True,
+        "bit_di_1": False,
+        "bit_di_2": False,
+        "bit_di_3": True,
+    }
+    tracker = SensorTracker(list(initial_values.keys()))
+
+    # Phase 1: expect initial baseline values in both read views
+    initial_futures = tracker.expect_all(initial_values)
+    # Phase 2: expect post-write values (registered now so on_state can match them)
+    written_futures = tracker.expect_all(
+        {
+            "bit_coil_2": True,
+            "bit_di_2": True,
+            "bit_coil_3": False,
+            "bit_di_3": False,
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        # The controller polls from boot and binary sensors drop repeats, so the
+        # baseline can arrive only in the states the device sends on connect
+        entities = await tracker.setup_and_start_scenario(
+            client, match_initial_states=True
+        )
+
+        # Wait for initial baseline values to confirm the controller <-> server
+        # connection is working before issuing writes
+        await tracker.await_all(initial_futures, timeout=4.0)
+
+        # Flip both writable bits: 0x02 false -> true, 0x03 true -> false
+        for switch_name, value in (("write_bit_2", True), ("write_bit_3", False)):
+            entity = find_entity(entities, switch_name, SwitchInfo)
+            assert entity is not None, f"{switch_name} switch entity not found"
+            client.switch_command(entity.key, value)
+
+        # Wait for both read views to reflect the written values
+        await tracker.await_all(written_futures, timeout=4.0)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller_multiple(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -322,6 +498,407 @@ async def test_uart_mock_modbus_server_controller_multiple(
     expected_values = {"reg_u_word": 919, "reg_u_word_2": 929}
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        # The controller polls from boot, so the first values can already be in
+        # the states the device sends on connect; matching them there saves
+        # waiting for the next poll
+        await tracker.setup_and_start_scenario(client, match_initial_states=True)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_client_typed(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test the typed modbus_client actions end to end (each action its own hub device).
+
+    Start Scenario fires three typed actions: write_single_register puts 777 in server register 0x10 (the
+    ack fires on_response -> ack_flag); read_holding_registers reads it back,
+    with the reply decoded by the shared device dispatch into host-order words (values[0] -> typed_value);
+    a read of unserved register 0x99 resolves via on_error with the device's exception code
+    (ILLEGAL_DATA_ADDRESS = 2 -> error_code); a coil read of the register-only server resolves via
+    on_error with ILLEGAL_FUNCTION (= 1 -> coil_error_code) - the server maps no bits, so it does not
+    implement the coil function - proving the bit-read request and typed error delivery. A multi-register
+    write (fc 0x10) lands on registers 0x11/0x12 with the read-back of 0x12 chained inside its ack handler
+    (-> multi_value = 222); a multi-coil write likewise draws ILLEGAL_FUNCTION from the register-only server
+    (-> multi_coil_error = 1). A read whose count lambda returns 0 at runtime
+    builds an empty (rejected) PDU, is refused at the hub door, and resolves via on_not_sent
+    (-> not_sent_flag).
+    """
+
+    tracker = SensorTracker(
+        [
+            "typed_value",
+            "ack_flag",
+            "error_code",
+            "coil_error_code",
+            "multi_value",
+            "multi_coil_error",
+            "not_sent_flag",
+        ]
+    )
+    futures = tracker.expect_all(
+        {
+            "typed_value": 777,
+            "ack_flag": 1,
+            "error_code": 2,
+            "coil_error_code": 1,
+            "multi_value": 222,
+            "multi_coil_error": 1,
+            "not_sent_flag": 1,
+        }
+    )
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_client_inline(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test modbus_client.send actions: each action is its own hub device.
+
+    Start Scenario fires: a read of served address 1 decoded in its inline on_response -> inline_value; a
+    read of address 2, which no server answers, resolving via on_no_response -> timeout_flag. A parallel
+    script fires the same write action twice while its first frame is pending; the hub drops the duplicate
+    write, and the second firing resolves via its own on_not_sent -> skipped_flag. This exercises
+    per-action reply routing, the no-reply path, and the one-outcome guarantee under the hub's write
+    dedup.
+    """
+
+    tracker = SensorTracker(["inline_value", "timeout_flag", "skipped_flag"])
+    futures = tracker.expect_all(
+        {"inline_value": 1234, "timeout_flag": 1, "skipped_flag": 1}
+    )
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures, timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_grouping(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Pins how sensors are grouped into polled ranges across the combinations that matter.
+
+    Each block in the fixture covers one relationship between neighbouring sensors - sharing a wide
+    register, contiguous, separated by a gap, differing polling rates, coils, and a pinned range - so
+    that the frames on the wire and the byte each sensor decodes from are locked down.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    # Values are those the component produced before the range rework, captured from it directly.
+    expected_values = {
+        # one register returning 4 bytes, read as two halves
+        "reuse_lo": 273,
+        "reuse_hi": 546,
+        # contiguous registers, mixed widths
+        "ext_word": 4660,
+        "ext_next": 22136,
+        "ext_dword": pytest.approx(2596069120),
+        # a wide register pushes its neighbour past the bytes it actually returned
+        "wide_first": 2730,
+        "wide_next": 3003,
+        # a gap keeps them apart
+        "gap_low": 320,
+        "gap_high": 325,
+        # contiguous, second one polling more slowly
+        "rate_first": 336,
+        "rate_slow": 337,
+        # a wide value, one of its halves, and the register after it
+        "shared_dword": pytest.approx(2759468),
+        "shared_high": 6956,
+        "shared_after": 781,
+        # a wide register hidden behind a wider plain sibling, and the sensor after them
+        "masked_wide": 4369,
+        "masked_pair": pytest.approx(286335522),
+        "masked_after": 13107,
+        # pinned range, and the contiguous sensor after it
+        "forced_first": 352,
+        "forced_next": 353,
+    }
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        # Every frame sent must match one the mock answers, so an unexpected read (a range that split,
+        # merged or changed length) shows up here as an unanswered request. This is what pins the coil
+        # grouping too, since binary sensors carry no numeric state to compare.
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_shared_address(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Sensors sharing and overlapping one register range must all decode from a single read.
+
+    A U_WORD and a U_DWORD share start address 0x9001 (non-mergeable, so the range widens to 2
+    registers) and a third U_WORD at 0x9002 falls inside the widened range. A regression guard for the
+    range-grouping rewrite: without the same-address fallback the shared sensors land in duplicate
+    ranges and one never publishes; without the in-range join the 0x9002 sensor splits into a second
+    overlapping frame that the mock (which expects exactly one read) never answers.
+
+    A force_new_range sensor at 0x30 plus a plain sensor at 0x10 pin the covered branch's lower-bound
+    check: the forced sensor sorts first, and without the bound the lower-address sensor is absorbed
+    into the forced range with a wrapped byte offset and never polls its own register.
+
+    A U_QWORD at 0x100 with plain sensors at 0x101 and 0x103 pins that non-merging sensors inside a
+    wide sensor's span keep polling separately, and that the sensor at the span's tail address does not
+    anchor a re-use join on a mid-range predecessor (which would make it decode that sensor's bytes).
+
+    A sensor at 0x201 carrying skip_updates sits inside a widened shared-address range at 0x200 but
+    keeps its own range, so polling rates stay independent; folding it in would also make it decode
+    0x201 out of the shared response (2) instead of its own poll (777).
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    # 0x9001 = 0x0397 (919); 0x9001..0x9002 = 0x03970291 (60228241, approx: not exact in float32);
+    # 0x9002 = 0x0291 (657); 0x30 = 0x0111 (273); 0x10 = 0x0222 (546)
+    expected_values = {
+        "shared_word": 919,
+        "shared_dword": pytest.approx(60228241),
+        "covered_word": 657,
+        "forced_high": 273,
+        "plain_low": 546,
+        "wide_qword": 100,
+        "inside_wide": 321,
+        "tail_of_wide": 421,
+        "rate_word": 321,
+        "rate_dword": pytest.approx(21037058),
+        "own_rate": 777,
+    }
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_custom_command(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a custom_command sensor polling a register served by the mock server.
+
+    The custom_command is a raw frame (device address + PDU); the hub appends the CRC and
+    routes the response back to the polling command, whose sensor lambda parses the payload.
+    Guards the custom polling wiring: the command must reference the sensor's custom_data and
+    decode the real function code, or nothing is ever transmitted. A plain read on the same
+    register anchors the bus.
+    """
+
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    expected_values = {"plain_read": 259, "custom_read": 259}
+    tracker = SensorTracker(list(expected_values.keys()))
+    futures = tracker.expect_all(expected_values)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_all(futures)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_offline(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A silent device drives the controller offline; answering again recovers it.
+
+    The mock answers nothing at first, so the controller burns through max_cmd_retries
+    (1 retry after the first timeout) and fires on_offline. While offline it keeps
+    retrying every offline_skip_updates+1 cycles. The test then flips the mock to
+    answering; the next retry gets a response, on_online fires, and the register value
+    publishes. This pins the pooled non-response counter, can_send() gating, the
+    offline retry cadence, and recovery - none of which the responding-path tests touch.
+
+    The fixture gives offline_skip_updates and the sensor's skip_updates the same period
+    on purpose: offline probing must follow the offline cadence alone, since requiring
+    both cadences to coincide leaves phase combinations where no probe ever goes out.
+    """
+
+    tracker = SensorTracker(["link_state", "reg"])
+    offline_future = tracker.expect("link_state", 0)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+
+        # The unanswered poll and its retry each time out (~100ms), then on_offline fires.
+        await tracker.await_change(offline_future, "link_state", timeout=5.0)
+
+        # Register the recovery expectations before waking the device so no update is missed.
+        online_future = tracker.expect("link_state", 1)
+        value_future = tracker.expect("reg", 259)
+        serve_btn = find_entity(entities, "serve", ButtonInfo)
+        assert serve_btn is not None, "Serve button not found"
+        client.button_command(serve_btn.key)
+
+        # The next offline-cadence retry gets an answer: back online, value published.
+        await tracker.await_change(online_future, "link_state", timeout=5.0)
+        await tracker.await_change(value_future, "reg", timeout=5.0)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_fairness(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Two controllers sharing one bus should get a fair share of it.
+
+    Both controllers poll different devices (addresses 1 and 2) on the same
+    client hub, far faster than the bus can service, so they continually
+    contend for it. The on_tx hook in the fixture counts the requests issued
+    for each address. With fair scheduling in the modbus hub, neither
+    controller should starve the other: the two request counts must end up
+    within 1 of each other.
+    """
+
+    tracker = SensorTracker(["requests_1", "requests_2"])
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+
+        # Let both controllers hammer the bus for a while.
+        await asyncio.sleep(2.0)
+
+        # Stop polling so the counters settle to a final, stable value (state
+        # coalescing means intermediate values may be skipped, but the final
+        # value is always delivered once changes stop).
+        stop_btn = find_entity(entities, "stop_scenario", ButtonInfo)
+        assert stop_btn is not None, "Stop Scenario button not found"
+        client.button_command(stop_btn.key)
+        await asyncio.sleep(0.5)
+
+        assert tracker.sensor_states["requests_1"], "controller 1 issued no requests"
+        assert tracker.sensor_states["requests_2"], "controller 2 issued no requests"
+        count_1 = tracker.sensor_states["requests_1"][-1]
+        count_2 = tracker.sensor_states["requests_2"][-1]
+
+        # Both must have polled repeatedly, otherwise "fairness" is meaningless.
+        assert count_1 >= 5 and count_2 >= 5, (
+            f"expected both controllers to poll repeatedly, "
+            f"got controller 1={count_1}, controller 2={count_2}"
+        )
+        # Fair scheduling: the bus alternates between the two pending requests,
+        # so the counts can differ by at most one in-flight request.
+        assert abs(count_1 - count_2) <= 1, (
+            f"controllers did not get a fair share of the bus: "
+            f"controller 1 issued {count_1}, controller 2 issued {count_2}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_broadcast_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A client broadcast write (address 0) reaches every server and costs no timeout.
+
+    The scenario button sends a broadcast single-register write of 777 to register
+    0x10; both servers must apply it. The client's normal polling sensor must keep
+    updating, and no modbus warnings may appear - the pre-broadcast-support behavior
+    parked the frame in the waiting slot until the send-wait timeout, which surfaced
+    here as 'Stop waiting for response' warnings and a stalled poll.
+    """
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        ["reg_u_word", "srv1_written", "srv2_written", "broadcast_accepted"]
+    )
+    poll_before = tracker.expect("reg_u_word", 919)
+    written = tracker.expect_all({"srv1_written": 777, "srv2_written": 777})
+    # queue_pdu() must accept the broadcast into the machine (return true), the answer this PR adds.
+    accepted = tracker.expect("broadcast_accepted", 1)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(accepted, "broadcast_accepted")
+        await tracker.await_change(poll_before, "reg_u_word")
+        await tracker.await_all(written)
+        # Polling must continue after the broadcast (a burned timeout stalls it).
+        poll_after = tracker.expect("reg_u_word", 919)
+        await tracker.await_change(poll_after, "reg_u_word", timeout=3.0)
+        _assert_no_modbus_errors(error_log_lines, warning_log_lines)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_client_read_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """A modbus_client.read_write_multiple_registers action (FC 0x17) drives a server end to end.
+
+    The client writes reg 0x0001 = 0x1234 and reads regs 0x0001..0x0002 in one transaction; the server
+    applies the write first (Modbus 6.17). The test confirms both ends: the server's write_lambda ran
+    (srv_write_1) and the read half came back to the client's on_response (client_read_0 = the
+    just-written 0x1234, client_read_1 = the read-only 0x00AA).
+    """
+    line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
+
+    tracker = SensorTracker(
+        ["srv_write_1", "srv_read_1", "client_read_0", "client_read_1"]
+    )
+    futures = tracker.expect_all(
+        {
+            "srv_write_1": 4660,  # server wrote 0x1234 to reg 0x0001
+            "client_read_0": 4660,  # client read reg 0x0001 back as the just-written 0x1234
+            "client_read_1": 170,  # client read reg 0x0002 (0x00AA) in the same request
+        }
+    )
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),

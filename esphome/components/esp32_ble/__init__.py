@@ -1,5 +1,4 @@
 from collections.abc import Callable, MutableMapping
-from dataclasses import dataclass
 from enum import Enum
 import logging
 from typing import Any
@@ -32,7 +31,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
 )
-from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
+from esphome.core import CORE, ID, TimePeriod
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -134,18 +134,21 @@ def _get_required_loggers() -> set[BTLoggers]:
     return CORE.data.setdefault(ESP32_BLE_REQUIRED_LOGGERS_KEY, set())
 
 
-# Dataclass for handler registration counts
-@dataclass
-class HandlerCounts:
-    gap_event: int = 0
-    gap_scan_event: int = 0
-    gattc_event: int = 0
-    gatts_event: int = 0
-    ble_status_event: int = 0
-
-
-# Track handler registration counts for StaticVector sizing
-_handler_counts = HandlerCounts()
+# Handler slot counters sizing the StaticCallbackManager storage in ble.h;
+# one request per register_* call below.
+_request_gap_event_slot = cg.slot_counter("ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT")
+_request_gap_scan_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT"
+)
+_request_gattc_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT"
+)
+_request_gatts_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT"
+)
+_request_ble_status_event_slot = cg.slot_counter(
+    "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT"
+)
 
 
 def _add_callback(
@@ -171,8 +174,8 @@ def _add_callback(
 
 
 def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
-    """Register a GAP event handler and track the count."""
-    _handler_counts.gap_event += 1
+    """Register a GAP event handler and request a handler slot."""
+    _request_gap_event_slot()
     _add_callback(
         parent_var,
         "add_gap_event_callback",
@@ -185,8 +188,8 @@ def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) 
 def register_gap_scan_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GAP scan event handler and track the count."""
-    _handler_counts.gap_scan_event += 1
+    """Register a GAP scan event handler and request a handler slot."""
+    _request_gap_scan_event_slot()
     _add_callback(
         parent_var,
         "add_gap_scan_event_callback",
@@ -199,8 +202,8 @@ def register_gap_scan_event_handler(
 def register_gattc_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTc event handler and track the count."""
-    _handler_counts.gattc_event += 1
+    """Register a GATTc event handler and request a handler slot."""
+    _request_gattc_event_slot()
     _add_callback(
         parent_var,
         "add_gattc_event_callback",
@@ -213,8 +216,8 @@ def register_gattc_event_handler(
 def register_gatts_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTs event handler and track the count."""
-    _handler_counts.gatts_event += 1
+    """Register a GATTs event handler and request a handler slot."""
+    _request_gatts_event_slot()
     _add_callback(
         parent_var,
         "add_gatts_event_callback",
@@ -227,8 +230,8 @@ def register_gatts_event_handler(
 def register_ble_status_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a BLE status event handler and track the count."""
-    _handler_counts.ble_status_event += 1
+    """Register a BLE status event handler and request a handler slot."""
+    _request_ble_status_event_slot()
     _add_callback(
         parent_var,
         "add_ble_status_event_callback",
@@ -381,7 +384,7 @@ def _validate_key_sizes(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
 
 
-def validate_variant(_):
+def validate_variant(_: ConfigType) -> None:
     variant = get_esp32_variant()
     if variant in NO_BLUETOOTH_VARIANTS:
         raise cv.Invalid(f"{variant} does not support Bluetooth")
@@ -441,7 +444,7 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
-def final_validation(config):
+def final_validation(config: ConfigType) -> None:
     validate_variant(config)
     if (name := config.get(CONF_NAME)) is not None:
         full_config = fv.full_config.get()
@@ -512,43 +515,11 @@ def final_validation(config):
     # For newer chips (C3/S3/etc), different configs are used automatically
     add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_BLE_MAX_CONN", max_connections)
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = final_validation
 
 
-# This needs to be run as a job with CoroPriority.FINAL priority so that all components have
-# a chance to register their handlers before the counts are added to defines.
-@coroutine_with_priority(CoroPriority.FINAL)
-async def _add_ble_handler_defines():
-    # Add defines for StaticVector sizing based on handler registration counts
-    # Only define if count > 0 to avoid allocating unnecessary memory
-    if _handler_counts.gap_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT", _handler_counts.gap_event
-        )
-    if _handler_counts.gap_scan_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT",
-            _handler_counts.gap_scan_event,
-        )
-    if _handler_counts.gattc_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GATTC_EVENT_HANDLER_COUNT", _handler_counts.gattc_event
-        )
-    if _handler_counts.gatts_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT", _handler_counts.gatts_event
-        )
-    if _handler_counts.ble_status_event > 0:
-        cg.add_define(
-            "ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT",
-            _handler_counts.ble_status_event,
-        )
-
-
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
@@ -576,7 +547,7 @@ async def to_code(config):
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
-    request_bluetooth(ble_42=True)
+    request_bluetooth()
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
@@ -633,24 +604,36 @@ async def to_code(config):
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
         cg.add_define("USE_ESP32_BLE_UUID")
 
-    # Schedule the handler defines to be added after all components register
-    CORE.add_job(_add_ble_handler_defines)
-
 
 @automation.register_condition("ble.enabled", BLEEnabledCondition, cv.Schema({}))
-async def ble_enabled_to_code(config, condition_id, template_arg, args):
+async def ble_enabled_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(condition_id, template_arg)
 
 
 @automation.register_action(
     "ble.enable", BLEEnableAction, cv.Schema({}), synchronous=True
 )
-async def ble_enable_to_code(config, action_id, template_arg, args):
+async def ble_enable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(action_id, template_arg)
 
 
 @automation.register_action(
     "ble.disable", BLEDisableAction, cv.Schema({}), synchronous=True
 )
-async def ble_disable_to_code(config, action_id, template_arg, args):
+async def ble_disable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(action_id, template_arg)

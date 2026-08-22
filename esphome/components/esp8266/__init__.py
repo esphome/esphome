@@ -113,6 +113,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Standard format",
@@ -299,6 +302,7 @@ async def to_code(config):
         "pre:testing_mode.py",
         "pre:exclude_updater.py",
         "pre:exclude_waveform.py",
+        "pre:relocate_ratetable.py",
     ]
     if not enable_scanf_float:
         extra_scripts.append("pre:remove_float_scanf.py")
@@ -451,6 +455,7 @@ def copy_files() -> None:
         "exclude_updater",
         "exclude_waveform",
         "remove_float_scanf",
+        "relocate_ratetable",
     ):
         copy_file_if_changed(
             dir / f"{script}.py.script",

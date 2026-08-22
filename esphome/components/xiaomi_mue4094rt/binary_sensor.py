@@ -1,21 +1,21 @@
 from esphome import core
 import esphome.codegen as cg
-from esphome.components import binary_sensor, esp32_ble_tracker
+from esphome.components import binary_sensor, ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_MAC_ADDRESS, CONF_TIMEOUT, DEVICE_CLASS_MOTION
 
-DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble"]
+AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_mue4094rt_ns = cg.esphome_ns.namespace("xiaomi_mue4094rt")
 XiaomiMUE4094RT = xiaomi_mue4094rt_ns.class_(
     "XiaomiMUE4094RT",
     binary_sensor.BinarySensor,
     cg.Component,
-    esp32_ble_tracker.ESPBTDeviceListener,
+    ble_device_base.ESPBTDeviceListener,
 )
 
 CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("xiaomi_mue4094rt"),
     binary_sensor.binary_sensor_schema(
         XiaomiMUE4094RT, device_class=DEVICE_CLASS_MOTION
     )
@@ -28,15 +28,15 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await ble_device_base.register_ble_device(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_time(config[CONF_TIMEOUT]))

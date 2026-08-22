@@ -65,10 +65,16 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
     """
     build = component.data.get("build", {})
 
+    # The library's own files live in source_path (the user's directory for a
+    # local library, the downloaded dir otherwise); the generated zephyr/ files
+    # go under component.path. Sources are already emitted as absolute paths, so
+    # they resolve correctly wherever source_path points.
+    read_path = component.source_dir
+
     build_src_dir = build.get("srcDir")
     if not build_src_dir:
         for d in ["src", "Src", "."]:
-            if (component.path / Path(d)).is_dir():
+            if (read_path / Path(d)).is_dir():
                 build_src_dir = d
                 break
 
@@ -77,7 +83,7 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
     build_flags = ensure_list(build.get("flags", DEFAULT_BUILD_FLAGS))
 
     src_files = collect_filtered_files(
-        component.path / Path(build_src_dir), build_src_filter
+        read_path / Path(build_src_dir), build_src_filter
     )
     src_files = sorted(
         str(Path(p).resolve())
@@ -91,15 +97,19 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
     link_directories, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-L") else None
     )
+    # The zephyr/CMakeLists lives in a subdir, so a relative -L would resolve
+    # from there rather than the library root; make link dirs absolute against
+    # the library's own directory (source_dir), matching src/include handling.
+    link_directories = [str((read_path / Path(d)).resolve()) for d in link_directories]
     link_libraries, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-l") else None
     )
 
     include_dirs = [build_include_dir, build_src_dir, *include_dir_flags]
     include_dirs = [
-        str((component.path / Path(d)).resolve())
+        str((read_path / Path(d)).resolve())
         for d in include_dirs
-        if (component.path / Path(d)).is_dir()
+        if (read_path / Path(d)).is_dir()
     ]
 
     lines = [f"zephyr_library_named({component.get_require_name()})"]

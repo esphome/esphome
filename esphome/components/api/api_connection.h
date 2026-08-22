@@ -25,6 +25,7 @@
 #include "esphome/components/esp8266/crash_handler.h"
 #endif
 #include "esphome/core/entity_base.h"
+#include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
 #include <functional>
@@ -39,6 +40,16 @@ namespace esphome::api {
 
 // Forward-declared to break the api_server.h cycle; full-type inlines are in api_connection_buffer.h.
 class APIServer;
+
+// One shared flash string for every refused-frame warning: send_message()
+// fails as soon as the TCP buffer is full, and each caller only pays for its
+// short name. The guard drops the helper and its arguments below WARN.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+void log_dropped_message(const char *tag, int line, const LogString *what);
+#define API_LOG_MSG_DROPPED(tag, what) esphome::api::log_dropped_message(tag, __LINE__, LOG_STR(what))
+#else
+#define API_LOG_MSG_DROPPED(tag, what)
+#endif
 
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
@@ -169,12 +180,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Returns whether this client has subscribed to Home Assistant actions; the message
   // is only handed to the send path when subscribed. A true return does not guarantee
   // delivery - it lets the caller warn when no connected client has the subscription.
-  bool send_homeassistant_action(const HomeassistantActionRequest &call) {
-    if (!this->flags_.service_call_subscription)
-      return false;
-    this->send_message(call);
-    return true;
-  }
+  bool send_homeassistant_action(const HomeassistantActionRequest &call);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   void on_homeassistant_action_response(const HomeassistantActionResponse &msg);
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
@@ -183,6 +189,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg);
   void on_unsubscribe_bluetooth_le_advertisements_request();
 
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_device_request(const BluetoothDeviceRequest &msg);
   void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg);
   void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg);
@@ -191,15 +198,13 @@ class APIConnection final : public APIServerConnectionBase {
   void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg);
   void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg);
   void on_subscribe_bluetooth_connections_free_request();
-  void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg);
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg);
+#endif
+  void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg);
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
-  void send_time_request() {
-    GetTimeRequest req;
-    this->send_message(req);
-  }
+  void send_time_request();
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
@@ -266,6 +271,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_disconnect_request(const DisconnectRequest &msg);
   void on_ping_request();
   void on_device_info_request();
+  void on_device_capabilities_request();
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
@@ -334,7 +340,9 @@ class APIConnection final : public APIServerConnectionBase {
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 
-  template<typename T> bool send_message(const T &msg) {
+  /// Returns false as soon as the TCP buffer is full. Marked nodiscard so we
+  /// have no silent failures: every caller must handle (or log) a refusal.
+  template<typename T> [[nodiscard]] bool send_message(const T &msg) {
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
     } else {
@@ -385,10 +393,11 @@ class APIConnection final : public APIServerConnectionBase {
   bool send_disconnect_response_();
   bool send_ping_response_();
   bool send_device_info_response_();
+  bool send_device_capabilities_response_();
 #ifdef USE_API_NOISE
   bool send_noise_encryption_set_key_response_(const NoiseEncryptionSetKeyRequest &msg);
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   bool send_subscribe_bluetooth_connections_free_response_();
 #endif
 #ifdef USE_VOICE_ASSISTANT

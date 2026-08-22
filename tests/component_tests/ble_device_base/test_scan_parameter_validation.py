@@ -10,10 +10,14 @@ from esphome.components.bk72xx_ble_tracker import (
 )
 from esphome.components.ble_device_base import to_ble_units
 from esphome.components.esp32_ble_tracker import SCAN_PARAMETERS_SCHEMA as ESP32_SCHEMA
+from esphome.components.ln882h_ble_tracker import (
+    SCAN_PARAMETERS_SCHEMA as LN882H_SCHEMA,
+)
+from esphome.components.rp2_ble_tracker import SCAN_PARAMETERS_SCHEMA as RP2_SCHEMA
 
 
-def _validate(**kwargs: str) -> dict:
-    """Run a scan_parameters config through a passive tracker's real schema."""
+def _validate(**kwargs: str | bool) -> dict:
+    """Run a scan_parameters config through the bk72xx tracker's real schema."""
     return BK72XX_SCHEMA(kwargs)
 
 
@@ -44,18 +48,42 @@ def test_to_ble_units_truncates() -> None:
 
 
 def test_bk72xx_defaults_are_valid() -> None:
-    """bk72xx pins the BK reference rate: 100 ms interval, shared 30 ms window."""
+    """bk72xx pins the BK reference rate — 100 ms interval, shared 30 ms window —
+    and exposes active (default on, like every active-capable tracker)."""
     config = _validate()
     assert to_ble_units(config["interval"]) == 160
     assert to_ble_units(config["window"]) == 48
-    assert "active" not in config
+    assert config["active"] is True
 
 
 def test_esp32_defaults_are_valid() -> None:
-    """esp32 pins the ESP-IDF reference rate and exposes active (default on)."""
+    """esp32 pins the ESP-IDF reference rate and exposes active (default on).
+
+    Without wifi loaded, the conditional window default falls back to the
+    historical 30 ms; the wifi-aware resolution is covered by the
+    esp32_ble_tracker component tests.
+    """
     config = ESP32_SCHEMA({})
     assert to_ble_units(config["interval"]) == 512
     assert to_ble_units(config["window"]) == 48
+    assert config["active"] is True
+
+
+def test_rp2_defaults_are_valid() -> None:
+    """rp2 pins 100 ms interval / 30 ms window — a 30 % duty cycle leaving the
+    shared CYW43 radio mostly free for WiFi — and exposes active (default on)."""
+    config = RP2_SCHEMA({})
+    assert to_ble_units(config["interval"]) == 160
+    assert to_ble_units(config["window"]) == 48
+    assert config["active"] is True
+
+
+def test_ln882h_defaults_are_valid() -> None:
+    """ln882h pins the LN SDK reference rate — 100 ms interval / 50 ms window
+    (50 % duty) — and exposes active (default on)."""
+    config = LN882H_SCHEMA({})
+    assert to_ble_units(config["interval"]) == 160
+    assert to_ble_units(config["window"]) == 80
     assert config["active"] is True
 
 
@@ -64,10 +92,9 @@ def test_esp32_active_can_disable() -> None:
     assert config["active"] is False
 
 
-def test_passive_schema_rejects_active_key() -> None:
-    """Trackers without active scan support must not silently accept the option."""
-    with pytest.raises(cv.Invalid):
-        _validate(active="true")
+def test_bk72xx_active_can_disable() -> None:
+    config = _validate(active=False)
+    assert config["active"] is False
 
 
 # --- accepted configurations ---
@@ -100,6 +127,11 @@ def test_window_equal_to_interval_accepted() -> None:
     """A deliberate 100 % duty cycle is allowed; only an accidental one is not."""
     config = _validate(interval="100ms", window="100ms")
     assert to_ble_units(config["interval"]) == to_ble_units(config["window"])
+
+
+def test_duration_equal_to_three_intervals_accepted() -> None:
+    """The three-interval floor is inclusive, mirroring the ceilings above."""
+    _validate(duration="3s", interval="1s", window="500ms")
 
 
 # --- rejected configurations ---

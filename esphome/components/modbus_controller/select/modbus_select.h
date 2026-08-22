@@ -15,9 +15,9 @@ class ModbusSelect final : public Component, public select::Select, public Senso
                bool force_new_range, std::vector<int64_t> mapping) {
     this->register_type = modbus::EntityType::HOLDING;  // not configurable
     this->sensor_value_type = sensor_value_type;
-    this->start_address = start_address;
-    this->offset = 0;            // not configurable
-    this->bitmask = 0xFFFFFFFF;  // not configurable
+    this->set_address(start_address);
+    this->set_offset_from_start_address(0);  // not configurable
+    this->bitmask = 0xFFFFFFFF;              // not configurable
     this->register_count = register_count;
     this->response_bytes = 0;  // not configurable
     this->skip_updates = skip_updates;
@@ -25,7 +25,7 @@ class ModbusSelect final : public Component, public select::Select, public Senso
     this->mapping_ = std::move(mapping);
   }
 
-  using transform_func_t = optional<std::string> (*)(ModbusSelect *const, int64_t, const std::vector<uint8_t> &);
+  using transform_func_t = optional<std::string> (*)(ModbusSelect *const, int64_t, std::span<const uint8_t>);
   using write_transform_func_t = optional<int64_t> (*)(ModbusSelect *const, const std::string &, int64_t,
                                                        std::vector<uint16_t> &);
 
@@ -36,7 +36,7 @@ class ModbusSelect final : public Component, public select::Select, public Senso
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
 
   void dump_config() override;
-  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   void control(size_t index) override;
 
  protected:

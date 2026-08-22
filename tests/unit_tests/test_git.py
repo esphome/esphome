@@ -247,6 +247,347 @@ def test_run_git_command_strips_fatal_prefix(
     assert "repository not found" in str(exc_info.value)
 
 
+def _git_failure(stderr: bytes, returncode: int = 128) -> Mock:
+    """Build a failed subprocess.run result with the given stderr."""
+    return Mock(returncode=returncode, stdout=b"", stderr=stderr)
+
+
+_GIT_OK = Mock(returncode=0, stdout=b"ok", stderr=b"")
+
+
+def test_run_git_command_network_retries_transient_then_succeeds(
+    mock_subprocess_run: Mock,
+) -> None:
+    """A transient network failure is retried and the retry's result returned."""
+    mock_subprocess_run.side_effect = [
+        _git_failure(
+            b"fatal: unable to access 'https://github.com/test/repo/': "
+            b"Could not resolve host: github.com\n"
+        ),
+        _GIT_OK,
+    ]
+
+    with patch("esphome.git.time.sleep") as mock_sleep:
+        result = git.run_git_command(
+            ["git", "clone", "--depth=1", "--", "https://github.com/test/repo", "x"],
+            network=True,
+        )
+
+    assert result == "ok"
+    assert mock_subprocess_run.call_count == 2
+    mock_sleep.assert_called_once_with(2)
+
+
+def test_run_git_command_network_gives_up_after_max_attempts(
+    mock_subprocess_run: Mock,
+) -> None:
+    """A persistent transient-looking failure raises after the final attempt."""
+    mock_subprocess_run.side_effect = lambda *args, **kwargs: _git_failure(
+        b"fatal: unable to access 'https://github.com/test/repo/': "
+        b"server certificate verification failed. CAfile: none CRLfile: none\n"
+    )
+
+    with (
+        patch("esphome.git.time.sleep") as mock_sleep,
+        pytest.raises(GitCommandError, match="certificate verification failed"),
+    ):
+        git.run_git_command(["git", "fetch", "--", "origin"], network=True)
+
+    assert mock_subprocess_run.call_count == 3
+    assert [c.args[0] for c in mock_sleep.call_args_list] == [2, 4]
+
+
+@pytest.mark.parametrize(
+    ("stderr", "transient"),
+    [
+        # Transient: DNS, TLS, dropped connections, server-side errors
+        ("unable to access 'https://x/': The requested URL returned error: 502", True),
+        ("unable to access 'https://x/': Could not resolve host: github.com", True),
+        ("unable to access 'https://x/': Failed to connect: Timed out", True),
+        ("unable to access 'https://x/': Recv failure: Connection reset", True),
+        ("unable to access 'https://x/': Connection refused", True),
+        ("fatal: early EOF\nfatal: fetch-pack: invalid index-pack output", True),
+        (
+            (
+                "error: RPC failed; HTTP 500 curl 22 The requested URL returned "
+                "error: 500\nfatal: expected flush after ref listing"
+            ),
+            True,
+        ),
+        (
+            (
+                "unable to access 'https://x/': server certificate verification "
+                "failed. CAfile: none CRLfile: none"
+            ),
+            True,
+        ),
+        (
+            (
+                "error: RPC failed; curl 56 GnuTLS recv error (-110)\n"
+                "fatal: the remote end hung up unexpectedly"
+            ),
+            True,
+        ),
+        (
+            (
+                "fetch-pack: unexpected disconnect while reading sideband packet\n"
+                "fatal: early EOF"
+            ),
+            True,
+        ),
+        # 429 rate limiting is the one retryable 4xx, in both curl forms
+        ("unable to access 'https://x/': The requested URL returned error: 429", True),
+        ("error: RPC failed; HTTP 429 curl 22\nfatal: expected flush", True),
+        (
+            (
+                "unable to access 'https://x/': OpenSSL SSL_read: error:0A000126:"
+                "SSL routines::unexpected eof while reading, errno 0"
+            ),
+            True,
+        ),
+        # Permanent: missing repo, auth, bad ref, other 4xx
+        ("fatal: repository 'https://github.com/test/repo/' not found", False),
+        (
+            (
+                "fatal: could not read Username for 'https://github.com': "
+                "terminal prompts disabled"
+            ),
+            False,
+        ),
+        ("fatal: couldn't find remote ref refs/heads/nope", False),
+        (
+            (
+                "unable to access 'https://github.com/org/private.git/': "
+                "The requested URL returned error: 403"
+            ),
+            False,
+        ),
+        ("fatal: Authentication failed for 'https://github.com/test/repo/'", False),
+        # Smart-HTTP (HTTP/2) 4xx form has no "returned error:" text and
+        # mixes in transient-looking wording; still permanent
+        (
+            (
+                "error: RPC failed; HTTP 403 curl 92 HTTP/2 stream 5 was not "
+                "closed cleanly: CANCEL (err 8)\nfatal: expected flush after "
+                "ref listing"
+            ),
+            False,
+        ),
+        (
+            (
+                "error: RPC failed; HTTP 404 curl 22\n"
+                "fatal: the remote end hung up unexpectedly"
+            ),
+            False,
+        ),
+        (
+            (
+                "fatal: unable to access 'https://x/': gnutls_handshake() "
+                "failed: The TLS connection was non-properly terminated."
+            ),
+            True,
+        ),
+        # Transient-looking tokens in the URL must not classify as transient
+        ("fatal: repository 'https://github.com/x/esp32_ssl_reader/' not found", False),
+        ("fatal: repository 'https://gitlab.com/gnutls/gnutls.git/' not found", False),
+        ("", False),
+    ],
+)
+def test_is_transient_git_error(stderr: str, transient: bool) -> None:
+    """Real-world stderr outputs classify correctly as transient or permanent."""
+    assert git._is_transient_git_error(stderr) is transient
+
+
+def test_run_git_command_network_no_retry_on_permanent_error(
+    mock_subprocess_run: Mock,
+) -> None:
+    """Permanent failures (missing repo, auth, bad ref) fail on the first try."""
+    mock_subprocess_run.return_value = _git_failure(
+        b"fatal: repository 'https://github.com/test/repo/' not found\n"
+    )
+
+    with (
+        patch("esphome.git.time.sleep") as mock_sleep,
+        pytest.raises(GitCommandError),
+    ):
+        git.run_git_command(["git", "fetch", "--", "origin"], network=True)
+
+    assert mock_subprocess_run.call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_run_git_command_network_no_retry_when_git_missing(
+    mock_subprocess_run: Mock,
+) -> None:
+    """A missing git binary is not transient and must not be retried."""
+    from esphome.git import GitNotInstalledError
+
+    mock_subprocess_run.side_effect = FileNotFoundError("git not found")
+
+    with (
+        patch("esphome.git.time.sleep") as mock_sleep,
+        pytest.raises(GitNotInstalledError),
+    ):
+        git.run_git_command(["git", "fetch", "--", "origin"], network=True)
+
+    assert mock_subprocess_run.call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_run_git_command_no_retry_by_default(mock_subprocess_run: Mock) -> None:
+    """Without network=True even a transient-looking failure is not retried."""
+    mock_subprocess_run.return_value = _git_failure(
+        b"fatal: unable to access 'https://github.com/test/repo/': "
+        b"Could not resolve host: github.com\n"
+    )
+
+    with (
+        patch("esphome.git.time.sleep") as mock_sleep,
+        pytest.raises(GitCommandError),
+    ):
+        git.run_git_command(["git", "status"])
+
+    assert mock_subprocess_run.call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_run_git_command_network_retry_matches_full_stderr_not_last_line(
+    mock_subprocess_run: Mock,
+) -> None:
+    """The transient marker often sits above the final fatal line; the retry
+    decision must look at the full stderr, not just the extracted message."""
+    mock_subprocess_run.side_effect = [
+        _git_failure(
+            b"error: RPC failed; curl 56 GnuTLS recv error (-54)\n"
+            b"fatal: fetch-pack: invalid index-pack output\n"
+        ),
+        _GIT_OK,
+    ]
+
+    with patch("esphome.git.time.sleep"):
+        result = git.run_git_command(["git", "fetch", "--", "origin"], network=True)
+
+    assert result == "ok"
+    assert mock_subprocess_run.call_count == 2
+
+
+def test_run_git_command_retry_warning_redacts_credentials(
+    mock_subprocess_run: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The retry warning embeds the git error, which embeds the URL; embedded
+    credentials must be redacted since warnings end up in pasted logs."""
+    mock_subprocess_run.side_effect = [
+        _git_failure(
+            b"fatal: unable to access 'https://user:hunter2@github.com/test/repo/': "
+            b"Could not resolve host: github.com\n"
+        ),
+        _GIT_OK,
+    ]
+
+    with (
+        patch("esphome.git.time.sleep"),
+        caplog.at_level(logging.WARNING, logger="esphome.git"),
+    ):
+        git.run_git_command(["git", "fetch", "--", "origin"], network=True)
+
+    assert "hunter2" not in caplog.text
+    assert "://***@github.com/test/repo" in caplog.text
+
+
+def test_run_git_command_clone_retry_removes_leftover_destination(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """A partial clone destination left by a failed attempt is removed before
+    the retry, so the retry cannot fail on 'destination path already exists'."""
+    dest = tmp_path / "leftover_clone"
+    dest.mkdir()
+    (dest / "partial").write_text("x")
+
+    mock_subprocess_run.side_effect = [
+        _git_failure(
+            b"fatal: unable to access 'https://github.com/test/repo/': "
+            b"Could not resolve host: github.com\n"
+        ),
+        _GIT_OK,
+    ]
+
+    with patch("esphome.git.time.sleep"):
+        result = git.run_git_command(
+            [
+                "git",
+                "clone",
+                "--depth=1",
+                "--",
+                "https://github.com/test/repo",
+                str(dest),
+            ],
+            network=True,
+            retry_cleanup=dest,
+        )
+
+    assert result == "ok"
+    assert mock_subprocess_run.call_count == 2
+    assert not dest.exists()
+
+
+def test_run_git_command_cleanup_failure_reraises_original_error(
+    tmp_path: Path, mock_subprocess_run: Mock
+) -> None:
+    """When the pre-retry cleanup fails, the git error stays the reported
+    cause instead of being replaced by the cleanup OSError."""
+    dest = tmp_path / "leftover_clone"
+    dest.mkdir()
+
+    mock_subprocess_run.return_value = _git_failure(
+        b"fatal: unable to access 'https://github.com/test/repo/': "
+        b"Could not resolve host: github.com\n"
+    )
+
+    with (
+        patch("esphome.git.rmtree", side_effect=OSError("locked")),
+        patch("esphome.git.time.sleep") as mock_sleep,
+        pytest.raises(GitCommandError, match="Could not resolve host"),
+    ):
+        git.run_git_command(
+            ["git", "clone", "--depth=1", "--", "https://github.com/test/repo", "x"],
+            network=True,
+            retry_cleanup=dest,
+        )
+
+    assert mock_subprocess_run.call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_run_git_command_no_retry_on_empty_stderr_failure(
+    mock_subprocess_run: Mock,
+) -> None:
+    """A failure with no stderr (e.g. git killed by a signal) is not retried."""
+    mock_subprocess_run.return_value = _git_failure(b"", returncode=1)
+
+    with (
+        patch("esphome.git.time.sleep") as mock_sleep,
+        pytest.raises(GitCommandError, match="git exited with code 1"),
+    ):
+        git.run_git_command(["git", "fetch", "--", "origin"], network=True)
+
+    assert mock_subprocess_run.call_count == 1
+    mock_sleep.assert_not_called()
+
+
+def test_run_git_command_non_utf8_stderr_does_not_crash(
+    mock_subprocess_run: Mock,
+) -> None:
+    """Locale-encoded (non-UTF-8) stderr must not raise UnicodeDecodeError."""
+    mock_subprocess_run.return_value = _git_failure(
+        b"fatal: repositorio no encontrado \xe9\xff\n"
+    )
+
+    with pytest.raises(GitCommandError, match="repositorio no encontrado"):
+        git.run_git_command(["git", "fetch", "--", "origin"], network=True)
+
+    assert mock_subprocess_run.call_count == 1
+
+
 def test_run_git_command_without_git_dir(mock_subprocess_run: Mock) -> None:
     """Test that run_git_command works without git_dir (clone case)."""
     # Configure mock to return success
@@ -677,10 +1018,10 @@ def test_clone_or_update_with_none_refresh_always_updates(
             "ambiguous argument 'HEAD': unknown revision or path not in the working tree.",
         ),
         ("stash", "fatal: unable to write new index file"),
-        (
-            "fetch",
-            "fatal: unable to access 'https://github.com/test/repo/': Could not resolve host",
-        ),
+        # The fetch failure must be non-transient: a transient one (e.g.
+        # "Could not resolve host") now keeps the existing clone instead of
+        # triggering recovery.
+        ("fetch", "fatal: couldn't find remote ref main"),
         ("reset", "fatal: Could not reset index file to revision 'FETCH_HEAD'"),
     ],
 )
@@ -745,6 +1086,236 @@ def test_clone_or_update_recovers_from_git_failures(
 
     # Verify the repo directory path is returned
     assert result_dir == repo_dir
+
+
+@pytest.mark.parametrize("fetch_head_preexists", [True, False])
+def test_clone_or_update_transient_fetch_keeps_existing_clone(
+    tmp_path: Path,
+    mock_run_git_command: Mock,
+    caplog: pytest.LogCaptureFixture,
+    fetch_head_preexists: bool,
+) -> None:
+    """A transient network failure while refreshing a verified clone falls back
+    to the existing clone instead of destroying it with a recovery re-clone."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+    _setup_old_repo(repo_dir)
+    if not fetch_head_preexists:
+        # First-ever refresh: age comes from HEAD, FETCH_HEAD absent
+        (repo_dir / ".git" / "FETCH_HEAD").unlink()
+        head = repo_dir / ".git" / "HEAD"
+        head.write_text("test")
+        old_time = time.time() - 2 * 86400
+        os.utime(head, (old_time, old_time))
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type == "rev-parse":
+            return "abc123"
+        if cmd_type == "fetch":
+            # A failed fetch still freshens FETCH_HEAD, like real git
+            (repo_dir / ".git" / "FETCH_HEAD").touch()
+            stderr = (
+                "fatal: unable to access "
+                "'https://user:hunter2@github.com/test/repo/': "
+                "Could not resolve host: github.com"
+            )
+            raise GitCommandError(stderr, stderr=stderr)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    refresh = TimePeriodSeconds(days=1)
+    with caplog.at_level(logging.WARNING, logger="esphome.git"):
+        result_dir, revert = git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
+
+    # The existing clone is returned, not removed or re-cloned
+    assert result_dir == repo_dir
+    assert repo_dir.is_dir()
+    assert revert is None
+    assert not any(
+        _get_git_command_type(c[0][0]) == "clone"
+        for c in mock_run_git_command.call_args_list
+    )
+    # The completion marker must be restored, or the next run treats the
+    # entry as an incomplete clone and removes it
+    assert _marker_path(repo_dir).is_file()
+    # The warning must say what the build will actually use and how stale it is
+    assert "using the existing clone at abc123" in caplog.text
+    assert "ago" in caplog.text
+    # Credentials embedded in the URL must not reach the warning log
+    assert "hunter2" not in caplog.text
+    assert "://***@github.com/test/repo" in caplog.text
+    # The FETCH_HEAD the failed fetch freshened must not survive, or the
+    # refresh window would suppress retrying the update on subsequent runs
+    fetch_head = repo_dir / ".git" / "FETCH_HEAD"
+    if fetch_head_preexists:
+        assert time.time() - fetch_head.stat().st_mtime > refresh.total_seconds
+    else:
+        assert not fetch_head.exists()
+
+
+def test_clone_or_update_timestamp_restore_failure_routes_to_recovery(
+    tmp_path: Path, mock_run_git_command: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """If the FETCH_HEAD restore fails, the fallback cannot stay honest, so
+    the git error must route through recovery instead of a raw OSError."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+    _setup_old_repo(repo_dir)
+
+    call_counts: dict[str, int] = {}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type:
+            call_counts[cmd_type] = call_counts.get(cmd_type, 0) + 1
+        if cmd_type == "rev-parse":
+            return "abc123"
+        if cmd_type == "fetch" and call_counts[cmd_type] == 1:
+            stderr = (
+                "fatal: unable to access 'https://github.com/test/repo/': "
+                "Could not resolve host: github.com"
+            )
+            raise GitCommandError(stderr, stderr=stderr)
+        if cmd_type == "clone":
+            _simulate_cloned_repo(repo_dir)
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    refresh = TimePeriodSeconds(days=1)
+    with (
+        patch("esphome.git.os.utime", side_effect=OSError("read-only")),
+        caplog.at_level(logging.WARNING, logger="esphome.git"),
+    ):
+        result_dir, _ = git.clone_or_update(
+            url=url,
+            ref=ref,
+            refresh=refresh,
+            domain=domain,
+        )
+
+    assert result_dir == repo_dir
+    assert "Could not restore the refresh timestamp" in caplog.text
+    # Recovery re-cloned rather than surfacing the OSError
+    assert call_counts.get("clone", 0) == 1
+
+
+@pytest.mark.parametrize(
+    "refresh", [None, TimePeriodSeconds(days=1)], ids=["clone", "refresh"]
+)
+def test_clone_or_update_network_commands_carry_retry_flag(
+    tmp_path: Path, mock_run_git_command: Mock, refresh: TimePeriodSeconds | None
+) -> None:
+    """clone/fetch/submodule opt into transient-failure retry; local commands
+    (rev-parse, stash, reset) must not, so a refactor cannot silently drop or
+    widen the retry wiring."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    ref = "main"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, ref, domain)
+
+    if refresh is None:
+        mock_run_git_command.side_effect = _make_clone_side_effect(
+            repo_dir, gitmodules=True
+        )
+    else:
+        _setup_old_repo(repo_dir)
+        (repo_dir / ".gitmodules").write_text("test")
+        mock_run_git_command.return_value = "abc123"
+
+    git.clone_or_update(
+        url=url,
+        ref=ref,
+        refresh=refresh,
+        domain=domain,
+        init_submodules=True,
+    )
+
+    seen: set[str] = set()
+    for call in mock_run_git_command.call_args_list:
+        cmd_type = _get_git_command_type(call.args[0])
+        seen.add(cmd_type)
+        if cmd_type in ("clone", "fetch", "submodule"):
+            assert call.kwargs.get("network") is True, cmd_type
+        else:
+            assert "network" not in call.kwargs, cmd_type
+        if cmd_type == "clone":
+            assert call.kwargs.get("retry_cleanup") == repo_dir
+
+    expected = {"fetch", "reset", "submodule"}
+    expected |= {"clone"} if refresh is None else {"rev-parse", "stash"}
+    assert expected <= seen
+
+
+def test_clone_or_update_transient_submodule_failure_still_recovers(
+    tmp_path: Path, mock_run_git_command: Mock
+) -> None:
+    """A transient failure after the reset (submodules) leaves a half-updated
+    tree, so it must route through recovery instead of keeping the clone."""
+    CORE.config_path = tmp_path / "test.yaml"
+
+    url = "https://github.com/test/repo"
+    domain = "test"
+    repo_dir = _compute_repo_dir(url, None, domain)
+    _setup_old_repo(repo_dir)
+    (repo_dir / ".gitmodules").write_text("test")
+
+    call_counts: dict[str, int] = {}
+
+    def git_command_side_effect(
+        cmd: list[str], cwd: str | None = None, **kwargs: Any
+    ) -> str:
+        cmd_type = _get_git_command_type(cmd)
+        if cmd_type:
+            call_counts[cmd_type] = call_counts.get(cmd_type, 0) + 1
+        if cmd_type == "rev-parse":
+            return "abc123"
+        if cmd_type == "submodule" and call_counts[cmd_type] == 1:
+            stderr = (
+                "fatal: unable to access 'https://github.com/test/sub/': "
+                "Could not resolve host: github.com"
+            )
+            raise GitCommandError(stderr, stderr=stderr)
+        if cmd_type == "clone":
+            _simulate_cloned_repo(repo_dir)
+            (repo_dir / ".gitmodules").write_text("test")
+        return ""
+
+    mock_run_git_command.side_effect = git_command_side_effect
+
+    refresh = TimePeriodSeconds(days=1)
+    result_dir, _ = git.clone_or_update(
+        url=url,
+        ref=None,
+        refresh=refresh,
+        domain=domain,
+        init_submodules=True,
+    )
+
+    assert result_dir == repo_dir
+    # The half-updated tree must be recovered via re-clone, not kept
+    assert call_counts.get("clone", 0) == 1
 
 
 def test_clone_or_update_fails_when_recovery_also_fails(

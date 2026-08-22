@@ -174,7 +174,8 @@ lvgl:
     - id: anim_color
       duration: 2s
       timing:
-        - round_trip
+        - type: round_trip
+          pause: 0.5
         - type: gravity
           bounce: 0.3
           acceleration: 0.8
@@ -756,7 +757,25 @@ lvgl:
             on_defocus:
               lvgl.widget.hide: hello_label
             on_focus:
-              logger.log: Button clicked
+              - logger.log: Button clicked
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: top
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: bottom
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: up
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: down
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: 1
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: -1
             on_scroll:
               logger.log: Button clicked
             on_scroll_end:
@@ -1539,17 +1558,20 @@ font:
 
 image:
   - id: cat_image
+    platform: file
     resize: 256x48
     file: $component_dir/logo-text.svg
     type: RGB565
     transparency: alpha_channel
   - id: dog_image
+    platform: file
     file: $component_dir/logo-text.svg
     resize: 256x48
     type: BINARY
     transparency: chroma_key
 
   - id: alert
+    platform: file
     file: $component_dir/logo-text.svg
     type: grayscale
     resize: 100x100
