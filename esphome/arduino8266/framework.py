@@ -144,7 +144,7 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
 # Sentinel: "resolve for me" (None is a real value meaning disabled).
 # run_compile resolves once and threads the result so one build never pays
 # the PATH scan and runnability probe three times.
-_CCACHE_UNRESOLVED: Any = object()
+CCACHE_UNRESOLVED: Any = object()
 
 
 def toolchain_tool(toolchain_path: Path, name: str) -> Path:
@@ -158,7 +158,7 @@ def toolchain_tool(toolchain_path: Path, name: str) -> Path:
 
 
 def get_build_env(
-    toolchain_path: Path, ccache: str | None = _CCACHE_UNRESOLVED
+    toolchain_path: Path, ccache: str | None = CCACHE_UNRESOLVED
 ) -> dict[str, str]:
     env = os.environ.copy()
     # Drop empty entries: a trailing separator from an absent PATH would
@@ -182,7 +182,7 @@ def ccache_path() -> str | None:
     return resolve_ccache_path()
 
 
-def ccache_env(ccache: str | None = _CCACHE_UNRESOLVED) -> dict[str, str]:
+def ccache_env(ccache: str | None = CCACHE_UNRESOLVED) -> dict[str, str]:
     """Return ccache settings for the build subprocess (not os.environ).
 
     Mirrors ``espidf.framework._ccache_env``: cache under the machine-global
@@ -190,7 +190,7 @@ def ccache_env(ccache: str | None = _CCACHE_UNRESOLVED) -> dict[str, str]:
     scoped to the build dir so devices share framework cache entries. Values
     the user already set in the environment are respected.
     """
-    if ccache is _CCACHE_UNRESOLVED:
+    if ccache is CCACHE_UNRESOLVED:
         ccache = ccache_path()
     if ccache is None:
         return {}
