@@ -1397,8 +1397,8 @@ def test_esphome_build_internals_are_yaml_only() -> None:
 async def test_add_platformio_options_native_arduino(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The native ESP8266 Arduino toolchain warns about ignored options the
-    same way the native IDF toolchain does."""
+    """The native ESP8266 Arduino toolchain honors board_build.f_cpu (a
+    real-world overclock knob) and warns about the rest like native IDF."""
     CORE.toolchain = Toolchain.ARDUINO
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "esp8266",
@@ -1408,11 +1408,19 @@ async def test_add_platformio_options_native_arduino(
     await config._add_platformio_options(
         {
             "board_build.f_cpu": "160000000L",
+            "board_build.ldscript": "eagle.flash.4m2m.ld",
+            "board_build.filesystem": "littlefs",
             "upload_speed": "115200",
         }
     )
 
-    assert "esphome->platformio_options->board_build.f_cpu is ignored" in caplog.text
+    assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
+    assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
+    assert "board_build.f_cpu is ignored" not in caplog.text
+    assert "board_build.ldscript is ignored" not in caplog.text
+    assert (
+        "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
+    )
     assert "'arduino' toolchain" in caplog.text
     assert "upload_speed" not in caplog.text
 

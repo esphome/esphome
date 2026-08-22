@@ -345,7 +345,33 @@ def _active_flash_ld_name(flash_ld_name: str) -> str:
 
 
 def _flash_ld_name(board: str) -> str:
-    return ESP8266_LD_SCRIPTS[BOARDS[board][KEY_FLASH_SIZE]][1]
+    """The flash linker script: the board's, or a routed user override.
+
+    Published configs override board_build.ldscript to reserve a
+    filesystem region or correct a board's assumed flash size; a bare
+    name is required because the script resolves via the -L search path.
+    """
+    override = _pio_option("board_build.ldscript", "")
+    if not override:
+        return ESP8266_LD_SCRIPTS[BOARDS[board][KEY_FLASH_SIZE]][1]
+    if Path(override).name != override:
+        raise EsphomeError(
+            f"board_build.ldscript must be a bare script name, got {override!r}"
+        )
+    return override
+
+
+def _pio_option(key: str, default: str) -> str:
+    """A platformio_options value the native build honors (str-normalized).
+
+    Routed into ``CORE.platformio_options`` by core/config.py under the
+    arduino toolchain; a repeated option accumulates as a list, where the
+    last value wins like a later platformio.ini line.
+    """
+    value = CORE.platformio_options.get(key)
+    if isinstance(value, list):
+        value = value[-1] if value else None
+    return default if value is None else str(value)
 
 
 def _defines_flags(
@@ -360,10 +386,11 @@ def _defines_flags(
     return [
         f"-D{d}"
         for d in (
-            # Upstream reads this from the board manifest (build.f_cpu); all
-            # 45 supported boards ship 80000000L, so the value is hardcoded
-            # here rather than drift (same rationale as _MMU_DEFAULT)
-            "F_CPU=80000000L",
+            # Upstream reads this from the board manifest (build.f_cpu),
+            # where all 45 supported boards ship 80000000L, overridable via
+            # board_build.f_cpu; published configs pin 160000000L for
+            # timing-sensitive integrations, so the override is honored
+            f"F_CPU={_pio_option('board_build.f_cpu', '80000000L')}",
             "__ets__",
             "ICACHE_FLASH",
             "_GNU_SOURCE",
