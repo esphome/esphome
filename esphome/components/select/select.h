@@ -48,14 +48,14 @@ class Select : public EntityBase {
   SelectCall make_call() { return SelectCall(this); }
 
   /// Return whether this select component contains the provided option.
-  bool has_option(const std::string &option) const { return this->index_of(option.c_str()).has_value(); }
+  bool has_option(const std::string &option) const { return this->index_of(option).has_value(); }
   bool has_option(const char *option) const { return this->index_of(option).has_value(); }
 
   /// Return whether this select component contains the provided index offset.
   bool has_index(size_t index) const { return index < this->size(); }
 
   /// Return the number of options in this select component.
-  size_t size() const;
+  size_t size() const { return this->traits.get_options().size(); }
 
   /// Find the (optional) index offset of the provided option value.
   optional<size_t> index_of(const char *option, size_t len) const;

@@ -32,11 +32,6 @@ void Select::publish_state(size_t index) {
 #endif
 }
 
-size_t Select::size() const {
-  const auto &options = traits.get_options();
-  return options.size();
-}
-
 optional<size_t> Select::index_of(const char *option, size_t len) const {
   const auto &options = traits.get_options();
   for (size_t i = 0; i < options.size(); i++) {
