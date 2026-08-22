@@ -73,6 +73,17 @@ class ArduinoLibrary:
     link_flags: list[str] = field(default_factory=list)
 
 
+def _is_safe_library_name(name: object) -> bool:
+    """Whether a name may be joined under the framework's libraries dir."""
+    return (
+        isinstance(name, str)
+        and bool(name)
+        and "/" not in name
+        and "\\" not in name
+        and name not in (".", "..")
+    )
+
+
 def _manifest_build(name: str, data: object) -> dict:
     """The manifest's ``build`` section, validated by name.
 
@@ -227,12 +238,11 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
         for d in lib.include_dirs
         for p in d.rglob("*")
     ):
-        # An empty or half-extracted bundled directory would otherwise
-        # become a silent no-op that surfaces as undefined symbols at link
-        _LOGGER.warning(
-            "Bundled library %s has no sources or headers; the framework "
-            "install may be incomplete (run 'esphome clean-all')",
-            name,
+        # An empty or half-extracted bundled directory can never link; a
+        # warning would scroll away and resurface as undefined symbols
+        raise EsphomeError(
+            f"Bundled library {name} has no sources or headers; the "
+            "framework install may be incomplete (run 'esphome clean-all')"
         )
     return lib
 
@@ -266,8 +276,7 @@ def resolve_libraries(
         if (
             not library.repository
             and not library.version
-            and library.name
-            and "/" not in library.name
+            and _is_safe_library_name(library.name)
             and (framework_path / "libraries" / library.name).is_dir()
         ):
             # A bundled library's own manifest dependencies are not walked.
@@ -304,13 +313,7 @@ def resolve_libraries(
             component.data.get("dependencies"), component.name
         ):
             name = dep.get("name")
-            if (
-                not name
-                or not isinstance(name, str)
-                or "/" in name
-                or "\\" in name
-                or name in (".", "..")
-            ):
+            if not _is_safe_library_name(name):
                 # The name becomes a path component under the framework
                 # tree; never join a traversal or a non-string
                 _LOGGER.warning(
@@ -421,7 +424,9 @@ def resolve_libraries(
     # The shared converter skips version-less deps too, so this is the only
     # place a genuine drop can be made visible before the missing sources
     # surface as link errors; names the walk resolved anyway stay quiet.
-    resolved_short_names = {c.name.split("__")[-1] for c in converted}
+    # Split once from the left: strip the sanitized owner prefix only, so a
+    # library whose own name carries "__" still matches
+    resolved_short_names = {c.name.split("__", 1)[-1] for c in converted}
     for name, requester in pending_drops:
         if name in bundled_names or name in resolved_short_names:
             continue
