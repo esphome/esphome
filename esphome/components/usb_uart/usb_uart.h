@@ -342,7 +342,6 @@ class USBUartTypeCH934X : public USBUartComponent {
   bool config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok, const uint8_t *response) override;
 
   bool parse_descriptors_(usb_device_handle_t dev_hdl);
-  bool configure_uart_parameters_(USBUartChannelBase *channel);
   // Build the idx-th init register write for a channel into a stack buffer. Stateless and
   // deterministic, so the paced config machine can re-derive any write per round without
   // storing them. Returns false when idx is past this chip's per-channel write count.

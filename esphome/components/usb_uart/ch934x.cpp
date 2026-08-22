@@ -220,39 +220,30 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
   }
 }
 
-// Per-channel settings. On full init every channel is already configured by
-// config_device_step(); this is used by load_settings()
+// Per-channel settings. On full init every channel is configured by config_device_step();
+// this reload path (load_settings -> apply_channel_settings) reconfigures one channel at
+// runtime. It reuses build_channel_write_() so the register encoding lives in exactly one
+// place, starting after the mode write(s): the port stays in UART mode across a reload, only
+// the baud/parity parameters and their commit writes are re-sent. Previously this path was a
+// separate copy that skipped the CH348 R_C4=0x00 baud commit, so runtime baud changes did not
+// latch on a CH348 while they did on a CH9344.
 bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   if (!reload || channel->index_ >= this->num_ports_)
     return false;
 
-  this->configure_uart_parameters_(channel);
+  const bool is_9344 = this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q;
+  const uint8_t start_idx = is_9344 ? 2 : 1;  // skip the mode write(s), reconfigure params + commit
 
-  // configure_channel_() sends these register writes after configure_uart_parameters_()
-  uint8_t portnum = channel->index_;
-  uint8_t rgadd = this->get_reg_address_(portnum);
-  uint8_t buffer[3];
-
-  usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
+  usb_host::transfer_cb_t callback = [this](const usb_host::TransferStatus &status) {
     if (!status.success)
-      ESP_LOGE(TAG, "Reload post-param write failed: %s", esp_err_to_name(status.error_code));
+      ESP_LOGE(TAG, "Reload register write failed: %s", esp_err_to_name(status.error_code));
   };
 
-  buffer[0] = CMD_W_R;
-  buffer[1] = rgadd + R_C1;
-  buffer[2] = 0x07;
-  this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
-
-  if (this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q) {
-    buffer[0] = CMD_W_BR;
-    buffer[1] = rgadd + R_C4;
-    buffer[2] = 0x00;
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
-
-    buffer[2] = 0x10;
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
-  }
+  uint8_t buffer[12];
+  uint8_t len = 0;
+  for (uint8_t idx = start_idx; this->build_channel_write_(channel, idx, buffer, &len); idx++)
+    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, len);
 
   return false;
 }
@@ -341,115 +332,6 @@ static void cal_outdata(uint8_t *buffer, uint8_t rol, uint8_t xor_val) {
   }
   for (uint8_t i = 0; i < 8; i++)
     buffer[i] ^= xor_val;
-}
-
-bool USBUartTypeCH934X::configure_uart_parameters_(USBUartChannelBase *channel) {
-  uint32_t baud_rate = channel->get_baud_rate();
-  uint8_t data_bits = channel->get_data_bits();
-  uint8_t stop_bits = channel->get_stop_bits();
-  UARTParityOptions parity = channel->parity_;
-  uint8_t portnum = channel->index_;
-  uint8_t rgadd = this->get_reg_address_(portnum);
-
-  usb_host::transfer_cb_t callback = [=](const usb_host::TransferStatus &status) {
-    if (!status.success)
-      ESP_LOGE(TAG, "UART parameter setup failed, status=%s", esp_err_to_name(status.error_code));
-  };
-
-  if (this->chiptype_ == CHIP_CH9344L || this->chiptype_ == CHIP_CH9344Q) {
-    uint8_t pedt = (baud_rate > 115200) ? 0x01 : 0x00;
-    uint32_t clrt = (baud_rate > 115200) ? 44236800 : 12000000;
-    uint8_t bd1 = 0, bd2 = 0, bd3 = 0;
-
-    switch (baud_rate) {
-      case 250000:
-        bd3 = 1;
-        break;
-      case 500000:
-        bd3 = 2;
-        break;
-      case 1000000:
-        bd3 = 3;
-        break;
-      case 1500000:
-        bd3 = 4;
-        break;
-      case 3000000:
-        bd3 = 5;
-        break;
-      case 12000000:
-        bd3 = 6;
-        break;
-      default: {
-        uint32_t factor = clrt / baud_rate;
-        bd1 = factor & 0xFF;
-        bd2 = (factor >> 8) & 0xFF;
-        break;
-      }
-    }
-
-    uint8_t sbit = (stop_bits == UART_CONFIG_STOP_BITS_2) ? 0x04 : 0x00;
-    uint8_t pbit = 0;
-    switch (parity) {
-      case UART_CONFIG_PARITY_ODD:
-        pbit = 0x08;
-        break;
-      case UART_CONFIG_PARITY_EVEN:
-        pbit = (0x01 << 4) | 0x08;
-        break;
-      case UART_CONFIG_PARITY_MARK:
-        pbit = (0x02 << 4) | 0x08;
-        break;
-      case UART_CONFIG_PARITY_SPACE:
-        pbit = (0x03 << 4) | 0x08;
-        break;
-      default:
-        break;
-    }
-    uint8_t dbit = (data_bits >= 5 && data_bits <= 8) ? (data_bits - 5) : 0x03;
-
-    uint8_t buffer[6];
-    buffer[0] = CMD_W_BR;
-    buffer[1] = rgadd + R_C1;
-    buffer[2] = pedt | 0x50;
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
-
-    buffer[0] = 0x20;
-    buffer[1] = rgadd + R_C3;
-    buffer[2] = bd1;
-    buffer[3] = bd2;
-    buffer[4] = bd3;
-    buffer[5] = 0x00;
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 6);
-
-    buffer[0] = CMD_W_R;
-    buffer[1] = rgadd + R_C3;
-    buffer[2] = dbit | pbit | sbit;
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 3);
-
-  } else if (this->chiptype_ == CHIP_CH348L || this->chiptype_ == CHIP_CH348Q) {
-    uint8_t rol = esp_random() & 0x0F;
-    uint8_t xor_val = esp_random() & 0xFF;
-    uint8_t buffer[12];
-
-    buffer[0] = 0x90 | (portnum & 0x0F);
-    buffer[1] = R_INIT;
-    buffer[2] = (portnum & 0x0F) | ((rol << 4) & 0xF0);
-    buffer[3] = (baud_rate >> 24) & 0xFF;
-    buffer[4] = (baud_rate >> 16) & 0xFF;
-    buffer[5] = (baud_rate >> 8) & 0xFF;
-    buffer[6] = baud_rate & 0xFF;
-    buffer[7] = (stop_bits == UART_CONFIG_STOP_BITS_2) ? 0x02 : 0x00;
-    buffer[8] = parity;
-    buffer[9] = data_bits;
-    buffer[10] = (baud_rate < 9600) ? 0x1E : 0x0A;
-    buffer[11] = xor_val;
-
-    cal_outdata(buffer + 3, rol, xor_val);
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, 12);
-  }
-
-  return true;
 }
 
 bool USBUartTypeCH934X::build_channel_write_(USBUartChannelBase *channel, uint8_t idx, uint8_t *buffer, uint8_t *len) {
