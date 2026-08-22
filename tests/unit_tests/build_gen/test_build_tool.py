@@ -124,3 +124,48 @@ def test_ar_empty_object_list_fails(
         rc = build_tool.main()
     assert rc == 1
     assert "no objects listed" in capsys.readouterr().err
+
+
+def test_ar_batches_long_object_lists(tmp_path: Path) -> None:
+    """The expanded argv must stay under the Windows 32767-char limit: a
+    long object list creates with rc, then appends with q."""
+    archive = tmp_path / "lib.a"
+    rsp = tmp_path / "lib.a.rsp"
+    objects = [f"dir/{'x' * 120}_{i}.o" for i in range(400)]
+    rsp.write_text("\n".join(objects) + "\n")
+    with (
+        patch.object(
+            build_tool.sys,
+            "argv",
+            ["build_tool", "ar", "ar-bin", str(archive), str(rsp)],
+        ),
+        patch.object(
+            build_tool.subprocess, "run", return_value=MagicMock(returncode=0)
+        ) as mock_run,
+    ):
+        assert build_tool.main() == 0
+    calls = [c[0][0] for c in mock_run.call_args_list]
+    assert len(calls) > 1
+    assert calls[0][1] == "rc"
+    assert all(c[1] == "q" for c in calls[1:])
+    assert [o for c in calls for o in c[3:]] == objects
+    assert all(sum(len(a) + 1 for a in c) < 32000 for c in calls)
+
+
+def test_ar_batch_failure_stops(tmp_path: Path) -> None:
+    """A failing batch propagates its exit code without running the rest."""
+    archive = tmp_path / "lib.a"
+    rsp = tmp_path / "lib.a.rsp"
+    rsp.write_text("\n".join(f"{'y' * 200}_{i}.o" for i in range(300)) + "\n")
+    with (
+        patch.object(
+            build_tool.sys,
+            "argv",
+            ["build_tool", "ar", "ar-bin", str(archive), str(rsp)],
+        ),
+        patch.object(
+            build_tool.subprocess, "run", return_value=MagicMock(returncode=3)
+        ) as mock_run,
+    ):
+        assert build_tool.main() == 3
+    assert mock_run.call_count == 1

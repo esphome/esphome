@@ -645,6 +645,9 @@ def test_normalize_dependencies_forms(caplog) -> None:
         {"name": "SPI"},
     ]
     assert normalize_dependencies("Wire") == [{"name": "Wire"}]
+    # A non-iterable value fails by manifest name, never a bare TypeError
+    assert normalize_dependencies(5, "libx") == []
+    assert "Ignoring unrecognized dependencies 5 of libx" in caplog.text
     # The dict-shorthand form validates names like the list form: an empty
     # key and a spec overriding name with a non-string both warn and drop
     assert normalize_dependencies(
