@@ -15,13 +15,13 @@ ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-
 
 void ZigbeeTime::setup() {
   global_time = this;
-  this->parent_->add_on_start_callback([this]() { this->register_zb_time(); });
+  this->parent_->add_on_start_callback([this]() { this->register_zb_time_(); });
 }
 
-void ZigbeeTime::register_zb_time() {
+void ZigbeeTime::register_zb_time_() {
   ezb_zcl_time_interface_t time_interface = {
-      .get_utc_time = this->get_utc_time,
-      .set_utc_time = this->set_utc_time,
+      .get_utc_time = esphome::zigbee::ZigbeeTime::get_utc_time,
+      .set_utc_time = esphome::zigbee::ZigbeeTime::set_utc_time,
   };
   ezb_err_t ret;
   ret = ezb_zcl_time_server_interface_register(this->endpoint_, time_interface);
@@ -51,7 +51,8 @@ void ZigbeeTime::update() {
   if (this->parent_->is_joined() && this->registered_) {
     if (esp_zigbee_lock_acquire(20 / portTICK_PERIOD_MS)) {
       ESP_LOGV(TAG, "Updating time sync from Zigbee network...");
-      ezb_zcl_time_server_synchronize_time(this->endpoint_, 10, this->cb, EZB_ZCL_TIME_SERVER_RANK_MASTER);
+      ezb_zcl_time_server_synchronize_time(this->endpoint_, 10, esphome::zigbee::ZigbeeTime::cb,
+                                           EZB_ZCL_TIME_SERVER_RANK_MASTER);
       esp_zigbee_lock_release();
     } else {
       ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time, will retry...");
@@ -69,7 +70,7 @@ void ZigbeeTime::set_utc_time(uint32_t utc) { global_time->set_epoch_time(utc + 
 void ZigbeeTime::set_epoch_time(uint32_t utc) {
   // called from zigbee task, defer to main loop
   this->defer([this, utc]() {
-    ESP_LOGV(TAG, "Setting device time to UTC: %u", utc);
+    ESP_LOGV(TAG, "Setting device time to UTC: %u", static_cast<unsigned>(utc));
     this->synchronize_epoch_(utc);
   });
   App.wake_loop_threadsafe();

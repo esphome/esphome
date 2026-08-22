@@ -19,7 +19,7 @@ class ZigbeeTime : public time::RealTimeClock {
   void set_epoch_time(uint32_t utc);
 
  protected:
-  void register_zb_time();
+  void register_zb_time_();
   static void set_utc_time(uint32_t utc);
   static uint32_t get_utc_time();
   static void cb(ezb_err_t status);
