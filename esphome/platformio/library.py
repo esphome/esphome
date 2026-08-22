@@ -15,6 +15,7 @@ regardless of which toolchain consumes the result.
 from collections import deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
+import contextlib
 from dataclasses import dataclass, field
 import glob
 import hashlib
@@ -108,14 +109,7 @@ class URLSource(Source):
     def __init__(self, url: str):
         self.url = url
 
-    def download(
-        self,
-        dir_suffix: str,
-        force: bool = False,
-        salt: str = "",
-        namespace: str = "",
-        progress: Callable[[int], None] | None = None,
-    ) -> Path:
+    def _cache_dir(self, dir_suffix: str, salt: str, namespace: str) -> Path:
         # Namespace the cache per backend (e.g. pio_components/idf, .../zephyr) so
         # the build files each backend writes into the library dir can't collide.
         base_dir = Path(CORE.data_dir) / DOMAIN
@@ -125,7 +119,23 @@ class URLSource(Source):
         h.update(self.url.encode())
         if salt:
             h.update(salt.encode())
-        path = base_dir / h.hexdigest()[:8] / dir_suffix
+        return base_dir / h.hexdigest()[:8] / dir_suffix
+
+    def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
+        """Whether a completed extraction already exists for this source."""
+        return (
+            self._cache_dir(dir_suffix, salt, namespace) / ".esphome_extracted"
+        ).is_file()
+
+    def download(
+        self,
+        dir_suffix: str,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress: Callable[[int], None] | None = None,
+    ) -> Path:
+        path = self._cache_dir(dir_suffix, salt, namespace)
         # Marker file written last to signal a complete extraction. Using a
         # marker (instead of just `path.is_dir()`) means an interrupted
         # extraction is correctly detected and re-run on the next invocation,
@@ -964,6 +974,13 @@ def _prefetch_wave(
         if component.source.url in seen:
             continue
         seen.add(component.source.url)
+        with contextlib.suppress(Exception):
+            if component.source.is_cached(
+                component.get_sanitized_name(), salt=salt, namespace=namespace
+            ):
+                # A completed extraction downloads nothing; a warm build
+                # must stay silent
+                continue
         components.append(component)
     if len(components) < 2:
         return
