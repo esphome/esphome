@@ -13,7 +13,9 @@ libraries get the recursive default source filter rather than PlatformIO's
 root-only Arduino-1.0 filter (no bundled library is affected), and the
 Arduino ``dot_a_linkage`` property is honored even though PlatformIO
 ignores it. Bundled libraries never run a manifest ``extraScript`` (a
-warning names the library if one declares it).
+warning names the library if one declares it). Manifest ``-I`` build
+flags join the global include path rather than staying private to the
+library's own sources as under PlatformIO.
 
 Mirrors PlatformIO's ``lib_ldf_mode=off`` behavior: each library builds into
 its own static archive and every library's include dir joins one global
@@ -230,6 +232,10 @@ def resolve_libraries(
     ``pio_platform``/``board_mcu`` filter manifests the way PlatformIO would
     for that core (e.g. ``espressif8266``/``esp8266``); ``cache_key`` keys the
     shared converter's download cache.
+
+    The returned order is unordered with respect to link dependencies
+    (bundled dependencies precede their dependents); the caller must link
+    the archives inside one ``--start-group``/``--end-group`` pair.
     """
     bundled: list[ArduinoLibrary] = []
     external: list[Library] = []
@@ -270,9 +276,26 @@ def resolve_libraries(
         # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
         # is a core-bundled library; the shared converter skips it because
         # it cannot be resolved from the registry.
+        if not component.data.get("dependencies") and component.data.get("depends"):
+            # A properties-only manifest spells dependencies depends=; the
+            # walk below reads the JSON key, so those are not resolved
+            _LOGGER.warning(
+                "Library %s declares dependencies via library.properties "
+                "depends=, which are not resolved automatically; add them "
+                "with add_library() if needed",
+                component.name,
+            )
         for dep in normalize_dependencies(component.data.get("dependencies")):
             name = dep.get("name")
-            if not name:
+            if (
+                not name
+                or not isinstance(name, str)
+                or "/" in name
+                or "\\" in name
+                or name in (".", "..")
+            ):
+                # The name becomes a path component under the framework
+                # tree; never join a traversal or a non-string
                 _LOGGER.warning(
                     "Ignoring malformed dependency entry %r of library %s",
                     dep,

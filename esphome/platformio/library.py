@@ -651,7 +651,16 @@ def normalize_dependencies(dependencies: Any) -> list[dict]:
                 entry["version"] = spec
             normalized.append(entry)
         return normalized
-    return [d for d in dependencies if isinstance(d, dict)]
+    normalized = []
+    for entry in dependencies:
+        if isinstance(entry, dict):
+            normalized.append(entry)
+        elif isinstance(entry, str) and entry:
+            # PIO also accepts a bare list of names ("dependencies":
+            # ["Wire"]); dropping them here would hide a real dependency
+            # from every caller's visibility warning
+            normalized.append({"name": entry})
+    return normalized
 
 
 @dataclass
@@ -985,7 +994,18 @@ def convert_libraries(
             ):
                 # The backend adds it from its own tree; resolving it here
                 # would fetch a same-named registry package instead
-                _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
+                if (pin := dependency.get("version")) and pin != "*":
+                    # The declared constraint is discarded for the bundled
+                    # copy; a too-old bundled library must not surface as
+                    # link errors with no stated cause
+                    _LOGGER.warning(
+                        "Dependency %s pins version %s; using the library "
+                        "bundled with the framework instead",
+                        dep_name,
+                        pin,
+                    )
+                else:
+                    _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
                 continue
             # The version field may actually be a URL (git/archive dependency).
             dep_version = dependency["version"]
