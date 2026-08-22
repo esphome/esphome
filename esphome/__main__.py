@@ -2735,7 +2735,8 @@ def run_esphome(argv):
         args.command in ("upload", "logs") and not command_line_substitutions
     )
     # An explicit --toolchain must re-run the per-platform validators, so
-    # gate only the cache read; the refresh below still saves the result.
+    # gate only the cache read; the refresh below saves the result unless
+    # the sidecar records a different toolchain.
     cache_read_eligible = cache_write_eligible and args.toolchain is None
     if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
