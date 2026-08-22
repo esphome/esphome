@@ -593,12 +593,16 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # platformio/library.py); filters top-level libraries and
                 # discovered dependencies
                 cg.add_platformio_option(key, vals)
-            elif key == "board_build.f_cpu" and CORE.using_toolchain_arduino:
-                # A real-world overclock knob (many published ESP8266 configs
-                # pin 160000000L for timing-sensitive integrations); the
-                # esp8266 native generator reads it for -DF_CPU. Other native
-                # toolchains have no equivalent and fall through to the
-                # warning.
+            elif (
+                key in ("board_build.f_cpu", "board_build.ldscript")
+                and CORE.using_toolchain_arduino
+            ):
+                # Real-world knobs many published ESP8266 configs rely on:
+                # f_cpu 160000000L for timing-sensitive integrations, and a
+                # custom ldscript to reserve a filesystem region or correct
+                # a board's flash size. The esp8266 native generator reads
+                # both; other native toolchains have no equivalent and fall
+                # through to the warning.
                 cg.add_platformio_option(key, val)
             elif key != "upload_speed":
                 # upload_speed needs no handling: it is read from the raw
