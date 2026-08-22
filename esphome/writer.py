@@ -338,27 +338,13 @@ def copy_src_tree():
 
     # Defensively force a rebuild if the build_info files don't exist, or if
     # there was a config change which didn't actually cause a source change
-    if not build_info_data_h_path.exists() or not build_info_data_cpp_path.exists():
-        _LOGGER.debug("Build info files missing; regenerating")
+    if _build_info_stale(
+        build_info_data_h_path,
+        build_info_data_cpp_path,
+        build_info_json_path,
+        config_hash,
+    ):
         sources_changed = True
-    else:
-        try:
-            existing = json.loads(build_info_json_path.read_text(encoding="utf-8"))
-            if (
-                existing.get("config_hash") != config_hash
-                or existing.get("esphome_version") != __version__
-            ):
-                _LOGGER.debug(
-                    "Build info stale (config_hash %s -> %s, version %s -> %s)",
-                    existing.get("config_hash"),
-                    config_hash,
-                    existing.get("esphome_version"),
-                    __version__,
-                )
-                sources_changed = True
-        except (json.JSONDecodeError, KeyError, OSError):
-            _LOGGER.debug("Build info JSON unreadable; regenerating")
-            sources_changed = True
 
     # Write build_info header and JSON metadata
     if sources_changed:
@@ -410,6 +396,33 @@ def generate_version_h():
     return VERSION_H_FORMAT.format(
         __version__, match.group(1), match.group(2), match.group(3)
     )
+
+
+def _build_info_stale(
+    h_path: Path, cpp_path: Path, json_path: Path, config_hash: int
+) -> bool:
+    """Whether the build-info sources must regenerate (missing or stale)."""
+    if not h_path.exists() or not cpp_path.exists():
+        _LOGGER.debug("Build info files missing; regenerating")
+        return True
+    try:
+        existing = json.loads(json_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        _LOGGER.debug("Build info JSON unreadable; regenerating")
+        return True
+    if (
+        existing.get("config_hash") != config_hash
+        or existing.get("esphome_version") != __version__
+    ):
+        _LOGGER.debug(
+            "Build info stale (config_hash %s -> %s, version %s -> %s)",
+            existing.get("config_hash"),
+            config_hash,
+            existing.get("esphome_version"),
+            __version__,
+        )
+        return True
+    return False
 
 
 def get_build_info() -> tuple[int, int, str, str]:
