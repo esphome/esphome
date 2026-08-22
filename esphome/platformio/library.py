@@ -32,10 +32,10 @@ from urllib.request import url2pathname
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import (
+    BatchDownloadProgress,
     archive_extract_all,
     download_from_mirrors,
     rmdir,
-    suppress_download_progress,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,7 +81,12 @@ ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 class Source:
     def download(
-        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+        self,
+        dir_suffix: str,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress: Callable[[int], None] | None = None,
     ) -> Path:
         raise NotImplementedError
 
@@ -99,7 +104,12 @@ class URLSource(Source):
         self.url = url
 
     def download(
-        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+        self,
+        dir_suffix: str,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress: Callable[[int], None] | None = None,
     ) -> Path:
         # Namespace the cache per backend (e.g. pio_components/idf, .../zephyr) so
         # the build files each backend writes into the library dir can't collide.
@@ -122,10 +132,12 @@ class URLSource(Source):
 
             # Download in temporary file
             with tempfile.NamedTemporaryFile() as tmp:
-                _LOGGER.info("Downloading %s ...", self.url)
+                if progress is None:
+                    # A batch caller draws one combined bar and logs the list
+                    _LOGGER.info("Downloading %s ...", self.url)
                 _LOGGER.debug("Location: %s", path)
 
-                download_from_mirrors([self.url], {}, tmp.file)
+                download_from_mirrors([self.url], {}, tmp.file, progress=progress)
 
                 _LOGGER.debug("Extracting archive to %s ...", path)
                 archive_extract_all(tmp.file, path)
@@ -142,7 +154,12 @@ class GitSource(Source):
         self.ref = ref
 
     def download(
-        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+        self,
+        dir_suffix: str,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress: Callable[[int], None] | None = None,
     ) -> Path:
         domain = DOMAIN
         if namespace:
@@ -177,7 +194,12 @@ class LocalSource(Source):
         self.local_path = path
 
     def download(
-        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+        self,
+        dir_suffix: str,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress: Callable[[int], None] | None = None,
     ) -> Path:
         src = Path(self.local_path)
         if not src.is_dir():
@@ -270,7 +292,13 @@ class ConvertedLibrary:
     def get_require_name(self):
         return self.get_sanitized_name().replace("/", "__")
 
-    def download(self, force: bool = False, salt: str = "", namespace: str = ""):
+    def download(
+        self,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress: Callable[[int], None] | None = None,
+    ):
         """Fetch the library into the shared cache and record its ``path``.
 
         The cache directory is named after the sanitized library name; backends
@@ -279,7 +307,11 @@ class ConvertedLibrary:
         ``get_require_name``). ``namespace`` keeps each backend's cache separate.
         """
         self.path = self.source.download(
-            self.get_sanitized_name(), force=force, salt=salt, namespace=namespace
+            self.get_sanitized_name(),
+            force=force,
+            salt=salt,
+            namespace=namespace,
+            progress=progress,
         )
         self.source_path = self.source.source_root(self.path)
 
@@ -853,6 +885,21 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
 _DOWNLOAD_WORKERS = 4
 
 
+def _content_lengths(urls: list[str]) -> list[int]:
+    """Content-Length per URL via HEAD requests; 0 for any that fail."""
+    import requests
+
+    def head(url: str) -> int:
+        try:
+            resp = requests.head(url, timeout=10, allow_redirects=True)
+            return int(resp.headers.get("content-length", 0))
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            return 0
+
+    with ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(urls))) as ex:
+        return list(ex.map(head, urls))
+
+
 def _prefetch_wave(
     wave: list[tuple[str, ConvertedLibrary]], salt: str, namespace: str
 ) -> None:
@@ -874,17 +921,33 @@ def _prefetch_wave(
         components.append(component)
     if len(components) < 2:
         return
+    _LOGGER.info(
+        "Downloading %d libraries: %s",
+        len(components),
+        ", ".join(c.name for c in components),
+    )
+    # One combined bar over the batch; sizes come from HEAD requests so the
+    # bar can be trusted (no sizes -> no bar, per BatchDownloadProgress)
+    sizes = _content_lengths([c.source.url for c in components])
+    progress = BatchDownloadProgress(
+        "Downloading libraries", sum(sizes) if all(sizes) else 0
+    )
 
     def _fetch(component: ConvertedLibrary) -> None:
+        tracker = progress.tracker()
         try:
-            with suppress_download_progress():
-                component.download(salt=salt, namespace=namespace)
+            component.download(salt=salt, namespace=namespace, progress=tracker)
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # The sequential call below retries and reports the failure
-            pass
+            tracker(0)
 
-    with ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(components))) as ex:
-        list(ex.map(_fetch, components))
+    try:
+        with ThreadPoolExecutor(
+            max_workers=min(_DOWNLOAD_WORKERS, len(components))
+        ) as ex:
+            list(ex.map(_fetch, components))
+    finally:
+        progress.done()
 
 
 def convert_libraries(
