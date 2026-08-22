@@ -26,9 +26,13 @@ from esphome.platformio.library import (
 )
 
 
-def _backend(emit=lambda component: None) -> LibraryBackend:
+def _backend(emit=lambda component: None, provides=None) -> LibraryBackend:
     return LibraryBackend(
-        platform="espressif32", framework="espidf", emit=emit, cache_key="idf"
+        platform="espressif32",
+        framework="espidf",
+        emit=emit,
+        cache_key="idf",
+        provides=provides,
     )
 
 
@@ -596,11 +600,14 @@ def test_normalize_dependencies_forms(caplog) -> None:
     """Every PIO-legal spelling normalizes; unrecognizable entries warn."""
     from esphome.platformio.library import normalize_dependencies
 
-    assert normalize_dependencies(["Wire", {"name": "SPI"}, 5, ""], "libx") == [
+    assert normalize_dependencies(
+        ["Wire", {"name": "SPI"}, 5, "", {"version": "1.0"}], "libx"
+    ) == [
         {"name": "Wire"},
         {"name": "SPI"},
     ]
-    assert caplog.text.count("unrecognized dependency entry") == 2
+    # The int, the empty string, and the nameless dict all warn
+    assert caplog.text.count("unrecognized dependency entry") == 3
     # A plain string is names, never iterated into characters
     assert normalize_dependencies("Wire, SPI") == [
         {"name": "Wire"},
@@ -630,12 +637,20 @@ def test_versionless_dependency_without_provider_warns(
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
-        {"esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]}},
+        {
+            "esphome/A": {
+                "name": "A",
+                # The duplicate entry warns once (reconciliation dedup)
+                "dependencies": [{"name": "Hash"}, {"name": "Hash"}],
+            }
+        },
     )
     convert_libraries([Library("esphome/A", None, None)], _backend())
     assert (
-        "Hash of esphome/A has no version to resolve and nothing provides it"
-        in caplog.text
+        caplog.text.count(
+            "Hash of esphome/A has no version to resolve and nothing provides it"
+        )
+        == 1
     )
 
 
@@ -661,6 +676,46 @@ def test_walk_warns_for_nonplatform_invalid_library(
     monkeypatch.setattr(lib, "check_library_data", flaky)
     convert_libraries([Library("esphome/A", None, None)], _backend())
     assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
+
+
+def test_versionless_owner_qualified_dependency_warns_despite_provides(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The backend's provides() only covers owner-less names (the walk's
+    backend-provided skip has the same guard), so an owner-qualified
+    version-less dependency that nobody adds must still warn."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "Wire", "owner": "Foo"}],
+            }
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)],
+        _backend(provides=lambda name: name == "Wire"),
+    )
+    assert "Wire of esphome/A has no version to resolve" in caplog.text
+
+
+def test_versionless_provided_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An owner-less version-less dependency the backend provides is added
+    by the backend after emit; no reconciliation warning."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "Wire"}]}},
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)],
+        _backend(provides=lambda name: name == "Wire"),
+    )
+    assert "has no version to resolve" not in caplog.text
 
 
 def test_versionless_dependency_requested_top_level_stays_quiet(

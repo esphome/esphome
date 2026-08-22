@@ -387,8 +387,8 @@ def test_library_info_lib_archive_flag(tmp_path: Path) -> None:
 def test_resolve_libraries_dep_warnings(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A nameless dependency entry warns; an owner-without-version entry is
-    left to the shared walk's reconciliation (no local warning)."""
+    """A nameless dependency entry warns in the shared normalizer; an
+    owner-without-version entry is left to the walk's reconciliation."""
     framework = _make_framework(tmp_path)
     converted = _webserver(
         tmp_path,
@@ -402,7 +402,7 @@ def test_resolve_libraries_dep_warnings(
     )
     with _emitting_converter(converted):
         _resolve(framework)
-    assert "malformed dependency entry" in caplog.text
+    assert "Ignoring unrecognized dependency entry" in caplog.text
     assert "Orphan" not in caplog.text
 
 
@@ -733,6 +733,64 @@ def test_transitively_resolved_dependency_does_not_warn(
         "esp32async__ESPAsyncTCP",
     ]
     assert "Skipping" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("spec", "expected"),
+    [
+        ("owner/Name", "Name"),
+        ("Name", "Name"),
+        ("Foo=file:///srv/Wire", "Foo"),
+        ("Foo=https://github.com/x/Wire", "Foo"),
+        # An "=" without a URL is a registry name, not the custom-name form
+        ("FOO=BAR", "FOO=BAR"),
+        ("https://github.com/x/Wire", "Wire"),
+    ],
+)
+def test_external_short_name(spec: str, expected: str) -> None:
+    assert component._external_short_name(spec) == expected
+
+
+def test_converted_manifest_name_suppresses_bundled_dependency(
+    tmp_path: Path,
+) -> None:
+    """A dependency name a converted library's manifest provides is not
+    also added from the framework tree (a duplicate archive would surface
+    as duplicate-symbol link errors), even when the provider emits later."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    # Requested under a different short name; only the manifest says "Wire"
+    _add_library("Someone/WireLib", "9.9.9")
+    ws_dir = tmp_path / "converted" / "webserver"
+    (ws_dir / "src").mkdir(parents=True)
+    wire_dir = tmp_path / "converted" / "wire"
+    (wire_dir / "src").mkdir(parents=True)
+    ws = _converted(
+        "esp32async__ESPAsyncWebServer",
+        ws_dir,
+        {"build": {}, "dependencies": [{"name": "Wire"}]},
+    )
+    registry_wire = _converted(
+        "someone__WireLib", wire_dir, {"name": "Wire", "build": {}}
+    )
+    with _emitting_converter(ws, registry_wire):
+        libs = _resolve(framework)
+    # The bundled Wire is not added alongside the registry-resolved one
+    assert [lib.name for lib in libs] == [
+        "esp32async__ESPAsyncWebServer",
+        "someone__WireLib",
+    ]
+
+
+def test_bundled_library_root_headers_pass_the_probe(tmp_path: Path) -> None:
+    """Headers anywhere in the bundled tree (uncommon suffixes and case
+    included) prove the install is intact, even with an empty src dir."""
+    framework = _make_framework(tmp_path)
+    lib_dir = framework / "libraries" / "HeaderOnly"
+    (lib_dir / "src").mkdir(parents=True)
+    (lib_dir / "impl.HXX").write_text("")
+    lib = component._bundled_library(framework, "HeaderOnly")
+    assert lib.sources == []
 
 
 def test_empty_bundled_library_warns(
