@@ -276,11 +276,13 @@ def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
     return cv.maybe_simple_value(AREA_SCHEMA, key=CONF_NAME)(config)
 
 
-def validate_suspend_loop_(config: dict | str) -> dict[str, str | core.ID]:
+def _validate_suspend_loop(value: bool) -> bool:
     # host and RP2 platforms have unwakeable delay fallbacks, so suspending the main loop is unsave
-    if CORE.target_platform in [PLATFORM_HOST, PLATFORM_RP2]:
-        raise cv.Invalid("Suspend loop is not available on host or RP2 platforms")
-    return config
+    if value and CORE.target_platform in [PLATFORM_HOST, PLATFORM_RP2]:
+        raise cv.Invalid(
+            f"Suspend loop is not available on {CORE.target_platform} platform"
+        )
+    return value
 
 
 CONFIG_SCHEMA = cv.All(
@@ -351,9 +353,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_SUSPEND_LOOP, visibility=cv.Visibility.YAML_ONLY): cv.All(
+            cv.Optional(
+                CONF_SUSPEND_LOOP, default=False, visibility=cv.Visibility.YAML_ONLY
+            ): cv.All(
                 cv.boolean,
-                validate_suspend_loop_,
+                _validate_suspend_loop,
             ),
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
@@ -776,7 +780,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_cxx_build_flag("-Wno-volatile")
     if config[CONF_DEBUG_SCHEDULER]:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
-    if config.get(CONF_SUSPEND_LOOP):
+    if config[CONF_SUSPEND_LOOP]:
         cg.add_define("ESPHOME_SUSPEND_LOOP")
     if CONF_LOOP_INTERVAL in config:
         cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))

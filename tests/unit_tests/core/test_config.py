@@ -228,22 +228,36 @@ def test_area_id_collision(
     assert "ID duplicate_id redefined! Check esphome->area->id." in captured.out
 
 
+@pytest.mark.parametrize(
+    ("fixture", "expected_platform"),
+    [
+        ("suspend_loop_host.yaml", "host"),
+        ("suspend_loop_rp2.yaml", "rp2"),
+    ],
+)
 def test_suspend_loop_fail(
-    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+    yaml_file: Callable[[str], str],
+    capsys: pytest.CaptureFixture[str],
+    fixture: str,
+    expected_platform: str,
 ) -> None:
     """Test that suspend_loop fails on host."""
-    result = load_config_from_fixture(yaml_file, "suspend_loop_host.yaml", FIXTURES_DIR)
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is None
 
     # Check for the specific error message in stdout
     captured = capsys.readouterr()
-    assert "Suspend loop is not available on host or RP2 platforms" in captured.out
+    assert (
+        f"Suspend loop is not available on {expected_platform} platform" in captured.out
+    )
 
 
-def test_suspend_loop_success(
-    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+@pytest.mark.asyncio
+@pytest.mark.filterwarnings("ignore::RuntimeWarning")
+async def test_suspend_loop_and_loop_interval(
+    yaml_file: Callable[[str], Path],
 ) -> None:
-    """Test that suspend_loop is valid on esp32."""
+    """Test suspend_loop and loop_interval on esp32"""
     result = load_config_from_fixture(
         yaml_file, "suspend_loop_esp32.yaml", FIXTURES_DIR
     )
@@ -252,16 +266,6 @@ def test_suspend_loop_success(
     esphome_config = result["esphome"]
     assert esphome_config.get(CONF_SUSPEND_LOOP)
 
-
-@pytest.mark.asyncio
-@pytest.mark.filterwarnings("ignore::RuntimeWarning")
-async def test_to_code_adds_defines(yaml_file: Callable[[str], Path]) -> None:
-    """esphome->libraries entries are parsed and registered via cg.add_library."""
-    result = load_config_from_fixture(
-        yaml_file, "suspend_loop_esp32.yaml", FIXTURES_DIR
-    )
-    assert result is not None
-
     with patch("esphome.core.config.cg") as mock_cg:
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
@@ -269,7 +273,9 @@ async def test_to_code_adds_defines(yaml_file: Callable[[str], Path]) -> None:
 
     mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
     mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
-    mock_cg.add(mock_cg.App.set_loop_interval(50))
+    mock_cg.App.set_loop_interval.assert_called_once_with(
+        cv.TimePeriodMilliseconds(milliseconds=50)
+    )
 
 
 def test_device_without_area(yaml_file: Callable[[str], str]) -> None:
