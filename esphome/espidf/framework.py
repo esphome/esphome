@@ -1,6 +1,7 @@
 """ESP-IDF framework tools for ESPHome."""
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from ctypes.util import find_library
 import json
 import logging
@@ -19,6 +20,7 @@ from esphome.build_helpers.ccache import (
 from esphome.build_helpers.tools_cache import tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
+    BatchDownloadProgress,
     PathType,
     archive_extract_all,
     create_venv,
@@ -682,6 +684,12 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
+# Tool archives are large (tens to hundreds of MB) and served by GitHub /
+# dl.espressif.com; a few streams at once saturate most links without
+# hammering the host. Smaller than external_files' 8: those are tiny files.
+_PREFETCH_WORKERS = 4
+
+
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -694,10 +702,10 @@ def _prefetch_idf_tool_archives(
     which makes large archives effectively impossible to fetch on unstable
     connections (#17703). This asks the framework's idf_tools (via
     ``get_tool_downloads.py``) which archives the coming install needs, then
-    downloads each into ``<IDF_TOOLS_PATH>/dist`` with
-    ``download_with_resume``. The installer then finds the verified archives
-    already in place ("file ... is already downloaded") and never touches the
-    network.
+    downloads them into ``<IDF_TOOLS_PATH>/dist`` with
+    ``download_with_resume``, a few at a time under one combined progress
+    bar. The installer then finds the verified archives already in place
+    ("file ... is already downloaded") and never touches the network.
 
     Strictly best-effort: any failure here just logs and returns, leaving
     ``idf_tools.py install`` to download whatever is missing exactly as
@@ -724,21 +732,51 @@ def _prefetch_idf_tool_archives(
             for entry in json.loads(stdout)
             if not (dist_path / entry["dest"]).is_file()
         ]
-        for index, entry in enumerate(entries, start=1):
-            _LOGGER.info(
-                "Downloading %s (%d/%d) ...", entry["name"], index, len(entries)
-            )
+        if not entries:
+            return
+        _LOGGER.info(
+            "Downloading %d ESP-IDF tool archive(s): %s",
+            len(entries),
+            ", ".join(entry["name"] for entry in entries),
+        )
+        # tools.json always carries sizes; should one be missing the combined
+        # bar could not be trusted, so show no bar at all (per-file bars from
+        # several threads would interleave) rather than a wrong one.
+        sizes = [entry["size"] for entry in entries]
+        progress = BatchDownloadProgress(
+            "Downloading ESP-IDF tools", sum(sizes) if all(sizes) else 0
+        )
+        # Reported after the bar is done so the warnings do not land on
+        # its row; list.append is atomic under the GIL.
+        failures: list[tuple[str, Exception]] = []
+
+        def _download(entry: dict) -> None:
+            tracker = progress.tracker()
             try:
                 download_with_resume(
                     entry["url"],
                     dist_path / entry["dest"],
                     sha256=entry["sha256"],
                     size=entry["size"],
+                    progress=tracker,
                 )
             except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Keep prefetching the remaining archives; the installer
                 # will retry this one itself (without resume).
-                _LOGGER.warning("Could not prefetch %s: %s", entry["name"], e)
+                tracker(0)
+                failures.append((entry["name"], e))
+
+        ex = ThreadPoolExecutor(max_workers=min(_PREFETCH_WORKERS, len(entries)))
+        try:
+            for future in [ex.submit(_download, entry) for entry in entries]:
+                future.result()
+        finally:
+            # On Ctrl-C drop the queued archives instead of downloading them
+            # all before the process can exit; in-flight ones still finish.
+            ex.shutdown(wait=True, cancel_futures=True)
+            progress.done()
+        for name, e in failures:
+            _LOGGER.warning("Could not prefetch %s: %s", name, e)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.
