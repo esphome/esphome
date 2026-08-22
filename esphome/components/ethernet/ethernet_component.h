@@ -23,6 +23,10 @@
 #if CONFIG_ETH_USE_ESP32_EMAC
 extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #endif
+
+#ifdef USE_ETHERNET_LLDP
+#include "lldp.h"
+#endif  // USE_ETHERNET_LLDP
 #endif  // USE_ESP32
 
 #ifdef USE_RP2
@@ -191,6 +195,14 @@ class EthernetComponent final : public Component {
   void set_clk_mode(emac_rmii_clock_mode_t clk_mode);
   void add_phy_register(PHYRegister register_value);
 #endif  // USE_ETHERNET_SPI
+#ifdef USE_ETHERNET_LLDP
+  void set_lldp_port(const char *use_port) { this->lldp_port_ = use_port; };
+  void set_lldp_system_name(const char *use_name) { this->lldp_name_ = use_name; };
+  void set_lldp_system_description(const char *use_desc) { this->lldp_desc_ = use_desc; };
+  void set_lldp_tx_fast_count(const uint16_t use_count) { this->lldp_tx_fast_count_ = use_count; };
+  void set_lldp_tx_interval(const uint16_t use_interval) { this->lldp_tx_interval_ = use_interval; };
+  void set_lldp_tx_hold(const uint16_t use_hold) { this->lldp_tx_hold_ = use_hold; };
+#endif  // USE_ETHERNET_LLDP
 #endif  // USE_ESP32
 
 #ifdef USE_RP2
@@ -250,6 +262,21 @@ class EthernetComponent final : public Component {
 #endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
+
+#ifdef USE_ETHERNET_LLDP
+  // The LLDPTransmitter instance itself
+  LLDPTransmitter lldp_;
+  // Configuration values
+  uint16_t lldp_tx_fast_count_{LLDP_TX_FAST_COUNT};
+  uint16_t lldp_tx_interval_{LLDP_TX_INTERVAL};
+  uint16_t lldp_tx_hold_{LLDP_TX_HOLD};
+  const char *lldp_port_{nullptr};
+  const char *lldp_name_{nullptr};
+  const char *lldp_desc_{nullptr};
+  // Internal use functions
+  esp_err_t lldp_setup_(uint8_t mac_addr[6]);
+  void lldp_timer_tick_();
+#endif  // USE_ETHERNET_LLDP
 
 #ifdef USE_ETHERNET_SPI
   uint8_t clk_pin_;

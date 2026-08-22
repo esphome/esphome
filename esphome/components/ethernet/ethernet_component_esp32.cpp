@@ -61,6 +61,19 @@
 #include <driver/spi_master.h>
 #endif
 
+#ifdef USE_ETHERNET_LLDP
+#include "esphome/core/version.h"
+
+// Default LLDP System-Description value, used if not set in the configuration:
+#ifdef ESPHOME_PROJECT_NAME
+// If esphome.project has been configured, use name and version
+#define LLDP_DEFAULT_DESCRIPTION ESPHOME_PROJECT_NAME " " ESPHOME_PROJECT_VERSION
+#else
+// Otherwise, say we're ESPHome and include the software version and board type.
+#define LLDP_DEFAULT_DESCRIPTION "ESPHome.io " ESPHOME_VERSION " " ESPHOME_BOARD
+#endif
+#endif  // USE_ETHERNET_LLDP
+
 namespace esphome::ethernet {
 
 static const char *const TAG = "ethernet";
@@ -107,6 +120,11 @@ void EthernetComponent::loop() {
 
         this->dump_connect_params_();
         this->status_clear_warning();
+#ifdef USE_ETHERNET_LLDP
+        // Restart the LLDP transmitter so we do a burst of messages when first
+        // (re)connecting.
+        this->lldp_.restart();
+#endif  // USE_ETHERNET_LLDP
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
         this->connect_trigger_.trigger();
 #endif
@@ -452,6 +470,14 @@ void EthernetComponent::ethernet_lazy_init_() {
   ESPHL_ERROR_CHECK(err, "GOT IPv6 event handler register error");
 #endif /* USE_NETWORK_IPV6 */
 
+#ifdef USE_ETHERNET_LLDP
+  if ((err = this->lldp_setup_(mac_addr)); err != ESP_OK) {
+    ESP_LOGE(TAG, "LLDP setup failed: (%d) %s", err, esp_err_to_name(err));
+    // Intentionally not using mark_failed() here - if L2TAP isn't going to
+    // work, don't break ethernet as well.
+  }
+#endif  // USE_ETHERNET_LLDP
+
   this->ethernet_initialized_ = true;
 }
 
@@ -610,6 +636,19 @@ void EthernetComponent::dump_config() {
                 this->clk_pin_, this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+#ifdef USE_ETHERNET_LLDP
+  ESP_LOGCONFIG(TAG,
+                "Ethernet LLDP:\n"
+                "  Port: %s\n"
+                "  System Name: %s\n"
+                "  System Description: %s\n"
+                "  TX Fast Count: %u\n"
+                "  TX Interval: %u\n"
+                "  TX Hold: %u\n"
+                "  TTL (calculated): %u",
+                this->lldp_.get_port(), this->lldp_.get_system_name(), this->lldp_.get_system_description(),
+                this->lldp_tx_fast_count_, this->lldp_tx_interval_, this->lldp_tx_hold_, this->lldp_.get_ttl());
+#endif  // USE_ETHERNET_LLDP
 }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
@@ -907,6 +946,63 @@ void EthernetComponent::dump_connect_params_() {
   }
 #endif /* USE_NETWORK_IPV6 */
 }
+
+#ifdef USE_ETHERNET_LLDP
+esp_err_t EthernetComponent::lldp_setup_(uint8_t mac_addr[6]) {
+  esp_err_t ret;
+
+  ret = this->lldp_.setup(this->eth_handle_);
+  if (ret != ESP_OK) {
+    return ret;
+  }
+
+  // Configure LLDP transmitter
+  this->lldp_.set_mac(mac_addr);
+  this->lldp_.set_tx_fast_count(this->lldp_tx_fast_count_);
+  this->lldp_.set_tx_interval(this->lldp_tx_interval_);
+  this->lldp_.set_tx_hold(this->lldp_tx_hold_);
+  if (this->lldp_port_ != nullptr) {
+    this->lldp_.set_port(this->lldp_port_);
+  }
+  if (this->lldp_name_ != nullptr) {
+    // If a name has been set, use it
+    this->lldp_.set_system_name(this->lldp_name_);
+  } else {
+    // Otherwise use the ESPHome app name
+    this->lldp_.set_system_name(App.get_name().c_str());
+  }
+  if (this->lldp_desc_ != nullptr) {
+    // If a description has been set, use it
+    this->lldp_.set_system_description(this->lldp_desc_);
+  } else {
+    // Otherwise use the default value from determined at the top of this file.
+    this->lldp_.set_system_description(LLDP_DEFAULT_DESCRIPTION);
+  }
+
+  // Set up 1-second tick handler for the LLDP transmit engine
+  this->set_interval("lldp_timer_tick", 1000, [this] { this->lldp_timer_tick_(); });
+
+  return ESP_OK;
+}
+
+void EthernetComponent::lldp_timer_tick_() {
+  esp_err_t err;
+
+  // Run the timer state engine to see if we're ready to transmit
+  if (!this->lldp_.should_transmit()) {
+    return;
+  }
+
+  // Update current management IP addresses
+  auto ips = this->get_ip_addresses();
+  this->lldp_.set_ips(ips);
+
+  // Generate and transmit the LLDP packet
+  if ((err = this->lldp_.transmit()); err != ESP_OK) {
+    ESP_LOGE(TAG, "lldp_.transmit() failed: (%d) %s", err, esp_err_to_name(err));
+  }
+}
+#endif  // USE_ETHERNET_LLDP
 
 #ifdef USE_ETHERNET_SPI
 void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }

@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_PAGE_ID,
     CONF_PIN,
     CONF_POLLING_INTERVAL,
+    CONF_PORT,
     CONF_RESET_PIN,
     CONF_SPI,
     CONF_STATIC_IP,
@@ -114,6 +115,13 @@ CONF_PHY_REGISTERS = "phy_registers"
 CONF_INTERFACE = "interface"
 
 CONF_CLOCK_SPEED = "clock_speed"
+
+CONF_LLDP = "lldp"
+CONF_SYSTEM_NAME = "system_name"
+CONF_SYSTEM_DESCRIPTION = "system_description"
+CONF_TX_FAST_COUNT = "tx_fast_count"
+CONF_TX_INTERVAL = "tx_interval"
+CONF_TX_HOLD = "tx_hold"
 
 EthernetType = ethernet_ns.enum("EthernetType")
 ETHERNET_TYPES = {
@@ -229,6 +237,19 @@ MANUAL_IP_SCHEMA = cv.Schema(
         cv.Required(CONF_SUBNET): cv.ipv4address,
         cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
         cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+    }
+)
+
+LLDP_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PORT): cv.All(cv.string_strict, cv.Length(max=128)),
+        cv.Optional(CONF_SYSTEM_NAME): cv.All(cv.string_strict, cv.Length(max=128)),
+        cv.Optional(CONF_SYSTEM_DESCRIPTION): cv.All(
+            cv.string_strict, cv.Length(max=128)
+        ),
+        cv.Optional(CONF_TX_FAST_COUNT, default=4): cv.int_range(min=1, max=8),
+        cv.Optional(CONF_TX_INTERVAL, default=30): cv.int_range(min=1, max=3600),
+        cv.Optional(CONF_TX_HOLD, default=4): cv.int_range(min=1, max=100),
     }
 )
 
@@ -390,6 +411,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
+        cv.Optional(CONF_LLDP): LLDP_SCHEMA,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -698,6 +720,27 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
         component := _IDF6_ETHERNET_COMPONENTS.get(config[CONF_TYPE])
     ):
         add_idf_component(name=component.name, ref=component.version)
+
+    if lldp_config := config.get(CONF_LLDP):
+        # Include L2TAP for sending raw packets
+        add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP", True)
+
+        # Minimise L2TAP memory usage by reducing the number of file
+        # descriptors that can be opened, and since we don't receive packets,
+        # drop the receive queue down to a single packet.
+        add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP_MAX_FDS", 1)
+        add_idf_sdkconfig_option("CONFIG_ESP_NETIF_L2_TAP_RX_QUEUE_SIZE", 1)
+
+        cg.add_define("USE_ETHERNET_LLDP")
+        cg.add(var.set_lldp_tx_fast_count(lldp_config[CONF_TX_FAST_COUNT]))
+        cg.add(var.set_lldp_tx_interval(lldp_config[CONF_TX_INTERVAL]))
+        cg.add(var.set_lldp_tx_hold(lldp_config[CONF_TX_HOLD]))
+        if port := lldp_config.get(CONF_PORT):
+            cg.add(var.set_lldp_port(port))
+        if system_name := lldp_config.get(CONF_SYSTEM_NAME):
+            cg.add(var.set_lldp_system_name(system_name))
+        if system_description := lldp_config.get(CONF_SYSTEM_DESCRIPTION):
+            cg.add(var.set_lldp_system_description(system_description))
 
 
 async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
