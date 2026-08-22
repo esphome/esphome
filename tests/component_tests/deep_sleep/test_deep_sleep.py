@@ -123,13 +123,15 @@ def test_deep_sleep_esp32_wakeup_pin_mode_at_both_levels_rejected(
         deep_sleep.validate_config(config)
 
 
-def test_deep_sleep_nested_wakeup_pin_mode_not_hoisted_off_esp32(
+def test_deep_sleep_nested_wakeup_pin_mode_rejected_off_esp32(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """Only ESP32 has a top-level wakeup_pin_mode, so nothing is hoisted elsewhere."""
+    """A nested wakeup_pin_mode is rejected where the key does not exist, not ignored."""
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
-    pin_entry = {"pin": "GPIO12", deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
-    config = {CONF_WAKEUP_PIN: [pin_entry]}
-    deep_sleep.validate_config(config)
-    assert deep_sleep.CONF_WAKEUP_PIN_MODE not in config
-    assert pin_entry[deep_sleep.CONF_WAKEUP_PIN_MODE] == "KEEP_AWAKE"
+    config = {
+        CONF_WAKEUP_PIN: [
+            {"pin": "GPIO12", deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+        ]
+    }
+    with pytest.raises(cv.Invalid, match="only available on esp32 and bk72xx"):
+        deep_sleep.validate_config(config)
