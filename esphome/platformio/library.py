@@ -693,6 +693,27 @@ def dependency_is_usable(
     return True
 
 
+def _valid_dependency_entry(entry: dict, manifest_name: str) -> bool:
+    """Whether a normalized entry carries a usable name and version.
+
+    The name must be a non-empty string (every consumer indexes or joins
+    it); a present version must be a string (a container would raise from
+    ``set.add()``, an int fails opaquely inside the registry resolution).
+    Invalid entries warn naming the manifest.
+    """
+    name = entry.get("name")
+    if (
+        isinstance(name, str)
+        and name
+        and ("version" not in entry or isinstance(entry["version"], str))
+    ):
+        return True
+    _LOGGER.warning(
+        "Ignoring unrecognized dependency entry %r of %s", entry, manifest_name
+    )
+    return False
+
+
 def normalize_dependencies(
     dependencies: Any, manifest_name: str = "manifest"
 ) -> list[dict]:
@@ -722,23 +743,8 @@ def normalize_dependencies(
                 entry.update(spec)
             else:
                 entry["version"] = spec
-            if not isinstance(name := entry.get("name"), str) or not name:
-                _LOGGER.warning(
-                    "Ignoring unrecognized dependency entry %r of %s",
-                    entry,
-                    manifest_name,
-                )
-                continue
-            if "version" in entry and not isinstance(entry["version"], str):
-                # A container would raise from set.add(); an int fails
-                # opaquely inside the registry resolution
-                _LOGGER.warning(
-                    "Ignoring unrecognized dependency entry %r of %s",
-                    entry,
-                    manifest_name,
-                )
-                continue
-            normalized.append(entry)
+            if _valid_dependency_entry(entry, manifest_name):
+                normalized.append(entry)
         return normalized
     if not isinstance(dependencies, (list, tuple)):
         _LOGGER.warning(
@@ -750,26 +756,8 @@ def normalize_dependencies(
     normalized = []
     for entry in dependencies:
         if isinstance(entry, dict):
-            name = entry.get("name")
-            if not isinstance(name, str) or not name:
-                # A dependency name must be a non-empty string; every
-                # consumer indexes or joins it
-                _LOGGER.warning(
-                    "Ignoring unrecognized dependency entry %r of %s",
-                    entry,
-                    manifest_name,
-                )
-                continue
-            if "version" in entry and not isinstance(entry["version"], str):
-                # A container would raise from set.add(); an int fails
-                # opaquely inside the registry resolution
-                _LOGGER.warning(
-                    "Ignoring unrecognized dependency entry %r of %s",
-                    entry,
-                    manifest_name,
-                )
-                continue
-            normalized.append(entry)
+            if _valid_dependency_entry(entry, manifest_name):
+                normalized.append(entry)
         elif isinstance(entry, str) and entry:
             # PIO also accepts a bare list of names ("dependencies": ["Wire"])
             normalized.append({"name": entry})
