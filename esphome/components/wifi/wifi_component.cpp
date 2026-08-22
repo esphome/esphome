@@ -1017,6 +1017,8 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
 }
 #endif  // USE_WIFI_AP
 
+void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
+void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
 void WiFiComponent::clear_sta() {
   // Clear roaming state - no more configured networks
   this->clear_roaming_state_();

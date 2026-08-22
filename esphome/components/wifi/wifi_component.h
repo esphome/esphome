@@ -442,8 +442,9 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
-  void init_sta(size_t count) { this->sta_.init(count); }
-  void add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
+  // Kept out of line: inlining these into the generated setup() grows flash
+  void init_sta(size_t count);
+  void add_sta(const WiFiAP &ap);
   void clear_sta();
 
 #ifdef USE_WIFI_AP
