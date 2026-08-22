@@ -220,6 +220,19 @@ bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffi
   return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
 }
 
+bool str_contains_ignore_case_fallback(const char *haystack, const char *needle) {
+  const size_t needle_len = strlen(needle);
+  if (needle_len == 0) {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    if (strncasecmp(p, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
