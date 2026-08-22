@@ -47,9 +47,6 @@ UART_STOP_BITS_OPTIONS = {
 }
 
 DEFAULT_BAUD_RATE = 9600
-
-# Mirrors CH934XChannel::TX_HEADER_SIZE in usb_uart.h: each multiplexed TX chunk spends
-# these bytes on the [port, len_lo, len_hi] routing header, reducing the usable payload.
 CH934X_TX_HEADER_SIZE = 3
 
 
@@ -80,9 +77,6 @@ class Type:
 
     @property
     def max_channels(self) -> int:
-        # The USB host controller's endpoint budget caps the usable channel count:
-        # 7 endpoints on ESP32-S3, 15 on ESP32-P4, one of which is always needed
-        # for enumeration/control (EP0). CDC-style: (7-1)//2 = 3 on S3, (15-1)//2 = 7 on P4.
         total_endpoints = (
             15 if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4 else 7
         )
@@ -94,10 +88,6 @@ class Type:
 class MpxType(Type):
     @property
     def max_channels(self) -> int:
-        # Multiplexed devices (CH934x) route all channels over one shared bulk
-        # IN/OUT pair plus one command IN/OUT pair — 4 endpoints + EP0 in total,
-        # independent of the channel count. The chip's own port count is the
-        # only limit, so even all 8 CH348 channels fit on an ESP32-S3.
         return self._max_channels
 
 
@@ -202,13 +192,6 @@ async def to_code(config: list[ConfigType]) -> None:
     type_by_name = {t.name: t for t in uart_types}
     mps = get_max_packet_size()
 
-    # The output chunk pool/queue are compile-time-sized templates shared by all channel
-    # instances (USB_UART_OUTPUT_CHUNK_COUNT), so size it for the most demanding device.
-    # CDC-style devices use one chunk queue per channel with full-MPS payloads. Multiplexed
-    # (CH934x) devices instead share one TX pool (on channel 0) across all their channels,
-    # and every chunk loses TX_HEADER_SIZE bytes to the routing header, so the shared pool
-    # must be able to hold every channel's full buffer_size at once or writes drop bytes.
-    # LockFreeQueue<T,N> is a ring buffer that reserves one slot, hence the +1.
     payload = mps - CH934X_TX_HEADER_SIZE
     output_chunk_count = 3
     for device in config:
@@ -234,11 +217,8 @@ async def to_code(config: list[ConfigType]) -> None:
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
 
     # Multiplexed (CH934x) drivers initialise their channels in parallel over a single
-    # shared command endpoint. Each in-flight init write claims one transfer-request slot,
-    # so cap the number of concurrent channel-init "lanes" at the configured pool size to
-    # avoid exhausting it. No headroom is reserved: channel data flow and the RX/CMD
-    # readers only start once every channel is initialised, so nothing else competes for
-    # the pool during init.
+    # shared command endpoint. Cap the number of concurrent channel-init "lanes" at
+    # the configured pool size to avoid exhausting it
     max_init_lanes = get_max_transfer_requests()
 
     for device in config:
