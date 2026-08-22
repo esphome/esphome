@@ -167,6 +167,7 @@ void ModbusController::queue_command(ModbusCommandItem command) {
   this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
   // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
   auto &item = this->one_shot_command_items_.back();
+  // We intentionally do not pass read_options_ here, because one-shot commands are usually writes, and are non-polling.
   if (!item->send()) {
     // The caller (e.g. a write entity) has usually already published optimistically - surface the loss.
     ESP_LOGW(TAG, "Command refused by hub: type=0x%X address=0x%X", static_cast<uint8_t>(item->register_type()),
@@ -203,7 +204,9 @@ void ModbusController::update() {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (!cmd.send()) {
+        // Probes carry the read-side options too, so a recovering device resumes streaming on the
+        // probe itself rather than waiting for the next update_interval.
+        if (!cmd.send(this->read_options_)) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
         }
       }
