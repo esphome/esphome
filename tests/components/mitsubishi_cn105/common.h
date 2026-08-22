@@ -73,6 +73,7 @@ class TestableMitsubishiCN105Climate : public MitsubishiCN105Climate {
   using MitsubishiCN105Climate::last_non_swing_wide_vane_mode_;
 
   MitsubishiCN105::Status &status() { return const_cast<MitsubishiCN105::Status &>(this->component_.status()); }
+  void set_use_fahrenheit(bool value) { this->component_.set_use_fahrenheit(value); }
 
  protected:
   MitsubishiCN105Component component_;

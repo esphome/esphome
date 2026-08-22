@@ -7,6 +7,7 @@
 #include "esphome/components/wifi/scan_list.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
+#include "scan_list.h"
 
 namespace esphome::captive_portal {
 
