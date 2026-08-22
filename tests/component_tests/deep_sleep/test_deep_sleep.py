@@ -1,5 +1,13 @@
 """Tests for the deep sleep component."""
 
+import pytest
+
+from esphome import config_validation as cv
+from esphome.components import deep_sleep
+from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
+
+from ..types import SetCoreConfigCallable
+
 
 def test_deep_sleep_setup(generate_main):
     """
@@ -83,3 +91,35 @@ def test_deep_sleep_run_duration_dictionary(generate_main):
         "    .gpio_cause = 30000,\n"
         "});"
     ) in main_cpp
+
+
+def test_deep_sleep_bk72xx_wakeup_pin_mode_at_both_levels_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On BK72xx, wakeup_pin_mode at the top level and under the pin entry is an error."""
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    config = {
+        CONF_WAKEUP_PIN: [
+            {"pin": "GPIO12", deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+        ],
+        deep_sleep.CONF_WAKEUP_PIN_MODE: "INVERT_WAKEUP",
+    }
+    with pytest.raises(cv.Invalid, match="not both"):
+        deep_sleep.validate_config(config)
+
+
+def test_deep_sleep_bk72xx_top_level_wakeup_pin_mode_moved_onto_single_pin(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On BK72xx, a top-level wakeup_pin_mode is moved onto the only pin entry."""
+    set_core_config(PlatformFramework.BK72XX_ARDUINO)
+    config = {
+        CONF_WAKEUP_PIN: [{"pin": "GPIO12"}],
+        deep_sleep.CONF_WAKEUP_PIN_MODE: "INVERT_WAKEUP",
+    }
+    result = deep_sleep.validate_config(config)
+
+    assert deep_sleep.CONF_WAKEUP_PIN_MODE not in result
+    assert (
+        result[CONF_WAKEUP_PIN][0][deep_sleep.CONF_WAKEUP_PIN_MODE] == "INVERT_WAKEUP"
+    )
