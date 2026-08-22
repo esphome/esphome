@@ -310,6 +310,9 @@ def _defines_flags(
     return [
         f"-D{d}"
         for d in (
+            # Upstream reads this from the board manifest (build.f_cpu); all
+            # 45 supported boards ship 80000000L, so the value is hardcoded
+            # here rather than drift (same rationale as _MMU_DEFAULT)
             "F_CPU=80000000L",
             "__ets__",
             "ICACHE_FLASH",
@@ -378,7 +381,9 @@ def _project_flags(
                 continue
             libs.append(tok[2:])
         else:
-            if tok == "-u" or tok.startswith(("-T", "-Xlinker")):
+            if tok in ("-u", "-e", "-s", "-static", "-nostartfiles") or tok.startswith(
+                ("-T", "-Xlinker")
+            ):
                 # Inert on the -c compile line; the firmware would silently
                 # lack the requested link behavior
                 raise EsphomeError(

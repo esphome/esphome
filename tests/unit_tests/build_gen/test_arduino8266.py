@@ -697,7 +697,9 @@ def test_lexed_build_flags_shared_between_consumers(
     )
 
 
-@pytest.mark.parametrize("tok", ["-Tcustom.ld", "-Xlinker", "-u"])
+@pytest.mark.parametrize(
+    "tok", ["-Tcustom.ld", "-Xlinker", "-u", "-e", "-s", "-static", "-nostartfiles"]
+)
 def test_project_flags_rejects_plain_linker_forms(tok: str) -> None:
     """A plain-form linker flag would land on the -c compile line where it
     is inert; refuse naming the -Wl, form instead of shipping firmware that
