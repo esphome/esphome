@@ -45,6 +45,10 @@
 #include "esphome/components/improv_serial/improv_serial_component.h"
 #endif
 
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
+
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
@@ -649,7 +653,13 @@ void WiFiComponent::start() {
 
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 #ifdef USE_WIFI_FAST_CONNECT
-  this->fast_connect_pref_ = global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, false);
+#ifdef USE_WIFI_FAST_CONNECT_IN_FLASH
+  const bool fast_connect_in_flash = true;
+#else
+  const bool fast_connect_in_flash = false;
+#endif
+  this->fast_connect_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
 
   SavedWifiSettings save{};
@@ -814,6 +824,15 @@ void WiFiComponent::loop() {
           this->status_clear_warning();
           this->last_connected_ = now;
 
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+          // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the
+          // state machine ever leaving STA_CONNECTED, so the notification the
+          // connected event marked pending would never be flushed by
+          // check_connecting_finished(). Cheap when nothing is pending: the
+          // method returns immediately on a single flag test.
+          this->notify_connect_state_listeners_();
+#endif
+
           // Post-connect roaming: check for better AP
           if (this->post_connect_roaming_) {
             if (this->roaming_state_ == RoamingState::SCANNING) {
@@ -866,8 +885,20 @@ void WiFiComponent::loop() {
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
       if (now - this->last_connected_ > this->reboot_timeout_) {
-        ESP_LOGE(TAG, "Can't connect; rebooting");
-        App.reboot();
+        bool suppress = false;
+#ifdef USE_PROVISIONING
+        // Don't reboot while a provisioning window is pending (device unprovisioned).
+        // The device is legitimately waiting to be onboarded (Wi-Fi must come up
+        // before the controller can set credentials), and an auto-reboot would reopen
+        // the window without the deliberate power cycle / reset that is meant to be
+        // required. Resumes normal reboot behavior once provisioned.
+        suppress = provisioning::global_provisioning_manager != nullptr &&
+                   provisioning::global_provisioning_manager->window_pending();
+#endif
+        if (!suppress) {
+          ESP_LOGE(TAG, "Can't connect; rebooting");
+          App.reboot();
+        }
       }
     }
   }
@@ -1086,7 +1117,7 @@ void WiFiComponent::connect_soon_() {
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // Log connection attempt at INFO level with priority
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   int8_t priority = 0;
 
   if (ap.has_bssid()) {
@@ -1461,23 +1492,26 @@ void WiFiComponent::check_scanning_finished() {
   }
 
   ESP_LOGD(TAG, "Found networks:");
-  for (auto &res : this->scan_result_) {
-    for (auto &ap : this->sta_) {
-      if (res.matches(ap)) {
-        res.set_matches(true);
-        // Cache priority lookup - do single search instead of 2 separate searches
-        const bssid_t &bssid = res.get_bssid();
-        if (!this->has_sta_priority(bssid)) {
-          this->set_sta_priority(bssid, ap.get_priority());
+  {
+    ScanResultsLock lock(this);
+    for (auto &res : this->scan_result_) {
+      for (auto &ap : this->sta_) {
+        if (res.matches(ap)) {
+          res.set_matches(true);
+          // Cache priority lookup - do single search instead of 2 separate searches
+          const bssid_t &bssid = res.get_bssid();
+          if (!this->has_sta_priority(bssid)) {
+            this->set_sta_priority(bssid, ap.get_priority());
+          }
+          res.set_priority(this->get_sta_priority(bssid));
+          break;
         }
-        res.set_priority(this->get_sta_priority(bssid));
-        break;
       }
     }
-  }
 
-  // Sort scan results using insertion sort for better memory efficiency
-  insertion_sort_scan_results(this->scan_result_);
+    // Sort scan results using insertion sort for better memory efficiency
+    insertion_sort_scan_results(this->scan_result_);
+  }
 
   // Log matching networks (non-matching already logged at VERBOSE in scan callback)
   for (auto &res : this->scan_result_) {
@@ -1642,7 +1676,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     this->clear_all_bssid_priorities_();
 
 #ifdef USE_WIFI_FAST_CONNECT
-    this->save_fast_connect_settings_();
+    this->save_fast_connect_settings_(this->wifi_bssid(), get_wifi_channel());
 #endif
 
     this->release_scan_results_();
@@ -1863,11 +1897,13 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
   // Phase-specific setup
   switch (new_phase) {
 #ifdef USE_WIFI_FAST_CONNECT
-    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
+    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS: {
       // Move to next configured AP - clear old scan data so new AP is tried with config only
       this->selected_sta_index_++;
+      ScanResultsLock lock(this);
       this->scan_result_.clear();
       break;
+    }
 #endif
 
     case WiFiRetryPhase::EXPLICIT_HIDDEN:
@@ -2032,7 +2068,7 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
         (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
     this->set_sta_priority(failed_bssid.value(), new_priority);
   }
-  char bssid_s[18];
+  char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
   ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
            bssid_s, old_priority, new_priority);
@@ -2265,9 +2301,7 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
   return false;
 }
 
-void WiFiComponent::save_fast_connect_settings_() {
-  bssid_t bssid = wifi_bssid();
-  uint8_t channel = get_wifi_channel();
+void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel) {
   // selected_sta_index_ is always valid here (called only after successful connection)
   // Fallback to 0 is defensive programming for robustness
   int8_t ap_index = this->selected_sta_index_ >= 0 ? this->selected_sta_index_ : 0;
@@ -2362,14 +2396,6 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
   }
   return true;
 }
-bool WiFiScanResult::get_matches() const { return this->matches_; }
-void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
-const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
-int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
-bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
-bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
-
 bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
 void WiFiComponent::clear_roaming_state_() {
@@ -2380,9 +2406,29 @@ void WiFiComponent::clear_roaming_state_() {
   this->roaming_state_ = RoamingState::IDLE;
 }
 
+#ifdef USE_ESP32
+void WiFiComponent::handle_driver_roam_(const bssid_t &bssid, uint8_t channel) {
+  // A driver-initiated roam (e.g. 802.11v BTM) re-associates without the state
+  // machine ever leaving STA_CONNECTED, so check_connecting_finished() never runs.
+  // Redo its post-connect bookkeeping here. roaming_state_ is deliberately left
+  // untouched so an in-flight roaming scan is not orphaned. The BSSID and
+  // channel both come from the connected event so the saved pair is consistent:
+  // the radio may be off-channel during a roaming scan, and a later queued
+  // event may have moved the driver on again by the time this one is processed.
+  this->roaming_last_check_ = App.get_loop_component_start_time();
+  this->roaming_attempts_ = 0;
+  this->roaming_scan_end_ = 0;
+  this->clear_all_bssid_priorities_();
+#ifdef USE_WIFI_FAST_CONNECT
+  this->save_fast_connect_settings_(bssid, channel);
+#endif
+}
+#endif
+
 void WiFiComponent::release_scan_results_() {
   if (!this->keep_scan_results_) {
-#if defined(USE_RP2040) || defined(USE_ESP32)
+    ScanResultsLock lock(this);
+#if defined(USE_RP2) || defined(USE_ESP32)
     // std::vector - use swap trick since shrink_to_fit is non-binding
     decltype(this->scan_result_)().swap(this->scan_result_);
 #else

@@ -10,7 +10,7 @@
 
 namespace esphome::time {
 
-class CronTrigger : public Trigger<>, public Component {
+class CronTrigger final : public Trigger<>, public Component {
  public:
   explicit CronTrigger(RealTimeClock *rtc);
   void add_second(uint8_t second);
@@ -41,7 +41,7 @@ class CronTrigger : public Trigger<>, public Component {
   optional<ESPTime> last_check_;
 };
 
-class SyncTrigger : public Trigger<>, public Component {
+class SyncTrigger final : public Trigger<>, public Component {
  public:
   explicit SyncTrigger(RealTimeClock *rtc);
 

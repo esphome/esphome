@@ -5,7 +5,7 @@
 
 namespace esphome::homeassistant {
 
-class HomeassistantSwitch : public switch_::Switch, public Component {
+class HomeassistantSwitch final : public switch_::Switch, public Component {
  public:
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
   void setup() override;

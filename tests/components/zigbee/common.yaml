@@ -13,6 +13,7 @@ sensor:
   - platform: template
     name: "Analog 1"
     lambda: return 10.0;
+    accuracy_decimals: 0
   - platform: template
     name: "Analog 2"
     lambda: return 11.0;

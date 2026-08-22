@@ -1,26 +1,73 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import hashlib
 import logging
 import os
 from pathlib import Path
 import time
 
-import requests
-
 import esphome.config_validation as cv
 from esphome.const import CONF_FILE, CONF_TYPE, CONF_URL, __version__
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
+from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import write_file
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@landonr"]
 
+DOMAIN = "external_files"
+
 NETWORK_TIMEOUT = 30
+
+
+@dataclass(frozen=True, slots=True)
+class RemoteFile:
+    """A remote file to prefetch, yielded in stages by ``PREFETCH_FILES``
+    hooks. A dataclass rather than a tuple so fields can be added later."""
+
+    url: str
+    path: Path
+    # False when nothing downstream can verify the bytes; a copy that
+    # cannot be revalidated is then an error, not a silent fallback.
+    allow_stale: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class FailedDownload:
+    """What went wrong for a cache path this run, kept for fast replay."""
+
+    url: str
+    message: str
+    cause: BaseException
+
+
+@dataclass
+class ExternalFilesRunData:
+    """Per-run download state, cleared by ``CORE.reset()`` between runs."""
+
+    # Verified fresh this run; later touches skip even the conditional HEAD.
+    fresh_paths: set[Path] = field(default_factory=set)
+    # Served from disk without revalidation; strict callers reject these.
+    stale_paths: set[Path] = field(default_factory=set)
+    # Served under skip_external_update, deliberately unchecked; skips the
+    # network like fresh_paths but never counts as verified.
+    unchecked_paths: set[Path] = field(default_factory=set)
+    # Failed with no usable copy; later touches replay the error fast.
+    failed_paths: dict[Path, FailedDownload] = field(default_factory=dict)
+
+
+def _run_data() -> ExternalFilesRunData:
+    if (data := CORE.data.get(DOMAIN)) is not None:
+        return data
+    # setdefault: first touch may race on download_content_many's workers.
+    return CORE.data.setdefault(DOMAIN, ExternalFilesRunData())
+
 
 IF_MODIFIED_SINCE = "If-Modified-Since"
 IF_NONE_MATCH = "If-None-Match"
@@ -92,6 +139,10 @@ def _write_etag(local_file_path: Path, etag: str | None) -> None:
 def has_remote_file_changed(
     url: str, local_file_path: Path, timeout: int = NETWORK_TIMEOUT
 ) -> bool:
+    # Deferred so configs with no remote files skip the heavy import.
+    import requests
+
+    ensure_happy_eyeballs()
     if local_file_path.exists():
         _LOGGER.debug("has_remote_file_changed: File exists at %s", local_file_path)
         try:
@@ -125,6 +176,9 @@ def has_remote_file_changed(
                 )
                 if (new_etag := response.headers.get(ETAG)) and new_etag != etag:
                     _write_etag(local_file_path, new_etag)
+                # A confirmed 304 supersedes any earlier failed
+                # revalidation of this file.
+                _run_data().stale_paths.discard(local_file_path)
                 return False
             _LOGGER.debug("has_remote_file_changed: File modified")
             return True
@@ -134,6 +188,9 @@ def has_remote_file_changed(
                 url,
                 e,
             )
+            # The copy is a fallback, not a verified 304; record that so
+            # callers that must not use unverified bytes can reject it.
+            _run_data().stale_paths.add(local_file_path)
             return False
 
     _LOGGER.debug("has_remote_file_changed: File doesn't exists at %s", local_file_path)
@@ -157,19 +214,84 @@ def compute_local_file_dir(domain: str) -> Path:
     return base_directory
 
 
-def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> bytes:
+def url_cache_key(url: str) -> str:
+    """Short stable cache key for a URL."""
+    return hashlib.sha256(url.encode()).hexdigest()[:8]
+
+
+def compute_local_file_path(domain: str, url: str) -> Path:
+    """Cache path for a URL-keyed download under the domain's cache dir.
+
+    Pure (no mkdir); parent directories are created at write time.
+    """
+    return Path(CORE.data_dir) / domain / url_cache_key(url)
+
+
+def is_fresh_this_run(path: Path) -> bool:
+    """Whether `path` was verified or downloaded during this run."""
+    return path in _run_data().fresh_paths
+
+
+def download_content(
+    url: str,
+    path: Path,
+    timeout: int = NETWORK_TIMEOUT,
+    allow_stale: bool = True,
+    return_content: bool = True,
+) -> bytes:
+    """Download `url` into `path` and return the bytes, using the cache.
+
+    On network failure an on-disk copy is served with a warning, unless
+    ``allow_stale=False``. ``CORE.skip_external_update`` always serves the
+    copy. ``return_content=False`` skips the disk read on cache hits.
+    """
+
+    # Deferred so configs with no remote files skip the heavy import.
+    import requests
+
+    def _cached() -> bytes:
+        return path.read_bytes() if return_content else b""
+
+    # Memoized paths skip the network entirely; concurrent access is safe
+    # because download_content_many dedupes by path before fanning out.
+    run_data = _run_data()
+    fresh_paths = run_data.fresh_paths
+    if (path in fresh_paths or path in run_data.unchecked_paths) and path.exists():
+        return _cached()
+    if allow_stale and path in run_data.stale_paths and path.exists():
+        # Strict callers fall through to try the network themselves.
+        _LOGGER.info("Using cached copy of %s that could not be revalidated", url)
+        return _cached()
+    if (failure := run_data.failed_paths.get(path)) is not None:
+        if not path.exists():
+            if failure.url == url:
+                raise cv.Invalid(failure.message) from failure.cause
+            raise cv.Invalid(
+                f"Could not download from {url}: an earlier download of "
+                f"{failure.url} to the same cache file failed: {failure.cause}"
+            ) from failure.cause
+        # The file appeared since the failure; revalidate normally.
+        del run_data.failed_paths[path]
+    ensure_happy_eyeballs()
     if CORE.skip_external_update and path.exists():
         _LOGGER.debug("Skipping update for %s (refresh disabled)", url)
-        return path.read_bytes()
+        run_data.unchecked_paths.add(path)
+        return _cached()
     if not has_remote_file_changed(url, path, timeout):
+        if path in run_data.stale_paths:
+            # The HEAD fell back to the copy without confirming it.
+            if not allow_stale:
+                raise cv.Invalid(
+                    f"Could not check {url} for updates due to a network error "
+                    f"and the cached copy cannot be verified"
+                )
+            return _cached()
         _LOGGER.debug("Remote file has not changed %s", url)
-        return path.read_bytes()
+        fresh_paths.add(path)
+        return _cached()
 
-    _LOGGER.debug(
-        "Remote file has changed, downloading from %s to %s",
-        url,
-        path,
-    )
+    _LOGGER.info("Downloading %s", url)
+    _LOGGER.debug("Saving to %s", path)
 
     try:
         req = requests.get(
@@ -185,16 +307,24 @@ def download_content(url: str, path: Path, timeout: int = NETWORK_TIMEOUT) -> by
         data = req.content
     except requests.exceptions.RequestException as e:
         if path.exists():
+            # Memoized so a flaky host warns once per run, not per consumer.
+            run_data.stale_paths.add(path)
+            if not allow_stale:
+                raise cv.Invalid(f"Could not download from {url}: {e}") from e
             _LOGGER.warning(
                 "Could not download from %s due to network error (%s), using cached file",
                 url,
                 e,
             )
-            return path.read_bytes()
-        raise cv.Invalid(f"Could not download from {url}: {e}") from e
+            return _cached()
+        message = f"Could not download from {url}: {e}"
+        run_data.failed_paths[path] = FailedDownload(url, message, e)
+        raise cv.Invalid(message) from e
 
     write_file(path, data)
     _write_etag(path, req.headers.get(ETAG))
+    fresh_paths.add(path)
+    run_data.stale_paths.discard(path)
     return data
 
 
@@ -207,44 +337,47 @@ DEFAULT_DOWNLOAD_WORKERS = 8
 
 
 def download_content_many(
-    items: Iterable[tuple[str, Path]],
+    items: Iterable[RemoteFile],
     timeout: int = NETWORK_TIMEOUT,
     max_workers: int = DEFAULT_DOWNLOAD_WORKERS,
+    description: str = "remote file(s)",
 ) -> None:
-    """Run `download_content` for each (url, path) pair concurrently.
+    """Run `download_content` for each `RemoteFile` concurrently.
 
-    Wall time drops from `sum(latency)` to roughly `max(latency)` for cached
-    files where the HEAD round-trip dominates. All workers run to
-    completion before this returns; every `cv.Invalid` raised by a worker
-    is collected and surfaced together as `cv.MultipleInvalid` so the user
-    sees every broken file in a single validation pass instead of fixing
-    them one round-trip at a time.
-
-    Items are de-duplicated by `path` -- two callers asking for the same
-    cache file (e.g. the same URL referenced twice in a config) would
-    otherwise race on `download_content`'s non-atomic write. When the
-    same `path` appears more than once, the last URL wins (standard dict
-    comprehension semantics); in practice duplicate paths only arise when
-    the URL is duplicated, so the choice doesn't matter.
+    `description` names the files in the progress log line. All workers run
+    to completion; every `cv.Invalid` raised is surfaced together as
+    `cv.MultipleInvalid`. Items dedupe by `path` (avoiding write races on
+    the same cache file); the last URL wins and a strict
+    `allow_stale=False` from any duplicate is kept.
     """
-    seen: dict[Path, str] = {path: url for url, path in items}
-    if not seen:
+    seen: dict[Path, RemoteFile] = {}
+    for file in items:
+        if (prior := seen.get(file.path)) is not None and not prior.allow_stale:
+            file = RemoteFile(file.url, file.path, allow_stale=False)
+        seen[file.path] = file
+    unique = list(seen.values())
+    if not unique:
         return
-    if len(seen) == 1:
-        path, url = next(iter(seen.items()))
-        download_content(url, path, timeout)
+    ensure_happy_eyeballs()
+    _LOGGER.info("Checking %d %s for updates", len(unique), description)
+
+    def _download_one(file: RemoteFile) -> None:
+        download_content(
+            file.url,
+            file.path,
+            timeout,
+            allow_stale=file.allow_stale,
+            return_content=False,
+        )
+
+    if len(unique) == 1:
+        _download_one(unique[0])
         return
 
-    def _download_one(path_url: tuple[Path, str]) -> None:
-        # `seen` stores entries as (path, url) so the dict can dedupe by
-        # path; flip them back to download_content's (url, path) order.
-        path, url = path_url
-        download_content(url, path, timeout)
-
-    workers = max(1, min(max_workers, len(seen)))
+    workers = max(1, min(max_workers, len(unique)))
     errors: list[cv.Invalid] = []
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        futures = [ex.submit(_download_one, item) for item in seen.items()]
+        futures = [ex.submit(_download_one, file) for file in unique]
         for future in futures:
             try:
                 future.result()
@@ -255,6 +388,21 @@ def download_content_many(
     if len(errors) == 1:
         raise errors[0]
     raise cv.MultipleInvalid(errors)
+
+
+def single_stage_prefetch(
+    extract: Callable[[ConfigType], RemoteFile | None],
+) -> Callable[[list[ConfigType]], Iterator[list[RemoteFile]]]:
+    """Build a one-batch ``PREFETCH_FILES`` hook from a per-entry extractor.
+
+    Covers the common case of one remote file per raw config entry;
+    components with staged downloads write their own generator.
+    """
+
+    def prefetch_files(entries: list[ConfigType]) -> Iterator[list[RemoteFile]]:
+        yield [ref for entry in entries if (ref := extract(entry)) is not None]
+
+    return prefetch_files
 
 
 # Each component that uses external_files defines its own local
@@ -276,7 +424,7 @@ def download_web_files_in_config(
     slotted directly into a `cv.All(...)` chain.
     """
     download_content_many(
-        (conf_file[CONF_URL], path_for(conf_file))
+        RemoteFile(conf_file[CONF_URL], path_for(conf_file))
         for entry in config
         if (conf_file := entry.get(CONF_FILE, {})).get(CONF_TYPE) == WEB_TYPE
     )

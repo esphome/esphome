@@ -11,6 +11,14 @@ from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
+@pytest.fixture(autouse=True)
+def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Keep host preferences per-test so RESTORE_AND_ON never loads a stale value left
+    behind by a previous run (host preferences otherwise persist to ~/.esphome/prefs,
+    keyed only by device name)."""
+    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))
+
+
 @pytest.mark.asyncio
 async def test_light_initial_state(
     yaml_config: str,
@@ -36,3 +44,10 @@ async def test_light_initial_state(
         assert state.red == pytest.approx(1.0, abs=0.01)
         assert state.green == pytest.approx(0.5, abs=0.01)
         assert state.blue == pytest.approx(0.0, abs=0.01)
+
+        # Regression test: RESTORE_AND_ON always forces the light on at boot, even when
+        # the recovered/initial brightness was 0 -- it must never come up on-but-invisible.
+        restore_and_on_light = require_entity(entities, "test_restore_and_on_light")
+        restore_and_on_state = helper.initial_states[restore_and_on_light.key]
+        assert restore_and_on_state.state is True
+        assert restore_and_on_state.brightness == pytest.approx(1.0)

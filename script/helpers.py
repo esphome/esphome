@@ -238,6 +238,72 @@ class _ConflictWalk:
     rejects: set[str]
 
 
+@cache
+def _get_test_config_components(component: str, platform: str) -> frozenset[str]:
+    """Return the components referenced by a component's test config for a platform.
+
+    Loads ``tests/components/<component>/test.<platform>.yaml`` and extracts the
+    top-level component keys (and list ``platform:`` values). This lets the
+    conflict splitter see components that are only pulled in via a test config
+    (e.g. nRF52 ``network`` tests that also enable ``openthread``), which a
+    purely static AUTO_LOAD/CONFLICTS_WITH parse cannot discover -- notably for
+    components like ``api`` whose ``AUTO_LOAD`` is a callable.
+
+    Failures (missing file, parse error) are treated as empty so the splitter
+    never crashes on a malformed or absent test config.
+    """
+    from esphome import yaml_util
+
+    test_file = (
+        Path(root_path) / "tests" / "components" / component / f"test.{platform}.yaml"
+    )
+    if not test_file.exists():
+        return frozenset()
+    try:
+        config = yaml_util.load_yaml(test_file)
+    except Exception:  # noqa: BLE001 - never let a bad test config crash grouping
+        # Matches analyze_component_buses, which loads these same files and
+        # silently tolerates parse failures; surfacing it only here would be
+        # inconsistent and noisy.
+        return frozenset()
+    if not isinstance(config, dict):
+        return frozenset()
+    return frozenset(_extract_components_from_yaml(config))
+
+
+@cache
+def _conflict_walk(comp: str, platform: str) -> _ConflictWalk:
+    """Build the platform-aware conflict walk for a single component.
+
+    Seeds the walk with the component itself plus any components pulled in via
+    its ``test.<platform>.yaml`` config, then folds in each seed's static
+    AUTO_LOAD closure and CONFLICTS_WITH declarations. Cached per
+    ``(component, platform)`` since the test-config seeds are platform-specific.
+    """
+    seeds = {comp} | set(_get_test_config_components(comp, platform))
+    walk = _ConflictWalk(loaded=set(seeds), rejects=set())
+    stack = list(seeds)
+    while stack:
+        metadata = parse_component_metadata(stack.pop())
+        walk.rejects |= metadata.conflicts_with
+        new = metadata.auto_load - walk.loaded
+        walk.loaded |= new
+        stack.extend(new)
+    return walk
+
+
+def components_conflict(a: str, b: str, platform: str) -> bool:
+    """Return True if components ``a`` and ``b`` cannot share a build on ``platform``.
+
+    Uses the same platform-aware conflict walk as :func:`split_conflicting_groups`
+    so callers (e.g. the no-bus redistribution in ``test_build_components.py``)
+    agree with how groups were originally split. The conflict relation is
+    symmetric even when only one side declares CONFLICTS_WITH.
+    """
+    wa, wb = _conflict_walk(a, platform), _conflict_walk(b, platform)
+    return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(wa.loaded)
+
+
 def split_conflicting_groups(
     grouped_components: dict[tuple[str, str], list[str]],
 ) -> dict[tuple[str, str], list[str]]:
@@ -250,33 +316,24 @@ def split_conflicting_groups(
     conflict relation is treated as symmetric even when only one side
     declares it (e.g. ethernet rejects wifi but wifi does not declare the
     reverse).
+
+    The walk is platform-aware: in addition to the static AUTO_LOAD closure,
+    each ``(component, platform)`` walk is seeded with the components found in
+    that component's ``test.<platform>.yaml`` config. This catches conflicts
+    that only exist on a given platform and are expressed through the test
+    config rather than static metadata -- e.g. on nRF52 the ``network``/``api``
+    test configs also enable ``openthread``, which ``zigbee`` declares a
+    conflict with, so ``api`` and ``zigbee`` end up split there. On ESP32 those
+    test configs have no ``openthread``, so the components still group together.
     """
-    batch = {c for comps in grouped_components.values() for c in comps}
-
-    walks: dict[str, _ConflictWalk] = {}
-    for comp in batch:
-        walk = _ConflictWalk(loaded={comp}, rejects=set())
-        stack = [comp]
-        while stack:
-            metadata = parse_component_metadata(stack.pop())
-            walk.rejects |= metadata.conflicts_with
-            new = metadata.auto_load - walk.loaded
-            walk.loaded |= new
-            stack.extend(new)
-        walks[comp] = walk
-
-    def conflicts(a: str, b: str) -> bool:
-        wa, wb = walks[a], walks[b]
-        return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(
-            wa.loaded
-        )
-
     result: dict[tuple[str, str], list[str]] = {}
     for (platform, signature), components in grouped_components.items():
         buckets: list[list[str]] = []
         for comp in components:
             for bucket in buckets:
-                if not any(conflicts(comp, other) for other in bucket):
+                if not any(
+                    components_conflict(comp, other, platform) for other in bucket
+                ):
                     bucket.append(comp)
                     break
             else:
@@ -364,7 +421,10 @@ def _get_github_event_data() -> dict | None:
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
     if github_event_path and Path(github_event_path).exists():
-        with Path(github_event_path).open() as f:
+        # The event payload is UTF-8 JSON; without an explicit encoding
+        # Windows decodes it as cp1252 and any non ASCII byte (an ellipsis in
+        # a commit title is enough) raises UnicodeDecodeError.
+        with Path(github_event_path).open(encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -409,6 +469,77 @@ def get_target_branch() -> str | None:
     return None
 
 
+# Substrings (matched case-insensitively against gh's stderr) that identify
+# transient failures worth retrying: server errors (HTTP 5xx) and dropped or
+# failed connections. Permanent failures (bad auth, missing PR, the 300-file
+# diff limit) never match so callers see them immediately. Phrases are
+# anchored so gh's GraphQL "Could not resolve to a PullRequest" (a missing
+# PR) never classifies as a DNS failure.
+_TRANSIENT_GH_ERROR_RE = re.compile(
+    r"http 5\d\d"
+    r"|timed out|timeout"
+    r"|connection (?:reset|refused|closed)"
+    r"|no such host|could not resolve host"
+    # gh intercepts DNS errors and prints its own "error connecting to
+    # <host>" text; the Go phrases above are kept as a hedge in case a
+    # future gh stops swallowing the underlying error
+    r"|error connecting to"
+    r"|failed to verify certificate"
+    # Go reports a server-closed connection as 'Post "<url>": EOF'; the
+    # quote-and-colon anchor keeps a URL or message body containing the
+    # letters from matching
+    r"|unexpected eof"
+    r'|": eof'
+    r"|network is unreachable"
+    r"|temporary failure"
+)
+
+# Same retry policy as git network commands in esphome/git.py: 3 attempts
+# with 2s/4s backoff.
+_GH_MAX_ATTEMPTS = 3
+
+
+def run_gh_command(
+    args: list[str], *, retry: bool = True
+) -> subprocess.CompletedProcess[str]:
+    """Run a gh CLI command, retrying transient network and server failures.
+
+    Args:
+        args: Full command line, including the leading "gh".
+        retry: Pass False for commands that are not idempotent (e.g. posting
+            a comment), where a retry after a dropped response could repeat
+            a write that already succeeded server-side.
+
+    Returns:
+        CompletedProcess with captured text output.
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails with a permanent
+            error, or is still failing after the retries are exhausted.
+    """
+    attempts = _GH_MAX_ATTEMPTS if retry else 1
+    attempt = 0
+    while True:
+        try:
+            return subprocess.run(
+                args, check=True, capture_output=True, text=True, close_fds=False
+            )
+        except subprocess.CalledProcessError as err:
+            attempt += 1
+            stderr = err.stderr or ""
+            if attempt >= attempts or not _TRANSIENT_GH_ERROR_RE.search(stderr.lower()):
+                raise
+            delay = 2**attempt
+            # Only the leading arguments: comment-update calls carry the
+            # whole multi-KB comment body in the argument list
+            print(
+                f"WARNING: {' '.join(args[:3])} failed: {stderr.strip()}; "
+                f"retrying in {delay}s (attempt {attempt}/{attempts})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+
+
 @cache
 def _get_changed_files_github_actions() -> list[str] | None:
     """Get changed files in GitHub Actions environment.
@@ -427,8 +558,9 @@ def _get_changed_files_github_actions() -> list[str] | None:
             try:
                 return _get_changed_files_from_command(cmd)
             except Exception as e:
-                # If it fails due to the 300 file limit, use the API method
-                if "maximum" in str(e) and "files" in str(e):
+                # If it fails due to a diff limit (300 files or 20000 lines),
+                # use the API method which only returns filenames
+                if "diff exceeded the maximum" in str(e):
                     cmd = [
                         "gh",
                         "api",
@@ -482,10 +614,22 @@ def changed_files(branch: str | None = None) -> list[str]:
 
 
 def _get_changed_files_from_command(command: list[str]) -> list[str]:
-    """Run a git command to get changed files and return them as a list."""
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
+    """Run a git or gh command to get changed files and return them as a list."""
+    if command[0] == "gh":
+        try:
+            proc = run_gh_command(command)
+        except subprocess.CalledProcessError as e:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {e.stderr}"
+            ) from e
+    else:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, check=False, close_fds=False
+        )
+        if proc.returncode != 0:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}"
+            )
 
     changed_files = splitlines_no_ends(proc.stdout)
     cwd = Path.cwd()
@@ -1316,6 +1460,27 @@ def core_changed(files: list[str]) -> bool:
     """
     return any(
         f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def base_python_changed(files: list[str]) -> bool:
+    """Check if any Python file directly in esphome/ has changed.
+
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any top-level esphome Python file has changed
+    """
+    return any(
+        f.startswith("esphome/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and "/" not in f.removeprefix("esphome/")
         for f in files
     )
 

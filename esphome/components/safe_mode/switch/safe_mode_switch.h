@@ -6,7 +6,7 @@
 
 namespace esphome::safe_mode {
 
-class SafeModeSwitch : public switch_::Switch, public Component {
+class SafeModeSwitch final : public switch_::Switch, public Component {
  public:
   void dump_config() override;
   void set_safe_mode(SafeModeComponent *safe_mode_component);

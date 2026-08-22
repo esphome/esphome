@@ -78,7 +78,7 @@ enum BMI270GyroODR : uint8_t {
 // ---Data class
 
 // Main component class
-class BMI270Component : public motion::MotionComponent, public i2c::I2CDevice {
+class BMI270Component final : public motion::MotionComponent, public i2c::I2CDevice {
  public:
   // Lifecycle
   void setup() override;

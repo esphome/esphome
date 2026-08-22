@@ -500,12 +500,12 @@ void LTRAlsPs501Component::apply_lux_calculation_(AlsReadings &data) {
   // method from
   // https://github.com/fards/Ainol_fire_kernel/blob/83832cf8a3082fd8e963230f4b1984479d1f1a84/customer/drivers/lightsensor/ltr501als.c#L295
 
-  if (ratio < 0.45) {
-    lux = 1.7743 * ch0 + 1.1059 * ch1;
-  } else if (ratio < 0.64) {
-    lux = 3.7725 * ch0 - 1.3363 * ch1;
-  } else if (ratio < 0.85) {
-    lux = 1.6903 * ch0 - 0.1693 * ch1;
+  if (ratio < 0.45f) {
+    lux = 1.7743f * ch0 + 1.1059f * ch1;
+  } else if (ratio < 0.64f) {
+    lux = 3.7725f * ch0 - 1.3363f * ch1;
+  } else if (ratio < 0.85f) {
+    lux = 1.6903f * ch0 - 0.1693f * ch1;
   } else {
     ESP_LOGW(TAG, "Impossible ch1/(ch0 + ch1) ratio");
     lux = 0.0f;

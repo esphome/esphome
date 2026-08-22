@@ -9,10 +9,13 @@
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
 #include <spi_flash_mmap.h>
+#ifdef USE_OTA_DOWNGRADE_PROTECTION
+#include <esp_app_desc.h>
+#endif
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.idf";
+static const char *const TAG = "ota";
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
@@ -141,6 +144,9 @@ OTAResponseTypes IDFOTABackend::end() {
     }
   }
 #ifdef USE_OTA_PARTITIONS
+  // A partition-table update carries an MD5 (checked by IDF), not a Secure Boot
+  // signature, and only re-points boot at an already-installed app -- so it is
+  // intentionally not run through the signature verifier below.
   if (this->ota_type_ == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     return this->update_partition_table();
   }
@@ -159,6 +165,33 @@ OTAResponseTypes IDFOTABackend::end() {
   }
 #endif
   if (err == ESP_OK) {
+#ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
+    // IDF's built-in on-update check is disabled for this scheme (it only
+    // matches the incoming image's first signature block against the running
+    // app's first). Verify here against every key the running app trusts, so
+    // rotation and backup keys are accepted. Leaving the boot partition
+    // unchanged means a rejected image never boots.
+    if (!this->verify_signed_image_(this->partition_)) {
+      return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
+    }
+#endif
+#ifdef USE_OTA_DOWNGRADE_PROTECTION
+    // The image is written and (when signing is enabled) signature-verified by
+    // esp_ota_end(), so its embedded project version can be trusted. Reject the
+    // update if it is older than the running version by leaving the boot
+    // partition unchanged -- the staged image simply never boots.
+    esp_app_desc_t incoming;
+    esp_err_t desc_err = esp_ota_get_partition_description(this->partition_, &incoming);
+    if (desc_err != ESP_OK) {
+      // Couldn't read the staged image's version, so the comparison is skipped.
+      // Warn so the bypassed check is observable rather than silent.
+      ESP_LOGW(TAG, "Downgrade protection: could not read image version (err=0x%X); allowing update", desc_err);
+    } else if (version_is_older(incoming.version, ESPHOME_PROJECT_VERSION)) {
+      ESP_LOGE(TAG, "Rejecting downgrade: image version '%s' is older than running version '%s'", incoming.version,
+               ESPHOME_PROJECT_VERSION);
+      return OTA_RESPONSE_ERROR_VERSION_DOWNGRADE;
+    }
+#endif
     err = esp_ota_set_boot_partition(this->partition_);
     if (err == ESP_OK) {
       return OTA_RESPONSE_OK;

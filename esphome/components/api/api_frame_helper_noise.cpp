@@ -109,6 +109,40 @@ APIError APINoiseFrameHelper::init() {
   state_ = State::CLIENT_HELLO;
   return APIError::OK;
 }
+#ifdef USE_API_PLAINTEXT
+APIError APINoiseFrameHelper::init_from_handoff(const uint8_t *header, uint8_t header_len) {
+  APIError err = this->init();
+  if (err != APIError::OK) {
+    return err;
+  }
+  // Seed the header bytes the plaintext helper consumed before detecting the
+  // Noise indicator; try_read_frame_ resumes from rx_header_buf_len_.
+  std::memcpy(this->rx_header_buf_, header, header_len);
+  this->rx_header_buf_len_ = header_len;
+  // Pump the handshake without gating on socket_->ready(): on LWIP the
+  // plaintext helper's partial read can drain rcvevent while the rest of the
+  // client hello sits in the lastdata cache, so ready() may report false even
+  // though data is available.
+  return this->pump_handshake_();
+}
+#endif  // USE_API_PLAINTEXT
+
+/// Drive the handshake state machine until DATA, WOULD_BLOCK, or a fatal
+/// error. WOULD_BLOCK is not an error: reads stop naturally on EWOULDBLOCK
+/// and resume on the next loop().
+APIError APINoiseFrameHelper::pump_handshake_() {
+  while (this->state_ != State::DATA) {
+    APIError err = this->state_action_();
+    if (err == APIError::WOULD_BLOCK) {
+      break;
+    }
+    if (err != APIError::OK) {
+      return err;
+    }
+  }
+  return APIError::OK;
+}
+
 // Helper for handling handshake frame errors
 APIError APINoiseFrameHelper::handle_handshake_frame_error_(APIError aerr) {
   if (aerr == APIError::BAD_INDICATOR) {
@@ -131,16 +165,13 @@ APIError APINoiseFrameHelper::handle_noise_error_(int err, const LogString *func
 
 /// Run through handshake messages (if in that phase)
 APIError APINoiseFrameHelper::loop() {
-  // Cache ready() outside the loop. On ESP8266 LWIP raw TCP, ready() returns false once
-  // the rx buffer is consumed. Re-checking each iteration would block handshake writes
-  // that must follow reads, deadlocking the handshake. state_action() will return
-  // WOULD_BLOCK when no more data is available to read.
-  bool socket_ready = this->socket_->ready();
-  while (state_ != State::DATA && socket_ready) {
-    APIError err = state_action_();
-    if (err == APIError::WOULD_BLOCK) {
-      break;
-    }
+  // Check ready() once, not per state transition. On ESP8266 LWIP raw TCP,
+  // ready() returns false once the rx buffer is consumed. Re-checking each
+  // iteration would block handshake writes that must follow reads,
+  // deadlocking the handshake. pump_handshake_() stops on WOULD_BLOCK when
+  // no more data is available to read.
+  if (state_ != State::DATA && this->socket_->ready()) {
+    APIError err = this->pump_handshake_();
     if (err != APIError::OK) {
       return err;
     }
@@ -560,18 +591,21 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
  */
 APIError APINoiseFrameHelper::init_handshake_() {
   int err;
-  memset(&nid_, 0, sizeof(nid_));
-  // const char *proto = "Noise_NNpsk0_25519_ChaChaPoly_SHA256";
-  // err = noise_protocol_name_to_id(&nid_, proto, strlen(proto));
-  nid_.pattern_id = NOISE_PATTERN_NN;
-  nid_.cipher_id = NOISE_CIPHER_CHACHAPOLY;
-  nid_.dh_id = NOISE_DH_CURVE25519;
-  nid_.prefix_id = NOISE_PREFIX_STANDARD;
-  nid_.hybrid_id = NOISE_DH_NONE;
-  nid_.hash_id = NOISE_HASH_SHA256;
-  nid_.modifier_ids[0] = NOISE_MODIFIER_PSK0;
+  // Noise_NNpsk0_25519_ChaChaPoly_SHA256, built on the stack:
+  // noise_handshakestate_new_by_id copies it, so a member would waste
+  // 104 bytes per connection, and a static const would sit in RAM on
+  // ESP8266 (.rodata is DRAM there).
+  const NoiseProtocolId nid = {
+      .prefix_id = NOISE_PREFIX_STANDARD,
+      .pattern_id = NOISE_PATTERN_NN,
+      .modifier_ids = {NOISE_MODIFIER_PSK0},
+      .dh_id = NOISE_DH_CURVE25519,
+      .cipher_id = NOISE_CIPHER_CHACHAPOLY,
+      .hash_id = NOISE_HASH_SHA256,
+      .hybrid_id = NOISE_DH_NONE,
+  };
 
-  err = noise_handshakestate_new_by_id(&handshake_, &nid_, NOISE_ROLE_RESPONDER);
+  err = noise_handshakestate_new_by_id(&handshake_, &nid, NOISE_ROLE_RESPONDER);
   APIError aerr =
       handle_noise_error_(err, LOG_STR("noise_handshakestate_new_by_id"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)

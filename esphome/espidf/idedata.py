@@ -6,7 +6,7 @@ toolchain has no such command, but its CMake build emits
 turns that file into the same fields consumers (IDE integration, clang-tidy)
 expect:
 
-    {cxx_path, cxx_flags, defines, includes: {build, toolchain}}
+    {cc_path, cxx_path, cxx_flags, defines, includes: {build, toolchain}}
 """
 
 from __future__ import annotations
@@ -197,6 +197,28 @@ def _get_toolchain_includes(cxx_path: str) -> list[str]:
     return includes
 
 
+def _cc_path_from_cxx(cxx_path: str) -> str:
+    """Derive the C compiler path from the C++ compiler path.
+
+    compile_commands.json only names the C++ compiler, but consumers reach the
+    rest of the toolchain (objdump, readelf, addr2line) by rewriting the tail of
+    ``cc_path``, so they need the ``gcc``-suffixed name.
+    """
+    stem, suffix = (
+        (cxx_path[: -len(".exe")], ".exe")
+        if cxx_path.endswith(".exe")
+        else (cxx_path, "")
+    )
+    # Rewrite the program name only when it is g++ itself, or a toolchain
+    # prefixed one such as xtensa-esp32-elf-g++ -> xtensa-esp32-elf-gcc.
+    # Requiring a separator before the "g++" keeps names that merely end in
+    # those three characters intact: "clang++" must not become "clangcc".
+    head = stem[: -len("g++")]
+    if stem.endswith("g++") and (not head or head.endswith(("-", "/", "\\"))):
+        stem = f"{head}gcc"
+    return f"{stem}{suffix}"
+
+
 def idedata_from_build(compile_commands: Path) -> dict:
     """Parse compile_commands.json into the idedata fields consumers expect.
 
@@ -218,6 +240,7 @@ def idedata_from_build(compile_commands: Path) -> dict:
             build_includes.setdefault(inc, None)
 
     return {
+        "cc_path": _cc_path_from_cxx(cxx_path),
         "cxx_path": cxx_path,
         "cxx_flags": cxx_flags,
         "defines": defines,

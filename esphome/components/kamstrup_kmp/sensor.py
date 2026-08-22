@@ -21,6 +21,7 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_KELVIN,
     UNIT_KILOWATT,
+    UNIT_LITRE_PER_HOUR,
 )
 
 CODEOWNERS = ["@cfeenstra1024"]
@@ -37,7 +38,6 @@ CONF_TEMP2 = "temp2"
 CONF_TEMP_DIFF = "temp_diff"
 
 UNIT_GIGA_JOULE = "GJ"
-UNIT_LITRE_PER_HOUR = "l/h"
 
 # Note: The sensor units are set automatically based un the received data from the meter
 CONFIG_SCHEMA = (

@@ -14,7 +14,7 @@
 
 namespace esphome::resampler {
 
-class ResamplerSpeaker : public Component, public speaker::Speaker {
+class ResamplerSpeaker final : public Component, public speaker::Speaker {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::DATA; }
   void dump_config() override;

@@ -7,7 +7,7 @@
 
 namespace esphome::endstop {
 
-class EndstopCover : public cover::Cover, public Component {
+class EndstopCover final : public cover::Cover, public Component {
  public:
   void setup() override;
   void loop() override;
