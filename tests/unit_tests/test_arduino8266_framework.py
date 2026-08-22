@@ -157,7 +157,10 @@ def test_get_build_env_without_path_has_no_empty_entry(tmp_path: Path) -> None:
 def test_ccache_env_accepts_a_preresolved_path() -> None:
     """A caller that already resolved ccache threads it through; the probe
     must not run again (None means resolved-and-disabled)."""
-    with patch.object(framework, "ccache_path") as mock_resolve:
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        patch.object(framework, "ccache_path") as mock_resolve,
+    ):
         assert framework.ccache_env(None) == {}
         env = framework.ccache_env("/usr/bin/ccache")
     mock_resolve.assert_not_called()
