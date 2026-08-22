@@ -59,10 +59,10 @@ class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public O
 
 /// Callback forwarder that triggers an Automation<> only when a specific role is entered.
 /// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
-template<uint8_t State> struct StateEnterForwarder {
+template<otDeviceRole State> struct StateEnterForwarder {
   Automation<> *automation;
   void operator()(otDeviceRole state) const {
-    if (state == (otDeviceRole) State)
+    if (state == State)
       this->automation->trigger();
   }
 };

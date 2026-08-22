@@ -52,7 +52,6 @@ class OpenThreadComponent final : public Component {
   void set_connected(bool connected) { this->connected_ = connected; }
   static void on_state_changed(otChangedFlags flags, void *context);
 
-  void publish_state(otDeviceRole role);
   template<typename F> void add_on_state_callback(F &&callback) {
     this->state_callbacks_.add(std::forward<F>(callback));
   }
@@ -69,6 +68,7 @@ class OpenThreadComponent final : public Component {
    * Callers running outside the OpenThread task must hold InstanceLock.
    */
   void apply_linkmode_(otInstance *instance);
+  void publish_state_(otDeviceRole role);
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
