@@ -1,0 +1,13 @@
+substitutions:
+  spi_flash_cs_pin: GPIO4
+  spi_flash_lfs_cs_pin: GPIO15
+  spi_fram_cs_pin: GPIO13
+  spi_mram_cs_pin: GPIO14
+  onewire_pin: GPIO21
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  common: !include common.yaml
+  common_nvs: !include common.nvs.yaml
+  common_kv: !include common.kv.yaml
