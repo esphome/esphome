@@ -68,7 +68,7 @@ class OpenThreadComponent final : public Component {
    * Callers running outside the OpenThread task must hold InstanceLock.
    */
   void apply_linkmode_(otInstance *instance);
-  void publish_state(otDeviceRole role);
+  void publish_state_(otDeviceRole role);
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();
