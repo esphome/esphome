@@ -28,8 +28,9 @@ bool should_show_scan_entry(const Results &results, const Entry &scan, bool &wit
     if (other.get_is_hidden() || !other.ssid_equals(scan))
       continue;
     // &other < &scan orders the two the way their indices do: both point into the
-    // same array, so the earlier entry wins a tie.
-    if (&other != &scan && (other.get_rssi() > rssi || (other.get_rssi() == rssi && &other < &scan)))
+    // same array, so the earlier entry wins a tie. The entry under test fails both
+    // comparisons against itself, so no self check is needed.
+    if (other.get_rssi() > rssi || (other.get_rssi() == rssi && &other < &scan))
       return false;
     any_auth |= other.get_with_auth();
   }
