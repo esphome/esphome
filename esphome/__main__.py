@@ -870,6 +870,7 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
             # Broad on purpose: the firmware already built; an idedata
             # failure must not fail a successful build.
             _LOGGER.warning("Could not generate idedata: %s", err)
+            _LOGGER.debug("Idedata failure detail", exc_info=True)
     else:
         from esphome.platformio import toolchain
 
