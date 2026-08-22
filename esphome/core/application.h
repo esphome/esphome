@@ -809,15 +809,21 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // All platforms route loop yields through the platform wake primitive.
   // On host this drains the loopback wake socket via select(); on FreeRTOS
   // targets it uses task notifications; on ESP8266/RP2040 it uses esp_delay/WFE.
-  // Wakes at least every 2*WDT_FEED_INTERVAL_MS (always < WDT_TIMEOUT/2) or STATUS_LED_DISPATCH_INTERVAL_MS
-  // so the feed rate-limit is exercised even if loop_interval is increased or the scheduler and component phases are
-  // gated out for a long sleep. 2*WDT_FEED_INTERVAL_MS ensures that wdt is fed at least every 3*WDT_FEED_INTERVAL_MS
-  // which is save on all platforms.
+  // Cap the sleep so the WDT feed and status-LED dispatch rate limits still get
+  // exercised even when loop_interval is raised or the scheduler and component
+  // phases are gated out for a long sleep. Waking every 2*WDT_FEED_INTERVAL_MS
+  // clears the feed rate limit on every wake, so the WDT is fed at least that
+  // often -- well inside every platform's timeout.
 
+#if !(defined(USE_HOST) || defined(USE_ESP8266))
   uint32_t max_sleep = WDT_FEED_INTERVAL_MS * 2;
-  // Host and ESP8266 do not need to feed WDT in the delay path but need a finite delay. Set to 1s to be save.
-#if (defined(USE_HOST) || defined(USE_ESP8266))
-  max_sleep = 1000;
+#else
+// Host and ESP8266 do not need to feed WDT in the delay path
+#ifdef USE_ESP8266
+  uint32_t max_sleep = 0x68D7A3;  // max sleep allowed for ESP8266
+#else
+  uint32_t max_sleep = delay_time;  // ESPHOME_SUSPEND_LOOP not allowed for host
+#endif
 #endif
 #ifdef USE_STATUS_LED
   max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);

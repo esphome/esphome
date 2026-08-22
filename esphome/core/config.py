@@ -42,7 +42,9 @@ from esphome.const import (
     CONF_SUSPEND_LOOP,
     CONF_TRIGGER_ID,
     CONF_VERSION,
+    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
+    PLATFORM_ESP32,
     PLATFORM_HOST,
     PLATFORM_RP2,
     PlatformFramework,
@@ -54,6 +56,7 @@ from esphome.core import (
     CoroPriority,
     coroutine_with_priority,
 )
+import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -186,6 +189,34 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_loop_interval(config: ConfigType) -> ConfigType:
+    if CONF_LOOP_INTERVAL in config and not (CORE.is_host or CORE.is_esp8266):
+        max_loop = 600  # 2 * 300ms default for other platforms
+        if CORE.is_esp32:
+            if CONF_WATCHDOG_TIMEOUT in fv.full_config.get()[PLATFORM_ESP32]:
+                max_loop = (
+                    2
+                    * fv.full_config.get()[PLATFORM_ESP32][
+                        CONF_WATCHDOG_TIMEOUT
+                    ].total_milliseconds
+                    / 5
+                )
+            else:
+                max_loop = 2000  # 5000ms / 5 * 2 default value
+        elif CORE.is_bk72xx:
+            max_loop = 4000  # 10000ms / 5 * 2 default value
+        if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
+            _LOGGER.warning(
+                "%s of %s exceeds the %sms maximum sleep on this platform; the loop will still "
+                "wake every %sms. On esp32, raise esp32.watchdog_timeout to sleep longer.",
+                CONF_LOOP_INTERVAL,
+                config[CONF_LOOP_INTERVAL],
+                max_loop,
+                max_loop,
+            )
+    return config
+
+
 def valid_include(value: str) -> str:
     # Look for "<...>" includes
     if value.startswith("<") and value.endswith(">"):
@@ -277,7 +308,7 @@ def validate_area_config(config: dict | str) -> dict[str, str | core.ID]:
 
 
 def _validate_suspend_loop(value: bool) -> bool:
-    # host and RP2 platforms have unwakeable delay fallbacks, so suspending the main loop is unsave
+    # host and RP2 platforms have unwakeable delay fallbacks, so suspending the main loop is unsafe
     if value and CORE.target_platform in [PLATFORM_HOST, PLATFORM_RP2]:
         raise cv.Invalid(
             f"Suspend loop is not available on {CORE.target_platform} platform"
