@@ -923,6 +923,13 @@ def _warn_unsatisfied_versionless(
             # A version-less dep's request key is the name itself
             continue
         if dep_name in resolved_manifest_names:
+            # Name-only evidence: any resolved component with this manifest
+            # name counts, not just ones the requester can reach
+            _LOGGER.debug(
+                "Version-less dependency %s of %s satisfied by manifest name only",
+                dep_name,
+                requester,
+            )
             continue
         if (
             not dep_owner
