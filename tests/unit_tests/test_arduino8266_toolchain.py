@@ -362,3 +362,18 @@ def test_run_compile_idedata_error_does_not_fail_build(
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     assert "Could not generate idedata: compile database is unusable" in caplog.text
+
+
+def test_get_idedata_accepts_preresolved_ccache() -> None:
+    """run_compile threads its resolved ccache through; the probe must not
+    run again."""
+    with (
+        patch(
+            "esphome.build_helpers.idedata.load_or_build_idedata",
+            return_value={"ok": True},
+        ) as mock_build,
+        patch.object(framework, "ccache_path") as mock_resolve,
+    ):
+        assert toolchain.get_idedata("/usr/bin/ccache") == {"ok": True}
+    mock_resolve.assert_not_called()
+    assert mock_build.call_args.kwargs["launcher"] == "/usr/bin/ccache"
