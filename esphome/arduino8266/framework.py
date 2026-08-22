@@ -22,7 +22,7 @@ from esphome.build_helpers.ninja import find_ninja
 from esphome.build_helpers.tools_cache import tools_cache_path
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
-from esphome.platformio.registry import install_package
+from esphome.platformio.registry import install_package, prefetch_packages
 
 FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
 TOOLCHAIN_PACKAGE = "toolchain-xtensa"
@@ -101,6 +101,25 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
     package_version = framework_package_version(framework_version)
     framework_path = get_framework_path(package_version)
     downloads_dir = get_arduino8266_tools_path() / "downloads"
+    toolchain_path = get_toolchain_path()
+    # Fetch both archives at once; the installs below verify and extract
+    prefetch_packages(
+        [
+            (
+                FRAMEWORK_PACKAGE,
+                package_version,
+                framework_path,
+                ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+            ),
+            (
+                TOOLCHAIN_PACKAGE,
+                TOOLCHAIN_VERSION,
+                toolchain_path,
+                ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+            ),
+        ],
+        downloads_dir,
+    )
     install_package(
         FRAMEWORK_PACKAGE,
         package_version,
@@ -109,7 +128,6 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
         downloads_dir,
         expect=("cores/esp8266", "tools/sdk", "libraries"),
     )
-    toolchain_path = get_toolchain_path()
     install_package(
         TOOLCHAIN_PACKAGE,
         TOOLCHAIN_VERSION,
