@@ -101,6 +101,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -7139,7 +7140,7 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
         RuntimeError("Could not query builtin include dirs"),
         ValueError("no C++ translation unit found"),
         KeyError("command"),
-        None,  # replaced with EsphomeError inside (import is function-local)
+        None,  # replaced with EsphomeError inside
     ],
 )
 def test_compile_program_espidf_idedata_failure_does_not_fail_build(
@@ -7147,14 +7148,6 @@ def test_compile_program_espidf_idedata_failure_does_not_fail_build(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A post-compile idedata error is a warning: the firmware already built."""
-    from esphome.const import (
-        KEY_CORE,
-        KEY_TARGET_FRAMEWORK,
-        KEY_TARGET_PLATFORM,
-        Toolchain,
-    )
-    from esphome.core import CORE, EsphomeError
-
     if error is None:
         error = EsphomeError("compile database is unusable")
     CORE.toolchain = Toolchain.ESP_IDF
@@ -7178,14 +7171,6 @@ def test_compile_program_espidf_idedata_success_is_silent(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The healthy path: idedata generated, nothing to warn about."""
-    from esphome.const import (
-        KEY_CORE,
-        KEY_TARGET_FRAMEWORK,
-        KEY_TARGET_PLATFORM,
-        Toolchain,
-    )
-    from esphome.core import CORE
-
     CORE.toolchain = Toolchain.ESP_IDF
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "esp32",
@@ -7207,14 +7192,6 @@ def test_compile_program_espidf_idedata_none_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A silent None from the post-compile idedata refresh is made visible."""
-    from esphome.const import (
-        KEY_CORE,
-        KEY_TARGET_FRAMEWORK,
-        KEY_TARGET_PLATFORM,
-        Toolchain,
-    )
-    from esphome.core import CORE
-
     CORE.toolchain = Toolchain.ESP_IDF
     CORE.data[KEY_CORE] = {
         KEY_TARGET_PLATFORM: "esp32",
