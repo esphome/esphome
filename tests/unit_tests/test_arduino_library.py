@@ -477,13 +477,32 @@ def test_library_info_dropped_link_fields_warn(
 def test_library_info_unmapped_sources_warn(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Matched files that all fall through the suffix map are visible; an
-    empty archive would fail far away at link."""
+    """Source-like files the case-sensitive suffix map rejects are named,
+    even when other sources compiled (a partial drop links with undefined
+    symbols far from the cause)."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
     (read_path / "src" / "impl.CPP").write_text("")
-    component._library_info("x", read_path, {"build": {}})
-    assert "no matched file has a recognized source suffix" in caplog.text
+    (read_path / "src" / "sketch.ino").write_text("")
+    (read_path / "src" / "ok.cpp").write_text("")
+    lib = component._library_info("x", read_path, {"build": {}})
+    assert [s.name for s in lib.sources] == ["ok.cpp"]
+    assert "not compiled: impl.CPP, sketch.ino" in caplog.text
+
+
+def test_library_info_header_only_src_stays_quiet(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A header-only library (real headers in src/) is routine, not a
+    warning (the default +<*> filter matches the headers too)."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "ArduinoJson.h").write_text("")
+    (read_path / "keywords.txt").write_text("")
+    lib = component._library_info("x", read_path, {"build": {}})
+    assert lib.sources == []
+    assert "not compiled" not in caplog.text
+    assert "srcFilter" not in caplog.text
 
 
 def test_library_info_lib_archive_malformed_raises(tmp_path: Path) -> None:
