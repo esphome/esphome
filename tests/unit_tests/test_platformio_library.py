@@ -558,6 +558,128 @@ def test_join_flag_args_trailing_bare_flag_warns(
     assert "Ignoring trailing '-l'" in caplog.text
 
 
+def test_lex_build_flags_dangling_flag_does_not_cross_entries(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Each entry is lexed independently, as ParseFlags does: a dangling -I
+    ending one entry warns instead of absorbing the next entry's first token."""
+    from esphome.platformio.library import lex_build_flags
+
+    assert lex_build_flags(["-Wall -I", "-DFOO=1"], "lib x") == ["-Wall", "-DFOO=1"]
+    assert "Ignoring trailing '-I'" in caplog.text
+
+
+def test_normalize_dependencies_forms(caplog) -> None:
+    """Every PIO-legal spelling normalizes; unrecognizable entries warn."""
+    from esphome.platformio.library import normalize_dependencies
+
+    assert normalize_dependencies(
+        ["Wire", {"name": "SPI"}, 5, "", {"version": "1.0"}], "libx"
+    ) == [
+        {"name": "Wire"},
+        {"name": "SPI"},
+    ]
+    # The int, the empty string, and the nameless dict all warn
+    assert caplog.text.count("unrecognized dependency entry") == 3
+    # A plain string is names, never iterated into characters
+    assert normalize_dependencies("Wire, SPI") == [
+        {"name": "Wire"},
+        {"name": "SPI"},
+    ]
+    assert normalize_dependencies("Wire") == [{"name": "Wire"}]
+    # A non-iterable value fails by manifest name, never a bare TypeError
+    assert normalize_dependencies(5, "libx") == []
+    assert "Ignoring unrecognized dependencies 5 of libx" in caplog.text
+    # The dict-shorthand form validates names like the list form: an empty
+    # key and a spec overriding name with a non-string both warn and drop
+    assert normalize_dependencies(
+        {"": "1.0", "Wire": {"name": 123, "version": "1.0"}, "SPI": "*"}, "libx"
+    ) == [{"name": "SPI", "owner": None, "version": "*"}]
+    assert caplog.text.count("unrecognized dependency entry") == 5
+
+
+@pytest.mark.parametrize(
+    "manifest", [["not", "a", "manifest"], {"name": "A", "build": "src"}]
+)
+def test_convert_libraries_malformed_manifest_raises(
+    tmp_path, monkeypatch, manifest
+) -> None:
+    """A manifest without the expected dict shape fails by library name
+    before any backend dereferences data/build."""
+    _patch_download_with_manifests(monkeypatch, tmp_path, {"esphome/A": manifest})
+    with pytest.raises(EsphomeError, match="has a malformed manifest"):
+        convert_libraries([Library("esphome/A", None, None)], _backend())
+
+
+def test_walk_warns_for_properties_only_depends(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A manifest declaring dependencies only as library.properties depends=
+    warns in the shared walk, so every backend reports the drop."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": "name=A\nversion=1.0\ndepends=Wire, SPI\n"},
+        properties=("esphome/A",),
+    )
+    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+    assert "declares dependencies via library.properties" in caplog.text
+
+
+def test_walk_warns_for_nonplatform_invalid_library(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency dropped for any cause other than the routine platform
+    filter is visible in every backend."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "B", "version": "1.0"}]}},
+    )
+    calls = {"n": 0}
+    real = lib.check_library_data
+
+    def flaky(data, platform, framework):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework)
+
+    monkeypatch.setattr(lib, "check_library_data", flaky)
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
+
+
+def test_convert_libraries_warns_for_nonplatform_invalid_dependency_component(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency component dropped for any cause other than the platform
+    filter warns; only the routine cross-platform skip stays at debug."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "C", "owner": "esphome", "version": "1.0"}],
+            },
+            "esphome/C": {"name": "C"},
+        },
+    )
+    real = lib.check_library_data
+
+    def flaky(data, platform, framework):
+        # Fail only on C's resolved manifest, not on A's dependency entry
+        if data.get("name") == "C" and "version" not in data:
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework)
+
+    monkeypatch.setattr(lib, "check_library_data", flaky)
+    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+    assert "manifest is corrupt" in caplog.text
+    assert "Skipping dependency" in caplog.text
+
+
 def test_split_flag_entry_non_string_is_clean() -> None:
     """A dict or number from a third-party manifest fails naming the entry,
     not with an opaque shlex traceback."""
