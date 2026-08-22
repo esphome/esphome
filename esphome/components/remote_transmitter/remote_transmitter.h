@@ -72,7 +72,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void space_(uint32_t usec);
 
   void await_target_time_();
-  uint32_t target_time_;
+  uint32_t target_time_{0};
 #endif
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED

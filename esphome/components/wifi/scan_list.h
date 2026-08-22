@@ -3,21 +3,10 @@
 
 namespace esphome::wifi {
 
-// A scan returns one entry per BSSID, so a network served by several access points
-// appears several times. Provisioning only ever submits an SSID, so consumers
-// (captive_portal, improv_serial) list each SSID once.
-//
-// Returns true when scan is the entry to show for its SSID: the strongest RSSI,
-// earliest entry on ties. Hidden entries are never shown. Results are sorted by
-// connection preference, not strictly by RSSI, so RSSI is compared explicitly.
-// scan must be an element of results; ties are broken on its position there.
-//
-// with_auth is written only when returning true, and is true when any entry with
-// that SSID requires a key, so a password is asked for whenever one might be
-// needed, whichever access point was strongest.
-//
-// Templated on the container and entry so the rule can be unit tested on the host,
-// where wifi has no backend.
+// A scan lists every BSSID, so one SSID can appear several times. Returns true for
+// the strongest entry per SSID (earliest on ties), never for hidden entries. scan
+// must be an element of results. with_auth is written only when returning true and
+// is set if any entry with that SSID needs a key. Templated for host tests.
 template<typename Results, typename Entry>
 bool should_show_scan_entry(const Results &results, const Entry &scan, bool &with_auth) {
   if (scan.get_is_hidden())
@@ -27,9 +16,7 @@ bool should_show_scan_entry(const Results &results, const Entry &scan, bool &wit
   for (const auto &other : results) {
     if (other.get_is_hidden() || !other.ssid_equals(scan))
       continue;
-    // &other < &scan orders the two the way their indices do: both point into the
-    // same array, so the earlier entry wins a tie. The entry under test fails both
-    // comparisons against itself, so no self check is needed.
+    // Same array, so address order is index order. scan fails both checks against itself.
     if (other.get_rssi() > rssi || (other.get_rssi() == rssi && &other < &scan))
       return false;
     any_auth |= other.get_with_auth();
