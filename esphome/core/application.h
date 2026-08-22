@@ -814,22 +814,24 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // phases are gated out for a long sleep. Waking every 2*WDT_FEED_INTERVAL_MS
   // clears the feed rate limit on every wake, so the WDT is fed at least that
   // often -- well inside every platform's timeout.
-
-#if !(defined(USE_HOST) || defined(USE_ESP8266))
+#if defined(USE_ESP8266)
+  // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
+  // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
+  uint32_t max_sleep = 0x68D7A3;
+#elif defined(USE_HOST)
+  // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
+  // the config validator, so delay_time is already bounded by loop_interval_.
+  uint32_t max_sleep = std::numeric_limits<uint32_t>::max();
+#else
   uint32_t max_sleep = WDT_FEED_INTERVAL_MS * 2;
-#else
-// Host and ESP8266 do not need to feed WDT in the delay path
-#ifdef USE_ESP8266
-  uint32_t max_sleep = 0x68D7A3;  // max sleep allowed for ESP8266
-#else
-  uint32_t max_sleep = delay_time;  // ESPHOME_SUSPEND_LOOP not allowed for host
-#endif
 #endif
 #ifdef USE_STATUS_LED
-  max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
+  if ((this->app_state_ & STATUS_LED_MASK) != 0) {
+    max_sleep = std::min(max_sleep, STATUS_LED_DISPATCH_INTERVAL_MS);
+  }
 #endif
-  esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
 
+  esphome::internal::wakeable_delay(std::min(delay_time, max_sleep));
   if (this->dump_config_at_ < this->components_.size()) {
     this->process_dump_config_();
   }

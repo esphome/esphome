@@ -252,10 +252,26 @@ def test_suspend_loop_fail(
     )
 
 
+def test_loop_interval_warn_esp32(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(
+        yaml_file, "loop_interval_esp32.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    assert (
+        "loop_interval of 7s exceeds the 2400ms maximum sleep on this platform; the loop will still "
+        "wake every 2400ms. Raise esp32.watchdog_timeout to sleep longer."
+        in caplog.text
+    )
+
+
 @pytest.mark.parametrize(
     ("fixture", "interval", "max_loop"),
     [
-        ("loop_interval_esp32.yaml", "7s", "2400.0"),
         ("loop_interval_bk72xx.yaml", "5000ms", "4000"),
         ("loop_interval_nrf52.yaml", "700ms", "600"),
     ],
@@ -273,8 +289,7 @@ def test_loop_interval_warn(
 
     assert (
         f"loop_interval of {interval} exceeds the {max_loop}ms maximum sleep on this platform; the loop will still "
-        f"wake every {max_loop}ms. On esp32, raise esp32.watchdog_timeout to sleep longer."
-        in caplog.text
+        f"wake every {max_loop}ms." in caplog.text
     )
 
 

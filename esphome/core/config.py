@@ -198,18 +198,21 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
                 * fv.full_config.get()[PLATFORM_ESP32][
                     CONF_WATCHDOG_TIMEOUT
                 ].total_milliseconds
-                / 5
+                // 5
             )
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
         if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
             _LOGGER.warning(
                 "%s of %s exceeds the %sms maximum sleep on this platform; the loop will still "
-                "wake every %sms. On esp32, raise esp32.watchdog_timeout to sleep longer.",
+                "wake every %sms.%s",
                 CONF_LOOP_INTERVAL,
                 config[CONF_LOOP_INTERVAL],
                 max_loop,
                 max_loop,
+                " Raise esp32.watchdog_timeout to sleep longer."
+                if CORE.is_esp32
+                else "",
             )
     return config
 
