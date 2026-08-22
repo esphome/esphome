@@ -535,6 +535,7 @@ ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers
 ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
     {
         "esphome/build_gen/espidf.py",
+        "esphome/framework_helpers.py",
         "esphome/platformio/library.py",
         "esphome/platformio/extra_script.py",
     }
