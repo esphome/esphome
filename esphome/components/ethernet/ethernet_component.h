@@ -125,7 +125,7 @@ class EthernetComponent final : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::WIFI; }
+  float get_setup_priority() const override { return setup_priority::ETHERNET; }
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
