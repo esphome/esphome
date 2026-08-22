@@ -8,14 +8,25 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
 )
 
-from . import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE, aqi_ns
+from . import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE, CONF_EXTENDED_RANGE, aqi_ns
 
 CODEOWNERS = ["@jasstrong"]
 DEPENDENCIES = ["sensor"]
 
 AQISensor = aqi_ns.class_("AQISensor", sensor.Sensor, cg.Component)
 
-CONFIG_SCHEMA = (
+
+def _validate_extended_range(config):
+    if CONF_EXTENDED_RANGE in config and config[CONF_CALCULATION_TYPE] == "CAQI":
+        raise cv.Invalid(
+            f"'{CONF_EXTENDED_RANGE}' is not supported with 'calculation_type: CAQI'. "
+            "CAQI has no maximum value by specification, so it is always reported unbounded.",
+            [CONF_EXTENDED_RANGE],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         AQISensor,
         accuracy_decimals=0,
@@ -29,9 +40,11 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_CALCULATION_TYPE): cv.enum(
                 AQI_CALCULATION_TYPE, upper=True
             ),
+            cv.Optional(CONF_EXTENDED_RANGE): cv.boolean,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _validate_extended_range,
 )
 
 
@@ -46,3 +59,4 @@ async def to_code(config):
     cg.add(var.set_pm_10_0_sensor(pm_10_0_sensor))
 
     cg.add(var.set_aqi_calculation_type(config[CONF_CALCULATION_TYPE]))
+    cg.add(var.set_extended_range(config.get(CONF_EXTENDED_RANGE, False)))

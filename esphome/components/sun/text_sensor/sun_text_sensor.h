@@ -8,7 +8,7 @@
 
 namespace esphome::sun {
 
-class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
+class SunTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
   void set_parent(Sun *parent) { parent_ = parent; }
   void set_elevation(double elevation) { elevation_ = elevation; }

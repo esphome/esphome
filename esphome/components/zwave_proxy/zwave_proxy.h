@@ -68,13 +68,16 @@ class ZWaveProxy final : public uart::UARTDevice, public Component {
     return encode_uint32(this->home_id_[0], this->home_id_[1], this->home_id_[2], this->home_id_[3]);
   }
 
-  void send_frame(const uint8_t *data, size_t length);
+  // Send a frame from an API client to the Z-Wave module. Frames from any connection other
+  // than the currently subscribed one are ignored.
+  void send_frame(api::APIConnection *api_connection, const uint8_t *data, size_t length);
 
  protected:
-  bool set_home_id_(const uint8_t *new_home_id);  // Store a new home ID. Returns true if it changed.
-  void clear_home_id_();                          // Clear home ID and notify API clients
-  void on_connection_changed_(bool connected);    // Handle modem connect/disconnect transitions
-  void retry_home_id_query_();                    // Retry home ID query after reconnect
+  void send_frame_(const uint8_t *data, size_t length);  // Write a frame to the Z-Wave module
+  bool set_home_id_(const uint8_t *new_home_id);         // Store a new home ID. Returns true if it changed.
+  void clear_home_id_();                                 // Clear home ID and notify API clients
+  void on_connection_changed_(bool connected);           // Handle modem connect/disconnect transitions
+  void retry_home_id_query_();                           // Retry home ID query after reconnect
   void send_homeid_changed_msg_(api::APIConnection *conn = nullptr);
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
@@ -114,6 +117,7 @@ class ZWaveProxy final : public uart::UARTDevice, public Component {
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
   uint32_t setup_time_{0};                       // Time when setup() was called
   uint32_t reconnect_time_{0};                   // Timestamp of reconnect detection (0 = no pending query)
+  uint32_t frame_start_time_{0};                 // Timestamp of the current frame's start byte (reception timeout)
 
   // Small values (grouped by size to minimize padding)
   uint16_t buffer_index_{0};     // Index for populating the data buffer

@@ -16,7 +16,7 @@ class ZWaveProxy {
  public:
   api::APIConnection *get_api_connection() { return nullptr; }
   void zwave_proxy_request(api::APIConnection *conn, api::enums::ZWaveProxyRequestType type) {}
-  void send_frame(const uint8_t *data, size_t length) {}
+  void send_frame(api::APIConnection *api_connection, const uint8_t *data, size_t length) {}
   void api_connection_authenticated(api::APIConnection *conn) {}
   uint32_t get_feature_flags() const { return 0; }
   uint32_t get_home_id() { return 0; }

@@ -1,19 +1,36 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
+from typing import Any, Literal
 
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["uart"]
+# Loading the hub makes the modbus_client.* actions available (they are registry entries only; no code is
+# generated unless a config uses one).
+AUTO_LOAD = ["modbus_client"]
+
+# Mirrors modbus::MAX_PDU_SIZE in modbus_definitions.h: 256-byte RTU frame minus address and CRC.
+MAX_PDU_SIZE = 253
+
+# Mirror the per-function entity count limits from modbus_definitions.h. Keep these in step with the
+# C++ constants of the same name; the spec sets a different ceiling for each function code.
+MAX_NUM_OF_COILS_TO_READ = 2000
+MAX_NUM_OF_DISCRETE_INPUTS_TO_READ = 2000
+MAX_NUM_OF_COILS_TO_WRITE = 1968
+MAX_NUM_OF_REGISTERS_TO_READ = 125
+MAX_NUM_OF_REGISTERS_TO_WRITE = 123
+MAX_NUM_OF_REGISTERS_TO_WRITE_RW = 121
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
 Modbus = modbus_ns.class_("Modbus", cg.Component, uart.UARTDevice)
@@ -69,7 +86,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(modbus_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -85,28 +102,43 @@ async def to_code(config):
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
-def modbus_device_schema(default_address, role: Literal["client", "server"] = "client"):
+def _validate_server_address(value: Any) -> int:
+    address = cv.hex_uint8_t(value)
+    # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
+    # so it cannot identify an individual server device.
+    if address == 0:
+        raise cv.Invalid(
+            "Address 0 is the Modbus broadcast address and cannot be used as a "
+            "server device address. Assign a unique unit address instead."
+        )
+    return address
+
+
+def modbus_device_schema(
+    default_address: int | None, role: Literal["client", "server"] = "client"
+) -> cv.Schema:
     hub_type = ModbusClient if role == "client" else ModbusServer
+    address_validator = _validate_server_address if role == "server" else cv.hex_uint8_t
     schema = {
         cv.GenerateID(CONF_MODBUS_ID): cv.use_id(hub_type),
     }
     if default_address is None:
-        schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
+        schema[cv.Required(CONF_ADDRESS)] = address_validator
     else:
-        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
+        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = address_validator
     return cv.Schema(schema)
 
 
 def final_validate_modbus_device(
     name: str, *, role: Literal["server", "client"] | None = None
-):
-    def validate_role(value):
+) -> cv.Schema:
+    def validate_role(value: str) -> str:
         assert role in MODBUS_ROLES
         if value != role:
             raise cv.Invalid(f"Component {name} requires role to be {role}")
         return value
 
-    def validate_hub(hub_config):
+    def validate_hub(hub_config: ConfigType) -> ConfigType:
         hub_schema = {}
         if role is not None:
             hub_schema[cv.Required(CONF_ROLE)] = validate_role
@@ -119,19 +151,19 @@ def final_validate_modbus_device(
     )
 
 
-async def register_modbus_client_device(var, config):
+async def register_modbus_client_device(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
 
 
-async def register_modbus_server_device(var, config):
+async def register_modbus_server_device(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(parent.register_device(var))
 
 
-async def register_modbus_device(var, config):
+async def register_modbus_device(var: MockObj, config: ConfigType) -> None:
     # Remove before 2026.12.0
     _LOGGER.warning(
         "'register_modbus_device' is deprecated, use 'register_modbus_client_device' "

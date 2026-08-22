@@ -32,9 +32,10 @@ class SerialProxy {
   api::enums::SerialProxyPortType get_port_type() const { return {}; }
   api::APIConnection *get_api_connection() { return nullptr; }
   void serial_proxy_request(api::APIConnection *conn, api::enums::SerialProxyRequestType type) {}
-  void configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint32_t stop_bits, uint32_t data_size) {}
-  void write_from_client(const uint8_t *data, size_t len) {}
-  void set_modem_pins(uint32_t line_states) {}
+  void configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control, uint8_t parity,
+                 uint32_t stop_bits, uint32_t data_size) {}
+  void write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len) {}
+  void set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {}
   uint32_t get_modem_pins() const { return 0; }
   uart::UARTFlushResult flush_port() { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 

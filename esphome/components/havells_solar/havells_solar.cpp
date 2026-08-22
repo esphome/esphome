@@ -7,10 +7,10 @@ namespace esphome::havells_solar {
 
 static const char *const TAG = "havells_solar";
 
-static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x03;
 static const uint8_t MODBUS_REGISTER_COUNT = 48;  // 48 x 16-bit registers
 
-void HavellsSolar::on_modbus_data(const std::vector<uint8_t> &data) {
+void HavellsSolar::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (data.size() < MODBUS_REGISTER_COUNT * 2) {
     ESP_LOGW(TAG, "Invalid size for HavellsSolar!");
     return;
@@ -121,7 +121,7 @@ void HavellsSolar::on_modbus_data(const std::vector<uint8_t> &data) {
     this->dci_of_t_sensor_->publish_state(dci_of_t);
 }
 
-void HavellsSolar::update() { this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT); }
+void HavellsSolar::update() { this->read_holding_registers(0, MODBUS_REGISTER_COUNT); }
 void HavellsSolar::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HAVELLS Solar:\n"

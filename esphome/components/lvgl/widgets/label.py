@@ -1,3 +1,4 @@
+from esphome.components.const import CONF_LABEL
 import esphome.config_validation as cv
 from esphome.const import CONF_TEXT
 
@@ -13,8 +14,6 @@ from ..lv_validation import lv_bool, lv_text
 from ..schemas import TEXT_SCHEMA
 from ..types import LvText
 from . import Widget, WidgetType
-
-CONF_LABEL = "label"
 
 
 class LabelType(WidgetType):

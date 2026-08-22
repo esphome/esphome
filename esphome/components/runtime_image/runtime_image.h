@@ -3,24 +3,10 @@
 #include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
+#include "image_decoder.h"
+#include "image_format.h"
+
 namespace esphome::runtime_image {
-
-// Forward declaration
-class ImageDecoder;
-
-/**
- * @brief Image format types that can be decoded dynamically.
- */
-enum ImageFormat {
-  /** Automatically detect from data. Not implemented yet. */
-  AUTO,
-  /** JPEG format. */
-  JPEG,
-  /** PNG format. */
-  PNG,
-  /** BMP format. */
-  BMP,
-};
 
 /**
  * @brief A dynamic image that can be loaded and decoded at runtime.
@@ -99,7 +85,7 @@ class RuntimeImage : public image::Image {
   /**
    * @brief Check if decoding is currently in progress.
    */
-  bool is_decoding() const { return this->decoder_ != nullptr; }
+  bool is_decoding() const { return this->decoder_ != nullptr && this->decoder_->is_active(); }
 
   /**
    * @brief Check if the decoder has finished processing all data.
@@ -120,9 +106,49 @@ class RuntimeImage : public image::Image {
   ImageFormat get_format() const { return this->format_; }
 
   /**
-   * @brief Release the image buffer and free memory.
+   * @brief Release the image buffer and free its memory, ending any decode session.
+   *
+   * An external buffer is let go of rather than freed. The decoder object is kept
+   * warm so the next decode can reuse it without churning the heap.
    */
   void release();
+
+  /**
+   * @brief Decode into a buffer the caller owns, instead of one allocated here.
+   *
+   * The image never frees an external buffer and never resizes it: a decode that needs other
+   * dimensions fails as if the allocation had failed, and the buffer is let go of so a decoder
+   * that ignores that failure cannot publish a picture it did not paint. The caller keeps the
+   * buffer alive for as long as anything can draw the image, and calls release() (or hands over
+   * another buffer) before reusing it.
+   *
+   * Hand a buffer over before every decode. The image lets go of one whenever a decode fails and
+   * whenever release() is called, and it does not remember that it ever had one: a decode that
+   * starts without a buffer allocates its own, which is the runtime allocation this method exists
+   * to avoid.
+   *
+   * The buffer is decoded into as it is handed over, so the caller owns its initial contents.
+   * Zero it first if anything can draw the image before a decode has painted every pixel.
+   *
+   * Do not hand a buffer over while is_decoding() is true. A running decoder keeps scaling values
+   * for the buffer it started with.
+   *
+   * A null buffer or dimensions the image cannot decode at are refused, leaving the image with
+   * no buffer at all.
+   *
+   * @param buffer Memory for a picture of the given size, at least get_buffer_size() bytes.
+   * @param width Width of the buffer in pixels.
+   * @param height Height of the buffer in pixels.
+   * @return true if the image took the buffer, false if it was refused.
+   */
+  bool set_external_buffer(uint8_t *buffer, int width, int height);
+
+  /**
+   * @brief Get the buffer size in bytes needed for a picture of the given dimensions.
+   *
+   * Returns 0 for dimensions the image cannot decode at.
+   */
+  size_t get_buffer_size(int width, int height) const;
 
   /**
    * @brief Set whether to allow progressive display during decode.
@@ -150,19 +176,16 @@ class RuntimeImage : public image::Image {
   void release_buffer_();
 
   /**
-   * @brief Get the buffer size in bytes for given dimensions.
-   */
-  size_t get_buffer_size_(int width, int height) const;
-
-  /**
    * @brief Get the position in the buffer for a pixel.
    */
   int get_position_(int x, int y) const;
 
   /**
-   * @brief Create decoder instance for the image's format.
+   * @brief Create decoder instance for the requested format.
+   * @param format The image format to decode.
+   * @return Unique pointer to the created decoder, or nullptr on failure.
    */
-  std::unique_ptr<ImageDecoder> create_decoder_();
+  std::unique_ptr<ImageDecoder> create_decoder_(ImageFormat format);
 
   // Memory management
   uint8_t *buffer_{nullptr};
@@ -190,7 +213,6 @@ class RuntimeImage : public image::Image {
   int buffer_height_{0};
 
   // Decoding state
-  size_t total_size_{0};
   size_t decoded_bytes_{0};
 
   /** Fixed width requested on configuration, or 0 if not specified. */
@@ -208,6 +230,8 @@ class RuntimeImage : public image::Image {
    * This is used to determine how to store 16 bit colors in the buffer.
    */
   bool is_big_endian_{false};
+  /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
+  bool external_buffer_{false};
 };
 
 }  // namespace esphome::runtime_image

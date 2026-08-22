@@ -5,10 +5,19 @@
 import json
 import os
 from pathlib import Path
+import subprocess
 from unittest.mock import patch
 
-from esphome.const import CONF_FRAMEWORK, CONF_SOURCE
-from esphome.core import CORE
+import pytest
+
+from esphome.components.esp32.const import KEY_ESP32, KEY_VARIANT
+from esphome.const import (
+    CONF_COMPILE_PROCESS_LIMIT,
+    CONF_ESPHOME,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+)
+from esphome.core import CORE, EsphomeError
 from esphome.espidf import toolchain
 
 
@@ -47,7 +56,7 @@ def test_get_esphome_esp_idf_paths_forwards_source_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=url)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=url)
 
 
 def test_get_esphome_esp_idf_paths_no_override():
@@ -58,7 +67,28 @@ def test_get_esphome_esp_idf_paths_no_override():
         toolchain, "check_esp_idf_install", return_value=("/fw", "/penv")
     ) as mock_install:
         toolchain._get_esphome_esp_idf_paths("5.5.4")
-    mock_install.assert_called_once_with("5.5.4", source_url=None)
+    mock_install.assert_called_once_with("5.5.4", targets=None, source_url=None)
+
+
+def test_get_configured_targets_from_variant(monkeypatch: pytest.MonkeyPatch):
+    """The configured variant restricts the toolchain install to its target."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() == ["esp32s3"]
+
+
+def test_get_configured_targets_without_variant(monkeypatch: pytest.MonkeyPatch):
+    """No stored variant (e.g. tooling outside a build) keeps the default."""
+    monkeypatch.delenv("CI", raising=False)
+    CORE.data.pop(KEY_ESP32, None)
+    assert toolchain._get_configured_targets() is None
+
+
+def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch):
+    """CI installs every target so the shared cache covers all variants."""
+    monkeypatch.setenv("CI", "true")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: "ESP32S3"}
+    assert toolchain._get_configured_targets() is None
 
 
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
@@ -68,6 +98,33 @@ def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     compile_commands = CORE.relative_build_path("build", "compile_commands.json")
     cache = CORE.relative_internal_path("idedata", "test.json")
     return compile_commands, cache
+
+
+def test_has_outdated_files_detects_exclusion_change(setup_core: Path) -> None:
+    """A newer exclude_components.esphomeinternal stamp forces a reconfigure
+    so components that leave the exclusion set get rediscovered."""
+    CORE.build_path = setup_core
+    build = setup_core / "build"
+    (build / "config").mkdir(parents=True)
+    (build / "config" / "sdkconfig.h").write_text("")
+    cmakecache = build / "CMakeCache.txt"
+    cmakecache.write_text("")
+    (build / "build.ninja").write_text("")
+
+    with patch.object(CORE, "name", "test"):
+        assert not toolchain.has_outdated_files()
+
+        stamp = setup_core / "exclude_components.esphomeinternal"
+        stamp.write_text("unity")
+        os.utime(stamp, (cmakecache.stat().st_mtime + 10,) * 2)
+
+        assert toolchain.has_outdated_files()
+
+        # The flag must clear once the reference file is restamped (as
+        # run_compile does after a successful discovery reconfigure);
+        # otherwise every later build would repeat the discovery pass.
+        os.utime(cmakecache, (stamp.stat().st_mtime + 10,) * 2)
+        assert not toolchain.has_outdated_files()
 
 
 def test_get_idedata_returns_none_without_compile_commands(setup_core: Path) -> None:
@@ -100,7 +157,7 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
     compile_commands.parent.mkdir(parents=True, exist_ok=True)
     compile_commands.write_text("[]")
     cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text('{"cxx_path": "cached"}')
+    cache.write_text('{"cc_path": "cached-gcc", "cxx_path": "cached"}')
     cc_mtime = compile_commands.stat().st_mtime
     os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
 
@@ -108,7 +165,31 @@ def test_get_idedata_uses_cache_when_valid(setup_core: Path) -> None:
         result = toolchain.get_idedata()
 
     mock_transform.assert_not_called()
-    assert result == {"cxx_path": "cached"}
+    assert result == {"cc_path": "cached-gcc", "cxx_path": "cached"}
+
+
+def test_get_idedata_regenerates_cache_without_cc_path(setup_core: Path) -> None:
+    """A cache predating cc_path is rebuilt even though it is newer.
+
+    Such a cache stays newer than the compile DB forever, so consumers that
+    derive the binutils paths from cc_path would keep failing on it.
+    """
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text('{"cxx_path": "cached"}')
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cc_path": "gcc", "cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert result["cc_path"] == "gcc"
 
 
 def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -> None:
@@ -129,6 +210,33 @@ def test_get_idedata_regenerates_when_compile_commands_newer(setup_core: Path) -
 
     mock_transform.assert_called_once()
     assert result == {"cxx_path": "fresh", "prog_path": str(toolchain.get_elf_path())}
+
+
+@pytest.mark.parametrize("cached", ['"cc_path is a string"', "[]", "42"])
+def test_get_idedata_regenerates_on_non_dict_cache(
+    setup_core: Path, cached: str
+) -> None:
+    """A newer cache holding valid JSON that is not an object is regenerated.
+
+    A bare string would otherwise pass the cc_path check by substring and be
+    handed to consumers expecting a dict.
+    """
+    compile_commands, cache = _setup_build(setup_core)
+    compile_commands.parent.mkdir(parents=True, exist_ok=True)
+    compile_commands.write_text("[]")
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text(cached)
+    cc_mtime = compile_commands.stat().st_mtime
+    os.utime(cache, (cc_mtime + 1, cc_mtime + 1))
+
+    with patch(
+        "esphome.espidf.idedata.idedata_from_build",
+        return_value={"cc_path": "gcc", "cxx_path": "g++"},
+    ) as mock_transform:
+        result = toolchain.get_idedata()
+
+    mock_transform.assert_called_once()
+    assert isinstance(result, dict)
 
 
 def test_get_idedata_regenerates_on_corrupted_cache(setup_core: Path) -> None:
@@ -182,6 +290,186 @@ def test_get_idf_env_sets_git_ceiling_directories(setup_core: Path) -> None:
         env = toolchain._get_idf_env(version="5.5.4")
     assert CORE.config_dir == setup_core
     assert str(CORE.config_dir) in env["GIT_CEILING_DIRECTORIES"].split(os.pathsep)
+
+
+def test_get_idf_env_pops_inherited_pythonpath(setup_core: Path) -> None:
+    """A PYTHONPATH from the parent environment must not reach idf.py.
+
+    It would override the IDF venv's isolation, shadowing its pinned
+    packages and failing idf.py's dependency check.
+    """
+    toolchain._cache().env.clear()
+    with patch.dict(
+        os.environ,
+        {"IDF_PATH": str(setup_core), "PYTHONPATH": "/outside/site-packages"},
+    ):
+        env = toolchain._get_idf_env(version="5.5.4")
+    assert "PYTHONPATH" not in env
+
+
+def test_get_cmake_output_without_build_dir(setup_core: Path) -> None:
+    """A build dir that was never created raises EsphomeError.
+
+    Without this, subprocess.run(cwd=build_dir) raises FileNotFoundError, which
+    the log stack-trace decoder doesn't recognise as a decode failure.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    assert not build_dir.exists()
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_without_cmake_cache(setup_core: Path) -> None:
+    """A build dir that exists but was never configured raises EsphomeError."""
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+
+    with pytest.raises(EsphomeError, match="No ESP-IDF build found"):
+        toolchain._get_cmake_output(build_dir)
+
+
+def test_get_cmake_output_with_configured_build(setup_core: Path) -> None:
+    """A configured build still runs cmake and caches the output.
+
+    The missing-build guard must not get in the way of a real build.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True)
+    (build_dir / "CMakeCache.txt").write_text("")
+
+    completed = subprocess.CompletedProcess(
+        args=[], returncode=0, stdout="CMAKE_ADDR2LINE:FILEPATH=/tool/addr2line\n"
+    )
+    with (
+        patch.object(toolchain, "_get_idf_env", return_value={}),
+        patch.object(toolchain.subprocess, "run", return_value=completed) as mock_run,
+    ):
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+        # Second call is served from the cache rather than re-running cmake.
+        assert toolchain._get_cmake_output(build_dir) == completed.stdout
+
+    mock_run.assert_called_once()
+    assert toolchain._get_cmake_tool_path("CMAKE_ADDR2LINE") == Path("/tool/addr2line")
+
+
+def test_get_cmake_output_missing_build_does_not_resolve_idf_env(
+    setup_core: Path,
+) -> None:
+    """The build check runs before the env is resolved.
+
+    Resolving the env calls check_esp_idf_install(), which can download and
+    extract the whole framework. A doomed call must never start that.
+    """
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+
+    with (
+        patch.object(toolchain, "_get_idf_env") as mock_env,
+        patch.object(toolchain.subprocess, "run") as mock_run,
+        pytest.raises(EsphomeError),
+    ):
+        toolchain._get_cmake_output(build_dir)
+
+    mock_env.assert_not_called()
+    mock_run.assert_not_called()
+
+
+def test_run_idf_py_jobs_sets_build_jobs_env(setup_core: Path) -> None:
+    """The jobs argument is exported to idf.py as IDF_PY_BUILD_JOBS."""
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "_get_idf_path", return_value=Path("/idf")),
+        patch.object(toolchain, "_get_idf_env", return_value={"PATH": "/bin"}),
+        patch.object(toolchain, "_get_idf_tool", return_value="python"),
+        patch.object(toolchain.subprocess, "run") as mock_run,
+    ):
+        mock_run.return_value.returncode = 0
+
+        toolchain.run_idf_py("build", jobs=2)
+        env = mock_run.call_args.kwargs["env"]
+        assert env["IDF_PY_BUILD_JOBS"] == "2"
+        assert env["PATH"] == "/bin"
+
+        toolchain.run_idf_py("build")
+        env = mock_run.call_args.kwargs["env"]
+        assert "IDF_PY_BUILD_JOBS" not in env
+
+
+def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> None:
+    """After a successful discovery reconfigure the reference CMakeCache.txt
+    is restamped; cmake does not rewrite it when only properties or plain
+    variables change, so the staleness flag would otherwise never clear."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+    cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    cmakecache.parent.mkdir(parents=True, exist_ok=True)
+    cmakecache.write_text("")
+    old = cmakecache.stat().st_mtime - 100
+    os.utime(cmakecache, (old, old))
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch("esphome.build_gen.espidf.write_project"),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    assert cmakecache.stat().st_mtime > old
+
+
+def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
+    """A discovery pass that produced no CMakeCache.txt (nothing to restamp)
+    still completes normally."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch("esphome.build_gen.espidf.write_project"),
+        patch.object(toolchain, "run_reconfigure", return_value=0),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
+
+
+def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
+    """compile_process_limit is forwarded to run_idf_py as the job limit."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 1}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_run,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_run.assert_called_once_with("build", "size", jobs=1)
+
+
+def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
+    """When no compile_process_limit is set, no job limit is passed to idf.py."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_run,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_run.assert_called_once_with("build", "size", jobs=None)
 
 
 def test_get_core_framework_version_from_core_data():

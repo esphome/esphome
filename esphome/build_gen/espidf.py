@@ -3,10 +3,19 @@
 import json
 from pathlib import Path
 
-from esphome.components.esp32 import get_esp32_variant, idf_version
+from esphome.components.esp32 import (
+    get_esp32_variant,
+    get_excluded_builtin_components,
+    get_managed_component_require_names,
+    idf_version,
+)
 import esphome.config_validation as cv
 from esphome.core import CORE
-from esphome.framework_helpers import get_project_compile_flags, get_project_link_flags
+from esphome.framework_helpers import (
+    get_project_compile_flags,
+    get_project_cxx_compile_flags,
+    get_project_link_flags,
+)
 from esphome.helpers import mkdir_p, write_file_if_changed
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
@@ -63,6 +72,13 @@ def has_discovered_components() -> bool:
     return get_available_components() is not None
 
 
+def _cmake_quote(value: str) -> str:
+    """Quote a cmake arg value for a set() line. add_cmake_arg rejects
+    whitespace, quotes, and '$', so only backslashes need escaping."""
+    escaped = value.replace("\\", "\\\\")
+    return f'"{escaped}"'
+
+
 def get_project_cmakelists(minimal: bool = False) -> str:
     """Generate the top-level CMakeLists.txt for ESP-IDF project.
 
@@ -91,10 +107,27 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         for flag in project_compile_opts
     )
 
+    # Flags registered via cg.add_cxx_build_flag() go on CXX_COMPILE_OPTIONS
+    # (not COMPILE_OPTIONS) because GCC warns when a C++-only flag such as
+    # -Wno-volatile is passed on a C compile.
+    cxx_compile_options = "\n".join(
+        f'idf_build_set_property(CXX_COMPILE_OPTIONS "{flag}" APPEND)'
+        for flag in get_project_cxx_compile_flags()
+    )
+
     cpp_standard_options = (
         CPP_STANDARD_TEMPLATE.format(standard=CORE.cpp_standard)
         if CORE.cpp_standard
         else ""
+    )
+
+    # CMake variables registered via cg.add_cmake_arg(). Emitted before
+    # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
+    # set when project.cmake seeds the component list, and on minimal
+    # (discovery) writes too so excluded components never register.
+    cmake_args = "\n".join(
+        f"set({name} {_cmake_quote(value)})"
+        for name, value in sorted(CORE.cmake_args.items())
     )
 
     # Per-project list exposed as a CMake variable so converted PIO libs
@@ -107,8 +140,6 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # runs as a separate CMake script invocation that doesn't load the
     # project's top-level CMakeLists; without this, ${ESPHOME_PROJECT_
     # MANAGED_COMPONENTS} in a converted-lib REQUIRES expands to empty).
-    from esphome.components.esp32 import get_managed_component_require_names
-
     managed_components_property = "\n".join(
         f"idf_build_set_property(ESPHOME_PROJECT_MANAGED_COMPONENTS {name} APPEND)"
         for name in get_managed_component_require_names()
@@ -119,12 +150,22 @@ def get_project_cmakelists(minimal: bool = False) -> str:
     # component's REQUIRES including real IDF components). Referenced by
     # src/CMakeLists and by each converted PIO lib's CMakeLists. Skipped
     # on minimal writes because project_description.json may be stale.
+    # Excluded components are dropped here as well: a stale
+    # project_description.json from a build without exclusions may still
+    # list them, and requiring an excluded component pulls it back into
+    # the build (IDF requirement expansion overrides EXCLUDE_COMPONENTS).
+    # Derived from the EXCLUDE_COMPONENTS cmake arg emitted above so the
+    # two can never disagree within one generated file.
     builtin_components_property = (
         ""
         if minimal
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
-            for name in sorted(get_available_components() or [])
+            for name in sorted(
+                set(get_available_components() or []).difference(
+                    CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";")
+                )
+            )
         )
     )
 
@@ -151,9 +192,13 @@ set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
+{cmake_args}
+
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 {cpp_standard_options}
+
+{cxx_compile_options}
 
 {extra_compile_options}
 
@@ -196,15 +241,27 @@ def get_component_cmakelists() -> str:
 if(CMAKE_SCRIPT_MODE_FILE)
     file(GLOB_RECURSE app_sources
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
     )
 else()
     file(GLOB_RECURSE app_sources CONFIGURE_DEPENDS
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/*.c"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cpp"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cc"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.cxx"
+        "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c++"
         "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/*.c"
     )
 endif()
@@ -237,4 +294,14 @@ def write_project(minimal: bool = False) -> None:
     write_file_if_changed(
         CORE.relative_src_path("CMakeLists.txt"),
         get_component_cmakelists(),
+    )
+
+    # Snapshot the exclusion set so has_outdated_files() can trigger a
+    # discovery reconfigure when it changes. Excluded components never
+    # register in project_description.json, so re-including one (e.g. a
+    # config gains mqtt) requires a fresh discovery pass before the
+    # ESPHOME_PROJECT_BUILTIN_COMPONENTS property can list it.
+    write_file_if_changed(
+        CORE.relative_build_path("exclude_components.esphomeinternal"),
+        ";".join(get_excluded_builtin_components()),
     )

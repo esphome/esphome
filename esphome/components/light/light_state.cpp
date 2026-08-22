@@ -71,6 +71,14 @@ void LightState::setup() {
       break;
   }
 
+  // A light coming up on boot must never end up on-but-invisible: if the resolved restore
+  // state is on but its brightness is zero (e.g. a stale/persisted value from before a
+  // forced-on restore mode, or an inverted restore flipping a dim-to-0 off state to on),
+  // reset it to full brightness.
+  if (recovered.state && recovered.brightness == 0.0f) {
+    recovered.brightness = 1.0f;
+  }
+
   call.set_color_mode_if_supported(recovered.color_mode);
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);

@@ -87,6 +87,7 @@ from esphome.const import (
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -166,6 +167,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
     DEVICE_CLASS_REACTIVE_ENERGY,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
@@ -319,13 +321,25 @@ _SENSOR_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
             cv.GenerateID(): cv.declare_id(Sensor),
-            cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
-            cv.Optional(CONF_ACCURACY_DECIMALS): validate_accuracy_decimals,
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_STATE_CLASS): validate_state_class,
-            cv.Optional(CONF_ENTITY_CATEGORY): sensor_entity_category,
-            cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
-            cv.Optional(CONF_EXPIRE_AFTER): cv.All(
+            cv.Optional(
+                CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
+            ): validate_unit_of_measurement,
+            cv.Optional(
+                CONF_ACCURACY_DECIMALS, visibility=cv.Visibility.ADVANCED
+            ): validate_accuracy_decimals,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
+            cv.Optional(
+                CONF_STATE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_state_class,
+            cv.Optional(
+                CONF_ENTITY_CATEGORY, visibility=cv.Visibility.ADVANCED
+            ): sensor_entity_category,
+            cv.Optional(
+                CONF_FORCE_UPDATE, default=False, visibility=cv.Visibility.ADVANCED
+            ): cv.boolean,
+            cv.Optional(CONF_EXPIRE_AFTER, visibility=cv.Visibility.ADVANCED): cv.All(
                 cv.requires_component("mqtt"),
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),

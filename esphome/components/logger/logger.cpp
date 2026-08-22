@@ -206,7 +206,7 @@ void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 #endif
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
