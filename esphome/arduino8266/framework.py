@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from esphome.build_helpers.ccache import ccache_defaults_env, resolve_ccache_path
 from esphome.build_helpers.ninja import find_ninja
@@ -141,7 +141,25 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
     )
 
 
-def get_build_env(toolchain_path: Path) -> dict[str, str]:
+# Sentinel: "resolve for me" (None is a real value meaning disabled).
+# run_compile resolves once and threads the result so one build never pays
+# the PATH scan and runnability probe three times.
+_CCACHE_UNRESOLVED: Any = object()
+
+
+def toolchain_tool(toolchain_path: Path, name: str) -> Path:
+    """Path to one toolchain tool (gcc, g++, ar, size, addr2line, ...).
+
+    The single owner of the ``bin/xtensa-lx106-elf-<name>`` layout and the
+    Windows suffix, so a toolchain package bump touches one spot.
+    """
+    suffix = ".exe" if os.name == "nt" else ""
+    return toolchain_path / "bin" / f"xtensa-lx106-elf-{name}{suffix}"
+
+
+def get_build_env(
+    toolchain_path: Path, ccache: str | None = _CCACHE_UNRESOLVED
+) -> dict[str, str]:
     env = os.environ.copy()
     # Drop empty entries: a trailing separator from an absent PATH would
     # make the shell search the current directory for tools
@@ -150,7 +168,7 @@ def get_build_env(toolchain_path: Path) -> dict[str, str]:
         *filter(None, env.get("PATH", "").split(os.pathsep)),
     ]
     env["PATH"] = os.pathsep.join(parts)
-    env.update(ccache_env())
+    env.update(ccache_env(ccache))
     return env
 
 
@@ -164,7 +182,7 @@ def ccache_path() -> str | None:
     return resolve_ccache_path()
 
 
-def ccache_env() -> dict[str, str]:
+def ccache_env(ccache: str | None = _CCACHE_UNRESOLVED) -> dict[str, str]:
     """Return ccache settings for the build subprocess (not os.environ).
 
     Mirrors ``espidf.framework._ccache_env``: cache under the machine-global
@@ -172,6 +190,8 @@ def ccache_env() -> dict[str, str]:
     scoped to the build dir so devices share framework cache entries. Values
     the user already set in the environment are respected.
     """
-    if ccache_path() is None:
+    if ccache is _CCACHE_UNRESOLVED:
+        ccache = ccache_path()
+    if ccache is None:
         return {}
     return ccache_defaults_env(get_arduino8266_tools_path() / "ccache")
