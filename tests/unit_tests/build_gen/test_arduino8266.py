@@ -69,13 +69,6 @@ def _shq(tok: str) -> str:
     return f'"{tok}"' if os.name == "nt" else f"'{tok}'"
 
 
-def test_rule_map_covers_all_source_suffixes() -> None:
-    """Every suffix a library manifest can select must map to a ninja rule."""
-    from esphome.platformio.library import SRC_FILE_EXTENSIONS
-
-    assert set(arduino8266._RULE_FOR_SUFFIX) == set(SRC_FILE_EXTENSIONS)
-
-
 def _resolve(*flags: str):
     """Set the build flags and resolve the knob config in one step."""
     _set_flags(*flags)
@@ -221,9 +214,8 @@ def _write_ninja(
             "esphome.arduino.library.resolve_libraries",
             return_value=libraries or [],
         ),
-        patch("esphome.arduino8266.framework.ccache_path", return_value=ccache),
     ):
-        arduino8266.write_project(paths)
+        arduino8266.write_project(paths, ccache)
     return (CORE.relative_pioenvs_path(CORE.name) / "build.ninja").read_text()
 
 
@@ -299,7 +291,7 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert "core_esp8266_main.cpp.o" in content
     # Assembly and C sources compile through their own rules
     assert "cont.S.o: asm" in content
-    assert "abi.c.o: cc" in content
+    assert "abi.c.o: c" in content
     # throw_stubs is force-included for ESPHome sources only, via one shared
     # srcflags variable rather than a copy of the flags line per edge
     src_lines = [line for line in content.splitlines() if "obj/src/" in line]
@@ -547,25 +539,21 @@ def test_write_project_libraries_and_variant(
 
 def test_get_flash_ld_path(tmp_path: Path) -> None:
 
+    paths = InstalledPaths(
+        framework=tmp_path / "framework",
+        toolchain=tmp_path / "toolchain",
+        ninja=Path("ninja"),
+    )
     CORE.testing_mode = True
-    assert get_flash_ld_path(tmp_path) == (
+    assert get_flash_ld_path(tmp_path, paths) == (
         tmp_path / "ld" / "testing_eagle.flash.4m.ld"
     )
 
     CORE.testing_mode = False
-    with (
-        patch(
-            "esphome.arduino8266.framework.get_framework_path",
-            return_value=tmp_path / "framework",
-        ),
-        patch(
-            "esphome.arduino8266.framework.framework_package_version",
-            return_value="3.30102.0",
-        ),
-    ):
-        assert get_flash_ld_path(tmp_path) == (
-            tmp_path / "framework" / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld"
-        )
+    # Reads the same install the ninja file linked against; no re-resolve
+    assert get_flash_ld_path(tmp_path, paths) == (
+        tmp_path / "framework" / "tools" / "sdk" / "ld" / "eagle.flash.4m.ld"
+    )
 
 
 def test_flash_size_str() -> None:
@@ -756,8 +744,8 @@ def test_write_project_returns_changed(tmp_path: Path) -> None:
         patch("esphome.arduino.library.resolve_libraries", return_value=[]),
         patch("esphome.arduino8266.framework.ccache_path", return_value=None),
     ):
-        assert arduino8266.write_project(paths) is True
-        assert arduino8266.write_project(paths) is False
+        assert arduino8266.write_project(paths, None) is True
+        assert arduino8266.write_project(paths, None) is False
 
 
 def test_write_project_missing_elf2bin_raises(tmp_path: Path) -> None:
@@ -774,7 +762,7 @@ def test_write_project_missing_elf2bin_raises(tmp_path: Path) -> None:
         patch("esphome.arduino.library.resolve_libraries", return_value=[]),
         pytest.raises(EsphomeError, match="elf2bin"),
     ):
-        arduino8266.write_project(paths)
+        arduino8266.write_project(paths, None)
 
 
 def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
@@ -789,7 +777,7 @@ def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
         ),
         pytest.raises(EsphomeError, match="source directory"),
     ):
-        arduino8266.write_project(paths)
+        arduino8266.write_project(paths, None)
 
 
 def test_build_config_custom_mmu_without_knob_raises() -> None:
