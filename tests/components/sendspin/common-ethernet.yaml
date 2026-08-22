@@ -1,5 +1,5 @@
 packages:
   sendspin_hub: !include common-hub.yaml
 
-wifi:
-  ap:
+ethernet:
+  type: OPENETH
