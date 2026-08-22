@@ -106,3 +106,6 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
+  p1ngb4ck/esphome_esp_littlefs:
+    git: https://github.com/p1ngb4ck/esphome_esp_littlefs.git
+    version: main

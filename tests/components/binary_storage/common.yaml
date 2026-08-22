@@ -1,0 +1,36 @@
+binary_storage:
+  - type: EEPROM
+    id: eeprom_raw
+    address: 0x50
+    model: AT24C256
+    storage_name: "EEPROM 32KB"
+
+  - type: FRAM
+    id: fram_raw
+    address: 0x51
+    model: MB85RC256
+    storage_name: "FRAM 32KB"
+
+  - type: SPI_FLASH
+    id: spi_flash_raw
+    cs_pin: ${spi_flash_cs_pin}
+    model: W25Q32
+    storage_name: "SPI Flash 4MB"
+
+  - type: SPI_FRAM
+    id: spi_fram_raw
+    cs_pin: ${spi_fram_cs_pin}
+    model: FM25V10
+    storage_name: "SPI FRAM 128KB"
+
+  - type: SPI_MRAM
+    id: spi_mram_raw
+    cs_pin: ${spi_mram_cs_pin}
+    model: MR25H256
+    storage_name: "SPI MRAM 32KB"
+
+  - type: ONEWIRE_EEPROM
+    id: onewire_eeprom_raw
+    pin: ${onewire_pin}
+    model: DS2431
+    storage_name: "DS2431"

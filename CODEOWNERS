@@ -68,6 +68,7 @@ esphome/components/beken_spi_led_strip/* @Mat931
 esphome/components/bh1750/* @OttoWinter
 esphome/components/bh1900nux/* @B48D81EFCC
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/binary_storage/* @p1ngb4ck
 esphome/components/bk72xx/* @kuba2k2
 esphome/components/bk72xx_ble/* @Bl00d-B0b
 esphome/components/bk72xx_ble_tracker/* @Bl00d-B0b
@@ -526,6 +527,7 @@ esphome/components/st7735/* @SenexCrenshaw
 esphome/components/st7789v/* @kbx81
 esphome/components/st7920/* @marsjan155
 esphome/components/statsd/* @Links2004
+esphome/components/storage/* @p1ngb4ck
 esphome/components/stts22h/* @B48D81EFCC
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter

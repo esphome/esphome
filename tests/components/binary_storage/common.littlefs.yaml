@@ -1,0 +1,38 @@
+# LittleFS coverage (ESP32 / ESP-IDF only):
+# - a single littlefs region        -> LittleFSMount over the block-callback path (external SPI flash)
+# - a littlefs region plus a raw one -> filesystem and raw access on the same device (I2C FRAM)
+# - FLASH_PARTITION                  -> esp_littlefs on an internal partition (FlashPartition driver)
+# The partition label does not need to exist for the CI compile; mounting is runtime-only.
+binary_storage:
+  - type: SPI_FLASH
+    id: spi_flash_lfs
+    cs_pin: ${spi_flash_lfs_cs_pin}
+    model: W25Q32
+    capacity: 4MB
+    storage_name: "SPI Flash LittleFS"
+    regions:
+      - format: littlefs
+        size: remaining
+        mount_path: /extflash
+        auto_format: true
+        id: spi_flash_lfs_mount
+
+  - type: FRAM
+    id: fram_both
+    address: 0x52
+    model: MB85RC256
+    capacity: 32kB
+    storage_name: "FRAM filesystem + raw"
+    regions:
+      - format: littlefs
+        size: 16kB
+        mount_path: /fram
+      - format: raw
+        size: remaining
+
+  - type: FLASH_PARTITION
+    id: internal_lfs
+    partition_label: littlefs
+    mount_path: /lfs
+    auto_format: true
+    storage_name: "Internal LittleFS"

@@ -1,0 +1,693 @@
+#include "esphome/core/defines.h"
+#include "spi_flash.h"
+
+#ifdef USE_BINARY_STORAGE_SPI_FLASH
+
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include <algorithm>
+
+namespace esphome::binary_storage {
+
+static const char *const TAG = "spi_flash";
+
+void SPIFlash::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up SPI Flash...");
+
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    if (!this->esp_partition_setup_()) {
+      this->mark_failed();
+      return;
+    }
+    // Regions are registered as esp_partitions; littlefs/nvs consumers mount by label. The raw
+    // side, if any, registers here as usual (BinaryStorage::setup()).
+    BinaryStorage::setup();
+    ESP_LOGCONFIG(TAG, "  Model: %s (esp_partition mode)", this->model_.c_str());
+    return;
+  }
+#endif
+
+  this->spi_setup();
+
+  // Read JEDEC ID for device identification
+  this->jedec_id_ = this->read_jedec_id();
+
+  ESP_LOGCONFIG(TAG, "  JEDEC ID: 0x%06" PRIX32, this->jedec_id_);
+  ESP_LOGCONFIG(TAG, "  Manufacturer: 0x%02X", this->get_manufacturer_id());
+  ESP_LOGCONFIG(TAG, "  Device ID: 0x%04" PRIX32, (uint32_t) this->get_device_id());
+
+  // Auto-configure from JEDEC ID if capacity not set
+  if (this->capacity_ == 0 && this->jedec_id_ != 0 && this->jedec_id_ != 0xFFFFFF) {
+    this->auto_configure_from_jedec_id_();
+  }
+
+  if (this->capacity_ == 0) {
+    ESP_LOGW(TAG, "Could not auto-detect capacity, set it in config!");
+  }
+
+  // Enter 4-byte address mode if capacity exceeds 16MB (24-bit address limit)
+  if (this->capacity_ > (1UL << 24)) {
+    ESP_LOGCONFIG(TAG, "  Capacity > 16MB, entering 4-byte address mode...");
+    if (!this->enter_4byte_mode_()) {
+      ESP_LOGE(TAG, "Failed to enter 4-byte address mode - cannot access full capacity!");
+      this->mark_failed();
+      return;
+    }
+  }
+
+  // Verify device is accessible
+  if (!this->is_ready()) {
+    ESP_LOGE(TAG, "Flash device not responding!");
+    this->mark_failed();
+    return;
+  }
+
+  // Enable quad mode if configured
+  if (this->quad_mode_) {
+    ESP_LOGCONFIG(TAG, "  Enabling Quad SPI mode...");
+    if (!this->enable_quad_mode_()) {
+      ESP_LOGW(TAG, "  Failed to enable Quad SPI mode, falling back to standard SPI");
+      this->quad_mode_ = false;
+    } else {
+      ESP_LOGCONFIG(TAG, "  Quad SPI mode enabled (4x faster reads)");
+    }
+  }
+
+  // Call base class setup
+  BinaryStorage::setup();
+
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
+}
+
+void SPIFlash::dump_config() {
+  ESP_LOGCONFIG(TAG, "SPI Flash:");
+  LOG_PIN("  CS Pin: ", this->cs_);
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_.c_str());
+  if (this->capacity_ >= 1024 * 1024) {
+    ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_,
+                  this->capacity_ / (1024.0f * 1024.0f));
+  } else {
+    ESP_LOGCONFIG(TAG, "  Capacity: %" PRIu32 " bytes (%.1f KB)", this->capacity_, this->capacity_ / 1024.0f);
+  }
+  ESP_LOGCONFIG(TAG, "  Page Size: %" PRIu32 " bytes", this->page_size_);
+  ESP_LOGCONFIG(TAG, "  Sector Size: %" PRIu32 " bytes", this->sector_size_);
+  ESP_LOGCONFIG(TAG, "  JEDEC ID: 0x%06" PRIX32, this->jedec_id_);
+  ESP_LOGCONFIG(TAG, "  Manufacturer: 0x%02X", this->get_manufacturer_id());
+  ESP_LOGCONFIG(TAG, "  Quad Mode: %s", this->quad_mode_ ? "Enabled (4x faster)" : "Disabled");
+  ESP_LOGCONFIG(TAG, "  4-Byte Addressing: %s", this->four_byte_mode_ ? "Enabled (>16MB)" : "Disabled");
+
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "  Communication failed!");
+  }
+}
+
+void SPIFlash::auto_configure_from_jedec_id_() {
+  uint8_t mfg = this->get_manufacturer_id();
+  uint16_t dev_id = this->get_device_id();
+
+  // Common capacity detection (bits 15-8 of device ID often indicate capacity)
+  uint8_t capacity_code = (dev_id >> 8) & 0xFF;
+
+  // Standard: capacity = 2^capacity_code bytes
+  // Codes 11-25 cover 2KB to 32MB (code 25 = 32MB for 256Mbit chips)
+  if (capacity_code >= 11 && capacity_code <= 25) {
+    this->capacity_ = 1UL << capacity_code;
+    ESP_LOGD(TAG, "Auto-detected capacity: %" PRIu32 " bytes (%.1f MB)", this->capacity_,
+             this->capacity_ / (1024.0f * 1024.0f));
+  }
+
+  // Known chip identification
+  if (this->jedec_id_ == 0xC22019) {
+    // Macronix MX25L25635F - 256Mbit (32MB) 3.3V SPI NOR Flash
+    // Commonly found in PlayStation 4 consoles (SAA-001, SAB-001)
+    ESP_LOGD(TAG, "========================================");
+    ESP_LOGD(TAG, "  Detected: Macronix MX25L25635F");
+    ESP_LOGD(TAG, "  256Mbit (32MB) 3.3V SPI NOR Flash");
+    ESP_LOGD(TAG, "  4-byte addressing required");
+    ESP_LOGD(TAG, "========================================");
+    return;
+  }
+
+  // Manufacturer-specific logging
+  switch (mfg) {
+    case 0xEF:  // Winbond
+      ESP_LOGD(TAG, "Detected Winbond flash");
+      break;
+    case 0xC2:  // Macronix
+      ESP_LOGD(TAG, "Detected Macronix flash");
+      break;
+    case 0x1F:  // Adesto
+      ESP_LOGD(TAG, "Detected Adesto flash");
+      break;
+    case 0x20:  // Micron/ST
+      ESP_LOGD(TAG, "Detected Micron/ST flash");
+      break;
+    case 0xC8:  // GigaDevice
+      ESP_LOGD(TAG, "Detected GigaDevice flash");
+      break;
+    default:
+      ESP_LOGD(TAG, "Unknown manufacturer: 0x%02X", mfg);
+      break;
+  }
+}
+
+uint32_t SPIFlash::read_jedec_id() {
+  this->enable();
+  this->write_byte(CMD_JEDEC_ID);
+  uint8_t mfg = this->read_byte();
+  uint8_t id_high = this->read_byte();
+  uint8_t id_low = this->read_byte();
+  this->disable();
+
+  return ((uint32_t) mfg << 16) | ((uint32_t) id_high << 8) | id_low;
+}
+
+uint8_t SPIFlash::read_status_register() {
+  this->enable();
+  this->write_byte(CMD_READ_STATUS_REG1);
+  uint8_t status = this->read_byte();
+  this->disable();
+  return status;
+}
+
+uint8_t SPIFlash::read_status_register2() {
+  this->enable();
+  this->write_byte(CMD_READ_STATUS_REG2);
+  uint8_t status = this->read_byte();
+  this->disable();
+  return status;
+}
+
+bool SPIFlash::enable_quad_mode_() {
+  // Read current status registers
+  uint8_t status1 = this->read_status_register();
+  uint8_t status2 = this->read_status_register2();
+
+  // Check if QE bit is already set
+  if (status2 & STATUS2_QE) {
+    ESP_LOGD(TAG, "Quad mode already enabled");
+    return true;
+  }
+
+  // Set QE bit in status register 2
+  status2 |= STATUS2_QE;
+
+  // Write both status registers (must write SR1 and SR2 together)
+  if (!this->write_enable()) {
+    ESP_LOGE(TAG, "Write enable failed for quad mode");
+    return false;
+  }
+
+  this->enable();
+  this->write_byte(CMD_WRITE_STATUS_REG);
+  this->write_byte(status1);  // SR1
+  this->write_byte(status2);  // SR2
+  this->disable();
+
+  // Wait for write to complete
+  if (!this->wait_ready(100)) {
+    ESP_LOGE(TAG, "Timeout waiting for quad mode enable");
+    return false;
+  }
+
+  // Verify QE bit is set
+  status2 = this->read_status_register2();
+  if (!(status2 & STATUS2_QE)) {
+    ESP_LOGE(TAG, "Failed to enable quad mode");
+    return false;
+  }
+
+  ESP_LOGD(TAG, "Quad mode enabled successfully");
+  return true;
+}
+
+bool SPIFlash::disable_quad_mode_() {
+  // Read current status registers
+  uint8_t status1 = this->read_status_register();
+  uint8_t status2 = this->read_status_register2();
+
+  // Check if QE bit is already cleared
+  if (!(status2 & STATUS2_QE)) {
+    ESP_LOGD(TAG, "Quad mode already disabled");
+    return true;
+  }
+
+  // Clear QE bit in status register 2
+  status2 &= ~STATUS2_QE;
+
+  // Write both status registers
+  if (!this->write_enable()) {
+    ESP_LOGE(TAG, "Write enable failed for quad mode disable");
+    return false;
+  }
+
+  this->enable();
+  this->write_byte(CMD_WRITE_STATUS_REG);
+  this->write_byte(status1);  // SR1
+  this->write_byte(status2);  // SR2
+  this->disable();
+
+  // Wait for write to complete
+  if (!this->wait_ready(100)) {
+    ESP_LOGE(TAG, "Timeout waiting for quad mode disable");
+    return false;
+  }
+
+  ESP_LOGD(TAG, "Quad mode disabled successfully");
+  return true;
+}
+
+bool SPIFlash::wait_ready(uint32_t timeout_ms) {
+  uint32_t start = millis();
+
+  while (millis() - start < timeout_ms) {
+    uint8_t status = this->read_status_register();
+    if (!(status & STATUS_BUSY)) {
+      return true;
+    }
+    delay(1);
+  }
+
+  ESP_LOGW(TAG, "Wait ready timeout after %" PRIu32 " ms", timeout_ms);
+  return false;
+}
+
+bool SPIFlash::is_ready() {
+  uint8_t status = this->read_status_register();
+  return !(status & STATUS_BUSY);
+}
+
+bool SPIFlash::write_enable() {
+  this->enable();
+  this->write_byte(CMD_WRITE_ENABLE);
+  this->disable();
+
+  // Verify write enable latch is set
+  uint8_t status = this->read_status_register();
+  if (!(status & STATUS_WEL)) {
+    ESP_LOGE(TAG, "Write enable failed!");
+    return false;
+  }
+
+  return true;
+}
+
+void SPIFlash::write_disable() {
+  this->enable();
+  this->write_byte(CMD_WRITE_DISABLE);
+  this->disable();
+}
+
+bool SPIFlash::write_status_registers(uint8_t sr1, uint8_t sr2) {
+  if (!this->write_enable()) {
+    ESP_LOGE(TAG, "Write enable failed for status register write");
+    return false;
+  }
+
+  this->enable();
+  this->write_byte(CMD_WRITE_STATUS_REG);
+  this->write_byte(sr1);
+  this->write_byte(sr2);
+  this->disable();
+
+  if (!this->wait_ready(1000)) {
+    ESP_LOGE(TAG, "Timeout writing status registers");
+    return false;
+  }
+
+  return true;
+}
+
+void SPIFlash::write_address_(uint32_t address) {
+  if (this->four_byte_mode_) {
+    this->write_byte((address >> 24) & 0xFF);
+  }
+  this->write_byte((address >> 16) & 0xFF);
+  this->write_byte((address >> 8) & 0xFF);
+  this->write_byte(address & 0xFF);
+}
+
+bool SPIFlash::enter_4byte_mode_() {
+  this->enable();
+  this->write_byte(CMD_ENTER_4BYTE_ADDR_MODE);
+  this->disable();
+
+  this->four_byte_mode_ = true;
+
+  // Verify 4-byte mode is active via Configuration Register (Macronix: bit 5 = ADP)
+  this->enable();
+  this->write_byte(CMD_READ_CONFIG_REG);
+  uint8_t config_reg = this->read_byte();
+  this->disable();
+
+  if (config_reg & 0x20) {
+    ESP_LOGD(TAG, "Entered 4-byte address mode (verified, CR=0x%02X)", config_reg);
+  } else {
+    ESP_LOGE(TAG, "4-byte address mode NOT confirmed! CR=0x%02X (bit 5 not set)", config_reg);
+    ESP_LOGE(TAG, "Operations above 16MB will fail! Check chip compatibility.");
+    this->four_byte_mode_ = false;
+    return false;
+  }
+
+  return true;
+}
+
+bool SPIFlash::exit_4byte_mode_() {
+  this->enable();
+  this->write_byte(CMD_EXIT_4BYTE_ADDR_MODE);
+  this->disable();
+
+  this->four_byte_mode_ = false;
+  ESP_LOGD(TAG, "Exited 4-byte address mode");
+  return true;
+}
+
+bool SPIFlash::read_data_(uint32_t address, uint8_t *data, size_t length) {
+  if (!this->wait_ready()) {
+    return false;
+  }
+
+  this->enable();
+
+  if (this->quad_mode_) {
+    // Use Fast Read Quad Output command (0x6B)
+    // Command and address on 1 line, data on 4 lines
+    this->write_byte(CMD_FAST_READ_QUAD_OUTPUT);
+    this->write_address_(address);
+    this->write_byte(0xFF);  // Dummy byte required for fast read
+    // Note: Data is now read on 4 SPI lines (hardware handles this automatically)
+    this->read_array(data, length);
+  } else {
+    // Standard read command (single SPI line)
+    this->write_byte(CMD_READ_BYTES);
+    this->write_address_(address);
+    this->read_array(data, length);
+  }
+
+  this->disable();
+
+  return true;
+}
+
+#ifdef USE_ESP_IDF
+bool SPIFlash::esp_partition_setup_() {
+  esp_flash_spi_device_config_t cfg = {};
+  cfg.host_id = static_cast<spi_host_device_t>(this->spi_host_);
+  cfg.cs_io_num = this->cs_pin_num_;
+  cfg.io_mode = SPI_FLASH_FASTRD;
+  cfg.freq_mhz = this->flash_freq_mhz_;
+
+  esp_err_t err = spi_bus_add_flash_device(&this->ext_chip_, &cfg);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "spi_bus_add_flash_device failed: %s", esp_err_to_name(err));
+    return false;
+  }
+  err = esp_flash_init(this->ext_chip_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_flash_init failed: %s -- flash not reachable on the exclusive bus?", esp_err_to_name(err));
+    return false;
+  }
+  uint32_t chip_size = 0;
+  if (esp_flash_get_size(this->ext_chip_, &chip_size) == ESP_OK) {
+    if (this->capacity_ == 0)
+      this->capacity_ = chip_size;
+    ESP_LOGCONFIG(TAG, "  esp_flash chip size: %" PRIu32 " bytes", chip_size);
+  }
+  for (auto &region : this->partition_regions_) {
+    const esp_partition_t *part = nullptr;
+    err = esp_partition_register_external(this->ext_chip_, static_cast<size_t>(region.offset),
+                                          static_cast<size_t>(region.size), region.label, ESP_PARTITION_TYPE_DATA,
+                                          static_cast<esp_partition_subtype_t>(region.subtype), &part);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_partition_register_external('%s') failed: %s", region.label, esp_err_to_name(err));
+      return false;
+    }
+    ESP_LOGCONFIG(TAG, "  Registered partition '%s' at 0x%08" PRIx32 " (%" PRIu32 " bytes)", region.label,
+                  static_cast<uint32_t>(region.offset), static_cast<uint32_t>(region.size));
+  }
+  return true;
+}
+#endif  // USE_ESP_IDF
+
+storage::StorageError SPIFlash::read_physical(uint64_t offset, uint8_t *buf, size_t len, size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    esp_err_t err = esp_flash_read(this->ext_chip_, buf, static_cast<uint32_t>(offset), len);
+    if (bytes_transferred != nullptr)
+      *bytes_transferred = (err == ESP_OK) ? len : 0;
+    return err == ESP_OK ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_READ_ERROR;
+  }
+#endif
+  bool ok = this->read_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_READ_ERROR;
+}
+
+storage::StorageError SPIFlash::write_physical(uint64_t offset, const uint8_t *buf, size_t len,
+                                               size_t *bytes_transferred) {
+  if (!this->is_valid_address_(offset, len))
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    esp_err_t err = esp_flash_write(this->ext_chip_, buf, static_cast<uint32_t>(offset), len);
+    if (bytes_transferred != nullptr)
+      *bytes_transferred = (err == ESP_OK) ? len : 0;
+    return err == ESP_OK ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  }
+#endif
+  bool ok = this->write_raw(static_cast<uint32_t>(offset), buf, len);
+  if (bytes_transferred != nullptr)
+    *bytes_transferred = ok ? len : 0;
+  return ok ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+}
+
+storage::StorageError SPIFlash::erase_physical(uint64_t offset, size_t len) {
+  if (len == 0)
+    return storage::StorageError::STORAGE_ERROR_OK;
+#ifdef USE_ESP_IDF
+  if (this->esp_partition_mode_) {
+    esp_err_t err = esp_flash_erase_region(this->ext_chip_, static_cast<uint32_t>(offset), static_cast<uint32_t>(len));
+    return err == ESP_OK ? storage::StorageError::STORAGE_ERROR_OK : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  }
+#endif
+
+  const uint32_t sector = this->sector_size_;
+  const uint64_t capacity = this->get_capacity();
+  if (offset + len > capacity) {
+    ESP_LOGE(TAG, "Erase out of bounds: 0x%08" PRIX32 " + %" PRIu32 " > capacity %" PRIu32, (uint32_t) offset,
+             (uint32_t) len, (uint32_t) capacity);
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
+  }
+  // Erasing is destructive at sector granularity: an unaligned range would take the
+  // neighbouring data sharing the first or last sector with it. Refuse rather than surprise.
+  if ((offset % sector) != 0 || (len % sector) != 0) {
+    ESP_LOGE(TAG, "Erase range 0x%08" PRIX32 " + %" PRIu32 " is not aligned to the %" PRIu32 " byte sector size",
+             (uint32_t) offset, (uint32_t) len, sector);
+    return storage::StorageError::STORAGE_ERROR_INVALID_ARGS;
+  }
+
+  // Whole device: one chip erase instead of thousands of sector commands.
+  if (offset == 0 && len == capacity) {
+    return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK
+                              : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  }
+
+  // The block opcodes are only usable when the configured sector size tiles them evenly --
+  // with an exotic sector_size_ the sector opcode stays the only safe choice.
+  const bool blocks_usable = (BLOCK_SIZE_64K % sector) == 0;
+
+  uint32_t addr = static_cast<uint32_t>(offset);
+  const uint32_t end = addr + static_cast<uint32_t>(len);
+  while (addr < end) {
+    const uint32_t remaining = end - addr;
+    bool ok;
+    // Coarsest opcode that fits: a 1 MB range costs 16 block erases instead of 256 sector ones.
+    if (blocks_usable && (addr % BLOCK_SIZE_64K) == 0 && remaining >= BLOCK_SIZE_64K) {
+      ok = this->erase_block_64k(addr);
+      addr += BLOCK_SIZE_64K;
+    } else if (blocks_usable && (addr % BLOCK_SIZE_32K) == 0 && remaining >= BLOCK_SIZE_32K) {
+      ok = this->erase_block_32k(addr);
+      addr += BLOCK_SIZE_32K;
+    } else {
+      ok = this->erase_sector(addr);
+      addr += sector;
+    }
+    if (!ok)
+      return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  }
+  return storage::StorageError::STORAGE_ERROR_OK;
+}
+
+storage::StorageError SPIFlash::format() {
+  return this->erase_chip() ? storage::StorageError::STORAGE_ERROR_OK
+                            : storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+}
+
+bool SPIFlash::read_raw(uint32_t address, uint8_t *data, size_t length) {
+  if (!this->is_valid_address_(address, length)) {
+    ESP_LOGE(TAG, "Read address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
+    return false;
+  }
+
+  // One READ command for the whole range: the flash auto-increments its address for any
+  // length, and the ESP-IDF SPI layer already slices the transfer into MAX_TRANSFER_SIZE
+  // (4092 B) transactions transparently. The former 256 B loop re-issued a full
+  // enable/command/address/disable sequence per chunk for no benefit -- this is both simpler
+  // and faster.
+  return this->read_data_(address, data, length);
+}
+
+bool SPIFlash::write_page_(uint32_t address, const uint8_t *data, size_t length) {
+  if (length == 0 || length > this->page_size_) {
+    ESP_LOGE(TAG, "Invalid page write length: %" PRIu32 " (max %" PRIu32 ")", (uint32_t) length, this->page_size_);
+    return false;
+  }
+
+  if (!this->wait_ready()) {
+    return false;
+  }
+
+  if (!this->write_enable()) {
+    return false;
+  }
+
+  this->enable();
+  this->write_byte(CMD_PAGE_PROGRAM);
+  this->write_address_(address);
+  this->write_array(data, length);
+  this->disable();
+
+  // Wait for programming to complete
+  return this->wait_ready();
+}
+
+bool SPIFlash::write_raw(uint32_t address, const uint8_t *data, size_t length) {
+  if (!this->is_valid_address_(address, length)) {
+    ESP_LOGE(TAG, "Write address out of bounds: 0x%" PRIx32 " + %" PRIu32, address, (uint32_t) length);
+    return false;
+  }
+
+  // Flash requires page-aligned writes
+  while (length > 0) {
+    // Calculate how many bytes we can write without crossing page boundary
+    uint32_t bytes_to_boundary = this->get_bytes_to_page_boundary_(address);
+    size_t write_len = std::min((size_t) bytes_to_boundary, length);
+
+    if (!this->write_page_(address, data, write_len)) {
+      return false;
+    }
+
+    address += write_len;
+    data += write_len;
+    length -= write_len;
+  }
+
+  return true;
+}
+
+bool SPIFlash::erase_(uint32_t address, uint8_t cmd) {
+  if (!this->wait_ready()) {
+    return false;
+  }
+
+  if (!this->write_enable()) {
+    return false;
+  }
+
+  this->enable();
+  this->write_byte(cmd);
+  this->write_address_(address);
+  this->disable();
+
+  // Wait for erase to complete (can take several seconds for large blocks)
+  return this->wait_ready(10000);  // 10 second timeout for erase
+}
+
+bool SPIFlash::erase_sector(uint32_t address) {
+  ESP_LOGD(TAG, "Erasing sector at 0x%06" PRIX32, address & ~(this->sector_size_ - 1));
+  return this->erase_(address, CMD_SECTOR_ERASE_4K);
+}
+
+bool SPIFlash::erase_block_32k(uint32_t address) {
+  ESP_LOGD(TAG, "Erasing 32KB block at 0x%06" PRIX32, address & ~(uint32_t) 0x7FFF);
+  return this->erase_(address, CMD_BLOCK_ERASE_32K);
+}
+
+bool SPIFlash::erase_block_64k(uint32_t address) {
+  ESP_LOGD(TAG, "Erasing 64KB block at 0x%06" PRIX32, address & ~(uint32_t) 0xFFFF);
+  return this->erase_(address, CMD_BLOCK_ERASE_64K);
+}
+
+bool SPIFlash::erase_block(uint32_t address) {
+  // Use sector erase by default (smallest erase unit)
+  return this->erase_sector(address);
+}
+
+bool SPIFlash::erase_chip() {
+  ESP_LOGW(TAG, "Erasing entire chip - ALL DATA WILL BE LOST!");
+
+  if (!this->wait_ready()) {
+    return false;
+  }
+
+  if (!this->write_enable()) {
+    return false;
+  }
+
+  this->enable();
+  this->write_byte(CMD_CHIP_ERASE);
+  this->disable();
+
+  // Chip erase time scales with the device size -- a fixed 60 s timed out on larger parts
+  // (datasheet maxima run to ~256 s for 16 MB and ~512 s for 32 MB NOR flash). Budget 20 s per
+  // MB plus a 30 s floor for command overhead and small-chip margin (the same 40 s-per-2 MB
+  // basis the Linux spi-nor driver uses). A generous timeout only matters in the error case; a
+  // healthy chip returns as soon as its status register clears.
+  const uint32_t capacity_mb = this->capacity_ / (1024UL * 1024UL);
+  const uint32_t erase_timeout_ms = 30000UL + capacity_mb * 20000UL;
+  ESP_LOGI(TAG, "Chip erase in progress... (timeout %" PRIu32 " s)", erase_timeout_ms / 1000);
+  bool success = this->wait_ready(erase_timeout_ms);
+
+  if (success) {
+    ESP_LOGI(TAG, "Chip erase complete");
+  } else {
+    ESP_LOGE(TAG, "Chip erase timeout!");
+  }
+
+  return success;
+}
+
+bool SPIFlash::sync() {
+  // Just ensure device is ready (any pending operation is complete)
+  return this->wait_ready();
+}
+
+void SPIFlash::power_down() {
+  this->enable();
+  this->write_byte(CMD_POWER_DOWN);
+  this->disable();
+
+  // Device requires 3us to enter power down mode
+  delayMicroseconds(10);
+
+  ESP_LOGD(TAG, "Entered power down mode");
+}
+
+void SPIFlash::wake_up() {
+  this->enable();
+  this->write_byte(CMD_RELEASE_POWER_DOWN);
+  this->disable();
+
+  // Device requires 3us to wake up
+  delayMicroseconds(10);
+
+  ESP_LOGD(TAG, "Woke up from power down");
+}
+
+}  // namespace esphome::binary_storage
+
+#endif  // USE_BINARY_STORAGE_SPI_FLASH

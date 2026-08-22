@@ -1,0 +1,5 @@
+substitutions:
+  onewire_pin: P22
+
+packages:
+  common: !include common.bk72xx.yaml
