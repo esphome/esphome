@@ -123,10 +123,8 @@ def _pick_entry(entries: list[dict]) -> dict:
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
 
-# Compiler launchers that may prefix a compile command. A closed denylist is
-# sturdier than trying to enumerate compiler names: launchers are few and
-# stable, while compilers (cross prefixes, versioned names, icx, armcc, ...)
-# are an open set.
+# Compiler launchers that may prefix a compile command; a closed launcher
+# denylist beats enumerating compiler names, an open set.
 _LAUNCHER_STEMS = frozenset({"ccache", "sccache", "distcc", "icecc", "buildcache"})
 
 
@@ -300,17 +298,14 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     representative = _pick_entry(entries)
     cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
     if _is_launcher(cxx_path):
-        # Checked before the toolchain probe (which would fail opaquely on
-        # a launcher) so the unusable compile DB is named, and never
-        # cached or conflated with "nothing built yet"
+        # Reject before the toolchain probe, which would fail opaquely on
+        # a launcher; never cache the unusable compile DB
         raise EsphomeError(
             f"compile_commands.json names the launcher {cxx_path} as the "
             "compiler; the compile database is unusable"
         )
 
     # Seed with the representative's includes so it is not parsed twice
-    # (per-file -c/-o arguments make every command distinct, so memoizing
-    # whole commands would never hit)
     build_includes: dict[str, None] = dict.fromkeys(
         rep_includes if _is_esphome_src(representative["file"]) else ()
     )
