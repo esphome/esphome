@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from esphome import pins
 import esphome.codegen as cg
@@ -55,17 +55,26 @@ CONF_TURNAROUND_TIME = "turnaround_time"
 MODBUS_ROLES = ["client", "server"]
 
 
-# Per-direction command options forwarded to the hub (modbus::CommandOptions). Each entry is
-# (config key, C++ field/setter name, static validator, C++ type, default). Single-sourcing the
-# schema and the setter generation here keeps them from drifting; the C++ side must add the
-# matching field per the rules documented on CommandOptions (modbus.h).
-_COMMAND_OPTIONS: dict[str, list[tuple[str, str, Any, Any, Any]]] = {
-    "read": [(CONF_CONTINUOUS, "continuous", cv.boolean, bool, False)],
+class _CommandOption(NamedTuple):
+    """One per-command option forwarded to the hub (modbus::CommandOptions)."""
+
+    conf_key: str
+    field: str  # the C++ field, and so the set_<field>() setter name
+    validator: Any  # the static (non-templatable) validator for the key
+    cpp_type: Any  # the C++ type the value is generated as
+    default: Any
+
+
+# Per-direction command options. Single-sourcing the schema and the setter generation here keeps
+# them from drifting; the C++ side must add the matching field per the rules documented on
+# CommandOptions (modbus.h).
+_COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
+    "read": [_CommandOption(CONF_CONTINUOUS, "continuous", cv.boolean, bool, False)],
     "write": [],
 }
 
 
-def _command_options(direction: str) -> list[tuple[str, str, Any, Any, Any]]:
+def _command_options(direction: str) -> list[_CommandOption]:
     try:
         return _COMMAND_OPTIONS[direction]
     except KeyError:
@@ -82,12 +91,10 @@ def command_options_schema(
     keys also accept lambdas), register the values with register_templatable_command_options().
     """
     return {
-        cv.Optional(conf_key, default=default): (
-            cv.templatable(validator) if templatable else validator
+        cv.Optional(option.conf_key, default=option.default): (
+            cv.templatable(option.validator) if templatable else option.validator
         )
-        for conf_key, _field, validator, _cpp_type, default in _command_options(
-            direction
-        )
+        for option in _command_options(direction)
     }
 
 
@@ -101,17 +108,17 @@ async def register_templatable_command_options(
     """
     seen: set[str] = set()
     for options in _COMMAND_OPTIONS.values():
-        for conf_key, field, _validator, cpp_type, _default in options:
-            if conf_key in seen or conf_key not in config:
+        for option in options:
+            if option.conf_key in seen or option.conf_key not in config:
                 continue
-            seen.add(conf_key)
-            value = config[conf_key]
+            seen.add(option.conf_key)
+            value = config[option.conf_key]
             # Skip codegen when the value is its C++ zero (TemplatableFn::value() returns T{} when
             # unset): behaviourally identical, and saves a thunk plus a setup() call per action.
             if cg.is_template(value) or value != type(value)():
                 cg.add(
-                    getattr(var, f"set_{field}")(
-                        await cg.templatable(value, args, cpp_type)
+                    getattr(var, f"set_{option.field}")(
+                        await cg.templatable(value, args, option.cpp_type)
                     )
                 )
 
