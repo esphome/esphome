@@ -592,12 +592,18 @@ def test_source_kind_map_shape() -> None:
     assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
 
 
-def test_normalize_dependencies_string_entries() -> None:
+def test_normalize_dependencies_forms(caplog) -> None:
+    """Every PIO-legal spelling normalizes; unrecognizable entries warn."""
     from esphome.platformio.library import normalize_dependencies
 
-    """PIO's bare string-list form coerces to name dicts; other non-dict
-    entries still drop."""
-    assert normalize_dependencies(["Wire", {"name": "SPI"}, 5, ""]) == [
+    assert normalize_dependencies(["Wire", {"name": "SPI"}, 5, ""], "libx") == [
         {"name": "Wire"},
         {"name": "SPI"},
     ]
+    assert caplog.text.count("unrecognized dependency entry") == 2
+    # A plain string is names, never iterated into characters
+    assert normalize_dependencies("Wire, SPI") == [
+        {"name": "Wire"},
+        {"name": "SPI"},
+    ]
+    assert normalize_dependencies("Wire") == [{"name": "Wire"}]
