@@ -1,12 +1,10 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <cstring>
 #include <string>
 #include <vector>
 
 #include "esphome/components/captive_portal/scan_list.h"
-#include "esphome/core/string_ref.h"
 
 namespace esphome::captive_portal::testing {
 
@@ -14,13 +12,13 @@ namespace {
 
 // Stand-in for wifi::WiFiScanResult, which does not compile on the host.
 struct Entry {
-  const char *ssid;
+  std::string ssid;
   int8_t rssi;
   bool with_auth{true};
   bool is_hidden{false};
 
-  StringRef get_ssid() const { return StringRef(this->ssid); }
-  bool ssid_equals(const Entry &other) const { return std::strcmp(this->ssid, other.ssid) == 0; }
+  // Compares length and bytes like CompactString does, so an embedded NUL counts.
+  bool ssid_equals(const Entry &other) const { return this->ssid == other.ssid; }
   int8_t get_rssi() const { return this->rssi; }
   bool get_with_auth() const { return this->with_auth; }
   bool get_is_hidden() const { return this->is_hidden; }
@@ -42,7 +40,7 @@ std::vector<Row> rows(const std::vector<Entry> &results) {
     bool with_auth = false;
     if (!should_show_scan_entry(results, results[i], with_auth))
       continue;
-    out.push_back({std::string(results[i].ssid), results[i].rssi, with_auth});
+    out.push_back({results[i].ssid, results[i].rssi, with_auth});
   }
   return out;
 }
