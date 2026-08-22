@@ -53,7 +53,7 @@ from esphome.const import (
     PLATFORM_RP2,
     PlatformFramework,
 )
-from esphome.core import CORE, ID, CoroPriority, TimePeriod, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -392,10 +392,10 @@ async def register_i2c_device(var: MockObj, config: ConfigType) -> None:
 def final_validate_device_schema(
     name: str,
     *,
-    min_frequency: float | None = None,
-    max_frequency: float | None = None,
-    min_timeout: TimePeriod | None = None,
-    max_timeout: TimePeriod | None = None,
+    min_frequency: Any = None,
+    max_frequency: Any = None,
+    min_timeout: Any = None,
+    max_timeout: Any = None,
 ) -> cv.Schema:
     hub_schema = {}
     if (min_frequency is not None) and (max_frequency is not None):
