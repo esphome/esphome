@@ -15,7 +15,7 @@ from the build flags with the same precedence as the PlatformIO builder.
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
@@ -23,6 +23,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+from esphome.arduino8266.framework import toolchain_tool
 from esphome.build_helpers.ninja import (
     escape as _e,
     quote_path as _q,
@@ -41,9 +42,11 @@ from esphome.components.esp8266.const import (
     KEY_FLASH_SIZE,
     KEY_SCANF_FLOAT,
 )
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
-from esphome.framework_helpers import get_project_cxx_compile_flags
+from esphome.framework_helpers import (
+    get_project_cxx_compile_flags,
+    strip_win_long_path_prefix,
+)
 from esphome.helpers import mkdir_p, write_file_if_changed
 from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX, lex_build_flags
 
@@ -54,10 +57,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # Compile rule per source suffix, derived from the shared suffix -> kind map
 # so every source extension a library manifest can select has a rule.
-_RULE_FOR_KIND = {"c": "cc", "cxx": "cxx", "asm": "asm"}
-_RULE_FOR_SUFFIX = {
-    suffix: _RULE_FOR_KIND[kind] for suffix, kind in SOURCE_KIND_FOR_SUFFIX.items()
-}
+# Compile rule names are exactly the shared suffix -> kind values (c, cxx,
+# asm), so every source extension a library manifest can select has a rule.
 
 # Always excluded from the core build: ESPHome uses its own native OTA
 # backend, so the Arduino Updater (and its 228-byte global) never links.
@@ -204,8 +205,8 @@ class _BuildConfig:
     exceptions: bool
     vtables: str
     fp_in_irom: bool
-    knob_defines: list[str] = field(default_factory=list)
-    mmu_defines: list[str] = field(default_factory=list)
+    knob_defines: list[str]
+    mmu_defines: list[str]
 
 
 def _lexed_build_flags() -> list[str]:
@@ -475,7 +476,7 @@ def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
     return sorted(
         p
         for p in root.rglob("*")
-        if p.suffix in _RULE_FOR_SUFFIX and p.name not in exclude
+        if p.suffix in SOURCE_KIND_FOR_SUFFIX and p.name not in exclude
     )
 
 
@@ -511,7 +512,7 @@ def generate_ld_scripts(
     rate-table DRAM relocation, and enlarged memory segments in testing mode.
     """
     framework = paths.framework
-    gcc = paths.toolchain / "bin" / "xtensa-lx106-elf-gcc"
+    gcc = toolchain_tool(paths.toolchain, "gcc")
     ld_dir = CORE.relative_pioenvs_path(CORE.name, "ld")
     mkdir_p(ld_dir)
 
@@ -644,7 +645,9 @@ def _ninja_compile_edges(
         rel = src.relative_to(root).as_posix()
         obj = f"obj/{group}/{rel}.o"
         escaped_obj = _e(obj)
-        lines.append(f"build {escaped_obj}: {_RULE_FOR_SUFFIX[src.suffix]} {_e(src)}")
+        lines.append(
+            f"build {escaped_obj}: {SOURCE_KIND_FOR_SUFFIX[src.suffix]} {_e(src)}"
+        )
         if flags:
             lines.append(f"  flags = {flags}")
         # Escaped once here: the returned paths only ever appear in build
@@ -657,14 +660,15 @@ def _common_parent(paths: list[Path]) -> Path:
     return Path(os.path.commonpath([str(p.parent) for p in paths]))
 
 
-def write_project(paths: InstalledPaths) -> bool:
+def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     """Write the ninja build for the current configuration.
 
-    Returns True when ``build.ninja`` changed, so the caller can skip work
-    derived purely from it (the compile database) on unchanged builds.
+    ``ccache`` is the caller's already-resolved binary (None when disabled)
+    so one build never pays the runnability probe per consumer. Returns
+    True when ``build.ninja`` changed, so the caller can skip work derived
+    purely from it (the compile database) on unchanged builds.
     """
     from esphome.arduino.library import resolve_libraries
-    from esphome.arduino8266.framework import ccache_path
 
     framework = paths.framework
     toolchain_bin = paths.toolchain / "bin"
@@ -678,9 +682,10 @@ def write_project(paths: InstalledPaths) -> bool:
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
     board = esp8266_data[KEY_BOARD]
-    # Config validation accepts the board as a bare string, so this is the
-    # first place an unknown board can fail by name instead of a KeyError
-    if board not in BOARDS or board not in ESP8266_BOARD_BUILD:
+    # _validate_native_toolchain rejects unknown boards at config time and a
+    # test pins the two board tables equal; this backstop covers callers
+    # that bypassed validation
+    if board not in ESP8266_BOARD_BUILD:
         raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
     flash_ld_name = _flash_ld_name(board)
@@ -800,7 +805,6 @@ def write_project(paths: InstalledPaths) -> bool:
     )
 
     build_tool = Path(__file__).parent / "build_tool.py"
-    ccache = ccache_path()
 
     # $in/$out stay unquoted in the rule commands: ninja shell-escapes its
     # built-in path variables itself when expanding a command (POSIX and
@@ -809,13 +813,16 @@ def write_project(paths: InstalledPaths) -> bool:
     lines = [
         "# Auto-generated by ESPHome",
         "ninja_required_version = 1.5",
-        f"cc = {_q(toolchain_bin / 'xtensa-lx106-elf-gcc')}",
-        f"cxx = {_q(toolchain_bin / 'xtensa-lx106-elf-g++')}",
-        f"python = {_q(sys.executable)}",
+        f"cc = {_q(toolchain_tool(paths.toolchain, 'gcc'))}",
+        f"cxx = {_q(toolchain_tool(paths.toolchain, 'g++'))}",
+        # The NSIS launcher starts Python with a \\?\ extended-length path
+        # that cmd.exe cannot spawn; same strip every other emitted binary
+        # path gets
+        f"python = {_q(strip_win_long_path_prefix(sys.executable))}",
         f"buildtool = {_q(build_tool)}",
         f"ccache = {_q(ccache) if ccache else ''}",
         "",
-        "rule cc",
+        "rule c",
         "  command = $ccache $cc -MMD -MF $out.d $cflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
@@ -831,7 +838,7 @@ def write_project(paths: InstalledPaths) -> bool:
         "  deps = gcc",
         "  description = AS $out",
         "rule ar",
-        f"  command = $python $buildtool ar {_q(toolchain_bin / 'xtensa-lx106-elf-ar')} $out $out.rsp",
+        f"  command = $python $buildtool ar {_q(toolchain_tool(paths.toolchain, 'ar'))} $out $out.rsp",
         "  rspfile = $out.rsp",
         "  rspfile_content = $in_newline",
         "  description = AR $out",
@@ -937,18 +944,16 @@ def write_project(paths: InstalledPaths) -> bool:
     return write_file_if_changed(build_dir / "build.ninja", "\n".join(lines))
 
 
-def get_flash_ld_path(build_dir: Path) -> Path:
-    """The flash linker script the link actually uses (for size reporting)."""
-    from esphome.arduino8266.framework import (
-        framework_package_version,
-        get_framework_path,
-    )
+def get_flash_ld_path(build_dir: Path, paths: InstalledPaths) -> Path:
+    """The flash linker script the link actually uses (for size reporting).
 
+    Reads the same install the ninja file linked against instead of
+    re-resolving the framework version.
+    """
     name = _active_flash_ld_name(_flash_ld_name(CORE.data[KEY_ESP8266][KEY_BOARD]))
     if CORE.testing_mode:
         return build_dir / "ld" / name
-    version = framework_package_version(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
-    return get_framework_path(version) / "tools" / "sdk" / "ld" / name
+    return paths.framework / "tools" / "sdk" / "ld" / name
 
 
 def _flash_size_str(flash_size: int) -> str:
