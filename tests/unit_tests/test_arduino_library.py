@@ -907,8 +907,7 @@ def test_pinned_bundled_dependency_substitution_warns(
         '{"name": "LocalLib", "version": "1.0.0", "dependencies": {"Wire": "^2.0.0"}}'
     )
     _add_library(local_lib.as_uri(), None)
-    CORE.config_path = tmp_path / "test.yaml"
-    CORE.config_path.write_text("")
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
     with patch.object(
         pio_library,
         "_resolve_registry_version",
@@ -955,18 +954,20 @@ def test_transitively_resolved_dependency_does_not_warn(
 def test_empty_bundled_library_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A bundled directory with no sources or headers is a broken install,
-    not a silent no-op archive."""
+    """A bundled directory with no sources or headers is a broken install
+    that can never link; fail by name instead of warning into it."""
     framework = _make_framework(tmp_path)
     (framework / "libraries" / "Empty").mkdir()
     _add_library("Empty", None)
-    component.resolve_libraries(
-        framework,
-        pio_platform="espressif8266",
-        board_mcu="esp8266",
-        cache_key="arduino8266",
-    )
-    assert "Bundled library Empty has no sources or headers" in caplog.text
+    with pytest.raises(
+        EsphomeError, match="Bundled library Empty has no sources or headers"
+    ):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
 
 
 def test_versionless_dependency_with_provider_stays_quiet(

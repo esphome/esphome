@@ -645,3 +645,23 @@ def test_walk_warns_for_nonplatform_invalid_library(
     monkeypatch.setattr(lib, "check_library_data", flaky)
     convert_libraries([Library("esphome/A", None, None)], _backend())
     assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
+
+
+def test_versionless_dependency_requested_top_level_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less dependency the config also requests top-level is in
+    the build; no drop warning even without a provides backend."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]},
+            "Hash": {"name": "Hash"},
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None), Library("Hash", None, None)],
+        _backend(),
+    )
+    assert "has no version to resolve" not in caplog.text

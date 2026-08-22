@@ -991,20 +991,35 @@ def convert_libraries(
             component.data.get("dependencies"), component.name
         ):
             if "name" not in dependency or "version" not in dependency:
-                if backend.provides is None:
+                dep_name = dependency.get("name")
+                if (
+                    isinstance(dep_name, str)
+                    and _node_key(dep_name, None, None)[0] in nodes
+                ):
+                    # Already requested top-level: present in the build, not
+                    # a drop (a false warning teaches users to ignore the
+                    # real one)
+                    _LOGGER.debug(
+                        "Version-less dependency %r of %s is requested top-level",
+                        dep_name,
+                        component.name,
+                    )
+                elif backend.provides is None:
                     # No backend tree can supply it and the registry cannot
                     # resolve it: a real drop, not a routine skip
                     _LOGGER.warning(
                         "Dependency %r of %s has no version to resolve; skipping",
-                        dependency.get("name"),
+                        dep_name,
                         component.name,
                     )
                 else:
-                    # The backend (e.g. the arduino bundled tree) picks
-                    # these up after emit
+                    # A provides backend owns the post-emit reporting (the
+                    # arduino backend defers drops and suppresses names the
+                    # walk resolved, which this layer cannot know yet), so
+                    # warning here would duplicate or false-positive
                     _LOGGER.debug(
                         "Skip version-less dependency %r of %s",
-                        dependency.get("name"),
+                        dep_name,
                         component.name,
                     )
                 continue
