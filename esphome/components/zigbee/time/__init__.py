@@ -27,7 +27,7 @@ ZigbeeTime = zigbee_ns.class_("ZigbeeTime", time_.RealTimeClock)
 
 def _validate_zigbee_time(config: ConfigType) -> ConfigType:
     if CORE.is_nrf52:
-        return consume_endpoint
+        return consume_endpoint(config)
     if CORE.is_esp32:
         cl = [
             {
