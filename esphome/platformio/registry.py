@@ -4,6 +4,7 @@ platformio package (identical bits, esphome's own download machinery)."""
 from __future__ import annotations
 
 from collections.abc import Collection
+from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 import logging
@@ -13,6 +14,7 @@ import platform
 
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
+    BatchDownloadProgress,
     archive_extract_all,
     download_from_mirrors,
     download_with_resume,
@@ -138,6 +140,68 @@ def _check_layout(name: str, dest: Path, expect: Collection[str]) -> None:
                 f"{name} at {dest} is missing the expected {rel} "
                 "directory; run 'esphome clean-all' and retry"
             )
+
+
+def prefetch_packages(
+    packages: list[tuple[str, str, Path, list[str]]], downloads_dir: Path
+) -> None:
+    """Download pending package archives in parallel under one combined bar.
+
+    ``packages`` holds ``(name, version, dest, mirrors)`` per package. Purely
+    an optimization: ``install_package`` verifies every archive and
+    re-downloads anything this pass left unfinished. Mirror overrides and
+    registry entries without a size stay on the sequential path so its
+    per-file bars remain trustworthy.
+    """
+    pending: list[tuple[str, str, str, str, int]] = []
+    for name, version, dest, mirrors in packages:
+        if mirrors or (dest / ".esphome_extracted").is_file():
+            continue
+        try:
+            url, sha256, size = registry_download(name, version)
+        except EsphomeError as err:
+            # The sequential install reports the real failure with context
+            _LOGGER.debug("Prefetch resolve for %s failed: %s", name, err)
+            continue
+        if not size:
+            continue
+        archive = downloads_dir / f"{name}-{version}"
+        if archive.is_file() and archive.stat().st_size == size:
+            continue
+        pending.append((name, version, url, sha256, size))
+    if len(pending) < 2:
+        return
+    downloads_dir.mkdir(parents=True, exist_ok=True)
+    _LOGGER.info(
+        "Downloading %d package archive(s): %s",
+        len(pending),
+        ", ".join(name for name, _, _, _, _ in pending),
+    )
+    progress = BatchDownloadProgress(
+        "Downloading packages", sum(size for *_, size in pending)
+    )
+
+    def _fetch(entry: tuple[str, str, str, str, int]) -> None:
+        name, version, url, sha256, size = entry
+        try:
+            download_with_resume(
+                url,
+                downloads_dir / f"{name}-{version}",
+                sha256=sha256,
+                size=size,
+                progress=progress.tracker(),
+            )
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # install_package retries this one itself, with a visible bar
+            _LOGGER.debug("Prefetch of %s failed: %s", name, err)
+
+    ex = ThreadPoolExecutor(max_workers=len(pending))
+    try:
+        for future in [ex.submit(_fetch, entry) for entry in pending]:
+            future.result()
+    finally:
+        ex.shutdown(wait=True, cancel_futures=True)
+        progress.done()
 
 
 def install_package(

@@ -63,6 +63,7 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
         patch.object(framework, "install_package") as mock_install,
+        patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
         paths = framework.check_and_install(cv.Version(3, 1, 2))
@@ -89,6 +90,24 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
         tmp_path / "downloads",
     )
     assert tc_call.kwargs["expect"] == ("bin", "xtensa-lx106-elf")
+    # The prefetch sees the same package specs as the installs
+    assert mock_prefetch.call_args.args == (
+        [
+            (
+                framework.FRAMEWORK_PACKAGE,
+                "3.30102.0",
+                tmp_path / "frameworks" / "3.30102.0",
+                framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+            ),
+            (
+                framework.TOOLCHAIN_PACKAGE,
+                framework.TOOLCHAIN_VERSION,
+                tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION,
+                framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+            ),
+        ],
+        tmp_path / "downloads",
+    )
 
 
 def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
