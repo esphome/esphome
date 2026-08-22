@@ -1,3 +1,4 @@
+import importlib
 import json
 import logging
 from pathlib import Path
@@ -48,6 +49,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     Framework,
+    Toolchain,
 )
 from esphome.core import (
     CORE,
@@ -3169,9 +3171,6 @@ def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
 
 def test_require_platformio_toolchain() -> None:
     """Platforms with only the PlatformIO backend reject other toolchains."""
-    from esphome.const import Toolchain
-    from esphome.core import CORE
-
     validator = cv.require_platformio_toolchain("RP2")
     CORE.toolchain = None
     config: dict = {}
@@ -3186,9 +3185,6 @@ def test_require_platformio_toolchain() -> None:
 def test_check_supported_toolchain_unresolved_is_an_ordering_bug() -> None:
     """Calling the check before resolution fails naming the ordering bug,
     not a user-facing unsupported-toolchain error."""
-    from esphome.const import Toolchain
-    from esphome.core import CORE
-
     CORE.toolchain = None
     with pytest.raises(Invalid, match="not resolved before RP2 validation"):
         cv._check_supported_toolchain("RP2", (Toolchain.PLATFORMIO,))
@@ -3209,14 +3205,7 @@ def test_check_supported_toolchain_unresolved_is_an_ordering_bug() -> None:
 def test_every_platformio_only_platform_rejects_arduino_toolchain(
     platform: str, minimal_config: dict
 ) -> None:
-    """The invariant every native-toolchain gate relies on: a platform that
-    cannot serve a CLI toolchain rejects it at validation (esp32, esp8266,
-    and nrf52 pin this in their own suites)."""
-    import importlib
-
-    from esphome.const import Toolchain
-    from esphome.core import CORE
-
+    """A platform that cannot serve a CLI toolchain rejects it at validation."""
     module = importlib.import_module(f"esphome.components.{platform}")
     CORE.toolchain = Toolchain.ARDUINO
     with pytest.raises(Invalid, match="Unsupported toolchain 'arduino'"):

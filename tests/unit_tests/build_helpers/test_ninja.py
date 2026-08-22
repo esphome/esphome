@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -84,7 +85,6 @@ def test_shell_token_quotes_shell_metacharacters() -> None:
 def test_shell_token_posix_roundtrips_through_sh() -> None:
     """Backslash runs, $, backticks, and quotes must reach the compiler
     exactly as lexed once ninja un-doubles $$ and /bin/sh strips quotes."""
-    import subprocess
 
     if sys.platform == "win32":
         pytest.skip("POSIX sh quoting")

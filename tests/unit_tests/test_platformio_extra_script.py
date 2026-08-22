@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
+from esphome.core import EsphomeError
+from esphome.platformio.extra_script import (
+    ExtraScriptResult,
+    _FakeSConsEnv,
+    apply_extra_script,
+    captured_as_build_flags,
+    run_extra_script,
+)
 from esphome.platformio.library import ConvertedLibrary as IDFComponent, URLSource
 
 
 def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
-    from esphome.platformio.extra_script import (
-        captured_as_build_flags,
-        run_extra_script,
-    )
 
     (tmp_path / "src" / "esp32").mkdir(parents=True)
     script = tmp_path / "extra_script.py"
@@ -58,10 +64,6 @@ def test_extra_script_libpath_relative_resolves_against_library_dir(
     """Relative LIBPATH entries must resolve against ``library_dir``, not the
     caller's CWD (the shim restores CWD before ``captured_as_build_flags``
     runs)."""
-    from esphome.platformio.extra_script import (
-        ExtraScriptResult,
-        captured_as_build_flags,
-    )
 
     (tmp_path / "lib" / "esp32").mkdir(parents=True)
     elsewhere = tmp_path.parent / "not_the_library_dir"
@@ -76,10 +78,6 @@ def test_extra_script_libpath_relative_resolves_against_library_dir(
 
 
 def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
-    from esphome.platformio.extra_script import (
-        ExtraScriptResult,
-        captured_as_build_flags,
-    )
 
     outside = tmp_path.parent / "system_lib"
     outside.mkdir(exist_ok=True)
@@ -90,7 +88,6 @@ def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
 
 
 def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
-    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "broken.py"
     script.write_text("raise RuntimeError('boom')\n")
@@ -106,7 +103,6 @@ def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
 
 
 def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
-    from esphome.platformio.extra_script import apply_extra_script
 
     library_dir = tmp_path / "lib"
     library_dir.mkdir()
@@ -117,8 +113,6 @@ def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
     c.path = library_dir
     c.data = {"build": {"extraScript": "../evil.py"}}
 
-    from esphome.core import EsphomeError
-
     with pytest.raises(EsphomeError, match="escapes the library directory"):
         apply_extra_script(c, board_mcu=lambda: "esp32", pio_platform="espressif32")
     # Nothing was folded into flags: the traversal was rejected before
@@ -127,7 +121,6 @@ def test_apply_extra_script_path_traversal_is_rejected(tmp_path):
 
 
 def test_apply_extra_script_merges_into_existing_flags(tmp_path):
-    from esphome.platformio.extra_script import apply_extra_script
 
     (tmp_path / "src").mkdir()
     script = tmp_path / "extra.py"
@@ -146,8 +139,6 @@ def test_apply_extra_script_merges_into_existing_flags(tmp_path):
 def test_apply_extra_script_malformed_flags_raises(tmp_path) -> None:
     """A null/dict build.flags fails naming the library instead of injecting
     a non-string into the compiler command line."""
-    from esphome.core import EsphomeError
-    from esphome.platformio.extra_script import apply_extra_script
 
     (tmp_path / "src").mkdir()
     script = tmp_path / "extra.py"
@@ -164,7 +155,6 @@ def test_apply_extra_script_malformed_flags_raises(tmp_path) -> None:
 def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
     """The shared helper resolves the board_mcu callable lazily and normalizes
     a string ``build.flags`` value into a list before extending it."""
-    from esphome.platformio.extra_script import apply_extra_script
 
     (tmp_path / "src").mkdir()
     script = tmp_path / "extra.py"
@@ -180,7 +170,6 @@ def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
 
 
 def test_apply_extra_script_no_script_and_no_flags(tmp_path) -> None:
-    from esphome.platformio.extra_script import apply_extra_script
 
     # No extraScript declared: nothing happens, the target is never resolved
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
@@ -203,9 +192,6 @@ def test_apply_extra_script_no_script_and_no_flags(tmp_path) -> None:
 def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path, caplog) -> None:
     """Un-captured env vars and unsupported env methods are skipped but
     diagnosable from the build log."""
-    import logging
-
-    from esphome.platformio.extra_script import apply_extra_script
 
     caplog.set_level(logging.DEBUG)
     script = tmp_path / "extra.py"
@@ -223,7 +209,6 @@ def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path, caplog) -> No
 
 def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
     """A raising extra-script is best-effort: logged and skipped."""
-    from esphome.platformio.extra_script import apply_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("raise RuntimeError('boom')\n")
@@ -237,7 +222,6 @@ def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
 
 def test_apply_extra_script_pio_platform(tmp_path) -> None:
     """The backend's platform token is exposed to the script as PIOPLATFORM."""
-    from esphome.platformio.extra_script import apply_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("env.Append(LIBS=[env.get('PIOPLATFORM')])\n")
@@ -251,8 +235,6 @@ def test_apply_extra_script_pio_platform(tmp_path) -> None:
 def test_apply_extra_script_missing_script_raises(tmp_path) -> None:
     """A declared but absent extraScript is a broken package and fails by
     name, as it would under PlatformIO."""
-    from esphome.core import EsphomeError
-    from esphome.platformio.extra_script import apply_extra_script
 
     c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
     c.path = tmp_path
@@ -264,7 +246,6 @@ def test_apply_extra_script_missing_script_raises(tmp_path) -> None:
 def test_run_extra_script_failure_discards_partial_capture(tmp_path, caplog) -> None:
     """A crashed script yields an empty result: half-applied flags could
     build wrong-output firmware that links cleanly."""
-    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("env.Append(LIBS=['algobsec'])\nraise RuntimeError('boom')\n")
@@ -278,7 +259,6 @@ def test_run_extra_script_failure_discards_partial_capture(tmp_path, caplog) -> 
 def test_run_extra_script_syntax_error_is_best_effort(tmp_path, caplog) -> None:
     """A vendored script that does not even compile warns and skips instead
     of aborting the build."""
-    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("def broken(:\n")
@@ -291,7 +271,6 @@ def test_run_extra_script_syntax_error_is_best_effort(tmp_path, caplog) -> None:
 
 def test_unsupported_env_method_warns_once(caplog) -> None:
     """Repeated calls to the same unsupported method warn only once."""
-    from esphome.platformio.extra_script import _FakeSConsEnv
 
     env = _FakeSConsEnv(
         board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
@@ -304,7 +283,6 @@ def test_unsupported_env_method_warns_once(caplog) -> None:
 def test_run_extra_script_sys_exit_is_best_effort(tmp_path, caplog) -> None:
     """A nonzero sys.exit() in a vendored script must not kill the esphome
     run, and its output is discarded."""
-    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("import sys\nenv.Append(LIBS=['x'])\nsys.exit(3)\n")
@@ -317,7 +295,6 @@ def test_run_extra_script_sys_exit_is_best_effort(tmp_path, caplog) -> None:
 
 def test_run_extra_script_sys_exit_zero_is_success(tmp_path, caplog) -> None:
     """sys.exit(0) is a normal PlatformIO script ending: the capture is kept."""
-    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("import sys\nenv.Append(LIBS=['algobsec'])\nsys.exit(0)\n")
@@ -330,10 +307,6 @@ def test_run_extra_script_sys_exit_zero_is_success(tmp_path, caplog) -> None:
 
 def test_run_extra_script_unreadable_raises(tmp_path) -> None:
     """An unreadable declared script is a broken package, like a missing one."""
-    from unittest.mock import patch
-
-    from esphome.core import EsphomeError
-    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
     script.write_text("")
@@ -348,7 +321,6 @@ def test_run_extra_script_unreadable_raises(tmp_path) -> None:
 
 def test_run_extra_script_bad_encoding_is_best_effort(tmp_path, caplog) -> None:
     """Undecodable content warns and skips, like a SyntaxError."""
-    from esphome.platformio.extra_script import run_extra_script
 
     script = tmp_path / "extra.py"
     script.write_bytes(b"\xff\xfe\x00bad")
@@ -361,7 +333,6 @@ def test_run_extra_script_bad_encoding_is_best_effort(tmp_path, caplog) -> None:
 
 def test_uncaptured_append_key_warns_once(caplog) -> None:
     """A loop of Appends to the same uncaptured key warns once."""
-    from esphome.platformio.extra_script import _FakeSConsEnv
 
     env = _FakeSConsEnv(
         board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"

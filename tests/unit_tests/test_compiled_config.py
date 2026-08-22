@@ -643,8 +643,7 @@ def test_save_compiled_config_and_sidecar_toolchain_mismatch(
     tmp_path: Path, sidecar_toolchain: str | None, saved: bool
 ) -> None:
     """A config validated under a different toolchain than the compile's
-    must not overwrite the cache: platforms normalize toolchain-sensitive
-    keys differently and the sidecar keeps the compile's toolchain."""
+    must not overwrite the cache."""
     yaml_path = _bare_yaml(tmp_path)
     _prime_core(tmp_path)
     CORE.config = {CONF_ESPHOME: {CONF_NAME: "lite_test"}}

@@ -47,11 +47,8 @@ DEFAULT_BUILD_SRC_FILTER = (
 DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
-# Source suffix -> compiler kind, PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES
-# split. Native build generators map the kind to their compile rules. "asm"
-# deliberately merges SCons's AS (.s/.asm) and ASPP (.S/.spp/.sx) sets: the
-# ninja rules compile all of them as assembler-with-cpp, whose asm-mode
-# preprocessor passes non-directive text through unchanged.
+# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES).
+# "asm" merges SCons's AS and ASPP sets: all compile as assembler-with-cpp.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",

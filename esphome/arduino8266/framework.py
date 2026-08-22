@@ -6,14 +6,9 @@ ESP-IDF install in ``esphome.espidf.framework``):
     <cache>/arduino8266/frameworks/<version>/   framework-arduinoespressif8266
     <cache>/arduino8266/toolchains/<version>/   toolchain-xtensa (gcc 10.3)
 
-ninja itself comes from PATH or the ninja PyPI wheel (a requirements.txt
-dependency), so only the two packages above are downloaded, via the shared
-PlatformIO-registry installer in ``esphome.platformio.registry``.
-
-Sources default to the PlatformIO registry (the exact packages the PlatformIO
-toolchain has always used, so the bits are identical); the
-``ESPHOME_ARDUINO8266_*_MIRRORS`` environment variables override the URLs with
-``{VERSION}`` / ``{SYSTEM}`` substitution.
+Packages come from the PlatformIO registry (identical bits to the PlatformIO
+backend); ``ESPHOME_ARDUINO8266_*_MIRRORS`` overrides the URLs. ninja comes
+from PATH or the ninja PyPI wheel.
 """
 
 from __future__ import annotations
@@ -31,9 +26,8 @@ from esphome.platformio.registry import install_package
 
 FRAMEWORK_PACKAGE = "framework-arduinoespressif8266"
 TOOLCHAIN_PACKAGE = "toolchain-xtensa"
-# gcc 10.3, the toolchain Arduino core 3.x builds with. The compile flags in
-# the build generator are tuned to it; treat version changes as a full
-# reinstall (the install dir is keyed on the version).
+# gcc 10.3, the toolchain Arduino core 3.x builds with; the build
+# generator's compile flags are tuned to it.
 TOOLCHAIN_VERSION = "2.100300.220621"
 
 ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS = str_to_lst_of_str(
@@ -56,31 +50,20 @@ MIN_FRAMEWORK_VERSION = Version(3, 1, 1)
 
 
 def framework_package_version(ver: Version) -> str:
-    """Map an Arduino core version (e.g. 3.1.2) to its package version.
+    """Map an Arduino core version to its registry package version (3.1.2 ->
+    3.30102.0; the leading 3 is the package major).
 
-    The PlatformIO registry's encoding for cores newer than 2.6.2 (3.1.2 ->
-    3.30102.0, and 2.7.4 -> 3.20704.0: the leading 3 is the package major,
-    not the core major). Exact registry names only from 3.0.2 up: 2.6.3,
-    3.0.0 and 3.0.1 ship as 3.20603.200130 / 3.30000.210519 /
-    3.30001.210627, which this formula cannot produce. Safe for the
-    PlatformIO caller (a ~ range) and for check_and_install (floored at
-    MIN_FRAMEWORK_VERSION); an exact lookup below that floor must not use
-    this helper. A future core 4.x needs its own encoding and toolchain pin
-    rather than a registry lookup for a package that cannot exist.
+    Exact registry names only for cores > 2.6.2 and >= 3.0.2; callers floor
+    at MIN_FRAMEWORK_VERSION.
     """
     if ver.major > 3:
-        # Backend-neutral: this also fires on the PlatformIO validation path
-        # (via _format_framework_arduino_version), where switching toolchains
-        # would not help
         raise EsphomeError(
             f"Arduino core {ver} is not supported yet; "
             "the newest known core series is 3.x"
         )
     if ver <= Version(2, 6, 2):
-        # Same boundary as _format_framework_arduino_version's era guard (a
-        # 2.6.2 pre-release sorts above 2.6.2 and belongs to this encoding).
-        # Older cores use the 1.x/2.x package-major encodings; never encode
-        # them wrongly for a caller that skipped that guard
+        # Cores <= 2.6.2 use the older 1.x/2.x package-major encodings (same
+        # boundary as _format_framework_arduino_version's era guard)
         raise EsphomeError(
             f"Arduino core {ver} uses an older package encoding than this "
             "helper implements (newer than 2.6.2)"
@@ -141,10 +124,7 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
     )
 
 
-# Sentinel: "resolve for me" (None is a real value meaning disabled).
-# The native run_compile (a later PR in the chain) will resolve once and
-# thread the result so one build never pays the PATH scan and runnability
-# probe three times.
+# Sentinel: "resolve for me"; None is a real value meaning disabled.
 CCACHE_UNRESOLVED: Any = object()
 
 
@@ -176,8 +156,7 @@ def get_build_env(
 def ccache_path() -> str | None:
     """The ccache binary to prefix compiles with, or None when disabled.
 
-    Deliberately uncached (matching espidf): the decision reads
-    ESPHOME_CCACHE_ENABLE and PATH, which can change between builds in a
+    Deliberately uncached: env/PATH can change between builds in a
     long-lived host process.
     """
     return resolve_ccache_path()
@@ -186,10 +165,7 @@ def ccache_path() -> str | None:
 def ccache_env(ccache: str | None = CCACHE_UNRESOLVED) -> dict[str, str]:
     """Return ccache settings for the build subprocess (not os.environ).
 
-    Mirrors ``espidf.framework._ccache_env``: cache under the machine-global
-    tools dir, depend mode (gcc emits depfiles via -MMD), and CCACHE_BASEDIR
-    scoped to the build dir so devices share framework cache entries. Values
-    the user already set in the environment are respected.
+    Values the user already set in the environment are respected.
     """
     if ccache is CCACHE_UNRESOLVED:
         ccache = ccache_path()

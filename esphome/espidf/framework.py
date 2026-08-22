@@ -1155,11 +1155,8 @@ def _ccache_env() -> dict[str, str]:
     Only values the user has not already set in the environment are returned, so
     a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
     """
-    # Honor an explicit choice already in the environment (opt-out or opt-in).
-    # IDF_CCACHE_ENABLE (this backend's native knob) wins over the shared
-    # ESPHOME_CCACHE_ENABLE, which resolve_ccache_path parses; without it a
-    # user disabling ccache to debug a miscompile would silently keep it
-    # enabled here.
+    # IDF_CCACHE_ENABLE (the backend-native knob) wins over the shared
+    # ESPHOME_CCACHE_ENABLE.
     idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
     if idf_knob is False:
         return {}
@@ -1167,8 +1164,6 @@ def _ccache_env() -> dict[str, str]:
         # ESP-IDF silently skips ccache without the binary; don't enable it.
         return {}
 
-    # ccache is enabled past here; the shared helper carries the CCACHE_*
-    # policy (and the fail-loud build_path guard).
     env = ccache_defaults_env(get_idf_tools_path() / "ccache")
     if idf_knob is None:
         # An unparsable IDF_CCACHE_ENABLE must not leak to idf.py as truthy

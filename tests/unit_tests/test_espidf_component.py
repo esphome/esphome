@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from esphome.components import esp32 as esp32_module
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
@@ -15,6 +16,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Library
 from esphome.espidf.component import (
+    _emit_idf_component,
     generate_cmakelists_txt,
     generate_idf_component_yml,
     generate_idf_components,
@@ -1072,8 +1074,6 @@ def test_idf_component_download_passes_salt() -> None:
 def test_emit_idf_component_wires_esp32_target(tmp_path, monkeypatch):
     """Emitting a component resolves the esp32 variant into the shared
     extraScript helper."""
-    from esphome.components import esp32 as esp32_module
-    from esphome.espidf.component import _emit_idf_component
 
     monkeypatch.setattr(esp32_module, "get_esp32_variant", lambda: "ESP32")
     (tmp_path / "src").mkdir()

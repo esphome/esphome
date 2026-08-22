@@ -1,13 +1,5 @@
-"""Shared ccache policy for build backends.
-
-``ccache_defaults_env`` serves the backends that export ``CCACHE_*`` into a
-build subprocess (native ESP-IDF and Arduino); ``resolve_ccache_path``
-carries the probe and enable rules (PlatformIO and the native Arduino
-build). The ESP-IDF backend keeps ``IDF_CCACHE_ENABLE`` as a
-higher-precedence override and falls back to the shared resolver (probe
-included) when it is unset; PlatformIO feeds its SCons wrapper script
-through env channels instead of ``CCACHE_*`` defaults.
-"""
+"""Shared ccache policy for build backends: env-knob parsing, binary
+resolution, and default ``CCACHE_*`` values."""
 
 from __future__ import annotations
 
@@ -50,12 +42,8 @@ def parse_enable_env(name: str) -> bool | None:
 def resolve_ccache_path() -> str | None:
     """The ccache binary to wrap compiles with, or None when disabled.
 
-    Shared policy for every backend: on by default when a runnable ccache is
-    on PATH, ``ESPHOME_CCACHE_ENABLE=0`` opts out, and an explicit ``=1``
-    warns when no binary is found and skips the runnability probe;
-    any other value warns and is treated as unset. The
-    Windows extended-length prefix is stripped before probing so the probe
-    validates the exact string the build will execute (#18399).
+    An explicit ``ESPHOME_CCACHE_ENABLE=1`` skips the runnability probe; the
+    Windows extended-length prefix is stripped before probing (#18399).
     """
     import shutil
 
@@ -85,9 +73,8 @@ def ccache_defaults_env(cache_dir: Path) -> dict[str, str]:
     """
     from esphome.core import CORE
 
-    # build_path is set during preload for every config-loading command; unset
-    # means the caller built the environment too early. Fail loudly rather
-    # than silently drop CCACHE_BASEDIR (losing cross-device cache hits).
+    # An unset build_path means the env was built before preload; fail loudly
+    # rather than silently drop CCACHE_BASEDIR.
     if CORE.build_path is None:
         raise ValueError(
             "CORE.build_path must be set before constructing the build environment"
