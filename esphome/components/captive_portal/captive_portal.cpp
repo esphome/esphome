@@ -6,6 +6,7 @@
 #include "esphome/core/string_ref.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
+#include "scan_list.h"
 
 namespace esphome::captive_portal {
 
@@ -36,21 +37,8 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     const auto &results = wifi::global_wifi_component->get_scan_result();
     for (size_t i = 0; i < results.size(); i++) {
       const auto &scan = results[i];
-      if (scan.get_is_hidden())
-        continue;
-      // Multi-AP networks broadcast one SSID from several BSSIDs. Show each SSID
-      // once, keeping the strongest signal. Results are sorted by connection
-      // preference, not strictly RSSI, so compare RSSI explicitly.
-      bool is_strongest = true;
-      for (size_t j = 0; j < results.size(); j++) {
-        if (j == i || results[j].get_is_hidden() || results[j].get_ssid() != scan.get_ssid())
-          continue;
-        if (results[j].get_rssi() > scan.get_rssi() || (results[j].get_rssi() == scan.get_rssi() && j < i)) {
-          is_strongest = false;
-          break;
-        }
-      }
-      if (!is_strongest)
+      bool with_auth;
+      if (!should_show_scan_entry(results, i, with_auth))
         continue;
 
       json_escape_into_buffer(escaped_ssid, scan.get_ssid());
@@ -60,10 +48,10 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
       stream->print(ESPHOME_F("\",\"rssi\":"));
       stream->print(scan.get_rssi());
       stream->print(ESPHOME_F(",\"lock\":"));
-      stream->print(scan.get_with_auth());
+      stream->print(with_auth);
       stream->print(ESPHOME_F("}"));
 #else
-      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), scan.get_with_auth());
+      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), with_auth);
 #endif
     }
   }

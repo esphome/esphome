@@ -1,0 +1,114 @@
+#include <gtest/gtest.h>
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+#include "esphome/components/captive_portal/scan_list.h"
+#include "esphome/core/string_ref.h"
+
+namespace esphome::captive_portal::testing {
+
+namespace {
+
+// Stand-in for wifi::WiFiScanResult, which does not compile on the host.
+struct Entry {
+  const char *ssid;
+  int8_t rssi;
+  bool with_auth{true};
+  bool is_hidden{false};
+
+  StringRef get_ssid() const { return StringRef(this->ssid); }
+  int8_t get_rssi() const { return this->rssi; }
+  bool get_with_auth() const { return this->with_auth; }
+  bool get_is_hidden() const { return this->is_hidden; }
+};
+
+// One row as the portal would emit it.
+struct Row {
+  std::string ssid;
+  int8_t rssi;
+  bool lock;
+
+  bool operator==(const Row &rhs) const { return ssid == rhs.ssid && rssi == rhs.rssi && lock == rhs.lock; }
+};
+
+// Walk the results the way handle_config does and collect the rows that survive.
+std::vector<Row> rows(const std::vector<Entry> &results) {
+  std::vector<Row> out;
+  for (size_t i = 0; i < results.size(); i++) {
+    bool with_auth = false;
+    if (!should_show_scan_entry(results, i, with_auth))
+      continue;
+    out.push_back({std::string(results[i].ssid), results[i].rssi, with_auth});
+  }
+  return out;
+}
+
+}  // namespace
+
+TEST(ScanList, SingleEntryShown) {
+  std::vector<Entry> results = {{"Home", -60}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -60, true}}));
+}
+
+TEST(ScanList, DistinctSsidsAllShownInOrder) {
+  std::vector<Entry> results = {{"Home", -60}, {"Guest", -70}, {"Cafe", -40}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -60, true}, {"Guest", -70, true}, {"Cafe", -40, true}}));
+}
+
+// Results are ordered by connection preference, not RSSI, so the strongest entry
+// can sit anywhere in the list.
+TEST(ScanList, SameSsidKeepsStrongest) {
+  std::vector<Entry> results = {{"Home", -70}, {"Home", -50}, {"Home", -60}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -50, true}}));
+}
+
+TEST(ScanList, EqualRssiKeepsFirst) {
+  std::vector<Entry> results = {{"Home", -60}, {"Home", -60}, {"Home", -60}};
+  std::vector<Row> seen = rows(results);
+  ASSERT_EQ(seen.size(), 1u);
+  EXPECT_TRUE(should_show_scan_entry(results, 0, seen[0].lock));
+  EXPECT_FALSE(should_show_scan_entry(results, 1, seen[0].lock));
+  EXPECT_FALSE(should_show_scan_entry(results, 2, seen[0].lock));
+}
+
+TEST(ScanList, DuplicatesInterleavedWithOtherNetworks) {
+  std::vector<Entry> results = {{"Home", -70}, {"Guest", -55}, {"Home", -50}, {"Guest", -65}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Guest", -55, true}, {"Home", -50, true}}));
+}
+
+// A hidden entry is never listed, and a hidden entry with the same SSID must not
+// knock out the visible one even when it is stronger.
+TEST(ScanList, HiddenEntriesNeitherShownNorSuppress) {
+  std::vector<Entry> results = {{"", -40, true, true}, {"Home", -70}, {"Home", -30, true, true}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -70, true}}));
+}
+
+// An open access point and a secured one sharing an SSID collapse to one row that
+// still asks for a password, whichever of them is strongest.
+TEST(ScanList, LockSetWhenAnyEntryRequiresAuth) {
+  std::vector<Entry> open_stronger = {{"Home", -50, false}, {"Home", -70, true}};
+  EXPECT_EQ(rows(open_stronger), (std::vector<Row>{{"Home", -50, true}}));
+
+  std::vector<Entry> secured_stronger = {{"Home", -70, false}, {"Home", -50, true}};
+  EXPECT_EQ(rows(secured_stronger), (std::vector<Row>{{"Home", -50, true}}));
+}
+
+TEST(ScanList, LockClearWhenEveryEntryIsOpen) {
+  std::vector<Entry> results = {{"Cafe", -60, false}, {"Cafe", -50, false}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Cafe", -50, false}}));
+}
+
+// The auth flag of an unrelated network must not leak into another SSID's row.
+TEST(ScanList, LockIsPerSsid) {
+  std::vector<Entry> results = {{"Cafe", -60, false}, {"Home", -50, true}};
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Cafe", -60, false}, {"Home", -50, true}}));
+}
+
+TEST(ScanList, EmptyListShowsNothing) {
+  std::vector<Entry> results;
+  EXPECT_TRUE(rows(results).empty());
+}
+
+}  // namespace esphome::captive_portal::testing
