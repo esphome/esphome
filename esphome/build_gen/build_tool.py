@@ -57,6 +57,8 @@ def _run_ar(ar: str, archive: str, rspfile: str) -> int:
             [ar, op, archive, *batch], check=False, close_fds=False
         ).returncode
         if rc != 0:
+            # A failed batch must not leave a truncated archive behind
+            Path(archive).unlink(missing_ok=True)
             return rc
         op = "q"
     return 0
