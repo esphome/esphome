@@ -6,6 +6,7 @@ namespace esphome::remote_base {
 static const char *const TAG = "remote.onkyori";
 
 static constexpr uint8_t NBITS = 12;
+static constexpr uint16_t MAX_DATA = (1U << NBITS) - 1;
 static constexpr uint32_t HEADER_HIGH_US = 3000;
 static constexpr uint32_t HEADER_LOW_US = 1000;
 static constexpr uint32_t BIT_HIGH_US = 1000;
@@ -14,6 +15,11 @@ static constexpr uint32_t BIT_ZERO_LOW_US = 1000;
 static constexpr uint32_t TRAILER_HIGH_US = 1000;
 
 void OnkyoRIProtocol::encode(RemoteTransmitData *dst, const OnkyoRIData &data) {
+  if (data.data > MAX_DATA) {
+    ESP_LOGE(TAG, "Data 0x%04X does not fit in a 12-bit RI frame, not sending", data.data);
+    return;
+  }
+
   // RI is a baseband signal on a wire, so it has no carrier to modulate.
   dst->set_carrier_frequency(0);
   dst->reserve(2 + NBITS * 2u + 1);
