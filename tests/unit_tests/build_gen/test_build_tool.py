@@ -176,3 +176,31 @@ def test_ar_batch_failure_stops(tmp_path: Path) -> None:
     assert mock_run.call_count == 1
     # The failed batch must not leave a truncated archive behind
     assert not archive.exists()
+
+
+def test_surplus_arguments_error(capsys: pytest.CaptureFixture[str]) -> None:
+    """A mis-specified ninja rule passing extra operands errors instead of
+    silently dropping them."""
+    with patch.object(
+        build_tool.sys, "argv", ["build_tool", "copy", "a", "b", "extra"]
+    ):
+        assert build_tool.main() == 1
+    assert "expected 2 arguments, got 3" in capsys.readouterr().err
+
+
+def test_copy_failure_leaves_no_partial_output(tmp_path: Path) -> None:
+    """A failed copy unlinks the destination; a partial firmware image must
+    never be left on disk."""
+    dst = tmp_path / "firmware.factory.bin"
+    dst.write_text("stale")
+    with (
+        patch.object(build_tool.shutil, "copyfile", side_effect=OSError("disk full")),
+        patch.object(
+            build_tool.sys,
+            "argv",
+            ["build_tool", "copy", str(tmp_path / "src.bin"), str(dst)],
+        ),
+        pytest.raises(OSError),
+    ):
+        build_tool.main()
+    assert not dst.exists()

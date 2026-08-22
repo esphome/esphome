@@ -65,16 +65,32 @@ def _run_ar(ar: str, archive: str, rspfile: str) -> int:
 
 
 def _run_copy(src: str, dst: str) -> int:
-    shutil.copyfile(src, dst)
+    try:
+        shutil.copyfile(src, dst)
+    except OSError:
+        # Never leave a partially written output (e.g. a firmware image)
+        Path(dst).unlink(missing_ok=True)
+        raise
     return 0
+
+
+# mode -> (handler, expected operand count); surplus argv means a
+# mis-specified ninja rule and must error, not silently drop operands
+_MODES = {"ar": (_run_ar, 3), "copy": (_run_copy, 2)}
 
 
 def main() -> int:
     mode = sys.argv[1]
-    if mode == "ar":
-        return _run_ar(*sys.argv[2:5])
-    if mode == "copy":
-        return _run_copy(*sys.argv[2:4])
+    if entry := _MODES.get(mode):
+        handler, argc = entry
+        args = sys.argv[2:]
+        if len(args) != argc:
+            print(
+                f"build_tool {mode}: expected {argc} arguments, got {len(args)}",
+                file=sys.stderr,
+            )
+            return 1
+        return handler(*args)
     print(f"unknown build_tool mode: {mode}", file=sys.stderr)
     return 1
 
