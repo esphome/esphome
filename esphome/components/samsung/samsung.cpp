@@ -7,24 +7,26 @@ namespace esphome::samsung {
 static const char *const TAG = "samsung.climate";
 
 void SamsungClimate::transmit_state() {
-  if (this->current_climate_mode_ != climate::ClimateMode::CLIMATE_MODE_OFF &&
-      this->mode == climate::ClimateMode::CLIMATE_MODE_OFF) {
-    this->last_known_mode_ = this->current_climate_mode_;
-    this->current_climate_mode_ = this->mode;
-    this->send_power_state_(false);
-    return;
-  }
-
-  std::memcpy(this->protocol_.raw, K_RESET, K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
+  const bool was_on = this->current_climate_mode_ != climate::ClimateMode::CLIMATE_MODE_OFF;
+  const bool power_on = this->mode != climate::ClimateMode::CLIMATE_MODE_OFF;
 
   this->current_climate_mode_ = this->mode;
 
-  this->set_climate_mode_(this->mode);
+  if (power_on) {
+    std::memcpy(this->protocol_.raw, K_RESET, K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
+    this->set_climate_mode_(this->mode);
+  }  // else: keep the last transmitted mode so the power off frame still carries a valid state
+
   this->set_temp_(static_cast<uint8_t>(this->target_temperature));
   this->set_swing_mode_(this->swing_mode);
   this->set_fan_(this->fan_mode.has_value() ? this->fan_mode.value() : climate::CLIMATE_FAN_AUTO);
+  this->set_power_(power_on);
 
-  this->send_();
+  if (power_on != was_on) {
+    this->send_power_state_(power_on);
+  } else {
+    this->send_();
+  }
 }
 
 bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
@@ -33,6 +35,7 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   ESP_LOGD(TAG, "Received Samsung A/C message size %" PRId32, data.size());
+  uint8_t received_length = K_SAMSUNG_AC_EXTENDED_STATE_LENGTH;
   for (uint8_t i = 0; i < K_SAMSUNG_AC_EXTENDED_STATE_LENGTH; i++) {
     if (i != 0 && i % K_SAMSUNG_AC_SECTION_LENGTH == 0) {
       // Each section (7 bytes) is separated by a MSG_SPACE followed by a new header.
@@ -42,6 +45,7 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
         // Sections beyond the standard frame are optional; a missing separator marks the end.
         if (i >= K_SAMSUNG_AC_STATE_LENGTH) {
           ESP_LOGV(TAG, "End of frame after %" PRIu8 " bytes", i);
+          received_length = i;
           break;
         }
         ESP_LOGW(TAG, "Failed to receive section separator before byte %" PRIu8, i);
@@ -67,19 +71,22 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
+  if (received_length == K_SAMSUNG_AC_EXTENDED_STATE_LENGTH) {
+    // In an extended frame the 2nd section carries timer data and the 3rd section holds bytes 7..13
+    // of the standard state. Fold it back so the standard message map decodes the right bits.
+    std::memcpy(this->protocol_.raw + K_SAMSUNG_AC_SECTION_LENGTH,
+                this->protocol_.raw + K_SAMSUNG_AC_SECTION_LENGTH * 2, K_SAMSUNG_AC_SECTION_LENGTH);
+  }
+
+  this->update_swing_mode_();
+  this->update_temp_();
+  this->update_fan_();
+
   if (this->is_power_off_()) {
-    this->last_known_mode_ = this->mode;
     this->mode = climate::ClimateMode::CLIMATE_MODE_OFF;
     this->current_climate_mode_ = this->mode;
-  } else if (this->last_known_mode_ != climate::ClimateMode::CLIMATE_MODE_OFF) {
-    this->mode = this->last_known_mode_;
-    this->current_climate_mode_ = this->mode;
-    this->last_known_mode_ = climate::ClimateMode::CLIMATE_MODE_OFF;
   } else {
     this->update_climate_mode_();
-    this->update_swing_mode_();
-    this->update_temp_();
-    this->update_fan_();
   }
 
   ESP_LOGD(TAG, "Reception successful, power is %s, publishing new state.", ONOFF(!this->is_power_off_()));
@@ -214,22 +221,27 @@ void SamsungClimate::set_temp_(const uint8_t temp) {
 void SamsungClimate::update_temp_() { this->target_temperature = this->protocol_.temp + K_SAMSUNG_AC_MIN_TEMP; }
 
 void SamsungClimate::send_power_state_(const bool on) {
-  static const uint8_t K_ON[K_SAMSUNG_AC_EXTENDED_STATE_LENGTH] = {0x02, 0x92, 0x0F, 0x00, 0x00, 0x00, 0xF0,
-                                                                   0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00,
-                                                                   0x01, 0xE2, 0xFE, 0x71, 0x80, 0x11, 0xF0};
+  static const uint8_t K_TIMER_SECTION[K_SAMSUNG_AC_SECTION_LENGTH] = {0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00};
 
-  static const uint8_t K_OFF[K_SAMSUNG_AC_EXTENDED_STATE_LENGTH] = {0x02, 0xB2, 0x0F, 0x00, 0x00, 0x00, 0xC0,
-                                                                    0x01, 0xD2, 0x0F, 0x00, 0x00, 0x00, 0x00,
-                                                                    0x01, 0x02, 0xFF, 0x71, 0x80, 0x11, 0xC0};
+  this->set_power_(on);
 
-  std::memcpy(this->protocol_.raw, on ? K_ON : K_OFF, K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
+  // Expand the standard state into an extended frame: section 3 takes bytes 7..13, section 2 the timer block.
+  std::memcpy(this->protocol_.raw + K_SAMSUNG_AC_SECTION_LENGTH * 2, this->protocol_.raw + K_SAMSUNG_AC_SECTION_LENGTH,
+              K_SAMSUNG_AC_SECTION_LENGTH);
+  std::memcpy(this->protocol_.raw + K_SAMSUNG_AC_SECTION_LENGTH, K_TIMER_SECTION, K_SAMSUNG_AC_SECTION_LENGTH);
 
   this->send_(K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
 
-  std::memcpy(this->protocol_.raw, K_RESET, K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
+  // Collapse back to the standard layout so following frames are built from a valid state.
+  std::memcpy(this->protocol_.raw + K_SAMSUNG_AC_SECTION_LENGTH, this->protocol_.raw + K_SAMSUNG_AC_SECTION_LENGTH * 2,
+              K_SAMSUNG_AC_SECTION_LENGTH);
 }
 
-bool SamsungClimate::is_power_off_() { return this->protocol_.power_1 == 0; }
+void SamsungClimate::set_power_(const bool on) {
+  this->protocol_.power_1 = this->protocol_.power_2 = on ? 0b11 : 0b00;
+}
+
+bool SamsungClimate::is_power_off_() { return this->protocol_.power_1 != 0b11 || this->protocol_.power_2 != 0b11; }
 
 void SamsungClimate::set_fan_(const climate::ClimateFanMode fan_mode) {
   switch (fan_mode) {

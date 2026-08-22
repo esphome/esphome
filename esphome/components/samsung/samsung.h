@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstring>
+
 #include "esphome/components/climate/climate_mode.h"
 #include "esphome/components/climate_ir/climate_ir.h"
 
@@ -182,12 +184,13 @@ class SamsungClimate : public climate_ir::ClimateIR {
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
-                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
+                               climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {
+    std::memcpy(this->protocol_.raw, K_RESET, K_SAMSUNG_AC_EXTENDED_STATE_LENGTH);
+  }
 
  protected:
   SamsungProtocol protocol_{};
   climate::ClimateMode current_climate_mode_{climate::ClimateMode::CLIMATE_MODE_OFF};
-  climate::ClimateMode last_known_mode_{climate::ClimateMode::CLIMATE_MODE_OFF};
 
   /// Transmit via IR the state of this climate controller
   void transmit_state() override;
@@ -200,6 +203,9 @@ class SamsungClimate : public climate_ir::ClimateIR {
   /// Change the AC power state.
   /// @param[in] on true, the AC is on. false, the AC is off.
   void send_power_state_(bool on);
+  /// Set the power bits of the current state.
+  /// @param[in] on true, the AC is on. false, the AC is off.
+  void set_power_(bool on);
   /// Check if the AC is off.
   bool is_power_off_();
   /// Set the swing setting of the A/C.
