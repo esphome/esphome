@@ -118,6 +118,7 @@ from esphome.espota2 import (
     OTA_TYPE_UPDATE_PARTITION_TABLE,
 )
 from esphome.platformio import toolchain
+from esphome.types import ConfigType
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -7141,7 +7142,7 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     main.cpp and relink the firmware on every run."""
     comments: list[str] = []
 
-    async def to_code(conf):
+    async def to_code(conf: ConfigType) -> None:
         """Accept any config; only the wrapper's comment output matters."""
 
     comp = SimpleNamespace(to_code=to_code, config_schema=object())
