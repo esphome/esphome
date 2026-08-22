@@ -595,11 +595,16 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # platformio/library.py); filters top-level libraries and
                 # discovered dependencies
                 cg.add_platformio_option(key, vals)
-            elif key in NATIVE_ARDUINO_PIO_OPTIONS and CORE.using_toolchain_arduino:
+            elif (
+                key in NATIVE_ARDUINO_PIO_OPTIONS
+                and CORE.using_toolchain_arduino
+                and vals
+            ):
                 # The esp8266 native generator reads these as scalars; the
                 # schema also permits the list form, where the last value
-                # wins like a later platformio.ini line. Other native
-                # toolchains have no equivalent and fall through to the warning.
+                # wins like a later platformio.ini line (an empty list falls
+                # through to the ignored-option warning). Other native
+                # toolchains have no equivalent and fall through too.
                 cg.add_platformio_option(key, vals[-1])
             elif key != "upload_speed":
                 # upload_speed needs no handling: it is read from the raw

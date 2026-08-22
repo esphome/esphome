@@ -14,7 +14,6 @@ library).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import functools
 import logging
 from pathlib import Path
 import re
@@ -28,10 +27,11 @@ from esphome.platformio.library import (
     HEADER_FILE_EXTENSIONS,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
+    InvalidLibrary,
     LibraryBackend,
+    check_library_data,
     collect_filtered_files,
     convert_libraries,
-    dependency_is_usable,
     ensure_list,
     is_lib_ignored,
     lex_build_flags,
@@ -326,14 +326,20 @@ def resolve_libraries(
     # PlatformIO's lib_ignore covers framework-bundled libraries too; the
     # shared converter only filters the registry/git ones.
     lib_ignore = lib_ignore_set()
-    # Memoized "does the framework bundle this name?"; the safety guard and
-    # dir probe must stay fused (path traversal)
-    _provided = functools.cache(
-        lambda name: (
-            _is_safe_library_name(name)
-            and (framework_path / "libraries" / name).is_dir()
-        )
+    # Exact on-disk directory names, so membership is case-sensitive on
+    # every filesystem (a per-name is_dir() probe would match "wire" on
+    # macOS/Windows and build the bundled Wire twice); the safety guard
+    # stays fused with the lookup (path traversal)
+    libraries_dir = framework_path / "libraries"
+    bundled_dir_names = (
+        frozenset(p.name for p in libraries_dir.iterdir() if p.is_dir())
+        if libraries_dir.is_dir()
+        else frozenset()
     )
+
+    def _provided(name: object) -> bool:
+        return _is_safe_library_name(name) and name in bundled_dir_names
+
     for library in CORE.platformio_libraries.values():
         if is_lib_ignored(library.name, lib_ignore):
             continue
@@ -397,7 +403,12 @@ def resolve_libraries(
                 # copy (PIO's process_dependencies); everything else resolves
                 # via the converter, and the walk reports any real drops
                 continue
-            if not dependency_is_usable(dep, pio_platform, "arduino", component.name):
+            try:
+                check_library_data(dep, pio_platform, "arduino")
+            except InvalidLibrary as err:
+                # The shared walk already reported any non-platform cause;
+                # warning again here would read as two distinct failures
+                _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
                 continue
             # Deferred: a later-emitted library's manifest name may satisfy
             # this; adding now could double the archive
