@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 import subprocess
@@ -131,6 +132,18 @@ def _write_compile_commands(
         # the memory analyzer) can't silently read outdated data.
         (build_dir / "compile_commands.json").unlink(missing_ok=True)
         raise EsphomeError(f"Could not generate compile_commands.json: {result.stderr}")
+    try:
+        entries = json.loads(result.stdout)
+    except ValueError:
+        entries = None
+    if not entries:
+        # compdb exits 0 with [] for unknown rule names; a renamed compile
+        # rule must fail the build, not silently strand every consumer
+        (build_dir / "compile_commands.json").unlink(missing_ok=True)
+        raise EsphomeError(
+            "ninja produced an empty compile database; the generator's rule "
+            "names no longer match"
+        )
     # write_file_if_changed keeps the mtime stable on no-op builds so the
     # idedata cache in get_idedata() stays valid.
     write_file_if_changed(build_dir / "compile_commands.json", result.stdout)
@@ -152,7 +165,8 @@ def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | N
     app_size = segment_length(ld_text, "irom0_0_seg")
     if app_size is None:
         _LOGGER.warning("irom0_0_seg not found in %s; skipping Flash summary", ld_path)
-    elif app_size == 0:
+        return None
+    if app_size == 0:
         _LOGGER.warning(
             "irom0_0_seg has zero length in %s; skipping Flash summary", ld_path
         )
@@ -169,13 +183,19 @@ def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> Non
     from esphome.build_helpers.size_summary import print_size_line
 
     size_tool = _toolchain_tool("size")
-    result = subprocess.run(
-        [str(size_tool), "-A", "-d", str(get_elf_path())],
-        capture_output=True,
-        text=True,
-        check=False,
-        close_fds=False,
-    )
+    try:
+        result = subprocess.run(
+            [str(size_tool), "-A", "-d", str(get_elf_path())],
+            capture_output=True,
+            text=True,
+            check=False,
+            close_fds=False,
+        )
+    except OSError as err:
+        # The summary is a bonus artifact like idedata; a truncated
+        # toolchain extraction must not discard an already-linked build
+        _LOGGER.warning("Could not summarize firmware size: %s", err)
+        return
     if result.returncode != 0:
         _LOGGER.warning("Could not summarize firmware size: %s", result.stderr)
         return

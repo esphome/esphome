@@ -120,13 +120,33 @@ def test_run_compile_warns_when_idedata_fails(
 def test_write_compile_commands(tmp_path: Path) -> None:
     build_dir = tmp_path / "build"
     build_dir.mkdir()
+    entries = '[{"file": "a.cpp", "command": "cc"}]\n'
     with patch.object(
         toolchain.subprocess,
         "run",
-        return_value=MagicMock(returncode=0, stdout="[]\n"),
+        return_value=MagicMock(returncode=0, stdout=entries),
     ):
         toolchain._write_compile_commands(tmp_path / "ninja", build_dir, {})
-    assert (build_dir / "compile_commands.json").read_text() == "[]\n"
+    assert (build_dir / "compile_commands.json").read_text() == entries
+
+
+@pytest.mark.parametrize("stdout", ["[]\n", "not json"])
+def test_write_compile_commands_empty_db_raises(tmp_path: Path, stdout: str) -> None:
+    """An empty compile database (compdb exits 0 with [] for unknown rule
+    names) must fail the build and drop any stale database."""
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / "compile_commands.json").write_text("[stale]")
+    with (
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout=stdout),
+        ),
+        pytest.raises(EsphomeError, match="empty compile database"),
+    ):
+        toolchain._write_compile_commands(tmp_path / "ninja", build_dir, {})
+    assert not (build_dir / "compile_commands.json").exists()
 
 
 def test_write_compile_commands_failure_removes_stale_db(tmp_path: Path) -> None:
@@ -181,6 +201,18 @@ def test_print_size_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     # Exact PlatformIO shape so script/ci_memory_impact_extract.py can parse it
     assert "RAM:   [====      ]  37.9% (used 31016 bytes from 81920 bytes)" in out
     assert "Flash: [====      ]  35.9% (used 375301 bytes from 1044464 bytes)" in out
+
+
+def test_print_size_summary_missing_size_tool_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A missing size binary degrades to a warning; the firmware already
+    linked and must not be discarded."""
+    with patch.object(
+        toolchain.subprocess, "run", side_effect=FileNotFoundError("no size")
+    ):
+        toolchain._print_size_summary(tmp_path, _paths(tmp_path))
+    assert "Could not summarize firmware size" in caplog.text
 
 
 def test_print_size_summary_no_app_size(

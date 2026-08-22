@@ -24,7 +24,7 @@ from esphome.const import (
     CONF_VERSION,
     Toolchain,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
 
@@ -163,3 +163,29 @@ def test_resolve_toolchain_rejects_unsupported() -> None:
     CORE.toolchain = Toolchain.SDK_NRF
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'sdk-nrf'"):
         _resolve_toolchain({})
+
+
+def test_run_compile_platformio_falls_through() -> None:
+    """Under toolchain: platformio the hook returns False without touching
+    the native backend; this is what keeps existing users on PlatformIO."""
+    CORE.toolchain = Toolchain.PLATFORMIO
+    with patch("esphome.arduino8266.toolchain.run_compile") as mock_native:
+        assert esp8266.run_compile(SimpleNamespace(), {}) is False
+    mock_native.assert_not_called()
+
+
+def test_run_compile_arduino_failure_raises() -> None:
+    """A non-zero native build fails by name instead of returning success."""
+    CORE.verbose = False
+    with (
+        patch("esphome.arduino8266.toolchain.run_compile", return_value=1),
+        pytest.raises(EsphomeError, match="native build failed"),
+    ):
+        esp8266.run_compile(SimpleNamespace(), {})
+
+
+def test_copy_files_native_skips_platformio_scripts(tmp_path: Path) -> None:
+    """The native build writes no PlatformIO extra scripts."""
+    CORE.build_path = tmp_path
+    esp8266.copy_files()
+    assert list(tmp_path.iterdir()) == []

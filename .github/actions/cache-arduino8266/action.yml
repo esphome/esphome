@@ -16,6 +16,12 @@ runs:
       id: version
       shell: bash
       run: |
+        # The caller's install prefix must match the cached path below, or
+        # the cache silently stores/restores an empty directory
+        [ "$ESPHOME_ARDUINO8266_PREFIX" = "$HOME/.esphome-arduino8266" ] || {
+          echo "ESPHOME_ARDUINO8266_PREFIX is '$ESPHOME_ARDUINO8266_PREFIX', expected '$HOME/.esphome-arduino8266'" >&2
+          exit 1
+        }
         . venv/bin/activate
         key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
         [ -n "$key" ] || exit 1

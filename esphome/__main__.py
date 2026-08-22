@@ -1999,6 +1999,15 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
+    # Refuse an unsupported toolchain before paying for a full compile
+    native_toolchain = _native_toolchain_module()
+    if native_toolchain is None and not CORE.using_toolchain_platformio:
+        _LOGGER.error(
+            "analyze-memory is not supported with the '%s' toolchain",
+            CORE.toolchain.value if CORE.toolchain else "unresolved",
+        )
+        return 1
+
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
     if exit_code != 0:
@@ -2010,14 +2019,6 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
 
     # Get idedata for analysis
     idedata = None
-    native_toolchain = _native_toolchain_module()
-
-    if native_toolchain is None and not CORE.using_toolchain_platformio:
-        _LOGGER.error(
-            "analyze-memory is not supported with the '%s' toolchain",
-            CORE.toolchain.value if CORE.toolchain else "unresolved",
-        )
-        return 1
     if native_toolchain is not None:
         objdump_path = str(native_toolchain.get_objdump_path())
         readelf_path = str(native_toolchain.get_readelf_path())
