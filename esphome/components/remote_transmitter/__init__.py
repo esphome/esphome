@@ -18,7 +18,9 @@ from esphome.const import (
     CONF_VALUE,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,7 +96,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _validate_non_blocking(config):
+def _validate_non_blocking(config: ConfigType) -> None:
     if (
         CORE.is_esp32
         and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT
@@ -125,7 +127,12 @@ DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
     DIGITAL_WRITE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def digital_write_action_to_code(config, action_id, template_arg, args):
+async def digital_write_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_TRANSMITTER_ID])
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.bool_)
@@ -133,7 +140,7 @@ async def digital_write_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
@@ -178,12 +185,14 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "remote_transmitter_rtl87xx.cpp": {
+            PlatformFramework.RTL87XX_ARDUINO,
+        },
         "remote_transmitter.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
             PlatformFramework.RP2_ARDUINO,
         },
