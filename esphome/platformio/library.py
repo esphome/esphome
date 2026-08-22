@@ -429,7 +429,7 @@ def split_list_by_condition(
     return matched, non_matched
 
 
-def check_library_data(data: dict, platform: str | None, framework: str):
+def check_library_data(data: dict, platform: str | None, framework: str | None):
     """
     Check whether a library manifest is compatible with the target toolchain.
 
@@ -446,7 +446,8 @@ def check_library_data(data: dict, platform: str | None, framework: str):
             for targets (e.g. Zephyr) where PIO manifests rarely declare the
             platform yet portable libraries still build.
         framework: The active framework name (e.g. ``espidf``, ``arduino``,
-            ``zephyr``) the manifest is expected to declare.
+            ``zephyr``) the manifest is expected to declare. ``None`` skips
+            the framework check (and its warning), mirroring ``platform``.
 
     Raises:
         InvalidLibrary: If the library does not support the target platform.
@@ -472,7 +473,7 @@ def check_library_data(data: dict, platform: str | None, framework: str):
     # under the target framework, and there's no way to opt out of the check at
     # this layer. Warn instead of failing so the user isn't forced to fork the
     # library to fix the manifest.
-    valid_framework = "*" in frameworks or framework in frameworks
+    valid_framework = framework is None or "*" in frameworks or framework in frameworks
 
     if not valid_framework:
         _LOGGER.warning(
