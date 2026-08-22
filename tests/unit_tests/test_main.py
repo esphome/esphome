@@ -7408,9 +7408,8 @@ def test_compile_program_unclaimed_native_toolchain_raises(
 def test_cli_toolchain_still_refreshes_the_validated_config_cache(
     tmp_path: Path,
 ) -> None:
-    """An explicit --toolchain gates only the cache read; the freshly
-    validated config is still saved so a later plain run keeps the fast
-    path (an existing compile-written sidecar keeps its toolchain)."""
+    """An explicit --toolchain gates only the cache read; with a matching
+    sidecar the freshly validated config is still saved."""
     conf = tmp_path / "device.yaml"
     conf.write_text("esphome:\n  name: t\n")
     argv = ["esphome", "--toolchain", "platformio", "logs", str(conf)]
