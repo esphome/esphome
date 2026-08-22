@@ -194,6 +194,12 @@ using socklen_t = uint32_t;
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
+// IPv4 is on by default unless a component explicitly opts out via `network`; unlike IPv6,
+// absence of the define must not silently disable IPv4 support.
+#ifndef USE_NETWORK_IPV4
+#define USE_NETWORK_IPV4 1
+#endif
+
 namespace esphome::socket {
 
 // Maximum length for formatted socket address string (IP address without port)

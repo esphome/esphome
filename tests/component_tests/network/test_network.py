@@ -32,7 +32,18 @@ def test_disable_ipv4_non_esp32_rejected(
 
 @pytest.mark.parametrize(
     "denied_component",
-    ["esp32_improv", "ethernet", "modem", "mqtt", "udp", "wifi", "wireguard"],
+    [
+        "e131",
+        "esp32_improv",
+        "ethernet",
+        "modem",
+        "mqtt",
+        "statsd",
+        "udp",
+        "voice_assistant",
+        "wifi",
+        "wireguard",
+    ],
 )
 def test_disable_ipv4_deny_list_rejected(
     denied_component: str,
@@ -45,12 +56,28 @@ def test_disable_ipv4_deny_list_rejected(
         full_config={denied_component: {}},
     )
     from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+    from esphome.const import CONF_ENABLE_IPV6
 
-    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False})
+    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False, CONF_ENABLE_IPV6: True})
     with pytest.raises(
         cv.Invalid,
         match=f"Disabling IPv4 is not currently compatible with component {denied_component}",
     ):
+        FINAL_VALIDATE_SCHEMA(config)
+
+
+def test_disable_ipv4_without_ipv6_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        core_data=_ESP32_CORE_DATA,
+        platform_data=_ESP32_PLATFORM_DATA,
+    )
+    from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False})
+    with pytest.raises(cv.Invalid, match="requires 'enable_ipv6: true'"):
         FINAL_VALIDATE_SCHEMA(config)
 
 
@@ -63,8 +90,9 @@ def test_disable_ipv4_esp32_idf_valid(
         platform_data=_ESP32_PLATFORM_DATA,
     )
     from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+    from esphome.const import CONF_ENABLE_IPV6
 
-    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False})
+    config = CONFIG_SCHEMA({CONF_ENABLE_IPV4: False, CONF_ENABLE_IPV6: True})
     FINAL_VALIDATE_SCHEMA(config)  # should not raise
 
 
@@ -86,4 +114,19 @@ def test_enable_ipv4_nrf52_default_valid(
 
     config = CONFIG_SCHEMA({})
     assert config[CONF_ENABLE_IPV4] is False
+    FINAL_VALIDATE_SCHEMA(config)  # should not raise
+
+
+def test_disable_ipv4_nrf52_deny_list_not_enforced(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # nRF52 defaults enable_ipv4 to False; a pre-existing mqtt config must keep validating.
+    set_core_config(
+        PlatformFramework.NRF52_ZEPHYR,
+        core_data=_NRF52_CORE_DATA,
+        full_config={"mqtt": {}},
+    )
+    from esphome.components.network import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
+
+    config = CONFIG_SCHEMA({})
     FINAL_VALIDATE_SCHEMA(config)  # should not raise

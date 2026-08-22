@@ -93,6 +93,8 @@ inline void lowercase_ip_str(char *buf) {
 struct IPAddress {
  public:
 #if defined(USE_ZEPHYR)
+// CONFIG_NET_IPV4 is unset on nRF52 today (the only Zephyr platform), so the arms below are
+// unreachable here -- kept for a future Wi-Fi-capable zephyr platform that needs them.
 #if defined(CONFIG_NET_IPV6)
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
 #if defined(CONFIG_NET_IPV4)

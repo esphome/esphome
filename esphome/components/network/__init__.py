@@ -22,13 +22,17 @@ from .const import CONF_ENABLE_IPV4
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
 
-# Lists will be updated in future PRs as IPV4 requirement removed from denied components
+# Entries reference lwIP/BSD IPv4 types (e.g. ip4_addr_t, sockaddr_in) unconditionally, failing to
+# compile under LWIP_IPV4=n. Add only when disabling IPv4 breaks the build, not merely IPv4 usage.
 _DISABLE_IPV4_DENY_LIST = [
+    "e131",
     "esp32_improv",
     "ethernet",
     "modem",
     "mqtt",
+    "statsd",
     "udp",
+    "voice_assistant",
     "wifi",
     "wireguard",
 ]
@@ -348,11 +352,18 @@ def _final_validate(config: ConfigType) -> None:
     if not enable_ipv4:
         if not CORE.is_esp32 and not CORE.is_nrf52:
             raise cv.Invalid("Disabling IPv4 is only supported on ESP32 or Zephyr")
-        for comp in _DISABLE_IPV4_DENY_LIST:
-            if comp in full_config:
+        if CORE.is_esp32:
+            if not config.get(CONF_ENABLE_IPV6, False):
                 raise cv.Invalid(
-                    f"Disabling IPv4 is not currently compatible with component {comp}"
+                    "Disabling IPv4 requires 'enable_ipv6: true' — the build "
+                    "would have no IP stack"
                 )
+            for comp in _DISABLE_IPV4_DENY_LIST:
+                if comp in full_config:
+                    raise cv.Invalid(
+                        f"Disabling IPv4 is not currently compatible with "
+                        f"component {comp}"
+                    )
 
     # Check that every interface named in 'priority' has a corresponding component block.
     priority_list = config.get(CONF_PRIORITY, [])
