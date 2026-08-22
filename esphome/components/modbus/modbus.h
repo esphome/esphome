@@ -264,6 +264,9 @@ struct ModbusDeviceCommand {
   bool notify_retired();
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
+  /// Cancellation matches the exact frame, not the action instance: a continuous poll whose
+  /// start_address (or other field) is templated produces one poll per distinct frame, and a later
+  /// cancel built from different argument values will not reach the polls it does not byte-match.
   bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
     const auto own_pdu = this->frame.pdu();
     return own_pdu.size() == pdu.size() && this->frame.address() == address &&

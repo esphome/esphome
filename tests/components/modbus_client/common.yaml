@@ -123,6 +123,7 @@ button:
       - modbus_client.read_discrete_inputs:
           address: 0x01
           start_address: 0x00
+          continuous: true
           on_error:
             then:
               - lambda: 'ESP_LOGW("modbus_client.test", "fc 0x%X exception %d", request.empty() ? 0 : request[0], (int) exception_code);'

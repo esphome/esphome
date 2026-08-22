@@ -99,28 +99,26 @@ def command_options_schema(
 
 
 async def register_templatable_command_options(
-    var: MockObj, config: ConfigType, args: TemplateArgsType
+    var: MockObj, config: ConfigType, args: TemplateArgsType, direction: str
 ) -> None:
-    """Generate the set_<option>() calls for every command option present in config. Presence is
-    driven by the schema (which adds keys per direction), so this is safe to call for any action -
-    options the schema did not add are simply absent. The consumer's C++ class declares a matching
+    """Generate the set_<option>() calls for the given direction's command options present in config.
+    Pass the same direction the action's command_options_schema() used, so the keys generated match
+    the ones the schema offered - a write action never emits a read option's setter. Options the
+    schema did not add are simply absent. The consumer's C++ class declares a matching
     TEMPLATABLE_VALUE per option (e.g. TEMPLATABLE_VALUE(bool, continuous)).
     """
-    seen: set[str] = set()
-    for options in _COMMAND_OPTIONS.values():
-        for option in options:
-            if option.conf_key in seen or option.conf_key not in config:
-                continue
-            seen.add(option.conf_key)
-            value = config[option.conf_key]
-            # Skip codegen when the value is its C++ zero (TemplatableFn::value() returns T{} when
-            # unset): behaviourally identical, and saves a thunk plus a setup() call per action.
-            if cg.is_template(value) or value != type(value)():
-                cg.add(
-                    getattr(var, f"set_{option.field}")(
-                        await cg.templatable(value, args, option.cpp_type)
-                    )
+    for option in _command_options(direction):
+        if option.conf_key not in config:
+            continue
+        value = config[option.conf_key]
+        # Skip codegen when the value is its C++ zero (TemplatableFn::value() returns T{} when
+        # unset): behaviourally identical, and saves a thunk plus a setup() call per action.
+        if cg.is_template(value) or value != type(value)():
+            cg.add(
+                getattr(var, f"set_{option.field}")(
+                    await cg.templatable(value, args, option.cpp_type)
                 )
+            )
 
 
 CONFIG_SCHEMA = cv.typed_schema(
