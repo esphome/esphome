@@ -458,6 +458,16 @@ def test_nonplatform_rejection_warns_once_through_real_converter(
     assert caplog.text.count("manifest is corrupt") == 1
 
 
+def test_missing_libraries_dir_is_a_broken_install(tmp_path: Path) -> None:
+    """A framework tree without libraries/ must fail by name, not silently
+    reroute every bundled name to the registry."""
+    framework = tmp_path / "framework"
+    framework.mkdir()
+    _add_library("Wire", None)
+    with pytest.raises(EsphomeError, match="framework install may be incomplete"):
+        _resolve(framework)
+
+
 def test_provided_is_case_sensitive(tmp_path: Path) -> None:
     """Membership uses the exact on-disk names, so a case-insensitive
     filesystem cannot add the same bundled library twice."""
@@ -595,12 +605,13 @@ def test_bundled_dependency_platform_rejection_is_debug(
     with (
         _emitting_converter(converted),
         patch.object(
-            pio_library,
+            component,
             "check_library_data",
             side_effect=IncompatiblePlatform("nothing about the p-word here"),
         ),
     ):
-        _resolve(framework)
+        libs = _resolve(framework)
+    assert "Wire" not in [lib.name for lib in libs]
     assert "Skipping dependency Wire" not in caplog.text
 
 
