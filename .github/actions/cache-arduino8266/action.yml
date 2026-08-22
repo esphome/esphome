@@ -17,8 +17,10 @@ runs:
       shell: bash
       run: |
         # The caller's install prefix must match the cached path below, or
-        # the cache silently stores/restores an empty directory
-        [ "$ESPHOME_ARDUINO8266_PREFIX" = "$HOME/.esphome-arduino8266" ] || {
+        # the cache silently stores/restores an empty directory. Compare
+        # tilde-expanded: the job env carries a literal ~ that Python's
+        # expanduser and actions/cache both resolve.
+        [ "${ESPHOME_ARDUINO8266_PREFIX/#\~/$HOME}" = "$HOME/.esphome-arduino8266" ] || {
           echo "ESPHOME_ARDUINO8266_PREFIX is '$ESPHOME_ARDUINO8266_PREFIX', expected '$HOME/.esphome-arduino8266'" >&2
           exit 1
         }
