@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 import functools
 import logging
 from pathlib import Path
+import re
 
 from esphome.core import CORE, EsphomeError, Library
 from esphome.helpers import walk_files
@@ -63,16 +64,15 @@ class ArduinoLibrary:
     link_flags: list[str] = field(default_factory=list)
 
 
+# Filename-plain names only: leading alnum/underscore, then word chars,
+# dot, space, plus, or hyphen. An allowlist excludes separators, drive
+# colons, and dot-only names by shape instead of enumerating them.
+_SAFE_LIBRARY_NAME_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_. +-]*\Z")
+
+
 def _is_safe_library_name(name: object) -> bool:
     """Whether a name may be joined under the framework's libraries dir."""
-    return (
-        isinstance(name, str)
-        and bool(name)
-        and "/" not in name
-        and "\\" not in name
-        and ":" not in name  # a Windows drive-relative name escapes the tree
-        and name not in (".", "..")
-    )
+    return isinstance(name, str) and _SAFE_LIBRARY_NAME_RE.fullmatch(name) is not None
 
 
 def _manifest_build(name: str, data: object) -> dict:
@@ -84,24 +84,21 @@ def _manifest_build(name: str, data: object) -> dict:
     return build
 
 
-def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
-    """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
-    build = _manifest_build(name, data)
+def _resolve_src_dir(name: str, read_path: Path, build: dict) -> str:
+    """Resolve PIO's source dir: manifest srcDir, else src/Src, else the root."""
+    if "srcDir" not in build:
+        return next((d for d in ("src", "Src") if (read_path / d).is_dir()), ".")
+    # A declared srcDir (falsy included) that does not resolve is a
+    # manifest error
+    src_dir = build["srcDir"]
+    if not (isinstance(src_dir, str) and src_dir and (read_path / src_dir).is_dir()):
+        raise EsphomeError(
+            f"Library {name} declares srcDir {src_dir!r} which does not exist"
+        )
+    return src_dir
 
-    # PIO's source-dir resolution: manifest srcDir, else src/Src, else the root
-    if "srcDir" in build:
-        # A declared srcDir (falsy included) that does not resolve is a
-        # manifest error
-        src_dir = build["srcDir"]
-        if not (
-            isinstance(src_dir, str) and src_dir and (read_path / src_dir).is_dir()
-        ):
-            raise EsphomeError(
-                f"Library {name} declares srcDir {src_dir!r} which does not exist"
-            )
-    else:
-        src_dir = next((d for d in ("src", "Src") if (read_path / d).is_dir()), ".")
 
+def _warn_dropped_link_fields(name: str, data: dict) -> None:
     for dropped_key in ("precompiled", "ldflags"):
         if data.get(dropped_key):
             # PIO's Arduino lib builder honors these; building without them
@@ -111,15 +108,14 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
                 name,
                 dropped_key,
             )
-    src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
-    if not all(isinstance(entry, str) for entry in src_filter):
-        raise EsphomeError(f"Library {name} has a malformed srcFilter")
-    # PlatformIO shell-lexes each build.flags entry
-    flag_tokens = lex_build_flags(build.get("flags", []), f"library {name}")
 
-    # dot_a_linkage (Arduino IDE's property, ignored by PIO) is a deliberate
-    # extra. Strict parse: bool("false") is True.
-    def _parse_archive(key: str, raw: object) -> bool:
+
+def _resolve_lib_archive(name: str, data: dict, build: dict) -> bool:
+    """build.libArchive, else dot_a_linkage (Arduino IDE's property, ignored
+    by PIO -- a deliberate extra), else archive."""
+
+    # Strict parse: bool("false") is True
+    def _parse(key: str, raw: object) -> bool:
         if isinstance(raw, bool):
             return raw
         value = str(raw).strip().lower()
@@ -128,12 +124,19 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         raise EsphomeError(f"Library {name} has a malformed {key} value {raw!r}")
 
     if "libArchive" in build:
-        lib_archive = _parse_archive("libArchive", build["libArchive"])
-    elif "dot_a_linkage" in data:
-        lib_archive = _parse_archive("dot_a_linkage", data["dot_a_linkage"])
-    else:
-        lib_archive = True
-    lib = ArduinoLibrary(name=name, lib_archive=lib_archive)
+        return _parse("libArchive", build["libArchive"])
+    if "dot_a_linkage" in data:
+        return _parse("dot_a_linkage", data["dot_a_linkage"])
+    return True
+
+
+def _classify_build_flags(
+    name: str, read_path: Path, lib: ArduinoLibrary, flag_tokens: list[str]
+) -> list[str]:
+    """Route the lexed build.flags into the library's flag lists.
+
+    Returns the ``-I`` arguments for the include-dir resolution.
+    """
     include_flags: list[str] = []
     for tok in flag_tokens:
         if tok.startswith("-I"):
@@ -155,13 +158,23 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
             lib.link_flags.append(tok)
         else:
             lib.flags.append(tok)
+    return include_flags
 
+
+def _resolve_include_dirs(
+    name: str,
+    read_path: Path,
+    lib: ArduinoLibrary,
+    build: dict,
+    src_dir: str,
+    include_flags: list[str],
+) -> None:
     include_dir = build.get("includeDir", DEFAULT_BUILD_INCLUDE_DIR)
     if not isinstance(include_dir, str):
         raise EsphomeError(f"Library {name} has a malformed includeDir")
     for d, explicit in [
         (include_dir, "includeDir" in build),
-        (src_dir, False),  # the srcDir guard above already validated it
+        (src_dir, False),  # _resolve_src_dir already validated it
         *((flag, True) for flag in include_flags),
     ]:
         if (path := (read_path / d)).is_dir():
@@ -174,6 +187,15 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
                 "Library %s declares include dir %s which does not exist", name, d
             )
 
+
+def _collect_lib_sources(
+    name: str,
+    read_path: Path,
+    lib: ArduinoLibrary,
+    build: dict,
+    src_dir: str,
+    src_filter: list[str],
+) -> None:
     matched = collect_filtered_files(read_path / src_dir, src_filter)
     lib.sources = sorted(
         path.resolve()
@@ -204,6 +226,23 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
             "Library %s declares srcFilter/srcDir but no source files matched",
             name,
         )
+
+
+def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
+    """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
+    build = _manifest_build(name, data)
+    _warn_dropped_link_fields(name, data)
+    src_dir = _resolve_src_dir(name, read_path, build)
+    src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
+    if not all(isinstance(entry, str) for entry in src_filter):
+        raise EsphomeError(f"Library {name} has a malformed srcFilter")
+    lib = ArduinoLibrary(name=name, lib_archive=_resolve_lib_archive(name, data, build))
+    # PlatformIO shell-lexes each build.flags entry
+    include_flags = _classify_build_flags(
+        name, read_path, lib, lex_build_flags(build.get("flags", []), f"library {name}")
+    )
+    _resolve_include_dirs(name, read_path, lib, build, src_dir, include_flags)
+    _collect_lib_sources(name, read_path, lib, build, src_dir, src_filter)
     return lib
 
 

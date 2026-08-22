@@ -97,3 +97,23 @@ def test_resolve_unrecognized_value_warns_and_probes(
         assert ccache.resolve_ccache_path() is None
     mock_probe.assert_called_once()
     assert "unrecognized ESPHOME_CCACHE_ENABLE" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1", True),
+        ("enable", True),
+        ("ON", True),
+        ("0", False),
+        ("disable", False),
+        ("Off", False),
+        ("maybe", None),
+    ],
+)
+def test_parse_enable_env_spelling_tables(
+    monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool | None
+) -> None:
+    """cv.boolean's spelling tables plus the 1/0 env convention."""
+    monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", raw)
+    assert ccache.parse_enable_env("ESPHOME_CCACHE_ENABLE") is expected

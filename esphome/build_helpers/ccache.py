@@ -11,6 +11,10 @@ from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_r
 
 _LOGGER = logging.getLogger(__name__)
 
+# esphome cv.boolean's spelling tables plus the 1/0 env convention
+TRUTHY_ENV_STRINGS = frozenset({"1", "true", "yes", "on", "enable"})
+FALSY_ENV_STRINGS = frozenset({"0", "false", "no", "off", "disable"})
+
 
 def _ccache_runs(ccache: str) -> bool:
     """Return True when the ``ccache`` found on PATH actually runs."""
@@ -31,9 +35,9 @@ def parse_enable_env(name: str) -> bool | None:
     if raw is None:
         return None
     lowered = raw.strip().lower()
-    if lowered in ("1", "true", "yes", "on"):
+    if lowered in TRUTHY_ENV_STRINGS:
         return True
-    if lowered in ("0", "false", "no", "off"):
+    if lowered in FALSY_ENV_STRINGS:
         return False
     _LOGGER.warning("Ignoring unrecognized %s=%r; use 1 or 0", name, raw)
     return None
