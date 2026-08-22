@@ -490,6 +490,29 @@ def test_library_info_unmapped_sources_warn(
     assert "not compiled: impl.CPP, sketch.ino" in caplog.text
 
 
+def test_library_info_inert_only_filter_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A declared srcFilter matching only inert files (no sources, no
+    headers) warns like one matching nothing at all."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "keywords.txt").write_text("")
+    component._library_info("x", read_path, {"build": {"srcFilter": ["+<*>"]}})
+    assert "no source files matched" in caplog.text
+
+
+def test_library_info_declared_filter_matching_headers_stays_quiet(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A declared filter matching real headers is a header-only library."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "api.h").write_text("")
+    component._library_info("x", read_path, {"build": {"srcFilter": ["+<*>"]}})
+    assert "no source files matched" not in caplog.text
+
+
 def test_library_info_header_only_src_stays_quiet(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -695,7 +718,6 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
         # A non-string name never leaves the shared normalizer
         (1, "Ignoring unrecognized dependency entry"),
         ("../escape", "Ignoring malformed dependency entry"),
-        ("a/b", "Ignoring malformed dependency entry"),
         ("..", "Ignoring malformed dependency entry"),
     ],
 )
@@ -711,6 +733,24 @@ def test_bundled_dependency_bad_name_is_malformed(
     with _emitting_converter(converted):
         _resolve(framework)
     assert message in caplog.text
+
+
+def test_owner_qualified_dependency_is_silent(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The owner-qualified dependency spelling (PIO's Owner/Pkg) resolves via
+    the converter; it must not draw the malformed-entry warning."""
+    framework = _make_framework(tmp_path)
+    converted = _webserver(
+        tmp_path,
+        {
+            "build": {},
+            "dependencies": [{"name": "ESP32Async/AsyncTCP", "version": "^3.0"}],
+        },
+    )
+    with _emitting_converter(converted):
+        _resolve(framework)
+    assert "malformed" not in caplog.text
 
 
 def test_bundled_dependency_string_list_form(

@@ -164,8 +164,15 @@ def test_ar_batch_failure_stops(tmp_path: Path) -> None:
             ["build_tool", "ar", "ar-bin", str(archive), str(rsp)],
         ),
         patch.object(
-            build_tool.subprocess, "run", return_value=MagicMock(returncode=3)
+            build_tool.subprocess,
+            "run",
+            side_effect=lambda cmd, **kw: (
+                archive.write_text("partial"),
+                MagicMock(returncode=3),
+            )[1],
         ) as mock_run,
     ):
         assert build_tool.main() == 3
     assert mock_run.call_count == 1
+    # The failed batch must not leave a truncated archive behind
+    assert not archive.exists()
