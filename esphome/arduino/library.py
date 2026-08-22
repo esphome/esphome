@@ -195,7 +195,6 @@ def _collect_lib_sources(
     name: str,
     read_path: Path,
     lib: ArduinoLibrary,
-    build: dict,
     src_dir: str,
     src_filter: list[str],
 ) -> None:
@@ -246,7 +245,7 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         name, read_path, lib, lex_build_flags(build.get("flags", []), f"library {name}")
     )
     _resolve_include_dirs(name, read_path, lib, build, src_dir, include_flags)
-    _collect_lib_sources(name, read_path, lib, build, src_dir, src_filter)
+    _collect_lib_sources(name, read_path, lib, src_dir, src_filter)
     return lib
 
 
@@ -306,12 +305,16 @@ def _external_short_name(name: str) -> str:
 
     "owner/Name" and plain names take the last path segment; the
     "Name=<url>" custom-name form takes the declared name (the URL tail is
-    a repository path, not a library name).
+    a repository path, not a library name). Git tails (".git", "#ref") are
+    stripped like the walk's own URL normalization -- deliberately further
+    than CORE.add_library's keying, because the comparand here is a manifest
+    dependency name, never a spec.
     """
     head, sep, tail = name.partition("=")
     if sep and "://" in tail:
         return head
-    return name.rsplit("/", maxsplit=1)[-1]
+    short = name.rsplit("/", maxsplit=1)[-1]
+    return short.partition("#")[0].removesuffix(".git")
 
 
 def resolve_libraries(
@@ -470,10 +473,13 @@ def resolve_libraries(
         )
     for name in pending_bundled:
         if name in converted_manifest_names:
-            # Exact manifest-name evidence: the converted library is this
-            # library, so the bundled copy would double the archive
-            _LOGGER.debug(
-                "Bundled %s suppressed by a converted library's manifest name",
+            # Manifest-name evidence: the converted library is this library,
+            # so the bundled copy would double the archive. Warn like the
+            # external_short_names twin: a coincidental collision would
+            # otherwise surface only as link errors
+            _LOGGER.warning(
+                "Dependency %s is assumed satisfied by a converted library's "
+                "manifest name; the bundled copy is not added",
                 name,
             )
             continue
