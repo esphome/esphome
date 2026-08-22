@@ -24,7 +24,7 @@ from esphome.platformio.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
     DEFAULT_BUILD_SRC_FILTER,
-    HEADER_FILE_EXTENSIONS,
+    LIBRARY_HEADER_SUFFIXES,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
     InvalidLibrary,
@@ -219,17 +219,18 @@ def _collect_lib_sources(
             len(dropped),
             ", ".join(sorted(dropped)),
         )
-    if (
-        not lib.sources
-        and ("srcFilter" in build or "srcDir" in build)
-        and not any(Path(f).suffix.lower() in HEADER_FILE_EXTENSIONS for f in matched)
+    if not lib.sources and not any(
+        Path(f).suffix.lower() in LIBRARY_HEADER_SUFFIXES for f in matched
     ):
-        # A declared filter matching nothing (or only inert files) is a
-        # manifest/tree problem; matched headers mean a header-only library
-        _LOGGER.warning(
-            "Library %s declares srcFilter/srcDir but no source files matched",
-            name,
-        )
+        # Matched headers mean a header-only library; anything else with no
+        # sources yields an empty archive that fails far away at link
+        if "srcFilter" in build or "srcDir" in build:
+            _LOGGER.warning(
+                "Library %s declares srcFilter/srcDir but no source files matched",
+                name,
+            )
+        else:
+            _LOGGER.warning("Library %s has no sources or headers", name)
 
 
 def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
@@ -284,7 +285,7 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
             )
     lib = _library_info(name, lib_dir, data)
     if not lib.sources and not any(
-        Path(p).suffix.lower() in HEADER_FILE_EXTENSIONS for p in walk_files(lib_dir)
+        Path(p).suffix.lower() in LIBRARY_HEADER_SUFFIXES for p in walk_files(lib_dir)
     ):
         # An empty or half-extracted bundled directory can never link; a
         # warning would scroll away and resurface as undefined symbols
@@ -390,14 +391,23 @@ def resolve_libraries(
                 )
                 continue
             if name in external_short_names:
-                # Deliberate when the external really is this library;
-                # attributable when the short-name match is accidental
-                _LOGGER.debug(
-                    "Dependency %s of %s assumed satisfied by a requested "
-                    "external library",
-                    name,
-                    component.name,
-                )
+                if _provided(name):
+                    # A bundled copy really is suppressed; an accidental
+                    # short-name collision would surface as link errors
+                    _LOGGER.warning(
+                        "Dependency %s of %s is assumed satisfied by a "
+                        "requested external library; the bundled copy is "
+                        "not added",
+                        name,
+                        component.name,
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Dependency %s of %s assumed satisfied by a requested "
+                        "external library",
+                        name,
+                        component.name,
+                    )
                 continue
             if name in bundled_names or is_lib_ignored(name, lib_ignore):
                 continue
