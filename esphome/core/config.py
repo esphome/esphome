@@ -555,9 +555,9 @@ def _add_library_str(lib: str) -> None:
         cg.add_library(lib, None)
 
 
-# platformio_options keys the native ESP8266 Arduino generator honors; the
-# backend's ignored-option warning consumes this too so the two lists cannot
-# drift (a drift is either a spurious warning or a silently dropped option)
+# platformio_options keys the native ESP8266 Arduino generator (a later PR
+# in this chain) will honor; its ignored-option warning will consume the same
+# list so the two cannot drift
 NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
 
 
