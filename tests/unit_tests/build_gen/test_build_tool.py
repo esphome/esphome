@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -50,8 +52,6 @@ def test_unknown_mode(capsys: pytest.CaptureFixture[str]) -> None:
 
 def test_runs_as_script(tmp_path: Path) -> None:
     """The ninja rules invoke the file as a plain script."""
-    import subprocess
-    import sys
 
     src = tmp_path / "a.bin"
     src.write_text("x")

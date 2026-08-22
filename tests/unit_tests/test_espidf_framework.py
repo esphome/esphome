@@ -1395,8 +1395,6 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
 def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
     return (
-        # The gate defers to the shared resolver (which carries the PATH
-        # lookup, ESPHOME_CCACHE_ENABLE parse, and runnability probe)
         patch("esphome.espidf.framework.resolve_ccache_path", return_value=which),
         patch(
             "esphome.espidf.framework.get_idf_tools_path",

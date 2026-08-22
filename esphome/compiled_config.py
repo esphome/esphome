@@ -105,10 +105,9 @@ def _refresh_sidecar() -> bool:
                 and CORE.toolchain is not None
                 and old.toolchain != CORE.toolchain.value
             ):
-                # The config was validated under a different toolchain than
-                # the compile's, and platforms normalize toolchain-sensitive
-                # keys (e.g. the esp32 board name) differently; caching it
-                # would disagree with the sidecar until the next compile
+                # Platforms normalize toolchain-sensitive keys differently;
+                # never cache a config validated under a different toolchain
+                # than the compile's
                 _LOGGER.debug(
                     "Not caching: config validated with toolchain %r but the "
                     "last compile used %r",

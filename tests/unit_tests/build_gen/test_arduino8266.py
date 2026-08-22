@@ -1,14 +1,8 @@
 """Drift tests for the native ESP8266 Arduino build generator.
 
-These pin the ESPHome side of the transliteration (the knob-define
-precedence, the define/flag sets, and the linker-script generation) against
-literals audited from the PlatformIO builder
-(framework-arduinoespressif8266/tools/platformio-build.py and
-platform-espressif8266/builder/main.py): the knob-define precedence, the
-define/flag sets, the link line, and the core source exclusions. They catch
-an accidental edit on this side; an upstream change in a new framework
-release is caught by the A/B byte-identical build check on a version bump,
-not by these tests.
+Pin the transliterated flag/define/link sets against literals audited from
+the PlatformIO builder. Upstream drift is caught by the A/B build check on
+version bumps, not here.
 """
 
 from __future__ import annotations
@@ -17,10 +11,12 @@ from collections.abc import Generator
 import logging
 import os
 from pathlib import Path
+import shutil
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.arduino.library import ArduinoLibrary
 from esphome.arduino8266.framework import InstalledPaths, toolchain_tool
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
@@ -30,7 +26,7 @@ from esphome.build_gen.arduino8266 import (
     _resolve_build_config,
     get_flash_ld_path,
 )
-from esphome.components.esp8266.boards import ESP8266_BOARD_BUILD
+from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
 from esphome.components.esp8266.const import (
     KEY_BOARD,
@@ -255,9 +251,7 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert "-T eagle.flash.4m.ld" in content
     # scanf float disabled: the forced-link flag must not appear
     assert "_scanf_float" not in content
-    # $in/$out must stay UNQUOTED: ninja shell-escapes its built-in path
-    # variables itself, so added quotes would wrap ninja's quoting and break
-    # space-containing paths.
+    # $in/$out must stay unquoted; ninja escapes its own path variables
     assert "-c $in -o $out" in content
     assert "--app $in --flash_mode" in content
     assert '"$in"' not in content
@@ -492,7 +486,6 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
 def test_write_project_libraries_and_variant(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    from esphome.arduino.library import ArduinoLibrary
 
     paths = _make_framework(tmp_path)
     variant_src = paths.framework / "variants" / "nodemcu" / "variant.cpp"
@@ -572,7 +565,6 @@ def test_write_project_testing_mode(tmp_path: Path) -> None:
 
 def test_write_project_missing_framework_dir_raises(tmp_path: Path) -> None:
     """An incomplete framework install fails naming the missing path."""
-    import shutil
 
     paths = _make_framework(tmp_path)
     shutil.rmtree(paths.framework / "tools" / "sdk" / "lwip2")
@@ -781,10 +773,7 @@ def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
 
 
 def test_build_config_custom_mmu_without_knob_raises() -> None:
-    """Custom MMU sizes without the CUSTOM knob would compile against a
-    layout the linker script does not implement; refuse instead of warning
-    (PlatformIO warns, but its defaults win the compile line; ours would
-    not)."""
+    """Custom MMU sizes without the CUSTOM knob are refused."""
     with pytest.raises(EsphomeError, match="PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"):
         _resolve("-DMMU_IRAM_SIZE=0xC000")
 
@@ -833,8 +822,7 @@ def test_flag_tables_match_platformio_builder() -> None:
         "-free",
         "-fipa-pta",
     ]
-    # The -u block is where the deliberate -u _scanf_float omission lives;
-    # pinned in full so "restoring" it fails here first
+    # Pins the deliberate -u _scanf_float omission
     assert arduino8266._LINKFLAGS == [
         "-Os",
         "-nostdlib",
@@ -895,7 +883,6 @@ def test_write_project_asm_keeps_quoted_defines(tmp_path: Path) -> None:
 
 def test_write_project_unarchived_library_links_objects(tmp_path: Path) -> None:
     """A libArchive:false library's objects reach the link directly."""
-    from esphome.arduino.library import ArduinoLibrary
 
     paths = _make_framework(tmp_path)
     lib_src = tmp_path / "gdb" / "src"
@@ -927,8 +914,7 @@ def test_write_project_unknown_board_fails_by_name(tmp_path: Path) -> None:
 
 
 def test_unflag_tokens_join_spaced_entries() -> None:
-    """A spaced build_unflags entry ("-D FOO") removes -DFOO, and no bare half leaks into the
-    unflag set to collaterally drop unrelated tokens."""
+    """Spaced build_unflags entries ("-D FOO") match the joined token."""
     CORE.build_unflags = {"-D FOO", "-l bar"}
     tokens = arduino8266._unflag_tokens()
     assert tokens == {"-DFOO", "-lbar"}
@@ -950,8 +936,7 @@ def test_flag_defines_respects_unflags() -> None:
 
 
 def test_vtables_unknown_raises() -> None:
-    """A typo'd knob would win the sorted pick and die in the SDK header's
-    #error; fail by name at generation instead."""
+    """An unknown VTABLES_IN_* knob fails by name."""
     with pytest.raises(EsphomeError, match="Unknown VTABLES_IN_.*BANANA"):
         _resolve("-DVTABLES_IN_BANANA")
 
@@ -1044,9 +1029,7 @@ def test_lexed_build_flags_shared_between_consumers(
     "tok", ["-Tcustom.ld", "-Xlinker", "-u", "-e", "-s", "-static", "-nostartfiles"]
 )
 def test_project_flags_rejects_plain_linker_forms(tok: str) -> None:
-    """A plain-form linker flag would land on the -c compile line where it
-    is inert; refuse naming the -Wl, form instead of shipping firmware that
-    silently lacks the requested link behavior."""
+    """Plain-form linker flags are refused, naming the -Wl, form."""
     _set_flags(tok)
     with pytest.raises(EsphomeError, match="use the -Wl, form"):
         arduino8266._project_flags(set(), arduino8266._lexed_build_flags())
@@ -1227,11 +1210,7 @@ def test_generate_ld_scripts_unreadable_header_forces_regeneration(
 
 
 def test_board_tables_are_equal() -> None:
-    """write_project rejects a board missing from either table, so the two
-    must stay exactly in sync (the build-surgery test only checks the
-    subset direction, which is how d1_wroom_02 went missing)."""
-    from esphome.components.esp8266.boards import BOARDS
-
+    """BOARDS and ESP8266_BOARD_BUILD must stay exactly in sync."""
     assert set(BOARDS) == set(ESP8266_BOARD_BUILD)
 
 

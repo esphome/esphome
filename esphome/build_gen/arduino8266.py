@@ -55,11 +55,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Compile rule per source suffix, derived from the shared suffix -> kind map
-# so every source extension a library manifest can select has a rule.
-# Compile rule names are exactly the shared suffix -> kind values (c, cxx,
-# asm), so every source extension a library manifest can select has a rule.
-
 # Always excluded from the core build: ESPHome uses its own native OTA
 # backend, so the Arduino Updater (and its 228-byte global) never links.
 _CORE_EXCLUDE_ALWAYS = {"Updater.cpp"}
@@ -210,14 +205,10 @@ class _BuildConfig:
 
 
 def _lexed_build_flags() -> list[str]:
-    """Shell-lex every ``CORE.build_flags`` entry the way PlatformIO's
-    ``ParseFlags`` does, so a knob in ``"-DKNOB -DOTHER"``, a spaced
-    ``"-D KNOB"``, and quoted bodies all read identically everywhere.
+    """Shell-lex ``CORE.build_flags`` as PlatformIO's ``ParseFlags`` does,
+    sorted so duplicate defines resolve deterministically.
 
-    Sorted so duplicate defines resolve the same way every run (the winner
-    feeds the linker-script preprocessor line, which is also the cache
-    stamp). Lex once per build and pass the result to ``_flag_defines`` and
-    ``_project_flags`` so a malformed entry warns once, not per consumer.
+    Lex once per build; consumers share the tokens.
     """
     return lex_build_flags(sorted(CORE.build_flags), "esphome")
 
@@ -278,9 +269,8 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     # build flags, whose iteration order varies between processes.
     vtables_knobs = sorted(name for name in defines if name.startswith("VTABLES_IN_"))
     known_vtables = {"VTABLES_IN_FLASH", "VTABLES_IN_DRAM", "VTABLES_IN_IRAM"}
-    # A typo would otherwise win the sorted pick and end in the SDK header's
-    # #error, and a conflicting pair would resolve arbitrarily; both are
-    # config errors, not build-time surprises
+    # A typo'd or conflicting knob would otherwise fail obscurely in the
+    # SDK header's #error
     if unknown := [k for k in vtables_knobs if k not in known_vtables]:
         raise EsphomeError(f"Unknown VTABLES_IN_* define(s): {', '.join(unknown)}")
     if len(vtables_knobs) > 1:
@@ -313,11 +303,8 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         mmu = sorted(body for name, body in defines.items() if name.startswith("MMU_"))
     else:
         if "MMU_IRAM_SIZE" in defines or "MMU_ICACHE_SIZE" in defines:
-            # PlatformIO only warns here and appends its defaults last so
-            # they win the compile line; in this generator the user's
-            # tokens would come last instead, compiling against a memory
-            # layout the linker script does not implement. Refuse rather
-            # than reproduce the upstream footgun with worse odds.
+            # Unlike PlatformIO (whose defaults win the compile line), user
+            # MMU_* here would win the compile but not the linker script; refuse.
             raise EsphomeError(
                 "Custom MMU_IRAM_SIZE/MMU_ICACHE_SIZE build flags require "
                 "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
@@ -387,10 +374,7 @@ def _defines_flags(
     return [
         f"-D{d}"
         for d in (
-            # Upstream reads this from the board manifest (build.f_cpu),
-            # where all 45 supported boards ship 80000000L, overridable via
-            # board_build.f_cpu; published configs pin 160000000L for
-            # timing-sensitive integrations, so the override is honored
+            # Every supported board ships 80 MHz; board_build.f_cpu overrides
             f"F_CPU={_pio_option('board_build.f_cpu', '80000000L')}",
             "__ets__",
             "ICACHE_FLASH",
@@ -423,15 +407,9 @@ def _project_flags(
 ) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
-    Every entry is shell-lexed the way PlatformIO's ``ParseFlags`` does, so a
-    linker flag anywhere in an entry reaches the link line and
-    ``build_unflags`` matches individual tokens (``-Os`` inside ``-Os -g3``).
-    Only the flag forms ESPHome emits are classified (``-Wl,``/``-L``/``-l``
-    and compile flags); plain-form ``-T``/``-u``/``-Xlinker`` raise (inert on
-    a ``-c`` compile line), unlike full ParseFlags which routes them to the
-    link line. The returned ``compile_flags`` and ``link_flags`` are already
-    ``_shell_token``-quoted; ``lib_dirs`` and ``libs`` are raw and the caller
-    must quote them at emission.
+    Plain-form linker flags (``-T``/``-u``/``-Xlinker``) raise: they would be
+    inert on the ``-c`` compile line. ``compile_flags``/``link_flags`` come
+    back shell-quoted; ``lib_dirs``/``libs`` are raw, quote at emission.
     """
     compile_flags: list[str] = []
     link_flags: list[str] = []
@@ -528,25 +506,19 @@ def generate_ld_scripts(
     # incremental builds when nothing changed.
     output = ld_dir / "local.eagle.app.v6.common.ld"
     stamp = ld_dir / ".local.eagle.app.v6.common.ld.stamp"
-    # The surgery constants are inputs too: an edit to build_surgery.py must
-    # invalidate existing build dirs, not wait for an esphome clean.
-    # The header's and compiler's size and mtime cover an in-place
-    # framework or toolchain re-extraction at the same versioned path,
-    # which the command line alone would not notice
+    # Stamp includes the header/gcc stat (catches in-place re-extraction)
+    # and the surgery fingerprint (a build_surgery edit invalidates old
+    # build dirs)
     stamp_content = (
         " ".join(cmd)
         + f" testing={CORE.testing_mode}"
         + f" header={_stat_sig(header)}"
         + f" gcc={_stat_sig(gcc)}"
-        # One fingerprint instead of enumerating surgery internals here, so
-        # any behavioral edit in build_surgery self-invalidates the cache
         + f" {build_surgery.surgery_fingerprint()}"
     )
 
     def _cached_ld_is_valid() -> bool:
-        # A damaged cache (unreadable, non-UTF-8, truncated, externally
-        # edited) must regenerate, not abort the build or be reused on
-        # existence alone (the SECTIONS check below only guards generation)
+        # Any damaged cache regenerates; never abort the build over it
         try:
             if not (
                 output.is_file()
@@ -601,9 +573,7 @@ def generate_ld_scripts(
         write_file_if_changed(output, content)
         stamp.write_text(stamp_content, encoding="utf-8")
     elif stderr_note.is_file():
-        # The diagnostic must not vanish for the life of the build dir just
-        # because the script is cached; best-effort like every other cache
-        # read here (a damaged note must not abort an incremental build)
+        # Re-emit cached preprocessor warnings on cache hits; best-effort
         with contextlib.suppress(OSError, UnicodeDecodeError):
             _LOGGER.warning(
                 "Linker-script preprocessor: %s",
@@ -682,9 +652,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
     board = esp8266_data[KEY_BOARD]
-    # _validate_native_toolchain rejects unknown boards at config time and a
-    # test pins the two board tables equal; this backstop covers callers
-    # that bypassed validation
+    # Backstop; config validation already rejects unknown boards
     if board not in ESP8266_BOARD_BUILD:
         raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
@@ -755,10 +723,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         + common
         + [_shell_token(f) for f in get_project_cxx_compile_flags()]
     )
-    # PlatformIO's ASPPCOM carries defines and includes but not CCFLAGS,
-    # so only -D/-I user flags reach assembly there; match it. The tokens
-    # are already shell-quoted (per-platform style), so test past a
-    # leading quote too.
+    # PlatformIO's ASPPCOM passes only -D/-I user flags to assembly; match
+    # it (tokens arrive shell-quoted, hence the lstrip)
     asflags = (
         _ASFLAGS
         + defines
@@ -806,10 +772,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
 
     build_tool = Path(__file__).parent / "build_tool.py"
 
-    # $in/$out stay unquoted in the rule commands: ninja shell-escapes its
-    # built-in path variables itself when expanding a command (POSIX and
-    # Windows), so adding quotes would wrap ninja's own quoting and break
-    # space-containing paths. Only literal paths need _q().
+    # $in/$out stay unquoted: ninja escapes its built-in path variables
+    # itself; only literal paths need _q().
     lines = [
         "# Auto-generated by ESPHome",
         "ninja_required_version = 1.5",
@@ -822,6 +786,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         f"buildtool = {_q(build_tool)}",
         f"ccache = {_q(ccache) if ccache else ''}",
         "",
+        # Rule names match SOURCE_KIND_FOR_SUFFIX values (c, cxx, asm)
         "rule c",
         "  command = $ccache $cc -MMD -MF $out.d $cflags $flags -c $in -o $out",
         "  depfile = $out.d",
@@ -848,10 +813,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
-        # --flash_freq 40: upstream derives this from the board JSON's
-        # f_flash, but all 45 supported boards ship 40 MHz (audited against
-        # platform-espressif8266); re-check if a future platform bump adds
-        # a board with a different f_flash
+        # --flash_freq 40: every supported board's f_flash is 40 MHz;
+        # re-check on a platform bump
         f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",

@@ -1,25 +1,12 @@
 """Arduino-core backend for the shared PlatformIO library converter.
 
-Turns the libraries registered via ``cg.add_library()`` into build inputs for
-a native Arduino build. Bare names that exist under the framework's bundled
-``libraries/`` directory (ESP8266WiFi, Wire, SPI, ...) are read straight from
-the framework tree; everything else goes through the shared
-resolution/download pipeline in ``esphome.platformio.library``. Nothing here
-is core-specific: the caller names the PlatformIO platform, MCU, and cache
-key of the Arduino core it builds.
+Bundled names build straight from the framework tree; everything else goes
+through ``esphome.platformio.library``. Mirrors ``lib_ldf_mode=off``: each
+library builds its own archive; all include dirs join one global path.
 
-Known deviations: flat-layout (``library.properties``, no ``src/``)
-libraries get the recursive default source filter rather than PlatformIO's
-root-only Arduino-1.0 filter (no bundled library is affected), and the
-Arduino ``dot_a_linkage`` property is honored even though PlatformIO
-ignores it. Bundled libraries never run a manifest ``extraScript`` (a
-warning names the library if one declares it). Manifest ``-I`` build
-flags join the global include path rather than staying private to the
-library's own sources as under PlatformIO.
-
-Mirrors PlatformIO's ``lib_ldf_mode=off`` behavior: each library builds into
-its own static archive and every library's include dir joins one global
-include path.
+Deviations from PlatformIO: flat-layout libraries get the recursive default
+source filter; ``dot_a_linkage`` is honored; bundled libraries never run a
+manifest ``extraScript``; manifest ``-I`` flags join the global include path.
 """
 
 from __future__ import annotations
@@ -101,12 +88,8 @@ def _warn_properties_depends(name: str, data: object) -> None:
 
 
 def _manifest_build(name: str, data: object) -> dict:
-    """The manifest's ``build`` section, validated by name.
-
-    A bare json.load imposes no shape; a malformed manifest must name the
-    library instead of an AttributeError deep in a traceback (and must do so
-    before apply_extra_script dereferences the same section).
-    """
+    """The manifest's ``build`` section; a malformed manifest must fail
+    naming the library, not with an AttributeError."""
     build = data.get("build", {}) if isinstance(data, dict) else None
     if not isinstance(build, dict):
         raise EsphomeError(f"Library {name} has a malformed manifest")
@@ -119,9 +102,8 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
 
     # PIO's source-dir resolution: manifest srcDir, else src/Src, else the root
     if "srcDir" in build:
-        # An explicitly declared srcDir (falsy included) that does not
-        # resolve is unambiguously a manifest/tree error; a silently empty
-        # source set would surface as link errors far from the cause
+        # A declared srcDir (falsy included) that does not resolve is a
+        # manifest error
         src_dir = build["srcDir"]
         if not (
             isinstance(src_dir, str) and src_dir and (read_path / src_dir).is_dir()
@@ -138,11 +120,8 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     # PlatformIO shell-lexes each build.flags entry
     flag_tokens = lex_build_flags(build.get("flags", []), f"library {name}")
 
-    # build.libArchive is PIO behavior; dot_a_linkage is honored as a
-    # deliberate extra (Arduino IDE's property, which PIO ignores) so
-    # properties-only libraries can opt out of archiving too. Both parse
-    # through the same strict table: bool("false") is True, and a typo'd
-    # value must not silently change link semantics.
+    # dot_a_linkage (Arduino IDE's property, ignored by PIO) is a deliberate
+    # extra. Strict parse: bool("false") is True.
     def _parse_archive(key: str, raw: object) -> bool:
         if isinstance(raw, bool):
             return raw
@@ -233,9 +212,7 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
         manifest = lib_dir / "library.properties"
         data = parse_library_properties(manifest) if manifest.is_file() else {}
     if isinstance(data, dict):
-        # The dependency walk never runs for bundled libraries (a no-op for
-        # the ESP8266 core, whose bundled manifests declare none); on a core
-        # where one does, the skip must be visible before link errors
+        # Bundled manifest deps are never walked; make the skip visible
         if data.get("dependencies"):
             _LOGGER.warning(
                 "Bundled library %s declares dependencies, which are not "
@@ -296,10 +273,8 @@ def resolve_libraries(
     # PlatformIO's lib_ignore covers framework-bundled libraries too; the
     # shared converter only filters the registry/git ones.
     lib_ignore = lib_ignore_set()
-    # One memoized answer to "does the framework bundle this name?" for the
-    # classification loop, the provides hook, and the dependency walk: the
-    # safety guard and the dir probe must stay fused (path traversal), and
-    # common names (Wire, SPI) are asked repeatedly
+    # Memoized "does the framework bundle this name?"; the safety guard and
+    # dir probe must stay fused (path traversal)
     _provided = functools.cache(
         lambda name: (
             _is_safe_library_name(name)
@@ -309,16 +284,11 @@ def resolve_libraries(
     for library in CORE.platformio_libraries.values():
         if is_lib_ignored(library.name, lib_ignore):
             continue
-        # Only a bare name with a matching framework directory is bundled: a
-        # version pin means a registry package ("pngle@1.1.0"), and a bare
-        # name without the directory resolves from the registry at the
-        # latest version, matching PlatformIO (a typo fails loudly as a
-        # registry lookup error).
+        # Bundled only for a bare name with a matching framework dir; pinned
+        # or unmatched names resolve from the registry, as under PlatformIO.
         if not library.repository and not library.version and _provided(library.name):
-            # A bundled library's own manifest dependencies are not walked.
-            # PlatformIO would walk them even under lib_ldf_mode=off, but no
-            # library bundled with the ESP8266 core declares any, so the walk
-            # is a no-op there; core add_library() calls list what they need.
+            # Bundled libraries' own manifest deps are not walked (none of
+            # the ESP8266 core's declare any; _bundled_library warns if one does)
             bundled.append(_bundled_library(framework_path, library.name))
         else:
             external.append(library)
@@ -328,9 +298,8 @@ def resolve_libraries(
     converted_manifest_names: set[str] = set()
     # Ordered set of bundled dependency names to add once conversion is done
     pending_bundled: dict[str, None] = {}
-    # Short names of the separately-requested externals: a manifest
-    # dependency matching one is already in the build, not a bundled name to
-    # add (a duplicate archive shows up as duplicate-symbol link errors)
+    # Deps matching a separately-requested external are already in the build
+    # (a duplicate archive means duplicate-symbol link errors)
     external_short_names = {
         _external_short_name(lib.name) for lib in external if lib.name
     }
@@ -360,18 +329,14 @@ def resolve_libraries(
             ):
                 continue
             if dep.get("owner") or not _provided(name):
-                # The converter resolves owner-qualified and non-bundled
-                # names from the registry; an owner-less name that exists in
-                # the framework tree prefers the bundled copy ({"Wire": "*"}
-                # normalizes to version="*"), matching PlatformIO's
-                # process_dependencies. The shared walk's post-emit
-                # reconciliation reports any real drops.
+                # Owner-less names in the framework tree prefer the bundled
+                # copy (PIO's process_dependencies); everything else resolves
+                # via the converter, and the walk reports any real drops
                 continue
             if not dependency_is_usable(dep, pio_platform, "arduino", component.name):
                 continue
-            # Deferred: a later-emitted converted library may satisfy this
-            # name (its manifest name is only known at its own emit), and
-            # adding the bundled copy too would double the archive
+            # Deferred: a later-emitted library's manifest name may satisfy
+            # this; adding now could double the archive
             pending_bundled.setdefault(name)
 
     def _emit(component: ConvertedLibrary) -> None:
@@ -388,9 +353,6 @@ def resolve_libraries(
         _add_bundled_dependencies(component)
 
     if external:
-        # Every converter drop path raises (an incompatible top-level is a
-        # RuntimeError, resolution and download failures raise), so the
-        # return needs no re-verification here.
         convert_libraries(
             external,
             LibraryBackend(
@@ -398,10 +360,8 @@ def resolve_libraries(
                 framework="arduino",
                 emit=_emit,
                 cache_key=cache_key,
-                # The graph walk must not resolve a bundled name from the
-                # registry ({"Wire": "*"} in a manifest); the bundled copy
-                # is added by _add_bundled_dependencies after emit. Unsafe
-                # names are simply not provided.
+                # The walk must not resolve bundled names from the registry;
+                # _add_bundled_dependencies adds them after emit
                 provides=_provided,
             ),
         )

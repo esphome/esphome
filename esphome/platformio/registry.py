@@ -1,9 +1,5 @@
-"""Install packages from the PlatformIO registry without PlatformIO.
-
-Native toolchains install the exact registry packages the PlatformIO backend
-uses, so the bits are identical, but resolve and verify them with esphome's
-own download machinery instead of importing the platformio package.
-"""
+"""Install packages from the PlatformIO registry without importing the
+platformio package (identical bits, esphome's own download machinery)."""
 
 from __future__ import annotations
 
@@ -33,11 +29,9 @@ _REGISTRY_URL = (
 def get_systype() -> str:
     """The registry system tag for the current host.
 
-    A transliteration of ``platformio.util.get_systype()``, honoring the same
-    ``PLATFORMIO_SYSTEM_TYPE`` override, so this module never imports the
-    platformio package. One deviation: windows-arm64 maps straight to
-    ``windows_amd64``: the registry ships no arm64 toolchains and those hosts
-    run x86 binaries via emulation, which upstream leaves to the override.
+    Transliterates ``platformio.util.get_systype()`` (same
+    ``PLATFORMIO_SYSTEM_TYPE`` override). Deviation: windows-arm64 maps to
+    ``windows_amd64`` (no arm64 toolchains; x86 emulation).
     """
     if systype := os.environ.get("PLATFORMIO_SYSTEM_TYPE"):
         return systype
@@ -100,10 +94,8 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
                     f"Unexpected package registry response for {package}: "
                     f"{str(ver)[:200]}"
                 )
-            # Only a MISSING key means "any system"; an explicitly empty
-            # list must not match (a wrong-architecture download would be
-            # cached as a good install). A bare string would make ``in`` a
-            # substring test.
+            # Only a missing key means "any system"; an empty list must not
+            # match, and a bare string would make ``in`` a substring test.
             systems = file.get("system")
             if systems is None:
                 systems = ["*"]
@@ -138,12 +130,8 @@ def registry_download(package: str, version: str) -> tuple[str, str, int | None]
 
 
 def _check_layout(name: str, dest: Path, expect: Collection[str]) -> None:
-    """Raise when an install tree is missing an expected directory.
-
-    Runs on fresh extracts and on marker hits: a marked tree that later
-    lost files (manual deletion, antivirus quarantine) must fail by name
-    instead of surfacing as an opaque toolchain error.
-    """
+    """Raise when an install tree is missing an expected directory (runs on
+    fresh extracts and on marker hits)."""
     for rel in expect:
         if not (dest / rel).is_dir():
             raise EsphomeError(
@@ -177,21 +165,16 @@ def install_package(
         return
     from filelock import FileLock
 
-    # The cache is machine-global; serialize concurrent cold builds so one
-    # process cannot wipe the directory another is extracting into (same
-    # filelock pattern as platformio/toolchain.py and git.py).
+    # Serialize concurrent cold builds (same filelock pattern as git.py).
     dest.parent.mkdir(parents=True, exist_ok=True)
-    # fallback_to_soft would silently degrade to an existence lock on a
-    # flock-less filesystem; a hard-killed run would then hang every later
-    # build forever (same hazard git.py documents).
+    # A soft-lock fallback would turn a hard-killed run into a permanent
+    # hang (see git.py).
     with FileLock(f"{dest}.lock", fallback_to_soft=False):
         if marker.is_file():
             # Another process finished the install while we waited
             return
         rmdir(dest, msg=f"Clean up incomplete {name} install")
-        # A persistent download location (not a temp dir) so an interrupted
-        # download resumes across esphome runs via download_with_resume's
-        # .part file, mirroring the espidf dist/ convention.
+        # Persistent location so an interrupted download resumes across runs.
         downloads_dir.mkdir(parents=True, exist_ok=True)
         archive = downloads_dir / f"{name}-{version}"
         _LOGGER.info("Downloading %s %s ...", name, version)

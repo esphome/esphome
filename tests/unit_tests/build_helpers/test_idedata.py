@@ -429,8 +429,7 @@ def test_load_or_build_idedata_corrupted_cache_is_logged(
 
 
 def test_load_or_build_idedata_never_caches_a_launcher(tmp_path: Path) -> None:
-    """A compile DB naming a launcher as the compiler is rejected by name,
-    before the toolchain probe could fail opaquely, and never cached."""
+    """A compile DB naming a launcher as the compiler is rejected, never cached."""
     compile_commands = tmp_path / "compile_commands.json"
     compile_commands.write_text(
         json.dumps(
