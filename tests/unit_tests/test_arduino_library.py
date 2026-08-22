@@ -757,3 +757,59 @@ def test_bundled_library_non_dict_manifest_skips_probes_and_raises(
     (wire / "library.json").write_text('["not", "a", "manifest"]')
     with pytest.raises(EsphomeError, match="Library Wire has a malformed manifest"):
         component._bundled_library(framework, "Wire")
+
+
+def test_dict_shorthand_dependency_skips_registry_through_real_converter(
+    tmp_path: Path,
+) -> None:
+    """{"Wire": "*"} in a real manifest must never reach the registry: the
+    graph walk skips backend-provided names and the bundled copy is added
+    after emit (no converter mock; a registry touch fails the test)."""
+    import esphome.platformio.library as pio_library
+
+    framework = _make_framework(tmp_path)
+    local_lib = tmp_path / "locallib"
+    (local_lib / "src").mkdir(parents=True)
+    (local_lib / "src" / "local.cpp").write_text("")
+    (local_lib / "library.json").write_text(
+        '{"name": "LocalLib", "version": "1.0.0", "dependencies": {"Wire": "*"}}'
+    )
+    _add_library(f"file://{local_lib}", None)
+    # The real converter writes its component cache under the config dir
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.config_path.write_text("")
+    with patch.object(
+        pio_library,
+        "_resolve_registry_version",
+        side_effect=AssertionError("registry touched"),
+    ):
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    names = [lib.name for lib in libs]
+    assert "Wire" in names
+    assert any("locallib" in n.lower() for n in names)
+
+
+def test_emit_validates_manifest_before_extra_script(tmp_path: Path) -> None:
+    """A malformed build section fails by name before apply_extra_script
+    dereferences it."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    lib_dir = tmp_path / "converted" / "webserver"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted("esp32async__ESPAsyncWebServer", lib_dir, {"build": "src"})
+    with (
+        _emitting_converter(converted) as mock_extra,
+        pytest.raises(EsphomeError, match="has a malformed manifest"),
+    ):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    mock_extra.assert_not_called()
