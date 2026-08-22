@@ -189,7 +189,7 @@ def test_library_info_declared_filter_matches_nothing_warns(
     data = {"build": {"srcFilter": ["+<nothing/*>"]}}
     lib = component._library_info("x", read_path, data)
     assert not lib.sources
-    assert "declares srcFilter/srcDir but no source files matched" in caplog.text
+    assert "no source files matched" in caplog.text
 
 
 def test_empty_converted_tree_raises_at_emit(tmp_path: Path) -> None:
@@ -604,6 +604,44 @@ def test_library_info_unsupported_link_fields_raise(tmp_path: Path) -> None:
         component._library_info("x", read_path, {"precompiled": "true", "build": {}})
     with pytest.raises(EsphomeError, match="declares ldflags"):
         component._library_info("x", read_path, {"ldflags": "-lfoo", "build": {}})
+
+
+@pytest.mark.parametrize("value", ["false", "False", " false ", "", False, None])
+def test_library_info_precompiled_opt_out_accepted(
+    tmp_path: Path, value: object
+) -> None:
+    """Manifest values are strings; precompiled=false is the spec's
+    explicit opt-out, not a declaration."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
+    data = {"build": {}}
+    if value is not None:
+        data["precompiled"] = value
+    component._library_info("x", read_path, data)
+
+
+@pytest.mark.parametrize("value", ["full", True, "weird"])
+def test_library_info_precompiled_set_raises(tmp_path: Path, value: object) -> None:
+    """Both full (Arduino's other legal value) and unknown spellings fail safe."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
+    with pytest.raises(EsphomeError, match="declares precompiled"):
+        component._library_info("x", read_path, {"precompiled": value, "build": {}})
+
+
+def test_library_info_default_filter_matching_nothing_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The empty-match warning is not gated on a declared srcFilter/srcDir;
+    a default-filter src/ holding only inert files warns too."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "keywords.txt").write_text("")
+    lib = component._library_info("x", read_path, {"build": {}})
+    assert not lib.sources
+    assert "no source files matched" in caplog.text
 
 
 def test_library_info_unmapped_sources_warn(
