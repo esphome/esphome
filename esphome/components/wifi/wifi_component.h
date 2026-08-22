@@ -327,6 +327,7 @@ class WiFiScanResult {
   int8_t get_rssi() const { return this->rssi_; }
   bool get_with_auth() const { return this->with_auth_; }
   bool get_is_hidden() const { return this->is_hidden_; }
+  bool ssid_equals(const WiFiScanResult &other) const { return this->ssid_ == other.ssid_; }
   int8_t get_priority() const { return priority_; }
   void set_priority(int8_t priority) { priority_ = priority; }
 
