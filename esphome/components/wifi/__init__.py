@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_CERTIFICATE,
     CONF_CERTIFICATE_AUTHORITY,
     CONF_CHANNEL,
+    CONF_CHANNELS,
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
@@ -42,6 +43,7 @@ from esphome.const import (
     CONF_IDENTITY,
     CONF_KEY,
     CONF_MANUAL_IP,
+    CONF_MODE,
     CONF_NETWORKS,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
@@ -154,7 +156,9 @@ def has_native_wifi(
 
 CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
+CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
 
@@ -167,6 +171,10 @@ MAX_WIFI_NETWORKS = 127
 # get best-effort connection attempts. Longer timeout ensures we exhaust all options
 # before falling back to AP mode. Aligned with improv wifi_timeout default.
 DEFAULT_AP_TIMEOUT = "90s"
+
+# Similar to AP timeout, but reduced to allow repetitive enrollment attempts
+# in the case of failure. Does not affect AP or scanning.
+DEFAULT_DPP_TIMEOUT = "20s"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
@@ -279,6 +287,27 @@ EAP_AUTH_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE),
 )
 
+esp_supp_dpp_bootstrap_t = cg.global_ns.enum("esp_supp_dpp_bootstrap_t")
+ESP_SUPP_DPP_BOOTSTRAP = {
+    "QR_CODE": esp_supp_dpp_bootstrap_t.DPP_BOOTSTRAP_QR_CODE,
+    "PKEX": esp_supp_dpp_bootstrap_t.DPP_BOOTSTRAP_PKEX,
+    "NFC_URI": esp_supp_dpp_bootstrap_t.DPP_BOOTSTRAP_NFC_URI,
+}
+
+CONF_PRIVATE_KEY = "private_key"
+CONF_DEVICE_INFO = "device_info"
+DPP_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_MODE): cv.enum(ESP_SUPP_DPP_BOOTSTRAP, upper=True),
+        cv.Optional(CONF_PRIVATE_KEY): cv.string_strict,
+        cv.Optional(CONF_DEVICE_INFO): cv.string_strict,
+        cv.Optional(CONF_CHANNELS, default="6"): cv.string_strict,
+        cv.Optional(
+            CONF_TIMEOUT, default=DEFAULT_DPP_TIMEOUT
+        ): cv.positive_time_period_milliseconds,
+    }
+)
+
 WIFI_NETWORK_BASE = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(WiFiAP),
@@ -346,14 +375,15 @@ def _apply_min_auth_mode_default(config):
 def final_validate(config):
     has_sta = bool(config.get(CONF_NETWORKS, True))
     has_ap = CONF_AP in config
+    has_dpp = CONF_DPP in config
     full_config = fv.full_config.get()
     has_improv = "esp32_improv" in full_config
     has_improv_serial = "improv_serial" in full_config
     has_captive_portal = "captive_portal" in full_config
     has_web_server = "web_server" in full_config
-    if not (has_sta or has_ap or has_improv or has_improv_serial):
+    if not (has_sta or has_ap or has_dpp or has_improv or has_improv_serial):
         raise cv.Invalid(
-            "Please specify at least an SSID or an Access Point to create."
+            "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
     if has_ap and not has_captive_portal and not has_web_server:
         _LOGGER.warning(
@@ -482,6 +512,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
+            cv.Optional(CONF_DPP): DPP_SCHEMA,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -526,6 +557,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
             ),
+            cv.Optional(CONF_ON_DPP_URI): automation.validate_automation(single=True),
             cv.Optional(CONF_USE_PSRAM): cv.All(
                 cv.only_on_esp32, cv.requires_component("psram"), cv.boolean
             ),
@@ -647,6 +679,19 @@ async def to_code(config):
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
     if CORE.is_esp32:
         request_wifi(ap=CONF_AP in config)
+
+    if CONF_DPP in config:
+        add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_DPP", True)
+        conf = config[CONF_DPP]
+        cg.add(var.set_dpp_mode(conf[CONF_MODE]))
+        if CONF_PRIVATE_KEY in conf:
+            cg.add(var.set_dpp_key(conf[CONF_PRIVATE_KEY]))
+        if CONF_DEVICE_INFO in conf:
+            cg.add(var.set_dpp_device_info(conf[CONF_DEVICE_INFO]))
+        cg.add(var.set_dpp_channels(conf[CONF_CHANNELS]))
+        cg.add(var.set_dpp_timeout(conf[CONF_TIMEOUT]))
+        cg.add_define("USE_WIFI_DPP")
 
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
@@ -781,6 +826,12 @@ async def to_code(config):
         cg.add_define("USE_WIFI_DISCONNECT_TRIGGER")
         await automation.build_automation(
             var.get_disconnect_trigger(), [], on_disconnect_config
+        )
+
+    if on_dpp_uri_config := config.get(CONF_ON_DPP_URI):
+        cg.add_define("USE_WIFI_DPP_URI_TRIGGER")
+        await automation.build_automation(
+            var.get_dpp_uri_trigger(), [(cg.std_string, "uri")], on_dpp_uri_config
         )
 
     CORE.add_job(final_step)

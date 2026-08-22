@@ -15,6 +15,9 @@
 
 #if defined(USE_ESP32)
 #include <esp_wifi.h>
+#ifdef USE_WIFI_DPP
+#include <esp_dpp.h>
+#endif
 #endif
 #ifdef USE_ESP8266
 #include <user_interface.h>
@@ -184,11 +187,11 @@ bool CompactString::operator==(const StringRef &other) const {
 /// │                          ↓                                           │
 /// │  5. FAILED → RESTARTING_ADAPTER                                      │
 /// │     - Normal: restart adapter, clear state                           │
-/// │     - AP/improv active: skip restart, just disconnect                │
+/// │     - AP/DPP/improv active: skip restart, just disconnect            │
 /// │                          ↓                                           │
 /// │  6. Loop back to start:                                              │
 /// │     - If first network is hidden → EXPLICIT_HIDDEN (retry cycle)     │
-/// │     - If AP/improv active → RETRY_HIDDEN (blind retry, see below)    │
+/// │     - If AP/DPP/improv active → RETRY_HIDDEN (blind retry, see below)│
 /// │     - Otherwise → SCAN_CONNECTING (rescan)                           │
 /// │                          ↓                                           │
 /// │  7. RESCAN → Apply stored priorities, sort again                     │
@@ -733,6 +736,16 @@ void WiFiComponent::start() {
 #endif
 #endif  // USE_WIFI_AP
   }
+#ifdef USE_WIFI_DPP
+  if (!this->has_sta()) {
+    this->wifi_mode_(true, {});
+    esp_err_t err = esp_supp_dpp_start_listen();
+    if (err != ERR_OK)
+      ESP_LOGW(TAG, "esp_supp_dpp_start_listen failed: %s", esp_err_to_name(err));
+    else
+      this->dpp_listening_ = true;
+  }
+#endif
 #ifdef USE_IMPROV
   if (!this->has_sta() && esp32_improv::global_improv_component != nullptr) {
     if (this->wifi_mode_(true, {}))
@@ -791,8 +804,9 @@ void WiFiComponent::loop() {
           this->check_connecting_finished(now);
           break;
         }
-        // Use longer cooldown when captive portal/improv is active to avoid disrupting user config
-        bool portal_active = this->is_captive_portal_active_() || this->is_esp32_improv_active_();
+        // Use longer cooldown when DPP/captive portal/improv is active to avoid disrupting user config
+        bool portal_active =
+            this->is_dpp_active_() || this->is_captive_portal_active_() || this->is_esp32_improv_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
           // After cooldown we either restarted the adapter because of
@@ -880,7 +894,6 @@ void WiFiComponent::loop() {
           esp32_improv::global_improv_component->start();
       }
     }
-
 #endif
 
     if (!this->has_ap() && this->reboot_timeout_ != 0) {
@@ -902,6 +915,19 @@ void WiFiComponent::loop() {
       }
     }
   }
+
+#ifdef USE_WIFI_DPP
+  if (!this->is_dpp_active_()) {
+    if (now - this->last_connected_ > this->dpp_timeout_) {
+      this->wifi_mode_(true, {});
+      esp_err_t err = esp_supp_dpp_start_listen();
+      if (err != ERR_OK)
+        ESP_LOGW(TAG, "esp_supp_dpp_start_listen failed: %s", esp_err_to_name(err));
+      else
+        this->dpp_listening_ = true;
+    }
+  }
+#endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   // Check if power save mode needs to be updated based on high-performance requests
@@ -1626,6 +1652,12 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
       ESP_LOGD(TAG, "Disabling AP");
       this->wifi_mode_({}, false);
     }
+#ifdef USE_WIFI_DPP
+    if (this->is_dpp_active_()) {
+      esp_supp_dpp_stop_listen();
+      this->dpp_listening_ = false;
+    }
+#endif
 #ifdef USE_IMPROV
     if (this->is_esp32_improv_active_()) {
       esp32_improv::global_improv_component->stop();
@@ -1801,7 +1833,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
       // No hidden networks - always go through RESTARTING_ADAPTER phase
       // This ensures num_retried_ gets reset and a fresh scan is triggered
-      // The actual adapter restart will be skipped if captive portal/improv is active
+      // The actual adapter restart will be skipped if DPP/captive portal/improv is active
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RETRY_HIDDEN:
@@ -1824,7 +1856,7 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       }
       // Exhausted all potentially hidden SSIDs - always go through RESTARTING_ADAPTER
       // This ensures num_retried_ gets reset and a fresh scan is triggered
-      // The actual adapter restart will be skipped if captive portal/improv is active
+      // The actual adapter restart will be skipped if DPP/captive portal/improv is active
       return WiFiRetryPhase::RESTARTING_ADAPTER;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
@@ -1854,14 +1886,14 @@ WiFiRetryPhase WiFiComponent::determine_next_phase_() {
       // attempting to connect to all configured networks in sequence.
       // Captive portal needs scan results to show available networks.
       // If captive portal is active, only skip scanning if we've done a scan after it started.
-      // If only improv is active (no captive portal), skip scanning since improv doesn't need results.
+      // If only DPP or improv is active (no captive portal), skip scanning since neither needs results.
       if (this->is_captive_portal_active_()) {
         if (this->has_completed_scan_after_captive_portal_start_) {
           return WiFiRetryPhase::RETRY_HIDDEN;
         }
         // Need to scan for captive portal
-      } else if (this->is_esp32_improv_active_()) {
-        // Improv doesn't need scan results
+      } else if (this->is_dpp_active_() || this->is_esp32_improv_active_()) {
+        // DPP/Improv doesn't need scan results
         return WiFiRetryPhase::RETRY_HIDDEN;
       }
       return WiFiRetryPhase::SCAN_CONNECTING;
@@ -1948,10 +1980,10 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
       break;
 
     case WiFiRetryPhase::RESTARTING_ADAPTER:
-      // Skip actual adapter restart if captive portal/improv is active
+      // Skip actual adapter restart if DPP/captive portal/improv is active
       // This allows state machine to reset num_retried_ and trigger fresh scan
       // without disrupting the captive portal/improv connection
-      if (!this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
+      if (!this->is_dpp_active_() && !this->is_captive_portal_active_() && !this->is_esp32_improv_active_()) {
         this->restart_adapter();
       } else {
         // Even when skipping full restart, disconnect to clear driver state
@@ -1959,7 +1991,7 @@ bool WiFiComponent::transition_to_phase_(WiFiRetryPhase new_phase) {
         this->wifi_disconnect_();
       }
       // Clear scan flag - we're starting a new retry cycle
-      // This is critical for captive portal/improv flow: when determine_next_phase_()
+      // This is critical for DPP/captive portal/improv flow: when determine_next_phase_()
       // returns RETRY_HIDDEN (because scanning is skipped), find_next_hidden_sta_()
       // will see BLIND_RETRY mode and treat ALL networks as candidates,
       // effectively cycling through all configured networks without scan results.
@@ -2206,6 +2238,28 @@ void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
 
 void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
+#ifdef USE_WIFI_DPP
+void WiFiComponent::set_dpp_device_info(const std::string &dpp_device_info) {
+  this->dpp_device_info_ = CompactString(dpp_device_info.c_str(), dpp_device_info.size());
+}
+void WiFiComponent::set_dpp_device_info(const char *dpp_device_info) {
+  this->dpp_device_info_ = CompactString(dpp_device_info, strlen(dpp_device_info));
+}
+void WiFiComponent::set_dpp_channels(const std::string &dpp_channels) {
+  this->dpp_channels_ = CompactString(dpp_channels.c_str(), dpp_channels.size());
+}
+void WiFiComponent::set_dpp_channels(const char *dpp_channels) {
+  this->dpp_channels_ = CompactString(dpp_channels, strlen(dpp_channels));
+}
+#endif
+
+bool WiFiComponent::is_dpp_active_() {
+#ifdef USE_WIFI_DPP
+  return this->dpp_listening_;
+#else
+  return false;
+#endif
+}
 bool WiFiComponent::is_captive_portal_active_() {
 #ifdef USE_CAPTIVE_PORTAL
   return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();

@@ -24,6 +24,10 @@
 #endif
 #endif
 
+#ifdef USE_WIFI_DPP
+#include <esp_dpp.h>
+#endif
+
 #ifdef USE_WIFI_AP
 #include "dhcpserver/dhcpserver.h"
 #endif  // USE_WIFI_AP
@@ -70,6 +74,17 @@ struct IDFWiFiEvent {
     wifi_event_ap_stadisconnected_t ap_stadisconnected;
     wifi_event_ap_probe_req_rx_t ap_probe_req_rx;
     wifi_event_bss_rssi_low_t bss_rssi_low;
+#ifdef USE_WIFI_DPP
+    union {
+      wifi_event_dpp_uri_ready_t dpp_uri_ready;
+      struct {
+        uint32_t uri_data_len;
+        char uri[256];
+      };
+    };
+    wifi_event_dpp_config_received_t dpp_config_received;
+    wifi_event_dpp_failed_t dpp_failed;
+#endif
     ip_event_got_ip_t ip_got_ip;
 #if USE_NETWORK_IPV6
     ip_event_got_ip6_t ip_got_ip6;
@@ -119,6 +134,16 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.ap_staconnected, event_data, sizeof(wifi_event_ap_staconnected_t));
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
     memcpy(&event.data.ap_stadisconnected, event_data, sizeof(wifi_event_ap_stadisconnected_t));
+#ifdef USE_WIFI_DPP
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_URI_READY) {
+    memcpy(&event.data.dpp_uri_ready, event_data,
+           sizeof(wifi_event_dpp_uri_ready_t) + ((wifi_event_dpp_uri_ready_t *) event_data)->uri_data_len);
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_CFG_RECVD) {
+    memcpy(&event.data.dpp_config_received, event_data,
+           sizeof(wifi_event_dpp_config_received_t));  // configs[] gets dropped (unused)
+  } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_DPP_FAILED) {
+    memcpy(&event.data.dpp_failed, event_data, sizeof(wifi_event_dpp_failed_t));
+#endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {
     memcpy(&event.data.ip_assigned_ip_to_client, event_data, sizeof(ip_event_assigned_ip_to_client_t));
@@ -241,6 +266,21 @@ void WiFiComponent::wifi_lazy_init_() {
     ESP_LOGE(TAG, "esp_wifi_set_storage failed: %s", esp_err_to_name(err));
     return;
   }
+
+#ifdef USE_WIFI_DPP
+  err = esp_supp_dpp_init(NULL);
+  if (err != ERR_OK) {
+    ESP_LOGW(TAG, "esp_supp_dpp_init failed: %s", esp_err_to_name(err));
+  } else {
+    err = esp_supp_dpp_bootstrap_gen(this->dpp_channels_.c_str(), this->dpp_mode_,
+                                     !this->dpp_key_.empty() ? this->dpp_key_.c_str() : NULL,
+                                     !this->dpp_device_info_.empty() ? this->dpp_device_info_.c_str() : NULL);
+    if (err != ERR_OK) {
+      ESP_LOGW(TAG, "esp_supp_dpp_bootstrap_gen failed: %s", esp_err_to_name(err));
+    }
+  }
+#endif
+
   this->wifi_initialized_ = true;
 }
 
@@ -1011,6 +1051,55 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     format_mac_addr_upper(it.mac, mac_buf);
     ESP_LOGV(TAG, "AP client disconnected MAC=%s", mac_buf);
 #endif
+
+#ifdef USE_WIFI_DPP
+  } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_URI_READY) {
+    const auto &it = data->data.dpp_uri_ready;
+    ESP_LOGV(TAG, "DPP URI: %s", it.uri);
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+    this->dpp_uri_trigger_.trigger(std::string(it.uri, it.uri_data_len));
+#endif
+
+  } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_CFG_RECVD) {
+    this->dpp_listening_ = false;
+
+    ESP_LOGV(TAG, "DPP config received");
+    const auto &it = data->data.dpp_config_received;
+
+    wifi_config_t conf;
+    memcpy(&conf, &it.wifi_cfg, sizeof(conf));
+
+    esp_err_t err = esp_wifi_set_config(WIFI_IF_STA, &conf);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_wifi_set_config failed: %d", err);
+      return;
+    }
+
+    // Reset flags, do this _before_ wifi_station_connect as the callback method
+    // may be called from wifi_station_connect
+    s_sta_connecting = true;
+    s_sta_connected = false;
+    s_sta_connect_error = false;
+    s_sta_connect_not_found = false;
+    // Reset IP address flags - ensures we don't report connected before DHCP completes
+    // (IP_EVENT_STA_LOST_IP doesn't always fire on disconnect)
+    this->got_ipv4_address_ = false;
+#if USE_NETWORK_IPV6
+    this->num_ipv6_addresses_ = 0;
+#endif
+
+    err = esp_wifi_connect();
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_wifi_connect failed: %s", esp_err_to_name(err));
+      return;
+    }
+
+  } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_DPP_FAILED) {
+    this->dpp_listening_ = false;
+
+    const auto &it = data->data.dpp_failed;
+    ESP_LOGE(TAG, "DPP failed: %s", esp_err_to_name(it.failure_reason));
+#endif /* USE_WIFI_DPP */
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {

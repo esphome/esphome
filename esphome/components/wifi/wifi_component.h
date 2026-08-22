@@ -35,6 +35,10 @@
 #endif
 #endif
 
+#ifdef USE_WIFI_DPP
+#include <esp_dpp.h>
+#endif
+
 #ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
@@ -459,6 +463,22 @@ class WiFiComponent final : public Component {
   void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
 #endif  // USE_WIFI_AP
 
+#ifdef USE_WIFI_DPP
+  void set_dpp_mode(esp_supp_dpp_bootstrap_t dpp_mode) { dpp_mode_ = dpp_mode; }
+  void set_dpp_key(const std::string &dpp_key) { dpp_key_ = dpp_key; }
+  void set_dpp_device_info(const std::string &dpp_device_info);
+  void set_dpp_device_info(const char *dpp_device_info);
+  void set_dpp_device_info(StringRef dpp_device_info) {
+    dpp_device_info_ = CompactString(dpp_device_info.c_str(), dpp_device_info.size());
+  }
+  void set_dpp_channels(const std::string &dpp_channels);
+  void set_dpp_channels(const char *dpp_channels);
+  void set_dpp_channels(StringRef dpp_channels) {
+    dpp_channels_ = CompactString(dpp_channels.c_str(), dpp_channels.size());
+  }
+  void set_dpp_timeout(uint32_t dpp_timeout) { dpp_timeout_ = dpp_timeout; }
+#endif
+
   void enable();
   void disable();
   bool is_disabled();
@@ -569,6 +589,9 @@ class WiFiComponent final : public Component {
 #endif
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
+#endif
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  Trigger<std::string> *get_dpp_uri_trigger() { return &this->dpp_uri_trigger_; }
 #endif
 
   int32_t get_wifi_channel();
@@ -789,6 +812,7 @@ class WiFiComponent final : public Component {
   network::IPAddress wifi_gateway_ip_();
   network::IPAddress wifi_dns_ip_(int num);
 
+  bool is_dpp_active_();
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
 
@@ -870,6 +894,12 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif
+#ifdef USE_WIFI_DPP
+  std::string dpp_key_;
+  CompactString dpp_device_info_;
+  CompactString dpp_channels_;
+#endif
+
 #ifdef USE_WIFI_IP_STATE_LISTENERS
   StaticVector<WiFiIPStateListener *, ESPHOME_WIFI_IP_STATE_LISTENERS> ip_state_listeners_;
 #endif
@@ -891,6 +921,9 @@ class WiFiComponent final : public Component {
 #endif
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> disconnect_trigger_;
+#endif
+#ifdef USE_WIFI_DPP_URI_TRIGGER
+  Trigger<std::string> dpp_uri_trigger_;
 #endif
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
@@ -918,6 +951,9 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
 #endif
+#ifdef USE_WIFI_DPP
+  uint32_t dpp_timeout_{};
+#endif
 
   // 1-byte enums and integers
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
@@ -929,6 +965,9 @@ class WiFiComponent final : public Component {
   WiFi8266PhyMode phy_mode_{WIFI_8266_PHY_MODE_AUTO};
 #endif
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
+#ifdef USE_WIFI_DPP
+  esp_supp_dpp_bootstrap_t dpp_mode_;
+#endif
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
   uint8_t num_retried_{0};
   // Index into sta_ array for the currently selected AP configuration (-1 = none selected)
@@ -986,6 +1025,9 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
+#ifdef USE_WIFI_DPP
+  bool dpp_listening_{false};
+#endif
   bool passive_scan_{false};
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
