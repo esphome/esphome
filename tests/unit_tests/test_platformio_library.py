@@ -663,6 +663,24 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     ]
 
 
+def test_prefetch_wave_unknown_size_falls_back_to_sequential(
+    setup_core, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Any unknown HEAD size skips the parallel prefetch entirely so the
+    sequential downloads keep their per-file bars."""
+
+    def fail_download(self, force=False, salt="", namespace="", progress=None):
+        raise AssertionError("prefetched despite unknown size")
+
+    monkeypatch.setattr(ConvertedLibrary, "download", fail_download)
+    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [1, None])
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+
+
 def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     """Sizes come from HEAD Content-Length; a failing HEAD reads as 0 so
     the combined bar is skipped rather than wrong."""
