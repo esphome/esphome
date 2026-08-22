@@ -27,8 +27,10 @@ from esphome.platformio.library import (
     LIBRARY_HEADER_SUFFIXES,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
+    IncompatiblePlatform,
     InvalidLibrary,
     LibraryBackend,
+    _url_or_none,
     check_library_data,
     collect_filtered_files,
     convert_libraries,
@@ -219,18 +221,18 @@ def _collect_lib_sources(
             len(dropped),
             ", ".join(sorted(dropped)),
         )
-    if not lib.sources and not any(
-        Path(f).suffix.lower() in LIBRARY_HEADER_SUFFIXES for f in matched
+    if (
+        not lib.sources
+        and ("srcFilter" in build or "srcDir" in build)
+        and not any(Path(f).suffix.lower() in LIBRARY_HEADER_SUFFIXES for f in matched)
     ):
-        # Matched headers mean a header-only library; anything else with no
-        # sources yields an empty archive that fails far away at link
-        if "srcFilter" in build or "srcDir" in build:
-            _LOGGER.warning(
-                "Library %s declares srcFilter/srcDir but no source files matched",
-                name,
-            )
-        else:
-            _LOGGER.warning("Library %s has no sources or headers", name)
+        # Matched headers mean a header-only library; a declared filter
+        # matching nothing (or only inert files) is a manifest/tree problem.
+        # The truly empty tree raises via _assert_tree_has_code.
+        _LOGGER.warning(
+            "Library %s declares srcFilter/srcDir but no source files matched",
+            name,
+        )
 
 
 def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
@@ -284,16 +286,23 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
                 name,
             )
     lib = _library_info(name, lib_dir, data)
-    if not lib.sources and not any(
-        Path(p).suffix.lower() in LIBRARY_HEADER_SUFFIXES for p in walk_files(lib_dir)
-    ):
-        # An empty or half-extracted bundled directory can never link; a
-        # warning would scroll away and resurface as undefined symbols
-        raise EsphomeError(
-            f"Bundled library {name} has no sources or headers; the "
-            "framework install may be incomplete (run 'esphome clean-all')"
-        )
+    _assert_tree_has_code(
+        name,
+        lib_dir,
+        "the framework install may be incomplete (run 'esphome clean-all')",
+    )
     return lib
+
+
+def _assert_tree_has_code(name: str, root: Path, hint: str) -> None:
+    """An empty or half-extracted tree can never link; fail by name (a
+    warning would scroll away and resurface as undefined symbols)."""
+    if not any(
+        Path(p).suffix in SRC_FILE_EXTENSIONS
+        or Path(p).suffix.lower() in LIBRARY_HEADER_SUFFIXES
+        for p in walk_files(root)
+    ):
+        raise EsphomeError(f"Library {name} has no sources or headers; {hint}")
 
 
 def _external_short_name(name: str) -> str:
@@ -411,6 +420,10 @@ def resolve_libraries(
                 continue
             if name in bundled_names or is_lib_ignored(name, lib_ignore):
                 continue
+            if _url_or_none(dep.get("version")) is not None:
+                # A URL names one specific source (the walk resolves it as
+                # git); the bundled copy must never be added on top
+                continue
             if dep.get("owner") or not _provided(name):
                 # Owner-less names in the framework tree prefer the bundled
                 # copy (PIO's process_dependencies); everything else resolves
@@ -421,9 +434,19 @@ def resolve_libraries(
                 # mismatch; re-checking would warn twice
                 check_library_data(dep, pio_platform, None)
             except InvalidLibrary as err:
-                # The shared walk already reported any non-platform cause;
-                # warning again here would read as two distinct failures
-                _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
+                if isinstance(err, IncompatiblePlatform) or "version" not in dep:
+                    # The platform skip is routine; the walk's version-less
+                    # filter already warned for other version-less causes
+                    _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
+                else:
+                    # Versioned deps skip the walk's filter via provides();
+                    # this is the only place the fault can be seen
+                    _LOGGER.warning(
+                        "Skipping bundled dependency %s of %s: %s",
+                        name,
+                        component.name,
+                        err,
+                    )
                 continue
             # Deferred: a later-emitted library's manifest name may satisfy
             # this; adding now could double the archive
@@ -432,6 +455,11 @@ def resolve_libraries(
     def _emit(component: ConvertedLibrary) -> None:
         apply_extra_script(
             component, board_mcu=lambda: board_mcu, pio_platform=pio_platform
+        )
+        _assert_tree_has_code(
+            component.get_require_name(),
+            component.source_dir,
+            "the download may be incomplete (run 'esphome clean-all')",
         )
         if isinstance(manifest_name := component.data.get("name"), str):
             converted_manifest_names.add(manifest_name)
@@ -456,7 +484,13 @@ def resolve_libraries(
             ),
         )
     for name in pending_bundled:
-        if name in converted_manifest_names or name in bundled_names:
+        if name in converted_manifest_names:
+            # Exact manifest-name evidence: the converted library is this
+            # library, so the bundled copy would double the archive
+            _LOGGER.debug(
+                "Bundled %s suppressed by a converted library's manifest name",
+                name,
+            )
             continue
         bundled_names.add(name)
         bundled.append(_bundled_library(framework_path, name))
