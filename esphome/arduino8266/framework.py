@@ -142,8 +142,9 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
 
 
 # Sentinel: "resolve for me" (None is a real value meaning disabled).
-# run_compile resolves once and threads the result so one build never pays
-# the PATH scan and runnability probe three times.
+# The native run_compile (a later PR in the chain) will resolve once and
+# thread the result so one build never pays the PATH scan and runnability
+# probe three times.
 CCACHE_UNRESOLVED: Any = object()
 
 
