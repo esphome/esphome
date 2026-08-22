@@ -691,8 +691,8 @@ async def test_uart_mock_modbus_shared_address(
         "wide_qword": 100,
         "inside_wide": 321,
         "tail_of_wide": 421,
-        "rate_word": 321,
-        "rate_dword": pytest.approx(21037058),
+        "widen_word": 321,
+        "widen_dword": pytest.approx(21037058),
     }
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)

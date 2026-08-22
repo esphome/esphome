@@ -61,10 +61,14 @@ void ModbusFloatOutput::write_state(float value) {
 
   // Create and send the write command
   this->write_command_.emplace(this->parent_->create_command());
+  bool queued;
   if (this->register_count == 1 && !this->use_write_multiple_) {
-    this->write_command_->write_single_register(this->start_address + this->offset, data[0]);
+    queued = this->write_command_->write_single_register(this->start_address + this->offset, data[0]);
   } else {
-    this->write_command_->write_multiple_registers(this->start_address + this->offset, data);
+    queued = this->write_command_->write_multiple_registers(this->start_address + this->offset, data);
+  }
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->start_address + this->offset);
   }
 }
 
@@ -97,6 +101,7 @@ void ModbusBinaryOutput::write_state(bool state) {
       return;
     }
   }
+  bool queued = false;
   if (!data.empty()) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MODBUS_OUTPUT_MAX_LOG_BYTES)];
@@ -105,7 +110,7 @@ void ModbusBinaryOutput::write_state(bool state) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     // The lambda filled a legacy raw frame (device address + function code + data); the hub adds the CRC.
     this->write_command_.emplace(this->parent_->create_command());
-    this->write_command_->send_raw_frame_deprecated(data);
+    queued = this->write_command_->send_raw_frame_deprecated(data);
   } else {
     ESP_LOGV(TAG, "Write new state: value is %s, type is %d address = %X, offset = %x", ONOFF(state),
              (int) this->register_type, this->start_address, this->offset);
@@ -114,10 +119,13 @@ void ModbusBinaryOutput::write_state(bool state) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
       std::array<bool, 1> states{state};
-      this->write_command_->write_multiple_coils(this->start_address + this->offset, states);
+      queued = this->write_command_->write_multiple_coils(this->start_address + this->offset, states);
     } else {
-      this->write_command_->write_single_coil(this->start_address + this->offset, state);
+      queued = this->write_command_->write_single_coil(this->start_address + this->offset, state);
     }
+  }
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->start_address + this->offset);
   }
 }
 

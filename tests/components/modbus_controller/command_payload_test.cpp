@@ -12,6 +12,9 @@ namespace esphome::modbus_controller::testing {
 // address, quantity, byte count, then the packed coil bytes), the same convention as the other write
 // factories. A request past the protocol maximum is refused outright - payload stays empty so the hub
 // drops it - rather than truncating the coils while the quantity field still claims every one.
+// Both tests exercise the deprecated create_write_multiple_coils() factory on purpose.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 TEST(ModbusCommandPayload, CoilWriteOverMaxIsRejected) {
   ModbusController controller;
   std::vector<bool> coils(modbus::MAX_NUM_OF_COILS_TO_WRITE + 1, true);
@@ -29,5 +32,6 @@ TEST(ModbusCommandPayload, CoilWritePacksLsbFirstWithZeroPad) {
   ASSERT_EQ(cmd.payload.size(), expected.size());
   EXPECT_TRUE(std::equal(expected.begin(), expected.end(), cmd.payload.data()));
 }
+#pragma GCC diagnostic pop
 
 }  // namespace esphome::modbus_controller::testing

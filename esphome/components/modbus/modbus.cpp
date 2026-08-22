@@ -1163,7 +1163,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
     if (cmd.device != device)
       continue;
     if (cmd.state == FrameState::READY) {
-      ESP_LOGW(TAG, "Dropping queued frame for %" PRIu8 " (function 0x%X): superseded before transmission",
+      ESP_LOGW(TAG, "Discarding queued frame for %" PRIu8 " (function 0x%X) before transmission (device detached)",
                cmd.frame.address(), cmd.frame.pdu()[0]);
     }
     cmd.silent_retire();

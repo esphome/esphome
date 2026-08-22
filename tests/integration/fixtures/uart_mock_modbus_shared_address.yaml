@@ -124,13 +124,13 @@ sensor:
     modbus_controller_id: modbus_controller_ok
   # Shared address 0x200: the dword widens the range the word opened (or vice versa)
   - platform: modbus_controller
-    name: "rate_word"
+    name: "widen_word"
     address: 0x200
     register_type: holding
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok
   - platform: modbus_controller
-    name: "rate_dword"
+    name: "widen_dword"
     address: 0x200
     register_type: holding
     value_type: U_DWORD
