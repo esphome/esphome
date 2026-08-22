@@ -80,7 +80,7 @@ _MODES = {"ar": (_run_ar, 3), "copy": (_run_copy, 2)}
 
 
 def main() -> int:
-    mode = sys.argv[1]
+    mode = sys.argv[1] if len(sys.argv) > 1 else ""
     if entry := _MODES.get(mode):
         handler, argc = entry
         args = sys.argv[2:]
