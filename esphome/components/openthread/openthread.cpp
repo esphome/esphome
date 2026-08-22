@@ -52,7 +52,12 @@ void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) 
     otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
-    self->publish_state(role);
+    // publish_state() runs user automations and must not run on the OT task; defer it and
+    // re-set connected_ here too so it can't outrun the deferred role.
+    self->defer([self, role]() {
+      self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
+      self->publish_state(role);
+    });
   }
 }
 
@@ -322,7 +327,7 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
 }
 
 void OpenThreadComponent::publish_state(otDeviceRole role) {
-  ESP_LOGD(TAG, "Publish State: %d", role);
+  ESP_LOGD(TAG, "Publish State: %s", otThreadDeviceRoleToString(role));
   this->state_callbacks_.call(role);
   this->full_state_callbacks_.call(this->active_role_, role);
   this->active_role_ = role;

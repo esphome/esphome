@@ -154,6 +154,7 @@ openthread_ns = cg.esphome_ns.namespace("openthread")
 OpenThreadComponent = openthread_ns.class_("OpenThreadComponent", cg.Component)
 OpenThreadSrpComponent = openthread_ns.class_("OpenThreadSrpComponent", cg.Component)
 StateEnterForwarder = openthread_ns.class_("StateEnterForwarder")
+ot_device_role = cg.global_ns.enum("otDeviceRole")
 
 _CONNECTION_SCHEMA = cv.Schema(
     {
@@ -270,27 +271,27 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_DISABLED,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(0),
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_DISABLED),
     ),
     automation.CallbackAutomation(
         CONF_ON_DETACHED,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(1),
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_DETACHED),
     ),
     automation.CallbackAutomation(
         CONF_ON_CHILD,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(2),
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_CHILD),
     ),
     automation.CallbackAutomation(
         CONF_ON_ROUTER,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(3),
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_ROUTER),
     ),
     automation.CallbackAutomation(
         CONF_ON_LEADER,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(4),
+        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_LEADER),
     ),
 )
 
