@@ -1,29 +1,9 @@
-"""Run a PlatformIO ``extraScript`` against a captured SCons-env stand-in.
+"""Run a PlatformIO library ``extraScript`` against a fake SCons env.
 
-PlatformIO libraries occasionally configure per-target link/build state
-via a Python ``extraScript`` declared in ``library.json``'s ``build``
-section instead of static fields. The script runs under SCons during
-PIO's build and mutates the active ``Environment`` (``env.Append``,
-``env.Replace``, …) — chiefly to set ``LIBPATH``/``LIBS`` per chip MCU.
-
-ESPHome's PIO→IDF converter doesn't run SCons, so these scripts were
-previously ignored and any library
-relying on them failed to link under ``toolchain: esp-idf``. This
-module provides a small shim that ``exec``s an extra-script with a
-fake ``env`` object, captures the common ``env.Append(...)`` calls,
-and returns the captured vars so the caller can fold them back into
-the library's generated CMakeLists.
-
-Caveats
--------
-* Only the ``env.Append`` API is captured. ``env.Replace``,
-  ``env.Prepend``, ``env.AddPreAction``, SCons file generators, and any
-  arbitrary I/O are no-ops, logged once per method. Scripts that depend
-  on those will produce incomplete output.
-* Running arbitrary Python from third-party libraries is a non-trivial
-  trust decision. The shim does no sandboxing — anything in the
-  script's process can run. Use only with libraries whose source you
-  trust.
+The shim execs the script with a stand-in ``env``, captures ``env.Append``
+calls (everything else is a logged no-op), and folds the result into the
+library's build flags. No sandboxing: the script runs with full process
+access, so it carries the same trust as the library's own source.
 """
 
 from __future__ import annotations
@@ -48,13 +28,10 @@ def apply_extra_script(
     board_mcu: Callable[[], str],
     pio_platform: str,
 ) -> None:
-    """Run a library's PIO ``extraScript`` and fold its captured env vars into
-    ``component.data["build"]["flags"]`` so the backend's -L/-l/-D extraction
-    picks them up. Shared by the ESP-IDF and ESP8266 Arduino backends.
+    """Run a library's ``extraScript`` and fold its captured env vars into
+    ``component.data["build"]["flags"]``.
 
-    ``board_mcu`` is a callable so a backend whose target lookup needs build
-    state (the esp32 variant) resolves it only when a script will run.
-    ``pio_platform`` is exposed to the script as PlatformIO's ``PIOPLATFORM``.
+    ``board_mcu`` is a callable so its lookup runs only when a script will.
     """
     extra_script = component.data.get("build", {}).get("extraScript")
     if not extra_script:
@@ -115,13 +92,8 @@ class ExtraScriptResult:
 
 
 class _FakeSConsEnv:
-    """Minimal stand-in for SCons ``Environment`` exposed to extra-scripts.
-
-    Implements just enough surface area to let scripts query ``BOARD_MCU``
-    / ``PIOENV`` and call ``env.Append(LIBPATH=…, LIBS=…, …)``. Every
-    other env method swallows silently so unrelated calls don't raise
-    ``AttributeError`` and abort the script.
-    """
+    """Minimal SCons ``Environment`` stand-in: ``get`` and ``Append`` work;
+    every other method is a swallowed no-op so scripts don't abort."""
 
     def __init__(self, *, board_mcu: str, pio_env: str, pio_platform: str) -> None:
         self._vars: dict[str, str] = {
@@ -177,17 +149,9 @@ def run_extra_script(
 ) -> ExtraScriptResult:
     """Execute ``script_path`` with a fake SCons env and return captured vars.
 
-    ``board_mcu`` is the active MCU name (e.g. ``esp32``,
-    ``esp32s3``); it's exposed to the script as PlatformIO's
-    ``BOARD_MCU`` so chip-conditional logic resolves the same way it
-    would under PIO. The script runs with ``library_dir`` as the
-    process CWD so relative-path lookups (``join``, ``realpath``,
-    ``open``) resolve against the library tree.
-
-    On any exception inside the script we warn and return an empty result
-    (never a partial capture, which could build wrong-output firmware) —
-    extra-scripts are best-effort, and an unsupported script shouldn't
-    block the build.
+    Runs with ``library_dir`` as CWD so relative lookups resolve against
+    the library tree. A crashed script warns and returns an empty result,
+    never a partial capture.
     """
     env = _FakeSConsEnv(
         board_mcu=board_mcu,
@@ -254,20 +218,16 @@ def run_extra_script(
 def captured_as_build_flags(
     result: ExtraScriptResult, *, library_dir: Path
 ) -> list[str]:
-    """Translate captured env vars into the ``-L`` / ``-l`` / ``-D`` /
-    raw-flag form ``_generate_cmakelists_txt`` already knows how to consume.
+    """Translate captured env vars into -L/-l/-D/raw build flags.
 
     ``LIBPATH`` entries are made relative to ``library_dir`` so the
-    generated CMakeLists is portable; absolute paths outside the library
-    tree are kept as-is (CMake handles absolute paths in
-    ``target_link_directories`` fine).
+    generated build files stay portable.
     """
     flags: list[str] = []
     library_root = library_dir.resolve()
     for path in result.libpath:
-        # Anchor relative paths to library_dir (not the current CWD, which
-        # has been restored by the time we get here). Joining an absolute
-        # path against library_dir returns the absolute path unchanged.
+        # Anchor relative paths to library_dir; the script's CWD has been
+        # restored by now
         resolved = (library_dir / path).resolve()
         try:
             flags.append(f"-L{resolved.relative_to(library_root)}")
