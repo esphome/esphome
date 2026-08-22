@@ -263,7 +263,11 @@ bool StorageWorker::is_busy_with(const storage::Storage *storage) const {
     RequestState state = req.state.load();
     if (state == RequestState::FREE || state == RequestState::DONE)
       continue;
-    if (req.src_storage == storage || req.dst_storage == storage)
+    // A FORMAT's target rides in format_target (may be Raw/KV), not src/dst; a raw op's device
+    // rides in raw_device. Consult both, or an in-flight format/raw op is reported not busy and
+    // an unmount could proceed out from under it.
+    if (req.src_storage == storage || req.dst_storage == storage || req.raw_device == storage ||
+        (req.op == RequestOp::FORMAT && req.format_target == storage))
       return true;
   }
   // A stream counts whatever it is doing, IDLE included: unlike the contention question above,
@@ -295,7 +299,10 @@ bool StorageWorker::has_active_task_io(const storage::Storage *storage) const {
     // The loop engine's current request is the one RUNNING slot that is NOT task-owned.
     if (i == this->loop_active_index_)
       continue;
-    if (req.src_storage == storage || req.dst_storage == storage || req.raw_device == storage)
+    // A FORMAT's target rides in format_target (may be Raw/KV), not src/dst -- consult it too, or
+    // worker_task_busy() lets a main-loop blocking op start while the task is inside format().
+    if (req.src_storage == storage || req.dst_storage == storage || req.raw_device == storage ||
+        (req.op == RequestOp::FORMAT && req.format_target == storage))
       return true;
   }
   for (const auto &sreq : this->stream_pool_) {
@@ -905,6 +912,9 @@ void StorageWorker::deliver_completions_() {
           global_storage_registry->note_parent_changed(feed_path);
         } else {
           ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX ('%s')", req.dst_path);
+          // The ring cannot signal a silently dropped event, so a consumer would keep a stale
+          // listing forever. Force a full relist via the "" roots marker instead.
+          global_storage_registry->note_dir_changed("");
         }
       } else if (global_storage_registry != nullptr && req.dst_storage != nullptr && req.src_storage != nullptr) {
         const bool is_tree = is_tree_op(req.op);
@@ -917,6 +927,7 @@ void StorageWorker::deliver_completions_() {
           }
         } else {
           ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX ('%s')", dst_rel);
+          global_storage_registry->note_dir_changed("");
         }
         if (req.op == RequestOp::MOVE || req.op == RequestOp::MOVE_TREE) {
           const char *src_rel = is_tree ? req.tree->src_root : req.src_path;
@@ -924,16 +935,28 @@ void StorageWorker::deliver_completions_() {
             global_storage_registry->note_parent_changed(feed_path);
           } else {
             ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX ('%s')", src_rel);
+            global_storage_registry->note_dir_changed("");
           }
         }
-      } else if (global_storage_registry != nullptr && req.dst_storage != nullptr &&
+      } else if (global_storage_registry != nullptr &&
                  (req.op == RequestOp::FORMAT || req.op == RequestOp::MOUNT)) {
-        // FORMAT wipes every directory on the target; MOUNT makes its whole tree appear. Note the
-        // target's mount root, plus the "" roots level the header documents for a mount coming/going.
-        if (StorageRegistry::build_path(req.dst_storage, "", feed_path, sizeof(feed_path))) {
-          global_storage_registry->note_dir_changed(feed_path);
-        } else {
-          ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX (mount root)");
+        // FORMAT wipes every directory on the target; MOUNT makes its whole tree appear. MOUNT
+        // rides in dst_storage (always a PathStorage); FORMAT's target rides in format_target and
+        // is a PathStorage only for a filesystem (a Raw/KV format has no directory tree to note).
+        // A prior guard on dst_storage != nullptr made the FORMAT arm dead. Note the mount root
+        // when there is one, plus the "" roots level for a mount coming/going.
+        Storage *feed_target = req.op == RequestOp::FORMAT ? req.format_target : req.dst_storage;
+        PathStorage *feed_ps =
+            (feed_target != nullptr && (feed_target->get_storage_type() == StorageType::STORAGE_TYPE_FILESYSTEM ||
+                                        feed_target->get_storage_type() == StorageType::STORAGE_TYPE_NETWORK))
+                ? static_cast<PathStorage *>(feed_target)
+                : nullptr;
+        if (feed_ps != nullptr) {
+          if (StorageRegistry::build_path(feed_ps, "", feed_path, sizeof(feed_path))) {
+            global_storage_registry->note_dir_changed(feed_path);
+          } else {
+            ESP_LOGW(TAG, "change feed skipped: path too long for USE_STORAGE_VFS_PATH_MAX (mount root)");
+          }
         }
         global_storage_registry->note_dir_changed("");
       }

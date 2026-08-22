@@ -894,6 +894,13 @@ async def file_read_action_to_code(
             )
         elif CONF_TRIM in step and step[CONF_TRIM]:
             cg.add(var.add_step(ExtractStepType.TRIM, "", "", 0))
+        else:
+            # Unreachable today (_exactly_one_step_kind guarantees one of the six keys), but without
+            # a terminal branch a future step type added to the schema and not to this dispatch is
+            # silently dropped although reserve_steps() already counted it. EsphomeError, not
+            # cv.Invalid: this runs in codegen (write_cpp), where cv.Invalid would escape as a raw
+            # traceback -- EsphomeError is caught and logged cleanly by the CLI.
+            raise EsphomeError(f"storage: unhandled extract step {step}")
 
     if (to_global := config.get(CONF_TO_GLOBAL)) is not None:
         glob = await cg.get_variable(to_global)
