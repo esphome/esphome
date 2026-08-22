@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,7 @@ struct Entry {
   bool is_hidden{false};
 
   StringRef get_ssid() const { return StringRef(this->ssid); }
+  bool ssid_equals(const Entry &other) const { return std::strcmp(this->ssid, other.ssid) == 0; }
   int8_t get_rssi() const { return this->rssi; }
   bool get_with_auth() const { return this->with_auth; }
   bool get_is_hidden() const { return this->is_hidden; }
@@ -38,7 +40,7 @@ std::vector<Row> rows(const std::vector<Entry> &results) {
   std::vector<Row> out;
   for (size_t i = 0; i < results.size(); i++) {
     bool with_auth = false;
-    if (!should_show_scan_entry(results, i, with_auth))
+    if (!should_show_scan_entry(results, results[i], with_auth))
       continue;
     out.push_back({std::string(results[i].ssid), results[i].rssi, with_auth});
   }
@@ -67,9 +69,9 @@ TEST(ScanList, SameSsidKeepsStrongest) {
 TEST(ScanList, EqualRssiKeepsFirst) {
   std::vector<Entry> results = {{"Home", -60}, {"Home", -60}, {"Home", -60}};
   bool with_auth = false;
-  EXPECT_TRUE(should_show_scan_entry(results, 0, with_auth));
-  EXPECT_FALSE(should_show_scan_entry(results, 1, with_auth));
-  EXPECT_FALSE(should_show_scan_entry(results, 2, with_auth));
+  EXPECT_TRUE(should_show_scan_entry(results, results[0], with_auth));
+  EXPECT_FALSE(should_show_scan_entry(results, results[1], with_auth));
+  EXPECT_FALSE(should_show_scan_entry(results, results[2], with_auth));
   EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -60, true}}));
 }
 
@@ -77,7 +79,7 @@ TEST(ScanList, EqualRssiKeepsFirst) {
 TEST(ScanList, WithAuthUntouchedWhenNotShown) {
   std::vector<Entry> results = {{"Home", -50, false}, {"Home", -70, true}};
   bool with_auth = false;
-  EXPECT_FALSE(should_show_scan_entry(results, 1, with_auth));
+  EXPECT_FALSE(should_show_scan_entry(results, results[1], with_auth));
   EXPECT_FALSE(with_auth);
 }
 

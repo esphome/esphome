@@ -232,10 +232,9 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
     }
     case improv::GET_WIFI_NETWORKS: {
       const auto &results = wifi::global_wifi_component->get_scan_result();
-      for (size_t i = 0; i < results.size(); i++) {
-        const auto &scan = results[i];
+      for (const auto &scan : results) {
         bool with_auth = false;
-        if (!wifi::should_show_scan_entry(results, i, with_auth))
+        if (!wifi::should_show_scan_entry(results, scan, with_auth))
           continue;
         // Send each ssid separately to avoid overflowing the buffer
         char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
