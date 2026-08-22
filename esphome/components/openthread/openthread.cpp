@@ -312,16 +312,27 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
     ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
   }
 
-  uint16_t poll_period_sec = (this->poll_period_ + 500) / 1000;
+  uint32_t poll_period_sec = (this->poll_period_ + 500) / 1000;
   // Minimums match OpenThread defaults: src/core/config/mle.h OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT
-  otThreadSetChildTimeout(instance, std::max(poll_period_sec * 4, 240));
+  static constexpr uint32_t child_timeout_min_sec = 240;
   // Minimums match OpenThread defaults: src/core/config/child_supervision.h
   // OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT
-  otChildSupervisionSetCheckTimeout(instance, std::max(poll_period_sec * 2, 190));
+  static constexpr uint32_t child_supervision_check_timeout_min_sec = 190;
   // Minimums match OpenThread defaults: src/core/config/child_supervision.h
   // OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL
-  otChildSupervisionSetInterval(instance, std::max((uint16_t) (poll_period_sec * 3 / 2), (uint16_t) 129));
-  ESP_LOGD(TAG, "Child Timeout: %d sec, Child Supervision Check Timeout: %d sec, Child Supervision Interval: %d sec",
+  static constexpr uint32_t child_supervision_interval_min_sec = 129;
+  // otChildSupervisionSetCheckTimeout()/SetInterval() take uint16_t seconds; clamp the
+  // derived values so a large poll_period can't silently wrap past 65535.
+  const auto check_timeout_sec = static_cast<uint16_t>(
+      std::clamp<uint32_t>(poll_period_sec * 2, child_supervision_check_timeout_min_sec, UINT16_MAX));
+  const auto interval_sec = static_cast<uint16_t>(
+      std::clamp<uint32_t>(poll_period_sec * 3 / 2, child_supervision_interval_min_sec, UINT16_MAX));
+  otThreadSetChildTimeout(instance, std::max<uint32_t>(poll_period_sec * 4, child_timeout_min_sec));
+  otChildSupervisionSetCheckTimeout(instance, check_timeout_sec);
+  otChildSupervisionSetInterval(instance, interval_sec);
+  ESP_LOGD(TAG,
+           "Child Timeout: %" PRIu32 " sec, Child Supervision Check Timeout: %u sec, "
+           "Child Supervision Interval: %u sec",
            otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
            otChildSupervisionGetInterval(instance));
 

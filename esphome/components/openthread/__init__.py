@@ -243,7 +243,12 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POLL_PERIOD): cv.All(
+                cv.positive_time_period_milliseconds,
+                # OpenThread's own cap: values above kMaxExternalPeriod (0x3FFFFFF ms, ~18.6h)
+                # are silently clamped by otLinkSetPollPeriod() (data_poll_sender.hpp).
+                cv.Range(max=TimePeriodMilliseconds(milliseconds=0x3FFFFFF)),
+            ),
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation({}),
             cv.Optional(CONF_ON_DISABLED): automation.validate_automation({}),
