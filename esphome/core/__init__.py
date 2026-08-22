@@ -992,7 +992,8 @@ class EsphomeCore:
     @property
     def using_native_toolchain(self):
         """Whether the selected toolchain builds natively, without reading
-        ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``)."""
+        ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
+        keep its membership in sync with ``write_cpp_file``'s dispatch)."""
         return self.toolchain in NATIVE_TOOLCHAINS
 
     @property

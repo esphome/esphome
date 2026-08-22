@@ -1408,7 +1408,9 @@ async def test_add_platformio_options_native_arduino(
     await config._add_platformio_options(
         {
             "board_build.f_cpu": "160000000L",
-            "board_build.ldscript": "eagle.flash.4m2m.ld",
+            # The schema also permits the list form; the last value wins
+            # and reaches the generator as a scalar
+            "board_build.ldscript": ["eagle.flash.2m.ld", "eagle.flash.4m2m.ld"],
             "board_build.filesystem": "littlefs",
             "upload_speed": "115200",
         }
