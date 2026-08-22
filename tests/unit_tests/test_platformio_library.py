@@ -569,6 +569,53 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
     assert "Ignoring trailing '-I'" in caplog.text
 
 
+def test_prefetch_wave_downloads_registry_archives_in_parallel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Registry archives in one wave download concurrently, deduped by URL;
+    git/local sources and failures are left to the sequential call."""
+    calls: list[str] = []
+
+    def fake_download(self, force=False, salt="", namespace=""):
+        calls.append(self.source.url)
+        if "boom" in self.source.url:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
+        # Duplicate URL must prefetch once (two threads must never extract
+        # into the same cache directory)
+        ("b2", ConvertedLibrary("b2", "1.0", URLSource("https://x/b.tar.gz"))),
+        ("c", ConvertedLibrary("c", "1.0", URLSource("https://x/boom.tar.gz"))),
+        ("g", ConvertedLibrary("g", "*", lib.GitSource("https://x/g.git", None))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+    assert sorted(calls) == [
+        "https://x/a.tar.gz",
+        "https://x/b.tar.gz",
+        "https://x/boom.tar.gz",
+    ]
+
+
+def test_prefetch_wave_single_archive_skips_the_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One archive gains nothing from a pool; the sequential call keeps its
+    progress bar."""
+    monkeypatch.setattr(
+        ConvertedLibrary,
+        "download",
+        lambda self, **kw: (_ for _ in ()).throw(AssertionError("prefetched")),
+    )
+    lib._prefetch_wave(
+        [("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz")))],
+        "",
+        "idf",
+    )
+
+
 def test_normalize_dependencies_forms(caplog) -> None:
     """Every PIO-legal spelling normalizes; unrecognizable entries warn."""
     from esphome.platformio.library import normalize_dependencies

@@ -1,7 +1,7 @@
 """Generic toolchain installation helpers shared across framework implementations."""
 
 from collections.abc import Iterable
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import hashlib
 import io
 import json
@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 from typing import IO, TYPE_CHECKING
 
@@ -22,6 +23,21 @@ if TYPE_CHECKING:
 PathType = str | os.PathLike
 
 _LOGGER = logging.getLogger(__name__)
+
+# Concurrent downloads would interleave their progress bars; a worker thread
+# suppresses its bar for the download it runs.
+_PROGRESS_LOCAL = threading.local()
+
+
+@contextmanager
+def suppress_download_progress():
+    """Silence the per-download progress bar in the current thread."""
+    _PROGRESS_LOCAL.disabled = True
+    try:
+        yield
+    finally:
+        _PROGRESS_LOCAL.disabled = False
+
 
 # Attempts per mirror URL before falling through to the next mirror; only
 # mid-stream drops retry (resuming when the server gave a validator),
@@ -711,7 +727,11 @@ def _stream_response_to_file(
     f.truncate(offset)
     total_size = size or offset + _content_length(resp)
     downloaded = offset
-    progress = ProgressBar("Downloading") if total_size > 0 else None
+    progress = (
+        ProgressBar("Downloading")
+        if total_size > 0 and not getattr(_PROGRESS_LOCAL, "disabled", False)
+        else None
+    )
     for chunk in resp.iter_content(chunk_size=256 * 1024):
         if chunk:
             f.write(chunk)
