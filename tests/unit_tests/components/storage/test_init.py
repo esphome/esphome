@@ -206,3 +206,204 @@ def test_resolve_path_max_fatfs_non_numeric_lfn_raises() -> None:
         pytest.raises(EsphomeError),
     ):
         storage._resolve_path_max({})
+
+
+# ---------------------------------------------------------------------------
+# Action-level validators
+# ---------------------------------------------------------------------------
+# These are pure functions over the already-schema-validated action config. They encode the
+# cross-field rules (XOR, mutual exclusion, "at least one of") that a plain cv.Schema cannot
+# express. No YAML test config exercises the raw_*/stat/format actions (a driver has to land
+# first), so pytest is the only place these branches get covered; a wrong rule here ships silently
+# otherwise.
+
+from esphome.components.storage import (  # noqa: E402
+    CONF_ADDRESS,
+    CONF_ALL,
+    CONF_ARGS,
+    CONF_CONTENT,
+    CONF_DATA,
+    CONF_FORMAT,
+    CONF_FROM_FILE,
+    CONF_GROUP,
+    CONF_INDEX,
+    CONF_KEY,
+    CONF_LINE,
+    CONF_ON_ERROR,
+    CONF_ON_EXISTS,
+    CONF_ON_MISSING,
+    CONF_ON_VALUE,
+    CONF_REGEX,
+    CONF_SEPARATOR,
+    CONF_SIZE,
+    CONF_SPLIT,
+    CONF_TO_FILE,
+    CONF_TO_GLOBAL,
+    CONF_TRIM,
+    _exactly_one_step_kind,
+    _validate_raw_erase,
+    _validate_raw_read,
+    _validate_raw_write,
+    _validate_read,
+    _validate_stat,
+    _validate_write_content,
+)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_CONTENT: "x"},
+        {CONF_FORMAT: "no specifiers", CONF_ARGS: []},
+    ],
+)
+def test_validate_write_content_accepts(config: dict) -> None:
+    assert _validate_write_content(config) is config
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},  # neither content nor format
+        {CONF_CONTENT: "x", CONF_FORMAT: "y"},  # both
+        {CONF_CONTENT: "x", CONF_ARGS: ["a"]},  # args without format
+    ],
+)
+def test_validate_write_content_rejects(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_write_content(config)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_LINE: 1},
+        {CONF_SPLIT: ",", CONF_INDEX: 0},
+        {CONF_KEY: "k", CONF_SEPARATOR: "="},
+        {CONF_REGEX: "a", CONF_GROUP: 1},
+        {CONF_TRIM: True},
+    ],
+)
+def test_exactly_one_step_kind_accepts(config: dict) -> None:
+    assert _exactly_one_step_kind(config) is config
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},  # no step kind
+        {CONF_LINE: 1, CONF_TRIM: True},  # two step kinds
+        {CONF_LINE: 1, CONF_INDEX: 0},  # index without split
+        {CONF_LINE: 1, CONF_SEPARATOR: "="},  # separator without key
+        {CONF_LINE: 1, CONF_GROUP: 1},  # group without regex
+        {CONF_TRIM: False},  # trim must be true
+    ],
+)
+def test_exactly_one_step_kind_rejects(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        _exactly_one_step_kind(config)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_TO_GLOBAL: "g"},
+        {CONF_ON_VALUE: object()},
+    ],
+)
+def test_validate_read_accepts(config: dict) -> None:
+    assert _validate_read(config) is config
+
+
+def test_validate_read_rejects_no_sink() -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_read({})
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_ON_EXISTS: object()},
+        {CONF_ON_MISSING: object()},
+        {CONF_ON_ERROR: object()},
+    ],
+)
+def test_validate_stat_accepts(config: dict) -> None:
+    assert _validate_stat(config) is config
+
+
+def test_validate_stat_rejects_no_handler() -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_stat({})
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_TO_FILE: "f"},  # to_file needs no size
+        {CONF_SIZE: 16, CONF_ON_VALUE: object()},
+    ],
+)
+def test_validate_raw_read_accepts(config: dict) -> None:
+    assert _validate_raw_read(config) is config
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},  # neither to_file nor on_value
+        {CONF_TO_FILE: "f", CONF_ON_VALUE: object()},  # on_value with to_file
+        {CONF_ON_VALUE: object()},  # on_value in RAM without size
+    ],
+)
+def test_validate_raw_read_rejects(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_raw_read(config)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_DATA: b"x"},
+        {CONF_FROM_FILE: "f"},
+    ],
+)
+def test_validate_raw_write_accepts(config: dict) -> None:
+    assert _validate_raw_write(config) is config
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {},  # neither
+        {CONF_DATA: b"x", CONF_FROM_FILE: "f"},  # both
+    ],
+)
+def test_validate_raw_write_rejects(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_raw_write(config)
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_ALL: True},  # whole device
+        {CONF_ALL: False, CONF_SIZE: 16},  # ranged erase
+        {CONF_ALL: False, CONF_ADDRESS: 0, CONF_SIZE: 16},
+    ],
+)
+def test_validate_raw_erase_accepts(config: dict) -> None:
+    assert _validate_raw_erase(config) is config
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {CONF_ALL: True, CONF_ADDRESS: 0},  # all + address
+        {CONF_ALL: True, CONF_SIZE: 16},  # all + size
+        {CONF_ALL: False},  # ranged erase without size
+    ],
+)
+def test_validate_raw_erase_rejects(config: dict) -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_raw_erase(config)
