@@ -79,7 +79,9 @@ def test_rule_map_covers_all_source_suffixes() -> None:
 def test_build_config_defaults() -> None:
 
     _set_flags()
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     assert config.nonosdk == "NONOSDK22x_190703"
     assert config.lwip_lib == "lwip2-536-feat"
     assert not config.exceptions
@@ -98,7 +100,9 @@ def test_build_config_esphome_lwip_knob() -> None:
     as the PlatformIO builder."""
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     assert config.lwip_lib == "lwip2-1460"
     assert "TCP_MSS=1460" in config.knob_defines
     assert "LWIP_FEATURES=0" in config.knob_defines
@@ -113,7 +117,9 @@ def test_build_config_knobs() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
         "-DVTABLES_IN_DRAM",
     )
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     assert config.nonosdk == "NONOSDK305"
     assert config.exceptions
     assert config.vtables == "VTABLES_IN_DRAM"
@@ -124,14 +130,16 @@ def test_build_config_mmu_custom_requires_sizes() -> None:
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM")
     with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE"):
-        _resolve_build_config(_flag_defines(set()))
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
 
     _set_flags(
         "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
         "-DMMU_IRAM_SIZE=0xC000",
         "-DMMU_ICACHE_SIZE=0x4000",
     )
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     # Emitted pre-sorted so build.ninja stays byte-stable across runs
     assert config.mmu_defines == [
         "MMU_ICACHE_SIZE=0x4000",
@@ -144,7 +152,7 @@ def test_defines_match_platformio_builder() -> None:
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
     assert _defines_flags(
-        _resolve_build_config(_flag_defines(set())),
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags())),
         "dout",
         "nodemcuv2",
         ESP8266_BOARD_BUILD["nodemcuv2"]["defines"],
@@ -338,7 +346,9 @@ def test_build_config_lwip_variants(
     """Every lwIP knob maps to the same defines and library as the PIO builder."""
 
     _set_flags(f"-D{knob}")
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     assert config.lwip_lib == lib
     assert f"TCP_MSS={mss}" in config.knob_defines
     assert f"LWIP_FEATURES={features}" in config.knob_defines
@@ -374,13 +384,20 @@ def test_build_config_lwip_variants(
 def test_build_config_mmu_variants(knob: str, expected: list[str]) -> None:
 
     _set_flags(f"-D{knob}")
-    assert _resolve_build_config(_flag_defines(set())).mmu_defines == expected
+    assert (
+        _resolve_build_config(
+            _flag_defines(set(), arduino8266._lexed_build_flags())
+        ).mmu_defines
+        == expected
+    )
 
 
 def test_build_config_waveform_locked_phase() -> None:
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE", "-DFP_IN_IROM")
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     assert "WAVEFORM_LOCKED_PHASE=1" in config.knob_defines
     assert config.fp_in_irom
 
@@ -402,7 +419,9 @@ SECTIONS
 
 def _run_generate_ld_scripts(paths: InstalledPaths) -> Path:
 
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     arduino8266.generate_ld_scripts(paths, config, "eagle.flash.4m.ld")
     return CORE.relative_pioenvs_path(CORE.name, "ld")
 
@@ -602,7 +621,12 @@ def test_build_config_nonosdk_precedence() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK305",
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
     )
-    assert _resolve_build_config(_flag_defines(set())).nonosdk == "NONOSDK221"
+    assert (
+        _resolve_build_config(
+            _flag_defines(set(), arduino8266._lexed_build_flags())
+        ).nonosdk
+        == "NONOSDK221"
+    )
 
 
 def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) -> None:
@@ -624,7 +648,7 @@ def test_project_flags_trailing_bare_linker_flag_warns(
 ) -> None:
     _set_flags("-l")
     compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
+        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
     )
     assert "Ignoring trailing '-l'" in caplog.text
     assert not libs
@@ -636,7 +660,7 @@ def test_project_flags_trailing_bare_linker_flag_warns(
 def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
     _set_flags("-L /d -Wl,-Map=m stray")
     compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
+        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
     )
     assert lib_dirs == [Path("/d")]
     assert link_flags == ["-Wl,-Map=m"]
@@ -647,7 +671,7 @@ def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
 def test_flag_defines_lexes_multi_token_entries() -> None:
     """A knob inside a multi-token entry is detected like PlatformIO does."""
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH -DFOO=1 -Os")
-    defines = _flag_defines(set())
+    defines = _flag_defines(set(), arduino8266._lexed_build_flags())
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert defines["FOO"] == "FOO=1"
     config = _resolve_build_config(defines)
@@ -658,7 +682,7 @@ def test_project_flags_lexes_every_entry() -> None:
     """A linker flag anywhere in an entry reaches the link line (PIO parity)."""
     _set_flags("-DFOO=1 -lbar")
     compile_flags, _link, _dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
+        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
     )
     assert libs == ["bar"]
     assert "-DFOO=1" in compile_flags
@@ -669,7 +693,7 @@ def test_project_flags_unflags_match_tokens() -> None:
     _set_flags("-Os -g3")
     CORE.build_unflags = {"-Os"}
     compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
+        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
     )
     assert "-g3" in compile_flags
     assert "-Os" not in compile_flags
@@ -679,7 +703,7 @@ def test_project_flags_requotes_lexed_defines() -> None:
     """A quoted spaced value stays one compiler argument after lex/emit."""
     _set_flags('-DGREETING="hello world"')
     compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens()
+        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
     )
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
@@ -700,7 +724,7 @@ def test_write_project_empty_core_raises(tmp_path: Path) -> None:
 def test_flag_defines_joins_spaced_define() -> None:
     """A spaced "-D KNOB" entry is detected exactly as PlatformIO detects it."""
     _set_flags("-D PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    defines = _flag_defines(set())
+    defines = _flag_defines(set(), arduino8266._lexed_build_flags())
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert "" not in defines
 
@@ -782,20 +806,26 @@ def test_build_config_custom_mmu_without_knob_raises() -> None:
     not)."""
     _set_flags("-DMMU_IRAM_SIZE=0xC000")
     with pytest.raises(EsphomeError, match="PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"):
-        _resolve_build_config(_flag_defines(set()))
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
 
 
 def test_flag_defines_lexes_quoted_single_tokens() -> None:
     """A quoted single-token define reads the same as on the compile line."""
     _set_flags('-DMMU_SEC_HEAP="0x40108000"')
-    assert _flag_defines(set())["MMU_SEC_HEAP"] == "MMU_SEC_HEAP=0x40108000"
+    assert (
+        _flag_defines(set(), arduino8266._lexed_build_flags())["MMU_SEC_HEAP"]
+        == "MMU_SEC_HEAP=0x40108000"
+    )
 
 
 def test_flag_defines_duplicate_defines_resolve_deterministically() -> None:
     """Duplicate conflicting defines pick the same winner every run (sorted
     iteration, last writer wins), independent of the set's hash seed."""
     _set_flags("-DMMU_IRAM_SIZE=0x8000", "-DMMU_IRAM_SIZE=0xC000")
-    assert _flag_defines(set())["MMU_IRAM_SIZE"] == "MMU_IRAM_SIZE=0xC000"
+    assert (
+        _flag_defines(set(), arduino8266._lexed_build_flags())["MMU_IRAM_SIZE"]
+        == "MMU_IRAM_SIZE=0xC000"
+    )
 
 
 def test_flag_tables_match_platformio_builder() -> None:
@@ -923,7 +953,9 @@ def test_unflag_tokens_join_spaced_entries() -> None:
     tokens = arduino8266._unflag_tokens()
     assert tokens == {"-DFOO", "-lbar"}
     CORE.build_flags = {"-DFOO -lbar", "-DBAR"}
-    compile_flags, _link, _dirs, libs = arduino8266._project_flags(tokens)
+    compile_flags, _link, _dirs, libs = arduino8266._project_flags(
+        tokens, arduino8266._lexed_build_flags()
+    )
     assert compile_flags == ["-DBAR"]
     assert libs == []
 
@@ -931,7 +963,7 @@ def test_unflag_tokens_join_spaced_entries() -> None:
 def test_flag_defines_respects_unflags() -> None:
     """An unflagged knob must not drive the derived toolchain config."""
     _set_flags("-DVTABLES_IN_DRAM")
-    defines = _flag_defines({"-DVTABLES_IN_DRAM"})
+    defines = _flag_defines({"-DVTABLES_IN_DRAM"}, arduino8266._lexed_build_flags())
     assert "VTABLES_IN_DRAM" not in defines
     config = _resolve_build_config(defines)
     assert config.vtables == "VTABLES_IN_FLASH"
@@ -942,13 +974,13 @@ def test_vtables_unknown_raises() -> None:
     #error; fail by name at generation instead."""
     _set_flags("-DVTABLES_IN_BANANA")
     with pytest.raises(EsphomeError, match="Unknown VTABLES_IN_.*BANANA"):
-        _resolve_build_config(_flag_defines(set()))
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
 
 
 def test_vtables_conflicting_raises() -> None:
     _set_flags("-DVTABLES_IN_DRAM", "-DVTABLES_IN_IRAM")
     with pytest.raises(EsphomeError, match="Conflicting VTABLES_IN_"):
-        _resolve_build_config(_flag_defines(set()))
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
 
 
 def test_project_flags_empty_lib_flags_warn(
@@ -956,7 +988,9 @@ def test_project_flags_empty_lib_flags_warn(
 ) -> None:
     """A bare -L must not silently add the CWD to the search path."""
     CORE.build_flags = {'-L ""', '-l ""'}
-    _c, _l, lib_dirs, libs = arduino8266._project_flags(set())
+    _c, _l, lib_dirs, libs = arduino8266._project_flags(
+        set(), arduino8266._lexed_build_flags()
+    )
     assert lib_dirs == []
     assert libs == []
     assert "Ignoring empty -L" in caplog.text
@@ -991,7 +1025,7 @@ def test_build_config_mmu_knob_with_raw_mmu_flag_raises() -> None:
     from the linker script; refuse like the no-knob case."""
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48", "-DMMU_IRAM_SIZE=0x4000")
     with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE conflict with .*CACHE16"):
-        _resolve_build_config(_flag_defines(set()))
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
 
 
 def test_build_config_raw_lwip_define_raises() -> None:
@@ -999,16 +1033,20 @@ def test_build_config_raw_lwip_define_raises() -> None:
     compile line while the prebuilt library stays the knob's."""
     _set_flags("-DTCP_MSS=1024")
     with pytest.raises(EsphomeError, match="TCP_MSS are set by the .*LWIP2"):
-        _resolve_build_config(_flag_defines(set()))
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
 
 
 def test_build_config_mmu_defines_do_not_alias_the_table() -> None:
     """The resolved list must be a copy; mutating it must not corrupt the
     module table for later builds in the same process."""
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48")
-    config = _resolve_build_config(_flag_defines(set()))
+    config = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     config.mmu_defines.append("MMU_BOGUS")
-    again = _resolve_build_config(_flag_defines(set()))
+    again = _resolve_build_config(
+        _flag_defines(set(), arduino8266._lexed_build_flags())
+    )
     assert "MMU_BOGUS" not in again.mmu_defines
     assert all(isinstance(v, tuple) for _k, v in arduino8266._MMU_VARIANTS)
 
@@ -1021,9 +1059,11 @@ def test_lexed_build_flags_shared_between_consumers(
     _set_flags("-DFOO=1 -l", "-Wl,--wrap=x")
     tokens = arduino8266._lexed_build_flags()
     assert caplog.text.count("Ignoring trailing '-l'") == 1
-    assert _flag_defines(set(), tokens) == _flag_defines(set())
+    assert _flag_defines(set(), tokens) == _flag_defines(
+        set(), arduino8266._lexed_build_flags()
+    )
     assert arduino8266._project_flags(set(), tokens) == arduino8266._project_flags(
-        set()
+        set(), arduino8266._lexed_build_flags()
     )
 
 
@@ -1034,12 +1074,14 @@ def test_project_flags_rejects_plain_linker_forms(tok: str) -> None:
     silently lacks the requested link behavior."""
     _set_flags(tok)
     with pytest.raises(EsphomeError, match="use the -Wl, form"):
-        arduino8266._project_flags(set())
+        arduino8266._project_flags(set(), arduino8266._lexed_build_flags())
 
 
 def test_project_flags_plain_compile_flags_pass() -> None:
     _set_flags("-Os")
-    compile_flags, _l, _d, _libs = arduino8266._project_flags(set())
+    compile_flags, _l, _d, _libs = arduino8266._project_flags(
+        set(), arduino8266._lexed_build_flags()
+    )
     assert "-Os" in compile_flags
 
 
@@ -1118,7 +1160,7 @@ def test_build_config_mmu_conflict_names_the_variant_knob_with_custom() -> None:
         "-DMMU_ICACHE_SIZE=0x4000",
     )
     with pytest.raises(EsphomeError, match="drop PIO_FRAMEWORK_ARDUINO_MMU_CACHE16"):
-        _resolve_build_config(_flag_defines(set()))
+        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
 
 
 def test_generate_ld_scripts_testing_surgery_failure_is_named(
@@ -1217,3 +1259,33 @@ def test_board_tables_are_equal() -> None:
     from esphome.components.esp8266.boards import BOARDS
 
     assert set(BOARDS) == set(ESP8266_BOARD_BUILD)
+
+
+def test_project_flags_warns_on_bare_include_and_define(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An empty-argument -I or -D must not reach gcc, which would eat the
+    next flag as the argument."""
+    CORE.build_flags = {'-I ""', '-D ""'}
+    compile_flags, _l, _d, _libs = arduino8266._project_flags(
+        set(), arduino8266._lexed_build_flags()
+    )
+    assert "-I" not in compile_flags
+    assert "-D" not in compile_flags
+    assert "Ignoring empty -I in build_flags" in caplog.text
+    assert "Ignoring empty -D in build_flags" in caplog.text
+
+
+def test_generate_ld_scripts_gcc_change_invalidates_stamp(tmp_path: Path) -> None:
+    """An in-place toolchain re-extraction regenerates the script, same as
+    the header stat."""
+    paths = _make_framework(tmp_path)
+    gcc = paths.toolchain / "bin" / "xtensa-lx106-elf-gcc"
+    gcc.write_text("v1")
+    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    gcc.write_text("v2 (longer)")
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
+        _run_generate_ld_scripts(paths)
+    mock_run.assert_called_once()

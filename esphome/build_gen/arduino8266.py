@@ -126,6 +126,9 @@ _MMU_VARIANTS = (
         ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"),
     ),
 )
+# Upstream reads these from the board manifest (build.mmu_iram_size etc.);
+# no supported board sets them, so the platformio-build.py defaults are
+# hardcoded here rather than drift
 _MMU_DEFAULT = ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000")
 
 # Upstream's CXXFLAGS (-fno-rtti, the -std level, -f(no-)exceptions) and the
@@ -218,14 +221,20 @@ def _lexed_build_flags() -> list[str]:
     return lex_build_flags(sorted(CORE.build_flags), "esphome")
 
 
-def _flag_defines(unflags: set[str], tokens: list[str] | None = None) -> dict[str, str]:
-    """Map define name -> full ``NAME[=VALUE]`` for every -D build flag."""
+def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
+    """Map define name -> full ``NAME[=VALUE]`` for every -D build flag.
+
+    ``tokens`` comes from one ``_lexed_build_flags()`` call shared with
+    ``_project_flags`` so a malformed entry warns once, structurally.
+    """
     defines: dict[str, str] = {}
-    for tok in _lexed_build_flags() if tokens is None else tokens:
+    for tok in tokens:
         # An unflagged knob must not drive lwIP/SDK/MMU selection while
         # being absent from the compile line
         if tok in unflags:
             continue
+        # A bare "-D" is skipped here and warned about in _project_flags,
+        # which sees the same token list
         if tok.startswith("-D") and len(tok) > 2:
             body = tok[2:]
             defines[body.split("=", 1)[0]] = body
@@ -342,6 +351,12 @@ def _flash_ld_name(board: str) -> str:
 def _defines_flags(
     config: _BuildConfig, flash_mode: str, board: str, board_defines: tuple[str, ...]
 ) -> list[str]:
+    r"""The framework/board -D tokens for the compile line.
+
+    The returned tokens already carry shell-level escaping (the board
+    defines embed ``\"``), so they must be emitted unquoted; wrapping
+    them in ``_shell_token`` would deliver literal backslashes to gcc.
+    """
     return [
         f"-D{d}"
         for d in (
@@ -373,7 +388,7 @@ def _unflag_tokens() -> set[str]:
 
 
 def _project_flags(
-    unflags: set[str], tokens: list[str] | None = None
+    unflags: set[str], tokens: list[str]
 ) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
@@ -391,8 +406,13 @@ def _project_flags(
     link_flags: list[str] = []
     lib_dirs: list[Path] = []
     libs: list[str] = []
-    for tok in _lexed_build_flags() if tokens is None else tokens:
+    for tok in tokens:
         if tok in unflags:
+            continue
+        if tok in ("-I", "-D"):
+            # A bare form from '-I ""' would make gcc eat the next flag as
+            # its argument (silently, for a nonexistent include dir)
+            _LOGGER.warning("Ignoring empty %s in build_flags", tok)
             continue
         if tok.startswith("-Wl,"):
             link_flags.append(_shell_token(tok))
@@ -427,6 +447,28 @@ def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
     )
 
 
+def _stat_sig(path: Path) -> str:
+    """Size and mtime cache-stamp signature for one input file.
+
+    Absent stays deterministic ("missing": the spawn names it); unreadable
+    forces a cache miss every run rather than pinning the stamp to a
+    constant that can never notice a later edit.
+    """
+    try:
+        st = path.stat()
+        return f"{st.st_size}:{st.st_mtime_ns}"
+    except FileNotFoundError:
+        return "missing"
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not stat %s (%s); regenerating the linker script every "
+            "build. Run 'esphome clean-all' to reinstall the framework.",
+            path,
+            err,
+        )
+        return f"unreadable:{os.urandom(8).hex()}"
+
+
 def generate_ld_scripts(
     paths: InstalledPaths, config: _BuildConfig, flash_ld_name: str
 ) -> None:
@@ -455,29 +497,14 @@ def generate_ld_scripts(
     stamp = ld_dir / ".local.eagle.app.v6.common.ld.stamp"
     # The surgery constants are inputs too: an edit to build_surgery.py must
     # invalidate existing build dirs, not wait for an esphome clean.
-    # The header's size and mtime cover an in-place framework edit or
-    # re-extraction at the same versioned path, which the command line
-    # alone would not notice
-    try:
-        header_stat = header.stat()
-        header_sig = f"{header_stat.st_size}:{header_stat.st_mtime_ns}"
-    except FileNotFoundError:
-        header_sig = "missing"  # the preprocessor spawn below names it
-    except OSError as err:
-        # An unreadable header must force a cache miss every run, not pin
-        # the stamp to a constant that can never notice a later edit; say
-        # why every build regenerates the script
-        _LOGGER.warning(
-            "Could not stat %s (%s); regenerating the linker script every "
-            "build. Run 'esphome clean-all' to reinstall the framework.",
-            header,
-            err,
-        )
-        header_sig = f"unreadable:{os.urandom(8).hex()}"
+    # The header's and compiler's size and mtime cover an in-place
+    # framework or toolchain re-extraction at the same versioned path,
+    # which the command line alone would not notice
     stamp_content = (
         " ".join(cmd)
         + f" testing={CORE.testing_mode}"
-        + f" header={header_sig}"
+        + f" header={_stat_sig(header)}"
+        + f" gcc={_stat_sig(gcc)}"
         # One fingerprint instead of enumerating surgery internals here, so
         # any behavioral edit in build_surgery self-invalidates the cache
         + f" {build_surgery.surgery_fingerprint()}"
