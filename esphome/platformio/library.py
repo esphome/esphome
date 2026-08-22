@@ -55,6 +55,8 @@ SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".cc": "cxx",
     ".cxx": "cxx",
     ".c++": "cxx",
+    ".C": "cxx",
+    ".C++": "cxx",
     ".S": "asm",
     ".spp": "asm",
     ".SPP": "asm",
@@ -204,6 +206,14 @@ class LocalSource(Source):
 
 class InvalidLibrary(Exception):
     pass
+
+
+class IncompatiblePlatform(InvalidLibrary):
+    """The manifest's platform filter rejected the target platform.
+
+    A distinct type so callers can treat the routine cross-platform skip
+    differently from other manifest problems without matching message text.
+    """
 
 
 class ConvertedLibrary:
@@ -435,7 +445,7 @@ def check_library_data(data: dict, platform: str | None, framework: str):
     valid_platforms = platform is None or "*" in platforms or platform in platforms
 
     if not valid_platforms:
-        raise InvalidLibrary(f"Unsupported library platforms: {platforms}")
+        raise IncompatiblePlatform(f"Unsupported library platforms: {platforms}")
 
     frameworks = data.get("frameworks", "*")
     if isinstance(frameworks, str):
@@ -571,6 +581,24 @@ def split_flag_entry(entry: Any, owner: str) -> list[str]:
         raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
 
 
+def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
+    """Shell-lex a manifest ``build.flags`` list into joined tokens.
+
+    Each entry is lexed the way PlatformIO's ParseFlags does, and bare
+    ``-I``/``-L``/``-l``/``-D`` tokens re-glue to their argument across the
+    whole stream. Used by the espidf and arduino backends; zephyr still
+    classifies raw entries.
+    """
+    # Join per entry, as SCons's ParseFlags lexes each string independently:
+    # a dangling -I ending one entry must warn, not absorb the next entry's
+    # first token.
+    return [
+        token
+        for entry in ensure_list(entries)
+        for token in join_flag_args(split_flag_entry(entry, owner), owner)
+    ]
+
+
 # Flags whose argument may follow as a separate token; ParseFlags glues them
 BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
 
@@ -591,19 +619,60 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     return out
 
 
-def normalize_dependencies(dependencies: Any) -> list[dict]:
+def warn_properties_depends(name: str, data: object) -> None:
+    """Warn when a manifest declares dependencies only as ``depends=``.
+
+    The dependency walk reads the JSON ``dependencies`` key; the raw
+    ``library.properties`` spelling would otherwise drop silently.
+    """
+    if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
+        _LOGGER.warning(
+            "Library %s declares dependencies via library.properties "
+            "depends=, which are not resolved automatically; add them with "
+            "add_library() if needed",
+            name,
+        )
+
+
+def dependency_is_usable(
+    dep: dict, platform: str | None, framework: str, requester: str
+) -> bool:
+    """Compatibility filter for a manifest dependency: platform mismatches
+    skip at debug, any other ``InvalidLibrary`` warns naming the requester."""
+    try:
+        check_library_data(dep, platform, framework)
+    except IncompatiblePlatform as e:
+        _LOGGER.debug("Skip dependency %s of %s: %s", dep.get("name"), requester, e)
+        return False
+    except InvalidLibrary as e:
+        _LOGGER.warning(
+            "Skipping dependency %s of %s: %s", dep.get("name"), requester, e
+        )
+        return False
+    return True
+
+
+def normalize_dependencies(
+    dependencies: Any, manifest_name: str = "manifest"
+) -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
-    PIO's library.json accepts both the list-of-dicts form and the shorthand
-    dict form (``{"owner/Name": "version_spec"}``); normalize the latter so
-    callers see a uniform list.
+    PIO's library.json accepts the list-of-dicts form, the shorthand dict
+    form (``{"owner/Name": "version_spec"}``), bare name strings inside the
+    list, and a plain (possibly comma-separated) string; normalize them all
+    so callers see a uniform list. ``manifest_name`` names the manifest in the
+    warning for entries that cannot be normalized.
     """
     if not dependencies:
         return []
+    if isinstance(dependencies, str):
+        # A plain string is one or more comma-separated names; iterating it
+        # as a list would shred it into one-character "libraries"
+        return [{"name": n.strip()} for n in dependencies.split(",") if n.strip()]
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
-            if "/" in raw_name:
+            if isinstance(raw_name, str) and "/" in raw_name:
                 owner, pkgname = raw_name.split("/", 1)
             else:
                 owner, pkgname = None, raw_name
@@ -612,9 +681,46 @@ def normalize_dependencies(dependencies: Any) -> list[dict]:
                 entry.update(spec)
             else:
                 entry["version"] = spec
+            if not isinstance(name := entry.get("name"), str) or not name:
+                _LOGGER.warning(
+                    "Ignoring unrecognized dependency entry %r of %s",
+                    entry,
+                    manifest_name,
+                )
+                continue
             normalized.append(entry)
         return normalized
-    return [d for d in dependencies if isinstance(d, dict)]
+    if not isinstance(dependencies, (list, tuple)):
+        _LOGGER.warning(
+            "Ignoring unrecognized dependencies %r of %s",
+            dependencies,
+            manifest_name,
+        )
+        return []
+    normalized = []
+    for entry in dependencies:
+        if isinstance(entry, dict):
+            name = entry.get("name")
+            if not isinstance(name, str) or not name:
+                # A dependency name must be a non-empty string; every
+                # consumer indexes or joins it
+                _LOGGER.warning(
+                    "Ignoring unrecognized dependency entry %r of %s",
+                    entry,
+                    manifest_name,
+                )
+                continue
+            normalized.append(entry)
+        elif isinstance(entry, str) and entry:
+            # PIO also accepts a bare list of names ("dependencies": ["Wire"])
+            normalized.append({"name": entry})
+        else:
+            _LOGGER.warning(
+                "Ignoring unrecognized dependency entry %r of %s",
+                entry,
+                manifest_name,
+            )
+    return normalized
 
 
 @dataclass
@@ -900,30 +1006,44 @@ def convert_libraries(
                 f"library.properties in {source_dir}"
             )
 
+        if not isinstance(component.data, dict) or not isinstance(
+            component.data.get("build", {}), dict
+        ):
+            # A bare json.load imposes no shape; every backend dereferences
+            # data/build, so validate once here and name the library
+            raise EsphomeError(f"Library {key} has a malformed manifest")
+        warn_properties_depends(component.name, component.data)
+
         try:
             check_library_data(component.data, backend.platform, backend.framework)
         except InvalidLibrary as e:
-            # Skip an incompatible transitive dependency, but fail fast if a
-            # top-level library the build explicitly requested is incompatible.
+            # Fail fast if a top-level library the build explicitly requested
+            # is incompatible; the routine cross-platform skip stays at
+            # debug, any other cause warns (a silent drop resurfaces as
+            # undefined symbols at link)
             if key in top_level_keys:
                 raise RuntimeError(
                     f"Requested library {key} is not compatible with "
                     f"{backend.framework}: {e}"
                 ) from e
-            _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            if isinstance(e, IncompatiblePlatform):
+                _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            else:
+                _LOGGER.warning("Skipping dependency %s: %s", key, str(e))
             continue
         components[key] = component
 
         # Requirements changed (we got past the short-circuit above), so
         # (re)walk this component's dependencies.
         node.edges = set()
-        for dependency in normalize_dependencies(component.data.get("dependencies")):
+        for dependency in normalize_dependencies(
+            component.data.get("dependencies"), component.name
+        ):
             if "name" not in dependency or "version" not in dependency:
                 continue
-            try:
-                check_library_data(dependency, backend.platform, backend.framework)
-            except InvalidLibrary as e:
-                _LOGGER.debug("Skip dependency %s: %s", dependency.get("name"), str(e))
+            if not dependency_is_usable(
+                dependency, backend.platform, backend.framework, component.name
+            ):
                 continue
             dep_name = _owner_pkgname_to_name(
                 dependency.get("owner"), dependency.get("name")
