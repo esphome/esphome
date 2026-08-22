@@ -27,7 +27,6 @@ from esphome.platformio.library import (
     LIBRARY_HEADER_SUFFIXES,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
-    IncompatiblePlatform,
     InvalidLibrary,
     LibraryBackend,
     _url_or_none,
@@ -104,11 +103,10 @@ def _warn_dropped_link_fields(name: str, data: dict) -> None:
     for dropped_key in ("precompiled", "ldflags"):
         if data.get(dropped_key):
             # PIO's Arduino lib builder honors these; building without them
-            # would fail far away at link with no stated cause
-            _LOGGER.warning(
-                "Library %s declares %s, which this backend does not honor",
-                name,
-                dropped_key,
+            # would fail at link with no stated cause
+            raise EsphomeError(
+                f"Library {name} declares {dropped_key}, which this backend "
+                "does not support"
             )
 
 
@@ -278,12 +276,11 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
         warn_properties_depends(name, data)
         build = data.get("build")
         if isinstance(build, dict) and build.get("extraScript"):
-            # apply_extra_script only runs on the converted path; a bundled
-            # manifest relying on one would build with missing flags
-            _LOGGER.warning(
-                "Bundled library %s declares an extraScript, which is not "
-                "run for bundled libraries",
-                name,
+            # apply_extra_script only runs on the converted path; building
+            # without the script's flags would miscompile
+            raise EsphomeError(
+                f"Bundled library {name} declares an extraScript, which is "
+                "not run for bundled libraries"
             )
     lib = _library_info(name, lib_dir, data)
     _assert_tree_has_code(
@@ -430,23 +427,12 @@ def resolve_libraries(
                 # via the converter, and the walk reports any real drops
                 continue
             try:
-                # framework=None: the walk already warned for a frameworks
-                # mismatch; re-checking would warn twice
+                # framework=None: the walk already ran dependency_is_usable
+                # on this entry (and warned for any non-platform cause);
+                # re-checking with a framework would warn twice
                 check_library_data(dep, pio_platform, None)
             except InvalidLibrary as err:
-                if isinstance(err, IncompatiblePlatform) or "version" not in dep:
-                    # The platform skip is routine; the walk's version-less
-                    # filter already warned for other version-less causes
-                    _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
-                else:
-                    # Versioned deps skip the walk's filter via provides();
-                    # this is the only place the fault can be seen
-                    _LOGGER.warning(
-                        "Skipping bundled dependency %s of %s: %s",
-                        name,
-                        component.name,
-                        err,
-                    )
+                _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
                 continue
             # Deferred: a later-emitted library's manifest name may satisfy
             # this; adding now could double the archive
