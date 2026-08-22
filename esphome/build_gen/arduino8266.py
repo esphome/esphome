@@ -15,13 +15,14 @@ from the build flags with the same precedence as the PlatformIO builder.
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
 import subprocess
 from typing import TYPE_CHECKING
 
+from esphome.arduino8266.framework import toolchain_tool
 from esphome.build_helpers.ninja import shell_token as _shell_token
 from esphome.components.esp8266 import build_surgery
 from esphome.core import CORE, EsphomeError
@@ -168,8 +169,8 @@ class _BuildConfig:
     exceptions: bool
     vtables: str
     fp_in_irom: bool
-    knob_defines: list[str] = field(default_factory=list)
-    mmu_defines: list[str] = field(default_factory=list)
+    knob_defines: list[str]
+    mmu_defines: list[str]
 
 
 def _lexed_build_flags() -> list[str]:
@@ -440,7 +441,7 @@ def generate_ld_scripts(
     rate-table DRAM relocation, and enlarged memory segments in testing mode.
     """
     framework = paths.framework
-    gcc = paths.toolchain / "bin" / "xtensa-lx106-elf-gcc"
+    gcc = toolchain_tool(paths.toolchain, "gcc")
     ld_dir = CORE.relative_pioenvs_path(CORE.name, "ld")
     mkdir_p(ld_dir)
 
