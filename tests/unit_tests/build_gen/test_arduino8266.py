@@ -76,12 +76,15 @@ def test_rule_map_covers_all_source_suffixes() -> None:
     assert set(arduino8266._RULE_FOR_SUFFIX) == set(SRC_FILE_EXTENSIONS)
 
 
+def _resolve(*flags: str):
+    """Set the build flags and resolve the knob config in one step."""
+    _set_flags(*flags)
+    return _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+
+
 def test_build_config_defaults() -> None:
 
-    _set_flags()
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve()
     assert config.nonosdk == "NONOSDK22x_190703"
     assert config.lwip_lib == "lwip2-536-feat"
     assert not config.exceptions
@@ -99,10 +102,7 @@ def test_build_config_esphome_lwip_knob() -> None:
     """The lwIP variant ESPHome selects maps to the same defines and library
     as the PlatformIO builder."""
 
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
     assert config.lwip_lib == "lwip2-1460"
     assert "TCP_MSS=1460" in config.knob_defines
     assert "LWIP_FEATURES=0" in config.knob_defines
@@ -128,9 +128,8 @@ def test_build_config_knobs() -> None:
 
 def test_build_config_mmu_custom_requires_sizes() -> None:
 
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM")
     with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE"):
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+        _resolve("-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM")
 
     _set_flags(
         "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
@@ -345,10 +344,7 @@ def test_build_config_lwip_variants(
 ) -> None:
     """Every lwIP knob maps to the same defines and library as the PIO builder."""
 
-    _set_flags(f"-D{knob}")
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve(f"-D{knob}")
     assert config.lwip_lib == lib
     assert f"TCP_MSS={mss}" in config.knob_defines
     assert f"LWIP_FEATURES={features}" in config.knob_defines
@@ -394,10 +390,7 @@ def test_build_config_mmu_variants(knob: str, expected: list[str]) -> None:
 
 def test_build_config_waveform_locked_phase() -> None:
 
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE", "-DFP_IN_IROM")
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve("-DPIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE", "-DFP_IN_IROM")
     assert "WAVEFORM_LOCKED_PHASE=1" in config.knob_defines
     assert config.fp_in_irom
 
@@ -804,9 +797,8 @@ def test_build_config_custom_mmu_without_knob_raises() -> None:
     layout the linker script does not implement; refuse instead of warning
     (PlatformIO warns, but its defaults win the compile line; ours would
     not)."""
-    _set_flags("-DMMU_IRAM_SIZE=0xC000")
     with pytest.raises(EsphomeError, match="PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"):
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+        _resolve("-DMMU_IRAM_SIZE=0xC000")
 
 
 def test_flag_defines_lexes_quoted_single_tokens() -> None:
@@ -972,15 +964,13 @@ def test_flag_defines_respects_unflags() -> None:
 def test_vtables_unknown_raises() -> None:
     """A typo'd knob would win the sorted pick and die in the SDK header's
     #error; fail by name at generation instead."""
-    _set_flags("-DVTABLES_IN_BANANA")
     with pytest.raises(EsphomeError, match="Unknown VTABLES_IN_.*BANANA"):
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+        _resolve("-DVTABLES_IN_BANANA")
 
 
 def test_vtables_conflicting_raises() -> None:
-    _set_flags("-DVTABLES_IN_DRAM", "-DVTABLES_IN_IRAM")
     with pytest.raises(EsphomeError, match="Conflicting VTABLES_IN_"):
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+        _resolve("-DVTABLES_IN_DRAM", "-DVTABLES_IN_IRAM")
 
 
 def test_project_flags_empty_lib_flags_warn(
@@ -1023,26 +1013,21 @@ def test_generate_ld_scripts_surfaces_preprocessor_warnings(
 def test_build_config_mmu_knob_with_raw_mmu_flag_raises() -> None:
     """A variant knob plus a raw MMU_* define would split the compile line
     from the linker script; refuse like the no-knob case."""
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48", "-DMMU_IRAM_SIZE=0x4000")
     with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE conflict with .*CACHE16"):
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+        _resolve("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48", "-DMMU_IRAM_SIZE=0x4000")
 
 
 def test_build_config_raw_lwip_define_raises() -> None:
     """TCP_MSS/LWIP_* belong to the lwIP knobs: a raw value would win the
     compile line while the prebuilt library stays the knob's."""
-    _set_flags("-DTCP_MSS=1024")
     with pytest.raises(EsphomeError, match="TCP_MSS are set by the .*LWIP2"):
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+        _resolve("-DTCP_MSS=1024")
 
 
 def test_build_config_mmu_defines_do_not_alias_the_table() -> None:
     """The resolved list must be a copy; mutating it must not corrupt the
     module table for later builds in the same process."""
-    _set_flags("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48")
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48")
     config.mmu_defines.append("MMU_BOGUS")
     again = _resolve_build_config(
         _flag_defines(set(), arduino8266._lexed_build_flags())
@@ -1155,14 +1140,13 @@ def test_write_project_lexes_build_flags_once(
 def test_build_config_mmu_conflict_names_the_variant_knob_with_custom() -> None:
     """With MMU_CUSTOM also set, the actionable fix is dropping the variant
     knob, not setting the knob the user already set."""
-    _set_flags(
-        "-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
-        "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
-        "-DMMU_IRAM_SIZE=0xC000",
-        "-DMMU_ICACHE_SIZE=0x4000",
-    )
     with pytest.raises(EsphomeError, match="drop PIO_FRAMEWORK_ARDUINO_MMU_CACHE16"):
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+        _resolve(
+            "-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
+            "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
+            "-DMMU_IRAM_SIZE=0xC000",
+            "-DMMU_ICACHE_SIZE=0x4000",
+        )
 
 
 def test_generate_ld_scripts_testing_surgery_failure_is_named(
