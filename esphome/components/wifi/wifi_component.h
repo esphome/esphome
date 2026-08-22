@@ -327,6 +327,8 @@ class WiFiScanResult {
   int8_t get_rssi() const;
   bool get_with_auth() const;
   bool get_is_hidden() const;
+  /// Compare SSIDs by content. Avoids materializing two StringRefs at the call site.
+  bool ssid_equals(const WiFiScanResult &other) const { return this->ssid_ == other.ssid_; }
   int8_t get_priority() const { return priority_; }
   void set_priority(int8_t priority) { priority_ = priority; }
 

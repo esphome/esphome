@@ -35,10 +35,9 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     // happens later in request->send()
     wifi::ScanResultsLock lock(wifi::global_wifi_component);
     const auto &results = wifi::global_wifi_component->get_scan_result();
-    for (size_t i = 0; i < results.size(); i++) {
-      const auto &scan = results[i];
+    for (const auto &scan : results) {
       bool with_auth = false;
-      if (!should_show_scan_entry(results, i, with_auth))
+      if (!should_show_scan_entry(results, scan, with_auth))
         continue;
 
       json_escape_into_buffer(escaped_ssid, scan.get_ssid());
