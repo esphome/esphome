@@ -1,0 +1,11 @@
+# Compiles the DHCP lease cache with the default RTC storage (dict form, so it also exercises the
+# max_age codegen and pulls in the ESP32 RTC preferences backend). common.yaml provides DHCP
+# networks with no manual_ip, so the capture/apply code path is active. The storage: flash branch
+# and the lease_cache + manual_ip combination are compiled by test-lease-cache-flash.
+wifi:
+  lease_cache:
+    enabled: true
+    max_age: 12h
+
+packages:
+  - !include common.yaml

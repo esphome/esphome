@@ -661,6 +661,16 @@ void WiFiComponent::start() {
   this->fast_connect_pref_ =
       global_preferences->make_preference<wifi::SavedWifiFastConnectSettings>(hash + 1, fast_connect_in_flash);
 #endif
+#ifdef USE_WIFI_LEASE_CACHE
+#ifdef USE_WIFI_LEASE_CACHE_IN_FLASH
+  const bool lease_cache_in_flash = true;
+#else
+  const bool lease_cache_in_flash = false;
+#endif
+  this->lease_cache_pref_ =
+      global_preferences->make_preference<wifi::SavedWifiLeaseSettings>(hash + 2, lease_cache_in_flash);
+  this->load_lease_settings_();
+#endif
 
   SavedWifiSettings save{};
   if (this->pref_.load(&save)) {
@@ -764,6 +774,15 @@ void WiFiComponent::loop() {
   if (events_processed || !this->connected_) {
     this->update_connected_state_();
   }
+
+#ifdef USE_WIFI_LEASE_CACHE
+  // Persist a freshly captured DHCP lease once per loop(), after wifi_loop_ has drained the event
+  // batch that may have set the flag (the GOT_IP handler only sets it, it does not write here).
+  if (this->lease_capture_pending_) {
+    this->lease_capture_pending_ = false;
+    this->save_lease_settings_();
+  }
+#endif
 
   if (this->has_sta()) {
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
@@ -2321,6 +2340,25 @@ void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t ch
   this->fast_connect_pref_.save(&fast_connect_save);
 
   ESP_LOGD(TAG, "Saved fast_connect settings");
+}
+#endif
+
+#ifdef USE_WIFI_LEASE_CACHE
+void WiFiComponent::load_lease_settings_() {
+  if (!this->lease_cache_pref_.load(&this->cached_lease_)) {
+    return;  // no cached lease, or the record was never written / failed its checksum
+  }
+  if (this->cached_lease_.version != SAVED_WIFI_LEASE_VERSION) {
+    // Same-size record from a different firmware layout: discard rather than misinterpret it.
+    ESP_LOGD(TAG, "Ignoring cached lease with unexpected version %u", this->cached_lease_.version);
+    return;
+  }
+  this->have_cached_lease_ = true;
+  // Whether it actually gets applied is decided in wifi_sta_ip_config_ once the AP is selected
+  // (see lease_valid_for_apply_): it needs a matching network and a trusted age.
+  const uint8_t *ip = reinterpret_cast<const uint8_t *>(&this->cached_lease_.ip);  // network byte order
+  ESP_LOGD(TAG, "Loaded cached lease %u.%u.%u.%u (network %d, lease %us)", ip[0], ip[1], ip[2], ip[3],
+           this->cached_lease_.ap_index, this->cached_lease_.lease_secs);
 }
 #endif
 

@@ -61,6 +61,7 @@ from esphome.const import (
     CONF_USERNAME,
     CONF_WIFI,
     PLACEHOLDER_WIFI_SSID,
+    Framework,
     Platform,
     PlatformFramework,
 )
@@ -470,6 +471,35 @@ def _fast_connect_schema(value: Any) -> ConfigType:
     return FAST_CONNECT_SCHEMA(value)
 
 
+CONF_LEASE_CACHE = "lease_cache"
+CONF_MAX_AGE = "max_age"
+
+LEASE_CACHE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+        # No storage default here: the RTC-preferred default -- and the warning
+        # when the variant has no RTC memory -- is resolved in to_code, so NVS is
+        # never selected implicitly (it wears flash and must be opted into).
+        cv.Optional(CONF_STORAGE): preferences.validate_storage,
+        # Optional safety cap: never trust a cached lease older than this, regardless
+        # of the lease length the DHCP server granted.
+        cv.Optional(CONF_MAX_AGE): cv.positive_time_period_seconds,
+    }
+)
+
+
+def _lease_cache_schema(value: Any) -> ConfigType:
+    """Accept a plain boolean shorthand or a dict with enabled/storage/max_age keys."""
+    if not isinstance(value, dict):
+        value = {CONF_ENABLED: value}
+    value = LEASE_CACHE_SCHEMA(value)
+    if value[CONF_ENABLED]:
+        # Phase 1 lease capture lives in the ESP-IDF WiFi path only.
+        cv.only_on_esp32(value)
+        cv.only_with_framework(Framework.ESP_IDF)(value)
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -496,6 +526,7 @@ CONFIG_SCHEMA = cv.All(
                 ln882x="light",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): _fast_connect_schema,
+            cv.Optional(CONF_LEASE_CACHE, default=False): _lease_cache_schema,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.Optional(CONF_MIN_AUTH_MODE): cv.All(
                 VALIDATE_WIFI_MIN_AUTH_MODE,
@@ -668,6 +699,27 @@ async def to_code(config):
         # used flash (the in_flash flag was previously ignored outside ESP8266).
         if preferences.is_in_flash(fast_connect[CONF_STORAGE]):
             cg.add_define("USE_WIFI_FAST_CONNECT_IN_FLASH")
+    lease_cache = config[CONF_LEASE_CACHE]
+    if lease_cache[CONF_ENABLED]:
+        # Default to RTC storage when the variant has RTC memory: a DHCP lease
+        # changes on every renewal, so NVS/flash wear is a real concern. NVS is
+        # never chosen implicitly -- it must be requested with 'storage: flash'.
+        storage = lease_cache.get(CONF_STORAGE)
+        if storage is None:
+            storage = preferences.STORAGE_RTC if preferences.rtc_supported() else None
+        if storage is None:
+            _LOGGER.warning(
+                "lease_cache is enabled but this ESP32 variant has no RTC memory, "
+                "so the lease cannot be cached. Set 'storage: flash' to persist it "
+                "in NVS instead (note: this increases flash wear)."
+            )
+        else:
+            cg.add_define("USE_WIFI_LEASE_CACHE")
+            # is_in_flash() also emits USE_ESP32_RTC_PREFERENCES when rtc is chosen.
+            if preferences.is_in_flash(storage):
+                cg.add_define("USE_WIFI_LEASE_CACHE_IN_FLASH")
+            if (max_age := lease_cache.get(CONF_MAX_AGE)) is not None:
+                cg.add(var.set_lease_cache_max_age(int(max_age.total_seconds)))
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))

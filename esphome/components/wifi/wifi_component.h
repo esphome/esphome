@@ -90,6 +90,31 @@ struct SavedWifiFastConnectSettings {
   int8_t ap_index;
 } PACKED;  // NOLINT
 
+#ifdef USE_WIFI_LEASE_CACHE
+// Current SavedWifiLeaseSettings layout; checked on load so a future same-size revision is
+// discarded rather than misinterpreted (a size change is already caught by the length check).
+static constexpr uint8_t SAVED_WIFI_LEASE_VERSION = 1;
+
+// Cached DHCP lease persisted across boots. IPv4 fields are stored in network byte order.
+struct SavedWifiLeaseSettings {
+  uint8_t version;      // schema version, validated against SAVED_WIFI_LEASE_VERSION on load
+  int8_t ap_index;      // configured network this lease belongs to (-1 = unknown)
+  uint8_t reserved[2];  // padding / future use
+  uint32_t ip;
+  uint32_t netmask;
+  uint32_t gateway;
+  uint32_t dns1;  // 0.0.0.0 if unset
+  uint32_t dns2;  // 0.0.0.0 if unset
+  // Lease timing and DHCP server id, read from lwIP. A record is only ever stored with these
+  // present (a lease without timing can't be aged or validated, so it isn't cached at all).
+  uint32_t server_id;   // DHCP server that granted the lease; kept for a future INIT-REBOOT phase
+  uint32_t lease_secs;  // offered_t0_lease: full lease length, seconds
+  uint32_t t1_renew;    // offered_t1_renew: renewal time, seconds
+  uint32_t t2_rebind;   // offered_t2_rebind: rebind time, seconds; kept for a future rebind phase
+  uint32_t saved_at;    // esp_rtc_get_time_us()/1e6 at capture; RTC-domain seconds (for age)
+} PACKED;               // NOLINT
+#endif
+
 enum WiFiComponentState : uint8_t {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
@@ -561,6 +586,9 @@ class WiFiComponent final : public Component {
   int8_t wifi_rssi();
 
   void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+#ifdef USE_WIFI_LEASE_CACHE
+  void set_lease_cache_max_age(uint32_t seconds) { this->lease_cache_max_age_ = seconds; }
+#endif
   void set_keep_scan_results(bool keep_scan_results) { this->keep_scan_results_ = keep_scan_results; }
   void set_post_connect_roaming(bool enabled) { this->post_connect_roaming_ = enabled; }
 
@@ -797,6 +825,15 @@ class WiFiComponent final : public Component {
   void save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel);
 #endif
 
+#ifdef USE_WIFI_LEASE_CACHE
+  // Capture the DHCP-assigned lease; load the cached one on boot.
+  void load_lease_settings_();
+  void save_lease_settings_();
+  // True when the cached lease is present, belongs to selected_sta_index_, and is
+  // still provably valid (timing present, RTC preserved, within lease minus margin).
+  bool lease_valid_for_apply_() const;
+#endif
+
   // Post-connect roaming methods
   void check_roaming_(uint32_t now);
   void process_roaming_scan_();
@@ -885,6 +922,20 @@ class WiFiComponent final : public Component {
   ESPPreferenceObject pref_;
 #ifdef USE_WIFI_FAST_CONNECT
   ESPPreferenceObject fast_connect_pref_;
+#endif
+#ifdef USE_WIFI_LEASE_CACHE
+  ESPPreferenceObject lease_cache_pref_;
+  // The lease loaded from the preference at start(), before an AP is selected.
+  SavedWifiLeaseSettings cached_lease_{};
+  bool have_cached_lease_{false};
+  // Set when IP_EVENT_STA_GOT_IP is processed (main-loop context, via wifi_loop_'s event drain);
+  // consumed in loop() so the preference write happens once per loop after the event batch.
+  bool lease_capture_pending_{false};
+  // True while the current IP came from the cache (static, DHCP not run): suppresses
+  // re-saving (which would downgrade the record) until a real DHCP lease is obtained.
+  bool applied_cached_lease_{false};
+  // Optional safety cap: don't trust a cached lease older than this many seconds (0 = no cap).
+  uint32_t lease_cache_max_age_{0};
 #endif
 #ifdef USE_WIFI_CONNECT_TRIGGER
   Trigger<> connect_trigger_;
