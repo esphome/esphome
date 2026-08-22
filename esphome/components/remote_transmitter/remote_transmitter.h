@@ -66,7 +66,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   void await_target_time_();
-  uint32_t target_time_;
+  uint32_t target_time_{0};
 #endif
 #if defined(USE_ESP8266) || (defined(USE_LIBRETINY) && !defined(USE_RTL87XX)) || defined(USE_RP2) || \
     (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
