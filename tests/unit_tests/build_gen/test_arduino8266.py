@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.arduino8266.framework import InstalledPaths
+from esphome.arduino8266.framework import InstalledPaths, toolchain_tool
 from esphome.build_gen import arduino8266
 from esphome.build_gen.arduino8266 import (
     _defines_flags,
@@ -1254,7 +1254,7 @@ def test_generate_ld_scripts_gcc_change_invalidates_stamp(tmp_path: Path) -> Non
     """An in-place toolchain re-extraction regenerates the script, same as
     the header stat."""
     paths = _make_framework(tmp_path)
-    gcc = paths.toolchain / "bin" / "xtensa-lx106-elf-gcc"
+    gcc = toolchain_tool(paths.toolchain, "gcc")
     gcc.write_text("v1")
     result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
     with patch.object(arduino8266.subprocess, "run", return_value=result):
