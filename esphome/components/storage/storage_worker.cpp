@@ -937,8 +937,7 @@ void StorageWorker::deliver_completions_() {
             global_storage_registry->note_dir_changed("");
           }
         }
-      } else if (global_storage_registry != nullptr &&
-                 (req.op == RequestOp::FORMAT || req.op == RequestOp::MOUNT)) {
+      } else if (global_storage_registry != nullptr && (req.op == RequestOp::FORMAT || req.op == RequestOp::MOUNT)) {
         // FORMAT wipes every directory on the target; MOUNT makes its whole tree appear. MOUNT
         // rides in dst_storage (always a PathStorage); FORMAT's target rides in format_target and
         // is a PathStorage only for a filesystem (a Raw/KV format has no directory tree to note).
