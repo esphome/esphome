@@ -95,10 +95,11 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     space_duty = 1.0f;
   }
   if (carrier_frequency > 0 && carrier_frequency != this->current_carrier_frequency_) {
-    pwmout_period_us(pwm, (1000000UL + carrier_frequency / 2) / carrier_frequency);  // round(1000000/freq)
+    // round(1000000/freq), clamped like the bit-bang path so a bad lambda can't hand the SDK a zero period
+    const uint32_t period = std::max(uint32_t(1), (1000000UL + carrier_frequency / 2) / carrier_frequency);
+    pwmout_period_us(pwm, period);
     this->current_carrier_frequency_ = carrier_frequency;
   }
-  this->target_time_ = 0;
   this->transmit_trigger_.trigger();
   const UBaseType_t saved_priority = uxTaskPriorityGet(nullptr);
   for (uint32_t i = 0; i < send_times; i++) {
@@ -106,6 +107,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     // merge adjacent marks. Interrupts stay enabled: micros() needs the FreeRTOS tick, and
     // ISR latency is within receiver tolerance.
     vTaskPrioritySet(nullptr, configMAX_PRIORITIES - 1);
+    // Re-anchor every iteration: a late exit from the normal-priority gap wait must not
+    // leave the schedule behind micros(), which would compress the next frame's leading items
+    this->target_time_ = 0;
     for (int32_t item : this->temp_.get_data()) {
       const bool is_mark = item > 0;
       this->await_target_time_();
@@ -118,9 +122,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     vTaskPrioritySet(nullptr, saved_priority);
     if (i + 1 < send_times) {
       // The repeat gap is user-configurable and unbounded, so wait it out at normal
-      // priority, feeding the watchdog; the cumulative target absorbs any preemption
-      this->target_time_ += send_wait;
-      while ((int32_t) (this->target_time_ - micros()) > 0) {
+      // priority, feeding the watchdog
+      const uint32_t gap_end = micros() + send_wait;
+      while ((int32_t) (gap_end - micros()) > 0) {
         App.feed_wdt();
       }
     }
