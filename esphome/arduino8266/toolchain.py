@@ -27,7 +27,9 @@ _MAX_RAM_SIZE = 81920
 # never reaches CORE.platformio_options under the native toolchain (it is
 # read from the raw config at upload time), so anything here came from a
 # component and genuinely is dropped; warn for it.
-_CONSUMED_PIO_OPTIONS = frozenset({"lib_ignore"})
+_CONSUMED_PIO_OPTIONS = frozenset(
+    {"lib_ignore", "board_build.f_cpu", "board_build.ldscript"}
+)
 
 
 _RAM_SECTIONS = (".data", ".rodata", ".bss")
