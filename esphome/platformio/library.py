@@ -229,10 +229,6 @@ class ConvertedLibrary:
         self.name = name
         self.version = version
         self.source = source
-        # The request-side _node_key this component resolved from; the
-        # canonical name can differ (bare "pngle" -> "bitbank2__pngle"), so
-        # callers diff requests against this, not against name
-        self.node_key: str | None = None
         self.data = {}
         self.dependencies: list[ConvertedLibrary] = []
         self._path: Path | None = None
@@ -594,9 +590,10 @@ def split_flag_entry(entry: Any, owner: str) -> list[str]:
 def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
     """Shell-lex a manifest ``build.flags`` list into joined tokens.
 
-    The composition every backend needs: each entry is lexed the way
-    PlatformIO's ParseFlags does, and bare ``-I``/``-L``/``-l``/``-D``
-    tokens re-glue to their argument across the whole stream.
+    Each entry is lexed the way PlatformIO's ParseFlags does, and bare
+    ``-I``/``-L``/``-l``/``-D`` tokens re-glue to their argument across the
+    whole stream. Used by the espidf and arduino backends; zephyr still
+    classifies raw entries.
     """
     # Join per entry, as SCons's ParseFlags lexes each string independently:
     # a dangling -I ending one entry must warn, not absorb the next entry's
@@ -626,6 +623,29 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
             tok += arg
         out.append(tok)
     return out
+
+
+def dependency_is_usable(
+    dep: dict, platform: str | None, framework: str, requester: str
+) -> bool:
+    """Whether a manifest dependency passes the compatibility filter.
+
+    The routine cross-platform skip logs at debug; any other
+    ``InvalidLibrary`` cause is a dropped dependency and warns naming the
+    requester (unreachable from ``check_library_data`` today, which raises
+    only for the platform filter).
+    """
+    try:
+        check_library_data(dep, platform, framework)
+    except IncompatiblePlatform as e:
+        _LOGGER.debug("Skip dependency %s of %s: %s", dep.get("name"), requester, e)
+        return False
+    except InvalidLibrary as e:
+        _LOGGER.warning(
+            "Skipping dependency %s of %s: %s", dep.get("name"), requester, e
+        )
+        return False
+    return True
 
 
 def normalize_dependencies(
@@ -662,6 +682,16 @@ def normalize_dependencies(
     normalized = []
     for entry in dependencies:
         if isinstance(entry, dict):
+            name = entry.get("name")
+            if "name" in entry and (not isinstance(name, str) or not name):
+                # A dependency name must be a non-empty string; every
+                # consumer indexes or joins it
+                _LOGGER.warning(
+                    "Ignoring unrecognized dependency entry %r of %s",
+                    entry,
+                    manifest_name,
+                )
+                continue
             normalized.append(entry)
         elif isinstance(entry, str) and entry:
             # PIO also accepts a bare list of names ("dependencies":
@@ -804,15 +834,6 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
-def request_key(library: Library) -> str:
-    """The node key a library spec resolves under.
-
-    Pairs with ``ConvertedLibrary.node_key``: diff requests against resolved
-    components with these, not against the canonical ``name``.
-    """
-    return _node_key(library.name, library.version, library.repository)[0]
-
-
 def convert_libraries(
     libraries: list[Library], backend: LibraryBackend
 ) -> list[ConvertedLibrary]:
@@ -934,7 +955,6 @@ def convert_libraries(
             component = ConvertedLibrary(
                 _owner_pkgname_to_name(owner, name), version, URLSource(url)
             )
-        component.node_key = key
         component.download(salt=salt, namespace=backend.cache_key)
 
         source_dir = component.source_dir
@@ -972,6 +992,13 @@ def convert_libraries(
                 f"library.properties in {source_dir}"
             )
 
+        if not isinstance(component.data, dict) or not isinstance(
+            component.data.get("build", {}), dict
+        ):
+            # A bare json.load imposes no shape; every backend dereferences
+            # data/build, so validate once here and name the library
+            raise EsphomeError(f"Library {key} has a malformed manifest")
+
         try:
             check_library_data(component.data, backend.platform, backend.framework)
         except InvalidLibrary as e:
@@ -1004,24 +1031,9 @@ def convert_libraries(
                 )
                 skipped_versionless.append((dependency.get("name"), component.name))
                 continue
-            try:
-                check_library_data(dependency, backend.platform, backend.framework)
-            except InvalidLibrary as e:
-                if isinstance(e, IncompatiblePlatform):
-                    # Routine cross-platform skip
-                    _LOGGER.debug(
-                        "Skip dependency %s: %s", dependency.get("name"), str(e)
-                    )
-                else:
-                    # Any other cause is a dropped dependency and must be
-                    # visible (unreachable from check_library_data today,
-                    # which raises only for the platform filter)
-                    _LOGGER.warning(
-                        "Skipping dependency %s of %s: %s",
-                        dependency.get("name"),
-                        component.name,
-                        e,
-                    )
+            if not dependency_is_usable(
+                dependency, backend.platform, backend.framework, component.name
+            ):
                 continue
             dep_name = _owner_pkgname_to_name(
                 dependency.get("owner"), dependency.get("name")
@@ -1117,7 +1129,8 @@ def convert_libraries(
     for dep_name, requester in skipped_versionless:
         if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
             continue
-        if "://" not in dep_name and _node_key(dep_name, None, None)[0] in components:
+        if dep_name in components:
+            # A version-less dep's request key is the name itself
             continue
         if dep_name in resolved_manifest_names:
             continue

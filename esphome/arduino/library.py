@@ -25,22 +25,22 @@ include path.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import functools
 import logging
 from pathlib import Path
 
 from esphome.core import CORE, EsphomeError, Library
+from esphome.helpers import walk_files
 from esphome.platformio.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
     DEFAULT_BUILD_SRC_FILTER,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
-    IncompatiblePlatform,
-    InvalidLibrary,
     LibraryBackend,
-    check_library_data,
     collect_filtered_files,
     convert_libraries,
+    dependency_is_usable,
     ensure_list,
     is_lib_ignored,
     lex_build_flags,
@@ -48,7 +48,6 @@ from esphome.platformio.library import (
     normalize_dependencies,
     parse_library_json,
     parse_library_properties,
-    request_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,6 +82,21 @@ def _is_safe_library_name(name: object) -> bool:
         and ":" not in name  # a Windows drive-relative name escapes the tree
         and name not in (".", "..")
     )
+
+
+def _warn_properties_depends(name: str, data: object) -> None:
+    """Warn when a manifest declares dependencies only as ``depends=``.
+
+    The dependency walk reads the JSON ``dependencies`` key; the raw
+    ``library.properties`` spelling would otherwise drop silently.
+    """
+    if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
+        _LOGGER.warning(
+            "Library %s declares dependencies via library.properties "
+            "depends=, which are not resolved automatically; add them with "
+            "add_library() if needed",
+            name,
+        )
 
 
 def _manifest_build(name: str, data: object) -> dict:
@@ -131,8 +145,9 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     def _parse_archive(key: str, raw: object) -> bool:
         if isinstance(raw, bool):
             return raw
-        if str(raw).strip().lower() in ("true", "false"):
-            return str(raw).strip().lower() == "true"
+        value = str(raw).strip().lower()
+        if value in ("true", "false"):
+            return value == "true"
         _LOGGER.warning(
             "Library %s has an unrecognized %s value %r; assuming true",
             name,
@@ -173,10 +188,14 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     include_dir = build.get("includeDir", DEFAULT_BUILD_INCLUDE_DIR)
     if not isinstance(include_dir, str):
         raise EsphomeError(f"Library {name} has a malformed includeDir")
-    for d in [include_dir, src_dir, *include_flags]:
+    for d, explicit in [
+        (include_dir, "includeDir" in build),
+        (src_dir, False),  # the srcDir guard above already validated it
+        *((flag, True) for flag in include_flags),
+    ]:
         if (path := (read_path / d)).is_dir():
             lib.include_dirs.append(path.resolve())
-        elif d in include_flags or (d == include_dir and "includeDir" in build):
+        elif explicit:
             # The includeDir/srcDir defaults are probes; an explicitly
             # declared path that does not resolve is a manifest error
             _LOGGER.warning(
@@ -215,15 +234,14 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     if isinstance(data, dict):
         # The dependency walk never runs for bundled libraries (a no-op for
         # the ESP8266 core, whose bundled manifests declare none); on a core
-        # where one does, the skip must be visible before link errors.
-        # "depends" is the library.properties spelling, which the shared
-        # parser returns raw.
-        if data.get("dependencies") or data.get("depends"):
+        # where one does, the skip must be visible before link errors
+        if data.get("dependencies"):
             _LOGGER.warning(
                 "Bundled library %s declares dependencies, which are not "
                 "resolved automatically; add them with add_library() if needed",
                 name,
             )
+        _warn_properties_depends(name, data)
         build = data.get("build")
         if isinstance(build, dict) and build.get("extraScript"):
             # apply_extra_script only runs on the converted path; a bundled
@@ -235,9 +253,9 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
             )
     lib = _library_info(name, lib_dir, data)
     if not lib.sources and not any(
-        p.suffix in (".h", ".hpp", ".hh", ".inc")
+        Path(p).suffix in (".h", ".hpp", ".hh", ".inc")
         for d in lib.include_dirs
-        for p in d.rglob("*")
+        for p in walk_files(d)
     ):
         # An empty or half-extracted bundled directory can never link; a
         # warning would scroll away and resurface as undefined symbols
@@ -266,6 +284,16 @@ def resolve_libraries(
     # PlatformIO's lib_ignore covers framework-bundled libraries too; the
     # shared converter only filters the registry/git ones.
     lib_ignore = lib_ignore_set()
+    # One memoized answer to "does the framework bundle this name?" for the
+    # classification loop, the provides hook, and the dependency walk: the
+    # safety guard and the dir probe must stay fused (path traversal), and
+    # common names (Wire, SPI) are asked repeatedly
+    _provided = functools.cache(
+        lambda name: (
+            _is_safe_library_name(name)
+            and (framework_path / "libraries" / name).is_dir()
+        )
+    )
     for library in CORE.platformio_libraries.values():
         if is_lib_ignored(library.name, lib_ignore):
             continue
@@ -274,12 +302,7 @@ def resolve_libraries(
         # name without the directory resolves from the registry at the
         # latest version, matching PlatformIO (a typo fails loudly as a
         # registry lookup error).
-        if (
-            not library.repository
-            and not library.version
-            and _is_safe_library_name(library.name)
-            and (framework_path / "libraries" / library.name).is_dir()
-        ):
+        if not library.repository and not library.version and _provided(library.name):
             # A bundled library's own manifest dependencies are not walked.
             # PlatformIO would walk them even under lib_ldf_mode=off, but no
             # library bundled with the ESP8266 core declares any, so the walk
@@ -299,15 +322,7 @@ def resolve_libraries(
         # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
         # is a core-bundled library; the shared converter skips it because
         # it cannot be resolved from the registry.
-        if not component.data.get("dependencies") and component.data.get("depends"):
-            # A properties-only manifest spells dependencies depends=; the
-            # walk below reads the JSON key, so those are not resolved
-            _LOGGER.warning(
-                "Library %s declares dependencies via library.properties "
-                "depends=, which are not resolved automatically; add them "
-                "with add_library() if needed",
-                component.name,
-            )
+        _warn_properties_depends(component.name, component.data)
         for dep in normalize_dependencies(
             component.data.get("dependencies"), component.name
         ):
@@ -327,50 +342,23 @@ def resolve_libraries(
                 or is_lib_ignored(name, lib_ignore)
             ):
                 continue
-            bundled_dir = framework_path / "libraries" / name
-            if "version" in dep and (dep.get("owner") or not bundled_dir.is_dir()):
+            if "version" in dep and (dep.get("owner") or not _provided(name)):
                 # The converter resolves versioned deps from the registry. An
                 # owner-less versioned name that exists in the framework tree
                 # ({"Wire": "*"} normalizes to version="*") falls through to
                 # the bundled path below, matching PlatformIO's
                 # process_dependencies preference for bundled builders.
                 continue
-            if dep.get("owner"):
-                # Owner but no version: the converter skips it too, so this
-                # is the only place the drop can be made visible
-                _LOGGER.warning(
-                    "Dependency %s of library %s has an owner but no version "
-                    "to resolve; skipping",
-                    name,
-                    component.name,
-                )
-                continue
-            if not bundled_dir.is_dir():
+            if dep.get("owner") or not _provided(name):
                 # The shared walk's post-emit reconciliation reports drops
                 # (it alone knows the final resolution set); nothing to add
                 continue
-            try:
-                check_library_data(dep, pio_platform, "arduino")
-            except InvalidLibrary as err:
-                # Rejecting another platform's dependency of a cross-platform
-                # manifest is routine (every ESPAsyncWebServer build hits
-                # it), so the platform filter stays at debug; any other
-                # cause means a dropped dependency and must be visible
-                if isinstance(err, IncompatiblePlatform):
-                    _LOGGER.debug("Skipping bundled dependency %s: %s", name, err)
-                else:
-                    _LOGGER.warning(
-                        "Skipping bundled dependency %s of %s: %s",
-                        name,
-                        component.name,
-                        err,
-                    )
+            if not dependency_is_usable(dep, pio_platform, "arduino", component.name):
                 continue
             bundled_names.add(name)
             bundled.append(_bundled_library(framework_path, name))
 
     def _emit(component: ConvertedLibrary) -> None:
-        _manifest_build(component.get_require_name(), component.data)
         apply_extra_script(
             component, board_mcu=lambda: board_mcu, pio_platform=pio_platform
         )
@@ -382,7 +370,10 @@ def resolve_libraries(
         _add_bundled_dependencies(component)
 
     if external:
-        resolved = convert_libraries(
+        # Every converter drop path raises (an incompatible top-level is a
+        # RuntimeError, resolution and download failures raise), so the
+        # return needs no re-verification here.
+        convert_libraries(
             external,
             LibraryBackend(
                 platform=pio_platform,
@@ -392,35 +383,9 @@ def resolve_libraries(
                 # The graph walk must not resolve a bundled name from the
                 # registry ({"Wire": "*"} in a manifest); the bundled copy
                 # is added by _add_bundled_dependencies after emit. Unsafe
-                # names are simply not provided (the malformed-entry warning
-                # names them).
-                provides=lambda name: (
-                    _is_safe_library_name(name)
-                    and (framework_path / "libraries" / name).is_dir()
-                ),
+                # names are simply not provided.
+                provides=_provided,
             ),
         )
-        if len(resolved) < len(external):
-            # A requested library the converter dropped always makes the
-            # firmware wrong (link errors far from the cause), so fail here
-            # naming the requests. ConvertedLibrary.name is canonical (bare
-            # "pngle" resolves to "bitbank2__pngle"); diff the request-side
-            # node keys instead. A None node_key is a converter construction
-            # path that forgot to set it: a programming error, never
-            # silently substituted with the mismatched canonical name.
-            if unkeyed := sorted(c.name for c in resolved if c.node_key is None):
-                raise EsphomeError(
-                    "ConvertedLibrary without a node_key (a converter bug): "
-                    + ", ".join(unkeyed)
-                )
-            resolved_keys = {c.node_key for c in resolved}
-            dropped = sorted(
-                str(lib) for lib in external if request_key(lib) not in resolved_keys
-            )
-            raise EsphomeError(
-                f"{len(external) - len(resolved)} of {len(external)} requested "
-                f"libraries were not resolved (missing: "
-                f"{', '.join(dropped) or 'unknown'})"
-            )
 
     return bundled + converted

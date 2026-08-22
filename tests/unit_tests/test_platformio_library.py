@@ -609,6 +609,19 @@ def test_normalize_dependencies_forms(caplog) -> None:
     assert normalize_dependencies("Wire") == [{"name": "Wire"}]
 
 
+@pytest.mark.parametrize(
+    "manifest", [["not", "a", "manifest"], {"name": "A", "build": "src"}]
+)
+def test_convert_libraries_malformed_manifest_raises(
+    tmp_path, monkeypatch, manifest
+) -> None:
+    """A manifest without the expected dict shape fails by library name
+    before any backend dereferences data/build."""
+    _patch_download_with_manifests(monkeypatch, tmp_path, {"esphome/A": manifest})
+    with pytest.raises(EsphomeError, match="has a malformed manifest"):
+        convert_libraries([Library("esphome/A", None, None)], _backend())
+
+
 def test_versionless_dependency_without_provider_warns(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
