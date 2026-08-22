@@ -67,9 +67,11 @@ def _run_ar(ar: str, archive: str, rspfile: str) -> int:
 def _run_copy(src: str, dst: str) -> int:
     try:
         shutil.copyfile(src, dst)
-    except OSError:
-        # Never leave a partially written output (e.g. a firmware image)
-        Path(dst).unlink(missing_ok=True)
+    except OSError as err:
+        # Never leave a partially written output (e.g. a firmware image);
+        # SameFileError means dst IS src, where unlinking destroys the input
+        if not isinstance(err, shutil.SameFileError):
+            Path(dst).unlink(missing_ok=True)
         raise
     return 0
 
