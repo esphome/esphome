@@ -7,8 +7,7 @@ library builds its own archive; all include dirs join one global path.
 Deviations from PlatformIO: flat-layout libraries get the recursive default
 source filter; ``dot_a_linkage`` is honored; bundled libraries never run a
 manifest ``extraScript``; manifest ``-I`` flags join the global include path;
-``precompiled``/``ldflags`` properties are not honored (a warning names the
-library).
+``precompiled``/``ldflags`` properties are refused by name.
 """
 
 from __future__ import annotations
@@ -99,7 +98,7 @@ def _resolve_src_dir(name: str, read_path: Path, build: dict) -> str:
     return src_dir
 
 
-def _warn_dropped_link_fields(name: str, data: dict) -> None:
+def _reject_unsupported_link_fields(name: str, data: dict) -> None:
     for dropped_key in ("precompiled", "ldflags"):
         if data.get(dropped_key):
             # PIO's Arduino lib builder honors these; building without them
@@ -236,7 +235,7 @@ def _collect_lib_sources(
 def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
     """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
     build = _manifest_build(name, data)
-    _warn_dropped_link_fields(name, data)
+    _reject_unsupported_link_fields(name, data)
     src_dir = _resolve_src_dir(name, read_path, build)
     src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
     if not all(isinstance(entry, str) for entry in src_filter):
