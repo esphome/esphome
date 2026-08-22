@@ -241,7 +241,7 @@ def test_suspend_loop_fail(
     fixture: str,
     expected_platform: str,
 ) -> None:
-    """Test that suspend_loop fails on host."""
+    """Test that suspend_loop fails."""
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is None
 
@@ -249,6 +249,31 @@ def test_suspend_loop_fail(
     captured = capsys.readouterr()
     assert (
         f"Suspend loop is not available on {expected_platform} platform" in captured.out
+    )
+
+
+@pytest.mark.parametrize(
+    ("fixture", "interval", "max_loop"),
+    [
+        ("loop_interval_esp32.yaml", "7s", "2400.0"),
+        ("loop_interval_bk72xx.yaml", "5000ms", "4000"),
+    ],
+)
+def test_loop_interval_warn(
+    yaml_file: Callable[[str], str],
+    caplog: pytest.LogCaptureFixture,
+    fixture: str,
+    interval: str,
+    max_loop: str,
+) -> None:
+    """Test that too high loop_interval prints warning."""
+    result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
+    assert result is not None
+
+    assert (
+        f"loop_interval of {interval} exceeds the {max_loop}ms maximum sleep on this platform; the loop will still "
+        f"wake every {max_loop}ms. On esp32, raise esp32.watchdog_timeout to sleep longer."
+        in caplog.text
     )
 
 

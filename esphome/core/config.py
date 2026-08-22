@@ -193,16 +193,13 @@ def validate_loop_interval(config: ConfigType) -> ConfigType:
     if CONF_LOOP_INTERVAL in config and not (CORE.is_host or CORE.is_esp8266):
         max_loop = 600  # 2 * 300ms default for other platforms
         if CORE.is_esp32:
-            if CONF_WATCHDOG_TIMEOUT in fv.full_config.get()[PLATFORM_ESP32]:
-                max_loop = (
-                    2
-                    * fv.full_config.get()[PLATFORM_ESP32][
-                        CONF_WATCHDOG_TIMEOUT
-                    ].total_milliseconds
-                    / 5
-                )
-            else:
-                max_loop = 2000  # 5000ms / 5 * 2 default value
+            max_loop = (
+                2
+                * fv.full_config.get()[PLATFORM_ESP32][
+                    CONF_WATCHDOG_TIMEOUT
+                ].total_milliseconds
+                / 5
+            )
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
         if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
