@@ -93,7 +93,13 @@ from esphome.core import (
 )
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
-from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
+from esphome.helpers import (
+    FALSY_BOOL_STRINGS,
+    TRUTHY_BOOL_STRINGS,
+    add_class_to_obj,
+    docs_url,
+    list_starts_with,
+)
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     schema_extractor,
@@ -581,9 +587,9 @@ def boolean(value):
         return value
     if isinstance(value, str):
         value = value.lower()
-        if value in ("true", "yes", "on", "enable"):
+        if value in TRUTHY_BOOL_STRINGS:
             return True
-        if value in ("false", "no", "off", "disable"):
+        if value in FALSY_BOOL_STRINGS:
             return False
     raise Invalid(
         f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
