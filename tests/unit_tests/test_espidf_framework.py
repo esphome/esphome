@@ -888,6 +888,58 @@ _PREFETCH_JSON = json.dumps(
 )
 
 
+def test_prefetch_leaves_unverifiable_entries_to_the_installer(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An entry missing sha256 or size must not download unverified; the
+    installer handles it and fails loudly on a bad archive."""
+    entries = json.loads(_PREFETCH_JSON)
+    del entries[0]["sha256"]
+    del entries[1]["size"]
+    entries.append(
+        {
+            "name": "gcc@14.2.0",
+            "url": "https://example.com/gcc.tar.gz",
+            "size": 67,
+            "sha256": "ef" * 32,
+            "dest": "gcc.tar.gz",
+        }
+    )
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, json.dumps(entries), ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+    assert [call[0][0] for call in download.call_args_list] == [
+        "https://example.com/gcc.tar.gz"
+    ]
+    assert download.call_args[1]["sha256"] == "ef" * 32
+    progress_cls.assert_called_once_with("Downloading ESP-IDF tools", 67)
+    assert "cmake@3.30.2 has no sha256/size" in caplog.text
+    assert "ninja@1.12.1 has no sha256/size" in caplog.text
+
+
+def test_prefetch_all_entries_unverifiable_is_a_noop(tmp_path: Path) -> None:
+    entries = json.loads(_PREFETCH_JSON)
+    for entry in entries:
+        del entry["sha256"]
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, json.dumps(entries), ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+    download.assert_not_called()
+
+
 def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
     with (
         patch(

@@ -657,6 +657,10 @@ def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
             raise requests.ConnectionError("down")
         if "gone" in url:
             return SimpleNamespace(ok=False, status_code=404, headers={})
+        if "garbage" in url:
+            # A proxy/CDN doubling the header ("123, 123") or emitting junk
+            # must degrade to unknown, not ValueError the build
+            return SimpleNamespace(ok=True, headers={"content-length": "123, 123"})
         return SimpleNamespace(ok=True, headers={"content-length": "123"})
 
     monkeypatch.setattr(
@@ -664,8 +668,11 @@ def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     # None marks an unknown size (probe failure or non-2xx), distinct
     # from a genuine zero
-    assert lib._content_lengths(["https://x/a", "https://x/bad", "https://x/gone"]) == [
+    assert lib._content_lengths(
+        ["https://x/a", "https://x/bad", "https://x/gone", "https://x/garbage"]
+    ) == [
         123,
+        None,
         None,
         None,
     ]
