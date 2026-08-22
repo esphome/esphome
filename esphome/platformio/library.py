@@ -1076,7 +1076,7 @@ def convert_libraries(
             for dependency in normalize_dependencies(
                 component.data.get("dependencies"), component.name
             ):
-                if "name" not in dependency or "version" not in dependency:
+                if "version" not in dependency:
                     continue
                 if not dependency_is_usable(
                     dependency, backend.platform, backend.framework, component.name
