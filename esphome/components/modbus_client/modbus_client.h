@@ -80,6 +80,26 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
   retry_func_t retry_func_{nullptr};
 };
 
+/// The read-side per-command options (modbus::CommandOptions), declared once for every action that
+/// sends a read. Each option is templatable, so it cannot be built in Python the way modbus_controller
+/// builds its static struct; declaring the values here instead of per action means a new read option
+/// costs one TEMPLATABLE_VALUE plus one field below, and every read action picks it up.
+/// The read/write split mirrors _COMMAND_OPTIONS in the modbus component's Python
+/// (command_options_schema(direction="read") adds exactly these keys). When a write-side option
+/// arrives it gets a WriteCommandOptions twin, so write actions never carry read-only members.
+template<typename... Ts> class ReadCommandOptions {
+ public:
+  // Poll: re-queue after each success until downgraded (replay with false) or failed. The hub strips
+  // it for mutating function codes at the door (see modbus::CommandOptions).
+  TEMPLATABLE_VALUE(bool, continuous)
+
+ protected:
+  /// The options for this send, with every templatable value resolved against the action's arguments.
+  modbus::CommandOptions command_options_(const Ts &...x) const {
+    return {.continuous = this->continuous_.value(x...)};
+  }
+};
+
 /// modbus_client.send: fire a raw PDU (function code + data; the hub adds address and CRC). The reply is
 /// delivered raw - on_response(request, response) - deliberately bypassing the typed dispatch, so
 /// non-standard/custom transactions pass through untouched.
@@ -87,20 +107,16 @@ template<typename... Ts> class ClientActionBase : public Action<Ts...>, public m
 /// modbus::helpers::create_*_pdu() builders and return it directly (smaller builder results convert).
 /// A PduBuffer drops bytes past modbus::MAX_PDU_SIZE without reporting it (the hub's oversize check
 /// cannot fire - that limit is the capacity), so an over-long lambda-built PDU is silently truncated.
-template<typename... Ts> class ModbusClientSendAction : public ClientActionBase<Ts...> {
+template<typename... Ts>
+class ModbusClientSendAction : public ClientActionBase<Ts...>, public ReadCommandOptions<Ts...> {
  public:
   TEMPLATABLE_VALUE(modbus::helpers::PduBuffer, pdu)
-  // Poll: re-queue after each success until downgraded (replay with false) or failed. The hub strips
-  // it for mutating function codes at the door (see modbus::CommandOptions).
-  TEMPLATABLE_VALUE(bool, continuous)
 
   Trigger<std::span<const uint8_t>, std::span<const uint8_t>> *get_response_trigger() {
     return &this->response_trigger_;
   }
 
-  void play(const Ts &...x) override {
-    this->send_or_resolve_(this->pdu_.value(x...), {.continuous = this->continuous_.value(x...)});
-  }
+  void play(const Ts &...x) override { this->send_or_resolve_(this->pdu_.value(x...), this->command_options_(x...)); }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
     this->response_trigger_.trigger(request_pdu, response_pdu);
@@ -145,14 +161,12 @@ template<typename... Ts> class TypedClientActionBase : public ClientActionBase<T
 
 /// modbus_client.read_holding_registers / read_input_registers: on_response delivers the registers in
 /// host byte order as `values` (only valid for the duration of the trigger).
-template<typename... Ts> class ReadRegistersAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts>
+class ReadRegistersAction : public TypedClientActionBase<Ts...>, public ReadCommandOptions<Ts...> {
  public:
   explicit ReadRegistersAction(bool holding) : holding_(holding) {}
   TEMPLATABLE_VALUE(uint16_t, start_address)
   TEMPLATABLE_VALUE(uint16_t, count)
-  // Poll: re-queue after each success until downgraded (replay with false) or failed; the response
-  // trigger fires once per cycle.
-  TEMPLATABLE_VALUE(bool, continuous)
 
   Trigger<std::span<const uint16_t>> *get_response_trigger() { return &this->response_trigger_; }
 
@@ -161,7 +175,7 @@ template<typename... Ts> class ReadRegistersAction : public TypedClientActionBas
         this->holding_ ? modbus::FunctionCode::READ_HOLDING_REGISTERS : modbus::FunctionCode::READ_INPUT_REGISTERS;
     this->send_or_resolve_(
         modbus::helpers::create_read_pdu(function_code, this->start_address_.value(x...), this->count_.value(x...)),
-        {.continuous = this->continuous_.value(x...)});
+        this->command_options_(x...));
   }
   void on_read_registers(modbus::EntityType entity_type, uint16_t start_address, std::span<const uint16_t> registers,
                          modbus::ResponseStatus status) override {
@@ -176,14 +190,11 @@ template<typename... Ts> class ReadRegistersAction : public TypedClientActionBas
 
 /// modbus_client.read_coils / read_discrete_inputs: on_response delivers the bits as a PackedBits view
 /// (bit 0 = the bit at start_address; only valid for the duration of the trigger).
-template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts...> {
+template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts...>, public ReadCommandOptions<Ts...> {
  public:
   explicit ReadBitsAction(bool coils) : coils_(coils) {}
   TEMPLATABLE_VALUE(uint16_t, start_address)
   TEMPLATABLE_VALUE(uint16_t, count)
-  // Poll: re-queue after each success until downgraded (replay with false) or failed; the response
-  // trigger fires once per cycle.
-  TEMPLATABLE_VALUE(bool, continuous)
 
   Trigger<modbus::PackedBits> *get_response_trigger() { return &this->response_trigger_; }
 
@@ -192,7 +203,7 @@ template<typename... Ts> class ReadBitsAction : public TypedClientActionBase<Ts.
         this->coils_ ? modbus::FunctionCode::READ_COILS : modbus::FunctionCode::READ_DISCRETE_INPUTS;
     this->send_or_resolve_(
         modbus::helpers::create_read_pdu(function_code, this->start_address_.value(x...), this->count_.value(x...)),
-        {.continuous = this->continuous_.value(x...)});
+        this->command_options_(x...));
   }
   void on_read_bits(modbus::EntityType entity_type, uint16_t start_address, modbus::PackedBits bits,
                     modbus::ResponseStatus status) override {
