@@ -1423,6 +1423,10 @@ async def test_add_platformio_options_native_arduino(
     assert (
         "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
     )
+    # An empty list for an honored key is not a scalar; it falls through
+    # to the ignored-option warning instead of an IndexError
+    await config._add_platformio_options({"board_build.ldscript": []})
+    assert "board_build.ldscript is ignored" in caplog.text
     assert "'arduino' toolchain" in caplog.text
     assert "upload_speed" not in caplog.text
 
