@@ -141,9 +141,7 @@ class _FakeSConsEnv:
     def Append(self, **kwargs) -> None:  # noqa: N802 (SCons API name)
         for key, value in kwargs.items():
             if key not in _CAPTURED_KEYS:
-                # Diagnosable from the build log when a script configures
-                # something this shim does not translate; once per key so a
-                # loop of Appends cannot spam
+                # Warn once per key so a loop of Appends cannot spam
                 if key not in self._warned_keys:
                     self._warned_keys.add(key)
                     _LOGGER.warning(
@@ -239,9 +237,8 @@ def run_extra_script(
         )
         return ExtraScriptResult()
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Discard any partial capture: folding half a script's flags into the
-        # build could produce wrong-output firmware that links cleanly. The
-        # warning plus the resulting loud link error point back here.
+        # Discard any partial capture: half-applied flags could build wrong
+        # firmware that links cleanly.
         _LOGGER.warning(
             "PIO extra-script %s (in %s) raised %r; ignoring its output",
             script_path,
