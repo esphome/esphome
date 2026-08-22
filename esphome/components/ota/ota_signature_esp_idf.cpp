@@ -31,7 +31,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.idf";
+static const char *const TAG = "ota";
 
 // Route the "Signature check: " prefix (and its per-block form) through one
 // shared format string each, so the prefix is pooled once by the linker instead

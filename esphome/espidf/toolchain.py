@@ -273,6 +273,11 @@ def has_outdated_files():
       happen without any sdkconfig impact, and ``_write_idf_component_yml``
       already deletes ``dependencies.lock`` on a change but that signal
       gets lost as soon as the lock is missing.
+    - ``exclude_components.esphomeinternal`` -- the resolved
+      EXCLUDE_COMPONENTS set. Excluded components never register in
+      ``project_description.json``, so re-including one needs a fresh
+      discovery pass before it can appear in the builtin-components
+      property that ``src`` REQUIRES.
 
     We deliberately don't watch:
     - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
@@ -291,6 +296,9 @@ def has_outdated_files():
         f"sdkconfig.{CORE.name}.esphomeinternal"
     )
     idf_component_yml_path = CORE.relative_build_path("src/idf_component.yml")
+    exclude_components_path = CORE.relative_build_path(
+        "exclude_components.esphomeinternal"
+    )
     dependency_lock_path = CORE.relative_build_path("dependencies.lock")
     build_ninja_path = CORE.relative_build_path("build/build.ninja")
 
@@ -309,7 +317,11 @@ def has_outdated_files():
     cmakecache_txt_mtime = cmakecache_txt_path.stat().st_mtime
     return any(
         f.stat().st_mtime > cmakecache_txt_mtime
-        for f in [sdkconfig_internal_path, idf_component_yml_path]
+        for f in [
+            sdkconfig_internal_path,
+            idf_component_yml_path,
+            exclude_components_path,
+        ]
         if f.exists()
     )
 
@@ -386,6 +398,16 @@ def run_compile(config, verbose: bool) -> int:
             return rc
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
+        # Restamp the reference file has_outdated_files() compares against.
+        # A reconfigure that only changes properties or plain variables
+        # (sdkconfig options, the exclusion set) does not rewrite
+        # CMakeCache.txt, so without this the watched inputs stay newer
+        # forever and every subsequent build repeats the discovery pass.
+        # Done after the full write so an interrupt cannot leave a minimal
+        # CMakeLists behind that is already marked fresh.
+        cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+        if cmakecache.is_file():
+            os.utime(cmakecache)
         if CORE.testing_mode:
             # Reconfigure again so cmake is up to date with the full
             # component list before the build's idf.py invocation runs --
