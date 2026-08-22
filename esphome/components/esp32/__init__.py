@@ -647,6 +647,11 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
 
 
+def add_idf_sdkconfig_option_default(name: str, value: SdkconfigValueType):
+    """Set an esp-idf sdkconfig value unless it is already configured."""
+    CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].setdefault(name, value)
+
+
 @dataclass
 class NetworkSdkconfigData:
     """Inputs for the network-related esp32 sdkconfig flags, reconciled at FINAL.
