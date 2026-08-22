@@ -101,7 +101,6 @@ async def test_host_preferences_suspend_resume(
             "Running syncer never flushed to disk; positive control failed",
             timeout=10.0,
         )
-        pref_file.unlink()
         saved_in_memory = loop.create_future()
 
         # --- Suspend: a suspended syncer must not flush. ---
@@ -109,6 +108,9 @@ async def test_host_preferences_suspend_resume(
         await _wait_for(
             syncer_suspended, "Syncer suspend command was not processed within timeout"
         )
+        # Delete only after suspend is confirmed: the poller is now stopped, so
+        # nothing can recreate the file before the negative assertion below.
+        pref_file.unlink()
 
         client.button_command(save_button.key)
         await _wait_for(
