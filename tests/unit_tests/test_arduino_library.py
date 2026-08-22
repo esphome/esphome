@@ -967,3 +967,36 @@ def test_empty_bundled_library_warns(
         cache_key="arduino8266",
     )
     assert "Bundled library Empty has no sources or headers" in caplog.text
+
+
+def test_versionless_dependency_with_provider_stays_quiet(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With a provides backend the version-less skip is routine (debug) and
+    the bundled copy is picked up after emit."""
+    import esphome.platformio.library as pio_library
+
+    framework = _make_framework(tmp_path)
+    local_lib = tmp_path / "locallib"
+    (local_lib / "src").mkdir(parents=True)
+    (local_lib / "src" / "local.cpp").write_text("")
+    (local_lib / "library.json").write_text(
+        '{"name": "LocalLib", "version": "1.0.0", "dependencies": [{"name": "Wire"}]}'
+    )
+    _add_library(local_lib.as_uri(), None)
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
+    with patch.object(
+        pio_library,
+        "_resolve_registry_version",
+        side_effect=AssertionError("registry touched"),
+    ):
+        libs = component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "Wire" in [lib.name for lib in libs]
+    assert "has no version to resolve" not in caplog.text
