@@ -5,7 +5,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::pzemac {
 
@@ -36,9 +36,6 @@ class PZEMAC final : public PollingComponent, public modbus::ModbusClientDevice 
   sensor::Sensor *power_factor_sensor_{nullptr};
 
   void reset_energy_();
-
-  uint32_t last_update_time_;
-  float last_energy_sensor_;
 };
 
 template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
