@@ -27,7 +27,7 @@ from esphome.arduino8266.framework import toolchain_tool
 from esphome.build_helpers.ninja import shell_token as _shell_token
 from esphome.components.esp8266 import build_surgery
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, write_file, write_file_if_changed
+from esphome.helpers import mkdir_p, write_file_if_changed
 from esphome.platformio.library import lex_build_flags
 
 if TYPE_CHECKING:
@@ -243,6 +243,10 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
     # SDK header's #error
     if unknown := [k for k in vtables_knobs if k not in known_vtables]:
         raise EsphomeError(f"Unknown VTABLES_IN_* define(s): {', '.join(unknown)}")
+    # A body (e.g. VTABLES_IN_FLASH=0) would split the compile line from the
+    # linker script, which always defines the bare name
+    if valued := [defines[k] for k in vtables_knobs if defines[k] not in (k, f"{k}=1")]:
+        raise EsphomeError(f"VTABLES_IN_* defines take no value: {', '.join(valued)}")
     if len(vtables_knobs) > 1:
         raise EsphomeError(
             f"Conflicting VTABLES_IN_* defines: {', '.join(vtables_knobs)}"
@@ -319,6 +323,10 @@ def _defines_flags(
     defines embed ``\"``), so they must be emitted unquoted; wrapping
     them in ``_shell_token`` would deliver literal backslashes to gcc.
     """
+    if not re.fullmatch(r"[\w.-]+", board):
+        # The name lands unquoted in two -D bodies; reject it by name
+        # instead of corrupting the compile line
+        raise EsphomeError(f"Invalid board name {board!r}")
     # Every supported board ships 80 MHz; board_build.f_cpu overrides
     f_cpu = _pio_option("board_build.f_cpu", "80000000L")
     if not re.fullmatch(r"\d+L?", f_cpu):
@@ -430,6 +438,21 @@ def _stat_sig(path: Path) -> str:
         return f"unreadable:{os.urandom(8).hex()}"
 
 
+def _write_generated(path: Path, content: str) -> None:
+    """write_file_if_changed, replacing an unreadable existing copy.
+
+    The recovery is scoped to the comparison read: a damaged cached file is
+    logged and overwritten, while a genuine write failure still raises.
+    """
+    try:
+        if path.is_file():
+            path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as err:
+        _LOGGER.warning("Replacing damaged generated file %s: %s", path, err)
+        path.unlink(missing_ok=True)
+    write_file_if_changed(path, content)
+
+
 def generate_ld_scripts(
     paths: InstalledPaths, config: _BuildConfig, flash_ld_name: str
 ) -> None:
@@ -439,6 +462,9 @@ def generate_ld_scripts(
     ``eagle.app.v6.common.ld.h``, then applies ESPHome's surgeries: the wifi
     rate-table DRAM relocation, and enlarged memory segments in testing mode.
     """
+    if not re.fullmatch(r"[\w.-]+\.ld", flash_ld_name):
+        # Joined under the SDK and build ld dirs; never a path or traversal
+        raise EsphomeError(f"Invalid flash linker script name {flash_ld_name!r}")
     framework = paths.framework
     gcc = toolchain_tool(paths.toolchain, "gcc")
     ld_dir = CORE.relative_pioenvs_path(CORE.name, "ld")
@@ -525,13 +551,7 @@ def generate_ld_scripts(
             except RuntimeError as err:
                 # Same changed-linker-script failure class as the ratetable
                 raise EsphomeError(str(err)) from err
-        try:
-            write_file_if_changed(output, content)
-        except EsphomeError:
-            # A non-UTF-8/unreadable cached script fails the comparison
-            # read; regeneration must overwrite it, not abort
-            output.unlink(missing_ok=True)
-            write_file(output, content)
+        _write_generated(output, content)
         stamp.write_text(
             f"{stamp_content} content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
             encoding="utf-8",
@@ -569,4 +589,4 @@ def generate_ld_scripts(
         except RuntimeError as err:
             # Same changed-linker-script failure class as the ratetable
             raise EsphomeError(str(err)) from err
-        write_file_if_changed(ld_dir / f"testing_{flash_ld_name}", patched_flash_ld)
+        _write_generated(ld_dir / f"testing_{flash_ld_name}", patched_flash_ld)
