@@ -349,6 +349,23 @@ template<typename Out, typename Bits> void pack_bits(Out &out, const Bits &bits)
     out.push_back(byte);
 }
 
+/** Pack 16-bit words into a byte buffer in big-endian (wire) order.
+ * Returns false without appending anything when the words would exceed the buffer's capacity, so the
+ * caller can refuse rather than emit a truncated frame that still gets a valid CRC.
+ * @param words the 16-bit words to serialize
+ * @param out destination byte buffer (a StaticVector<uint8_t, CAP>)
+ */
+template<size_t CAP> bool pack_words(std::span<const uint16_t> words, StaticVector<uint8_t, CAP> &out) {
+  if (words.size() * 2 > CAP) {
+    return false;
+  }
+  for (uint16_t word : words) {
+    out.push_back((word >> 8) & 0xFF);
+    out.push_back(word & 0xFF);
+  }
+  return true;
+}
+
 /** Extract bits from value and shift right according to the bitmask
  * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
  * the result is then shifted right by the position if the first right set bit in the mask

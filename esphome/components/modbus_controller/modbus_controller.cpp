@@ -504,18 +504,14 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 ModbusCommandItem ModbusCommandItem::create_custom_command(
     ModbusController *controller, const std::vector<uint16_t> &values,
     std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler) {
-  // Bound before packing: past the buffer's capacity push_back would silently drop bytes, and the
-  // truncated frame would get a valid CRC - the device would execute a different command than intended.
-  if (values.size() * 2 > modbus::MAX_RAW_SIZE) {
+  // Pack big-endian, refusing an over-long frame: a truncated frame would still get a valid CRC and the
+  // device would execute a different command than intended.
+  StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
+  if (!modbus::helpers::pack_words(values, bytes)) {
     ESP_LOGE(TAG, "Custom command of %zu words exceeds the frame limit, dropping request", values.size());
     ModbusCommandItem cmd(*controller, controller->hub(), controller->device_address());
     cmd.on_data_func = std::move(handler);
     return cmd;
-  }
-  StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
-  for (auto v : values) {
-    bytes.push_back((v >> 8) & 0xFF);
-    bytes.push_back(v & 0xFF);
   }
   ModbusCommandItem cmd = custom_command_impl(controller, std::span<const uint8_t>(bytes.data(), bytes.size()));
   cmd.on_data_func = std::move(handler);

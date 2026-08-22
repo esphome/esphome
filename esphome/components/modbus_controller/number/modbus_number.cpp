@@ -56,17 +56,11 @@ void ModbusNumber::control(float value) {
     ESP_LOGV(TAG, "Modbus Number write raw: %s",
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     // The lambda filled a legacy raw frame as words (address + function code + data); pack big-endian and
-    // send; the hub adds the CRC.
-    if (data.size() * 2 > modbus::MAX_RAW_SIZE) {
-      // Past the buffer's capacity push_back would silently drop bytes and the truncated frame would
-      // get a valid CRC; refuse instead.
+    // send; the hub adds the CRC. Refuse an over-long frame rather than emit a truncated, valid-CRC one.
+    StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
+    if (!modbus::helpers::pack_words(data, bytes)) {
       ESP_LOGE(TAG, "Raw frame of %zu words exceeds the frame limit, not sent", data.size());
       return;
-    }
-    StaticVector<uint8_t, modbus::MAX_RAW_SIZE> bytes;
-    for (auto v : data) {
-      bytes.push_back((v >> 8) & 0xFF);
-      bytes.push_back(v & 0xFF);
     }
     this->write_command_.emplace(this->parent_->create_command());
     queued = this->write_command_->send_raw_frame_deprecated(std::span<const uint8_t>(bytes.data(), bytes.size()));
