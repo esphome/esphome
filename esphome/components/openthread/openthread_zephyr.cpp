@@ -83,6 +83,9 @@ void OpenThreadComponent::setup() {
   }
   openthread_state_changed_cb_register(context, &ot_state_changed_cb);
   openthread_start(context);
+
+  InstanceLock lock = InstanceLock::acquire();
+  this->apply_linkmode_(lock.get_instance());
 }
 
 otInstance *OpenThreadComponent::get_openthread_instance_() { return openthread_get_default_instance(); }
