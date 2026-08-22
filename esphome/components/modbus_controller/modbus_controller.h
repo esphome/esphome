@@ -287,6 +287,9 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   bool write_single_coil(uint16_t address, bool value);
   bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values);
   bool write_multiple_coils(uint16_t start_address, std::span<const bool> values);
+  // Pre-packed coils (e.g. the read-modify-write layout on_read_coils() delivers); the base overload
+  // is otherwise name-hidden by the span one above.
+  bool write_multiple_coils(uint16_t start_address, modbus::PackedBits bits);
   /// Queue a custom PDU (function code + data; the hub adds address and CRC); set on_data_func first to
   /// handle the response. Returns the hub's verdict like the write helpers above.
   bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {});
@@ -315,13 +318,11 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   static ModbusCommandItem create_read_command(
       ModbusController *controller, EntityType register_type, uint16_t start_address, uint16_t register_count,
       std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> &&handler);
-  /** Create modbus read command
-   *  Function code 02-04
+  /** Create modbus write multiple registers command (function code 0x10)
    * @param controller the controller whose hub and address the command uses
-   * @param function_code modbus function code for the read command
-   * @param start_address modbus address of the first register to read
-   * @param register_count number of registers to read
-   * @param handler function called when the response is received
+   * @param start_address modbus address of the first register to write
+   * @param register_count deprecated and ignored; the quantity is derived from `values`
+   * @param values the register values to write
    * @return ModbusCommandItem with the prepared command
    */
   ESPDEPRECATED("Use ModbusController::create_command() and call write_multiple_registers() on the item instead. "

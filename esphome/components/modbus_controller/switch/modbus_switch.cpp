@@ -76,6 +76,7 @@ void ModbusSwitch::write_state(bool state) {
       return;
     }
   }
+  bool queued = false;
   if (!data.empty()) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MODBUS_SWITCH_MAX_LOG_BYTES)];
@@ -84,7 +85,7 @@ void ModbusSwitch::write_state(bool state) {
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     // The lambda filled a legacy raw frame (device address + function code + data); the hub adds the CRC.
     this->write_command_.emplace(this->parent_->create_command());
-    this->write_command_->send_raw_frame_deprecated(data);
+    queued = this->write_command_->send_raw_frame_deprecated(data);
   } else {
     ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
              ONOFF(state), (int) this->register_type, this->start_address, this->offset);
@@ -93,18 +94,24 @@ void ModbusSwitch::write_state(bool state) {
       // offset for coil and discrete inputs is the coil/register number not bytes
       if (this->use_write_multiple_) {
         std::array<bool, 1> states{state};
-        this->write_command_->write_multiple_coils(this->write_address(), states);
+        queued = this->write_command_->write_multiple_coils(this->write_address(), states);
       } else {
-        this->write_command_->write_single_coil(this->write_address(), state);
+        queued = this->write_command_->write_single_coil(this->write_address(), state);
       }
     } else {
       if (this->use_write_multiple_) {
         std::array<uint16_t, 1> states{static_cast<uint16_t>(state ? (0xFFFF & this->bitmask) : 0)};
-        this->write_command_->write_multiple_registers(this->write_address(), states);
+        queued = this->write_command_->write_multiple_registers(this->write_address(), states);
       } else {
-        this->write_command_->write_single_register(this->write_address(), state ? 0xFFFF & this->bitmask : 0u);
+        queued =
+            this->write_command_->write_single_register(this->write_address(), state ? 0xFFFF & this->bitmask : 0u);
       }
     }
+  }
+  // Only report the new state if the hub accepted the frame; a refusal leaves the entity unchanged.
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+    return;
   }
   this->publish_state(state);
 }

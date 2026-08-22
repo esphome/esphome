@@ -83,12 +83,18 @@ void ModbusSelect::control(size_t index) {
 
   const uint16_t write_address = this->write_address();
   this->write_command_.emplace(this->parent_->create_command());
+  bool queued;
   if ((this->register_count == 1) && (!this->use_write_multiple_)) {
-    this->write_command_->write_single_register(write_address, data[0]);
+    queued = this->write_command_->write_single_register(write_address, data[0]);
   } else {
-    this->write_command_->write_multiple_registers(write_address, data);
+    queued = this->write_command_->write_multiple_registers(write_address, data);
   }
 
+  // Only report the new option if the hub accepted the frame; a refusal leaves the entity unchanged.
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+    return;
+  }
   if (this->optimistic_)
     this->publish_state(index);
 }

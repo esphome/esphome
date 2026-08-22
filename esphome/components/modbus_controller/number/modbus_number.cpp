@@ -48,6 +48,7 @@ void ModbusNumber::control(float value) {
     write_value = this->multiply_by_ * write_value;
   }
 
+  bool queued = false;
   if (!data.empty()) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_uint16_size(MODBUS_NUMBER_MAX_LOG_REGISTERS)];
@@ -68,7 +69,7 @@ void ModbusNumber::control(float value) {
       bytes.push_back(v & 0xFF);
     }
     this->write_command_.emplace(this->parent_->create_command());
-    this->write_command_->send_raw_frame_deprecated(std::span<const uint8_t>(bytes.data(), bytes.size()));
+    queued = this->write_command_->send_raw_frame_deprecated(std::span<const uint8_t>(bytes.data(), bytes.size()));
   } else {
     std::vector<uint16_t> payload;
     modbus::helpers::float_to_payload(payload, write_value, this->sensor_value_type);
@@ -86,10 +87,15 @@ void ModbusNumber::control(float value) {
     // Create and send the write command
     this->write_command_.emplace(this->parent_->create_command());
     if (this->register_count == 1 && !this->use_write_multiple_) {
-      this->write_command_->write_single_register(this->write_address(), payload[0]);
+      queued = this->write_command_->write_single_register(this->write_address(), payload[0]);
     } else {
-      this->write_command_->write_multiple_registers(this->write_address(), payload);
+      queued = this->write_command_->write_multiple_registers(this->write_address(), payload);
     }
+  }
+  // Only report the new value if the hub accepted the frame; a refusal leaves the entity unchanged.
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+    return;
   }
   this->publish_state(value);
 }

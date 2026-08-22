@@ -383,6 +383,11 @@ bool ModbusCommandItem::write_multiple_coils(uint16_t start_address, std::span<c
   return modbus::ModbusClientDevice::write_multiple_coils(start_address, values);
 }
 
+bool ModbusCommandItem::write_multiple_coils(uint16_t start_address, modbus::PackedBits bits) {
+  this->set_command_(FunctionCode::WRITE_MULTIPLE_COILS, EntityType::COIL, start_address, bits.size());
+  return modbus::ModbusClientDevice::write_multiple_coils(start_address, bits);
+}
+
 bool ModbusCommandItem::queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options) {
   // Best-effort decode of the PDU header so handlers and logs get the same metadata as a standard command.
   if (pdu.size() >= 3) {
@@ -428,6 +433,11 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
                                                                    uint16_t register_count,
                                                                    const std::vector<uint16_t> &values) {
   ModbusCommandItem cmd(*controller, controller->hub(), controller->device_address());
+  if (register_count != values.size())
+    ESP_LOGW(TAG,
+             "create_write_multiple_command: register_count (%u) is ignored; the quantity is derived from the "
+             "%zu values provided",
+             register_count, values.size());
   cmd.set_command_(FunctionCode::WRITE_MULTIPLE_REGISTERS, EntityType::HOLDING, start_address, values.size());
   auto pdu = modbus::helpers::create_write_registers_pdu(start_address, values);
   memcpy(cmd.payload.init(pdu.size()), pdu.data(), pdu.size());
