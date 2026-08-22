@@ -19,9 +19,6 @@ openthread:
       - logger.log:
           format: "on_state_change: new state is %d, old state is %d"
           args: [x, x_previous]
-  on_disabled:
-    then:
-      - logger.log: "on_disabled"
   on_detached:
     then:
       - logger.log: "on_detached"

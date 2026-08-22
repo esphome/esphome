@@ -53,6 +53,10 @@ void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) 
     otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
+    if (self->state_callbacks_.empty() && self->full_state_callbacks_.empty()) {
+      // No triggers configured -- nothing to publish, skip the defer + capturing std::function.
+      return;
+    }
     // publish_state_() runs user automations and must not run on the OT task; defer it and
     // re-set connected_ here too so it can't outrun the deferred role.
     self->defer([self, role]() {
@@ -274,7 +278,7 @@ bool OpenThreadComponent::teardown() {
       }
     } break;
     case TeardownStage::STOP_IN_PROCESS:
-      // waiting on openthread stop
+      // Unreachable today; kept as a hook for a future use.
       break;
     case TeardownStage::COMPLETED:
       ESP_LOGV(TAG, "OpenthreadComponent Teardown Complete");

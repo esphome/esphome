@@ -52,7 +52,6 @@ from .const import (
     CONF_NETWORK_NAME,
     CONF_ON_CHILD,
     CONF_ON_DETACHED,
-    CONF_ON_DISABLED,
     CONF_ON_LEADER,
     CONF_ON_ROUTER,
     CONF_PAN_ID,
@@ -251,7 +250,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
             cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation({}),
-            cv.Optional(CONF_ON_DISABLED): automation.validate_automation({}),
             cv.Optional(CONF_ON_DETACHED): automation.validate_automation({}),
             cv.Optional(CONF_ON_CHILD): automation.validate_automation({}),
             cv.Optional(CONF_ON_ROUTER): automation.validate_automation({}),
@@ -266,17 +264,12 @@ CONFIG_SCHEMA = cv.All(
 
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
-        CONF_ON_STATE, "add_on_state_callback", [(cg.uint8, "x")]
+        CONF_ON_STATE, "add_on_state_callback", [(ot_device_role, "x")]
     ),
     automation.CallbackAutomation(
         CONF_ON_STATE_CHANGE,
         "add_full_state_callback",
-        [(cg.uint8, "x_previous"), (cg.uint8, "x")],
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_DISABLED,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(ot_device_role.OT_DEVICE_ROLE_DISABLED),
+        [(ot_device_role, "x_previous"), (ot_device_role, "x")],
     ),
     automation.CallbackAutomation(
         CONF_ON_DETACHED,
