@@ -597,7 +597,7 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
 
 
 def test_prefetch_wave_downloads_registry_archives_in_parallel(
-    monkeypatch: pytest.MonkeyPatch,
+    setup_core, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Registry archives in one wave download concurrently, deduped by URL;
     git/local sources and failures are left to the sequential call."""
@@ -636,12 +636,18 @@ def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_head(url, timeout, allow_redirects):
         if "bad" in url:
             raise requests.ConnectionError("down")
-        return SimpleNamespace(headers={"content-length": "123"})
+        if "gone" in url:
+            return SimpleNamespace(ok=False, status_code=404, headers={})
+        return SimpleNamespace(ok=True, headers={"content-length": "123"})
 
     monkeypatch.setattr(
         lib.requests if hasattr(lib, "requests") else requests, "head", fake_head
     )
-    assert lib._content_lengths(["https://x/a", "https://x/bad"]) == [123, 0]
+    assert lib._content_lengths(["https://x/a", "https://x/bad", "https://x/gone"]) == [
+        123,
+        0,
+        0,
+    ]
 
 
 def test_prefetch_wave_cache_probe_failure_still_prefetches(
@@ -732,6 +738,11 @@ def test_normalize_dependencies_forms(caplog) -> None:
         {"": "1.0", "Wire": {"name": 123, "version": "1.0"}, "SPI": "*"}, "libx"
     ) == [{"name": "SPI", "owner": None, "version": "*"}]
     assert caplog.text.count("unrecognized dependency entry") == 5
+    # A container or numeric version would raise from set.add() or fail
+    # opaquely in the registry; both spellings warn and drop
+    assert normalize_dependencies({"Foo": ["1.0", "2.0"]}, "libx") == []
+    assert normalize_dependencies([{"name": "Foo", "version": 1}], "libx") == []
+    assert caplog.text.count("unrecognized dependency entry") == 7
 
 
 @pytest.mark.parametrize(
