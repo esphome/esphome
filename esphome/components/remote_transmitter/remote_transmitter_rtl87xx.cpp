@@ -40,6 +40,14 @@ static const char *const TAG = "remote_transmitter";
 static constexpr uint32_t ENVELOPE_TIMER_ID = TIMER6;  // GTimer7
 static uint8_t pwm_tick_sources[] = {GTimer1, GTimer2, GTimer3, GTimer4, GTimer5, GTimer6, 0xff};
 
+// One envelope timer shared by all instances (MULTI_CONF): a second gtimer_init on the
+// same timer id fails silently, so instances serialize on s_active_transmitter instead.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+static gtimer_t s_envelope_timer;
+static bool s_envelope_timer_ready = false;
+static RemoteTransmitterComponent *volatile s_active_transmitter = nullptr;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
 static void envelope_timer_isr(uint32_t arg) {
   reinterpret_cast<RemoteTransmitterComponent *>(arg)->advance_envelope_isr();
 }
@@ -77,9 +85,10 @@ void RemoteTransmitterComponent::setup() {
   pwmout_period_us(pwm, 26);  // placeholder; the real carrier period is set per transmission
   pwmout_write(pwm, this->pin_->is_inverted() ? 1.0f : 0.0f);
 #if LT_RTL8720C
-  auto *timer = new gtimer_t();
-  this->timer_ = timer;
-  gtimer_init(timer, ENVELOPE_TIMER_ID);
+  if (!s_envelope_timer_ready) {
+    gtimer_init(&s_envelope_timer, ENVELOPE_TIMER_ID);
+    s_envelope_timer_ready = true;
+  }
 #endif
   this->disable_loop();  // loop() is only needed while a non-blocking completion is pending
 }
@@ -105,7 +114,8 @@ void RemoteTransmitterComponent::digital_write(bool value) {
 void RemoteTransmitterComponent::start_isr_item_(size_t index) {
   const int32_t item = this->isr_data_[index];
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), item > 0 ? this->isr_mark_duty_ : this->isr_space_duty_);
-  gtimer_start_one_shout(static_cast<gtimer_t *>(this->timer_), uint32_t(item > 0 ? item : -item),
+  // clamp to 1us: a zero-length one-shot never fires and would stall the chain
+  gtimer_start_one_shout(&s_envelope_timer, std::max(uint32_t(1), uint32_t(item > 0 ? item : -item)),
                          (void *) envelope_timer_isr, (uint32_t) this);
 }
 
@@ -129,14 +139,14 @@ void RemoteTransmitterComponent::advance_envelope_isr() {
     this->isr_index_ = 0;
     if (this->isr_send_wait_ > 0) {
       this->isr_in_gap_ = true;
-      gtimer_start_one_shout(static_cast<gtimer_t *>(this->timer_), this->isr_send_wait_, (void *) envelope_timer_isr,
-                             (uint32_t) this);
+      gtimer_start_one_shout(&s_envelope_timer, this->isr_send_wait_, (void *) envelope_timer_isr, (uint32_t) this);
     } else {
       this->start_isr_item_(0);
     }
     return;
   }
   this->transmitting_ = false;
+  s_active_transmitter = nullptr;
 }
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
@@ -144,10 +154,19 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
     return;
   }
-  // A previous non-blocking transmission may still be in flight; it owns the timer, so wait
-  // it out. Its frame stays intact: the ISR reads isr_data_ (our copy), not temp_.
-  while (this->transmitting_) {
+  // A transmission may still be in flight (this instance or another sharing the timer);
+  // wait it out. Its frame stays intact: each ISR reads that instance's isr_data_ copy.
+  while (s_active_transmitter != nullptr) {
     App.feed_wdt();
+  }
+  // report a completion that loop() has not delivered yet, so completions are never coalesced
+  if (this->complete_pending_) {
+    this->complete_pending_ = false;
+    this->complete_trigger_.trigger();
+  }
+  if (send_times == 0) {
+    // parity with the loop-based implementations: transmit nothing
+    return;
   }
   ESP_LOGD(TAG, "Sending remote code");
   const uint32_t carrier_frequency = this->temp_.get_carrier_frequency();
@@ -178,6 +197,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->isr_in_gap_ = false;
   this->transmit_trigger_.trigger();
   this->transmitting_ = true;
+  s_active_transmitter = this;
   this->start_isr_item_(0);
   if (this->non_blocking_) {
     this->complete_pending_ = true;
