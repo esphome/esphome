@@ -1051,8 +1051,6 @@ def test_clean_all_removes_global_arduino8266_install(
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
-    from esphome.writer import clean_all
-
     with caplog.at_level("INFO"):
         clean_all([str(config_dir)])
 
