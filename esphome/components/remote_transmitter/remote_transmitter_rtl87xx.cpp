@@ -31,7 +31,7 @@ void RemoteTransmitterComponent::setup() {
   // management, and the pad is then never handed over to the PWM peripheral -- pwmout_init()
   // must own the pin from the start.
   PinInfo *info = pinInfo(this->pin_->get_pin());
-  if (info == nullptr || !(info->supported & PIN_PWM)) {
+  if (info == nullptr || !pinSupported(info, PIN_PWM)) {
     // checked here because the AmebaZ (RTL8710B) SDK does not report PWM init failure
     ESP_LOGE(TAG, "Pin %u is not PWM-capable", this->pin_->get_pin());
     this->mark_failed();
