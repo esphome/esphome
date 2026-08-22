@@ -237,9 +237,7 @@ void SamsungClimate::send_power_state_(const bool on) {
               K_SAMSUNG_AC_SECTION_LENGTH);
 }
 
-void SamsungClimate::set_power_(const bool on) {
-  this->protocol_.power_1 = this->protocol_.power_2 = on ? 0b11 : 0b00;
-}
+void SamsungClimate::set_power_(const bool on) { this->protocol_.power_1 = this->protocol_.power_2 = on ? 0b11 : 0b00; }
 
 bool SamsungClimate::is_power_off_() { return this->protocol_.power_1 != 0b11 || this->protocol_.power_2 != 0b11; }
 
