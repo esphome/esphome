@@ -284,6 +284,11 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     cg.add_global(i2c_ns.using)
     cg.add_define("USE_I2C")
+    if CORE.is_esp32:
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        # Re-enable the I2C driver (excluded by default to save compile time)
+        include_builtin_idf_component("esp_driver_i2c")
     if CORE.is_host:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)

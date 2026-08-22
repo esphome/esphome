@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_SOURCE_ID
+from esphome.types import ConfigType
 
 from .. import Text, text_ns
 
@@ -19,7 +20,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     source = await cg.get_variable(config[CONF_SOURCE_ID])
     var = await text_sensor.new_text_sensor(config, source)
     await cg.register_component(var, config)
