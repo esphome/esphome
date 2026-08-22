@@ -739,6 +739,15 @@ def normalize_dependencies(
                     manifest_name,
                 )
                 continue
+            if "version" in entry and not isinstance(entry["version"], str):
+                # A container would raise from set.add(); an int fails
+                # opaquely inside the registry resolution
+                _LOGGER.warning(
+                    "Ignoring unrecognized dependency entry %r of %s",
+                    entry,
+                    manifest_name,
+                )
+                continue
             normalized.append(entry)
         return normalized
     if not isinstance(dependencies, (list, tuple)):
@@ -755,6 +764,15 @@ def normalize_dependencies(
             if not isinstance(name, str) or not name:
                 # A dependency name must be a non-empty string; every
                 # consumer indexes or joins it
+                _LOGGER.warning(
+                    "Ignoring unrecognized dependency entry %r of %s",
+                    entry,
+                    manifest_name,
+                )
+                continue
+            if "version" in entry and not isinstance(entry["version"], str):
+                # A container would raise from set.add(); an int fails
+                # opaquely inside the registry resolution
                 _LOGGER.warning(
                     "Ignoring unrecognized dependency entry %r of %s",
                     entry,
@@ -948,8 +966,12 @@ def _content_lengths(urls: list[str]) -> list[int]:
     def head(url: str) -> int:
         try:
             resp = requests.head(url, timeout=10, allow_redirects=True)
+            if not resp.ok:
+                _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
+                return 0
             return int(resp.headers.get("content-length", 0))
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            _LOGGER.debug("HEAD %s failed: %s", url, err)
             return 0
 
     with ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(urls))) as ex:
@@ -1000,16 +1022,19 @@ def _prefetch_wave(
         tracker = progress.tracker()
         try:
             component.download(salt=salt, namespace=namespace, progress=tracker)
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # The sequential call below retries and reports the failure
+            _LOGGER.debug("Prefetch of %s failed: %s", component.name, err)
             tracker(0)
 
+    ex = ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(components)))
     try:
-        with ThreadPoolExecutor(
-            max_workers=min(_DOWNLOAD_WORKERS, len(components))
-        ) as ex:
-            list(ex.map(_fetch, components))
+        for future in [ex.submit(_fetch, component) for component in components]:
+            future.result()
     finally:
+        # On Ctrl-C drop the queued archives instead of downloading them
+        # all before the process can exit; in-flight ones still finish.
+        ex.shutdown(wait=True, cancel_futures=True)
         progress.done()
 
 
