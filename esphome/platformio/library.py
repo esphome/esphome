@@ -859,6 +859,42 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
+def _warn_unsatisfied_versionless(
+    skipped_versionless: list[tuple[Any, Any, str]],
+    components: dict[str, ConvertedLibrary],
+    backend: LibraryBackend,
+) -> None:
+    """Warn for version-less deps nothing satisfied (request key, manifest
+    name, or backend provides()); a silent drop surfaces as link errors far
+    from the cause."""
+    resolved_manifest_names = {c.data.get("name") for c in components.values()}
+    warned: set[str] = set()
+    for dep_name, dep_owner, requester in skipped_versionless:
+        if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
+            continue
+        if dep_name in components:
+            # A version-less dep's request key is the name itself
+            continue
+        if dep_name in resolved_manifest_names:
+            continue
+        if (
+            not dep_owner
+            and backend.provides is not None
+            and backend.provides(dep_name)
+        ):
+            # provides() only satisfies owner-less names: the walk's
+            # backend-provided skip has the same owner guard, so an
+            # owner-qualified version-less dep was added by nobody
+            continue
+        warned.add(dep_name)
+        _LOGGER.warning(
+            "Dependency %s of %s has no version to resolve and nothing "
+            "provides it; skipping",
+            dep_name,
+            requester,
+        )
+
+
 def convert_libraries(
     libraries: list[Library], backend: LibraryBackend
 ) -> list[ConvertedLibrary]:
@@ -1161,34 +1197,6 @@ def convert_libraries(
     for component in components.values():
         backend.emit(component)
 
-    # Warn for version-less deps nothing satisfied (request key, manifest
-    # name, or backend provides()); a silent drop surfaces as link errors
-    # far from the cause.
-    resolved_manifest_names = {c.data.get("name") for c in components.values()}
-    warned: set[str] = set()
-    for dep_name, dep_owner, requester in skipped_versionless:
-        if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
-            continue
-        if dep_name in components:
-            # A version-less dep's request key is the name itself
-            continue
-        if dep_name in resolved_manifest_names:
-            continue
-        if (
-            not dep_owner
-            and backend.provides is not None
-            and backend.provides(dep_name)
-        ):
-            # provides() only satisfies owner-less names: the walk's
-            # backend-provided skip has the same owner guard, so an
-            # owner-qualified version-less dep was added by nobody
-            continue
-        warned.add(dep_name)
-        _LOGGER.warning(
-            "Dependency %s of %s has no version to resolve and nothing "
-            "provides it; skipping",
-            dep_name,
-            requester,
-        )
+    _warn_unsatisfied_versionless(skipped_versionless, components, backend)
 
     return [components[key] for key in top_level if key in components]
