@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
+import sys
+
 import pytest
 
+from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import (
     RATETABLE_RULE,
@@ -110,11 +115,6 @@ def test_board_build_covers_every_board() -> None:
 def test_surgery_fingerprint_is_stable_and_sensitive(tmp_path) -> None:
     """The properties the linker-script cache depends on: the fingerprint is
     stable across calls and changes when the module's source changes."""
-    import importlib.util
-    from pathlib import Path as _Path
-    import sys
-
-    from esphome.components.esp8266 import build_surgery
 
     first = build_surgery.surgery_fingerprint()
     assert first == build_surgery.surgery_fingerprint()
@@ -124,7 +124,7 @@ def test_surgery_fingerprint_is_stable_and_sensitive(tmp_path) -> None:
     # A modified copy of the module must fingerprint differently
     copy = tmp_path / "build_surgery_variant.py"
     copy.write_text(
-        _Path(build_surgery.__file__).read_text(encoding="utf-8")
+        Path(build_surgery.__file__).read_text(encoding="utf-8")
         + "\nEXTRA_BEHAVIORAL_INPUT = 1\n",
         encoding="utf-8",
     )
