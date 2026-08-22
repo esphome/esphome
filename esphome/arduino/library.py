@@ -71,13 +71,22 @@ class ArduinoLibrary:
     link_flags: list[str] = field(default_factory=list)
 
 
-def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
-    """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
+def _manifest_build(name: str, data: object) -> dict:
+    """The manifest's ``build`` section, validated by name.
+
+    A bare json.load imposes no shape; a malformed manifest must name the
+    library instead of an AttributeError deep in a traceback (and must do so
+    before apply_extra_script dereferences the same section).
+    """
     build = data.get("build", {}) if isinstance(data, dict) else None
     if not isinstance(build, dict):
-        # A bare json.load imposes no shape; name the library instead of an
-        # AttributeError deep in a traceback
         raise EsphomeError(f"Library {name} has a malformed manifest")
+    return build
+
+
+def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
+    """Resolve one library's sources, include dirs, and flags (PIO semantics)."""
+    build = _manifest_build(name, data)
 
     # PIO's source-dir resolution: manifest srcDir, else src/Src, else the root
     if "srcDir" in build:
@@ -326,6 +335,7 @@ def resolve_libraries(
             bundled.append(_bundled_library(framework_path, name))
 
     def _emit(component: ConvertedLibrary) -> None:
+        _manifest_build(component.get_require_name(), component.data)
         apply_extra_script(
             component, board_mcu=lambda: board_mcu, pio_platform=pio_platform
         )
@@ -344,6 +354,10 @@ def resolve_libraries(
                 framework="arduino",
                 emit=_emit,
                 cache_key=cache_key,
+                # The graph walk must not resolve a bundled name from the
+                # registry ({"Wire": "*"} in a manifest); the bundled copy
+                # is added by _add_bundled_dependencies after emit
+                provides=lambda name: (framework_path / "libraries" / name).is_dir(),
             ),
         )
         if len(resolved) < len(external):
