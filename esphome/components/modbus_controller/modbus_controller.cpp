@@ -433,11 +433,12 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
                                                                    uint16_t register_count,
                                                                    const std::vector<uint16_t> &values) {
   ModbusCommandItem cmd(*controller, controller->hub(), controller->device_address());
-  if (register_count != values.size())
+  if (register_count != values.size()) {
     ESP_LOGW(TAG,
              "create_write_multiple_command: register_count (%u) is ignored; the quantity is derived from the "
              "%zu values provided",
              register_count, values.size());
+  }
   cmd.set_command_(FunctionCode::WRITE_MULTIPLE_REGISTERS, EntityType::HOLDING, start_address, values.size());
   auto pdu = modbus::helpers::create_write_registers_pdu(start_address, values);
   memcpy(cmd.payload.init(pdu.size()), pdu.data(), pdu.size());
