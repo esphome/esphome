@@ -14,6 +14,9 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
+#ifdef USE_PROVISIONING
+#include "esphome/components/provisioning/provisioning.h"
+#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -255,6 +258,19 @@ class APIServer final : public Component,
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
+#ifdef USE_PROVISIONING
+  // True while a configured provisioning window is still pending (the device is
+  // unprovisioned). Suppresses the reboot timeout and its warning so the device is
+  // not auto-rebooted while waiting to be provisioned. False when no provisioning
+  // window is configured.
+  bool provisioning_pending_() const {
+    return provisioning::global_provisioning_manager != nullptr &&
+           provisioning::global_provisioning_manager->window_pending();
+  }
+#else
+  bool provisioning_pending_() const { return false; }
+#endif
+
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
                          bool make_active);
@@ -332,7 +348,10 @@ class APIServer final : public Component,
   uint8_t listen_backlog_{4};
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
-  // 7 bytes used, 1 byte padding
+#if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
+  // Index assigned by the provisioning manager for reporting this transport's state.
+  uint8_t provisioning_source_{0};
+#endif
 
 #ifdef USE_API_NOISE
   APINoiseContext noise_ctx_;
@@ -342,7 +361,7 @@ class APIServer final : public Component,
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class APIConnectedCondition final : public Condition<Ts...> {
   TEMPLATABLE_VALUE(bool, state_subscription_only)
  public:
   bool check(const Ts &...x) override {

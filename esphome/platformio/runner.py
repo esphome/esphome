@@ -94,7 +94,7 @@ def patch_file_downloader() -> None:
                             self._http_response.close()
                         if hasattr(self, "_http_session"):
                             self._http_session.close()
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         pass
                     # pylint: enable=protected-access,broad-except
                     time.sleep(delay)
@@ -179,12 +179,24 @@ def main() -> int:
     is_verbose = any(arg in ("-v", "--verbose") for arg in sys.argv[1:])
     filter_lines = None if is_verbose else FILTER_PLATFORMIO_LINES
 
-    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
-    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    stdout_redirect = sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    stderr_redirect = sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     import platformio.__main__
 
-    return platformio.__main__.main() or 0
+    # PlatformIO exits through ``sys.exit``, so drain from a finally to give
+    # a last line without a terminator a chance to reach the user. Drain the
+    # wrappers we made rather than sys.stdout, which PlatformIO is free to
+    # replace while it runs.
+    try:
+        return platformio.__main__.main() or 0
+    finally:
+        # Drain stderr from a finally so a surprise from the first one cannot
+        # strand the second.
+        try:
+            stdout_redirect.drain()
+        finally:
+            stderr_redirect.drain()
 
 
 if __name__ == "__main__":

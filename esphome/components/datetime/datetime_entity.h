@@ -121,7 +121,7 @@ class DateTimeCall {
   optional<uint8_t> second_;
 };
 
-template<typename... Ts> class DateTimeSetAction : public Action<Ts...>, public Parented<DateTimeEntity> {
+template<typename... Ts> class DateTimeSetAction final : public Action<Ts...>, public Parented<DateTimeEntity> {
  public:
   TEMPLATABLE_VALUE(ESPTime, datetime)
 
@@ -136,7 +136,7 @@ template<typename... Ts> class DateTimeSetAction : public Action<Ts...>, public 
 };
 
 #ifdef USE_TIME
-class OnDateTimeTrigger : public Trigger<>, public Component, public Parented<DateTimeEntity> {
+class OnDateTimeTrigger final : public Trigger<>, public Component, public Parented<DateTimeEntity> {
  public:
   void loop() override;
 

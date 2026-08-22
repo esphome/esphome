@@ -7,7 +7,7 @@
 
 namespace esphome::mcp4461 {
 
-class Mcp4461Wiper : public output::FloatOutput, public Parented<Mcp4461Component> {
+class Mcp4461Wiper final : public output::FloatOutput, public Parented<Mcp4461Component> {
  public:
   Mcp4461Wiper(Mcp4461Component *parent, Mcp4461WiperIdx wiper) : parent_(parent), wiper_(wiper) {}
   /// @brief Set level of wiper
@@ -36,6 +36,9 @@ class Mcp4461Wiper : public output::FloatOutput, public Parented<Mcp4461Componen
   /// @brief Disable given terminal
   /// @param[in] terminal single char parameter defining desired terminal to disable, one of { 'a', 'b', 'w', 'h' }
   void disable_terminal(char terminal);
+  /// @brief Immediately persist the current wiper level to the chip's nonvolatile register
+  ///        (independent of the deferred nonvolatile mirroring / its stability delay)
+  void store_nonvolatile();
 
  protected:
   void write_state(float state) override;

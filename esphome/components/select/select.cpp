@@ -27,10 +27,6 @@ void Select::publish_state(size_t index) {
   const char *option = this->option_at(index);
   this->set_has_state(true);
   this->active_index_ = index;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  this->state = option;  // Update deprecated member for backward compatibility
-#pragma GCC diagnostic pop
   ESP_LOGV(TAG, "'%s' >> %s (%zu)", this->get_name().c_str(), option, index);
   this->state_callback_.call(index);
 #if defined(USE_SELECT) && defined(USE_CONTROLLER_REGISTRY)

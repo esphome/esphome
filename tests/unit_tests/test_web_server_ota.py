@@ -46,7 +46,7 @@ def _patch_resolve(
         for host, port in hosts
     ]
     monkeypatch.setattr(
-        "esphome.web_server_ota.resolve_ip_address", lambda *a, **kw: addr_infos
+        "esphome.web_server_helpers.resolve_ip_address", lambda *a, **kw: addr_infos
     )
 
 
@@ -475,7 +475,7 @@ def test_run_ota_resolution_failure(
     def _raise(*_args, **_kwargs):
         raise EsphomeError("dns failed")
 
-    monkeypatch.setattr("esphome.web_server_ota.resolve_ip_address", _raise)
+    monkeypatch.setattr("esphome.web_server_helpers.resolve_ip_address", _raise)
 
     exit_code, host = run_ota(["does.not.exist"], 80, None, None, firmware)
 
@@ -491,7 +491,7 @@ def test_run_ota_resolution_failure_dashboard_mode(
     def _raise(*_args, **_kwargs):
         raise EsphomeError("dns failed")
 
-    monkeypatch.setattr("esphome.web_server_ota.resolve_ip_address", _raise)
+    monkeypatch.setattr("esphome.web_server_helpers.resolve_ip_address", _raise)
     monkeypatch.setattr(CORE, "dashboard", True)
     try:
         exit_code, host = run_ota(["does.not.exist"], 80, None, None, firmware)
@@ -541,7 +541,7 @@ def test_run_ota_multiple_hosts_first_fails(
     def _resolve(host, port, address_cache=None):  # noqa: ARG001
         return addr_lookup[host]
 
-    monkeypatch.setattr("esphome.web_server_ota.resolve_ip_address", _resolve)
+    monkeypatch.setattr("esphome.web_server_helpers.resolve_ip_address", _resolve)
 
     with patch(
         "esphome.web_server_ota.requests.post",
@@ -570,7 +570,7 @@ def test_run_ota_all_hosts_return_failure_no_exception(
     def _resolve(host, port, address_cache=None):  # noqa: ARG001
         return addr_lookup[host]
 
-    monkeypatch.setattr("esphome.web_server_ota.resolve_ip_address", _resolve)
+    monkeypatch.setattr("esphome.web_server_helpers.resolve_ip_address", _resolve)
 
     exit_code, host = run_ota(["a.local", "b.local"], 80, None, None, firmware)
 
@@ -633,7 +633,7 @@ def test_run_ota_ipv6_url_brackets_host(
         (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("2001:db8::1", 80, 0, 0)),
     ]
     monkeypatch.setattr(
-        "esphome.web_server_ota.resolve_ip_address", lambda *a, **kw: addr_infos
+        "esphome.web_server_helpers.resolve_ip_address", lambda *a, **kw: addr_infos
     )
 
     with patch(
@@ -656,7 +656,7 @@ def test_run_ota_ipv6_link_local_includes_scope_id(
         (socket.AF_INET6, socket.SOCK_STREAM, 0, "", ("fe80::1", 80, 0, 3)),
     ]
     monkeypatch.setattr(
-        "esphome.web_server_ota.resolve_ip_address", lambda *a, **kw: addr_infos
+        "esphome.web_server_helpers.resolve_ip_address", lambda *a, **kw: addr_infos
     )
 
     with patch(

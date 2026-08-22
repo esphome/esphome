@@ -55,4 +55,78 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
   }
 }
 
+TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {
+  StaticVector<uint8_t, 5> small{0x03, 0x00, 0x10, 0x00, 0x01};
+  StaticVector<uint8_t, 253> big = small;
+  ASSERT_EQ(big.size(), small.size());
+  for (size_t i = 0; i < small.size(); i++) {
+    EXPECT_EQ(big[i], small[i]) << "mismatch at index " << i;
+  }
+}
+
+TEST(StaticVectorTest, ConvertingConstructorPartiallyFilledAndEmpty) {
+  StaticVector<uint8_t, 5> partial{0xAA, 0xBB};
+  StaticVector<uint8_t, 8> from_partial = partial;
+  ASSERT_EQ(from_partial.size(), 2u);
+  EXPECT_EQ(from_partial[0], 0xAA);
+  EXPECT_EQ(from_partial[1], 0xBB);
+
+  StaticVector<uint8_t, 5> empty;
+  StaticVector<uint8_t, 8> from_empty = empty;
+  EXPECT_TRUE(from_empty.empty());
+}
+
+TEST(StaticVectorTest, ConvertingConstructorSameSize) {
+  StaticVector<int, 3> src{1, 2, 3};
+  StaticVector<int, 3> dst = src;
+  ASSERT_EQ(dst.size(), 3u);
+  EXPECT_EQ(dst[2], 3);
+}
+
+TEST(StringContainsIgnoreCaseTest, NullPointerAlwaysFalse) {
+  const char *haystack = nullptr;
+  const char *needle = nullptr;
+
+  EXPECT_FALSE(str_contains_ignore_case(haystack, needle));
+  EXPECT_FALSE(str_contains_ignore_case("Hello World", needle));
+  EXPECT_FALSE(str_contains_ignore_case(haystack, "anything"));
+}
+
+TEST(StringContainsIgnoreCaseTest, EmptySearchMatches) {
+  const char *haystack = "Hello World";
+
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, ""));
+}
+
+TEST(StringContainsIgnoreCaseTest, MiscCaseMatches) {
+  const char *haystack = "Hello World";
+
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hello"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hello"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "HELLO"));
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "hELLO"));
+}
+
+TEST(StringContainsIgnoreCaseTest, MiscNotMatching) {
+  const char *haystack = "Hello World";
+
+  // Expected to match
+  EXPECT_TRUE(str_contains_ignore_case_fallback(haystack, "Hell"));
+
+  // Expected not to match
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Heaven"));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "Hello!"));
+  EXPECT_FALSE(str_contains_ignore_case_fallback(haystack, "world!"));
+}
+
+TEST(StringContainsIgnoreCaseTest, FallbackMatchesLibc) {
+  const char *haystack = "Hello World";
+  for (const char *needle : {"", "Hello", "hELLO", "Hell", "world", "Heaven", "Hello!", "d"}) {
+    EXPECT_EQ(str_contains_ignore_case_fallback(haystack, needle), str_contains_ignore_case(haystack, needle))
+        << "needle: " << needle;
+  }
+  EXPECT_EQ(str_contains_ignore_case_fallback("", ""), str_contains_ignore_case("", ""));
+  EXPECT_EQ(str_contains_ignore_case_fallback("ab", "abc"), str_contains_ignore_case("ab", "abc"));
+}
+
 }  // namespace esphome

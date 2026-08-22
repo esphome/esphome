@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import wifi
@@ -13,7 +15,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WIFI,
 )
-from esphome.core import HexInt
+from esphome.core import CORE, HexInt
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -41,7 +44,7 @@ DeletePeerAction = espnow_ns.class_("DeletePeerAction", automation.Action)
 ESPNowHandlerTrigger = automation.Trigger.template(
     ESPNowRecvInfoConstRef,
     cg.uint8.operator("const").operator("ptr"),
-    cg.uint8,
+    cg.uint16,
 )
 
 OnUnknownPeerTrigger = espnow_ns.class_(
@@ -56,6 +59,20 @@ OnBroadcastTrigger = espnow_ns.class_(
 
 
 CONF_AUTO_ADD_PEER = "auto_add_peer"
+CONF_MAX_PAYLOAD_SIZE = "max_payload_size"
+
+# Payload limits of ESP-NOW v1 and v2 frames. The radio negotiates the
+# protocol version per peer on its own; the option only sizes this device's
+# packet buffers, whose static RAM cost is proportional to it (~8 KB at 250
+# bytes, ~44 KB at 1470).
+ESPNOW_PAYLOAD_V1 = 250
+ESPNOW_PAYLOAD_V2 = 1470
+
+# Config-time cap for action payloads. The per-device limit is the
+# ``max_payload_size`` option, which the action schema cannot see; send()
+# enforces it at runtime.
+MAX_ESPNOW_PACKET_SIZE = ESPNOW_PAYLOAD_V2
+
 CONF_PEERS = "peers"
 CONF_ON_SENT = "on_sent"
 CONF_ON_UNKNOWN_PEER = "on_unknown_peer"
@@ -63,10 +80,18 @@ CONF_ON_BROADCAST = "on_broadcast"
 CONF_CONTINUE_ON_ERROR = "continue_on_error"
 CONF_WAIT_FOR_SENT = "wait_for_sent"
 
-MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
+
+def _validate_max_payload_size(value: Any) -> int:
+    if value > ESPNOW_PAYLOAD_V1:
+        return cv.require_framework_version(
+            esp_idf=cv.Version(5, 4, 0),
+            esp32_arduino=cv.Version(3, 2, 0),
+            extra_message="ESP-NOW v2 frames need an ESP-NOW v2 capable framework",
+        )(value)
+    return value
 
 
-def validate_channel(value):
+def validate_channel(value: Any) -> int:
     if value is None:
         raise cv.Invalid("channel is required if wifi is not configured")
     return wifi.validate_channel(value)
@@ -78,6 +103,9 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
             cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
+            cv.Optional(CONF_MAX_PAYLOAD_SIZE, default=ESPNOW_PAYLOAD_V1): cv.All(
+                cv.int_range(min=1, max=ESPNOW_PAYLOAD_V2), _validate_max_payload_size
+            ),
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
             cv.Optional(CONF_ON_UNKNOWN_PEER): automation.validate_automation(
@@ -104,7 +132,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def _trigger_to_code(config):
+async def _trigger_to_code(config: ConfigType) -> MockObj:
     if address := config.get(CONF_ADDRESS):
         address = address.parts
     trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], address)
@@ -113,18 +141,23 @@ async def _trigger_to_code(config):
         [
             (ESPNowRecvInfoConstRef, "info"),
             (cg.uint8.operator("const").operator("ptr"), "data"),
-            (cg.uint8, "size"),
+            (cg.uint16, "size"),
         ],
         config,
     )
     return trigger
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
     cg.add_define("USE_ESPNOW")
+    cg.add_define("USE_ESPNOW_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
+
+    if CONF_WIFI in CORE.config:
+        # Track the Wi-Fi channel via connect events instead of polling every loop
+        wifi.request_wifi_connect_state_listener()
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 
@@ -150,13 +183,13 @@ async def to_code(config):
 # ========================================== A C T I O N S ================================================
 
 
-def validate_peer(value):
+def validate_peer(value: Any) -> Any:
     if isinstance(value, cv.Lambda):
         return cv.returning_lambda(value)
     return cv.mac_address(value)
 
 
-def _validate_raw_data(value):
+def _validate_raw_data(value: Any) -> str | list:
     if isinstance(value, str):
         if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
@@ -174,7 +207,9 @@ def _validate_raw_data(value):
     )
 
 
-async def register_peer(var, config, args):
+async def register_peer(
+    var: MockObj, config: ConfigType, args: TemplateArgsType
+) -> None:
     peer = config[CONF_ADDRESS]
     if isinstance(peer, core.MACAddress):
         peer = [HexInt(p) for p in peer.parts]
@@ -201,7 +236,7 @@ SEND_SCHEMA = PEER_SCHEMA.extend(
 )
 
 
-def _validate_send_action(config):
+def _validate_send_action(config: ConfigType) -> ConfigType:
     if not config[CONF_WAIT_FOR_SENT] and not config[CONF_CONTINUE_ON_ERROR]:
         raise cv.Invalid(
             f"'{CONF_CONTINUE_ON_ERROR}' cannot be false if '{CONF_WAIT_FOR_SENT}' is false as the automation will not wait for the failed result.",
@@ -237,7 +272,7 @@ async def send_action(
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -286,7 +321,7 @@ async def peer_action(
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     await register_peer(var, config, args)
@@ -311,7 +346,7 @@ async def channel_action(
     action_id: core.ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple],
-):
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)

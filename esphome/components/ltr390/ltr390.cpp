@@ -75,7 +75,7 @@ void LTR390Component::read_als_() {
   uint32_t als = *val;
 
   if (this->light_sensor_ != nullptr) {
-    float lux = ((0.6 * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
+    float lux = ((0.6f * als) / (GAINVALUES[this->gain_als_] * RESOLUTIONVALUE[this->res_als_])) * this->wfac_;
     this->light_sensor_->publish_state(lux);
   }
 

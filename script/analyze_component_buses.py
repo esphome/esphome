@@ -39,14 +39,20 @@ from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
 
-# Path to common bus configs
-COMMON_BUS_PATH = Path("tests/test_build_components/common")
+# Path to common bus configs (resolved relative to this file, not the CWD)
+COMMON_BUS_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "tests"
+    / "test_build_components"
+    / "common"
+)
 
 # Package dependencies - maps packages to the packages they include
 # When a component uses a package on the left, it automatically gets
 # the packages on the right as well
 PACKAGE_DEPENDENCIES = {
     "modbus": ["uart"],  # modbus packages include uart packages
+    "modbus_server": ["uart"],  # modbus_server packages include uart packages
     # Add more package dependencies here as needed
 }
 
@@ -59,6 +65,7 @@ DIRECT_BUS_TYPES = (
     "modbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 )
 
 # Signature for components with no bus requirements
@@ -84,6 +91,7 @@ ISOLATED_COMPONENTS = {
     "openthread_info": "Conflicts with wifi: used by most components",
     "matrix_keypad": "Needs isolation due to keypad",
     "microphone": "Defines PDM microphone requiring I2S port 0 - conflicts with micro_wake_word PDM mic when merged",
+    "mipi_rgb": "RGB display occupies many GPIOs (including ones used by the shared i2c bus) that conflict when merged with other bus components",
     "modbus_controller": "Defines multiple modbus buses for testing client/server functionality - conflicts with package modbus bus",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
@@ -128,7 +136,7 @@ def uses_local_file_references(component_dir: Path) -> bool:
 
     try:
         content = common_yaml.read_text()
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return False
 
     # Pattern to match $component_dir or ${component_dir} references
@@ -164,7 +172,7 @@ def is_platform_component(component_dir: Path) -> bool:
     try:
         content = comp_init.read_text()
         return "IS_PLATFORM_COMPONENT = True" in content
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return False
 
 
@@ -222,7 +230,7 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
     try:
         data = yaml_util.load_yaml(yaml_file)
         result["loaded"] = True
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         return result
 
     # Check for Extend/Remove objects

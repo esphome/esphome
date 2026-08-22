@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TIMEOUT,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_I2S_DOUT_PIN,
@@ -78,7 +79,7 @@ I2C_COMM_FMT_OPTIONS = {
 INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32]
 
 
-def _set_num_channels_from_config(config):
+def _set_num_channels_from_config(config: ConfigType) -> ConfigType:
     if config[CONF_CHANNEL] in (CONF_MONO, CONF_LEFT, CONF_RIGHT):
         config[CONF_NUM_CHANNELS] = 1
     else:
@@ -87,7 +88,7 @@ def _set_num_channels_from_config(config):
     return config
 
 
-def _set_stream_limits(config):
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     if config.get(CONF_SPDIF_MODE, False):
         # SPDIF mode: 16/24/32-bit audio and stereo at configured sample rate
         audio.set_stream_limits(
@@ -98,48 +99,58 @@ def _set_stream_limits(config):
             min_sample_rate=config.get(CONF_SAMPLE_RATE),
             max_sample_rate=config.get(CONF_SAMPLE_RATE),
         )(config)
-    elif config[CONF_I2S_MODE] == CONF_PRIMARY:
-        # Primary mode has modifiable stream settings
+        return config
+
+    # The original ESP32 cannot lay out sub-16-bit slots that match ESPHome's packed audio, so the smallest
+    # stream it accepts is 16-bit (see start_i2s_driver); the other variants handle 8-bit.
+    min_bits_per_sample = 16 if esp32.get_esp32_variant() == esp32.VARIANT_ESP32 else 8
+
+    # The configured bits per sample sets the I2S slot width, but the speaker narrows wider streams down to it
+    # in place before clocking them out (see start_i2s_driver). Advertise up to 32-bit so those wider streams
+    # are accepted rather than forcing an upstream conversion.
+    max_bits_per_sample = 32
+
+    if config[CONF_I2S_MODE] == CONF_PRIMARY:
+        # Primary mode can reconfigure the bus to the incoming sample rate and channel count.
         audio.set_stream_limits(
-            min_bits_per_sample=8,
-            max_bits_per_sample=32,
+            min_bits_per_sample=min_bits_per_sample,
+            max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
             min_sample_rate=16000,
             max_sample_rate=48000,
         )(config)
     else:
-        # Secondary mode has unmodifiable max bits per sample and min/max sample rates
+        # Secondary mode has unmodifiable min/max sample rates
         audio.set_stream_limits(
-            min_bits_per_sample=8,
-            max_bits_per_sample=config.get(CONF_BITS_PER_SAMPLE),
+            min_bits_per_sample=min_bits_per_sample,
+            max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
             min_sample_rate=config.get(CONF_SAMPLE_RATE),
             max_sample_rate=config.get(CONF_SAMPLE_RATE),
-        )
+        )(config)
 
     return config
 
 
-def _select_speaker_class(config):
+def _select_speaker_class(config: ConfigType) -> ConfigType:
     """Override ID type when SPDIF mode is enabled."""
     if config.get(CONF_SPDIF_MODE, False):
         config[CONF_ID].type = I2SAudioSpeakerSPDIF
     return config
 
 
-def _validate_esp32_variant(config):
+def _validate_esp32_variant(config: ConfigType) -> ConfigType:
     variant = esp32.get_esp32_variant()
     if config[CONF_DAC_TYPE] == "internal":
         if variant not in INTERNAL_DAC_VARIANTS:
             raise cv.Invalid(f"{variant} does not have an internal DAC")
-    elif (
-        variant == esp32.VARIANT_ESP32
-        and config.get(CONF_BITS_PER_SAMPLE) == 8
-        and config.get(CONF_CHANNEL) in (CONF_MONO, CONF_LEFT, CONF_RIGHT)
-    ):
-        raise cv.Invalid("8-bit mono mode is not supported on ESP32")
+    elif variant == esp32.VARIANT_ESP32 and config[CONF_BITS_PER_SAMPLE] == 8:
+        # The original ESP32 I2S peripheral packs each sample into a whole number of 16-bit words, so an
+        # 8-bit slot does not line up with ESPHome's tightly packed audio (see start_i2s_driver). Reject it
+        # at config time rather than emitting corrupted output at runtime.
+        raise cv.Invalid("8-bit audio is not supported on the original ESP32")
     return config
 
 
@@ -197,7 +208,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     if config[CONF_DAC_TYPE] == "internal":
         raise cv.Invalid(
             "Internal DAC is no longer supported. Use an external I2S DAC instead."
@@ -228,7 +239,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await register_i2s_audio_component(var, config)

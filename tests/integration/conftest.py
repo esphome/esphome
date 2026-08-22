@@ -60,9 +60,18 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     env = os.environ.copy()
     env["PLATFORMIO_CORE_DIR"] = str(cache_dir)
     env["PLATFORMIO_CACHE_DIR"] = str(cache_dir / ".cache")
-    env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps")
+    # libdeps is keyed only by env name (the device name), and fixtures share
+    # names; two xdist workers first-compiling the same name race pio pkg
+    # install in the same directory. Keep libdeps per worker.
+    worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+    env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps" / worker)
     # Prevent cache cleaning during integration tests
     env["ESPHOME_SKIP_CLEAN_BUILD"] = "1"
+    # Compile with THIS tree's esphome sources, not wherever the venv's editable
+    # install points (which may be a different git worktree or checkout).
+    repo_root = str(Path(__file__).resolve().parent.parent.parent)
+    existing = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing}" if existing else repo_root
     return env
 
 
@@ -79,7 +88,7 @@ def shared_platformio_cache() -> Generator[Path]:
     lock_file = Path.home() / ".esphome-integration-tests-init.lock"
 
     # Always acquire the lock to ensure cache is ready before proceeding
-    with open(lock_file, "w") as lock_fd:
+    with lock_file.open("w") as lock_fd:
         fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
 
         # Check if the native platform is installed (the actual indicator of a populated cache)
@@ -101,7 +110,7 @@ def shared_platformio_cache() -> Generator[Path]:
                 env = _get_platformio_env(cache_dir)
 
                 subprocess.run(
-                    ["esphome", "compile", str(config_path)],
+                    [sys.executable, "-m", "esphome", "compile", str(config_path)],
                     check=True,
                     cwd=init_dir,
                     env=env,
@@ -245,6 +254,8 @@ async def compile_esphome(
         for attempt in range(max_retries):
             # Compile using subprocess, inheriting stdout/stderr to show progress
             proc = await asyncio.create_subprocess_exec(
+                sys.executable,
+                "-m",
                 "esphome",
                 "compile",
                 str(config_path),
@@ -407,8 +418,10 @@ async def wait_and_connect_api_client(
         # Wait for connection with timeout
         try:
             await asyncio.wait_for(connected_future, timeout=timeout)
-        except TimeoutError:
-            raise TimeoutError(f"Failed to connect to API after {timeout} seconds")
+        except TimeoutError as err:
+            raise TimeoutError(
+                f"Failed to connect to API after {timeout} seconds"
+            ) from err
 
         if return_disconnect_event:
             yield client, disconnect_event

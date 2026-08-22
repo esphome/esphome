@@ -1,7 +1,5 @@
-from typing import Any
-
 import esphome.codegen as cg
-from esphome.components import audio, esp32, media_source, psram
+from esphome.components import audio, media_source, psram
 import esphome.config_validation as cv
 from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TASK_STACK_IN_PSRAM
 from esphome.types import ConfigType
@@ -20,14 +18,6 @@ def _request_micro_decoder(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_task_stack_in_psram(value: Any) -> bool:
-    # Only require the psram component when actually enabling PSRAM stacks; validating
-    # the boolean first means `false` doesn't trigger the requires_component check.
-    if value := cv.boolean(value):
-        return cv.requires_component(psram.DOMAIN)(value)
-    return value
-
-
 CONFIG_SCHEMA = cv.All(
     media_source.media_source_schema(
         AudioHTTPMediaSource,
@@ -37,7 +27,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=50000): cv.int_range(
                 min=5000, max=1000000
             ),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): _validate_task_stack_in_psram,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -53,7 +43,5 @@ async def to_code(config: ConfigType) -> None:
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
-        esp32.add_idf_sdkconfig_option(
-            "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
-        )
+        psram.request_external_task_stack()
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))

@@ -3,6 +3,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import esp32, update
+from esphome.components.const import CONF_SHA256
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PATH, CONF_SOURCE, CONF_TYPE
 from esphome.core import CORE, ID, HexInt
@@ -11,7 +12,6 @@ CODEOWNERS = ["@swoboda1337"]
 AUTO_LOAD = ["sha256", "watchdog", "json"]
 DEPENDENCIES = ["esp32_hosted"]
 
-CONF_SHA256 = "sha256"
 CONF_HTTP_REQUEST_ID = "http_request_id"
 
 TYPE_EMBEDDED = "embedded"
@@ -75,7 +75,7 @@ def _validate_firmware(config: dict[str, Any]) -> None:
         return
 
     path = CORE.relative_config_path(config[CONF_PATH])
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         firmware_data = f.read()
     calculated = hashlib.sha256(firmware_data).hexdigest()
     expected = config[CONF_SHA256].lower()
@@ -93,7 +93,7 @@ async def to_code(config: dict[str, Any]) -> None:
 
     if config[CONF_TYPE] == TYPE_EMBEDDED:
         path = config[CONF_PATH]
-        with open(CORE.relative_config_path(path), "rb") as f:
+        with CORE.relative_config_path(path).open("rb") as f:
             firmware_data = f.read()
         rhs = [HexInt(x) for x in firmware_data]
         arr_id = ID(f"{config[CONF_ID]}_data", is_declaration=True, type=cg.uint8)

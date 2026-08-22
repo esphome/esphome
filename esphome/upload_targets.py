@@ -57,7 +57,7 @@ def get_port_type(port: str) -> PortType:
     """
     if port == "BOOTSEL":
         return PortType.BOOTSEL
-    if port.startswith("/") or port.startswith("COM"):
+    if port.startswith(("/", "COM")):
         return PortType.SERIAL
     if port == "MQTT":
         return PortType.MQTT

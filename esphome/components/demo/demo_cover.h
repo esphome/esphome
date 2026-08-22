@@ -12,7 +12,7 @@ enum class DemoCoverType {
   TYPE_4,
 };
 
-class DemoCover : public cover::Cover, public Component {
+class DemoCover final : public cover::Cover, public Component {
  public:
   void set_type(DemoCoverType type) { type_ = type; }
   void setup() override {

@@ -97,7 +97,7 @@ class TabviewType(WidgetType):
                 tab_bar = Widget(bar_obj, obj_spec)
                 await set_obj_properties(tab_bar, tab_style)
                 if tab_items_style:
-                    for index, tab_conf in enumerate(config[CONF_TABS]):
+                    for index, _tab_conf in enumerate(config[CONF_TABS]):
                         await set_obj_properties(
                             Widget(lv_obj.get_child(bar_obj, index), button_spec),
                             tab_items_style,

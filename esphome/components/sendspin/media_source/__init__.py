@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import media_source
+from esphome.components import media_source, psram
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -19,7 +19,6 @@ from .. import (
     CONF_SENDSPIN_ID,
     MEMORY_LOCATIONS,
     SendspinHub,
-    _validate_task_stack_in_psram,
     register_player_config,
     request_controller_support,
     sendspin_ns,
@@ -71,7 +70,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(
         {
             cv.GenerateID(CONF_SENDSPIN_ID): cv.use_id(SendspinHub),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM): _validate_task_stack_in_psram,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(min=25000),
             cv.Optional(CONF_INITIAL_STATIC_DELAY, default="0ms"): cv.All(
                 cv.positive_time_period_milliseconds,

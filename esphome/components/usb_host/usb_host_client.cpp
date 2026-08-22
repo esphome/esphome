@@ -1,5 +1,6 @@
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_host.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -236,9 +237,9 @@ void USBClient::setup() {
 
 void USBClient::usb_task_fn(void *arg) {
   auto *client = static_cast<USBClient *>(arg);
-  client->usb_task_loop();
+  client->usb_task_loop_();
 }
-void USBClient::usb_task_loop() const {
+void USBClient::usb_task_loop_() const {
   while (true) {
     usb_host_client_handle_events(this->handle_, portMAX_DELAY);
   }
@@ -581,4 +582,5 @@ void USBClient::release_trq(TransferRequest *trq) {
 }
 
 }  // namespace esphome::usb_host
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

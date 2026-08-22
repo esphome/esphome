@@ -3,7 +3,7 @@ i2s_audio:
 
 speaker:
   - platform: i2s_audio
-    id: speaker_id
+    id: spdif_speaker_id
     dac_type: external
     i2s_dout_pin: ${spdif_data_pin}
     spdif_mode: true

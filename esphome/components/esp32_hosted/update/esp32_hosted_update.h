@@ -13,7 +13,7 @@
 
 namespace esphome::esp32_hosted {
 
-class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
+class Esp32HostedUpdate final : public update::UpdateEntity, public PollingComponent {
  public:
   void setup() override;
   void dump_config() override;

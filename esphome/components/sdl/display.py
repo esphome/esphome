@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import display
@@ -14,12 +16,14 @@ from esphome.const import (
     CONF_Y,
     PLATFORM_HOST,
 )
+from esphome.types import ConfigType
 
 sdl_ns = cg.esphome_ns.namespace("sdl")
 Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component)
 sdl_window_flags = cg.global_ns.enum("SDL_WindowFlags")
 
 
+CONF_CENTERED_ON_DISPLAY = "centered_on_display"
 CONF_SDL_OPTIONS = "sdl_options"
 CONF_SDL_ID = "sdl_id"
 CONF_WINDOW_OPTIONS = "window_options"
@@ -31,8 +35,10 @@ WINDOW_OPTIONS = (
     "resizable",
 )
 
+SDL_WINDOWPOS_CENTERED_MASK = 0x2FFF0000
 
-def get_sdl_options(value):
+
+def get_sdl_options(value: str) -> str:
     if value != "":
         return value
     try:
@@ -43,8 +49,22 @@ def get_sdl_options(value):
         raise cv.Invalid("Unable to run sdl2-config - have you installed sdl2?") from e
 
 
-def get_window_options():
+def get_window_options() -> dict[cv.Optional, Callable[[Any], Any]]:
     return {cv.Optional(option, default=False): cv.boolean for option in WINDOW_OPTIONS}
+
+
+def _validate_position(config: dict) -> dict:
+    if CONF_CENTERED_ON_DISPLAY in config:
+        if CONF_X in config or CONF_Y in config:
+            raise cv.Invalid(
+                f"Cannot specify '{CONF_CENTERED_ON_DISPLAY}' with '{CONF_X}' and '{CONF_Y}' options"
+            )
+        return config
+    if CONF_X in config and CONF_Y in config:
+        return config
+    if CONF_X in config or CONF_Y in config:
+        raise cv.Invalid(f"Must specify both '{CONF_X}' and '{CONF_Y}' options")
+    raise cv.Invalid("Must specify either 'x' and 'y' or 'centered_on_display'")
 
 
 CONFIG_SCHEMA = cv.All(
@@ -66,10 +86,13 @@ CONFIG_SCHEMA = cv.All(
                     {
                         cv.Optional(CONF_POSITION): cv.Schema(
                             {
-                                cv.Required(CONF_X): cv.int_,
-                                cv.Required(CONF_Y): cv.int_,
+                                cv.Optional(CONF_X): cv.int_,
+                                cv.Optional(CONF_Y): cv.int_,
+                                cv.Optional(CONF_CENTERED_ON_DISPLAY): cv.int_range(
+                                    0, 128
+                                ),
                             }
-                        ),
+                        ).add_extra(_validate_position),
                         **get_window_options(),
                     }
                 ),
@@ -80,7 +103,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for option in config[CONF_SDL_OPTIONS].split():
         cg.add_build_flag(option)
     cg.add_build_flag("-DSDL_BYTEORDER=4321")
@@ -105,7 +128,15 @@ async def to_code(config):
         cg.add(var.set_window_options(create_flags))
 
         if position := window_options.get(CONF_POSITION):
-            cg.add(var.set_position(position[CONF_X], position[CONF_Y]))
+            if (centered := position.get(CONF_CENTERED_ON_DISPLAY)) is not None:
+                cg.add(
+                    var.set_position(
+                        SDL_WINDOWPOS_CENTERED_MASK | centered,
+                        SDL_WINDOWPOS_CENTERED_MASK | centered,
+                    )
+                )
+            else:
+                cg.add(var.set_position(position[CONF_X], position[CONF_Y]))
 
     if lamb := config.get(CONF_LAMBDA):
         lambda_ = await cg.process_lambda(

@@ -8,7 +8,9 @@
 
 void setup();  // NOLINT(readability-redundant-declaration)
 
-// Weak stub for initArduino - overridden when the Arduino component is present
+// Weak stub for initArduino - overridden when the Arduino component is present.
+// Name must match the Arduino framework's entry point, so the naming check is suppressed.
+// NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" __attribute__((weak)) void initArduino() {}
 
 namespace esphome {

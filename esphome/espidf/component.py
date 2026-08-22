@@ -1,223 +1,43 @@
-from collections.abc import Callable
-import glob
-import hashlib
-import itertools
-import json
+"""ESP-IDF backend for the shared PlatformIO library converter.
+
+The toolchain-agnostic resolution/download/caching pipeline lives in
+``esphome.platformio.library``; this module only adds the ESP-IDF specifics:
+emitting an ``idf_component_register`` ``CMakeLists.txt`` + ``idf_component.yml``
+for each resolved library, running any PlatformIO ``extraScript``, and the
+ESP-IDF platform/framework compatibility defaults.
+"""
+
 import logging
 import os
 from pathlib import Path
-import re
-import tempfile
-from typing import TypeVar
-from urllib.parse import urlparse, urlsplit, urlunsplit
 
-from esphome import git, yaml_util
 from esphome.core import CORE, Library
-from esphome.espidf.framework import archive_extract_all, download_from_mirrors, rmdir
+from esphome.espidf import variant_to_idf_target
 from esphome.helpers import write_file_if_changed
+from esphome.platformio.library import (
+    DEFAULT_BUILD_FLAGS,
+    DEFAULT_BUILD_INCLUDE_DIR,
+    DEFAULT_BUILD_SRC_FILTER,
+    ESPHOME_DATA_EXTRA_CMAKE_KEY,
+    ESPHOME_DATA_KEY,
+    SRC_FILE_EXTENSIONS,
+    ConvertedLibrary as IDFComponent,
+    LibraryBackend,
+    PathType,
+    collect_filtered_files,
+    convert_libraries,
+    ensure_list,
+    split_list_by_condition,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-PathType = str | os.PathLike
-
-#
-# Constants from platformio
-#
-
-FILTER_REGEX = re.compile(r"([+-])<([^>]+)>")
-DEFAULT_BUILD_SRC_FILTER = (
-    "+<*> -<.git/> -<.svn/> -<example/> -<examples/> -<test/> -<tests/>"
-)
-DEFAULT_BUILD_SRC_DIRS = "src"
-DEFAULT_BUILD_INCLUDE_DIR = "include"
-DEFAULT_BUILD_FLAGS = []
-SRC_FILE_EXTENSIONS = [
-    ".c",
-    ".cpp",
-    ".cc",
-    ".cxx",
-    ".c++",
-    ".S",
-    ".spp",
-    ".SPP",
-    ".sx",
-    ".s",
-    ".asm",
-    ".ASM",
-]
-
 ESP32_PLATFORM = "espressif32"
-DOMAIN = "pio_components"
-
-ESPHOME_DATA_KEY = "ESPHOME"
-ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 
-class Source:
-    def download(self, dir_suffix: str, force: bool = False) -> Path:
-        raise NotImplementedError()
-
-
-class URLSource(Source):
-    def __init__(self, url: str):
-        self.url = url
-
-    def download(self, dir_suffix: str, force: bool = False) -> Path:
-        base_dir = Path(CORE.data_dir) / DOMAIN
-        h = hashlib.new("sha256")
-        h.update(self.url.encode())
-        path = base_dir / h.hexdigest()[:8] / dir_suffix
-        # Marker file written last to signal a complete extraction. Using a
-        # marker (instead of just `path.is_dir()`) means an interrupted
-        # extraction is correctly detected and re-run on the next invocation,
-        # and lets us extract directly into ``path`` — avoiding a
-        # post-extraction rename that races with antivirus on Windows.
-        extracted_marker = path / ".esphome_extracted"
-        if not extracted_marker.is_file() or force:
-            rmdir(path, msg=f"Clean up library directory {path}")
-
-            # Download in temporary file
-            with tempfile.NamedTemporaryFile() as tmp:
-                _LOGGER.info("Downloading %s ...", self.url)
-                _LOGGER.debug("Location: %s", path)
-
-                download_from_mirrors([self.url], {}, tmp.file)
-
-                _LOGGER.debug("Extracting archive to %s ...", path)
-                archive_extract_all(tmp.file, path)
-                extracted_marker.touch()
-        return path
-
-    def __str__(self):
-        return self.url
-
-
-class GitSource(Source):
-    def __init__(self, url: str, ref: str | None):
-        self.url = url
-        self.ref = ref
-
-    def download(self, dir_suffix: str, force: bool = False) -> Path:
-        path, _ = git.clone_or_update(
-            url=self.url,
-            ref=self.ref,
-            refresh=git.NEVER_REFRESH if not force else None,
-            domain=DOMAIN,
-            submodules=[],
-            subpath=Path(dir_suffix),
-        )
-        return path
-
-    def __str__(self):
-        return f"{self.url}#{self.ref}" if self.ref else self.url
-
-
-class InvalidIDFComponent(Exception):
-    pass
-
-
-class IDFComponent:
-    def __init__(self, name: str, version: str, source: Source | None):
-        self.name = name
-        self.version = version
-        self.source = source
-        self.data = {}
-        self.dependencies: list[IDFComponent] = []
-        self._path: Path | None = None
-
-    def __str__(self):
-        return f"{self.name}@{self.version}={self.source}"
-
-    @property
-    def path(self) -> Path:
-        if self._path is None:
-            raise RuntimeError(f"path not set for component {self}")
-        return self._path
-
-    @path.setter
-    def path(self, value: Path) -> None:
-        self._path = value
-
-    def get_sanitized_name(self):
-        return re.sub(r"[^a-zA-Z0-9_.\-/]", "_", self.name)
-
-    def get_require_name(self):
-        return self.get_sanitized_name().replace("/", "__")
-
-    def download(self, force: bool = False):
-        """
-        The dependency name should match the directory name at the end of the override path.
-        The ESP-IDF build system uses the directory name as the component name, so the directory of the override_path should match the component name.
-        If you want to specify the full name of the component with the namespace, replace / in the component name with __.
-        @see https://docs.espressif.com/projects/idf-component-manager/en/latest/reference/manifest_file.html
-        """
-        self.path = self.source.download(self.get_sanitized_name(), force=force)
-
-
-def _get_package_from_pio_registry(
-    username: str | None, pkgname: str, requirements: str
-) -> tuple[str, str, str | None, str | None]:
-    """
-    Fetch package information from PlatformIO registry.
-
-    This function queries the PlatformIO registry to find a library package
-    that matches the given criteria and returns its metadata including version
-    and download URL.
-
-    Args:
-        username: The owner/username of the package (can be None)
-        pkgname: The name of the package
-        requirements: Version requirements (e.g., "^1.0.0")
-
-    Returns:
-        tuple[str, str, str | None, str | None]:
-        A tuple containing (owner, name, version, download_url)
-        where version and download_url can be None if not found
-    """
-
-    from platformio.package.manager._registry import PackageManagerRegistryMixin
-    from platformio.package.meta import PackageSpec
-
-    # Create a minimal PackageManagerRegistry class
-    class PackageManagerRegistry(PackageManagerRegistryMixin):
-        def __init__(self):
-            self._registry_client = None
-            self.pkg_type = "library"
-
-        @staticmethod
-        def is_system_compatible(value, custom_system=None):
-            return True
-
-    pio_registry = PackageManagerRegistry()
-
-    # Fetch package metadata from registry
-    package = pio_registry.fetch_registry_package(
-        PackageSpec(
-            owner=username,
-            name=pkgname,
-        )
-    )
-    owner = package["owner"]["username"]
-    name = package["name"]
-
-    # Find the best matching version based on requirements
-    version = pio_registry.pick_best_registry_version(
-        package.get("versions"),
-        PackageSpec(owner=username, name=pkgname, requirements=requirements),
-    )
-
-    #  If no version found, return with None for version and URL
-    if not version:
-        return owner, name, None, None
-
-    # Find the compatible package file for this version
-    pkgfile = pio_registry.pick_compatible_pkg_file(version["files"])
-
-    #  If no package file found, return with None for URL but valid version
-    if not pkgfile:
-        return owner, name, version["name"], None
-
-    return owner, name, version["name"], pkgfile["download_url"]
+def _idf_framework() -> str:
+    """The framework token an ESP-IDF library manifest is expected to declare."""
+    return "arduino" if CORE.using_arduino else "espidf"
 
 
 def _apply_extra_script(component: IDFComponent) -> None:
@@ -227,20 +47,21 @@ def _apply_extra_script(component: IDFComponent) -> None:
     extra_script = component.data.get("build", {}).get("extraScript")
     if not extra_script:
         return
-    # Resolve and confine to the component dir so a malicious library.json
-    # can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
-    library_root = component.path.resolve()
-    script_path = (component.path / extra_script).resolve()
+    # Resolve and confine to the library's source dir so a malicious
+    # library.json can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
+    source_path = component.source_dir
+    library_root = source_path.resolve()
+    script_path = (source_path / extra_script).resolve()
     if not script_path.is_relative_to(library_root) or not script_path.is_file():
         return
     from esphome.components.esp32 import get_esp32_variant
     from esphome.espidf.extra_script import captured_as_build_flags, run_extra_script
 
-    idf_target = get_esp32_variant().lower().replace("-", "")
+    idf_target = variant_to_idf_target(get_esp32_variant())
     result = run_extra_script(
-        script_path, library_dir=component.path, idf_target=idf_target
+        script_path, library_dir=source_path, idf_target=idf_target
     )
-    extra_flags = captured_as_build_flags(result, library_dir=component.path)
+    extra_flags = captured_as_build_flags(result, library_dir=source_path)
     if not extra_flags:
         return
     flags = component.data.setdefault("build", {}).setdefault("flags", [])
@@ -248,188 +69,6 @@ def _apply_extra_script(component: IDFComponent) -> None:
         flags = [flags]
     flags.extend(extra_flags)
     component.data["build"]["flags"] = flags
-
-
-T = TypeVar("T")
-
-
-def _ensure_list(obj: T | list[T]) -> list[T]:
-    """
-    Convert an object to a list if it isn't already a list.
-
-    Args:
-        obj: Object that may or may not already be a list.
-
-    Returns:
-        list[T]: The original list if ``obj`` is a list, otherwise a single-item
-        list containing ``obj``.
-    """
-    return [obj] if not isinstance(obj, list) else obj
-
-
-def _owner_pkgname_to_name(owner: str | None, pkgname: str) -> str:
-    """
-    Convert owner and package name to a standardized component name.
-
-    This function combines owner and package name with a forward slash when
-    both are provided, otherwise returns just the package name.
-
-    Args:
-        owner: The owner/username of the package (can be None)
-        pkgname: The name of the package
-
-    Returns:
-        str: The standardized component name in "owner/pkgname" format or just "pkgname"
-    """
-    return f"{owner}/{pkgname}" if owner else pkgname
-
-
-def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[str]:
-    """
-    Recursively match files in a directory according to include/exclude patterns.
-
-    This function processes a list of filter strings that indicate which files
-    to include or exclude. Each filter is parsed into patterns with a sign:
-    '+' for inclusion and '-' for exclusion. Directory patterns ending with '/'
-    are normalized to include all their contents recursively.
-
-    Args:
-        src_dir (PathType): Root directory to search within.
-        src_filters (list[str]): List of filter strings, which may contain multiple
-            patterns. Each pattern can start with '+' or '-' to indicate inclusion
-            or exclusion.
-
-    Returns:
-        list[str]: List of matched file paths as strings. Only files (not directories)
-        are returned, even if a directory matches a pattern.
-    """
-    matches = list(
-        itertools.chain.from_iterable(
-            FILTER_REGEX.findall(src_filter) for src_filter in src_filters
-        )
-    )
-
-    selected = set()
-
-    for sign, pattern in matches:
-        pattern = pattern.strip()
-
-        if pattern.endswith("/"):
-            pattern = pattern.rstrip("/") + "/**"
-
-        full_pattern = os.path.join(glob.escape(str(src_dir)), pattern)
-
-        matched = []
-        for item in glob.glob(full_pattern, recursive=True):
-            if not os.path.isdir(item):
-                matched.append(item)
-            else:
-                # PlatformIO quirk: a directory matched with "*" should include all its
-                # nested files and subdirectories, not just the directory itself.
-                for root, _, files in os.walk(item):
-                    matched.extend([os.path.join(root, f) for f in files])
-
-        if sign == "+":
-            selected.update(matched)
-        elif sign == "-":
-            selected.difference_update(matched)
-
-    return [r for r in selected if os.path.isfile(r)]
-
-
-def _convert_library_to_component(library: Library) -> IDFComponent:
-    """
-    Convert a Library object to an IDFComponent object by resolving its metadata.
-
-    This function handles the conversion of library specifications to component
-    objects, resolving versions through PlatformIO registry when needed or
-    parsing direct repository URLs.
-
-    Args:
-        library: The Library object containing name, version, and/or repository information
-
-    Returns:
-        IDFComponent: The resolved component with name, version, and URL
-
-    Raises:
-        RuntimeError: If no artifact can be found for the library
-    """
-    name = None
-    version = None
-    source = None
-
-    #  Repository is provided directly
-    if library.repository:
-        # Parse repository URL: path becomes the component name, fragment
-        # (if any) becomes the git ref stored on GitSource. A missing
-        # fragment is fine -- clone_or_update leaves the depth-1 clone on
-        # the remote's default branch, matching PIO's lib_deps behavior
-        # and external_components handling.
-        split_result = urlsplit(library.repository)
-
-        # Sanitize name
-        name = str(split_result.path).strip("/")
-        name = name.removesuffix(".git")
-
-        # IDF Component Manager only accepts "*", a 40-char commit hash, or
-        # semver here. The actual git ref is preserved in GitSource.ref;
-        # override_path makes this field cosmetic at build time.
-        version = "*"
-        repository = urlunsplit(split_result._replace(fragment=""))
-
-        ref = split_result.fragment.strip() or None
-        source = GitSource(str(repository), ref)
-
-    # Version is provided - resolve using PlatformIO registry
-    elif library.version:
-        name = library.name
-        if "/" not in name:
-            owner, pkgname = None, name
-        else:
-            owner, pkgname = name.split("/", 1)
-
-        owner, pkgname, version, url = _get_package_from_pio_registry(
-            owner, pkgname, library.version
-        )
-        if url is None:
-            raise RuntimeError(
-                f"Can't find an pkg file from PlatformIO registry for library {library}"
-            )
-
-        name = _owner_pkgname_to_name(owner, pkgname)
-        source = URLSource(url)
-
-    if source is None:
-        raise RuntimeError(f"Can't find an artifact associated to library {library}")
-
-    assert name, "Missing library name"
-    assert version, "Missing library version"
-
-    return IDFComponent(name, version, source)
-
-
-def _split_list_by_condition(
-    items: list[str], match_fn: Callable[[str], str | None]
-) -> tuple[list[str], list[str]]:
-    """
-    Splits a list into two lists based on a matching function.
-
-    Args:
-        items: List of items to split.
-        match_fn: Function that returns a value for items that should go into the "matched" list.
-
-    Returns:
-        A tuple (matched, non_matched)
-    """
-    matched = []
-    non_matched = []
-    for item in items:
-        result = match_fn(item)
-        if result:
-            matched.append(result)
-        else:
-            non_matched.append(item)
-    return matched, non_matched
 
 
 def generate_cmakelists_txt(component: IDFComponent) -> str:
@@ -446,32 +85,67 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     Returns:
         str: The complete CMakeLists.txt content as a string
     """
+    # Late import: this module loads with the esp32 platform on every
+    # validate/compile, but shlex is only needed when generating component
+    # CMakeLists.
+    import shlex
 
     def escape_entry(p: PathType) -> str:
         # In CMakeLists.txt, backslashes need to be escaped
         return f'"{str(p)}"'.replace("\\", "\\\\")
 
+    def escape_path(p: PathType) -> str:
+        # CMake uses forward slashes for paths on every platform and treats
+        # backslashes as escape characters. On Windows os.path.relpath yields
+        # backslash paths, which break CMake's list re-parsing (e.g. "\b" in
+        # "src\backend" is an invalid character escape). Emit forward slashes,
+        # which Windows accepts too, so the generated CMakeLists is portable.
+        return f'"{str(p).replace(os.sep, "/")}"'
+
+    # The library's own files live in source_path (the user's directory for a
+    # local library, the downloaded dir otherwise). When it differs from the
+    # component dir the CMakeLists must reference sources by absolute path.
+    read_path = component.source_dir
+    external = read_path.resolve() != component.path.resolve()
+
     # Extract the values
     build_src_dir = component.data.get("build", {}).get("srcDir", None)
     if not build_src_dir:
         for d in ["src", "Src", "."]:
-            if (component.path / Path(d)).is_dir():
+            if (read_path / Path(d)).is_dir():
                 build_src_dir = d
                 break
 
     build_include_dir = component.data.get("build", {}).get(
         "includeDir", DEFAULT_BUILD_INCLUDE_DIR
     )
-    build_src_filter = _ensure_list(
+    build_src_filter = ensure_list(
         component.data.get("build", {}).get("srcFilter", DEFAULT_BUILD_SRC_FILTER)
     )
-    build_flags = _ensure_list(
+    build_flags = ensure_list(
         component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
     )
+    # PlatformIO shell-lexes each build.flags entry, so one entry can carry a
+    # flag and its argument (e.g. "-include cp_custom_alloc.h"). Split the
+    # same way; emitting such an entry as a single quoted compile option
+    # hands the compiler one argv with an embedded space.
+    build_flags = [token for entry in build_flags for token in shlex.split(entry)]
+    # Re-glue bare -I/-L/-l tokens to their argument ("-I foo" -> "-Ifoo") so
+    # the prefix classifiers below still route them to INCLUDE_DIRS and the
+    # link handling.
+    tokens, build_flags = build_flags, []
+    i = 0
+    while i < len(tokens):
+        if tokens[i] in ("-I", "-L", "-l") and i + 1 < len(tokens):
+            build_flags.append(tokens[i] + tokens[i + 1])
+            i += 2
+        else:
+            build_flags.append(tokens[i])
+            i += 1
 
     # List all sources files
-    build_src_files = _collect_filtered_files(
-        component.path / Path(build_src_dir), build_src_filter
+    build_src_files = collect_filtered_files(
+        read_path / Path(build_src_dir), build_src_filter
     )
 
     # Only bake library.json-declared deps here. Project-managed and
@@ -483,42 +157,57 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         dependency.get_require_name() for dependency in component.dependencies
     }
 
-    # Only keep sources
-    build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
+    # Only keep sources. Reference them absolutely when they live outside the
+    # component dir (a local library), relative otherwise.
+    if external:
+        build_src_files = [str(Path(p).resolve()) for p in build_src_files]
+    else:
+        build_src_files = [os.path.relpath(p, component.path) for p in build_src_files]
     build_src_files = [
-        f for f in build_src_files if os.path.splitext(f)[1] in SRC_FILE_EXTENSIONS
+        f for f in build_src_files if Path(f).suffix in SRC_FILE_EXTENSIONS
     ]
 
     # Handle build flags
-    include_dir_flags, build_flags = _split_list_by_condition(
+    include_dir_flags, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-I") else None
     )
-    link_directories, build_flags = _split_list_by_condition(
+    link_directories, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-L") else None
     )
-    link_libraries, build_flags = _split_list_by_condition(
+    link_libraries, build_flags = split_list_by_condition(
         build_flags, lambda a: a[2:].strip() if a.startswith("-l") else None
     )
+    # A local library's relative -L paths are relative to its own directory;
+    # resolve them against it so they still work from the component cache dir.
+    # (read_path / d yields d unchanged when d is already absolute.)
+    if external:
+        link_directories = [
+            str((read_path / Path(d)).resolve()) for d in link_directories
+        ]
 
     # Split include directories from build_flags
     # Only keep an include directory if it exists
     build_include_dirs = [build_include_dir, build_src_dir] + include_dir_flags
     build_include_dirs = [
-        d for d in build_include_dirs if (component.path / Path(d)).is_dir()
+        d for d in build_include_dirs if (read_path / Path(d)).is_dir()
     ]
+    if external:
+        build_include_dirs = [
+            str((read_path / Path(d)).resolve()) for d in build_include_dirs
+        ]
 
     # Split build_flags list into private and public lists
-    private_build_flags, public_build_flags = _split_list_by_condition(
+    private_build_flags, public_build_flags = split_list_by_condition(
         build_flags, lambda a: a if a.startswith("-W") else None
     )
 
     # Generate the component
     content = "idf_component_register(\n"
     if build_src_files:
-        str_srcs = " ".join([escape_entry(p) for p in sorted(build_src_files)])
+        str_srcs = " ".join([escape_path(p) for p in sorted(build_src_files)])
         content += f"  SRCS {str_srcs}\n"
     if build_include_dirs:
-        str_include_dirs = " ".join([escape_entry(p) for p in build_include_dirs])
+        str_include_dirs = " ".join([escape_path(p) for p in build_include_dirs])
         content += f"  INCLUDE_DIRS {str_include_dirs}\n"
     # Project-managed and built-in component lists are set per-project
     # via idf_build_set_property in the top-level CMakeLists; expanded
@@ -553,7 +242,7 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     if link_directories:
         content += "target_link_directories(${COMPONENT_LIB} INTERFACE\n"
         for link_directory in link_directories:
-            str_build_flag = escape_entry(link_directory)
+            str_build_flag = escape_path(link_directory)
             content += f"  {str_build_flag}\n"
         content += ")\n"
 
@@ -582,6 +271,8 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
     Returns:
         YAML string representation of ESP-IDF component configuration
     """
+    from esphome import yaml_util
+
     data = {}
 
     description = component.data.get("description")
@@ -597,8 +288,8 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
         if "dependencies" not in data:
             data["dependencies"] = {}
 
-        # Every dependency goes through _generate_idf_component →
-        # component.download() before this runs, so .path is always set.
+        # Every dependency has been resolved and downloaded before this runs,
+        # so .path is always set.
         data["dependencies"][dependency.get_sanitized_name()] = {
             "override_path": str(dependency.path),
         }
@@ -606,241 +297,25 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
     return yaml_util.dump(data)
 
 
-def _check_library_data(data: dict):
-    """
-    Check if a library data is compatible with the ESP-IDF framework.
-
-    Args:
-        component: IDFComponent object being processed
-
-    Raises:
-        ValueError: If library has unsupported platforms or frameworks
-    """
-    platforms = data.get("platforms", "*")
-    if isinstance(platforms, str):
-        platforms = [a.strip() for a in platforms.split(",")]
-    platforms = _ensure_list(platforms)
-
-    # Check if library supports ESP-IDF platform
-    valid_platforms = "*" in platforms or ESP32_PLATFORM in platforms
-
-    if not valid_platforms:
-        raise InvalidIDFComponent(f"Unsupported library platforms: {platforms}")
-
-    frameworks = data.get("frameworks", "*")
-    if isinstance(frameworks, str):
-        frameworks = [a.strip() for a in frameworks.split(",")]
-    frameworks = _ensure_list(frameworks)
-
-    # Check if library supports ESP-IDF framework
-    framework = "arduino" if CORE.using_arduino else "espidf"
-    valid_framework = "*" in frameworks or framework in frameworks
-
-    if not valid_framework:
-        raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
-
-
-def _process_dependencies(component: IDFComponent):
-    """
-    Process library dependencies and generate ESP-IDF components.
-
-    Args:
-        component: IDFComponent object being processed
-
-    Returns:
-        None
-    """
-
-    name, version = component.name, component.version
-    dependencies = component.data.get("dependencies")
-    if not dependencies:
-        return
-
-    # PIO's library.json accepts both the list-of-dicts form and the
-    # shorthand dict form ``{"owner/Name": "version_spec"}``. Normalize
-    # the dict form so the loop below sees a uniform list. Iterating a
-    # dict gives string keys, which would silently fail the
-    # ``"name" in dependency`` substring check and skip every entry.
-    if isinstance(dependencies, dict):
-        normalized = []
-        for raw_name, spec in dependencies.items():
-            if "/" in raw_name:
-                owner, pkgname = raw_name.split("/", 1)
-            else:
-                owner, pkgname = None, raw_name
-            entry = {"name": pkgname, "owner": owner}
-            if isinstance(spec, dict):
-                entry.update(spec)
-            else:
-                entry["version"] = spec
-            normalized.append(entry)
-        dependencies = normalized
-
-    _LOGGER.info("Processing %s@%s component dependencies...", name, version)
-    for dependency in dependencies:
-        # Validate dependency structure
-        if not all(k in dependency for k in ("name", "version")):
-            _LOGGER.debug("Ignore invalid library: %s", dependency)
-            continue
-
-        try:
-            _check_library_data(dependency)
-        except InvalidIDFComponent as e:
-            _LOGGER.debug(
-                "Skip %s@%s: %s", dependency["name"], dependency["version"], str(e)
-            )
-            continue
-
-        # The version field may actually contain a URL
-        version = dependency["version"]
-        url = None
-        try:
-            result = urlparse(version)
-            if all([result.scheme, result.netloc]):
-                url, version = version, None
-        except (TypeError, ValueError):
-            pass
-
-        # Generate ESP-IDF component from PlatformIO library
-        component.dependencies.append(
-            _generate_idf_component(
-                Library(
-                    _owner_pkgname_to_name(
-                        dependency.get("owner", None), dependency.get("name")
-                    ),
-                    version,
-                    url,
-                )
-            )
-        )
-
-
-def _parse_library_json(library_json_path: PathType):
-    """
-    Load and parse a JSON file describing a library.
-
-    Args:
-        library_json_path (PathType): Path to the JSON file.
-
-    Returns:
-        dict: Parsed JSON content as a Python dictionary.
-    """
-    with open(library_json_path, encoding="utf8") as fp:
-        return json.load(fp)
-
-
-def _parse_library_properties(library_properties_path: PathType):
-    """
-    Parse a key-value platformio .properties style file into a dictionary.
-
-    Args:
-        library_properties_path (PathType): Path to the properties file.
-
-    Returns:
-        dict[str, str]: Mapping of parsed property keys to values.
-    """
-    with open(library_properties_path, encoding="utf8") as fp:
-        data = {}
-        for line in fp.read().splitlines():
-            line = line.strip()
-            if not line or "=" not in line:
-                continue
-            # skip comments
-            if line.startswith("#"):
-                continue
-            key, value = line.split("=", 1)
-            if not value.strip():
-                continue
-            data[key.strip()] = value.strip()
-        return data
-
-
-def _generate_idf_component(library: Library, force: bool = False) -> IDFComponent:
-    """
-    Generate an ESP-IDF component from a library specification.
-
-    This function resolves the library, downloads it, processes metadata files,
-    and generates necessary ESP-IDF build files (CMakeLists.txt, idf_component.yml).
-
-    Args:
-        library: The library specification containing name, version, and repository URL
-        force: If True, forces re-download of the library even if it exists locally
-
-    Returns:
-        IDFComponent: The generated component object with resolved metadata
-    """
-    _LOGGER.info("Generate IDF component for %s library ...", library)
-
-    # Resolve component name, version and url
-    component = _convert_library_to_component(library)
-    name, version = component.name, component.version
-
-    # Download the library
-    component.download(force)
-
-    # Paths to component metadata and build files
-    library_json_path = component.path / "library.json"
-    library_properties_path = component.path / "library.properties"
-    cmakelists_txt_path = component.path / "CMakeLists.txt"
-    idf_component_yml_path = component.path / "idf_component.yml"
-
-    # Bundled CMakeLists.txt / idf_component.yml are ignored -- library
-    # authors' IDF support is frequently broken (bogus REQUIRES, hard-coded
-    # arduino-esp32, etc.). We always regenerate.
-
-    if library_json_path.is_file():
-        component.data = _parse_library_json(library_json_path)
-    elif library_properties_path.is_file():
-        component.data = _parse_library_properties(library_properties_path)
-    else:
-        raise RuntimeError(
-            "Invalid PIO library: missing library.json and/or library.properties"
-        )
-
-    # Check if the component is usable with ESP-IDF before executing any
-    # third-party Python from the library (``_apply_extra_script`` below).
-    _check_library_data(component.data)
-
-    # If the library declares a PIO ``extraScript``, run it against a
-    # fake SCons env so we can fold its captured LIBPATH/LIBS/etc into
-    # the build-flag pipeline ``generate_cmakelists_txt`` consumes
-    # below. Without this, libraries that wire per-MCU archive linking
-    # via extraScript fail to link under native ESP-IDF.
+def _emit_idf_component(component: IDFComponent) -> None:
+    """Write the ESP-IDF build files for a resolved library into its cache dir."""
     _apply_extra_script(component)
-
-    # Handle the dependencies (convert PlatformIO library to ESP-IDF component if needed)
-    _process_dependencies(component)
-
-    _LOGGER.debug("Generating CMakeLists.txt for %s@%s  ...", name, version)
     write_file_if_changed(
-        cmakelists_txt_path,
+        component.path / "CMakeLists.txt",
         generate_cmakelists_txt(component),
     )
-
-    _LOGGER.debug("Generating idf_component.yml for %s@%s  ...", name, version)
     write_file_if_changed(
-        idf_component_yml_path,
+        component.path / "idf_component.yml",
         generate_idf_component_yml(component),
     )
 
-    return component
 
-
-def generate_idf_component(
-    library: Library, force: bool = False
-) -> tuple[str, str, Path]:
-    """
-    Generate an ESP-IDF component and return its name, version, and path.
-
-    This is a wrapper function that calls _generate_idf_component and returns
-    the standardized tuple format (name, version, path).
-
-    Args:
-        library: The library specification containing name, version, and repository URL
-        force: If True, forces re-download of the library even if it exists locally
-
-    Returns:
-        tuple[str, str, Path]: A tuple containing (component_name, component_version, component_path)
-    """
-    component = _generate_idf_component(library, force)
-    return component.get_sanitized_name(), component.version, component.path
+def generate_idf_components(libraries: list[Library]) -> list[IDFComponent]:
+    """Resolve and convert a batch of PlatformIO libraries to IDF components."""
+    backend = LibraryBackend(
+        platform=ESP32_PLATFORM,
+        framework=_idf_framework(),
+        emit=_emit_idf_component,
+        cache_key="idf",
+    )
+    return convert_libraries(libraries, backend)

@@ -10,7 +10,7 @@ namespace esphome::ballu {
 const float YKR_K_002E_TEMP_MIN = 16.0;
 const float YKR_K_002E_TEMP_MAX = 32.0;
 
-class BalluClimate : public climate_ir::ClimateIR {
+class BalluClimate final : public climate_ir::ClimateIR {
  public:
   BalluClimate()
       : climate_ir::ClimateIR(YKR_K_002E_TEMP_MIN, YKR_K_002E_TEMP_MAX, 1.0f, true, true,

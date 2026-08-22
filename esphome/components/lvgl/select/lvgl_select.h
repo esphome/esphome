@@ -10,7 +10,7 @@
 
 namespace esphome::lvgl {
 
-class LVGLSelect : public select::Select, public Component {
+class LVGLSelect final : public select::Select, public Component {
  public:
   LVGLSelect(LvSelectable *widget, lv_anim_enable_t anim, bool restore)
       : widget_(widget), anim_(anim), restore_(restore) {}

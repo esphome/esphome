@@ -21,7 +21,7 @@ static constexpr size_t WAKEUP_CAUSE_BUFFER_SIZE = 128;
 
 // buf_append_printf is now provided by esphome/core/helpers.h
 
-class DebugComponent : public PollingComponent {
+class DebugComponent final : public PollingComponent {
  public:
   void loop() override;
   void update() override;

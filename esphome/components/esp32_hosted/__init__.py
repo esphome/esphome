@@ -3,6 +3,7 @@ from pathlib import Path
 
 from esphome import pins
 from esphome.components import esp32
+from esphome.components.const import CONF_SLOT, CONF_USE_PSRAM
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CLK_PIN,
@@ -15,8 +16,12 @@ from esphome.const import (
     CONF_VARIANT,
 )
 from esphome.cpp_generator import add_define
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@swoboda1337"]
+DEPENDENCIES = ["esp32"]
+# esp32_ble raises the task watchdog around the remote BT controller bring-up
+AUTO_LOAD = ["watchdog"]
 
 CONF_ACTIVE_HIGH = "active_high"
 CONF_BUS_WIDTH = "bus_width"
@@ -30,7 +35,6 @@ CONF_DATA_READY_PIN = "data_ready_pin"
 CONF_HANDSHAKE_ACTIVE_HIGH = "handshake_active_high"
 CONF_HANDSHAKE_PIN = "handshake_pin"
 CONF_SDIO_FREQUENCY = "sdio_frequency"
-CONF_SLOT = "slot"
 CONF_SPI_MODE = "spi_mode"
 
 # Shared fields for both transport modes
@@ -39,6 +43,7 @@ BASE_SCHEMA = cv.Schema(
         cv.Required(CONF_VARIANT): cv.one_of(*esp32.VARIANTS, upper=True),
         cv.Required(CONF_ACTIVE_HIGH): cv.boolean,
         cv.Required(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_USE_PSRAM, default=False): cv.boolean,
     }
 )
 
@@ -59,7 +64,7 @@ SDIO_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_sdio(config):
+def _validate_sdio(config: ConfigType) -> ConfigType:
     if config[CONF_BUS_WIDTH] == 4:
         for pin in (CONF_D1_PIN, CONF_D2_PIN, CONF_D3_PIN):
             if pin not in config:
@@ -93,7 +98,7 @@ SPI_SCHEMA = BASE_SCHEMA.extend(
 )
 
 
-def _validate_spi(config):
+def _validate_spi(config: ConfigType) -> ConfigType:
     variant = config[CONF_VARIANT]
     defaults = _SPI_VARIANT_DEFAULTS.get(variant, _SPI_DEFAULT)
 
@@ -121,7 +126,22 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-def _configure_sdio(config):
+def _final_validate(config: ConfigType) -> None:
+    # The esp_hosted releases compatible with older ESP-IDF versions crash at
+    # boot with a heap double free in the SDIO RX path (fixed in esp_hosted
+    # 2.11.0, which requires ESP-IDF 5.3), so reject them at validation time.
+    if (idf_ver := esp32.idf_version()) < cv.Version(5, 3, 0):
+        raise cv.Invalid(
+            f"esp32_hosted requires ESP-IDF 5.3 or newer, got {idf_ver}. "
+            "Remove the framework version from your configuration to use the "
+            "recommended version, or pin a version at or above 5.3."
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def _configure_sdio(config: ConfigType) -> None:
     slot = config[CONF_SLOT]
     esp32.add_idf_sdkconfig_option(
         f"CONFIG_ESP_HOSTED_SDIO_SLOT_{slot}",
@@ -163,7 +183,7 @@ def _configure_sdio(config):
     )
 
 
-def _configure_spi(config):
+def _configure_spi(config: ConfigType) -> None:
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_SPI_HOST_INTERFACE", True)
     # SPI mode is set via per-variant choice options
     variant = config[CONF_VARIANT]
@@ -211,7 +231,7 @@ def _configure_spi(config):
         esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_DR_ACTIVE_LOW", True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     add_define("USE_ESP32_HOSTED")
     transport = config[CONF_TYPE]
     transport_prefix = "SDIO" if transport == "sdio" else "SPI"
@@ -242,18 +262,20 @@ async def to_code(config):
     else:
         _configure_spi(config)
 
-    # Library versions
+    # Place the transport mempool in PSRAM. Required on memory-tight host
+    # configurations (e.g. P4 with a large LVGL UI) where the internal-RAM
+    # mempool allocation fails at boot with `sdio_mempool_create` assert.
+    if config[CONF_USE_PSRAM]:
+        esp32.add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_MEMPOOL_PREFER_SPIRAM", True)
+
+    # Library versions; this component set requires ESP-IDF 5.3 or newer,
+    # which is enforced at validation time.
     idf_ver = esp32.idf_version()
     os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
-    if idf_ver >= cv.Version(5, 5, 0):
-        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.5.1")
-        esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.2")
-        esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.7")
-    else:
-        esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="0.13.0")
-        esp32.add_idf_component(name="espressif/eppp_link", ref="0.2.0")
-        esp32.add_idf_component(name="espressif/esp_hosted", ref="2.0.11")
+    esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.6.3")
+    esp32.add_idf_component(name="espressif/wifi_remote_over_eppp", ref="0.3.3")
+    esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.5")
+    esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.12")
     esp32.add_extra_script(
         "post",
         "esp32_hosted.py",

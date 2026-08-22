@@ -1,4 +1,3 @@
----
 esphome:
   name: test
 
@@ -8,6 +7,17 @@ esp32:
 deep_sleep:
   id: deepsleep
   sleep_duration: 1min
-  wakeup_pin:
-    - pin: GPIO12
-      wakeup_pin_mode: KEEP_AWAKE
+  run_duration: 10s
+  on_wake:
+    - lambda: 'ESP_LOGD("test", "cause %d", static_cast<int>(cause));'
+  esp32_ext1_wakeup:
+    mode: ANY_HIGH
+    pins:
+      - pin: GPIO2
+        on_wake:
+          - lambda: 'ESP_LOGD("test", "left");'
+      - pin:
+          number: GPIO4
+        on_wake:
+          - lambda: 'ESP_LOGD("test", "right");'
+      - number: GPIO13

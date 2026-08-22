@@ -1,3 +1,4 @@
+from collections.abc import Callable, Iterable
 import contextlib
 from dataclasses import dataclass
 import itertools
@@ -6,9 +7,11 @@ import os
 from pathlib import Path
 import re
 import subprocess
+from typing import Any
 
 from esphome import yaml_util
 import esphome.codegen as cg
+from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -27,6 +30,7 @@ from esphome.const import (
     CONF_PATH,
     CONF_PLATFORM_VERSION,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_PROJECT,
     CONF_REF,
     CONF_SAFE_MODE,
     CONF_SIZE,
@@ -46,17 +50,18 @@ from esphome.const import (
     Toolchain,
     __version__,
 )
-from esphome.core import CORE, HexInt, Library
+from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf.component import generate_idf_component
+from esphome.espidf.component import generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
-from .const import (  # noqa
+from .const import (
     KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
     KEY_COMPONENTS,
@@ -66,6 +71,7 @@ from .const import (  # noqa
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
     KEY_IDF_VERSION,
+    KEY_NETWORK_SDKCONFIG,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -78,15 +84,18 @@ from .const import (  # noqa
     VARIANT_ESP32C6,
     VARIANT_ESP32C61,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
 
 # force import gpio to register pin schema
-from .gpio import esp32_pin_to_code  # noqa
+from .gpio import esp32_pin_to_code  # noqa: F401
 
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
@@ -100,7 +109,9 @@ CONF_ENGINEERING_SAMPLE = "engineering_sample"
 CONF_INCLUDE_BUILTIN_IDF_COMPONENTS = "include_builtin_idf_components"
 CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
+CONF_KEY_ID = "key_id"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
+CONF_NVS_ENCRYPTION = "nvs_encryption"
 CONF_RELEASE = "release"
 CONF_SIGNED_OTA_VERIFICATION = "signed_ota_verification"
 CONF_SIGNING_KEY = "signing_key"
@@ -108,6 +119,7 @@ CONF_SIGNING_SCHEME = "signing_scheme"
 CONF_SRAM1_AS_IRAM = "sram1_as_iram"
 CONF_SUBTYPE = "subtype"
 CONF_VERIFICATION_KEY = "verification_key"
+CONF_VERIFICATION_KEYS = "verification_keys"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
@@ -130,11 +142,21 @@ ASSERTION_LEVELS = {
     "SILENT": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT",
 }
 
+SIGNING_SCHEME_RSA3072 = "rsa3072"
+SIGNING_SCHEME_ECDSA256 = "ecdsa256"
+SIGNING_SCHEME_ECDSA_V1 = "ecdsa_v1"
+
 SIGNING_SCHEMES = {
-    "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
-    "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
-    "ecdsa_v1": "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
+    SIGNING_SCHEME_RSA3072: "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
+    SIGNING_SCHEME_ECDSA256: "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+    SIGNING_SCHEME_ECDSA_V1: "CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME",
 }
+
+# A Secure Boot v2 image carries at most three signature blocks, and hardware
+# secure boot exposes three eFuse key slots. The trusted-key list isn't bound by
+# the per-image limit (an incoming image need only match one trusted key), but
+# cap it at three to mirror those hardware limits.
+SIGNED_OTA_MAX_KEYS = 3
 
 # Chip variants that only support one V2 signing scheme.
 # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
@@ -158,6 +180,20 @@ SIGNED_OTA_V1_ECDSA_VARIANTS = {
     VARIANT_ESP32,
 }
 
+# NVS encryption (HMAC peripheral scheme) is only available on variants that
+# expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
+# ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
+# should be added here.
+NVS_ENCRYPTION_HMAC_VARIANTS = {
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
+}
+
 COMPILER_OPTIMIZATIONS = {
     "DEBUG": "CONFIG_COMPILER_OPTIMIZATION_DEBUG",
     "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
@@ -168,18 +204,32 @@ COMPILER_OPTIMIZATIONS = {
 # ESP-IDF components excluded by default to reduce compile time.
 # Components can be re-enabled by calling include_builtin_idf_component() in to_code().
 #
-# Cannot be excluded (dependencies of required components):
-# - "console": espressif/mdns unconditionally depends on it
-# - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
+# Note: excluding a component only removes it from the initial build set.
+# ESP-IDF's requirement expansion adds an excluded component back when any
+# component still in the build REQUIRES it (e.g. espressif/mdns pulls
+# "console" back in, esp_http_client pulls "tcp_transport" back in), so
+# exclusions here are safe for such components and simply become no-ops in
+# builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
+    "app_trace",  # CPU trace/SystemView support - unused by ESPHome
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
+    "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
+    "esp-tls",  # TLS wrapper - re-included by http_request, mqtt, web_server_idf
     "esp_adc",  # ADC driver - only needed by adc component
+    "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
+    "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
     "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
+    "esp_driver_sdio",  # SDIO device-mode driver - unused by ESPHome
+    "esp_driver_sdm",  # Sigma-delta modulation driver - unused by ESPHome
+    "esp_driver_sdmmc",  # SD/MMC host driver - unused by ESPHome
+    "esp_driver_sdspi",  # SD-over-SPI driver - unused by ESPHome
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
@@ -191,11 +241,16 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
+    "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
     "protocomm",  # Protocol communication for provisioning - unused by ESPHome
+    "rt",  # POSIX realtime extensions - unused by ESPHome
+    "sdmmc",  # SD/MMC protocol layer - only used by SD drivers and fatfs (also excluded)
     "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
+    "tcp_transport",  # Transport layer - esp_http_client/mqtt pull it back when re-included
     "ulp",  # ULP coprocessor - not currently used by any ESPHome component
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
@@ -403,9 +458,12 @@ CPU_FREQUENCIES = {
     VARIANT_ESP32C6: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32C61: get_cpu_frequencies(80, 120, 160),
     VARIANT_ESP32H2: get_cpu_frequencies(16, 32, 48, 64, 96),
+    VARIANT_ESP32H4: get_cpu_frequencies(48, 64, 96),
+    VARIANT_ESP32H21: get_cpu_frequencies(48, 64, 96),
     VARIANT_ESP32P4: get_cpu_frequencies(40, 360, 400),
     VARIANT_ESP32S2: get_cpu_frequencies(80, 160, 240),
     VARIANT_ESP32S3: get_cpu_frequencies(80, 160, 240),
+    VARIANT_ESP32S31: get_cpu_frequencies(240, 320),
 }
 
 # Make sure not missed here if a new variant added.
@@ -464,21 +522,20 @@ def set_core_data(config):
     framework_ver = cv.Version.parse(config[CONF_FRAMEWORK][CONF_VERSION])
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
 
-    # Store the underlying IDF version for framework-agnostic checks
+    # Store the underlying IDF version for framework-agnostic checks.
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
-    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
-        if CORE.using_toolchain_esp_idf:
-            # Official ESP-IDF frameworks don't use extra
-            idf_ver = cv.Version(idf_ver.major, idf_ver.minor, idf_ver.patch)
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
-    else:
+        idf_ver = framework_ver
+    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is None:
         raise cv.Invalid(
             f"Arduino version {framework_ver} has no known ESP-IDF version mapping. "
             "Please update ARDUINO_IDF_VERSION_LOOKUP.",
             path=[CONF_FRAMEWORK, CONF_VERSION],
         )
+    # The esp-idf toolchain doesn't use pioarduino's packaging revision; PIO does.
+    if CORE.using_toolchain_esp_idf:
+        idf_ver = _strip_pioarduino_revision(idf_ver)
 
+    CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
     CORE.data[KEY_ESP32][KEY_VARIANT] = variant
@@ -491,6 +548,32 @@ def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
 
 
+def variant_filtered_enum(
+    by_variant: dict[str, Iterable[Any]], **kwargs: Any
+) -> Callable[[Any], Any]:
+    """Build a ``one_of`` validator whose valid set depends on the active variant.
+
+    ``by_variant`` maps each ESP32 variant constant to the iterable of values that
+    are valid on that variant. At validation time the value is checked against the
+    set allowed for the current target variant. For schema extraction the inverted
+    ``{value: [variants, ...]}`` map is returned instead, so the language-schema
+    dump can tag every option with the variants that accept it and frontends can
+    filter to the user's selected variant.
+    """
+    by_value: dict[str, list[str]] = {}
+    for variant, values in by_variant.items():
+        for value in values:
+            by_value.setdefault(str(value), []).append(variant)
+
+    @schema_extractor("variant_enum")
+    def validator(value: Any) -> Any:
+        if value is SCHEMA_EXTRACT:
+            return by_value
+        return cv.one_of(*by_variant.get(get_esp32_variant(), ()), **kwargs)(value)
+
+    return validator
+
+
 def get_board(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_BOARD]
 
@@ -498,16 +581,17 @@ def get_board(core_obj=None):
 def get_download_types(storage_json):
     """Binary-download entries for a built ESP32 firmware.
 
-    Used by:
-    - esphome.dashboard (legacy "Download .bin" button)
-    - device-builder (esphome/device-builder) — same dispatch via
-      ``importlib.import_module(f"esphome.components.{platform}")``
-      then ``module.get_download_types(storage)``. The contract is
-      "returns ``list[dict]`` with at least ``title`` /
-      ``description`` / ``file`` / ``download`` keys"; please keep
-      the shape stable so the new dashboard's download panel
-      doesn't have to special-case per-platform schemas.
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Factory format (Previously Modern)",
@@ -561,6 +645,56 @@ SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     """Set an esp-idf sdkconfig value."""
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
+
+
+@dataclass
+class NetworkSdkconfigData:
+    """Inputs for the network-related esp32 sdkconfig flags, reconciled at FINAL.
+
+    Components call the request_*() helpers below (and esp32's own to_code fills
+    in enable_lwip_dhcp_server) instead of setting the WiFi/Ethernet/Bluetooth
+    sdkconfig flags directly; the single _reconcile_network_sdkconfig() coroutine
+    then decides the final values so they no longer depend on call order.
+    """
+
+    wifi: bool = False  # WiFi component active (STA and/or AP)
+    wifi_ap: bool = False  # WiFi AP mode configured
+    ethernet: bool = False  # Ethernet component active
+    bluetooth: bool = False  # any BLE component active
+    software_coexistence: bool = False  # WiFi/BT software coexistence requested
+    # esp32 advanced enable_lwip_dhcp_server option (True/False/None=unset)
+    enable_lwip_dhcp_server: bool | None = None
+
+
+def _network_sdkconfig() -> NetworkSdkconfigData:
+    data = CORE.data[KEY_ESP32]
+    if KEY_NETWORK_SDKCONFIG not in data:
+        data[KEY_NETWORK_SDKCONFIG] = NetworkSdkconfigData()
+    return data[KEY_NETWORK_SDKCONFIG]
+
+
+def request_wifi(ap: bool = False) -> None:
+    """Request the WiFi stack. Pass ap=True when AP mode is configured."""
+    net = _network_sdkconfig()
+    net.wifi = True
+    if ap:
+        net.wifi_ap = True
+
+
+def request_ethernet() -> None:
+    """Request the Ethernet stack."""
+    _network_sdkconfig().ethernet = True
+
+
+def request_bluetooth() -> None:
+    """Request the Bluetooth controller."""
+    net = _network_sdkconfig()
+    net.bluetooth = True
+
+
+def request_software_coexistence() -> None:
+    """Request WiFi/BT software coexistence (only valid alongside WiFi)."""
+    _network_sdkconfig().software_coexistence = True
 
 
 def add_idf_component(
@@ -621,6 +755,17 @@ def include_builtin_idf_component(name: str) -> None:
     component will be built when needed.
     """
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
+
+
+def get_excluded_builtin_components() -> list[str]:
+    """Return the sorted built-in IDF components excluded from the build.
+
+    The set reaches both build writers as the ``EXCLUDE_COMPONENTS`` CMake
+    arg (registered via ``cg.add_cmake_arg`` at FINAL priority); the native
+    ESP-IDF writer also reads it directly to filter the built-in component
+    list.
+    """
+    return sorted(CORE.data.get(KEY_ESP32, {}).get(KEY_EXCLUDE_COMPONENTS, ()))
 
 
 def _enable_arduino_library(name: str) -> None:
@@ -710,11 +855,17 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 8),
-    "latest": cv.Version(3, 3, 8),
-    "dev": cv.Version(3, 3, 8),
+    "recommended": cv.Version(3, 3, 11),
+    "latest": cv.Version(3, 3, 11),
+    "dev": cv.Version(3, 3, 11),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        4, 0, 0, "alpha1"
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(3, 3, 11): cv.Version(55, 3, 311),
+    cv.Version(3, 3, 10): cv.Version(55, 3, 39),
+    cv.Version(3, 3, 9): cv.Version(55, 3, 39),
     cv.Version(3, 3, 8): cv.Version(55, 3, 38, "1"),
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
@@ -735,6 +886,10 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(3, 3, 11): cv.Version(5, 5, 5),
+    cv.Version(3, 3, 10): cv.Version(5, 5, 5),
+    cv.Version(3, 3, 9): cv.Version(5, 5, 4),
     cv.Version(3, 3, 8): cv.Version(5, 5, 4),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
@@ -755,9 +910,9 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 4),
-    "latest": cv.Version(5, 5, 4),
-    "dev": cv.Version(5, 5, 4),
+    "recommended": cv.Version(5, 5, 5),
+    "latest": cv.Version(5, 5, 5),
+    "dev": cv.Version(5, 5, 5),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
@@ -767,7 +922,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(5, 5, 4): cv.Version(55, 3, 38, "1"),
+    cv.Version(5, 5, 5): cv.Version(55, 3, 311),
+    cv.Version(5, 5, 4): cv.Version(55, 3, 39),
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -787,8 +943,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 38, "1"),
-    "latest": cv.Version(55, 3, 38, "1"),
+    "recommended": cv.Version(55, 3, 311),
+    "latest": cv.Version(55, 3, 311),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -827,6 +983,16 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
         )
 
     return version
+
+
+def _strip_pioarduino_revision(ver: cv.Version) -> cv.Version:
+    """Drop a numeric 'extra' (pioarduino packaging revision, e.g. "5.5.3-1").
+
+    Alphanumeric prerelease extras (e.g. "6.0.0-rc1") are kept.
+    """
+    if ver.extra.isdigit():
+        return cv.Version(ver.major, ver.minor, ver.patch)
+    return ver
 
 
 def _check_pio_versions(config: ConfigType) -> ConfigType:
@@ -897,21 +1063,30 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
             "If there are connectivity or build issues please remove the manual source."
         )
 
-    # Official ESP-IDF frameworks don't use the 'extra' semver component.
-    value[CONF_VERSION] = str(cv.Version(version.major, version.minor, version.patch))
+    # esp-idf framework only: drop pioarduino's packaging revision (config + download).
+    # Arduino keeps its extra (it's the arduino-esp32 release tag / lookup key).
+    if value[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        value[CONF_VERSION] = str(_strip_pioarduino_revision(version))
 
     return config
 
 
 def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(cv.one_of(*(t.value for t in Toolchain), lower=True)(value))
+    return Toolchain(
+        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ESP_IDF, lower=True)(value)
+    )
 
 
-def _check_versions(config):
+def _resolve_toolchain(value: ConfigType) -> ConfigType:
     # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
+    # Runs before _detect_variant so downstream validators can rely on
+    # CORE.toolchain instead of re-resolving it from the config dict.
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = value.get(CONF_TOOLCHAIN, Toolchain.ESP_IDF)
+    return value
 
+
+def _check_versions(config: ConfigType) -> ConfigType:
     if CORE.using_toolchain_esp_idf:
         return _check_esp_idf_versions(config)
     return _check_pio_versions(config)
@@ -928,30 +1103,52 @@ def _parse_pio_platform_version(value):
         return value
 
 
+def _normalize_p4_engineering_sample(value: ConfigType) -> bool:
+    """Fill in CONF_ENGINEERING_SAMPLE when unset, warning that production
+    silicon (rev3) is assumed. Returns the normalized flag."""
+    if (engineering_sample := value.get(CONF_ENGINEERING_SAMPLE)) is None:
+        _LOGGER.warning(
+            "Defaulting to ESP32-P4 production silicon (rev3).\n"
+            "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+            "\n"
+            "  esp32:\n"
+            "    engineering_sample: true\n"
+            "\n"
+            "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+            "Engineering samples will show a revision below v3.0.\n"
+            "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
+        )
+        engineering_sample = False
+        value[CONF_ENGINEERING_SAMPLE] = engineering_sample
+    return engineering_sample
+
+
 def _detect_variant(value):
     board = value.get(CONF_BOARD)
     variant = value.get(CONF_VARIANT)
     if variant and board is None:
         # If variant is set, we can derive the board from it
-        # variant has already been validated against the known set
+        # variant has already been validated against the known set.
+        # PlatformIO needs a real board name to find its board file; the
+        # ESP-IDF toolchain only uses CONF_BOARD as the informational
+        # ESPHOME_BOARD string, so synthesize one from the friendly variant
+        # name rather than carrying a PIO board name through the IDF build.
+        if CORE.using_toolchain_esp_idf:
+            value = value.copy()
+            if variant == VARIANT_ESP32P4:
+                _normalize_p4_engineering_sample(value)
+            value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
+            return value
+        if variant not in STANDARD_BOARDS:
+            raise cv.Invalid(
+                f"No default board is known for {variant}. "
+                f"Please specify the `board:` option explicitly.",
+                path=[CONF_VARIANT],
+            )
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
-        if variant == VARIANT_ESP32P4:
-            engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
-            if engineering_sample is None:
-                _LOGGER.warning(
-                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
-                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
-                    "\n"
-                    "  esp32:\n"
-                    "    engineering_sample: true\n"
-                    "\n"
-                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
-                    "Engineering samples will show a revision below v3.0.\n"
-                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
-                )
-            elif engineering_sample:
-                value[CONF_BOARD] = "esp32-p4-evboard"
+        if variant == VARIANT_ESP32P4 and _normalize_p4_engineering_sample(value):
+            value[CONF_BOARD] = "esp32-p4-evboard"
     elif board in BOARDS:
         variant = variant or BOARDS[board][KEY_VARIANT]
         if variant != BOARDS[board][KEY_VARIANT]:
@@ -961,6 +1158,14 @@ def _detect_variant(value):
             )
         value = value.copy()
         value[CONF_VARIANT] = variant
+        if variant == VARIANT_ESP32P4:
+            board_is_es = BOARDS[board].get("engineering_sample", False)
+            engineering_sample = value.setdefault(CONF_ENGINEERING_SAMPLE, board_is_es)
+            if engineering_sample != board_is_es:
+                raise cv.Invalid(
+                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{board}'",
+                    path=[CONF_ENGINEERING_SAMPLE],
+                )
     elif not variant:
         raise cv.Invalid(
             "This board is unknown, if you are sure you want to compile with this board selection, "
@@ -972,12 +1177,258 @@ def _detect_variant(value):
             "This board is unknown; the specified variant '%s' will be used but this may not work as expected.",
             variant,
         )
+        if variant == VARIANT_ESP32P4:
+            value = value.copy()
+            _normalize_p4_engineering_sample(value)
     return value
 
 
-def final_validate(config):
+def _ota_downgrade_protection_errors(
+    project_version: str | None, signed_ota_enabled: bool
+) -> list[cv.Invalid]:
+    """Validate prerequisites for OTA downgrade protection.
+
+    Called only when the feature is enabled. Returns a ``cv.Invalid`` for each
+    unmet requirement: a dotted-numeric project version (the firmware version
+    compared on-device) and signed OTA (so the embedded version cannot be
+    forged).
+    """
+    path = [CONF_FRAMEWORK, CONF_ADVANCED, CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]
+    errs: list[cv.Invalid] = []
+    if not project_version:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires a "
+                f"'{CONF_PROJECT}' with a '{CONF_VERSION}' to be set in the "
+                f"'{CONF_ESPHOME}' section; this version is the firmware version "
+                "compared during OTA.",
+                path=path,
+            )
+        )
+    elif not re.fullmatch(r"\d+(\.\d+)*", project_version):
+        # The on-device comparison parses dotted-numeric versions only.
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires the "
+                f"'{CONF_PROJECT}' '{CONF_VERSION}' to be dotted-numeric (such "
+                f"as '1.2.3'), got '{project_version}'.",
+                path=path,
+            )
+        )
+    if not signed_ota_enabled:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_ENABLE_OTA_DOWNGRADE_PROTECTION}' requires "
+                f"'{CONF_SIGNED_OTA_VERIFICATION}' to be enabled; without signed "
+                "OTA the embedded version cannot be trusted.",
+                path=path,
+            )
+        )
+    return errs
+
+
+def _sbv2_rsa_key_digest(path: Path) -> bytes:
+    """SHA-256 of a public key's Secure Boot v2 signature-block key region.
+
+    This hashes the 776-byte {n, e, rinv, m'} region exactly as the ROM lays it
+    out -- i.e. the value the device computes per signature block and the one
+    ``espsecure digest-sbv2-public-key`` prints, not a hash of the DER key.
+    """
+    import hashlib
+    import struct
+
+    from cryptography.exceptions import UnsupportedAlgorithm
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.hazmat.primitives.serialization import (
+        load_pem_private_key,
+        load_pem_public_key,
+    )
+
+    data = path.read_bytes()
+    try:
+        if b"PUBLIC KEY" in data:
+            public_key = load_pem_public_key(data)
+        else:
+            # verification_keys only needs the public half; warn so the private
+            # key doesn't end up committed alongside the config.
+            _LOGGER.warning(
+                "'%s' is a private key, but '%s' needs only the public key. Use a "
+                "public-key PEM or the 64-hex digest (espsecure "
+                "digest-sbv2-public-key) so the private key stays out of your config.",
+                path,
+                CONF_VERIFICATION_KEYS,
+            )
+            public_key = load_pem_private_key(data, password=None).public_key()
+    except (ValueError, TypeError, UnsupportedAlgorithm) as err:
+        raise cv.Invalid(f"Could not load key '{path}': {err}") from err
+    if not isinstance(public_key, rsa.RSAPublicKey) or public_key.key_size != 3072:
+        raise cv.Invalid(
+            f"'{CONF_VERIFICATION_KEYS}' entries must be RSA-3072 keys; "
+            f"'{path}' is not."
+        )
+    numbers = public_key.public_numbers()
+    n, e = numbers.n, numbers.e
+    m = (-pow(n, -1, 1 << 32)) & 0xFFFFFFFF
+    rinv = (1 << (public_key.key_size * 2)) % n
+    blob = struct.pack(
+        "<384sI384sI",
+        n.to_bytes(384, "big")[::-1],
+        e,
+        rinv.to_bytes(384, "big")[::-1],
+        m,
+    )
+    return hashlib.sha256(blob).digest()
+
+
+def _validate_trusted_key(value: Any) -> str:
+    """Normalize a trusted key to its 64-hex-char signature-block digest.
+
+    Accepts either the digest directly (so CI can inject it without shipping a
+    key file) or a PEM key file whose digest is computed here. Typed ``Any``
+    because YAML hands validators the parsed value -- e.g. an unquoted ``0x...``
+    digest arrives as an int, which the guard below rejects with advice to quote.
+    """
+    # An unquoted 0x... or all-digit digest is parsed by YAML as an int before it
+    # reaches here, so it never looks like a string digest -- reject it clearly
+    # rather than letting it fall through to cv.file_ as a bogus path.
+    if not isinstance(value, str):
+        raise cv.Invalid(
+            f"Expected a key file path or a 64-character hex digest, got {value!r}. "
+            f"Quote the digest so YAML keeps it as text (an unquoted '0x...' or "
+            f"all-digit value is parsed as a number)."
+        )
+    stripped = value.strip()
+    if re.fullmatch(r"[0-9A-Fa-f]{64}", stripped):
+        return stripped.lower()
+    # An all-hex value that isn't exactly 64 chars is a mangled digest, not a
+    # path: a truncated or 0x-prefixed CI variable would otherwise fall through
+    # and fail as "file not found", pointing at the wrong problem.
+    if re.fullmatch(r"(?:0x)?[0-9A-Fa-f]+", stripped):
+        raise cv.Invalid(
+            f"'{stripped}' looks like a key digest but must be exactly 64 hex "
+            f"characters (a SHA-256, no '0x' prefix); check for truncation."
+        )
+    return _sbv2_rsa_key_digest(cv.file_(value)).hex()
+
+
+_SIGNED_OTA_VERIFICATION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SIGNING_KEY): cv.file_,
+        cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+        cv.Optional(CONF_VERIFICATION_KEYS): cv.All(
+            cv.ensure_list(_validate_trusted_key),
+            cv.Length(min=1, max=SIGNED_OTA_MAX_KEYS),
+        ),
+        cv.Optional(CONF_SIGNING_SCHEME, default=SIGNING_SCHEME_RSA3072): cv.one_of(
+            *SIGNING_SCHEMES, lower=True
+        ),
+    }
+)
+
+
+@schema_extractor("schema")
+def _validate_signed_ota_verification(value):
+    if value is SCHEMA_EXTRACT:
+        # Expose the inner schema so the language-schema dumper can walk the
+        # signing_key / verification_key / signing_scheme options.
+        return _SIGNED_OTA_VERIFICATION_SCHEMA
+    if value is None:
+        # A bare `signed_ota_verification:` block is valid: the default V2
+        # scheme needs no keys (verify externally-signed binaries).
+        value = {}
+    return _validate_signed_ota_keys(_SIGNED_OTA_VERIFICATION_SCHEMA(value))
+
+
+def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
+    """Validate the signing/verification key combination for the selected scheme.
+
+    A verification key is only used by the Secure Boot V1 scheme (ecdsa_v1):
+    the public key is compiled into the app so it can verify externally-signed
+    images. ESP-IDF's CONFIG_SECURE_BOOT_VERIFICATION_KEY only takes effect
+    when the V1 ECDSA scheme is selected and binaries are not signed during
+    the build (see SECURE_BOOT_VERIFICATION_KEY in the bootloader Kconfig).
+
+    The V2 schemes (rsa3072, ecdsa256) embed the public key in the signature
+    block appended to each image, so verifying externally-signed binaries
+    needs no key in the config at all -- omitting both keys selects that
+    external-signing mode.
+
+    For external RSA (rsa3072, no signing key), an optional 'verification_keys'
+    list names the keys the running app trusts. ESPHome then verifies OTA
+    signatures against that compiled-in set instead of IDF's single-block
+    check, which enables key rotation and multi-provider backup keys.
+    """
+    has_signing_key = CONF_SIGNING_KEY in config
+    has_verification_key = CONF_VERIFICATION_KEY in config
+    has_verification_keys = CONF_VERIFICATION_KEYS in config
+    scheme = config[CONF_SIGNING_SCHEME]
+    if has_signing_key and has_verification_key:
+        raise cv.Invalid(
+            f"Provide at most one of '{CONF_SIGNING_KEY}' and "
+            f"'{CONF_VERIFICATION_KEY}', not both.",
+            path=[CONF_VERIFICATION_KEY],
+        )
+    if has_verification_keys:
+        if scheme != SIGNING_SCHEME_RSA3072:
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' is only used with signing scheme "
+                f"'rsa3072' (externally-signed RSA images). With '{scheme}' the "
+                f"public key travels in each image's signature block.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        if has_signing_key:
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' verifies externally-signed images "
+                f"and cannot be combined with '{CONF_SIGNING_KEY}' (which signs "
+                f"during the build). Provide one or the other.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        if has_verification_key:
+            raise cv.Invalid(
+                f"Provide at most one of '{CONF_VERIFICATION_KEY}' and "
+                f"'{CONF_VERIFICATION_KEYS}', not both.",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+        keys = config[CONF_VERIFICATION_KEYS]
+        if len(set(keys)) != len(keys):
+            raise cv.Invalid(
+                f"'{CONF_VERIFICATION_KEYS}' entries must be unique (duplicate "
+                f"keys add nothing and waste a trusted-set slot).",
+                path=[CONF_VERIFICATION_KEYS],
+            )
+    if scheme == SIGNING_SCHEME_ECDSA_V1:
+        if not has_signing_key and not has_verification_key:
+            raise cv.Invalid(
+                f"Signing scheme 'ecdsa_v1' requires either '{CONF_SIGNING_KEY}' "
+                f"(to sign binaries during the build) or '{CONF_VERIFICATION_KEY}' "
+                f"(to verify binaries signed externally).",
+                path=[CONF_SIGNING_KEY],
+            )
+    elif has_verification_key:
+        raise cv.Invalid(
+            f"'{CONF_VERIFICATION_KEY}' is only used with signing scheme "
+            f"'ecdsa_v1'. With '{scheme}' the public key is embedded in each "
+            f"image's signature block, so no key file is needed to verify "
+            f"externally-signed binaries: remove '{CONF_VERIFICATION_KEY}', and "
+            f"set '{CONF_SIGNING_KEY}' only if binaries should be signed during "
+            f"the build.",
+            path=[CONF_VERIFICATION_KEY],
+        )
+    return config
+
+
+def final_validate(config) -> None:
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+
+    from .gpio import final_validate_pins
+
+    # Remove before 2027.2.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for ESP32 is deprecated and will be removed "
+            "in ESPHome 2027.2.0. Please use 'toolchain: esp-idf' instead."
+        )
 
     errs = []
     conf_fw = config[CONF_FRAMEWORK]
@@ -1032,20 +1483,6 @@ def final_validate(config):
                 path=[CONF_ENGINEERING_SAMPLE],
             )
         )
-    if (
-        config[CONF_VARIANT] == VARIANT_ESP32P4
-        and config.get(CONF_ENGINEERING_SAMPLE) is not None
-    ):
-        board_is_es = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
-        )
-        if config[CONF_ENGINEERING_SAMPLE] != board_is_es:
-            errs.append(
-                cv.Invalid(
-                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{config[CONF_BOARD]}'",
-                    path=[CONF_ENGINEERING_SAMPLE],
-                )
-            )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
@@ -1061,6 +1498,8 @@ def final_validate(config):
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
+
+    final_validate_pins(full_config)
 
     if (
         config[CONF_FLASH_SIZE] == "32MB"
@@ -1099,7 +1538,10 @@ def final_validate(config):
         ]
 
         # V1 ECDSA is only available on the original ESP32
-        if scheme == "ecdsa_v1" and variant not in SIGNED_OTA_V1_ECDSA_VARIANTS:
+        if (
+            scheme == SIGNING_SCHEME_ECDSA_V1
+            and variant not in SIGNED_OTA_V1_ECDSA_VARIANTS
+        ):
             errs.append(
                 cv.Invalid(
                     f"Signing scheme 'ecdsa_v1' is only supported on "
@@ -1112,7 +1554,9 @@ def final_validate(config):
             # On ESP32, V2 RSA requires minimum_chip_revision >= 3.0
             # Note: string comparison works here because cv.one_of constrains
             # min_rev to known ESP32_CHIP_REVISIONS values ("0.0".."3.1").
-            if scheme == "rsa3072" and (min_rev is None or min_rev < "3.0"):
+            if scheme == SIGNING_SCHEME_RSA3072 and (
+                min_rev is None or min_rev < "3.0"
+            ):
                 errs.append(
                     cv.Invalid(
                         f"Signing scheme 'rsa3072' on {VARIANT_FRIENDLY[variant]} "
@@ -1123,7 +1567,7 @@ def final_validate(config):
                     )
                 )
             # ESP32 does not support V2 ECDSA (no SOC_SECURE_BOOT_V2_ECC)
-            elif scheme == "ecdsa256":
+            elif scheme == SIGNING_SCHEME_ECDSA256:
                 errs.append(
                     cv.Invalid(
                         f"Signing scheme 'ecdsa256' is not supported on "
@@ -1133,7 +1577,11 @@ def final_validate(config):
                     )
                 )
             # V1 on rev 3.0+ -- suggest V2 RSA for stronger security
-            elif scheme == "ecdsa_v1" and min_rev is not None and min_rev >= "3.0":
+            elif (
+                scheme == SIGNING_SCHEME_ECDSA_V1
+                and min_rev is not None
+                and min_rev >= "3.0"
+            ):
                 _LOGGER.info(
                     "Using Secure Boot V1 ECDSA on %s rev %s. "
                     "Consider using 'rsa3072' (Secure Boot V2 RSA) for "
@@ -1144,8 +1592,14 @@ def final_validate(config):
         else:
             # Non-ESP32 variants: check V2 scheme-variant compatibility
             scheme_variant_conflicts = {
-                "ecdsa256": (SIGNED_OTA_V2_RSA_ONLY_VARIANTS, "rsa3072"),
-                "rsa3072": (SIGNED_OTA_V2_ECC_ONLY_VARIANTS, "ecdsa256"),
+                SIGNING_SCHEME_ECDSA256: (
+                    SIGNED_OTA_V2_RSA_ONLY_VARIANTS,
+                    SIGNING_SCHEME_RSA3072,
+                ),
+                SIGNING_SCHEME_RSA3072: (
+                    SIGNED_OTA_V2_ECC_ONLY_VARIANTS,
+                    SIGNING_SCHEME_ECDSA256,
+                ),
             }
             if (
                 conflict := scheme_variant_conflicts.get(scheme)
@@ -1172,14 +1626,43 @@ def final_validate(config):
             )
         else:
             _LOGGER.info(
-                "Signed OTA verification is configured with a public verification key. "
+                "Signed OTA verification is enabled without a signing key. "
                 "Binaries will NOT be signed automatically during build. "
                 "You must sign them externally before flashing."
             )
+    if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
+        variant = config[CONF_VARIANT]
+        if variant in NVS_ENCRYPTION_HMAC_VARIANTS:
+            _LOGGER.warning(
+                "NVS encryption will burn an HMAC key into eFuse key block %d on the "
+                "first boot of each device. This is PERMANENT and IRREVERSIBLE: "
+                "the block cannot be erased or reused afterwards. Enabling (or "
+                "later disabling) encryption also wipes any previously saved "
+                "preferences once, because the older data can no longer be read.",
+                nvs_enc[CONF_KEY_ID],
+            )
+        else:
+            supported = ", ".join(
+                sorted(VARIANT_FRIENDLY[v] for v in NVS_ENCRYPTION_HMAC_VARIANTS)
+            )
+            errs.append(
+                cv.Invalid(
+                    f"NVS encryption (HMAC scheme) is not supported on "
+                    f"{VARIANT_FRIENDLY[variant]} (it has no HMAC peripheral). "
+                    f"Supported variants: {supported}.",
+                    path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_NVS_ENCRYPTION],
+                )
+            )
+    if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
+        project = full_config[CONF_ESPHOME].get(CONF_PROJECT)
+        errs.extend(
+            _ota_downgrade_protection_errors(
+                project[CONF_VERSION] if project else None,
+                bool(advanced.get(CONF_SIGNED_OTA_VERIFICATION)),
+            )
+        )
     if errs:
         raise cv.MultipleInvalid(errs)
-
-    return config
 
 
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
@@ -1220,6 +1703,7 @@ KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
 KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 KEY_ADC_ONESHOT_IRAM_REQUIRED = "adc_oneshot_iram_required"
+KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED = "libc_picolibc_newlib_compat_required"
 
 
 def require_vfs_select() -> None:
@@ -1328,6 +1812,18 @@ def require_adc_oneshot_iram() -> None:
     CORE.data[KEY_ESP32][KEY_ADC_ONESHOT_IRAM_REQUIRED] = True
 
 
+def require_libc_picolibc_newlib_compat() -> None:
+    """Keep CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY enabled on IDF 6.0+.
+
+    Call this from components that link against precompiled Newlib binaries
+    referencing types/symbols the shim provides (e.g. zigbee). No-op on
+    IDF < 6.0.0.
+    """
+    if idf_version() < cv.Version(6, 0, 0):
+        return
+    CORE.data[KEY_ESP32][KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED] = True
+
+
 def _parse_idf_component(value: str) -> ConfigType:
     """Parse IDF component shorthand syntax like 'owner/component^version'"""
     # Match operator followed by version-like string (digit or *)
@@ -1345,16 +1841,20 @@ FRAMEWORK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-        cv.Optional(CONF_RELEASE): cv.string_strict,
-        cv.Optional(CONF_SOURCE): cv.string_strict,
-        cv.Optional(CONF_PLATFORM_VERSION): _parse_pio_platform_version,
-        cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
-            cv.string_strict: cv.string_strict
-        },
+        cv.Optional(CONF_RELEASE, visibility=cv.Visibility.YAML_ONLY): cv.string_strict,
+        cv.Optional(CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY): cv.string_strict,
+        cv.Optional(
+            CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+        ): _parse_pio_platform_version,
+        cv.Optional(
+            CONF_SDKCONFIG_OPTIONS, default={}, visibility=cv.Visibility.YAML_ONLY
+        ): {cv.string_strict: cv.string_strict},
         cv.Optional(CONF_LOG_LEVEL, default="ERROR"): cv.one_of(
             *LOG_LEVELS_IDF, upper=True
         ),
-        cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+        cv.Optional(
+            CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
+        ): cv.Schema(
             {
                 cv.Optional(CONF_ASSERTION_LEVEL): cv.one_of(
                     *ASSERTION_LEVELS, upper=True
@@ -1400,17 +1900,20 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
-                cv.Optional(CONF_SIGNED_OTA_VERIFICATION): cv.All(
-                    cv.Schema(
-                        {
-                            cv.Optional(CONF_SIGNING_KEY): cv.file_,
-                            cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
-                            cv.Optional(
-                                CONF_SIGNING_SCHEME, default="rsa3072"
-                            ): cv.one_of(*SIGNING_SCHEMES, lower=True),
-                        }
-                    ),
-                    cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
+                cv.Optional(
+                    CONF_ENABLE_OTA_DOWNGRADE_PROTECTION, default=False
+                ): cv.boolean,
+                cv.Optional(
+                    CONF_SIGNED_OTA_VERIFICATION
+                ): _validate_signed_ota_verification,
+                cv.Optional(CONF_NVS_ENCRYPTION): cv.Schema(
+                    {
+                        # eFuse key block (0-5) that stores the HMAC key from
+                        # which the NVS encryption keys are derived. The block is
+                        # written on first boot if empty -- an irreversible
+                        # operation -- so it must be chosen explicitly.
+                        cv.Required(CONF_KEY_ID): cv.int_range(min=0, max=5),
+                    }
                 ),
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
@@ -1432,7 +1935,9 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_DISABLE_FATFS, default=True): cv.boolean,
             }
         ),
-        cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
+        cv.Optional(
+            CONF_COMPONENTS, default=[], visibility=cv.Visibility.YAML_ONLY
+        ): cv.ensure_list(
             cv.All(
                 cv.Any(
                     cv.All(cv.string_strict, _parse_idf_component),
@@ -1451,65 +1956,12 @@ FRAMEWORK_SCHEMA = cv.Schema(
 )
 
 
-# Remove this class in 2026.7.0
-class _FrameworkMigrationWarning:
-    shown = False
-
-
-def _show_framework_migration_message(name: str, variant: str) -> None:
-    """Show a message about the framework default change and how to switch back to Arduino."""
-    # Remove this function in 2026.7.0
-    if _FrameworkMigrationWarning.shown:
-        return
-    _FrameworkMigrationWarning.shown = True
-
-    from esphome.log import AnsiFore, color
-
-    message = (
-        color(
-            AnsiFore.BOLD_CYAN,
-            f"💡 NOTICE: {name} does not have a framework specified.",
-        )
-        + "\n\n"
-        + f"Starting with ESPHome 2026.1.0, the default framework for {variant} is ESP-IDF.\n"
-        + "(We've been warning about this change since ESPHome 2025.8.0)\n"
-        + "\n"
-        + "Why we made this change:\n"
-        + color(AnsiFore.GREEN, "  ✨ Smaller firmware binaries\n")
-        + color(AnsiFore.GREEN, "  ⚡ Faster compile times\n")
-        + color(AnsiFore.GREEN, "  🚀 Better performance and newer features\n")
-        + color(AnsiFore.GREEN, "  🔧 More actively maintained by ESPHome\n")
-        + "\n"
-        + "To continue using Arduino, add this to your YAML under 'esp32:':\n"
-        + color(AnsiFore.WHITE, "    framework:\n")
-        + color(AnsiFore.WHITE, "      type: arduino\n")
-        + "\n"
-        + "To silence this message with ESP-IDF, explicitly set:\n"
-        + color(AnsiFore.WHITE, "    framework:\n")
-        + color(AnsiFore.WHITE, "      type: esp-idf\n")
-        + "\n"
-        + "Migration guide: "
-        + color(
-            AnsiFore.BLUE,
-            "https://esphome.io/guides/esp32_arduino_to_idf/",
-        )
-    )
-    _LOGGER.warning(message)
-
-
 def _set_default_framework(config):
     config = config.copy()
     if CONF_FRAMEWORK not in config:
         config[CONF_FRAMEWORK] = FRAMEWORK_SCHEMA({})
     if CONF_TYPE not in config[CONF_FRAMEWORK]:
-        variant = config[CONF_VARIANT]
         config[CONF_FRAMEWORK][CONF_TYPE] = FRAMEWORK_ESP_IDF
-        # Show migration message for variants that previously defaulted to Arduino
-        # Remove this message in 2026.7.0
-        if variant in ARDUINO_ALLOWED_VARIANTS:
-            _show_framework_migration_message(
-                config.get(CONF_NAME, "This device"), variant
-            )
 
     return config
 
@@ -1560,8 +2012,14 @@ FLASH_SIZES = [
 ]
 
 CONF_FLASH_SIZE = "flash_size"
+CONF_FLASH_MODE = "flash_mode"
+CONF_FLASH_FREQUENCY = "flash_frequency"
 CONF_CPU_FREQUENCY = "cpu_frequency"
 CONF_PARTITIONS = "partitions"
+FLASH_MODES = ["qio", "qout", "dio", "dout", "opi"]
+FLASH_FREQUENCIES = [
+    f"{freq}MHZ" for freq in (120, 80, 64, 60, 48, 40, 32, 30, 26, 24, 20, 16)
+]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -1575,7 +2033,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
-            cv.Optional(CONF_PARTITIONS): cv.Any(
+            cv.Optional(CONF_FLASH_MODE): cv.one_of(*FLASH_MODES, lower=True),
+            cv.Optional(CONF_FLASH_FREQUENCY): cv.one_of(
+                *FLASH_FREQUENCIES, upper=True
+            ),
+            cv.Optional(CONF_PARTITIONS, visibility=cv.Visibility.YAML_ONLY): cv.Any(
                 cv.file_,
                 cv.ensure_list(
                     cv.All(
@@ -1599,13 +2061,16 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
-            cv.Optional(CONF_TOOLCHAIN): _validate_toolchain,
+            cv.Optional(
+                CONF_TOOLCHAIN, visibility=cv.Visibility.ADVANCED
+            ): _validate_toolchain,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
             ),
         }
     ),
+    _resolve_toolchain,
     _detect_variant,
     _set_default_framework,
     _check_versions,
@@ -1684,17 +2149,16 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
 
 
+def register_exclude_components_cmake_arg() -> None:
+    """Register the current exclusion set as the EXCLUDE_COMPONENTS cmake arg."""
+    if excluded := get_excluded_builtin_components():
+        cg.add_cmake_arg("EXCLUDE_COMPONENTS", ";".join(excluded))
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
-    if KEY_ESP32 not in CORE.data:
-        return
-    excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
-    if excluded:
-        exclude_list = ";".join(sorted(excluded))
-        cg.add_platformio_option(
-            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
-        )
+    register_exclude_components_cmake_arg()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -1733,6 +2197,81 @@ async def _write_arduino_libraries_sdkconfig() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _set_libc_picolibc_newlib_compat() -> None:
+    """Apply the PicolibC Newlib compatibility shim option on IDF 6.0+.
+
+    IDF 6.0 switched from Newlib to PicolibC; the shim is disabled by default.
+    Runs at FINAL priority so every require_libc_picolibc_newlib_compat() call
+    (default priority) is seen before the option is written. A user-supplied
+    sdkconfig_options value takes precedence.
+    """
+    if idf_version() < cv.Version(6, 0, 0):
+        return
+    option = "CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY"
+    if option in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
+        return
+    add_idf_sdkconfig_option(
+        option,
+        CORE.data[KEY_ESP32].get(KEY_LIBC_PICOLIBC_NEWLIB_COMPAT_REQUIRED, False),
+    )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_network_sdkconfig() -> None:
+    """Reconcile WiFi/Ethernet/Bluetooth/coexistence sdkconfig flags.
+
+    Single decision point for flags that multiple components used to set
+    directly (and sometimes with conflicting values). Runs at FINAL priority so
+    every request_*() call (made from the various components' to_code at their
+    own priorities) is seen first. A user-supplied sdkconfig_options value
+    always takes precedence.
+    """
+    net = CORE.data[KEY_ESP32].get(KEY_NETWORK_SDKCONFIG, NetworkSdkconfigData())
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    is_arduino = CORE.using_arduino
+
+    def set_opt(name: str, value: SdkconfigValueType) -> None:
+        # User sdkconfig_options (applied during to_code) win.
+        if name not in opts:
+            add_idf_sdkconfig_option(name, value)
+
+    # Bluetooth: only ever enable when requested. The IDF default is off.
+    # According to the IDF docs, only one of 4.2 or 5.0 should be enabled.
+    if net.bluetooth:
+        set_opt("CONFIG_BT_ENABLED", True)
+        set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+        set_opt("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", False)
+
+    # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
+    # relies on the IDF default (enabled), so it is never written True here.
+    wifi_disabled = net.ethernet and not net.wifi
+    if wifi_disabled:
+        set_opt("CONFIG_ESP_WIFI_ENABLED", False)
+
+    # Software coexistence: enable when requested (the schema only allows it
+    # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
+    if net.software_coexistence:
+        set_opt("CONFIG_SW_COEXIST_ENABLE", True)
+    elif wifi_disabled:
+        set_opt("CONFIG_SW_COEXIST_ENABLE", False)
+
+    # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
+    if not is_arduino and net.wifi and not net.wifi_ap:
+        set_opt("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
+
+    # LWIP DHCP server: a WiFi-AP-mode / enable_lwip_dhcp_server concern (not
+    # coexistence). Disable when WiFi has no AP (IDF) or the enable_lwip_dhcp_server
+    # option is set to false, unless Arduino+Ethernet needs the symbols to compile.
+    wifi_wants_dhcps_off = not is_arduino and net.wifi and not net.wifi_ap
+    dhcp_server_disabled_by_option = net.enable_lwip_dhcp_server is False
+    arduino_eth_exclusion = is_arduino and net.ethernet
+    if (
+        wifi_wants_dhcps_off or dhcp_server_disabled_by_option
+    ) and not arduino_eth_exclusion:
+        set_opt("CONFIG_LWIP_DHCPS", False)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _add_yaml_idf_components(components: list[ConfigType]):
     """Add IDF components from YAML config with final priority to override code-added components."""
     for component in components:
@@ -1742,6 +2281,62 @@ async def _add_yaml_idf_components(components: list[ConfigType]):
             ref=component.get(CONF_REF),
             path=component.get(CONF_PATH),
         )
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_vfs_fatfs_sdkconfig(
+    disable_vfs_termios: bool,
+    disable_vfs_select: bool,
+    disable_vfs_dir: bool,
+    disable_fatfs: bool,
+) -> None:
+    """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+
+    def set_opt(name: str, value: SdkconfigValueType) -> None:
+        # User sdkconfig_options (applied during to_code) win.
+        if name not in opts:
+            add_idf_sdkconfig_option(name, value)
+
+    # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
+    if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
+        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
+    else:
+        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
+
+    # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
+    # sockets use lwip_select() either way. ~2.7KB flash when off.
+    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
+        set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
+    else:
+        set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
+
+    # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
+    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
+        set_opt("CONFIG_VFS_SUPPORT_DIR", True)
+    else:
+        set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
+
+    # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
+    # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
+    # any member, leave the group alone. LFN_HEAP allocates per LFN op; LFN_STACK uses stack.
+    lfn_keys = (
+        "CONFIG_FATFS_LFN_NONE",
+        "CONFIG_FATFS_LFN_HEAP",
+        "CONFIG_FATFS_LFN_STACK",
+    )
+    user_picked_lfn = any(k in opts for k in lfn_keys)
+    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", False)
+            set_opt("CONFIG_FATFS_LFN_HEAP", True)
+            set_opt("CONFIG_FATFS_MAX_LFN", 255)
+        set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
+    elif disable_fatfs:
+        if not user_picked_lfn:
+            set_opt("CONFIG_FATFS_LFN_NONE", True)
+        # Kconfig range is [1,10]; 0 gets clamped to the default.
+        set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
@@ -1790,6 +2385,12 @@ async def to_code(config):
             "board_upload.maximum_size",
             int(config[CONF_FLASH_SIZE].removesuffix("MB")) * 1024 * 1024,
         )
+        if flash_mode := config.get(CONF_FLASH_MODE):
+            cg.add_platformio_option("board_build.flash_mode", flash_mode)
+        if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
+            cg.add_platformio_option(
+                "board_build.f_flash", f"{flash_frequency[:-3]}000000L"
+            )
 
         if CONF_SOURCE in conf:
             cg.add_platformio_option("platform_packages", [conf[CONF_SOURCE]])
@@ -1828,6 +2429,8 @@ async def to_code(config):
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("USE_NATIVE_64BIT_TIME")
+    # NVS finds stored preferences by key, so preference key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag("-Wl,-z,noexecstack")
     # Deferred so KEY_COMPONENTS is fully populated -- see the coroutine.
     CORE.add_job(_finalize_arduino_aware_flags)
@@ -1940,16 +2543,23 @@ async def to_code(config):
     add_idf_sdkconfig_option(
         f"CONFIG_ESPTOOLPY_FLASHSIZE_{config[CONF_FLASH_SIZE]}", True
     )
-
-    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
-    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
-    # sections.rev3.ld.in (for rev >=3) based on board definition.
-    # Set the sdkconfig option to match the board's chip revision.
-    if variant == VARIANT_ESP32P4:
-        is_eng_sample = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
+    if flash_mode := config.get(CONF_FLASH_MODE):
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHMODE_{flash_mode.upper()}", True
         )
-        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_eng_sample)
+    if flash_frequency := config.get(CONF_FLASH_FREQUENCY):
+        add_idf_sdkconfig_option(
+            f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
+        )
+
+    # ESP32-P4: pre-v3 and rev3 (v3.0+) silicon are not binary compatible.
+    # CONFIG_ESP32P4_SELECTS_REV_LESS_V3 selects which layout ESP-IDF links;
+    # validation normalizes CONF_ENGINEERING_SAMPLE from the board when unset.
+    if variant == VARIANT_ESP32P4:
+        add_idf_sdkconfig_option(
+            "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
+            config.get(CONF_ENGINEERING_SAMPLE, False),
+        )
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
@@ -2042,14 +2652,12 @@ async def to_code(config):
     for component_name in advanced.get(CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, []):
         include_builtin_idf_component(component_name)
 
-    # DHCP server: only disable if explicitly set to false
-    # WiFi component handles its own optimization when AP mode is not used
-    # When using Arduino with Ethernet, DHCP server functions must be available
-    # for the Network library to compile, even if not actively used
-    if advanced.get(CONF_ENABLE_LWIP_DHCP_SERVER) is False and not (
-        conf[CONF_TYPE] == FRAMEWORK_ARDUINO and "ethernet" in CORE.loaded_integrations
-    ):
-        add_idf_sdkconfig_option("CONFIG_LWIP_DHCPS", False)
+    # DHCP server (CONFIG_LWIP_DHCPS) is reconciled in _reconcile_network_sdkconfig
+    # together with the WiFi component's own AP-mode optimization; record the user's
+    # advanced tristate (True/False/None) for it to consume at FINAL priority.
+    _network_sdkconfig().enable_lwip_dhcp_server = advanced.get(
+        CONF_ENABLE_LWIP_DHCP_SERVER
+    )
     if not advanced[CONF_ENABLE_LWIP_MDNS_QUERIES]:
         add_idf_sdkconfig_option("CONFIG_LWIP_DNS_SUPPORT_MDNS_QUERIES", False)
     if not advanced[CONF_ENABLE_LWIP_BRIDGE_INTERFACE]:
@@ -2084,47 +2692,6 @@ async def to_code(config):
     # use libc lock APIs. Saves approximately 1.3KB (1,356 bytes) of IRAM.
     if advanced[CONF_DISABLE_LIBC_LOCKS_IN_IRAM]:
         add_idf_sdkconfig_option("CONFIG_LIBC_LOCKS_PLACE_IN_IRAM", False)
-
-    # Disable VFS support for termios (terminal I/O functions)
-    # USB Serial JTAG VFS functions require termios support.
-    # Components that need it (e.g., logger when USB_SERIAL_JTAG is supported but not selected
-    # as the logger output) call require_vfs_termios().
-    # Saves approximately 1.8KB of flash when disabled (default).
-    if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
-        # Component requires VFS termios - force enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_TERMIOS", True)
-    else:
-        # No component needs it - allow user to control (default: disabled)
-        add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_TERMIOS", not advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS]
-        )
-
-    # Disable VFS support for select() with file descriptors
-    # ESPHome only uses select() with sockets via lwip_select(), which still works.
-    # VFS select is only needed for UART/eventfd file descriptors.
-    # Components that need it (e.g., openthread) call require_vfs_select().
-    # Saves approximately 2.7KB of flash when disabled (default).
-    if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
-        # Component requires VFS select - force enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_SELECT", True)
-    else:
-        # No component needs it - allow user to control (default: disabled)
-        add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_SELECT", not advanced[CONF_DISABLE_VFS_SUPPORT_SELECT]
-        )
-
-    # Disable VFS support for directory functions (opendir, readdir, mkdir, etc.)
-    # ESPHome doesn't use directory functions on ESP32.
-    # Components that need it (e.g., storage components) call require_vfs_dir().
-    # Saves approximately 0.5KB+ of flash when disabled (default).
-    if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
-        # Component requires VFS directory support - force enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_VFS_SUPPORT_DIR", True)
-    else:
-        # No component needs it - allow user to control (default: disabled)
-        add_idf_sdkconfig_option(
-            "CONFIG_VFS_SUPPORT_DIR", not advanced[CONF_DISABLE_VFS_SUPPORT_DIR]
-        )
 
     if use_platformio:
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
@@ -2173,12 +2740,83 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
         cg.add_define("USE_OTA_ROLLBACK")
 
+    # Enable software OTA downgrade protection. Embed the project version into
+    # the image's esp_app_desc_t so the OTA backend can compare it against the
+    # running version (final_validate guarantees a dotted-numeric project
+    # version and that signed OTA is enabled).
+    if advanced[CONF_ENABLE_OTA_DOWNGRADE_PROTECTION]:
+        project_version = CORE.config[CONF_ESPHOME][CONF_PROJECT][CONF_VERSION]
+        add_idf_sdkconfig_option("CONFIG_APP_PROJECT_VER_FROM_CONFIG", True)
+        add_idf_sdkconfig_option("CONFIG_APP_PROJECT_VER", project_version)
+        cg.add_define("USE_OTA_DOWNGRADE_PROTECTION")
+
     # Enable signed app verification without hardware secure boot
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
         add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
-        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True)
 
         scheme = signed_ota[CONF_SIGNING_SCHEME]
+        # For externally-signed RSA images with a declared 'verification_keys'
+        # list, ESPHome verifies the OTA signature itself instead of using IDF's
+        # on-update check. IDF only matches the incoming image's first signature
+        # block against the running app's first, which blocks key rotation and
+        # multi-provider backup keys; ESPHome accepts an image signed by any key
+        # in the compiled-in trusted set. Without 'verification_keys' there is no
+        # trust anchor, so fall back to IDF's built-in check.
+        # The build still produces the padded unsigned image (via SECURE_
+        # SIGNED_APPS_NO_SECURE_BOOT above); only the on-update check moves.
+        # SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT defaults to y under
+        # SECURE_SIGNED_APPS_NO_SECURE_BOOT, so it must be set explicitly:
+        # False to hand verification to ESPHome, True to keep IDF's check.
+        # Setting it False also drives the hidden CONFIG_SECURE_SIGNED_APPS to
+        # n; the 4 KiB padding and reserved signature sector the verifier
+        # depends on survive only because --secure-pad-v2 keys off
+        # CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME (set below), not that symbol.
+        external_rsa = (
+            scheme == SIGNING_SCHEME_RSA3072 and CONF_SIGNING_KEY not in signed_ota
+        )
+        verification_keys = signed_ota.get(CONF_VERIFICATION_KEYS)
+        # verification_keys is accepted only for external RSA (rsa3072 with no
+        # signing_key), enforced in _validate_signed_ota_keys. Assert the
+        # post-condition so validator/codegen drift fails the build loudly
+        # instead of silently dropping the declared trust anchor and downgrading
+        # to IDF's single-block check.
+        assert not verification_keys or external_rsa
+        multi_key = external_rsa and verification_keys
+        # Turning IDF's on-update check off is global -- it also drops the
+        # signature check from esp_ota_set_boot_partition() on the partition-table
+        # path and safe_mode's recovery rollback. Both deliberately select an
+        # already-installed image (or an MD5-checked partition table), not a
+        # freshly-downloaded one, so ESPHome's verifier only needs to cover the
+        # app and bootloader OTA paths, where a new image is actually written.
+        add_idf_sdkconfig_option(
+            "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", not multi_key
+        )
+        if multi_key:
+            cg.add_define("USE_OTA_SIGNED_VERIFICATION_MULTI_KEY")
+            # Compile the trusted key digests in as the immutable trust anchor.
+            # Each is the SHA-256 of a key's signature-block region; the verifier
+            # accepts an OTA whose signature block matches one of these.
+            digests = [bytes.fromhex(k) for k in verification_keys]
+            # Echo the resolved digests so a stale or mistyped key (which builds
+            # cleanly but leaves the device updatable only by serial reflash) is
+            # visible in the build log.
+            _LOGGER.info(
+                "Signed OTA verification trusts %d key digest(s): %s",
+                len(digests),
+                ", ".join(d.hex() for d in digests),
+            )
+            cg.add_define("OTA_TRUSTED_KEY_COUNT", len(digests))
+            cg.add_define(
+                "OTA_TRUSTED_KEY_DIGESTS",
+                cg.RawExpression(
+                    "{"
+                    + ",".join(
+                        "{" + ",".join(f"0x{b:02x}" for b in d) + "}" for d in digests
+                    )
+                    + "}"
+                ),
+            )
+
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)
 
@@ -2187,17 +2825,35 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", True)
             add_idf_sdkconfig_option(
                 "CONFIG_SECURE_BOOT_SIGNING_KEY",
-                str(signed_ota[CONF_SIGNING_KEY].resolve()),
+                signed_ota[CONF_SIGNING_KEY].resolve().as_posix(),
             )
         else:
-            # Public key mode — verification only, external signing required
+            # External signing mode — binaries must be signed after the build
             add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", False)
-            add_idf_sdkconfig_option(
-                "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
-                str(signed_ota[CONF_VERIFICATION_KEY].resolve()),
-            )
+            if CONF_VERIFICATION_KEY in signed_ota:
+                # V1 ECDSA only: the public key is compiled into the app to
+                # verify externally-signed images. V2 schemes carry the public
+                # key in each image's signature block and need no key here.
+                add_idf_sdkconfig_option(
+                    "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
+                    signed_ota[CONF_VERIFICATION_KEY].resolve().as_posix(),
+                )
 
         cg.add_define("USE_OTA_SIGNED_VERIFICATION")
+
+    # Encrypt NVS using the HMAC peripheral scheme. The NVS encryption keys are
+    # derived at runtime from an HMAC key stored in the configured eFuse block
+    # (no flash encryption required). The HMAC key is generated and burned into
+    # the eFuse block on first boot if it is empty. With the scheme selected,
+    # nvs_sec_provider registers it at startup and the default nvs_flash_init()
+    # (used in esp32/preferences.cpp) transparently performs the secure init, so
+    # no C++ changes are needed.
+    if (nvs_enc := advanced.get(CONF_NVS_ENCRYPTION)) is not None:
+        add_idf_sdkconfig_option("CONFIG_NVS_ENCRYPTION", True)
+        add_idf_sdkconfig_option("CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC", True)
+        add_idf_sdkconfig_option(
+            "CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID", nvs_enc[CONF_KEY_ID]
+        )
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
@@ -2265,17 +2921,21 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
 
-    # Disable PicolibC Newlib compatibility shim on IDF 6.0+
-    # IDF 6.0 switched from Newlib to PicolibC. The shim provides thread-local
-    # stdin/stdout/stderr and getreent() for code compiled against Newlib.
-    # ESPHome doesn't link against Newlib-built libraries that use stdio.
-    # If a component needs it (e.g. precompiled Newlib binaries), re-enable via:
-    #   esp32:
-    #     framework:
-    #       sdkconfig_options:
-    #         CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY: "y"
-    if idf_version() >= cv.Version(6, 0, 0):
-        add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", False)
+    # FINAL priority: runs after every require_libc_picolibc_newlib_compat() call
+    CORE.add_job(_set_libc_picolibc_newlib_compat)
+
+    # FINAL priority: runs after every network/coexistence request_*() call
+    CORE.add_job(_reconcile_network_sdkconfig)
+
+    # FINAL: require_*() calls can come from to_code at or below this priority, so an
+    # inline read would be iteration-order-dependent; reconcile once after every job ran.
+    CORE.add_job(
+        _reconcile_vfs_fatfs_sdkconfig,
+        advanced[CONF_DISABLE_VFS_SUPPORT_TERMIOS],
+        advanced[CONF_DISABLE_VFS_SUPPORT_SELECT],
+        advanced[CONF_DISABLE_VFS_SUPPORT_DIR],
+        advanced[CONF_DISABLE_FATFS],
+    )
 
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
@@ -2291,17 +2951,6 @@ async def to_code(config):
         or advanced[CONF_ADC_ONESHOT_IN_IRAM]
     ):
         add_idf_sdkconfig_option("CONFIG_ADC_ONESHOT_CTRL_FUNC_IN_IRAM", True)
-
-    # Disable FATFS support
-    # Components that need FATFS (SD card, etc.) can call require_fatfs()
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
-        # Component called require_fatfs() - enable regardless of user setting
-        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", False)
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 2)
-    elif advanced[CONF_DISABLE_FATFS]:
-        add_idf_sdkconfig_option("CONFIG_FATFS_LFN_NONE", True)
-        # Kconfig range is [1,10]; 0 gets clamped to the default.
-        add_idf_sdkconfig_option("CONFIG_FATFS_VOLUME_COUNT", 1)
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
@@ -2536,13 +3185,6 @@ def _write_sdkconfig():
         clean_build(clear_pio_cache=False)
 
 
-def _platformio_library_to_dependency(library: Library) -> tuple[str, dict[str, str]]:
-    dependency: dict[str, str] = {}
-    name, _version, path = generate_idf_component(library)
-    dependency["override_path"] = str(path)
-    return name, dependency
-
-
 def _write_idf_component_yml():
     yml_path = CORE.relative_build_path("src/idf_component.yml")
     dependencies: dict[str, dict] = {}
@@ -2583,6 +3225,26 @@ def _write_idf_component_yml():
                 "override_path": str(stub_path),
             }
 
+        # On the PlatformIO toolchain, framework-arduinoespressif32 already
+        # ships arduino-esp32. Stub the managed component so anything that
+        # `REQUIRES arduino-esp32` (e.g. third-party FastLED) resolves to a
+        # CMake target that re-exports the framework's INTERFACE properties
+        # (INCLUDE_DIRS, public compile options like -DESP32, transitive
+        # REQUIRES) instead of triggering a duplicate download/rebuild.
+        if CORE.using_toolchain_platformio:
+            arduino_stub = stubs_dir / "arduino-esp32"
+            arduino_stub.mkdir(exist_ok=True)
+            write_file_if_changed(
+                arduino_stub / "CMakeLists.txt",
+                "idf_component_register()\n"
+                "target_link_libraries(${COMPONENT_LIB} "
+                f"INTERFACE idf::{ARDUINO_FRAMEWORK_NAME})\n",
+            )
+            dependencies[ARDUINO_ESP32_COMPONENT_NAME] = {
+                "version": "*",
+                "override_path": str(arduino_stub),
+            }
+
         # Remove stubs for components that are now required by enabled libraries
         for component_name in required_idf_components:
             stub_path = stubs_dir / _idf_component_stub_name(component_name)
@@ -2596,13 +3258,21 @@ def _write_idf_component_yml():
             )
 
     if CORE.using_toolchain_esp_idf:
-        # Try to convert PlatformIO library to ESP-IDF components
-        for name, library in CORE.platformio_libraries.items():
+        # Convert the PlatformIO libraries to ESP-IDF components as a batch so
+        # PlatformIO resolves the whole dependency tree at once -- deduplicating
+        # shared transitive deps (e.g. esphome/libsodium pulled by both noise-c
+        # and esp_wireguard) to a single version instead of clashing
+        # override_path entries.
+        libraries = [
+            library
+            for name, library in CORE.platformio_libraries.items()
             # Don't process arduino libraries
-            if name in ARDUINO_DISABLED_LIBRARIES:
-                continue
-            dependency_name, dependency = _platformio_library_to_dependency(library)
-            dependencies[dependency_name] = dependency
+            if name not in ARDUINO_DISABLED_LIBRARIES
+        ]
+        for component in generate_idf_components(libraries):
+            dependencies[component.get_sanitized_name()] = {
+                "override_path": str(component.path)
+            }
 
     if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
@@ -2644,30 +3314,78 @@ def copy_files():
         __version__,
     )
 
+    # Remote extra build files are fetched into the shared download cache in
+    # one parallel batch (conditional requests skip unchanged files), then
+    # copied into the build tree like their local counterparts.
+    sources: dict[str, Path] = {}
+    remote: list[tuple[str, str]] = []
     for file in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES].values():
         name: str = file[KEY_NAME]
         path: Path = file[KEY_PATH]
         if str(path).startswith("http"):
-            import requests
-
-            CORE.relative_build_path(name).parent.mkdir(parents=True, exist_ok=True)
-            content = requests.get(path, timeout=30).content
-            CORE.relative_build_path(name).write_bytes(content)
+            remote.append((name, str(path)))
         else:
-            copy_file_if_changed(path, CORE.relative_build_path(name))
+            sources[name] = path
+    if remote:
+        # Imported lazily: requests (via external_files) is a heavy import
+        # and remote extra build files are rare.
+        from esphome import external_files
+
+        downloads: list[external_files.RemoteFile] = []
+        for name, url in remote:
+            cache_path = external_files.compute_local_file_path(KEY_ESP32, url)
+            # Unverifiable bytes: an unrevalidated copy is an error, matching
+            # the old always-download behavior on network failure.
+            downloads.append(
+                external_files.RemoteFile(url, cache_path, allow_stale=False)
+            )
+            sources[name] = cache_path
+        try:
+            external_files.download_content_many(
+                downloads, description="extra build file(s)"
+            )
+        except cv.MultipleInvalid as e:
+            details = "; ".join(str(err) for err in e.errors)
+            raise EsphomeError(
+                f"Could not download extra build file(s): {details}"
+            ) from e
+        except cv.Invalid as e:
+            raise EsphomeError(f"Could not download extra build file(s): {e}") from e
+    for name, source in sources.items():
+        copy_file_if_changed(source, CORE.relative_build_path(name))
 
 
 def _decode_pc(config, addr):
-    from esphome.platformio import toolchain
+    # Convert toolchain-resolution errors (e.g. missing build dir / cmake
+    # cache) into EsphomeError. The api log processor stops decoding on any
+    # exception, so this is about the message it reports rather than about
+    # catching it at all: EsphomeError carries an explanation worth showing
+    # the user, where a raw OSError repr does not.
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import toolchain as idf_toolchain
 
-    idedata = toolchain.get_idedata(config)
-    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        try:
+            addr2line_path = idf_toolchain.get_addr2line_path()
+            firmware_elf_path = idf_toolchain.get_elf_path()
+        except (RuntimeError, OSError) as err:
+            # OSError covers a missing build directory or a cmake that isn't
+            # on PATH; both surface from the subprocess call, not as RuntimeError.
+            raise EsphomeError(f"ESP-IDF toolchain not available: {err}") from err
+        if not firmware_elf_path.is_file():
+            raise EsphomeError(f"Firmware ELF not found: {firmware_elf_path}")
+    else:
+        from esphome.platformio import toolchain
+
+        idedata = toolchain.get_idedata(config)
+        addr2line_path = idedata.addr2line_path
+        firmware_elf_path = idedata.firmware_elf_path
+    if not addr2line_path or not firmware_elf_path:
         _LOGGER.debug("decode_pc no addr2line")
         return
-    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    command = [str(addr2line_path), "-pfiaC", "-e", str(firmware_elf_path), addr]
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
@@ -2685,9 +3403,10 @@ def _parse_register(config, regex, line):
 
 
 STACKTRACE_ESP32_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7}).*")
-STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r"EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r".*EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_PC_RE = re.compile(r"MEPC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_ESP32_C3_RA_RE = re.compile(r"RA\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP32_C3_MTVAL_RE = re.compile(r".*MTVAL\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
 STACKTRACE_BAD_ALLOC_RE = re.compile(
     r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
 )
@@ -2705,9 +3424,10 @@ def process_stacktrace(config, line, backtrace_state):
     # ESP32 PC/EXCVADDR
     _parse_register(config, STACKTRACE_ESP32_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_EXCVADDR_RE, line)
-    # ESP32-C3 PC/RA
+    # ESP32-C3 PC/RA/MTVAL
     _parse_register(config, STACKTRACE_ESP32_C3_PC_RE, line)
     _parse_register(config, STACKTRACE_ESP32_C3_RA_RE, line)
+    _parse_register(config, STACKTRACE_ESP32_C3_MTVAL_RE, line)
 
     # bad alloc
     match = re.match(STACKTRACE_BAD_ALLOC_RE, line)

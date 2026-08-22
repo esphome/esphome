@@ -6,7 +6,7 @@
 
 namespace esphome::output {
 
-class OutputButton : public button::Button, public Component {
+class OutputButton final : public button::Button, public Component {
  public:
   void dump_config() override;
 

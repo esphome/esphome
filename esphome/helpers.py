@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -7,12 +8,9 @@ import os
 from pathlib import Path
 import platform
 import re
-import shutil
 import stat
 import sys
-import tempfile
 from typing import TYPE_CHECKING, TextIO
-from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
 
@@ -55,13 +53,18 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
-def fnv1_hash(string: str) -> int:
-    """FNV-1 32-bit hash function (multiply then XOR)."""
+def _fnv1_hash(values: Iterable[int]) -> int:
+    """FNV-1 32-bit hash (multiply then XOR) over a sequence of integer values."""
     hash_value = FNV1_OFFSET_BASIS
-    for char in string:
+    for value in values:
         hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
-        hash_value ^= ord(char)
+        hash_value ^= value
     return hash_value
+
+
+def fnv1_hash(string: str) -> int:
+    """FNV-1 32-bit hash function (multiply then XOR) over code points."""
+    return _fnv1_hash(map(ord, string))
 
 
 def fnv1a_32bit_hash(string: str) -> int:
@@ -89,9 +92,19 @@ def fnv1_hash_object_id(name: str) -> int:
     """Compute FNV-1 hash of name with snake_case + sanitize transformations.
 
     IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
-    Used for pre-computing entity object_id hashes at code generation time.
+    If you modify this function, update the C++ version and tests in both places.
     """
     return fnv1_hash(sanitize(snake_case(name)))
+
+
+def fnv1_hash_name(name: str) -> int:
+    """Compute FNV-1 hash of the raw entity name (UTF-8 bytes, no transformations).
+
+    2026.8 beta firmware stored preferences under keys derived from this hash;
+    a future key migration must reconstruct those keys to recover that data
+    (see https://github.com/esphome/backlog/issues/85).
+    """
+    return _fnv1_hash(name.encode("utf-8"))
 
 
 def strip_accents(value: str) -> str:
@@ -123,14 +136,8 @@ def slugify(value: str) -> str:
 def friendly_name_slugify(value: str) -> str:
     """Convert a friendly name to a slug with dashes instead of underscores.
 
-    Used by:
-    - esphome.dashboard.web_server (legacy dashboard)
-    - device-builder (esphome/device-builder) — slugifies friendly names
-      into the YAML filename / device name during adoption + wizard flows.
-
-    Lives here rather than in ``esphome.dashboard.util.text`` so it
-    survives the legacy dashboard's eventual removal.
-    The dashboard module re-exports this name as a back-compat shim.
+    Used by device-builder (esphome/device-builder), which slugifies friendly
+    names into the YAML filename / device name during adoption + wizard flows.
     Coordinate with the device-builder team before changing the
     slugification rules — the mapping must stay stable so existing
     on-disk filenames keep matching across releases.
@@ -151,6 +158,21 @@ def indent_list(text, padding="  "):
 
 def indent(text, padding="  "):
     return "\n".join(indent_list(text, padding))
+
+
+def format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a short string like "1d 2h" or "42s".
+
+    Uses the two largest non-zero units, with unit suffixes matching the YAML
+    time period shorthand (d, h, min, s).
+    """
+    remainder = max(0, int(seconds))
+    parts = []
+    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
+        value, remainder = divmod(remainder, length)
+        if value:
+            parts.append(f"{value}{suffix}")
+    return " ".join(parts[:2]) if parts else "0s"
 
 
 # From https://stackoverflow.com/a/14945195/8924614
@@ -251,6 +273,9 @@ def resolve_ip_address(
         hosts = host
     else:
         if not is_ip_address(host):
+            # Deferred: upload/logs with an IP target never parse a URL.
+            from urllib.parse import urlparse
+
             url = urlparse(host)
             if url.scheme != "":
                 host = url.hostname
@@ -327,6 +352,24 @@ def resolve_ip_address(
     return res
 
 
+def format_ip_url(family: int, sockaddr: tuple, port: int, path: str) -> str:
+    """Build an ``http://host:port/path`` URL for a resolved address.
+
+    ``family``/``sockaddr`` come from a :func:`resolve_ip_address` entry. IPv6
+    literals must be wrapped in brackets in URLs; link-local addresses need a
+    percent-encoded zone index per RFC 6874.
+    """
+    import socket
+
+    ip = sockaddr[0]
+    if family == socket.AF_INET6:
+        scope = sockaddr[3] if len(sockaddr) >= 4 else 0
+        host_part = f"[{ip}%25{scope}]" if scope else f"[{ip}]"
+    else:
+        host_part = ip
+    return f"http://{host_part}:{port}{path}"
+
+
 def sort_ip_addresses(address_list: list[str]) -> list[str]:
     """Takes a list of IP addresses in string form, e.g. from mDNS or MQTT,
     and sorts them into the best order to actually try connecting to them.
@@ -374,6 +417,26 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) -> None:
+    """Add ``directory`` to ``env``'s ``GIT_CEILING_DIRECTORIES`` list.
+
+    Git stops walking up the directory tree to find a repository once it reaches
+    a ceiling directory, so this caps the search at ``directory`` (the ESPHome
+    project root). Without it, an uninitialized or corrupt git repo in a parent
+    directory makes the ``git describe`` that build toolchains run for the app
+    version error out and fail the whole build.
+
+    ``GIT_CEILING_DIRECTORIES`` is an ``os.pathsep``-joined list of absolute
+    paths; any existing entries are preserved and duplicates are skipped.
+    """
+    ceiling = str(directory)
+    existing = env.get("GIT_CEILING_DIRECTORIES", "")
+    parts = existing.split(os.pathsep) if existing else []
+    if ceiling not in parts:
+        parts.append(ceiling)
+        env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
+
+
 def rmtree(path: Path | str) -> None:
     """Remove a directory tree, handling read-only files on Windows.
 
@@ -382,17 +445,15 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
-    def _onerror(func, path, exc_info):
+    import shutil
+
+    def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
-            raise exc_info[1].with_traceback(exc_info[2])
-        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+            raise exc
+        Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
-    # callable signature); keep the existing handler shape for now and
-    # silence the lint locally so this PR doesn't bundle an unrelated
-    # migration.
-    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):
@@ -423,6 +484,11 @@ def _write_file(
 
     Automatically creates all parent directories.
     """
+    # Deferred: a cache-hit upload/logs run never writes a file; keep the
+    # tempfile/shutil chain (bz2, lzma, random) off that path.
+    import shutil
+    import tempfile
+
     data = text
     if isinstance(text, str):
         data = text.encode()
@@ -498,6 +564,8 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
 
     Returns True if file was copied, False if files already matched.
     """
+    import shutil
+
     if file_compare(src, dst):
         return False
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -512,7 +580,7 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
             # -> delete file (it would be overwritten anyway), and try again
             # if that fails, use normal error handler
             with suppress(OSError):
-                os.unlink(dst)
+                Path(dst).unlink()
                 shutil.copyfile(src, dst)
                 return True
 
@@ -601,7 +669,7 @@ def add_class_to_obj(value, cls):
         raise
 
 
-def snake_case(value):
+def snake_case(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_snake_case`."""
     return value.replace(" ", "_").lower()
 
@@ -609,7 +677,7 @@ def snake_case(value):
 _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 
 
-def sanitize(value):
+def sanitize(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
 
@@ -659,7 +727,7 @@ class ProgressBar:
 def docs_url(path: str) -> str:
     """Return the URL to the documentation for a given path."""
     # Local import to avoid circular import
-    from esphome.config_validation import Version
+    from esphome.core import Version
 
     version = Version.parse(ESPHOME_VERSION)
     if version.is_beta:

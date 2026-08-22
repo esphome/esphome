@@ -88,6 +88,11 @@ enum class APIError : uint16_t {
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
   BAD_HANDSHAKE_ERROR_BYTE = 1021,
 #endif
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Not an error: an unprovisioned device received a Noise client hello on a
+  // plaintext connection; the caller must hand the socket off to a Noise helper.
+  PROTOCOL_SWITCH_TO_NOISE = 1023,
+#endif
 };
 
 const LogString *api_error_to_logstr(APIError err);
@@ -144,7 +149,7 @@ class APIFrameHelper {
   // holding data too long waiting for Nagle's timer causes buffer exhaustion
   // and dropped messages.
   //
-  // ESP32 (TCP_SND_BUF=4×MSS+) / RP2040 (8×MSS) / LibreTiny (4×MSS): 4 logs per cycle
+  // ESP32 (TCP_SND_BUF=4×MSS+) / RP2040 (4×MSS) / LibreTiny (4×MSS): 4 logs per cycle
   // ESP8266 (2×MSS): 3 logs per cycle (tightest buffers)
   //
   // Flow (ESP32/RP2040/LT): Log 1 (Nagle on) -> Log 2 -> Log 3 -> Log 4 (NODELAY, flush)
@@ -200,6 +205,12 @@ class APIFrameHelper {
   // or track that they stopped early and retry without this check.
   // See Socket::ready() for details.
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Move the socket out of this helper so a replacement helper can take it
+  // over (plaintext to Noise handoff on unprovisioned devices). The drained
+  // helper must be destroyed right after.
+  std::unique_ptr<socket::Socket> release_socket_for_switch() { return std::move(this->socket_); }
+#endif
   // Release excess memory from internal buffers after initial sync
   void release_buffers() {
     // rx_buf_: Safe to clear only if no partial read in progress.
@@ -301,7 +312,7 @@ class APIFrameHelper {
   // Values 1..LOG_NAGLE_COUNT count log messages in the current Nagle batch.
   // After LOG_NAGLE_COUNT logs, we flush by re-enabling NODELAY and resetting to 0.
   // ESP8266 has the tightest TCP send buffer (2×MSS) and needs conservative batching.
-  // ESP32 (4×MSS+), RP2040 (8×MSS), and LibreTiny (4×MSS) can coalesce more.
+  // ESP32 (4×MSS+), RP2040 (4×MSS), and LibreTiny (4×MSS) can coalesce more.
 #ifdef USE_ESP8266
   static constexpr uint8_t LOG_NAGLE_COUNT = 2;
 #else

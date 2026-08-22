@@ -70,7 +70,7 @@ struct SprinklerValve {
   std::unique_ptr<Automation<>> valve_turn_on_automation;
 };
 
-class SprinklerControllerNumber : public number::Number, public Component {
+class SprinklerControllerNumber final : public number::Number, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -89,7 +89,7 @@ class SprinklerControllerNumber : public number::Number, public Component {
   ESPPreferenceObject pref_;
 };
 
-class SprinklerControllerSwitch : public switch_::Switch, public Component {
+class SprinklerControllerSwitch final : public switch_::Switch, public Component {
  public:
   SprinklerControllerSwitch();
 
@@ -173,7 +173,7 @@ class SprinklerValveRunRequest {
   SprinklerValveRunRequestOrigin origin_{USER};
 };
 
-class Sprinkler : public Component {
+class Sprinkler final : public Component {
  public:
   Sprinkler();
   Sprinkler(const char *name);
