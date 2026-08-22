@@ -957,7 +957,7 @@ def _content_lengths(urls: list[str]) -> list[int | None]:
                 _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
                 return None
             return int(resp.headers.get("content-length", 0)) or None
-        except requests.RequestException as err:
+        except (requests.RequestException, ValueError) as err:
             _LOGGER.debug("HEAD %s failed: %s", url, err)
             return None
 
