@@ -199,10 +199,8 @@ def run_command(
 def tool_version_runs(binary: str, warning: str) -> bool:
     """Probe ``binary --version``; on failure warn with ``warning`` % binary.
 
-    ``shutil.which`` proves existence, not runnability: on Windows it also
-    matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
-    target is gone. Callers probe once and fall back instead of failing
-    every build step with an opaque OS error.
+    ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
+    shims, stale package-manager shims).
     """
     try:
         subprocess.run(

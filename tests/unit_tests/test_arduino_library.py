@@ -12,7 +12,13 @@ import pytest
 from esphome.arduino import library as component
 from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ESP8266
 from esphome.core import CORE, EsphomeError, Library
-from esphome.platformio.library import ConvertedLibrary, LibraryBackend
+import esphome.platformio.library as pio_library
+from esphome.platformio.library import (
+    ConvertedLibrary,
+    IncompatiblePlatform,
+    InvalidLibrary,
+    LibraryBackend,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -212,9 +218,7 @@ def test_resolve_libraries_bundled(tmp_path: Path) -> None:
 def test_resolve_libraries_registry_name_is_external(
     tmp_path: Path, version: str | None
 ) -> None:
-    """A name that is not bundled reaches the converter: bare resolves from
-    the registry at the latest version (matching PlatformIO and the
-    documented libraries: key) and a version pin is a registry package."""
+    """A name that is not bundled reaches the converter, bare or pinned."""
     framework = _make_framework(tmp_path)
     _add_library("pngle", version)
     with patch.object(component, "convert_libraries", return_value=[]) as mock_convert:
@@ -410,12 +414,8 @@ def test_bundled_dependency_nonplatform_rejection_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An InvalidLibrary whose cause is not the platform filter is visible."""
-    from esphome.platformio.library import InvalidLibrary
-
     framework = _make_framework(tmp_path)
     converted = _webserver(tmp_path, {"build": {}, "dependencies": [{"name": "Wire"}]})
-    import esphome.platformio.library as pio_library
-
     with (
         _emitting_converter(converted),
         patch.object(
@@ -466,9 +466,7 @@ def test_library_info_lib_archive_parse(
 
 
 def test_bundled_dependency_dict_shorthand_prefers_bundled(tmp_path: Path) -> None:
-    """The {"Wire": "*"} dict shorthand (version="*", no owner) must resolve
-    to the bundled library, matching PIO's process_dependencies, instead of
-    being routed to the registry."""
+    """The {"Wire": "*"} dict shorthand resolves to the bundled library."""
     framework = _make_framework(tmp_path)
     converted = _webserver(tmp_path, {"build": {}, "dependencies": {"Wire": "*"}})
     with _emitting_converter(converted):
@@ -481,12 +479,8 @@ def test_bundled_dependency_platform_rejection_is_debug(
 ) -> None:
     """The typed IncompatiblePlatform (the routine cross-platform skip)
     stays at debug regardless of message wording."""
-    from esphome.platformio.library import IncompatiblePlatform
-
     framework = _make_framework(tmp_path)
     converted = _webserver(tmp_path, {"build": {}, "dependencies": [{"name": "Wire"}]})
-    import esphome.platformio.library as pio_library
-
     with (
         _emitting_converter(converted),
         patch.object(
@@ -626,11 +620,8 @@ def test_bundled_library_non_dict_manifest_skips_probes_and_raises(
 def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """{"Wire": "*"} in a real manifest must never reach the registry: the
-    graph walk skips backend-provided names and the bundled copy is added
-    after emit (no converter mock; a registry touch fails the test)."""
-    import esphome.platformio.library as pio_library
-
+    """{"Wire": "*"} resolves to the bundled copy without touching the
+    registry (real converter)."""
     framework = _make_framework(tmp_path)
     _local_lib(tmp_path, {"Wire": "*"})
     # Pin the component cache to tmp_path (data_dir honors an ambient
@@ -702,8 +693,6 @@ def test_pinned_bundled_dependency_substitution_warns(
 ) -> None:
     """A non-* version pin on a backend-provided dependency is discarded
     for the bundled copy; the substitution must be visible."""
-    import esphome.platformio.library as pio_library
-
     framework = _make_framework(tmp_path)
     _local_lib(tmp_path, {"Wire": "^2.0.0"})
     monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
@@ -720,9 +709,7 @@ def test_pinned_bundled_dependency_substitution_warns(
 def test_transitively_resolved_dependency_does_not_warn(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A version-less dependency the walk resolved as another library's
-    registry dependency is present in the build; the skipping warning must
-    stay quiet for it."""
+    """A dependency the walk already resolved does not warn."""
     framework = _make_framework(tmp_path)
     _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
     ws, tcp = _ws_tcp_pair(tmp_path)
@@ -754,9 +741,8 @@ def test_external_short_name(spec: str, expected: str) -> None:
 def test_converted_manifest_name_suppresses_bundled_dependency(
     tmp_path: Path,
 ) -> None:
-    """A dependency name a converted library's manifest provides is not
-    also added from the framework tree (a duplicate archive would surface
-    as duplicate-symbol link errors), even when the provider emits later."""
+    """A name a converted library's manifest provides is not also added
+    from the framework tree, even when the provider emits later."""
     framework = _make_framework(tmp_path)
     _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
     # Requested under a different short name; only the manifest says "Wire"
@@ -814,8 +800,6 @@ def test_versionless_dependency_with_provider_stays_quiet(
 ) -> None:
     """With a provides backend the version-less skip is routine (debug) and
     the bundled copy is picked up after emit."""
-    import esphome.platformio.library as pio_library
-
     framework = _make_framework(tmp_path)
     _local_lib(tmp_path, [{"name": "Wire"}])
     monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))

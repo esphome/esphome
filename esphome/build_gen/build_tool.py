@@ -21,14 +21,9 @@ def main() -> int:
         # Remove first: ``ar rc`` replaces members but never drops ones whose
         # source was removed from the build, which would leak stale objects.
         Path(archive).unlink(missing_ok=True)
-        # Expand the response file here instead of passing @rspfile: GNU ar
-        # treats backslashes in response files as escapes, corrupting Windows
-        # paths ("sub\a.o" -> "suba.o").
-        # One path per line (rspfile_content = $in_newline). ninja shell-quotes
-        # a path containing specials, so undo a simple surrounding quote per
-        # line. Expanding into argv trades away the OS command-line length
-        # limit rspfiles dodge; the relative object paths here stay far
-        # below it.
+        # GNU ar treats backslashes in response files as escapes (corrupts
+        # Windows paths), so expand the rspfile into argv, stripping the
+        # simple surrounding quote ninja adds to special paths.
         objects = [
             line[1:-1]
             if len(line) >= 2 and line[0] == line[-1] and line[0] in "'\""

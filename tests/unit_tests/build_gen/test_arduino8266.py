@@ -781,10 +781,7 @@ def test_write_project_missing_src_dir_raises(tmp_path: Path) -> None:
 
 
 def test_build_config_custom_mmu_without_knob_raises() -> None:
-    """Custom MMU sizes without the CUSTOM knob would compile against a
-    layout the linker script does not implement; refuse instead of warning
-    (PlatformIO warns, but its defaults win the compile line; ours would
-    not)."""
+    """Custom MMU sizes without the CUSTOM knob are refused."""
     with pytest.raises(EsphomeError, match="PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"):
         _resolve("-DMMU_IRAM_SIZE=0xC000")
 
@@ -833,8 +830,7 @@ def test_flag_tables_match_platformio_builder() -> None:
         "-free",
         "-fipa-pta",
     ]
-    # The -u block is where the deliberate -u _scanf_float omission lives;
-    # pinned in full so "restoring" it fails here first
+    # Pins the deliberate -u _scanf_float omission
     assert arduino8266._LINKFLAGS == [
         "-Os",
         "-nostdlib",
@@ -927,8 +923,7 @@ def test_write_project_unknown_board_fails_by_name(tmp_path: Path) -> None:
 
 
 def test_unflag_tokens_join_spaced_entries() -> None:
-    """A spaced build_unflags entry ("-D FOO") removes -DFOO, and no bare half leaks into the
-    unflag set to collaterally drop unrelated tokens."""
+    """Spaced build_unflags entries ("-D FOO") match the joined token."""
     CORE.build_unflags = {"-D FOO", "-l bar"}
     tokens = arduino8266._unflag_tokens()
     assert tokens == {"-DFOO", "-lbar"}
@@ -950,8 +945,7 @@ def test_flag_defines_respects_unflags() -> None:
 
 
 def test_vtables_unknown_raises() -> None:
-    """A typo'd knob would win the sorted pick and die in the SDK header's
-    #error; fail by name at generation instead."""
+    """An unknown VTABLES_IN_* knob fails by name."""
     with pytest.raises(EsphomeError, match="Unknown VTABLES_IN_.*BANANA"):
         _resolve("-DVTABLES_IN_BANANA")
 
@@ -1044,9 +1038,7 @@ def test_lexed_build_flags_shared_between_consumers(
     "tok", ["-Tcustom.ld", "-Xlinker", "-u", "-e", "-s", "-static", "-nostartfiles"]
 )
 def test_project_flags_rejects_plain_linker_forms(tok: str) -> None:
-    """A plain-form linker flag would land on the -c compile line where it
-    is inert; refuse naming the -Wl, form instead of shipping firmware that
-    silently lacks the requested link behavior."""
+    """Plain-form linker flags are refused, naming the -Wl, form."""
     _set_flags(tok)
     with pytest.raises(EsphomeError, match="use the -Wl, form"):
         arduino8266._project_flags(set(), arduino8266._lexed_build_flags())

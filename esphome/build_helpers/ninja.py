@@ -25,11 +25,7 @@ def _ninja_runs(binary: str) -> bool:
 
 def find_ninja() -> Path:
     """Locate the ninja binary: a runnable PATH hit first, else the ninja
-    PyPI wheel.
-
-    The wheel is a requirements.txt dependency, so pip has already
-    integrity-checked it; no download logic is needed here.
-    """
+    PyPI wheel."""
     if binary := shutil.which("ninja"):
         binary = strip_win_long_path_prefix(binary)
         if _ninja_runs(binary):
@@ -58,13 +54,9 @@ def escape(value: Path | str) -> str:
 
 
 def quote_arg(tok: str) -> str:
-    """Wrap a token in double quotes with the Windows argv rule.
-
-    Same escaping rule as ``subprocess.list2cmdline``: a backslash run
-    doubles only immediately before a quote (or the closing quote), and the
-    quote itself is escaped. CreateProcess-only; POSIX sh collapses
-    backslash runs inside double quotes, so shell_token single-quotes
-    there instead. ``$`` must already be doubled for ninja.
+    """Quote with the CreateProcess argv rule (as ``subprocess.list2cmdline``):
+    backslash runs double only before a quote. Windows-only; ``$`` must
+    already be doubled for ninja.
     """
     quoted = re.sub(r'(\\*)"', lambda m: m.group(1) * 2 + '\\"', tok)
     quoted = re.sub(r"(\\+)\Z", lambda m: m.group(1) * 2, quoted)
@@ -78,16 +70,11 @@ _NEEDS_QUOTE = re.compile(r"[^\w@%+=:,./-]")
 
 
 def shell_token(tok: str, force: bool = False) -> str:
-    """Quote a lexed token only when needed; ``force`` always quotes.
+    """Re-quote a lexed token for the platform shell; ``force`` always quotes.
 
-    Lexing strips the quoting a user wrote (``-DX="a b"`` becomes the single
-    token ``-DX=a b``); re-quote on the way out so the compiler receives the
-    same argv element SCons would pass under PlatformIO. Ninja hands POSIX
-    commands to ``/bin/sh -c`` and Windows commands to CreateProcess, so the
-    quoting style is chosen per platform: single quotes on POSIX (sh expands
-    nothing inside them, matching SCons's no-shell spawn) and the argv rule
-    on Windows. ``$`` is doubled first in either case because ninja expands
-    ``$`` before the command reaches the shell.
+    Single quotes on POSIX (/bin/sh), the argv rule on Windows
+    (CreateProcess). ``$`` is doubled first because ninja expands it before
+    the command reaches the shell.
     """
     tok = tok.replace("$", "$$")  # ninja would expand a bare $ to nothing
     if not (force or not tok or _NEEDS_QUOTE.search(tok)):
