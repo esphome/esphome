@@ -1342,3 +1342,14 @@ def test_flash_ld_name_honors_ldscript_override(tmp_path: Path) -> None:
     CORE.platformio_options = {"board_build.ldscript": "../evil.ld"}
     with pytest.raises(EsphomeError, match="bare script name"):
         arduino8266._flash_ld_name("nodemcuv2")
+
+
+def test_write_project_quotes_spaced_ldscript_override(tmp_path: Path) -> None:
+    """An overridden script name re-quotes on the link line like every other
+    user token (a space would otherwise split into two argv elements)."""
+    CORE.platformio_options = {"board_build.ldscript": "my script.ld"}
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "'my script.ld'" in content or '"my script.ld"' in content
+    assert "-T my script.ld" not in content

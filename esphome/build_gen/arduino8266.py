@@ -791,7 +791,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     link_flags += project_link_flags
     link_flags += [_shell_token(flag) for lib in libraries for flag in lib.link_flags]
     flash_ld = _active_flash_ld_name(flash_ld_name)
-    link_flags += ["-T", flash_ld]
+    # A user-overridden script name re-quotes like every other user token
+    link_flags += ["-T", _shell_token(flash_ld)]
 
     lib_dirs = [Path("ld"), sdk / "lib", sdk / "ld", sdk / "lib" / config.nonosdk]
     lib_dirs += project_lib_dirs
@@ -850,7 +851,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  description = LINK $out",
         "rule elf2bin",
         # --flash_freq 40: every supported board's f_flash is 40 MHz;
-        # re-check on a platform bump
+        # re-check on a platform bump. --flash_size deliberately stays
+        # board-derived, as under PlatformIO (which reads
+        # upload.maximum_size, not the ldscript).
         f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
