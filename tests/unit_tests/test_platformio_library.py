@@ -4,9 +4,11 @@ Covers the shared download/parse/resolve/dependency-walk paths in
 ``esphome.platformio.library`` directly (the ESP-IDF and Zephyr backends are
 exercised in their own test modules)."""
 
+from contextlib import contextmanager
 import json
 import logging
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -153,11 +155,26 @@ def test_localsource_download_returns_empty_build_dir(setup_core: Path) -> None:
     assert plain != out
 
 
+@contextmanager
+def caplog_at_info():
+    records: list[logging.LogRecord] = []
+    handler = logging.Handler()
+    handler.emit = records.append
+    logger = logging.getLogger("esphome.platformio.library")
+    logger.addHandler(handler)
+    try:
+        yield records
+    finally:
+        logger.removeHandler(handler)
+
+
 def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []
     monkeypatch.setattr(
-        lib, "download_from_mirrors", lambda urls, headers, f: dl_calls.append(urls)
+        lib,
+        "download_from_mirrors",
+        lambda urls, headers, f, progress=None: dl_calls.append(urls),
     )
 
     def fake_extract(fileobj, path):
@@ -175,6 +192,12 @@ def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch)
     out2 = src.download("mylib")
     assert out2 == out
     assert len(dl_calls) == 1
+
+    # A batch caller passes a tracker and owns the messaging; no per-file INFO
+    with caplog_at_info() as records:
+        src.download("mylib-batch", progress=lambda done: None)
+    assert len(dl_calls) == 2
+    assert not [r for r in records if "Downloading" in r.message]
 
 
 def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
@@ -216,7 +239,7 @@ def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
 def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
     """Fake ConvertedLibrary.download to materialize canned manifests on disk."""
 
-    def fake_download(self, force=False, salt="", namespace=""):
+    def fake_download(self, force=False, salt="", namespace="", progress=None):
         self.path = tmp_path / self.get_require_name()
         self.path.mkdir(parents=True, exist_ok=True)
         if self.name in properties:
@@ -295,7 +318,11 @@ def _patch_download_without_manifest(
     calls: list[bool] = []
 
     def fake_download(
-        self: ConvertedLibrary, force: bool = False, salt: str = "", namespace: str = ""
+        self: ConvertedLibrary,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress=None,
     ) -> None:
         calls.append(force)
         self.path = tmp_path / self.get_require_name()
@@ -576,8 +603,10 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     git/local sources and failures are left to the sequential call."""
     calls: list[str] = []
 
-    def fake_download(self, force=False, salt="", namespace=""):
+    def fake_download(self, force=False, salt="", namespace="", progress=None):
         calls.append(self.source.url)
+        if progress is not None:
+            progress(0)
         if "boom" in self.source.url:
             raise RuntimeError("boom")
 
@@ -597,6 +626,22 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
         "https://x/b.tar.gz",
         "https://x/boom.tar.gz",
     ]
+
+
+def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sizes come from HEAD Content-Length; a failing HEAD reads as 0 so
+    the combined bar is skipped rather than wrong."""
+    import requests
+
+    def fake_head(url, timeout, allow_redirects):
+        if "bad" in url:
+            raise requests.ConnectionError("down")
+        return SimpleNamespace(headers={"content-length": "123"})
+
+    monkeypatch.setattr(
+        lib.requests if hasattr(lib, "requests") else requests, "head", fake_head
+    )
+    assert lib._content_lengths(["https://x/a", "https://x/bad"]) == [123, 0]
 
 
 def test_prefetch_wave_single_archive_skips_the_pool(

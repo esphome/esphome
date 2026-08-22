@@ -1066,7 +1066,7 @@ def test_idf_component_download_passes_salt() -> None:
     c.download(force=True, salt="abcd1234", namespace="idf")
 
     source.download.assert_called_once_with(
-        "owner/name", force=True, salt="abcd1234", namespace="idf"
+        "owner/name", force=True, salt="abcd1234", namespace="idf", progress=None
     )
     assert c.path == Path("/converted/owner/name")
 
