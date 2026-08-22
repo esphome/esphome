@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from collections.abc import Callable
 from enum import StrEnum
 from functools import cache
 import json
@@ -595,12 +596,23 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
     Returns:
         Sorted list of component names to compile.
     """
+    return _native_components_to_test(
+        branch, ESP32_PLATFORMIO_TEST_COMPONENTS, _esp32_platformio_path_or_file_trigger
+    )
+
+
+def _native_components_to_test(
+    branch: str | None,
+    test_set: frozenset[str] | set[str],
+    infra_trigger: Callable[[list[str]], bool],
+) -> list[str]:
+    """The shared narrowing rule for the per-toolchain smoke-test jobs."""
     files = changed_files(branch)
 
-    if core_changed(files) or _esp32_platformio_path_or_file_trigger(files):
-        return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS)
+    if core_changed(files) or infra_trigger(files):
+        return sorted(test_set)
 
-    return sorted(ESP32_PLATFORMIO_TEST_COMPONENTS & _changed_components_closure(files))
+    return sorted(test_set & _changed_components_closure(files))
 
 
 def should_run_esp32_platformio(branch: str | None = None) -> bool:
@@ -682,12 +694,9 @@ def esp8266_native_components_to_test(branch: str | None = None) -> list[str]:
     list on core or infrastructure changes, otherwise the intersection with
     the changed-component dependency closure (empty list skips the job).
     """
-    files = changed_files(branch)
-
-    if core_changed(files) or _esp8266_native_path_or_file_trigger(files):
-        return sorted(ESP8266_NATIVE_TEST_COMPONENTS)
-
-    return sorted(ESP8266_NATIVE_TEST_COMPONENTS & _changed_components_closure(files))
+    return _native_components_to_test(
+        branch, ESP8266_NATIVE_TEST_COMPONENTS, _esp8266_native_path_or_file_trigger
+    )
 
 
 def determine_cpp_unit_tests(

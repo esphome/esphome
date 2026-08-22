@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esphome.arduino8266 import framework, toolchain
-from esphome.build_helpers.pio_options import warn_ignored_platformio_options
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -51,14 +51,11 @@ def _paths(tmp_path: Path) -> framework.InstalledPaths:
 def test_path_getters(tmp_path: Path) -> None:
     assert toolchain.get_build_dir() == CORE.relative_pioenvs_path("test8266")
     assert toolchain.get_elf_path().name == "firmware.elf"
-    # Pin both suffix variants so the test passes on every host platform
-    with patch.object(toolchain, "_EXE_SUFFIX", ""):
-        assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line"
-        assert toolchain.get_objdump_path().name == "xtensa-lx106-elf-objdump"
-        assert toolchain.get_readelf_path().name == "xtensa-lx106-elf-readelf"
-    # Windows binutils carry the executable suffix
-    with patch.object(toolchain, "_EXE_SUFFIX", ".exe"):
-        assert toolchain.get_addr2line_path().name == "xtensa-lx106-elf-addr2line.exe"
+    # The framework accessor owns the layout and the Windows suffix
+    suffix = ".exe" if os.name == "nt" else ""
+    assert toolchain.get_addr2line_path().name == f"xtensa-lx106-elf-addr2line{suffix}"
+    assert toolchain.get_objdump_path().name == f"xtensa-lx106-elf-objdump{suffix}"
+    assert toolchain.get_readelf_path().name == f"xtensa-lx106-elf-readelf{suffix}"
 
 
 def test_run_compile_build_failure(tmp_path: Path) -> None:
@@ -152,22 +149,22 @@ def test_parse_app_size(tmp_path: Path) -> None:
     ld = tmp_path / "eagle.flash.4m.ld"
     ld.write_text("MEMORY\n{\n  irom0_0_seg :  org = 0x40201010, len = 0xfeff0\n}\n")
     with patch("esphome.build_gen.arduino8266.get_flash_ld_path", return_value=ld):
-        assert toolchain._parse_app_size(tmp_path) == 0xFEFF0
+        assert toolchain._parse_app_size(tmp_path, _paths(tmp_path)) == 0xFEFF0
 
     ld.write_text("MEMORY { }\n")
     with patch("esphome.build_gen.arduino8266.get_flash_ld_path", return_value=ld):
-        assert toolchain._parse_app_size(tmp_path) is None
+        assert toolchain._parse_app_size(tmp_path, _paths(tmp_path)) is None
 
     # A zero-length segment is bad data, not a budget; warn and drop it
     ld.write_text("MEMORY\n{\n  irom0_0_seg :  org = 0x40201010, len = 0x0\n}\n")
     with patch("esphome.build_gen.arduino8266.get_flash_ld_path", return_value=ld):
-        assert toolchain._parse_app_size(tmp_path) is None
+        assert toolchain._parse_app_size(tmp_path, _paths(tmp_path)) is None
 
     with patch(
         "esphome.build_gen.arduino8266.get_flash_ld_path",
         return_value=tmp_path / "missing.ld",
     ):
-        assert toolchain._parse_app_size(tmp_path) is None
+        assert toolchain._parse_app_size(tmp_path, _paths(tmp_path)) is None
 
 
 def test_print_size_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -179,7 +176,7 @@ def test_print_size_summary(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
         ),
         patch.object(toolchain, "_parse_app_size", return_value=1044464),
     ):
-        toolchain._print_size_summary(tmp_path)
+        toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     out = capsys.readouterr().out
     # Exact PlatformIO shape so script/ci_memory_impact_extract.py can parse it
     assert "RAM:   [====      ]  37.9% (used 31016 bytes from 81920 bytes)" in out
@@ -197,7 +194,7 @@ def test_print_size_summary_no_app_size(
         ),
         patch.object(toolchain, "_parse_app_size", return_value=None),
     ):
-        toolchain._print_size_summary(tmp_path)
+        toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     out = capsys.readouterr().out
     # Both lines are skipped together: a RAM line without Flash would skew
     # CI's memory-impact sums across builds
@@ -214,7 +211,7 @@ def test_print_size_summary_size_tool_failure(
         "run",
         return_value=MagicMock(returncode=1, stdout="", stderr="bad elf"),
     ):
-        toolchain._print_size_summary(tmp_path)
+        toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     assert capsys.readouterr().out == ""
     assert "Could not summarize firmware size" in caplog.text
 
@@ -287,7 +284,7 @@ def test_print_size_summary_unparsable_section(
         "run",
         return_value=MagicMock(returncode=0, stdout=bad),
     ):
-        toolchain._print_size_summary(tmp_path)
+        toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     assert capsys.readouterr().out == ""
     assert "Unparsable size output" in caplog.text
 
@@ -301,7 +298,7 @@ def test_print_size_summary_unparsable_section(
         ),
         patch.object(toolchain, "_parse_app_size", return_value=1044464),
     ):
-        toolchain._print_size_summary(tmp_path)
+        toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     assert "RAM:" in capsys.readouterr().out
     assert "Unparsable size output" in caplog.text
 
@@ -320,7 +317,7 @@ def test_print_size_summary_missing_section_skips_summary(
         "run",
         return_value=MagicMock(returncode=0, stdout=without_bss),
     ):
-        toolchain._print_size_summary(tmp_path)
+        toolchain._print_size_summary(tmp_path, _paths(tmp_path))
     assert capsys.readouterr().out == ""
     assert "missing section(s) .bss" in caplog.text
 
@@ -335,7 +332,7 @@ def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> No
         "lib_ignore": ["Updater"],
         "upload_speed": "460800",
     }
-    warn_ignored_platformio_options(toolchain._CONSUMED_PIO_OPTIONS, "arduino")
+    toolchain._warn_ignored_platformio_options()
     assert "platformio_options->board_build.filesystem is ignored" in caplog.text
     assert "native 'arduino' toolchain" in caplog.text
     assert "board_build.ldscript is ignored" not in caplog.text

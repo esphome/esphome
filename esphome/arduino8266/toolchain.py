@@ -7,7 +7,6 @@ from pathlib import Path
 import subprocess
 
 from esphome.arduino8266 import framework
-from esphome.build_helpers.pio_options import warn_ignored_platformio_options
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
@@ -15,7 +14,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import IS_WINDOWS, write_file_if_changed
+from esphome.helpers import write_file_if_changed
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,13 +22,26 @@ _LOGGER = logging.getLogger(__name__)
 # ESP8266 user RAM (matches upload.maximum_ram_size in every board manifest)
 _MAX_RAM_SIZE = 81920
 
-# platformio_options keys the native build consumes. YAML-set upload_speed
-# never reaches CORE.platformio_options under the native toolchain (it is
-# read from the raw config at upload time), so anything here came from a
-# component and genuinely is dropped; warn for it.
-_CONSUMED_PIO_OPTIONS = frozenset(
-    {"lib_ignore", "board_build.f_cpu", "board_build.ldscript"}
-)
+
+def _warn_ignored_platformio_options() -> None:
+    """Warn for component-added platformio options the native build drops.
+
+    The consumed set derives from the routing constant in core/config.py so
+    the two lists cannot drift. YAML-set upload_speed never reaches
+    CORE.platformio_options under the native toolchain (it is read from the
+    raw config at upload time), so anything unconsumed came from a
+    component and genuinely is dropped.
+    """
+    from esphome.core.config import NATIVE_ARDUINO_PIO_OPTIONS
+
+    consumed = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
+    for key in sorted(CORE.platformio_options or {}):
+        if key not in consumed:
+            _LOGGER.warning(
+                "platformio_options->%s is ignored when building with the "
+                "native 'arduino' toolchain",
+                key,
+            )
 
 
 _RAM_SECTIONS = (".data", ".rodata", ".bss")
@@ -44,14 +56,8 @@ def get_elf_path() -> Path:
     return get_build_dir() / "firmware.elf"
 
 
-# Windows binutils carry the executable suffix; is_file() checks need it
-_EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
-
-
 def _toolchain_tool(name: str) -> Path:
-    return (
-        framework.get_toolchain_path() / "bin" / f"xtensa-lx106-elf-{name}{_EXE_SUFFIX}"
-    )
+    return framework.toolchain_tool(framework.get_toolchain_path(), name)
 
 
 def get_addr2line_path() -> Path:
@@ -69,12 +75,15 @@ def get_readelf_path() -> Path:
 def run_compile(config: ConfigType, verbose: bool) -> int:
     from esphome.build_gen import arduino8266 as build_gen
 
-    warn_ignored_platformio_options(_CONSUMED_PIO_OPTIONS, "arduino")
+    _warn_ignored_platformio_options()
     paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
-    ninja_changed = build_gen.write_project(paths)
+    # Resolved once per build: the resolution probes PATH and spawns the
+    # runnability check, and three consumers need the same answer
+    ccache = framework.ccache_path()
+    ninja_changed = build_gen.write_project(paths, ccache)
 
     build_dir = get_build_dir()
-    env = framework.get_build_env(paths.toolchain)
+    env = framework.get_build_env(paths.toolchain, ccache)
 
     # The compile database is a pure function of build.ninja (no compilation
     # involved), so regenerate it before the build: a failed build can then
@@ -94,9 +103,9 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     if rc != 0:
         return rc
 
-    _print_size_summary(build_dir)
+    _print_size_summary(build_dir, paths)
     try:
-        idedata = get_idedata()
+        idedata = get_idedata(ccache)
     except (EsphomeError, LookupError, OSError, RuntimeError, ValueError) as err:
         # The firmware already built; idedata is a bonus artifact here.
         # Broad on purpose: a vanished compiler (OSError), a failed include
@@ -116,7 +125,7 @@ def _write_compile_commands(
     ninja_path: Path, build_dir: Path, env: dict[str, str]
 ) -> None:
     result = subprocess.run(
-        [str(ninja_path), "-C", str(build_dir), "-t", "compdb", "cc", "cxx", "asm"],
+        [str(ninja_path), "-C", str(build_dir), "-t", "compdb", "c", "cxx", "asm"],
         env=env,
         capture_output=True,
         text=True,
@@ -133,14 +142,14 @@ def _write_compile_commands(
     write_file_if_changed(build_dir / "compile_commands.json", result.stdout)
 
 
-def _parse_app_size(build_dir: Path) -> int | None:
+def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | None:
     """Read the app flash budget (irom0_0_seg length) from the linker script."""
     from esphome.build_gen.arduino8266 import get_flash_ld_path
     from esphome.components.esp8266.build_surgery import segment_length
 
     # Warnings, not debug: without the app size the Flash summary line is
     # dropped and CI's memory-impact extraction loses its flash metric.
-    ld_path = get_flash_ld_path(build_dir)
+    ld_path = get_flash_ld_path(build_dir, paths)
     try:
         ld_text = ld_path.read_text(encoding="utf-8")
     except OSError as err:
@@ -157,7 +166,7 @@ def _parse_app_size(build_dir: Path) -> int | None:
     return app_size
 
 
-def _print_size_summary(build_dir: Path) -> None:
+def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> None:
     """Print the PlatformIO-shaped RAM/Flash lines.
 
     The exact shape (including the bar) is parsed by
@@ -196,7 +205,7 @@ def _print_size_summary(build_dir: Path) -> None:
     # Resolve the flash budget before printing anything: a RAM line without
     # its Flash line would let CI's memory-impact extraction sum the two
     # metrics over different build counts (_parse_app_size already warned).
-    app_size = _parse_app_size(build_dir)
+    app_size = _parse_app_size(build_dir, paths)
     if not app_size:
         return
     ram = sum(sections[s] for s in _RAM_SECTIONS)
@@ -205,7 +214,7 @@ def _print_size_summary(build_dir: Path) -> None:
     print_size_line("Flash", flash, app_size)
 
 
-def get_idedata() -> dict | None:
+def get_idedata(ccache: str | None = framework.CCACHE_UNRESOLVED) -> dict | None:
     """Derive idedata from the build's compile_commands.json.
 
     Same contract as ``espidf.toolchain.get_idedata``: the fields IDE
@@ -213,7 +222,8 @@ def get_idedata() -> dict | None:
     """
     from esphome.build_helpers.idedata import load_or_build_idedata
 
-    ccache = framework.ccache_path()
+    if ccache is framework.CCACHE_UNRESOLVED:
+        ccache = framework.ccache_path()
     return load_or_build_idedata(
         get_build_dir() / "compile_commands.json",
         get_elf_path(),

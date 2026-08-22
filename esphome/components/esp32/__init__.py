@@ -3442,3 +3442,16 @@ def process_stacktrace(config, line, backtrace_state):
             _decode_pc(config, addr.group())
 
     return backtrace_state
+
+
+def native_toolchain_module():
+    """The native build backend for the resolved toolchain, if any.
+
+    Hook for ``__main__``'s shared dispatch (idedata, analyze_memory,
+    decode); same seam the esp8266 component provides.
+    """
+    if not CORE.using_toolchain_esp_idf:
+        return None
+    from esphome.espidf import toolchain
+
+    return toolchain

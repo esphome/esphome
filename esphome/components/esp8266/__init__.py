@@ -1,5 +1,4 @@
 import logging
-import math
 from pathlib import Path
 import platform
 import re
@@ -542,10 +541,9 @@ async def finalize_serial_config() -> None:
 # PlatformIO toolchain.
 def run_compile(args, config: ConfigType) -> bool:
     # Positive check: the native backend only runs when explicitly resolved
-    if not CORE.using_toolchain_arduino:
+    toolchain = native_toolchain_module()
+    if toolchain is None:
         return False
-    from esphome.arduino8266 import toolchain
-
     if toolchain.run_compile(config, CORE.verbose) != 0:
         raise EsphomeError("ESP8266 native build failed")
     return True
@@ -625,16 +623,15 @@ def _warn_decode_problem(key: str, message: str, *args) -> None:
     the suppression expires instead of living for the process lifetime.
     """
     now = time.monotonic()
-    if now - _DECODE_WARNED_AT.get(key, -math.inf) < 30:
+    last = _DECODE_WARNED_AT.get(key)
+    if last is not None and now - last < 30:
         return
     _DECODE_WARNED_AT[key] = now
     _LOGGER.warning(message, *args)
 
 
 def _decode_pc(config, addr):
-    if CORE.using_toolchain_arduino:
-        from esphome.arduino8266 import toolchain as native_toolchain
-
+    if (native_toolchain := native_toolchain_module()) is not None:
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
         for path in (addr2line, elf):

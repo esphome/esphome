@@ -849,13 +849,6 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
     platform_run_compile = getattr(module, "run_compile", None)
     if platform_run_compile is not None and platform_run_compile(args, config):
         pass
-    elif CORE.using_native_toolchain and not CORE.using_toolchain_esp_idf:
-        # A resolved native toolchain must be claimed by its platform hook;
-        # falling through would build a mis-configured PlatformIO project
-        raise EsphomeError(
-            f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
-            "backend claimed the build"
-        )
     elif CORE.using_toolchain_esp_idf:
         from esphome.espidf import toolchain
 
@@ -883,6 +876,14 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
             # (ValueError/LookupError) must not fail a successful build
             # either.
             _LOGGER.warning("Could not generate idedata: %s", err)
+    elif CORE.using_native_toolchain:
+        # A resolved native toolchain must be claimed by its platform hook
+        # or a branch above; falling through would build a mis-configured
+        # PlatformIO project
+        raise EsphomeError(
+            f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
+            "backend claimed the build"
+        )
     else:
         from esphome.platformio import toolchain
 
@@ -1951,10 +1952,6 @@ def _native_toolchain_module():
     ``native_toolchain_module`` hook (the same per-platform module seam
     ``compile_program`` uses), so shared dispatch never names a backend.
     """
-    if CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        return toolchain
     module = importlib.import_module("esphome.components." + CORE.target_platform)
     get_native = getattr(module, "native_toolchain_module", None)
     native = get_native() if get_native is not None else None

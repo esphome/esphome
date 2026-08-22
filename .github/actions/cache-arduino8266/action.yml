@@ -1,0 +1,36 @@
+name: Cache Arduino ESP8266
+description: >
+  Resolve the pinned Arduino core and xtensa toolchain versions and cache the
+  native ESP8266 install (~110 MB framework + toolchain; no ccache store, the
+  seed job saves before any compile runs). Callers must set env
+  ESPHOME_ARDUINO8266_PREFIX: ~/.esphome-arduino8266 and have the Python venv
+  already restored. Mirrors cache-esp-idf: only dev-branch pushes write the
+  shared cache, everything else restores.
+runs:
+  using: composite
+  steps:
+    - name: Resolve the native toolchain cache key
+      # The versions are pinned in code, not in a hashable file, so resolve
+      # them for the key (actions/cache never overwrites a key, so a bump
+      # must change it). Assignment form so errexit catches a resolver
+      # failure; a nested $(...) inside echo would silently yield a
+      # degenerate key.
+      id: version
+      shell: bash
+      run: |
+        . venv/bin/activate
+        key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
+        [ -n "$key" ] || exit 1
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+    - name: Cache the native toolchain (write on dev)
+      if: github.ref == 'refs/heads/dev'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.esphome-arduino8266
+        key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}
+    - name: Restore the native toolchain (off dev)
+      if: github.ref != 'refs/heads/dev'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.esphome-arduino8266
+        key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}

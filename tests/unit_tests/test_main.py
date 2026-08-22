@@ -6944,7 +6944,7 @@ def test_command_run_rp2040_bootsel_redetects_serial_port() -> None:
 
 def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
     """Under the native ESP-IDF toolchain, idedata is emitted as JSON."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
     data = {"cxx_path": "g++", "prog_path": "/build/firmware.elf"}
 
@@ -6958,7 +6958,7 @@ def test_command_idedata_esp_idf_prints_json(capsys: CaptureFixture) -> None:
 
 def test_command_idedata_esp_idf_no_build_errors() -> None:
     """Under ESP-IDF, a missing build (no idedata) returns an error, not a crash."""
-    setup_core()
+    setup_core(platform=PLATFORM_ESP32)
     CORE.toolchain = Toolchain.ESP_IDF
 
     with patch("esphome.espidf.toolchain.get_idedata", return_value=None):
