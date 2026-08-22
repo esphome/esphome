@@ -452,3 +452,155 @@ def test_registry_download_non_list_system_is_named() -> None:
         pytest.raises(EsphomeError, match="Unexpected package registry response"),
     ):
         registry.registry_download("pkg", "1.0.0")
+
+
+def _resolve_for(sizes: dict[str, int | None]):
+    def resolve(name: str, version: str):
+        size = sizes[name]
+        if size == -1:
+            raise EsphomeError("registry down")
+        return (f"http://x/{name}.tar.gz", "abc123", size)
+
+    return resolve
+
+
+def test_prefetch_packages_downloads_pending_in_parallel(tmp_path: Path) -> None:
+    """Two uninstalled packages download together under one combined bar,
+    with the registry's sha256 and size and a batch progress tracker."""
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10, "b": 20})
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", []),
+                ("b", "2.0", tmp_path / "b", []),
+            ],
+            tmp_path / "dl",
+        )
+    assert mock_download.call_count == 2
+    for call, (name, version, size) in zip(
+        mock_download.call_args_list, [("a", "1.0", 10), ("b", "2.0", 20)], strict=True
+    ):
+        assert call[0][0] == f"http://x/{name}.tar.gz"
+        assert call[0][1] == tmp_path / "dl" / f"{name}-{version}"
+        assert call[1]["sha256"] == "abc123"
+        assert call[1]["size"] == size
+        assert callable(call[1]["progress"])
+
+
+def test_prefetch_packages_single_pending_skips(tmp_path: Path) -> None:
+    """One pending package has nothing to parallelize; the sequential
+    install keeps its own bar."""
+    marker_dest = tmp_path / "a"
+    marker_dest.mkdir()
+    (marker_dest / ".esphome_extracted").touch()
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"b": 20})
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", marker_dest, []),
+                ("b", "2.0", tmp_path / "b", []),
+            ],
+            tmp_path / "dl",
+        )
+    mock_download.assert_not_called()
+
+
+def test_prefetch_packages_mirror_and_sizeless_stay_sequential(
+    tmp_path: Path,
+) -> None:
+    """Mirror overrides and size-less registry entries are left to the
+    sequential path so its per-file bars stay trustworthy."""
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry,
+            "registry_download",
+            side_effect=_resolve_for({"b": None, "c": 30}),
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", ["http://mirror/{VERSION}"]),
+                ("b", "2.0", tmp_path / "b", []),
+                ("c", "3.0", tmp_path / "c", []),
+            ],
+            tmp_path / "dl",
+        )
+    mock_download.assert_not_called()
+
+
+def test_prefetch_packages_resolve_failure_defers_to_install(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A registry failure only skips the prefetch; install_package reports
+    the real error with context."""
+    caplog.set_level("DEBUG")
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": -1, "b": 20})
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", []),
+                ("b", "2.0", tmp_path / "b", []),
+            ],
+            tmp_path / "dl",
+        )
+    mock_download.assert_not_called()
+    assert "Prefetch resolve for a failed" in caplog.text
+
+
+def test_prefetch_packages_complete_archive_skipped(tmp_path: Path) -> None:
+    """An archive already fully downloaded is not re-fetched."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    (dl / "a-1.0").write_bytes(b"x" * 10)
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10, "b": 20})
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", []),
+                ("b", "2.0", tmp_path / "b", []),
+            ],
+            dl,
+        )
+    mock_download.assert_not_called()
+
+
+def test_prefetch_packages_download_failure_is_debug(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed prefetch download is logged and left for install_package."""
+    caplog.set_level("DEBUG")
+    with (
+        patch.object(
+            registry, "download_with_resume", side_effect=OSError("boom")
+        ) as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10, "b": 20})
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", []),
+                ("b", "2.0", tmp_path / "b", []),
+            ],
+            tmp_path / "dl",
+        )
+    assert mock_download.call_count == 2
+    assert "Prefetch of a failed" in caplog.text
+    assert "Prefetch of b failed" in caplog.text
