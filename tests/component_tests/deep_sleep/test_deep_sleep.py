@@ -99,7 +99,9 @@ def test_deep_sleep_esp32_nested_wakeup_pin_mode(generate_main):
     hoisted to the top level so it actually takes effect rather than being
     silently dropped by the codegen.
     """
-    main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep4.yaml")
+    main_cpp = generate_main(
+        "tests/component_tests/deep_sleep/test_deep_sleep_nested_wakeup_pin_mode.yaml"
+    )
 
     assert "deepsleep->set_wakeup_pin(" in main_cpp
     assert "deepsleep->set_wakeup_pin_mode(" in main_cpp
