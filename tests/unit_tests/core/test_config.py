@@ -1408,13 +1408,16 @@ async def test_add_platformio_options_native_arduino(
     await config._add_platformio_options(
         {
             "board_build.f_cpu": "160000000L",
+            "board_build.ldscript": "eagle.flash.4m2m.ld",
             "board_build.filesystem": "littlefs",
             "upload_speed": "115200",
         }
     )
 
     assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
+    assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
     assert "board_build.f_cpu is ignored" not in caplog.text
+    assert "board_build.ldscript is ignored" not in caplog.text
     assert (
         "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
     )
