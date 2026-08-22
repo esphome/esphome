@@ -1,0 +1,22 @@
+binary_sensor:
+  - platform: template
+    id: bin1
+    lambda: |-
+      return millis() > 10000;
+
+cover:
+  - platform: template
+    name: "Template Cover"
+    id: template_cover
+    lambda: |-
+      if (id(bin1).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true

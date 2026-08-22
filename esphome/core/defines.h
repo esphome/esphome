@@ -41,6 +41,7 @@
 
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
+#define USE_ACTUATOR
 #define USE_AREAS
 #define USE_BINARY_SENSOR
 #define USE_BINARY_SENSOR_FILTER

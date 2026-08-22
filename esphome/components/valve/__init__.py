@@ -2,6 +2,7 @@ from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
+import esphome.components.actuator as actuator_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -21,18 +22,20 @@ from esphome.const import (
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_WATER,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import LambdaExpression, MockObjClass
+from esphome.cpp_generator import MockObjClass
 
 IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
+AUTO_LOAD = ["actuator"]
+DEPENDENCIES = ["actuator"]
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
@@ -41,9 +44,11 @@ DEVICE_CLASSES = [
 ]
 
 valve_ns = cg.esphome_ns.namespace("valve")
+actuator_ns = cg.esphome_ns.namespace("actuator")
+ActuatorBase = actuator_ns.class_("ActuatorBase", cg.EntityBase)
 
-Valve = valve_ns.class_("Valve", cg.EntityBase)
-ValveCall = valve_ns.class_("ValveCall")
+Valve = valve_ns.class_("Valve", ActuatorBase, actuator_ns.class_("IActuator"))
+ValveCall = valve_ns.class_("ValveCall", actuator_ns.class_("ActuatorCallBase"))
 
 VALVE_OPEN = valve_ns.VALVE_OPEN
 VALVE_CLOSED = valve_ns.VALVE_CLOSED
@@ -55,10 +60,11 @@ VALVE_STATES = {
 validate_valve_state = cv.enum(VALVE_STATES, upper=True)
 
 ValveOperation = valve_ns.enum("ValveOperation")
+
 VALVE_OPERATIONS = {
-    "IDLE": ValveOperation.VALVE_OPERATION_IDLE,
-    "OPENING": ValveOperation.VALVE_OPERATION_OPENING,
-    "CLOSING": ValveOperation.VALVE_OPERATION_CLOSING,
+    "IDLE": valve_ns.VALVE_OPERATION_IDLE,
+    "OPENING": valve_ns.VALVE_OPERATION_OPENING,
+    "CLOSING": valve_ns.VALVE_OPERATION_CLOSING,
 }
 validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
 
@@ -226,53 +232,28 @@ VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both dispatch to set_position.
+_VALVE_CONTROL_FIELDS: tuple[actuator_component.ApplyField, ...] = (
+    actuator_component.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    actuator_component.ApplyField(CONF_STATE, "set_position", cg.float_),
+    actuator_component.ApplyField(CONF_POSITION, "set_position", cg.float_),
+)
+
+
 @automation.register_action(
     "valve.control", ControlAction, VALVE_CONTROL_ACTION_SCHEMA, synchronous=True
 )
 async def valve_control_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-
-    # All configured fields are folded into a single stateless lambda whose
-    # constants live in flash; the action stores only a function pointer.
-    # CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
-    # one is present and both dispatch to set_position.
-    FIELDS = (
-        (CONF_STOP, "set_stop", cg.bool_),
-        (CONF_STATE, "set_position", cg.float_),
-        (CONF_POSITION, "set_position", cg.float_),
+    return await actuator_component.build_apply_lambda_action(
+        config=config,
+        action_id=action_id,
+        template_arg=template_arg,
+        args=args,
+        fields=_VALVE_CONTROL_FIELDS,
+        prefix_args=[(ValveCall.operator("ref"), "call")],
+        statement_fn=lambda setter, expr: f"call.{setter}({expr});",
     )
-
-    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
-    # apply lambda and any inner field lambdas (generated below via
-    # `process_lambda`) share one parameter spelling that's well-formed for
-    # any T (value, ref, or const-ref). Matches ControlAction::ApplyFn.
-    normalized_args = [
-        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
-        for t, n in args
-    ]
-
-    fwd_args = ", ".join(name for _, name in args)
-    body_lines: list[str] = []
-    for conf_key, setter, type_ in FIELDS:
-        if (value := config.get(conf_key)) is None:
-            continue
-        if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
-            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
-        else:
-            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
-
-    apply_args = [
-        (ValveCall.operator("ref"), "call"),
-        *normalized_args,
-    ]
-    apply_lambda = LambdaExpression(
-        ["\n".join(body_lines)],
-        apply_args,
-        capture="",
-        return_type=cg.void,
-    )
-    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 @coroutine_with_priority(CoroPriority.CORE)
