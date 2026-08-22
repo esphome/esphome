@@ -563,10 +563,12 @@ void USBUartTypeCH934X::start_rx_reader_() {
       this->rx_running_.store(false);
       return;
     }
+    bool pool_full = false;
     if (status.data_len > 0)
-      this->demux_rx_data_(status.data, status.data_len);
+      pool_full = this->demux_rx_data_(status.data, status.data_len);
     this->rx_running_.store(false);
-    this->start_rx_reader_();
+    if (!pool_full)
+      this->start_rx_reader_();
   };
 
   if (!this->transfer_in(ep->bEndpointAddress, callback, ep->wMaxPacketSize)) {
@@ -575,7 +577,8 @@ void USBUartTypeCH934X::start_rx_reader_() {
   }
 }
 
-void USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
+bool USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
+  bool pool_full = false;
   for (size_t i = 0; i + RX_BLOCK_SIZE <= len; i += RX_BLOCK_SIZE) {
     uint8_t port_num = data[i];
     uint8_t data_len = data[i + 1];
@@ -601,7 +604,10 @@ void USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
 
     UsbDataChunk *chunk = this->chunk_pool_.allocate();
     if (chunk == nullptr) {
+      // Pool exhausted: mirror the CDC path -- drop, then stop re-arming so read_array()
+      // restarts RX once the main loop has drained the queue (backpressure).
       this->usb_data_queue_.increment_dropped_count();
+      pool_full = true;
       continue;
     }
     memcpy(chunk->data, data + i + RX_HEADER_SIZE, data_len);
@@ -611,6 +617,7 @@ void USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
   }
   this->enable_loop_soon_any_context();
   App.wake_loop_threadsafe();
+  return pool_full;
 }
 
 void USBUartTypeCH934X::start_command_reader_() {

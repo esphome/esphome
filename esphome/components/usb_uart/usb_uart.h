@@ -356,7 +356,7 @@ class USBUartTypeCH934X : public USBUartComponent {
   uint8_t get_reg_address_(uint8_t portnum);
 
   void start_rx_reader_();
-  void demux_rx_data_(const uint8_t *data, size_t len);
+  bool demux_rx_data_(const uint8_t *data, size_t len);
   void start_command_reader_();
   void handle_command_data_(const uint8_t *data, size_t len);
 
