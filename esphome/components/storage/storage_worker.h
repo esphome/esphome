@@ -672,6 +672,11 @@ class StorageWorker : public PollingComponent {
   // as RUNNING here, which merely delays dispatch by one loop iteration (safe/conservative).
   bool overlaps_active_(const TransferRequest &candidate) const;
 
+  // True if `req` operates on `s` on any side -- src/dst path storage, a raw op's device, or a
+  // FORMAT's target (which rides in format_target, op-gated). The single availability predicate
+  // shared by is_busy_with(), has_active_task_io() and the unregister drain.
+  bool request_touches_(const TransferRequest &req, const storage::Storage *s) const;
+
   // Frees DONE slots and fires their completion callbacks (always on the main loop). Called once
   // at the top of update(), so a completion produced by this tick's chunk is delivered on the next
   // tick rather than the current one.

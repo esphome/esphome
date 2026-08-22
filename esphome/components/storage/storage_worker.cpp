@@ -254,6 +254,13 @@ bool StorageWorker::stream_overlaps_active_(const StreamRequest &candidate, bool
   return false;
 }
 
+bool StorageWorker::request_touches_(const TransferRequest &req, const storage::Storage *s) const {
+  // A FORMAT's target rides in format_target (may be Raw/KV), not src/dst; a raw op's device rides
+  // in raw_device. All three sides count, so an in-flight format/raw op is never reported idle.
+  return req.src_storage == s || req.dst_storage == s || req.raw_device == s ||
+         (req.op == RequestOp::FORMAT && req.format_target == s);
+}
+
 bool StorageWorker::is_busy_with(const storage::Storage *storage) const {
   if (storage == nullptr)
     return false;
@@ -263,11 +270,7 @@ bool StorageWorker::is_busy_with(const storage::Storage *storage) const {
     RequestState state = req.state.load();
     if (state == RequestState::FREE || state == RequestState::DONE)
       continue;
-    // A FORMAT's target rides in format_target (may be Raw/KV), not src/dst; a raw op's device
-    // rides in raw_device. Consult both, or an in-flight format/raw op is reported not busy and
-    // an unmount could proceed out from under it.
-    if (req.src_storage == storage || req.dst_storage == storage || req.raw_device == storage ||
-        (req.op == RequestOp::FORMAT && req.format_target == storage))
+    if (this->request_touches_(req, storage))
       return true;
   }
   // A stream counts whatever it is doing, IDLE included: unlike the contention question above,
@@ -299,10 +302,7 @@ bool StorageWorker::has_active_task_io(const storage::Storage *storage) const {
     // The loop engine's current request is the one RUNNING slot that is NOT task-owned.
     if (i == this->loop_active_index_)
       continue;
-    // A FORMAT's target rides in format_target (may be Raw/KV), not src/dst -- consult it too, or
-    // worker_task_busy() lets a main-loop blocking op start while the task is inside format().
-    if (req.src_storage == storage || req.dst_storage == storage || req.raw_device == storage ||
-        (req.op == RequestOp::FORMAT && req.format_target == storage))
+    if (this->request_touches_(req, storage))
       return true;
   }
   for (const auto &sreq : this->stream_pool_) {
@@ -755,8 +755,7 @@ void StorageWorker::on_storage_unregistered_(Storage *s) {
   // to unmount/tear down the driver right afterward.
   for (size_t i = 0; i < this->pool_.size(); i++) {
     TransferRequest &req = this->pool_[i];
-    if (req.src_storage != s && req.dst_storage != s && req.raw_device != s &&
-        (req.op != RequestOp::FORMAT || req.format_target != s))
+    if (!this->request_touches_(req, s))
       continue;
 
     RequestState state = req.state.load();
