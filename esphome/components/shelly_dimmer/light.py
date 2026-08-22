@@ -175,7 +175,7 @@ def validate_sha256(value: Any) -> str:
     return value
 
 
-def validate_version(value: str) -> str:
+def validate_version(value: Any) -> str:
     parse_firmware_version(value)
     return value
 
