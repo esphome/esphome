@@ -490,27 +490,33 @@ def test_url_pinned_bundled_name_not_doubled(tmp_path: Path) -> None:
     assert "Wire" not in [lib.name for lib in libs]
 
 
-def test_versioned_bundled_candidate_fault_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+def test_versioned_bundled_candidate_fault_warns_once(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A versioned bundled-name dependency skips the walk's usability filter
-    via provides(), so a non-platform fault warns here."""
+    """A versioned bundled-name dependency with a manifest fault warns once,
+    from the walk's usability filter; the backend-side re-check stays quiet."""
     framework = _make_framework(tmp_path)
-    converted = _webserver(
-        tmp_path,
-        {"build": {}, "dependencies": [{"name": "Wire", "version": "*"}]},
-    )
-    with (
-        _emitting_converter(converted),
-        patch.object(
-            component,
-            "check_library_data",
-            side_effect=InvalidLibrary("manifest is corrupt"),
-        ),
+    _local_lib(tmp_path, [{"name": "Wire", "version": "*"}])
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
+    real = pio_library.check_library_data
+
+    def flaky(data, platform, framework_name):
+        if data.get("name") == "Wire":
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework_name)
+
+    monkeypatch.setattr(pio_library, "check_library_data", flaky)
+    monkeypatch.setattr(component, "check_library_data", flaky)
+    with patch.object(
+        pio_library,
+        "_resolve_registry_version",
+        side_effect=AssertionError("registry touched"),
     ):
         libs = _resolve(framework)
     assert "Wire" not in [lib.name for lib in libs]
-    assert "Skipping bundled dependency Wire" in caplog.text
+    assert caplog.text.count("manifest is corrupt") == 1
 
 
 def test_short_name_collision_with_bundled_name_warns(
@@ -589,18 +595,15 @@ def test_library_info_lib_archive_parse(
     assert lib.lib_archive is expected
 
 
-def test_library_info_dropped_link_fields_warn(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """precompiled/ldflags properties are not honored; the drop is named."""
+def test_library_info_unsupported_link_fields_raise(tmp_path: Path) -> None:
+    """precompiled/ldflags properties are not supported; refuse by name."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
     (read_path / "src" / "stub.cpp").write_text("")
-    component._library_info(
-        "x", read_path, {"precompiled": "true", "ldflags": "-lfoo", "build": {}}
-    )
-    assert "declares precompiled, which this backend does not honor" in caplog.text
-    assert "declares ldflags, which this backend does not honor" in caplog.text
+    with pytest.raises(EsphomeError, match="declares precompiled"):
+        component._library_info("x", read_path, {"precompiled": "true", "build": {}})
+    with pytest.raises(EsphomeError, match="declares ldflags"):
+        component._library_info("x", read_path, {"ldflags": "-lfoo", "build": {}})
 
 
 def test_library_info_unmapped_sources_warn(
@@ -779,19 +782,17 @@ def test_bundled_library_properties_depends_warns(
     assert "Library Wire declares dependencies via library.properties" in caplog.text
 
 
-def test_bundled_library_extra_script_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A bundled manifest relying on an extraScript is a named deviation,
-    not a silently miscompiled library."""
+def test_bundled_library_extra_script_raises(tmp_path: Path) -> None:
+    """A bundled manifest relying on an extraScript would miscompile;
+    refuse by name."""
     framework = _make_framework(tmp_path)
     wire = framework / "libraries" / "Wire"
     (wire / "library.json").write_text(
         '{"name": "Wire", "build": {"extraScript": "extra.py"}}'
     )
     _add_library("Wire", None)
-    _resolve(framework)
-    assert "declares an extraScript" in caplog.text
+    with pytest.raises(EsphomeError, match="Wire declares an extraScript"):
+        _resolve(framework)
 
 
 def test_dependency_requested_top_level_is_not_a_drop(
