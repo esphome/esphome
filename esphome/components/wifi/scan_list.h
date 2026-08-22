@@ -1,11 +1,11 @@
 #pragma once
 #include <cstddef>
 
-namespace esphome::captive_portal {
+namespace esphome::wifi {
 
 // A scan returns one entry per BSSID, so a network served by several access points
-// appears several times. The portal form only ever submits an SSID, so the list
-// shows each SSID once.
+// appears several times. Provisioning only ever submits an SSID, so consumers
+// (captive_portal, improv_serial) list each SSID once.
 //
 // Returns true when results[i] is the entry to show for its SSID: the strongest
 // RSSI, first occurrence on ties. Hidden entries are never shown. Results are
@@ -13,7 +13,7 @@ namespace esphome::captive_portal {
 // explicitly.
 //
 // with_auth is written only when returning true, and is true when any entry with
-// that SSID requires a key, so the padlock icon is drawn whenever one might be
+// that SSID requires a key, so a password is asked for whenever one might be
 // needed, whichever access point was strongest.
 //
 // Templated on the container so the rule can be unit tested on the host, where
@@ -37,4 +37,4 @@ template<typename Results> bool should_show_scan_entry(const Results &results, s
   return true;
 }
 
-}  // namespace esphome::captive_portal
+}  // namespace esphome::wifi
