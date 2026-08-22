@@ -255,8 +255,9 @@ def test_suspend_loop_fail(
 @pytest.mark.parametrize(
     ("fixture", "interval", "max_loop"),
     [
-        ("loop_interval_esp32.yaml", "7s", "2400.0"),
+        ("suspend_loop_esp32.yaml", "7s", "2400.0"),
         ("loop_interval_bk72xx.yaml", "5000ms", "4000"),
+        ("loop_interval_nrf52.yaml", "700ms", "600"),
     ],
 )
 def test_loop_interval_warn(
@@ -299,7 +300,7 @@ async def test_suspend_loop_and_loop_interval(
     mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
     mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
     mock_cg.App.set_loop_interval.assert_called_once_with(
-        cv.TimePeriodMilliseconds(milliseconds=50)
+        cv.TimePeriodMilliseconds(seconds=7)
     )
 
 

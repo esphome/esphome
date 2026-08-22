@@ -1,7 +1,0 @@
-esphome:
-  name: test
-  loop_interval: 7s
-
-esp32:
-  board: esp32dev
-  watchdog_timeout: 6s
