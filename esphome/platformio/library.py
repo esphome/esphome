@@ -994,7 +994,10 @@ def convert_libraries(
                 dep_name = dependency.get("name")
                 if (
                     isinstance(dep_name, str)
-                    and _node_key(dep_name, None, None)[0] in nodes
+                    # _node_key raises for a malformed URL-ish name; that
+                    # entry belongs to the warning below, not a traceback
+                    and "://" not in dep_name
+                    and _node_key(dep_name, None, None)[0] in top_level_keys
                 ):
                     # Already requested top-level: present in the build, not
                     # a drop (a false warning teaches users to ignore the
