@@ -441,28 +441,32 @@ def test_library_info_falsy_declared_src_dir_raises(
 
 
 @pytest.mark.parametrize(
-    ("value", "expected", "warns"),
+    ("value", "expected"),
     [
-        (False, False, False),
-        ("false", False, False),
-        ("False", False, False),
-        ("true", True, False),
-        ("archive-me", True, True),
+        (False, False),
+        ("false", False),
+        ("False", False),
+        ("true", True),
     ],
 )
 def test_library_info_lib_archive_parse(
     tmp_path: Path,
     value: object,
     expected: bool,
-    warns: bool,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """bool("false") is True; the string forms must parse, not coerce."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
     lib = component._library_info("x", read_path, {"build": {"libArchive": value}})
     assert lib.lib_archive is expected
-    assert ("unrecognized libArchive" in caplog.text) is warns
+
+
+def test_library_info_lib_archive_malformed_raises(tmp_path: Path) -> None:
+    """A typo'd libArchive fails by name like the other build fields."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    with pytest.raises(EsphomeError, match="malformed libArchive value 'archive-me'"):
+        component._library_info("x", read_path, {"build": {"libArchive": "archive-me"}})
 
 
 def test_bundled_dependency_dict_shorthand_prefers_bundled(tmp_path: Path) -> None:
@@ -535,27 +539,30 @@ def test_library_info_malformed_build_fields_are_named(
 
 
 @pytest.mark.parametrize(
-    ("value", "expected", "warns"),
+    ("value", "expected"),
     [
-        ("true", True, False),
-        ("False", False, False),
-        ("yes", True, True),
+        ("true", True),
+        ("False", False),
     ],
 )
 def test_library_info_dot_a_linkage_parses_strictly(
     tmp_path: Path,
     value: str,
     expected: bool,
-    warns: bool,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """The dot_a_linkage property uses the same strict table as libArchive; a typo warns
-    and keeps the archive default instead of silently flipping linkage."""
+    """The dot_a_linkage property uses the same strict table as libArchive."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
     lib = component._library_info("x", read_path, {"dot_a_linkage": value, "build": {}})
     assert lib.lib_archive is expected
-    assert ("unrecognized dot_a_linkage" in caplog.text) is warns
+
+
+def test_library_info_dot_a_linkage_malformed_raises(tmp_path: Path) -> None:
+    """A typo'd dot_a_linkage must not silently flip link semantics."""
+    read_path = tmp_path / "lib"
+    (read_path / "src").mkdir(parents=True)
+    with pytest.raises(EsphomeError, match="malformed dot_a_linkage value 'yes'"):
+        component._library_info("x", read_path, {"dot_a_linkage": "yes", "build": {}})
 
 
 def test_bundled_library_properties_depends_warns(
