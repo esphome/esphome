@@ -590,3 +590,14 @@ def test_source_kind_map_shape() -> None:
     assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
     assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
     assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
+
+
+def test_normalize_dependencies_string_entries() -> None:
+    from esphome.platformio.library import normalize_dependencies
+
+    """PIO's bare string-list form coerces to name dicts; other non-dict
+    entries still drop."""
+    assert normalize_dependencies(["Wire", {"name": "SPI"}, 5, ""]) == [
+        {"name": "Wire"},
+        {"name": "SPI"},
+    ]
