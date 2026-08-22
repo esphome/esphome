@@ -152,3 +152,21 @@ def test_get_build_env_without_path_has_no_empty_entry(tmp_path: Path) -> None:
     ):
         env = framework.get_build_env(tmp_path)
     assert env["PATH"].split(os.pathsep) == [str(tmp_path / "bin"), "/usr/bin", "/bin"]
+
+
+def test_ccache_env_accepts_a_preresolved_path() -> None:
+    """A caller that already resolved ccache threads it through; the probe
+    must not run again (None means resolved-and-disabled)."""
+    with patch.object(framework, "ccache_path") as mock_resolve:
+        assert framework.ccache_env(None) == {}
+        env = framework.ccache_env("/usr/bin/ccache")
+    mock_resolve.assert_not_called()
+    assert env["CCACHE_DIR"].endswith("ccache")
+
+
+def test_toolchain_tool_layout(tmp_path: Path) -> None:
+    """One owner for the bin/xtensa-lx106-elf-<name> layout."""
+    tool = framework.toolchain_tool(tmp_path, "addr2line")
+    assert tool.parent == tmp_path / "bin"
+    assert tool.name.startswith("xtensa-lx106-elf-addr2line")
+    assert (tool.suffix == ".exe") is (os.name == "nt")
