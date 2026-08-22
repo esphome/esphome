@@ -285,12 +285,24 @@ bool USBUartTypeCH934X::config_bulk_write_(USBUartChannelBase *channel, const ui
 }
 
 void USBUartTypeCH934X::finalize_init_() {
+  const bool device_failed = this->init_device_failed_.load();
+  const uint8_t failed_mask = this->init_failed_mask_.load();
+
+  // Channel 0 owns the shared TX queue/pool for every channel, so a channel-0 (or
+  // device-level) init failure cannot be worked around by using the other ports -- their TX
+  // would route through a dead queue. Fail the whole device setup instead.
+  if (device_failed || (failed_mask & 0x01u) != 0) {
+    for (auto *channel : this->channels_)
+      channel->initialised_.store(false);
+    ESP_LOGE(TAG, "Device init failed (channel 0 or device-level write); marking setup failed");
+    this->status_set_error(LOG_STR("CH934X device initialisation failed"));
+    return;
+  }
+
   // Wire the shared TX endpoint (channel 0) and per-channel TX routing
   auto *shared = this->channels_[0];
   shared->cdc_dev_.out_ep = this->uart_host_dev_.out_ep;
 
-  bool device_failed = this->init_device_failed_.load();
-  uint8_t failed_mask = this->init_failed_mask_.load();
   bool any_failed = false;
 
   for (auto *channel : this->channels_) {
@@ -298,7 +310,7 @@ void USBUartTypeCH934X::finalize_init_() {
     ch934x_channel->tx_shared_channel_ = shared;
     ch934x_channel->tx_port_byte_ = static_cast<uint8_t>(this->port_offset_ + channel->index_);
 
-    bool failed = device_failed || channel->index_ >= this->num_ports_ || (failed_mask & (1u << channel->index_)) != 0;
+    bool failed = channel->index_ >= this->num_ports_ || (failed_mask & (1u << channel->index_)) != 0;
     if (failed) {
       channel->initialised_.store(false);
       any_failed = true;
