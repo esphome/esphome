@@ -1,5 +1,6 @@
 #include "logger.h"
 #include <cinttypes>
+#include <cstring>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -202,6 +203,61 @@ void Logger::process_messages_() {
 }
 
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
+
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+// Record layout in boot_log_buffer_: u16 text_len | u8 level | u32 millis | text
+static constexpr uint16_t BOOT_LOG_RECORD_HEADER_SIZE = 7;
+
+void Logger::boot_log_capture_(uint8_t level, const LogBuffer &buf) {
+  if (this->boot_log_done_ || level > ESPHOME_LOG_LEVEL_WARN || level == ESPHOME_LOG_LEVEL_NONE)
+    return;
+  // Strip the leading ANSI color prefix and trailing reset; the replay re-emits
+  // the text through the normal formatter, which colors it again.
+  const char *text = buf.data;
+  uint16_t len = buf.pos;
+  if (len > 0 && text[0] == '\033') {
+    const char *m = static_cast<const char *>(memchr(text, 'm', len));
+    if (m != nullptr) {
+      const uint16_t skip = static_cast<uint16_t>(m - text) + 1;
+      text += skip;
+      len -= skip;
+    }
+  }
+  if (len >= 4 && memcmp(text + len - 4, "\033[0m", 4) == 0)
+    len -= 4;
+  if (this->boot_log_pos_ + BOOT_LOG_RECORD_HEADER_SIZE + len > ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE) {
+    this->boot_log_dropped_++;
+    return;
+  }
+  char *p = this->boot_log_buffer_ + this->boot_log_pos_;
+  const uint32_t now = millis();
+  memcpy(p, &len, sizeof(len));
+  p[2] = static_cast<char>(level);
+  memcpy(p + 3, &now, sizeof(now));
+  memcpy(p + BOOT_LOG_RECORD_HEADER_SIZE, text, len);
+  this->boot_log_pos_ += BOOT_LOG_RECORD_HEADER_SIZE + len;
+}
+
+void Logger::replay_boot_logs() {
+  // Stop capturing first so the replay output is not buffered again.
+  this->boot_log_done_ = true;
+  ESP_LOGI(TAG, "Replaying boot logs (%u bytes used, %u lines dropped)", this->boot_log_pos_, this->boot_log_dropped_);
+  uint16_t pos = 0;
+  while (pos + BOOT_LOG_RECORD_HEADER_SIZE <= this->boot_log_pos_) {
+    const char *p = this->boot_log_buffer_ + pos;
+    uint16_t len;
+    memcpy(&len, p, sizeof(len));
+    uint32_t stamp;
+    memcpy(&stamp, p + 3, sizeof(stamp));
+    esp_log_printf_(static_cast<uint8_t>(p[2]), TAG, __LINE__, ESPHOME_LOG_FORMAT("@%" PRIu32 "ms %.*s"), stamp,
+                    static_cast<int>(len), p + BOOT_LOG_RECORD_HEADER_SIZE);
+    pos += BOOT_LOG_RECORD_HEADER_SIZE + len;
+  }
+  ESP_LOGI(TAG, "Boot log replay done");
+}
+#else
+void Logger::replay_boot_logs() { ESP_LOGW(TAG, "Boot log buffer not configured (set 'boot_log_buffer_size')"); }
+#endif  // USE_LOGGER_BOOT_LOG_BUFFER
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 #endif
@@ -238,6 +294,9 @@ void Logger::dump_config() {
 #else
   ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u bytes", static_cast<unsigned int>(this->log_buffer_.size()));
 #endif
+#endif
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  ESP_LOGCONFIG(TAG, "  Boot Log Buffer Size: %u bytes", ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE);
 #endif
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS

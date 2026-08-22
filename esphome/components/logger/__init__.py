@@ -103,6 +103,7 @@ USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
 
+CONF_BOOT_LOG_BUFFER_SIZE = "boot_log_buffer_size"
 CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
@@ -242,6 +243,13 @@ CONFIG_SCHEMA = cv.All(
                 cv.validate_bytes, cv.int_range(min=160, max=65535)
             ),
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
+            cv.Optional(CONF_BOOT_LOG_BUFFER_SIZE, default=0): cv.All(
+                cv.validate_bytes,
+                cv.Any(
+                    cv.int_(0),  # Disabled
+                    cv.int_range(min=512, max=16384),
+                ),
+            ),
             cv.SplitDefault(
                 CONF_TASK_LOG_BUFFER_SIZE,
                 esp32=768,  # Default: 768 bytes (~5-6 messages with 70-byte text plus thread names)
@@ -352,6 +360,11 @@ async def to_code(config: ConfigType) -> None:
     if task_log_buffer_size > 0:
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
         cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
+    # Boot log buffer captures early WARN/ERROR lines for later replay
+    # (logger.replay_boot_logs action). Buffer is a direct member of Logger.
+    if (boot_log_buffer_size := config[CONF_BOOT_LOG_BUFFER_SIZE]) > 0:
+        cg.add_define("USE_LOGGER_BOOT_LOG_BUFFER")
+        cg.add_define("ESPHOME_LOGGER_BOOT_LOG_BUFFER_SIZE", boot_log_buffer_size)
     log = cg.new_Pvariable(
         config[CONF_ID],
         baud_rate,
@@ -604,6 +617,27 @@ async def logger_set_level_to_code(
         text = str(cg.statement(logger.set_log_level(tag, level)))
     else:
         text = str(cg.statement(logger.set_log_level(level)))
+
+    lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
+    return automation.new_lambda_pvariable(
+        action_id, lambda_, StatelessLambdaAction, template_arg
+    )
+
+
+@automation.register_action(
+    "logger.replay_boot_logs",
+    LambdaAction,
+    automation.maybe_conf(
+        CONF_LOGGER_ID,
+        {
+            cv.GenerateID(CONF_LOGGER_ID): cv.use_id(Logger),
+        },
+    ),
+    synchronous=True,
+)
+async def logger_replay_boot_logs_to_code(config, action_id, template_arg, args):
+    logger = await cg.get_variable(config[CONF_LOGGER_ID])
+    text = str(cg.statement(logger.replay_boot_logs()))
 
     lambda_ = await cg.process_lambda(Lambda(text), args, return_type=cg.void)
     return automation.new_lambda_pvariable(
