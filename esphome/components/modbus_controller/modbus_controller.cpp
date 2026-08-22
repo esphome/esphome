@@ -83,6 +83,11 @@ void ModbusCommandItem::on_response(std::span<const uint8_t> request_pdu, std::s
       sensor->parse_and_publish(data);
   } else if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
     // write acknowledgement - nothing to publish
+  } else {
+    // No handler, no sensors, and a read function code: a polling command always has sensors, so this
+    // is unexpected - surface it rather than dropping the reply silently.
+    ESP_LOGW(TAG, "Unhandled response for function 0x%X register 0x%X", static_cast<uint8_t>(this->function_code_),
+             this->start_address_);
   }
   if (this->controller_ != nullptr)
     this->controller_->unqueue_command(this);

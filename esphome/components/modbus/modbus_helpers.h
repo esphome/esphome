@@ -349,14 +349,15 @@ template<typename Out, typename Bits> void pack_bits(Out &out, const Bits &bits)
     out.push_back(byte);
 }
 
-/** Pack 16-bit words into a byte buffer in big-endian (wire) order.
- * Returns false without appending anything when the words would exceed the buffer's capacity, so the
- * caller can refuse rather than emit a truncated frame that still gets a valid CRC.
+/** Pack 16-bit words into a byte buffer in big-endian (wire) order, appending to whatever `out`
+ * already holds. Returns false without appending anything when the words would exceed the buffer's
+ * remaining capacity, so the caller can refuse rather than emit a truncated frame that still gets a
+ * valid CRC.
  * @param words the 16-bit words to serialize
  * @param out destination byte buffer (a StaticVector<uint8_t, CAP>)
  */
 template<size_t CAP> bool pack_words(std::span<const uint16_t> words, StaticVector<uint8_t, CAP> &out) {
-  if (words.size() * 2 > CAP) {
+  if (out.size() + words.size() * 2 > CAP) {
     return false;
   }
   for (uint16_t word : words) {

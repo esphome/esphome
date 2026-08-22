@@ -455,10 +455,6 @@ class ModbusController final : public PollingComponent {
   /// any frame it still had queued is dropped with a warning - last write wins. Writes that must all reach
   /// the wire each need their own live item.
   ModbusCommandItem create_command() { return ModbusCommandItem(*this, this->hub_, this->address_); }
-  /// Build a polling command for a register range bound to this controller's hub and address.
-  ModbusCommandItem create_command(RegisterRange &&range) {
-    return ModbusCommandItem(*this, this->hub_, this->address_, std::move(range));
-  }
 
   /// Queues a one-shot modbus command (writes, custom commands); taken by value, so std::move to avoid a copy.
   ESPDEPRECATED("Use a modbus_client component action (e.g. modbus_client.write_single_register or "
