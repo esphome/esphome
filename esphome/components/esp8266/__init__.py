@@ -4,6 +4,7 @@ import platform
 import re
 import subprocess
 import time
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -34,6 +35,7 @@ from esphome.core import (
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import IS_MACOS, copy_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_BOARD_BUILD, ESP8266_LD_SCRIPTS
@@ -93,7 +95,7 @@ def lambdas_use_scanf_float(config: ConfigType) -> bool:
     return False
 
 
-def set_core_data(config):
+def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_ESP8266] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
@@ -152,7 +154,7 @@ def _validate_native_toolchain(config: ConfigType) -> ConfigType:
     return config
 
 
-def get_download_types(storage_json):
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Binary-download entries for a built ESP8266 firmware.
 
     Used by device-builder (esphome/device-builder), via
@@ -216,7 +218,7 @@ ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 ARDUINO_4_PLATFORM_VERSION = cv.Version(4, 2, 1)
 
 
-def _arduino_check_versions(value):
+def _arduino_check_versions(value: ConfigType) -> ConfigType:
     value = value.copy()
     lookups = {
         "dev": (cv.Version(3, 1, 2), "https://github.com/esp8266/Arduino.git"),
@@ -259,7 +261,7 @@ def _arduino_check_versions(value):
     return value
 
 
-def _parse_platform_version(value):
+def _parse_platform_version(value: Any) -> str:
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
@@ -355,7 +357,7 @@ def check_rosetta() -> None:
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     use_platformio = CORE.using_toolchain_platformio
     cg.add(esp8266_ns.setup_preferences())
 
@@ -625,7 +627,7 @@ def _warn_decode_problem(key: str, message: str, *args) -> None:
     _LOGGER.warning(message, *args)
 
 
-def _decode_pc(config, addr):
+def _decode_pc(config: ConfigType, addr: str) -> None:
     if (native_toolchain := native_toolchain_module()) is not None:
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
@@ -665,7 +667,7 @@ def _decode_pc(config, addr):
     _LOGGER.warning("Decoded %s", translation)
 
 
-def _parse_register(config, regex, line):
+def _parse_register(config: ConfigType, regex: re.Pattern[str], line: str) -> None:
     match = regex.match(line)
     if match is not None:
         _decode_pc(config, match.group(1))
@@ -689,7 +691,7 @@ STACKTRACE_BAD_ALLOC_RE = re.compile(
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
-def process_stacktrace(config, line, backtrace_state):
+def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     line = line.strip()
     # ESP8266 Exception type
     match = re.match(STACKTRACE_ESP8266_EXCEPTION_TYPE_RE, line)
