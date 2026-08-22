@@ -16,6 +16,8 @@ from esphome.const import (
     CONF_RMT_SYMBOLS,
     CONF_USE_DMA,
     CONF_VALUE,
+    PLATFORM_ESP32,
+    PLATFORM_RTL87XX,
     PlatformFramework,
 )
 from esphome.core import CORE, ID
@@ -76,7 +78,9 @@ CONFIG_SCHEMA = (
                 esp32_s2=64,
                 esp32_s3=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
-            cv.Optional(CONF_NON_BLOCKING): cv.All(cv.only_on_esp32, cv.boolean),
+            cv.Optional(CONF_NON_BLOCKING): cv.All(
+                cv.only_on([PLATFORM_ESP32, PLATFORM_RTL87XX]), cv.boolean
+            ),
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
         }
@@ -164,6 +168,8 @@ async def to_code(config: ConfigType) -> None:
             )
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
+        if (non_blocking := config.get(CONF_NON_BLOCKING)) is not None:
+            cg.add(var.set_non_blocking(non_blocking))
     await cg.register_component(var, config)
 
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))

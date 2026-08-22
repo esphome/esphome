@@ -2,6 +2,7 @@ remote_transmitter:
   id: xmitr
   pin: GPIO12
   carrier_duty_percent: 50%
+  non_blocking: true
 
 packages:
   buttons: !include common-buttons.yaml
