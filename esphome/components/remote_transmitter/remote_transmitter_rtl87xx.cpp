@@ -30,13 +30,20 @@ void RemoteTransmitterComponent::setup() {
   // Deliberately no pin_->setup(): registering the pin as GPIO claims it in the SDK's pin
   // management, and the pad is then never handed over to the PWM peripheral -- pwmout_init()
   // must own the pin from the start.
+  PinInfo *info = pinInfo(this->pin_->get_pin());
+  if (info == nullptr || !(info->supported & PIN_PWM)) {
+    // checked here because the AmebaZ (RTL8710B) SDK does not report PWM init failure
+    ESP_LOGE(TAG, "Pin %u is not PWM-capable", this->pin_->get_pin());
+    this->mark_failed();
+    return;
+  }
   auto *pwm = new pwmout_t();
   this->pwm_ = pwm;
-  pwmout_init(pwm, static_cast<PinName>(pinInfo(this->pin_->get_pin())->gpio));
+  pwmout_init(pwm, static_cast<PinName>(info->gpio));
 #if LT_RTL8720C
   // only the AmebaZ2 SDK's pwmout_s reports init success
   if (!pwm->is_init) {
-    ESP_LOGE(TAG, "PWM init failed on pin %u (pin must be PWM-capable)", this->pin_->get_pin());
+    ESP_LOGE(TAG, "PWM init failed on pin %u", this->pin_->get_pin());
     delete pwm;
     this->pwm_ = nullptr;
     this->mark_failed();
