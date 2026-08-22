@@ -762,10 +762,8 @@ def _wrap_to_code(name, comp, yaml_util):
     async def wrapped(conf):
         cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
-            # sort_keys: voluptuous fills schema defaults in set-iteration
-            # order, so the validated dict's key order changes with the
-            # process hash seed; an unsorted dump would churn main.cpp and
-            # relink the firmware on every run
+            # sort_keys: voluptuous fills defaults in set order, so an
+            # unsorted dump would churn main.cpp and relink every run
             conf_str = yaml_util.dump(conf, sort_keys=True)
             conf_str = conf_str.replace("//", "")
             # remove tailing \ to avoid multi-line comment warning
