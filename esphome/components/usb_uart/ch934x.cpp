@@ -773,7 +773,13 @@ void USBUartTypeCH934X::handle_command_data_(const uint8_t *data, size_t len) {
   ESP_LOGV(TAG, "CMD data received: %u bytes", len);
 }
 
-void USBUartTypeCH934X::start_input(USBUartChannelBase * /*channel*/) {}
+void USBUartTypeCH934X::start_input(USBUartChannelBase * /*channel*/) {
+  auto started = false;
+  if (!channel->input_started_.compare_exchange_strong(started, true))
+    return;
+  this->start_rx_reader_();
+  this->start_command_reader_();
+}
 
 void CH934XChannel::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load() || this->tx_shared_channel_ == nullptr)
