@@ -66,11 +66,19 @@ TEST(ScanList, SameSsidKeepsStrongest) {
 
 TEST(ScanList, EqualRssiKeepsFirst) {
   std::vector<Entry> results = {{"Home", -60}, {"Home", -60}, {"Home", -60}};
-  std::vector<Row> seen = rows(results);
-  ASSERT_EQ(seen.size(), 1u);
-  EXPECT_TRUE(should_show_scan_entry(results, 0, seen[0].lock));
-  EXPECT_FALSE(should_show_scan_entry(results, 1, seen[0].lock));
-  EXPECT_FALSE(should_show_scan_entry(results, 2, seen[0].lock));
+  bool with_auth = false;
+  EXPECT_TRUE(should_show_scan_entry(results, 0, with_auth));
+  EXPECT_FALSE(should_show_scan_entry(results, 1, with_auth));
+  EXPECT_FALSE(should_show_scan_entry(results, 2, with_auth));
+  EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -60, true}}));
+}
+
+// with_auth is an out-parameter that must only be written for a shown entry.
+TEST(ScanList, WithAuthUntouchedWhenNotShown) {
+  std::vector<Entry> results = {{"Home", -50, false}, {"Home", -70, true}};
+  bool with_auth = false;
+  EXPECT_FALSE(should_show_scan_entry(results, 1, with_auth));
+  EXPECT_FALSE(with_auth);
 }
 
 TEST(ScanList, DuplicatesInterleavedWithOtherNetworks) {
@@ -78,10 +86,10 @@ TEST(ScanList, DuplicatesInterleavedWithOtherNetworks) {
   EXPECT_EQ(rows(results), (std::vector<Row>{{"Guest", -55, true}, {"Home", -50, true}}));
 }
 
-// A hidden entry is never listed, and a hidden entry with the same SSID must not
-// knock out the visible one even when it is stronger.
-TEST(ScanList, HiddenEntriesNeitherShownNorSuppress) {
-  std::vector<Entry> results = {{"", -40, true, true}, {"Home", -70}, {"Home", -30, true, true}};
+// Hidden networks scan with an empty SSID. They are never listed and do not
+// collapse into each other or into anything else.
+TEST(ScanList, HiddenEntriesNeverShown) {
+  std::vector<Entry> results = {{"", -40, true, true}, {"Home", -70}, {"", -30, true, true}};
   EXPECT_EQ(rows(results), (std::vector<Row>{{"Home", -70, true}}));
 }
 

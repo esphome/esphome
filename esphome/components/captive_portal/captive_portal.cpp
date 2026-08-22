@@ -37,7 +37,7 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     const auto &results = wifi::global_wifi_component->get_scan_result();
     for (size_t i = 0; i < results.size(); i++) {
       const auto &scan = results[i];
-      bool with_auth;
+      bool with_auth = false;
       if (!should_show_scan_entry(results, i, with_auth))
         continue;
 
