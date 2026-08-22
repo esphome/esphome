@@ -633,12 +633,8 @@ def should_run_esp32_platformio(branch: str | None = None) -> bool:
     return bool(esp32_platformio_components_to_test(branch))
 
 
-# Components tested by the native (PlatformIO-free) ESP8266 Arduino toolchain
-# compile-test job. The regular component matrix builds esp8266 with the
-# default platformio toolchain; this list is the `--toolchain arduino` smoke
-# test, chosen to exercise the core, the bundled libraries (ESP8266WiFi,
-# ESP8266mDNS, Wire, SPI, DNSServer, Hash), the converted registry libraries
-# (ESPAsyncTCP/WebServer, AsyncMqttClient, NeoPixelBus), and the waveform path.
+# The `--toolchain arduino` smoke-test set: covers the core, the bundled and
+# converted registry libraries, and the waveform path.
 ESP8266_NATIVE_TEST_COMPONENTS = frozenset(
     {
         "esp8266",

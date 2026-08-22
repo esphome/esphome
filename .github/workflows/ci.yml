@@ -1166,10 +1166,7 @@ jobs:
       - determine-jobs
     if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp8266-native == 'true'
     env:
-      # Comma-joined subset of the native-ESP8266 representative component list,
-      # computed by script/determine-jobs.py (esp8266_native_components_to_test).
-      # Single source of truth -- the full list lives in
-      # script/determine-jobs.py::ESP8266_NATIVE_TEST_COMPONENTS.
+      # Computed by script/determine-jobs.py (ESP8266_NATIVE_TEST_COMPONENTS)
       TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp8266-native-components }}
       ESPHOME_ARDUINO8266_PREFIX: ~/.esphome-arduino8266
     steps:

@@ -26,11 +26,9 @@ _MAX_RAM_SIZE = 81920
 def _warn_ignored_platformio_options() -> None:
     """Warn for component-added platformio options the native build drops.
 
-    The consumed set derives from the routing constant in core/config.py so
-    the two lists cannot drift. YAML-set upload_speed never reaches
-    CORE.platformio_options under the native toolchain (it is read from the
-    raw config at upload time), so anything unconsumed came from a
-    component and genuinely is dropped.
+    The consumed set derives from NATIVE_ARDUINO_PIO_OPTIONS so the two
+    lists cannot drift; YAML upload_speed never reaches
+    CORE.platformio_options here.
     """
     from esphome.core.config import NATIVE_ARDUINO_PIO_OPTIONS
 
@@ -85,10 +83,8 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     build_dir = get_build_dir()
     env = framework.get_build_env(paths.toolchain, ccache)
 
-    # The compile database is a pure function of build.ninja (no compilation
-    # involved), so regenerate it before the build: a failed build can then
-    # never leave a stale database behind. Skip the ninja spawn plus MBs of
-    # text on unchanged builds.
+    # Regenerate the compile DB before the build (a pure function of
+    # build.ninja); skip when unchanged.
     if ninja_changed or not (build_dir / "compile_commands.json").is_file():
         _write_compile_commands(paths.ninja, build_dir, env)
 
@@ -107,10 +103,8 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     try:
         idedata = get_idedata(ccache)
     except (EsphomeError, LookupError, OSError, RuntimeError, ValueError) as err:
-        # The firmware already built; idedata is a bonus artifact here.
-        # Broad on purpose: a vanished compiler (OSError), a failed include
-        # probe (RuntimeError), or a truncated/structurally odd compile DB
-        # (ValueError/LookupError) must not fail a successful build either.
+        # Broad on purpose: idedata is a bonus artifact; nothing here may
+        # fail a successful build.
         _LOGGER.warning("Could not generate idedata: %s", err)
     else:
         if idedata is None:

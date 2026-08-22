@@ -814,9 +814,8 @@ def write_cpp_file() -> int:
 
         espidf.write_project()
     elif CORE.using_native_toolchain:
-        # Native builds generate their project at compile time (the ESP8266
-        # ninja build needs the downloaded framework); nothing to write here,
-        # and never a platformio.ini (must agree with _add_platformio_options)
+        # Native builds generate their project at compile time; never write
+        # a platformio.ini
         pass
     else:
         from esphome.build_gen import platformio
@@ -874,9 +873,6 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
             # failure must not fail a successful build.
             _LOGGER.warning("Could not generate idedata: %s", err)
     elif CORE.using_native_toolchain:
-        # A resolved native toolchain must be claimed by its platform hook
-        # or a branch above; falling through would build a mis-configured
-        # PlatformIO project
         raise EsphomeError(
             f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
             "backend claimed the build"
@@ -1943,18 +1939,12 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 
 
 def _native_toolchain_module():
-    """The native build backend module for the resolved toolchain, if any.
-
-    Platform-owned toolchains resolve through the target platform's
-    ``native_toolchain_module`` hook (the same per-platform module seam
-    ``compile_program`` uses), so shared dispatch never names a backend.
-    """
+    """The native build backend module for the resolved toolchain, via the
+    target platform's ``native_toolchain_module`` hook."""
     module = importlib.import_module("esphome.components." + CORE.target_platform)
     get_native = getattr(module, "native_toolchain_module", None)
     native = get_native() if get_native is not None else None
     if native is None and CORE.using_native_toolchain:
-        # A missing/renamed hook must fail, not silently degrade the native
-        # build's tooling to the PlatformIO path
         raise EsphomeError(
             f"Platform {CORE.target_platform} resolved toolchain "
             f"'{CORE.toolchain.value}' but provides no native toolchain module"

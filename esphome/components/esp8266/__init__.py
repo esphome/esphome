@@ -551,9 +551,8 @@ def run_compile(args, config: ConfigType) -> bool:
 
 # Called by writer.py
 def copy_files() -> None:
-    # Positive check, matching run_compile: only the arduino native backend
-    # skips the PlatformIO/SCons extra scripts (their logic lives in the
-    # build generator there)
+    # Native builds skip the PlatformIO extra scripts; the build generator
+    # carries their logic
     if CORE.using_toolchain_arduino:
         return
     dir = Path(__file__).parent
@@ -616,12 +615,8 @@ _DECODE_WARNED_AT: dict[str, float] = {}
 
 
 def _warn_decode_problem(key: str, message: str, *args) -> None:
-    """Warn, deduplicated per stack dump but not per process.
-
-    A dump decodes dozens of addresses in a burst; one warning per burst is
-    enough. A long-running dashboard must still warn on the next dump, so
-    the suppression expires instead of living for the process lifetime.
-    """
+    """Warn, deduplicated briefly so a burst of stack-dump addresses warns
+    once but a later dump warns again."""
     now = time.monotonic()
     last = _DECODE_WARNED_AT.get(key)
     if last is not None and now - last < 30:
@@ -646,8 +641,6 @@ def _decode_pc(config, addr):
 
         idedata = toolchain.get_idedata(config)
         if not idedata.addr2line_path or not idedata.firmware_elf_path:
-            # Same visibility as the native branch: raw undecoded addresses
-            # with no stated reason are undiagnosable at default log level
             _warn_decode_problem(
                 "no-addr2line",
                 "Cannot decode crash addresses: no addr2line or ELF in idedata",
@@ -658,9 +651,7 @@ def _decode_pc(config, addr):
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        # A present-but-failing addr2line (stale ELF, bad install) must be
-        # visible on either toolchain, matching the missing-tool warning
-        # above, and the cause must not need debug logging to see
+        # Warn, not debug: a failing addr2line must be visible
         _warn_decode_problem(
             "addr2line-failed", "Could not decode crash address %s (%s)", addr, err
         )

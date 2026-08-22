@@ -10,11 +10,9 @@ runs:
   using: composite
   steps:
     - name: Resolve the native toolchain cache key
-      # The versions are pinned in code, not in a hashable file, so resolve
-      # them for the key (actions/cache never overwrites a key, so a bump
-      # must change it). Assignment form so errexit catches a resolver
-      # failure; a nested $(...) inside echo would silently yield a
-      # degenerate key.
+      # Versions are pinned in code, not a hashable file; resolve them so a
+      # bump changes the cache key. Assignment form so errexit catches a
+      # resolver failure.
       id: version
       shell: bash
       run: |

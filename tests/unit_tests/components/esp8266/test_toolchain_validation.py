@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from esphome.components import esp8266
 from esphome.components.esp8266 import (
     ARDUINO_FRAMEWORK_SCHEMA,
     _resolve_toolchain,
@@ -120,7 +122,6 @@ def test_decode_pc_native_missing_tools_warns_once(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A stack dump of many addresses produces one missing-tool warning."""
-    from esphome.components import esp8266
 
     esp8266._DECODE_WARNED_AT.clear()
     with (
@@ -145,9 +146,6 @@ def test_decode_pc_platformio_missing_tools_warns_once(
     """The PlatformIO branch reports a missing addr2line/ELF at the same
     warning level as the native one; raw undecoded addresses with no
     stated reason are undiagnosable at default log level."""
-    from types import SimpleNamespace
-
-    from esphome.components import esp8266
 
     esp8266._DECODE_WARNED_AT.clear()
     CORE.toolchain = Toolchain.PLATFORMIO
@@ -161,7 +159,6 @@ def test_decode_pc_platformio_missing_tools_warns_once(
 
 def test_resolve_toolchain_rejects_unsupported() -> None:
     """ESP8266 rejects a CLI toolchain it cannot serve, like every platform."""
-    from esphome.components.esp8266 import _resolve_toolchain
 
     CORE.toolchain = Toolchain.SDK_NRF
     with pytest.raises(cv.Invalid, match="Unsupported toolchain 'sdk-nrf'"):

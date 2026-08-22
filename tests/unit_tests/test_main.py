@@ -23,6 +23,7 @@ from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
+    _native_toolchain_module,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
     _split_network_devices,
@@ -7341,8 +7342,6 @@ def test_compile_program_espidf_idedata_none_warns(
 def test_native_toolchain_module_missing_hook_raises(tmp_path: Path) -> None:
     """A resolved native toolchain whose platform lacks the hook is a bug
     and must fail, not silently degrade to the PlatformIO path."""
-    from esphome.__main__ import _native_toolchain_module
-
     setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
     CORE.toolchain = Toolchain.ARDUINO  # esp32 provides no hook
     with pytest.raises(EsphomeError, match="no native toolchain module"):
