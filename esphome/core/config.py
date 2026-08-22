@@ -381,9 +381,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
             ): cv.boolean,
-            cv.Optional(
-                CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_LOOP_INTERVAL, visibility=cv.Visibility.YAML_ONLY): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=cv.TimePeriod(milliseconds=1),
+                    max=cv.TimePeriod(milliseconds=65535),
+                ),
+            ),
             cv.Optional(
                 CONF_SUSPEND_LOOP, default=False, visibility=cv.Visibility.YAML_ONLY
             ): cv.All(
