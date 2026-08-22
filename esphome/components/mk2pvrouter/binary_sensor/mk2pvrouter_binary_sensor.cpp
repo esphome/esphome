@@ -13,6 +13,9 @@ void Mk2PVRouterBinarySensor::publish_val(const char *val) {
   this->publish_state(state);
 }
 
-void Mk2PVRouterBinarySensor::dump_config() { LOG_BINARY_SENSOR("  ", "Mk2PVRouter Binary Sensor", this); }
+void Mk2PVRouterBinarySensor::dump_config() {
+  LOG_BINARY_SENSOR("  ", "Mk2PVRouter Binary Sensor", this);
+  ESP_LOGCONFIG(TAG, "  Tag: %s", this->get_tag());
+}
 
 }  // namespace esphome::mk2pvrouter

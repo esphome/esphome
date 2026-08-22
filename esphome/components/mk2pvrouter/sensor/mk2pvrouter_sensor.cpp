@@ -16,6 +16,9 @@ void Mk2PVRouterSensor::publish_val(const char *val) {
   this->publish_state(result.value());
 }
 
-void Mk2PVRouterSensor::dump_config() { LOG_SENSOR("  ", "Mk2PVRouter Sensor", this); }
+void Mk2PVRouterSensor::dump_config() {
+  LOG_SENSOR("  ", "Mk2PVRouter Sensor", this);
+  ESP_LOGCONFIG(TAG, "  Tag: %s", this->get_tag());
+}
 
 }  // namespace esphome::mk2pvrouter
