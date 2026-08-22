@@ -679,9 +679,8 @@ def test_walk_warns_for_nonplatform_invalid_library(
 def test_versionless_owner_qualified_dependency_warns_despite_provides(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The backend's provides() only covers owner-less names (the walk's
-    backend-provided skip has the same guard), so an owner-qualified
-    version-less dependency that nobody adds must still warn."""
+    """An owner-qualified version-less dependency is not satisfied by
+    provides(); it must still warn."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
@@ -756,9 +755,8 @@ def test_versionless_url_ish_dependency_name_warns_cleanly(
 def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A bare dependency name satisfied by a component requested under an
-    owner-qualified spec (manifest names match) is not a drop; a nameless
-    entry is skipped without a reconciliation warning."""
+    """A bare name satisfied by an owner-qualified component's manifest
+    name is not a drop."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
