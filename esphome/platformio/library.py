@@ -699,6 +699,13 @@ def normalize_dependencies(
                 continue
             normalized.append(entry)
         return normalized
+    if not isinstance(dependencies, (list, tuple)):
+        _LOGGER.warning(
+            "Ignoring unrecognized dependencies %r of %s",
+            dependencies,
+            manifest_name,
+        )
+        return []
     normalized = []
     for entry in dependencies:
         if isinstance(entry, dict):

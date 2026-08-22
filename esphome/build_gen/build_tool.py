@@ -40,9 +40,23 @@ def main() -> int:
             # An empty archive would "succeed" here and fail far away at link
             print(f"ar: no objects listed in {rspfile} for {archive}", file=sys.stderr)
             return 1
-        return subprocess.run(
-            [ar, "rc", archive, *objects], check=False, close_fds=False
-        ).returncode
+        # Batch by argv length: expanding the rspfile gives back the Windows
+        # 32767-char command-line limit it existed to avoid. "rc" creates,
+        # "q" appends the remainder.
+        op = "rc"
+        while objects:
+            batch = [objects.pop(0)]
+            batch_len = len(batch[0])
+            while objects and batch_len + len(objects[0]) < 25000:
+                batch_len += len(objects[0]) + 1
+                batch.append(objects.pop(0))
+            rc = subprocess.run(
+                [ar, op, archive, *batch], check=False, close_fds=False
+            ).returncode
+            if rc != 0:
+                return rc
+            op = "q"
+        return 0
     if mode == "copy":
         src, dst = sys.argv[2:4]
         shutil.copyfile(src, dst)
