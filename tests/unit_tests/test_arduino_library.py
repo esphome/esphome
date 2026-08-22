@@ -86,6 +86,7 @@ def _webserver(tmp_path: Path, data: dict) -> ConvertedLibrary:
     _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
     lib_dir = tmp_path / "converted" / "webserver"
     (lib_dir / "src").mkdir(parents=True)
+    (lib_dir / "src" / "server.cpp").write_text("")
     return _converted("esp32async__ESPAsyncWebServer", lib_dir, data)
 
 
@@ -108,8 +109,10 @@ def _ws_tcp_pair(tmp_path: Path) -> tuple[ConvertedLibrary, ConvertedLibrary]:
     """Build ESPAsyncWebServer (depending on ESPAsyncTCP) plus resolved TCP."""
     ws_dir = tmp_path / "converted" / "webserver"
     (ws_dir / "src").mkdir(parents=True)
+    (ws_dir / "src" / "server.cpp").write_text("")
     tcp_dir = tmp_path / "converted" / "tcp"
     (tcp_dir / "src").mkdir(parents=True)
+    (tcp_dir / "src" / "tcp.cpp").write_text("")
     ws = _converted(
         "esp32async__ESPAsyncWebServer",
         ws_dir,
@@ -182,22 +185,26 @@ def test_library_info_declared_filter_matches_nothing_warns(
 ) -> None:
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     data = {"build": {"srcFilter": ["+<nothing/*>"]}}
     lib = component._library_info("x", read_path, data)
     assert not lib.sources
     assert "declares srcFilter/srcDir but no source files matched" in caplog.text
 
 
-def test_library_info_empty_tree_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """No sources and no headers is an empty archive waiting to fail at
-    link; warn by name even without a declared filter."""
-    read_path = tmp_path / "lib"
-    (read_path / "src").mkdir(parents=True)
-    lib = component._library_info("x", read_path, {})
-    assert not lib.sources
-    assert "has no sources or headers" in caplog.text
+def test_empty_converted_tree_raises_at_emit(tmp_path: Path) -> None:
+    """A converted tree with no sources and no headers is a broken download;
+    fail by name like the bundled case."""
+    framework = _make_framework(tmp_path)
+    _add_library("Some/Empty", "1.0.0")
+    lib_dir = tmp_path / "converted" / "empty"
+    (lib_dir / "src").mkdir(parents=True)
+    converted = _converted("some__Empty", lib_dir, {"build": {}})
+    with (
+        _emitting_converter(converted),
+        pytest.raises(EsphomeError, match="no sources or headers; the download"),
+    ):
+        _resolve(framework)
 
 
 def test_library_info_no_src_dir(tmp_path: Path) -> None:
@@ -275,6 +282,7 @@ def test_resolve_libraries_bundled_dep_already_present(tmp_path: Path) -> None:
 
     lib_dir = tmp_path / "converted" / "external"
     lib_dir.mkdir(parents=True)
+    (lib_dir / "main.cpp").write_text("")
     converted = _converted(
         "some__External", lib_dir, {"dependencies": [{"name": "Wire"}]}
     )
@@ -291,6 +299,7 @@ def test_library_info_trailing_bare_flag_warns(
 ) -> None:
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     lib = component._library_info("x", read_path, {"build": {"flags": ["-DA=1 -l"]}})
     assert lib.flags == ["-DA=1"]
     assert lib.link_libs == []
@@ -302,6 +311,7 @@ def test_library_info_missing_explicit_include_warns(
 ) -> None:
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     lib = component._library_info("x", read_path, {"build": {"flags": ["-Inope"]}})
     assert lib.include_dirs == [(read_path / "src").resolve()]
     assert "include dir nope which does not exist" in caplog.text
@@ -343,6 +353,7 @@ def test_resolve_libraries_lib_ignore_covers_bundled_dependencies(
 
     lib_dir = tmp_path / "converted" / "external"
     lib_dir.mkdir(parents=True)
+    (lib_dir / "main.cpp").write_text("")
     converted = _converted(
         "some__External", lib_dir, {"dependencies": [{"name": "Wire"}]}
     )
@@ -373,6 +384,7 @@ def test_library_info_lib_archive_flag(tmp_path: Path) -> None:
     the generator's contract; default is archive."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     assert component._library_info("x", read_path, {}).lib_archive is True
     assert (
         component._library_info(
@@ -460,6 +472,47 @@ def test_nonplatform_rejection_warns_once_through_real_converter(
     assert caplog.text.count("manifest is corrupt") == 1
 
 
+def test_url_pinned_bundled_name_not_doubled(tmp_path: Path) -> None:
+    """A URL-pinned dependency names one specific source; the bundled copy
+    of the same short name must never be added on top of the fork."""
+    framework = _make_framework(tmp_path)
+    converted = _webserver(
+        tmp_path,
+        {
+            "build": {},
+            "dependencies": [
+                {"name": "Wire", "version": "https://github.com/x/wire-fork.git"}
+            ],
+        },
+    )
+    with _emitting_converter(converted):
+        libs = _resolve(framework)
+    assert "Wire" not in [lib.name for lib in libs]
+
+
+def test_versioned_bundled_candidate_fault_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A versioned bundled-name dependency skips the walk's usability filter
+    via provides(), so a non-platform fault warns here."""
+    framework = _make_framework(tmp_path)
+    converted = _webserver(
+        tmp_path,
+        {"build": {}, "dependencies": [{"name": "Wire", "version": "*"}]},
+    )
+    with (
+        _emitting_converter(converted),
+        patch.object(
+            component,
+            "check_library_data",
+            side_effect=InvalidLibrary("manifest is corrupt"),
+        ),
+    ):
+        libs = _resolve(framework)
+    assert "Wire" not in [lib.name for lib in libs]
+    assert "Skipping bundled dependency Wire" in caplog.text
+
+
 def test_short_name_collision_with_bundled_name_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -473,6 +526,7 @@ def test_short_name_collision_with_bundled_name_warns(
         {"build": {}, "dependencies": [{"name": "Wire"}]},
     )
     (tmp_path / "conv" / "src").mkdir(parents=True)
+    (tmp_path / "conv" / "src" / "a.cpp").write_text("")
     with _emitting_converter(converted):
         libs = _resolve(framework)
     assert "Wire" not in [lib.name for lib in libs]
@@ -508,6 +562,7 @@ def test_library_info_falsy_declared_src_dir_raises(
     """A declared-but-falsy srcDir must not silently fall back to the probe."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     with pytest.raises(EsphomeError, match="does not exist"):
         component._library_info("x", read_path, {"build": {"srcDir": declared}})
 
@@ -529,6 +584,7 @@ def test_library_info_lib_archive_parse(
     """bool("false") is True; the string forms must parse, not coerce."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     lib = component._library_info("x", read_path, {"build": {"libArchive": value}})
     assert lib.lib_archive is expected
 
@@ -539,6 +595,7 @@ def test_library_info_dropped_link_fields_warn(
     """precompiled/ldflags properties are not honored; the drop is named."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     component._library_info(
         "x", read_path, {"precompiled": "true", "ldflags": "-lfoo", "build": {}}
     )
@@ -604,6 +661,7 @@ def test_library_info_lib_archive_malformed_raises(tmp_path: Path) -> None:
     """A typo'd libArchive fails by name like the other build fields."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     with pytest.raises(EsphomeError, match="malformed libArchive value 'archive-me'"):
         component._library_info("x", read_path, {"build": {"libArchive": "archive-me"}})
 
@@ -674,6 +732,7 @@ def test_library_info_malformed_build_fields_are_named(
     """Malformed includeDir/srcFilter fail naming the library like srcDir."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     with pytest.raises(EsphomeError, match=match):
         component._library_info("x", read_path, {"build": build})
 
@@ -693,6 +752,7 @@ def test_library_info_dot_a_linkage_parses_strictly(
     """The dot_a_linkage property uses the same strict table as libArchive."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     lib = component._library_info("x", read_path, {"dot_a_linkage": value, "build": {}})
     assert lib.lib_archive is expected
 
@@ -701,6 +761,7 @@ def test_library_info_dot_a_linkage_malformed_raises(tmp_path: Path) -> None:
     """A typo'd dot_a_linkage must not silently flip link semantics."""
     read_path = tmp_path / "lib"
     (read_path / "src").mkdir(parents=True)
+    (read_path / "src" / "stub.cpp").write_text("")
     with pytest.raises(EsphomeError, match="malformed dot_a_linkage value 'yes'"):
         component._library_info("x", read_path, {"dot_a_linkage": "yes", "build": {}})
 
@@ -901,8 +962,10 @@ def test_converted_manifest_name_suppresses_bundled_dependency(
     _add_library("Someone/WireLib", "9.9.9")
     ws_dir = tmp_path / "converted" / "webserver"
     (ws_dir / "src").mkdir(parents=True)
+    (ws_dir / "src" / "stub.cpp").write_text("")
     wire_dir = tmp_path / "converted" / "wire"
     (wire_dir / "src").mkdir(parents=True)
+    (wire_dir / "src" / "wire.cpp").write_text("")
     ws = _converted(
         "esp32async__ESPAsyncWebServer",
         ws_dir,
@@ -939,9 +1002,7 @@ def test_empty_bundled_library_warns(
     framework = _make_framework(tmp_path)
     (framework / "libraries" / "Empty").mkdir()
     _add_library("Empty", None)
-    with pytest.raises(
-        EsphomeError, match="Bundled library Empty has no sources or headers"
-    ):
+    with pytest.raises(EsphomeError, match="Library Empty has no sources or headers"):
         _resolve(framework)
 
 
