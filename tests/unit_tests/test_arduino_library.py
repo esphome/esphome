@@ -410,23 +410,63 @@ def test_resolve_libraries_dep_warnings(
     assert "Orphan" not in caplog.text
 
 
-def test_bundled_dependency_nonplatform_rejection_warns(
+def test_bundled_dependency_nonplatform_rejection_is_silent_here(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An InvalidLibrary whose cause is not the platform filter is visible."""
+    """The shared walk owns the rejection warning; the backend-side filter
+    stays at debug so one manifest fault never warns twice."""
     framework = _make_framework(tmp_path)
     converted = _webserver(tmp_path, {"build": {}, "dependencies": [{"name": "Wire"}]})
     with (
         _emitting_converter(converted),
         patch.object(
-            pio_library,
+            component,
             "check_library_data",
             side_effect=InvalidLibrary("manifest is corrupt"),
         ),
     ):
+        libs = _resolve(framework)
+    assert "Wire" not in [lib.name for lib in libs]
+    assert "manifest is corrupt" not in caplog.text
+
+
+def test_nonplatform_rejection_warns_once_through_real_converter(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One manifest fault produces exactly one warning across the walk and
+    the backend-side bundled filter."""
+    framework = _make_framework(tmp_path)
+    _local_lib(tmp_path, [{"name": "Wire"}])
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
+    real = pio_library.check_library_data
+
+    def flaky(data, platform, framework_name):
+        if data.get("name") == "Wire":
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework_name)
+
+    monkeypatch.setattr(pio_library, "check_library_data", flaky)
+    monkeypatch.setattr(component, "check_library_data", flaky)
+    with patch.object(
+        pio_library,
+        "_resolve_registry_version",
+        side_effect=AssertionError("registry touched"),
+    ):
         _resolve(framework)
-    assert "Skipping dependency Wire" in caplog.text
-    assert "manifest is corrupt" in caplog.text
+    assert caplog.text.count("manifest is corrupt") == 1
+
+
+def test_provided_is_case_sensitive(tmp_path: Path) -> None:
+    """Membership uses the exact on-disk names, so a case-insensitive
+    filesystem cannot add the same bundled library twice."""
+    framework = _make_framework(tmp_path)
+    converted = _webserver(tmp_path, {"build": {}, "dependencies": [{"name": "wire"}]})
+    with _emitting_converter(converted):
+        libs = _resolve(framework)
+    assert "wire" not in [lib.name for lib in libs]
+    assert "Wire" not in [lib.name for lib in libs]
 
 
 @pytest.mark.parametrize("declared", ["", None])
