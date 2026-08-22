@@ -19,6 +19,7 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
+    CONF_CUSTOM_PDU,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
@@ -67,6 +68,29 @@ def _warn_removed_options(config: ConfigType) -> ConfigType:
     return config
 
 
+def _reject_broadcast_address(config: ConfigType) -> ConfigType:
+    """A modbus_controller polls one device, so its address cannot be the broadcast address (0):
+    a broadcast is never answered (Modbus 4.1), so no register could ever read back."""
+    if config.get(CONF_ADDRESS) == 0:
+        raise cv.Invalid(
+            "Address 0 is the Modbus broadcast address and cannot be used as a modbus_controller "
+            "device address. Assign the unit address of the device you want to poll.",
+            [CONF_ADDRESS],
+        )
+    return config
+
+
+# Remove before 2027.3.0. skip_updates (a per-sensor option) no longer does anything: every range is
+# polled each update_interval. The key is still accepted so existing configs keep working, with a warning.
+def validate_skip_updates_deprecated(value):
+    _LOGGER.warning(
+        "[modbus_controller] 'skip_updates' no longer has any effect and will be removed in 2027.3.0. "
+        "To poll some registers less often, add a second modbus_controller with the same address and a "
+        "slower update_interval, and attach the slow sensors to it."
+    )
+    return cv.positive_int(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -92,13 +116,22 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01)),
     _warn_removed_options,
+    _reject_broadcast_address,
 )
 
 ModbusItemBaseSchema = cv.Schema(
     {
         cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
         cv.Optional(CONF_ADDRESS): cv.positive_int,
-        cv.Optional(CONF_CUSTOM_COMMAND): cv.ensure_list(cv.hex_uint8_t),
+        cv.Optional(CONF_CUSTOM_PDU): cv.All(
+            cv.ensure_list(cv.hex_uint8_t), cv.Length(min=1)
+        ),
+        cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
+            "'custom_command' has been renamed to 'custom_pdu' and no longer takes a leading device "
+            "address byte. Provide the PDU only (function code + data); the configured device address "
+            "and the CRC are added automatically. See "
+            "https://esphome.io/components/modbus_controller/"
+        ),
         cv.Exclusive(
             CONF_OFFSET,
             "offset",
@@ -110,7 +143,7 @@ ModbusItemBaseSchema = cv.Schema(
             f"{CONF_OFFSET} and {CONF_BYTE_OFFSET} can't be used together",
         ): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
-        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+        cv.Optional(CONF_SKIP_UPDATES): validate_skip_updates_deprecated,
         cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
         cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.positive_int,
@@ -119,18 +152,18 @@ ModbusItemBaseSchema = cv.Schema(
 
 
 def validate_modbus_register(config):
-    if CONF_CUSTOM_COMMAND not in config and CONF_ADDRESS not in config:
+    if CONF_CUSTOM_PDU not in config and CONF_ADDRESS not in config:
         raise cv.Invalid(
-            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
-    if CONF_CUSTOM_COMMAND in config and CONF_REGISTER_TYPE in config:
+    if CONF_CUSTOM_PDU in config and CONF_REGISTER_TYPE in config:
         raise cv.Invalid(
-            f"can't use '{CONF_REGISTER_TYPE}:' together with '{CONF_CUSTOM_COMMAND}:'",
+            f"can't use '{CONF_REGISTER_TYPE}:' together with '{CONF_CUSTOM_PDU}:'",
         )
 
-    if CONF_CUSTOM_COMMAND not in config and CONF_REGISTER_TYPE not in config:
+    if CONF_CUSTOM_PDU not in config and CONF_REGISTER_TYPE not in config:
         raise cv.Invalid(
-            f" {CONF_REGISTER_TYPE} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+            f" {CONF_REGISTER_TYPE} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
     return config
 
@@ -156,7 +189,7 @@ def modbus_calc_properties(config):
         value_type = config[CONF_VALUE_TYPE]
         if reg_count == 0:
             reg_count = TYPE_REGISTER_MAP[value_type]
-    if CONF_CUSTOM_COMMAND in config:
+    if CONF_CUSTOM_PDU in config:
         if CONF_ADDRESS not in config:
             # generate a unique modbus address using the hash of the name
             # CONF_NAME set even if only CONF_ID is used.
@@ -173,8 +206,8 @@ def modbus_calc_properties(config):
 async def add_modbus_base_properties(
     var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
 ):
-    if CONF_CUSTOM_COMMAND in config:
-        cg.add(var.set_custom_data(config[CONF_CUSTOM_COMMAND]))
+    if CONF_CUSTOM_PDU in config:
+        cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
 
     if config[CONF_RESPONSE_SIZE] > 0:
         cg.add(var.set_register_size(config[CONF_RESPONSE_SIZE]))

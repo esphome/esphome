@@ -18,7 +18,6 @@ from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
-    CONF_SKIP_UPDATES,
     CONF_VALUE_TYPE,
 )
 
@@ -56,7 +55,6 @@ async def to_code(config):
         config[CONF_BITMASK],
         value_type,
         reg_count,
-        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
     await cg.register_component(var, config)
