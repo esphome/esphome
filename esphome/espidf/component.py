@@ -27,8 +27,7 @@ from esphome.platformio.library import (
     collect_filtered_files,
     convert_libraries,
     ensure_list,
-    join_flag_args,
-    split_flag_entry,
+    lex_build_flags,
     split_list_by_condition,
 )
 
@@ -89,22 +88,12 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     build_src_filter = ensure_list(
         component.data.get("build", {}).get("srcFilter", DEFAULT_BUILD_SRC_FILTER)
     )
-    build_flags = ensure_list(
-        component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS)
-    )
     # PlatformIO shell-lexes each build.flags entry; bare -I/-L/-l/-D tokens
     # re-glue to their argument so the prefix classifiers below route them.
-    # Joined per entry, as SCons's ParseFlags lexes each string
-    # independently: a dangling -I ending one entry must warn, not absorb
-    # the next entry's first token.
-    build_flags = [
-        token
-        for entry in build_flags
-        for token in join_flag_args(
-            split_flag_entry(entry, f"library {component.name}"),
-            f"library {component.name}",
-        )
-    ]
+    build_flags = lex_build_flags(
+        component.data.get("build", {}).get("flags", DEFAULT_BUILD_FLAGS),
+        f"library {component.name}",
+    )
 
     # List all sources files
     build_src_files = collect_filtered_files(
