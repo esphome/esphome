@@ -240,7 +240,7 @@ bool StorageWorker::stream_overlaps_active_(const StreamRequest &candidate, bool
     RequestState state = req.state.load();
     if (state != RequestState::RUNNING && state != RequestState::CANCELLED)
       continue;
-    if (req.src_storage == candidate.storage || req.dst_storage == candidate.storage)
+    if (this->request_touches_(req, candidate.storage))
       return true;
   }
   for (const auto &sreq : this->stream_pool_) {
