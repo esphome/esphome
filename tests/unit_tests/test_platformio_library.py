@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.core import EsphomeError, Library
+from esphome.core import CORE, EsphomeError, Library
 import esphome.platformio.library as lib
 from esphome.platformio.library import (
     SOURCE_KIND_FOR_SUFFIX,
@@ -540,6 +540,36 @@ def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
     assert top[0].dependencies == []
 
 
+def test_convert_libraries_warns_for_nonplatform_invalid_dependency_component(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency component dropped for any cause other than the platform
+    filter warns; only the routine cross-platform skip stays at debug."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "C", "owner": "esphome", "version": "1.0"}],
+            },
+            "esphome/C": {"name": "C"},
+        },
+    )
+    real = lib.check_library_data
+
+    def flaky(data, platform, framework):
+        # Fail only on C's resolved manifest, not on A's dependency entry
+        if data.get("name") == "C" and "version" not in data:
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework)
+
+    monkeypatch.setattr(lib, "check_library_data", flaky)
+    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+    assert "manifest is corrupt" in caplog.text
+    assert "Skipping dependency" in caplog.text
+
+
 def test_split_flag_entry_unbalanced_quote_is_clean() -> None:
     """A malformed flags entry raises EsphomeError, not a raw ValueError."""
 
@@ -592,6 +622,9 @@ def test_source_kind_map_shape() -> None:
     assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
     assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
     assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
+    # SCons's case-sensitive C++ suffixes: PIO compiles .C as C++
+    assert SOURCE_KIND_FOR_SUFFIX[".C"] == "cxx"
+    assert SOURCE_KIND_FOR_SUFFIX[".C++"] == "cxx"
 
 
 def test_normalize_dependencies_forms(caplog) -> None:
@@ -612,6 +645,12 @@ def test_normalize_dependencies_forms(caplog) -> None:
         {"name": "SPI"},
     ]
     assert normalize_dependencies("Wire") == [{"name": "Wire"}]
+    # The dict-shorthand form validates names like the list form: an empty
+    # key and a spec overriding name with a non-string both warn and drop
+    assert normalize_dependencies(
+        {"": "1.0", "Wire": {"name": 123, "version": "1.0"}, "SPI": "*"}, "libx"
+    ) == [{"name": "SPI", "owner": None, "version": "*"}]
+    assert caplog.text.count("unrecognized dependency entry") == 5
 
 
 @pytest.mark.parametrize(
@@ -625,6 +664,21 @@ def test_convert_libraries_malformed_manifest_raises(
     _patch_download_with_manifests(monkeypatch, tmp_path, {"esphome/A": manifest})
     with pytest.raises(EsphomeError, match="has a malformed manifest"):
         convert_libraries([Library("esphome/A", None, None)], _backend())
+
+
+def test_versionless_ignored_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A lib_ignore'd version-less dependency is deliberately excluded, not
+    a drop; no reconciliation warning."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]}},
+    )
+    CORE.platformio_options = {"lib_ignore": ["Hash"]}
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "has no version to resolve" not in caplog.text
 
 
 def test_versionless_dependency_without_provider_warns(
