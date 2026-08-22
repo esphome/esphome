@@ -102,6 +102,43 @@ def test_button_name_matching_no_button_raises_clean_invalid(
     assert any("matches 0 buttons" in str(err) for err in result.errors)
 
 
+def test_masked_int_signature_with_no_mask_or_bit_uses_default_mask(
+    fixture_path: Path,
+) -> None:
+    """A masked_int signature alt that specifies neither mask: nor bit: must fall
+    through to _resolve_bit_to_mask's default-mask branch (HexInt(0xFFFFFFFF)), not
+    raise or leave CONF_MASK missing for codegen's alt[CONF_MASK] lookup."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_response_monitor_masked_int_default_mask.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert not result.errors, f"expected no validation errors, got: {result.errors}"
+    signature = result["rs485_frame"][0]["response_monitor"][0]["signature"]
+    assert signature[0]["mask"] == 0xFFFFFFFF
+
+
+def test_button_name_matching_multiple_buttons_raises_clean_invalid(
+    fixture_path: Path,
+) -> None:
+    """button_name: that matches more than one button on the hub must be rejected
+    cleanly, reporting the match count, not silently resolve to the first match."""
+    CORE.config_path = fixture_path / "dummy.yaml"
+    raw_config = yaml_util.load_yaml(
+        fixture_path / "rs485_frame_response_monitor_button_name_multiple_matches.yaml"
+    )
+
+    result = esphome_config.validate_config(raw_config, {})
+
+    assert result.errors, (
+        "expected a validation error for a button_name: matching >1 button"
+    )
+    assert all(isinstance(err, vol.Invalid) for err in result.errors)
+    assert any("matches 2 buttons" in str(err) for err in result.errors)
+
+
 def test_button_id_and_button_name_together_raises_clean_invalid(
     fixture_path: Path,
 ) -> None:

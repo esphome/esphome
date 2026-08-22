@@ -636,7 +636,10 @@ RESPONSE_MONITOR_ENTRY_SCHEMA = cv.Schema(
         # outcomes only -- never on NOT_APPLICABLE (an expected "gate didn't hold this time",
         # not a failure) or ORPHAN (no trigger from this entry was even pending). No args:
         # callers that need to know which button confirmed/failed already know, since each
-        # entry names exactly one trigger.
+        # entry names exactly one trigger. validate_automation({}) still generates a
+        # CONF_TRIGGER_ID (AUTOMATION_SCHEMA always declares one); this codegen path just
+        # never instantiates it, the same way automation.build_callback_automation already
+        # leaves it unused for triggers like on_press.
         cv.Optional(CONF_ON_CONFIRMED): automation.validate_automation({}),
         cv.Optional(CONF_ON_FAILED): automation.validate_automation({}),
     }
@@ -821,7 +824,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _resolve_button_trigger(button_config: dict) -> list[int]:
+def _resolve_button_trigger(
+    button_config: dict, hub_command_format: dict | None = None
+) -> list[int]:
     # Mirrors RS485FrameHub::build_key_payload_ / queue_raw_frame's on-wire byte layout so
     # button_id: resolves to the SAME bytes the button will actually transmit, keeping a
     # single source of truth instead of a hand-copied byte sequence that can drift. Only
@@ -829,10 +834,7 @@ def _resolve_button_trigger(button_config: dict) -> list[int]:
     # anything else is a bug in that platform's own validation, not something this function
     # needs to re-guard against.
     if CONF_VALUE in button_config:
-        if CONF_COMMAND_FORMAT in button_config:
-            cf = button_config[CONF_COMMAND_FORMAT]
-        else:
-            cf = button_config["_response_monitor_hub_command_format"]
+        cf = button_config.get(CONF_COMMAND_FORMAT, hub_command_format)
         preamble = list(cf[CONF_PREAMBLE])
         postamble = list(cf[CONF_POSTAMBLE])
         element_bytes = button_config.get(
@@ -906,6 +908,7 @@ def _final_validate_response_monitor(config):
             button_config = matches[0]
             ref = f"button_name '{button_name}'"
 
+        hub_command_format = None
         if CONF_VALUE in button_config and CONF_COMMAND_FORMAT not in button_config:
             if CONF_COMMAND_FORMAT not in config:
                 # Mirrors button/__init__.py's own _final_validate error for this exact
@@ -917,13 +920,13 @@ def _final_validate_response_monitor(config):
                     "uses 'value:' but neither the button nor the referenced hub has a "
                     "'command_format:' block, so the value has no defined on-wire encoding"
                 )
-            # Stash the hub's own command_format so _resolve_button_trigger doesn't need a
-            # second full_config walk — mirrors the button platform's own _final_validate,
-            # which already proved a command_format exists somewhere by this point.
-            button_config["_response_monitor_hub_command_format"] = config[
-                CONF_COMMAND_FORMAT
-            ]
-        entry["_resolved_trigger"] = _resolve_button_trigger(button_config)
+            # Passed explicitly (not stashed on button_config) so this hub-level validator
+            # doesn't mutate the shared config dict that button/__init__.py's own to_code()/
+            # _final_validate() subsequently reads.
+            hub_command_format = config[CONF_COMMAND_FORMAT]
+        entry["_resolved_trigger"] = _resolve_button_trigger(
+            button_config, hub_command_format
+        )
         if len(entry["_resolved_trigger"]) > MAX_RESPONSE_TRIGGER_LEN:
             raise cv.Invalid(
                 f"response_monitor entry '{entry[CONF_NAME]}': {ref} "
