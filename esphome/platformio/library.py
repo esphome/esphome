@@ -15,7 +15,6 @@ regardless of which toolchain consumes the result.
 from collections import deque
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
-import contextlib
 from dataclasses import dataclass, field
 import glob
 import hashlib
@@ -905,16 +904,16 @@ def _content_lengths(urls: list[str]) -> list[int]:
     """Content-Length per URL via HEAD requests; 0 for any that fail."""
     import requests
 
-    def head(url: str) -> int:
+    def head(url: str) -> int | None:
         try:
             resp = requests.head(url, timeout=10, allow_redirects=True)
             if not resp.ok:
                 _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
-                return 0
-            return int(resp.headers.get("content-length", 0))
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                return None
+            return int(resp.headers.get("content-length", 0)) or None
+        except requests.RequestException as err:
             _LOGGER.debug("HEAD %s failed: %s", url, err)
-            return 0
+            return None
 
     with ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(urls))) as ex:
         return list(ex.map(head, urls))
@@ -938,13 +937,18 @@ def _prefetch_wave(
         if component.source.url in seen:
             continue
         seen.add(component.source.url)
-        with contextlib.suppress(Exception):
-            if component.source.is_cached(
+        try:
+            cached = component.source.is_cached(
                 component.get_sanitized_name(), salt=salt, namespace=namespace
-            ):
-                # A completed extraction downloads nothing; a warm build
-                # must stay silent
-                continue
+            )
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # Best-effort: a failing probe prefetches (and re-downloads)
+            _LOGGER.debug("Cache probe for %s failed: %s", component.name, err)
+            cached = False
+        if cached:
+            # A completed extraction downloads nothing; a warm build must
+            # stay silent
+            continue
         components.append(component)
     if len(components) < 2:
         return
@@ -953,12 +957,13 @@ def _prefetch_wave(
         len(components),
         ", ".join(c.name for c in components),
     )
-    # One combined bar over the batch; sizes come from HEAD requests so the
-    # bar can be trusted (no sizes -> no bar, per BatchDownloadProgress)
+    # One combined bar over the batch, sized by HEAD requests. An unknown
+    # size would mean a silent multi-MB download; fall back to sequential
+    # downloads with their per-file bars instead.
     sizes = _content_lengths([c.source.url for c in components])
-    progress = BatchDownloadProgress(
-        "Downloading libraries", sum(sizes) if all(sizes) else 0
-    )
+    if not all(sizes):
+        return
+    progress = BatchDownloadProgress("Downloading libraries", sum(sizes))
 
     def _fetch(component: ConvertedLibrary) -> None:
         tracker = progress.tracker()
