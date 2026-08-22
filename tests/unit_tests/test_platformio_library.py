@@ -607,3 +607,41 @@ def test_normalize_dependencies_forms(caplog) -> None:
         {"name": "SPI"},
     ]
     assert normalize_dependencies("Wire") == [{"name": "Wire"}]
+
+
+def test_versionless_dependency_without_provider_warns(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """When no backend tree can supply a version-less dependency, the drop
+    is a warning, not a debug line."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]}},
+    )
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "'Hash' of esphome/A has no version to resolve" in caplog.text
+
+
+def test_walk_warns_for_nonplatform_invalid_library(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency dropped for any cause other than the routine platform
+    filter is visible in every backend."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "B", "version": "1.0"}]}},
+    )
+    calls = {"n": 0}
+    real = lib.check_library_data
+
+    def flaky(data, platform, framework):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework)
+
+    monkeypatch.setattr(lib, "check_library_data", flaky)
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
