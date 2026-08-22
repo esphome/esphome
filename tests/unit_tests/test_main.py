@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import sys
 import time
+from types import SimpleNamespace
 from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -18,7 +19,7 @@ import pytest
 from pytest import CaptureFixture
 from zeroconf import ServiceStateChange
 
-from esphome import __main__ as main
+from esphome import __main__ as main, yaml_util
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
@@ -29,6 +30,7 @@ from esphome.__main__ import (
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
+    _wrap_to_code,
     check_permissions,
     choose_upload_log_host,
     command_analyze_memory,
@@ -7137,11 +7139,6 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     """The config comment dumps with sorted keys: voluptuous fills schema
     defaults in set-iteration order, so an unsorted dump would churn
     main.cpp and relink the firmware on every run."""
-    from types import SimpleNamespace
-
-    from esphome import yaml_util
-    from esphome.__main__ import _wrap_to_code
-
     comments: list[str] = []
 
     async def to_code(conf):
