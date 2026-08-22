@@ -8,12 +8,13 @@ import os
 from pathlib import Path
 
 from esphome.framework_helpers import strip_win_long_path_prefix, tool_version_runs
+from esphome.helpers import FALSY_BOOL_STRINGS, TRUTHY_BOOL_STRINGS
 
 _LOGGER = logging.getLogger(__name__)
 
-# esphome cv.boolean's spelling tables plus the 1/0 env convention
-TRUTHY_ENV_STRINGS = frozenset({"1", "true", "yes", "on", "enable"})
-FALSY_ENV_STRINGS = frozenset({"0", "false", "no", "off", "disable"})
+# cv.boolean's spelling tables plus the 1/0 env convention
+TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
+FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
 
 
 def _ccache_runs(ccache: str) -> bool:
