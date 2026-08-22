@@ -180,25 +180,30 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         for f in matched
         if (path := Path(f)).suffix in SRC_FILE_EXTENSIONS
     )
-    if skipped := [f for f in matched if Path(f).suffix not in SRC_FILE_EXTENSIONS]:
-        _LOGGER.debug(
-            "Library %s: %d matched files are not sources", name, len(skipped)
+    # A source-like suffix the case-sensitive map rejects (.CPP, .ino) is a
+    # dropped compilation unit that surfaces as undefined symbols at link;
+    # headers and metadata files fall through silently (header-only
+    # libraries are routine)
+    source_like = {s.lower() for s in SRC_FILE_EXTENSIONS} | {".ino"}
+    if dropped := [
+        Path(f).name
+        for f in matched
+        if Path(f).suffix not in SRC_FILE_EXTENSIONS
+        and Path(f).suffix.lower() in source_like
+    ]:
+        _LOGGER.warning(
+            "Library %s: %d file(s) with unmapped source suffixes are not compiled: %s",
+            name,
+            len(dropped),
+            ", ".join(sorted(dropped)),
         )
-    if not lib.sources:
-        if matched:
-            # Every matched file fell through the suffix map: an empty
-            # archive would fail far away at link
-            _LOGGER.warning(
-                "Library %s: no matched file has a recognized source suffix",
-                name,
-            )
-        elif "srcFilter" in build or "srcDir" in build:
-            # A default probe finding nothing is a header-only library; a
-            # declared filter matching nothing is a manifest/tree problem.
-            _LOGGER.warning(
-                "Library %s declares srcFilter/srcDir but no source files matched",
-                name,
-            )
+    if not lib.sources and not matched and ("srcFilter" in build or "srcDir" in build):
+        # A default probe finding nothing is a header-only library; a
+        # declared filter matching nothing is a manifest/tree problem.
+        _LOGGER.warning(
+            "Library %s declares srcFilter/srcDir but no source files matched",
+            name,
+        )
     return lib
 
 
