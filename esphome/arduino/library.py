@@ -128,13 +128,7 @@ def _library_info(name: str, read_path: Path, data: dict) -> ArduinoLibrary:
         value = str(raw).strip().lower()
         if value in ("true", "false"):
             return value == "true"
-        _LOGGER.warning(
-            "Library %s has an unrecognized %s value %r; assuming true",
-            name,
-            key,
-            raw,
-        )
-        return True
+        raise EsphomeError(f"Library {name} has a malformed {key} value {raw!r}")
 
     if "libArchive" in build:
         lib_archive = _parse_archive("libArchive", build["libArchive"])

@@ -55,6 +55,8 @@ SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".cc": "cxx",
     ".cxx": "cxx",
     ".c++": "cxx",
+    ".C": "cxx",
+    ".C++": "cxx",
     ".S": "asm",
     ".spp": "asm",
     ".SPP": "asm",
@@ -664,7 +666,7 @@ def normalize_dependencies(
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
-            if "/" in raw_name:
+            if isinstance(raw_name, str) and "/" in raw_name:
                 owner, pkgname = raw_name.split("/", 1)
             else:
                 owner, pkgname = None, raw_name
@@ -673,6 +675,13 @@ def normalize_dependencies(
                 entry.update(spec)
             else:
                 entry["version"] = spec
+            if not isinstance(name := entry.get("name"), str) or not name:
+                _LOGGER.warning(
+                    "Ignoring unrecognized dependency entry %r of %s",
+                    entry,
+                    manifest_name,
+                )
+                continue
             normalized.append(entry)
         return normalized
     normalized = []
@@ -922,7 +931,7 @@ def convert_libraries(
     components: dict[str, ConvertedLibrary] = {}
     resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
-    # (name, requester) pairs reconciled against the final resolution set
+    # (name, owner, requester) reconciled against the final resolution set
     skipped_versionless: list[tuple[Any, Any, str]] = []
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
@@ -996,14 +1005,19 @@ def convert_libraries(
         try:
             check_library_data(component.data, backend.platform, backend.framework)
         except InvalidLibrary as e:
-            # Skip an incompatible transitive dependency, but fail fast if a
-            # top-level library the build explicitly requested is incompatible.
+            # Fail fast if a top-level library the build explicitly requested
+            # is incompatible; the routine cross-platform skip stays at
+            # debug, any other cause warns (a silent drop resurfaces as
+            # undefined symbols at link)
             if key in top_level_keys:
                 raise RuntimeError(
                     f"Requested library {key} is not compatible with "
                     f"{backend.framework}: {e}"
                 ) from e
-            _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            if isinstance(e, IncompatiblePlatform):
+                _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            else:
+                _LOGGER.warning("Skipping dependency %s: %s", key, str(e))
             continue
         components[key] = component
 
@@ -1015,15 +1029,21 @@ def convert_libraries(
         ):
             if "name" not in dependency or "version" not in dependency:
                 # Version-less deps cannot resolve from the registry; the
-                # post-emit reconciliation owns the drop warning
+                # post-emit reconciliation owns the drop warning. An
+                # is_lib_ignored name is deliberately excluded, not a drop.
                 _LOGGER.debug(
                     "Skip version-less dependency %r of %s",
                     dependency.get("name"),
                     component.name,
                 )
-                skipped_versionless.append(
-                    (dependency.get("name"), dependency.get("owner"), component.name)
-                )
+                if not is_lib_ignored(dependency.get("name"), lib_ignore):
+                    skipped_versionless.append(
+                        (
+                            dependency.get("name"),
+                            dependency.get("owner"),
+                            component.name,
+                        )
+                    )
                 continue
             if not dependency_is_usable(
                 dependency, backend.platform, backend.framework, component.name
