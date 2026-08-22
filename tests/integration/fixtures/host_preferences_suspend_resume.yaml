@@ -1,10 +1,5 @@
 esphome:
   name: test_suspend_resume_device
-  on_boot:
-    - lambda: |-
-        ESP_LOGD("test", "Suspend/resume preferences test starting");
-    # Suspend before flash_write_interval elapses, so nothing syncs until resumed.
-    - component.suspend: prefs_syncer
 
 host:
 
@@ -27,7 +22,16 @@ button:
           uint32_t value = 123;
           if (pref.save(&value)) {
             ESP_LOGI("test", "Preference saved in memory");
+          } else {
+            ESP_LOGE("test", "Preference save failed");
           }
+
+  - platform: template
+    name: "Suspend Syncer"
+    on_press:
+      - component.suspend: prefs_syncer
+      - lambda: |-
+          ESP_LOGI("test", "Syncer suspended");
 
   - platform: template
     name: "Resume Syncer"

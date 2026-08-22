@@ -11,7 +11,13 @@ class IntervalSyncer final : public PollingComponent {
   // Remove before 2027.3.0
   ESPDEPRECATED("Use set_update_interval() instead. Removed in 2027.3.0", "2026.9.0")
   void set_write_interval(uint32_t write_interval) { this->set_update_interval(write_interval); }
-  void update() override { global_preferences->sync(); }
+  void update() override {
+    if (global_preferences->sync()) {
+      this->status_clear_warning();
+    } else {
+      this->status_set_warning("Failed to sync preferences to flash");
+    }
+  }
   void on_shutdown() override { global_preferences->sync(); }
   float get_setup_priority() const override { return setup_priority::BUS; }
 };
