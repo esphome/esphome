@@ -596,9 +596,11 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 # discovered dependencies
                 cg.add_platformio_option(key, vals)
             elif key in NATIVE_ARDUINO_PIO_OPTIONS and CORE.using_toolchain_arduino:
-                # The esp8266 native generator reads these; other native
+                # The esp8266 native generator reads these as scalars; the
+                # schema also permits the list form, where the last value
+                # wins like a later platformio.ini line. Other native
                 # toolchains have no equivalent and fall through to the warning.
-                cg.add_platformio_option(key, val)
+                cg.add_platformio_option(key, vals[-1])
             elif key != "upload_speed":
                 # upload_speed needs no handling: it is read from the raw
                 # config at upload time (upload_using_esptool)
