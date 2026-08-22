@@ -15,6 +15,9 @@
 #ifdef USE_RS485_FRAME_RESPONSE_MONITOR
 #include "response_monitor.h"
 #endif
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+#include "frame_trace.h"
+#endif
 
 #include <memory>
 #include <vector>
@@ -238,6 +241,24 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   }
 #endif
 
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+  // Owns the FrameTrace ring buffer. Called once from to_code when frame_trace: is present.
+  void enable_frame_trace(size_t size, size_t capture_bytes, bool include_invalid) {
+    this->frame_trace_ = std::make_unique<FrameTrace>();
+    this->frame_trace_->init(size, capture_bytes, include_invalid);
+  }
+#endif
+  // Logs the frame_trace ring buffer (rs485_frame.dump_frame_trace action). Declared
+  // unconditionally so DumpFrameTraceAction always has a method to call; a no-op when
+  // frame_trace: was never configured (frame_trace_ is nullptr, or the feature is compiled
+  // out entirely).
+  void dump_frame_trace() {
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+    if (this->frame_trace_ != nullptr)
+      this->frame_trace_->dump();
+#endif
+  }
+
   bool queue_command_value(uint32_t command) { return this->queue_command_values(&command, 1); }
   // Queue one or more values encoded back-to-back using this hub's command_format.
   bool queue_command_values(const uint32_t *commands, size_t count);
@@ -419,6 +440,12 @@ class RS485FrameHub : public Component, public uart::UARTDevice {
   // nullptr unless response_fields:/response_monitor: was present in YAML. Production builds
   // (without the define) pay no cost at all.
   std::unique_ptr<ResponseMonitor> response_monitor_;
+#endif
+
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+  // nullptr unless frame_trace: was present in YAML. Production builds (without the define)
+  // pay no cost at all.
+  std::unique_ptr<FrameTrace> frame_trace_;
 #endif
 };
 

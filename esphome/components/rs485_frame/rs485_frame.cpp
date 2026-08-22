@@ -207,6 +207,10 @@ void RS485FrameHub::dump_config() {
   if (this->discovery_ != nullptr)
     ESP_LOGCONFIG(TAG, "  Discovery: ENABLED (framing/CRC/TX bypassed; passively analyzing raw traffic)");
 #endif
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+  if (this->frame_trace_ != nullptr)
+    ESP_LOGCONFIG(TAG, "  Frame trace: ENABLED");
+#endif
 }
 
 void RS485FrameHub::set_framing(uint8_t dle, uint8_t stx, uint8_t etx, uint8_t escape_marker) {
@@ -323,7 +327,16 @@ void RS485FrameHub::read_uart_(uint32_t now) {
 }
 
 void RS485FrameHub::process_raw_frame_(uint32_t now) {
-  if (!this->validate_frame_()) {
+  bool valid = this->validate_frame_();
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+  // Tap point for invalid frames: raw_frame_ (the raw, still-stuffed wire bytes) is complete
+  // and correct here regardless of *why* validation failed, unlike the partially-unescaped
+  // rx_unescaped_ scratch buffer -- see frame_trace.h's FrameTraceEntry comment. Caller
+  // clears raw_frame_ only after this function returns, so it's safe to read here either way.
+  if (this->frame_trace_ != nullptr)
+    this->frame_trace_->record(this->raw_frame_.data(), this->raw_frame_.size(), /*is_tx=*/false, valid, now);
+#endif
+  if (!valid) {
     this->crc_failures_++;
     return;
   }
@@ -618,6 +631,10 @@ void RS485FrameHub::write_frame_(const std::vector<uint8_t> &frame, uint32_t now
     format_hex_to(this->hex_log_buf_.get(), this->hex_log_buf_size_, frame.data(), frame.size());
     ESP_LOGD(TAG, "TX %s", this->hex_log_buf_.get());
   }
+#ifdef USE_RS485_FRAME_FRAME_TRACE
+  if (this->frame_trace_ != nullptr)
+    this->frame_trace_->record(frame.data(), frame.size(), /*is_tx=*/true, /*valid=*/true, now);
+#endif
 #if defined(USE_RS485_FRAME_SNIFFER_STATS) || defined(USE_RS485_FRAME_RESPONSE_MONITOR)
   bool need_tx_payload = false;
 #ifdef USE_RS485_FRAME_SNIFFER_STATS

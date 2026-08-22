@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_OFFSET,
     CONF_PAYLOAD,
+    CONF_SIZE,
     CONF_THEN,
     CONF_TRIGGER_ID,
     CONF_TYPE,
@@ -46,6 +47,7 @@ RS485FrameTrigger = rs485_frame_ns.class_(
     ),
 )
 SendFrameAction = rs485_frame_ns.class_("SendFrameAction", automation.Action)
+DumpFrameTraceAction = rs485_frame_ns.class_("DumpFrameTraceAction", automation.Action)
 
 SensorDecode = rs485_frame_ns.enum("SensorDecode")
 CrcVariant = rs485_frame_ns.enum("CrcVariant")
@@ -110,6 +112,11 @@ CONF_BIT = "bit"
 CONF_VALUES = "values"
 CONF_ON_CONFIRMED = "on_confirmed"
 CONF_ON_FAILED = "on_failed"
+
+# frame_trace: — a raw RX/TX ring buffer for response_monitor diagnostics.
+CONF_FRAME_TRACE = "frame_trace"
+CONF_CAPTURE_BYTES = "capture_bytes"
+CONF_INCLUDE_INVALID = "include_invalid"
 
 CRC_VARIANTS = {
     "header_inclusive": CrcVariant.CRC_HEADER_INCLUSIVE,
@@ -389,6 +396,34 @@ SNIFFER_STATS_SCHEMA = cv.Schema(
         # bit carries data. Enable for display-frame buses that pack an attribute flag (e.g.
         # blink/inverse) into bit 7, so the underlying character renders instead of '.'.
         cv.Optional(CONF_ASCII_STRIP_HIGH_BIT, default=False): cv.boolean,
+    }
+)
+
+
+# Upper bound for frame_trace.size (ring buffer capacity, in frames). Must agree with
+# FRAME_TRACE_SIZE_UPPER in frame_trace.h — the C++ side caps the FixedVector capacity at
+# that constant, so a larger schema value would silently truncate.
+FRAME_TRACE_SIZE_UPPER = 128
+
+# Upper bound for frame_trace.capture_bytes. FrameTraceEntry::captured_len is uint8_t-backed,
+# so 256 would wrap to 0 — cap at 255, same reasoning as SNIFFER_PAYLOAD_CAPTURE_BYTES_UPPER.
+FRAME_TRACE_CAPTURE_BYTES_UPPER = 255
+
+# Schema for frame_trace: — a fixed-size ring buffer of recent RX/TX frames (raw on-wire
+# bytes, still escape-stuffed), dumped to the log via rs485_frame.dump_frame_trace. Compiled
+# out unless the block is present (see USE_RS485_FRAME_FRAME_TRACE in frame_trace.h).
+FRAME_TRACE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SIZE, default=32): cv.int_range(
+            min=1, max=FRAME_TRACE_SIZE_UPPER
+        ),
+        cv.Optional(CONF_CAPTURE_BYTES, default=24): cv.int_range(
+            min=1, max=FRAME_TRACE_CAPTURE_BYTES_UPPER
+        ),
+        # Also capture frames that fail CRC/framing, not just frames that pass
+        # validate_frame_(). This is the one thing frame_trace: needs that
+        # sniffer_stats/response_monitor don't — those only ever see already-validated frames.
+        cv.Optional(CONF_INCLUDE_INVALID, default=True): cv.boolean,
     }
 )
 
@@ -696,6 +731,11 @@ def validate_hub(config):
                 "discovery: cannot be combined with response_fields:/response_monitor: — "
                 "discovery bypasses the framing/validation and TX path they match against"
             )
+        if CONF_FRAME_TRACE in config:
+            raise cv.Invalid(
+                "discovery: cannot be combined with frame_trace: — discovery bypasses the "
+                "framing/validation and TX path frame_trace records from"
+            )
         return config
 
     # Non-discovery hubs must declare the framing escape scheme and a crc: block.
@@ -814,6 +854,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_SNIFFER_STATS): SNIFFER_STATS_SCHEMA,
+            cv.Optional(CONF_FRAME_TRACE): FRAME_TRACE_SCHEMA,
             cv.Optional(CONF_RESPONSE_FIELDS): _validate_response_fields,
             cv.Optional(CONF_RESPONSE_MONITOR): _validate_response_monitor,
         }
@@ -936,7 +977,52 @@ def _final_validate_response_monitor(config):
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate_response_monitor
+_DUMP_FRAME_TRACE_ACTION_KEY = "rs485_frame.dump_frame_trace"
+
+
+def _iter_action_configs(node, action_key):
+    """Recursively find every validated config value for `action_key` anywhere in the full
+    config tree. Actions are registered globally (not scoped to a component's own domain), so
+    rs485_frame.dump_frame_trace can appear nested inside any other component's automation
+    blocks -- e.g. a switch's on_turn_on:, not just this hub's own response_monitor entries.
+    A generic tree walk is the only way to find every occurrence.
+    """
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == action_key:
+                yield value
+            else:
+                yield from _iter_action_configs(value, action_key)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _iter_action_configs(item, action_key)
+
+
+def _final_validate_frame_trace_actions(config):
+    if CONF_FRAME_TRACE in config:
+        return config
+    hub_id = config[CONF_ID]
+    full_config = fv.full_config.get()
+    for action_config in _iter_action_configs(
+        full_config, _DUMP_FRAME_TRACE_ACTION_KEY
+    ):
+        target_id = (
+            action_config[CONF_ID] if isinstance(action_config, dict) else action_config
+        )
+        if target_id == hub_id:
+            raise cv.Invalid(
+                f"rs485_frame.dump_frame_trace references hub '{hub_id}', which has no "
+                "frame_trace: block configured"
+            )
+    return config
+
+
+def _final_validate(config):
+    config = _final_validate_response_monitor(config)
+    return _final_validate_frame_trace_actions(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 # response_monitor:'s on_confirmed:/on_failed: are per-entry (registered via
@@ -1039,6 +1125,18 @@ async def to_code(config):
                 ref,
                 stats[CONF_ASCII_STRIP_HIGH_BIT],
                 stats[CONF_REFERENCE_MODE] == "send",
+            )
+        )
+
+    if (trace := config.get(CONF_FRAME_TRACE)) is not None:
+        # Gates the FrameTrace field, includes, and the RX/TX/reject-path hooks out of builds
+        # that don't use frame_trace: — production firmware pays no cost at all.
+        cg.add_define("USE_RS485_FRAME_FRAME_TRACE")
+        cg.add(
+            var.enable_frame_trace(
+                trace[CONF_SIZE],
+                trace[CONF_CAPTURE_BYTES],
+                trace[CONF_INCLUDE_INVALID],
             )
         )
 
@@ -1201,4 +1299,28 @@ async def send_frame_action_to_code(config, action_id, template_arg, args):
         config[CONF_PAYLOAD], args, cg.std_vector.template(cg.uint8)
     )
     cg.add(var.set_payload(payload))
+    return var
+
+
+# rs485_frame.dump_frame_trace: log the hub's frame_trace ring buffer (recent RX/TX frames,
+# tagged direction and validity) to the console. Typically wired into a response_monitor
+# entry's on_failed: to capture what was actually on the wire around a confirmation failure,
+# but usable from anywhere (e.g. on_boot:) that has this hub's id. Rejected at validation time
+# (see _final_validate_frame_trace_actions above) if the target hub has no frame_trace: block.
+DUMP_FRAME_TRACE_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(RS485FrameHub),
+    }
+)
+
+
+@automation.register_action(
+    "rs485_frame.dump_frame_trace",
+    DumpFrameTraceAction,
+    DUMP_FRAME_TRACE_SCHEMA,
+    synchronous=True,
+)
+async def dump_frame_trace_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     return var

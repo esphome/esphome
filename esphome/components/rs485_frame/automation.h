@@ -27,4 +27,12 @@ template<typename... Ts> class SendFrameAction : public Action<Ts...>, public Pa
   }
 };
 
+/// Action: log the hub's frame_trace ring buffer (recent RX/TX frames, including any
+/// captured invalid frames) to the console. No-op if the hub has no frame_trace: block
+/// configured -- see RS485FrameHub::dump_frame_trace().
+template<typename... Ts> class DumpFrameTraceAction : public Action<Ts...>, public Parented<RS485FrameHub> {
+ public:
+  void play(Ts... x) override { this->parent_->dump_frame_trace(); }
+};
+
 }  // namespace esphome::rs485_frame

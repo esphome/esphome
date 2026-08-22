@@ -39,6 +39,13 @@ rs485_frame:
       postamble: [0x00]
     dump_frames: true
     frame_timeout: 50ms
+    # Non-default size/capture_bytes/include_invalid so CI compiles the FixedVector at a size
+    # other than the schema default, and exercises the reject-path record() call
+    # (include_invalid: true, the default, but set explicitly here for clarity).
+    frame_trace:
+      size: 16
+      capture_bytes: 20
+      include_invalid: true
     on_frame:
       # Decode a 32-bit little-endian bitmask once; push to multiple template sensors.
       - frame_type: [0x01, 0x02]
@@ -103,6 +110,9 @@ rs485_frame:
         on_failed:
           - lambda: |-
               id(g_lights_failed_count) += 1;
+          # Wires the frame_trace dump into a response_monitor failure -- the documented
+          # diagnostics use case (see this feature's own docs section).
+          - rs485_frame.dump_frame_trace: rs485_frame_hub
 
   # Hub 2 — sniffer-only with idle_gap gate and CRC16-Modbus. Exercises a different
   # crc_type, gate mode, queue policy, and the FIFO-with-larger-queue path.
