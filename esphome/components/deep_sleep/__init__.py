@@ -163,6 +163,11 @@ def validate_config(config: ConfigType) -> ConfigType:
                     "You need to remove the global wakeup_pin_mode and define it per pin"
                 )
             if wakeup_pins:
+                if CONF_WAKEUP_PIN_MODE in wakeup_pins[0]:
+                    raise cv.Invalid(
+                        "Specify wakeup_pin_mode either at the top level under deep_sleep "
+                        "or under the pin entry, not both"
+                    )
                 wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
     elif (
         isinstance(config.get(CONF_WAKEUP_PIN), list)

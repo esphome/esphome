@@ -2,7 +2,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if (defined(USE_LIBRETINY) && !defined(USE_RTL87XX)) || defined(USE_ESP8266) || defined(USE_RP2) || \
+    (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
 
 namespace esphome::remote_transmitter {
 
@@ -81,25 +82,37 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   ESP_LOGD(TAG, "Sending remote code");
   uint32_t on_time, off_time;
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
-  this->target_time_ = 0;
   this->transmit_trigger_.trigger();
   for (uint32_t i = 0; i < send_times; i++) {
-    InterruptLock lock;
-    for (int32_t item : this->temp_.get_data()) {
-      if (item > 0) {
-        const auto length = uint32_t(item);
-        this->mark_(on_time, off_time, length);
-      } else {
-        const auto length = uint32_t(-item);
-        this->space_(length);
+    {
+      InterruptLock lock;
+      // Re-anchor every iteration: timing must never span a lock boundary, as micros() can
+      // jump when interrupts are re-enabled between repeats (e.g. LibreTiny's Beken micros()
+      // discards its interrupt-lock correction, stretching the repeat gap by the lock duration)
+      this->target_time_ = 0;
+      for (int32_t item : this->temp_.get_data()) {
+        if (item > 0) {
+          const auto length = uint32_t(item);
+          this->mark_(on_time, off_time, length);
+        } else {
+          const auto length = uint32_t(-item);
+          this->space_(length);
+        }
+        App.feed_wdt();
       }
-      App.feed_wdt();
+      this->await_target_time_();  // wait for duration of last pulse
+      this->pin_->digital_write(false);
     }
-    this->await_target_time_();  // wait for duration of last pulse
-    this->pin_->digital_write(false);
 
-    if (i + 1 < send_times)
-      this->target_time_ += send_wait;
+    if (i + 1 < send_times) {
+      // Wait out the repeat gap with interrupts enabled: wait_time is unbounded user config
+      // (previously this spin ran inside the next iteration's lock, disabling interrupts for
+      // the whole gap). Anchoring after the lock release keeps it exact on all platforms.
+      const uint32_t gap_end = micros() + send_wait;
+      while ((int32_t) (gap_end - micros()) > 0) {
+        App.feed_wdt();
+      }
+    }
   }
   this->complete_trigger_.trigger();
 }
