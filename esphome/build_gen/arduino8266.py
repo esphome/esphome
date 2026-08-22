@@ -14,11 +14,12 @@ from the build flags with the same precedence as the PlatformIO builder.
 
 from __future__ import annotations
 
-import contextlib
 from dataclasses import dataclass
+import hashlib
 import logging
 import os
 from pathlib import Path
+import re
 import subprocess
 from typing import TYPE_CHECKING
 
@@ -26,7 +27,7 @@ from esphome.arduino8266.framework import toolchain_tool
 from esphome.build_helpers.ninja import shell_token as _shell_token
 from esphome.components.esp8266 import build_surgery
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import mkdir_p, write_file, write_file_if_changed
 from esphome.platformio.library import lex_build_flags
 
 if TYPE_CHECKING:
@@ -300,8 +301,13 @@ def _pio_option(key: str, default: str) -> str:
     """
     value = CORE.platformio_options.get(key)
     if isinstance(value, list):
-        value = value[-1] if value else None
-    return default if value is None else str(value)
+        value = value[-1] if value else ""
+    if value is None:
+        return default
+    value = str(value).strip()
+    if not value:
+        raise EsphomeError(f"platformio_options {key} is empty")
+    return value
 
 
 def _defines_flags(
@@ -313,11 +319,16 @@ def _defines_flags(
     defines embed ``\"``), so they must be emitted unquoted; wrapping
     them in ``_shell_token`` would deliver literal backslashes to gcc.
     """
+    # Every supported board ships 80 MHz; board_build.f_cpu overrides
+    f_cpu = _pio_option("board_build.f_cpu", "80000000L")
+    if not re.fullmatch(r"\d+L?", f_cpu):
+        # The value lands unquoted on the compile line; reject by name
+        # instead of corrupting it
+        raise EsphomeError(f"Invalid board_build.f_cpu value {f_cpu!r}")
     return [
         f"-D{d}"
         for d in (
-            # Every supported board ships 80 MHz; board_build.f_cpu overrides
-            f"F_CPU={_pio_option('board_build.f_cpu', '80000000L')}",
+            f"F_CPU={f_cpu}",
             "__ets__",
             "ICACHE_FLASH",
             "_GNU_SOURCE",
@@ -328,7 +339,9 @@ def _defines_flags(
             "LWIP_OPEN_SRC",
             *config.knob_defines,
             config.vtables,
-            *config.mmu_defines,
+            # User-supplied bodies re-quote like every other user token
+            # (a no-op for real MMU values)
+            *(_shell_token(d) for d in config.mmu_defines),
             "ESP8266",
             "ARDUINO_ARCH_ESP8266",
             *board_defines,
@@ -349,9 +362,10 @@ def _project_flags(
 ) -> tuple[list[str], list[str], list[Path], list[str]]:
     """Split the ESPHome build flags into compile, linker, -L, and -l lists.
 
-    Plain-form linker flags (``-T``/``-u``/``-Xlinker``) raise: they would be
-    inert on the ``-c`` compile line. ``compile_flags``/``link_flags`` come
-    back shell-quoted; ``lib_dirs``/``libs`` are raw, quote at emission.
+    Plain-form linker flags (``_PLAIN_LINKER_FLAGS``/``_PLAIN_LINKER_PREFIXES``)
+    raise: they would be inert on the ``-c`` compile line.
+    ``compile_flags``/``link_flags`` come back shell-quoted;
+    ``lib_dirs``/``libs`` are raw, quote at emission.
     """
     compile_flags: list[str] = []
     link_flags: list[str] = []
@@ -379,17 +393,19 @@ def _project_flags(
                 continue
             libs.append(tok[2:])
         else:
-            if tok in ("-u", "-e", "-s", "-static", "-nostartfiles") or tok.startswith(
-                ("-T", "-Xlinker")
-            ):
-                # Inert on the -c compile line; the firmware would silently
-                # lack the requested link behavior
+            if tok in _PLAIN_LINKER_FLAGS or tok.startswith(_PLAIN_LINKER_PREFIXES):
                 raise EsphomeError(
                     f"Linker flag {tok} in build_flags is not routed to the "
                     "link line; use the -Wl, form"
                 )
             compile_flags.append(_shell_token(tok))
     return compile_flags, link_flags, lib_dirs, libs
+
+
+# Plain-form linker flags rejected by _project_flags: inert on a -c compile
+# line, so the firmware would silently lack the requested link behavior
+_PLAIN_LINKER_FLAGS = ("-u", "-e", "-s", "-static", "-nostartfiles")
+_PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker")
 
 
 def _stat_sig(path: Path) -> str:
@@ -452,15 +468,20 @@ def generate_ld_scripts(
     )
 
     def _cached_ld_is_valid() -> bool:
-        # Any damaged cache regenerates; never abort the build over it
+        # Any damaged cache regenerates; never abort the build over it. The
+        # stamp records the sha256 of the content written, so an externally
+        # edited script regenerates too.
         try:
-            if not (
-                output.is_file()
-                and stamp.is_file()
-                and stamp.read_text(encoding="utf-8") == stamp_content
-            ):
+            if not (output.is_file() and stamp.is_file()):
                 return False
-            return "SECTIONS" in output.read_text(encoding="utf-8")
+            inputs, sep, digest = stamp.read_text(encoding="utf-8").rpartition(
+                " content="
+            )
+            return (
+                bool(sep)
+                and inputs == stamp_content
+                and hashlib.sha256(output.read_bytes()).hexdigest() == digest
+            )
         except (OSError, UnicodeDecodeError):
             return False
 
@@ -504,14 +525,29 @@ def generate_ld_scripts(
             except RuntimeError as err:
                 # Same changed-linker-script failure class as the ratetable
                 raise EsphomeError(str(err)) from err
-        write_file_if_changed(output, content)
-        stamp.write_text(stamp_content, encoding="utf-8")
+        try:
+            write_file_if_changed(output, content)
+        except EsphomeError:
+            # A non-UTF-8/unreadable cached script fails the comparison
+            # read; regeneration must overwrite it, not abort
+            output.unlink(missing_ok=True)
+            write_file(output, content)
+        stamp.write_text(
+            f"{stamp_content} content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
+            encoding="utf-8",
+        )
     elif stderr_note.is_file():
-        # Re-emit cached preprocessor warnings on cache hits; best-effort
-        with contextlib.suppress(OSError, UnicodeDecodeError):
+        # Re-emit cached preprocessor warnings on cache hits
+        try:
             _LOGGER.warning(
                 "Linker-script preprocessor: %s",
                 stderr_note.read_text(encoding="utf-8"),
+            )
+        except (OSError, UnicodeDecodeError):
+            _LOGGER.warning(
+                "A cached linker-script preprocessor diagnostic exists at %s "
+                "but could not be read",
+                stderr_note,
             )
 
     if CORE.testing_mode:
