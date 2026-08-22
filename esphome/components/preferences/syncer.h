@@ -15,12 +15,12 @@ class IntervalSyncer final : public PollingComponent {
     if (global_preferences->sync()) {
       this->status_clear_warning();
     } else {
-      this->status_set_warning("Failed to sync preferences to flash");
+      this->status_set_warning(LOG_STR("Failed to sync preferences to flash"));
     }
   }
   void on_shutdown() override {
     if (!global_preferences->sync()) {
-      this->status_set_warning("Failed to sync preferences to flash");
+      this->status_set_warning(LOG_STR("Failed to sync preferences to flash"));
     }
   }
   float get_setup_priority() const override { return setup_priority::BUS; }
