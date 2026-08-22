@@ -136,7 +136,6 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
   }
   return len;
 }
-
 void USBUartChannelBase::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
     ESP_LOGD(TAG, "Channel not initialised - write ignored");
