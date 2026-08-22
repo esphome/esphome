@@ -331,11 +331,14 @@ def resolve_libraries(
     # macOS/Windows and build the bundled Wire twice); the safety guard
     # stays fused with the lookup (path traversal)
     libraries_dir = framework_path / "libraries"
-    bundled_dir_names = (
-        frozenset(p.name for p in libraries_dir.iterdir() if p.is_dir())
-        if libraries_dir.is_dir()
-        else frozenset()
-    )
+    if not libraries_dir.is_dir():
+        # Falling back to the registry would fail later with a misleading
+        # package-not-found error for every bundled name
+        raise EsphomeError(
+            f"{libraries_dir} is missing; the framework install may be "
+            "incomplete (run 'esphome clean-all')"
+        )
+    bundled_dir_names = frozenset(p.name for p in libraries_dir.iterdir() if p.is_dir())
 
     def _provided(name: object) -> bool:
         return _is_safe_library_name(name) and name in bundled_dir_names
@@ -404,7 +407,9 @@ def resolve_libraries(
                 # via the converter, and the walk reports any real drops
                 continue
             try:
-                check_library_data(dep, pio_platform, "arduino")
+                # framework=None: the walk already warned for a frameworks
+                # mismatch; re-checking would warn twice
+                check_library_data(dep, pio_platform, None)
             except InvalidLibrary as err:
                 # The shared walk already reported any non-platform cause;
                 # warning again here would read as two distinct failures
