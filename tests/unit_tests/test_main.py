@@ -7142,7 +7142,7 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     comments: list[str] = []
 
     async def to_code(conf):
-        pass
+        """Accept any config; only the wrapper's comment output matters."""
 
     comp = SimpleNamespace(to_code=to_code, config_schema=object())
     wrapped = _wrap_to_code("demo", comp, yaml_util)
