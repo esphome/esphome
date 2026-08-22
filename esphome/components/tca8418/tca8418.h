@@ -25,6 +25,7 @@ static constexpr uint8_t TCA8418_CFG_KEY_INT_EN = 0x01;  // interrupt on key eve
 static constexpr uint8_t TCA8418_CFG_INT_CFG = 0x10;     // re-assert INT while events remain
 //  INT_STAT
 static constexpr uint8_t TCA8418_INT_STAT_KEY = 0x01;
+static constexpr uint8_t TCA8418_INT_STAT_ALL = 0x1F;  // every interrupt flag
 //  KEY_LCK_EC: the low nibble is the number of queued events
 static constexpr uint8_t TCA8418_EVENT_COUNT_MASK = 0x0F;
 //  Key events: bit 7 set = pressed, clear = released; bits 6-0 are the key number

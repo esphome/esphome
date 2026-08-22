@@ -36,11 +36,12 @@ void TCA8418Component::setup() {
     this->interrupt_pin_->setup();
   }
 
-  //  Discard anything the device queued before it was configured.
+  //  Discard anything the device queued before it was configured, and clear
+  //  every interrupt flag: leaving one set holds the interrupt output asserted.
   uint8_t key;
   while (this->read_byte(TCA8418_REG_KEY_EVENT_A, &key) && key != 0) {
   }
-  this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_KEY);
+  this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL);
 }
 
 bool TCA8418Component::configure_pins_() {
@@ -76,7 +77,7 @@ bool TCA8418Component::configure_pins_() {
 void TCA8418Component::loop() {
   if (this->interrupt_pin_ != nullptr) {
     //  The interrupt output is active low, and stays asserted while events are
-    //  queued. Reading the level (rather than waiting for an edge) means a
+    //  queued. Reading the level, rather than waiting for an edge, means a
     //  missed edge cannot leave events stranded in the queue.
     if (this->interrupt_pin_->digital_read())
       return;
