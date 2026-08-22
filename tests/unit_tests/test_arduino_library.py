@@ -920,3 +920,48 @@ def test_pinned_bundled_dependency_substitution_warns(
         )
     assert "Wire" in [lib.name for lib in libs]
     assert "pins version ^2.0.0; using the library bundled" in caplog.text
+
+
+def test_transitively_resolved_dependency_does_not_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less dependency the walk resolved as another library's
+    registry dependency is present in the build; the skipping warning must
+    stay quiet for it."""
+    framework = _make_framework(tmp_path)
+    _add_library("ESP32Async/ESPAsyncWebServer", "3.9.6")
+    ws_dir = tmp_path / "converted" / "webserver"
+    (ws_dir / "src").mkdir(parents=True)
+    tcp_dir = tmp_path / "converted" / "tcp"
+    (tcp_dir / "src").mkdir(parents=True)
+    ws = _converted(
+        "esp32async__ESPAsyncWebServer",
+        ws_dir,
+        {"build": {}, "dependencies": [{"name": "ESPAsyncTCP"}]},
+    )
+    tcp = _converted("esp32async__ESPAsyncTCP", tcp_dir, {"build": {}})
+    with _emitting_converter(ws, tcp):
+        component.resolve_libraries(
+            framework,
+            pio_platform="espressif8266",
+            board_mcu="esp8266",
+            cache_key="arduino8266",
+        )
+    assert "is not bundled with the framework" not in caplog.text
+
+
+def test_empty_bundled_library_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bundled directory with no sources or headers is a broken install,
+    not a silent no-op archive."""
+    framework = _make_framework(tmp_path)
+    (framework / "libraries" / "Empty").mkdir()
+    _add_library("Empty", None)
+    component.resolve_libraries(
+        framework,
+        pio_platform="espressif8266",
+        board_mcu="esp8266",
+        cache_key="arduino8266",
+    )
+    assert "Bundled library Empty has no sources or headers" in caplog.text

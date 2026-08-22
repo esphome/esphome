@@ -628,15 +628,21 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     return out
 
 
-def normalize_dependencies(dependencies: Any) -> list[dict]:
+def normalize_dependencies(dependencies: Any, owner: str = "manifest") -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
-    PIO's library.json accepts both the list-of-dicts form and the shorthand
-    dict form (``{"owner/Name": "version_spec"}``); normalize the latter so
-    callers see a uniform list.
+    PIO's library.json accepts the list-of-dicts form, the shorthand dict
+    form (``{"owner/Name": "version_spec"}``), bare name strings inside the
+    list, and a plain (possibly comma-separated) string; normalize them all
+    so callers see a uniform list. ``owner`` names the manifest in the
+    warning for entries that cannot be normalized.
     """
     if not dependencies:
         return []
+    if isinstance(dependencies, str):
+        # A plain string is one or more comma-separated names; iterating it
+        # as a list would shred it into one-character "libraries"
+        return [{"name": n.strip()} for n in dependencies.split(",") if n.strip()]
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
@@ -660,6 +666,10 @@ def normalize_dependencies(dependencies: Any) -> list[dict]:
             # ["Wire"]); dropping them here would hide a real dependency
             # from every caller's visibility warning
             normalized.append({"name": entry})
+        else:
+            _LOGGER.warning(
+                "Ignoring unrecognized dependency entry %r of %s", entry, owner
+            )
     return normalized
 
 
@@ -973,8 +983,17 @@ def convert_libraries(
         # Requirements changed (we got past the short-circuit above), so
         # (re)walk this component's dependencies.
         node.edges = set()
-        for dependency in normalize_dependencies(component.data.get("dependencies")):
+        for dependency in normalize_dependencies(
+            component.data.get("dependencies"), component.name
+        ):
             if "name" not in dependency or "version" not in dependency:
+                # Version-less deps cannot resolve from the registry; the
+                # arduino backend picks bundled ones up after emit
+                _LOGGER.debug(
+                    "Skip version-less dependency %r of %s",
+                    dependency.get("name"),
+                    component.name,
+                )
                 continue
             try:
                 check_library_data(dependency, backend.platform, backend.framework)

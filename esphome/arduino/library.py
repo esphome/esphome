@@ -221,7 +221,20 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
                 "run for bundled libraries",
                 name,
             )
-    return _library_info(name, lib_dir, data)
+    lib = _library_info(name, lib_dir, data)
+    if not lib.sources and not any(
+        p.suffix in (".h", ".hpp", ".hh", ".inc")
+        for d in lib.include_dirs
+        for p in d.rglob("*")
+    ):
+        # An empty or half-extracted bundled directory would otherwise
+        # become a silent no-op that surfaces as undefined symbols at link
+        _LOGGER.warning(
+            "Bundled library %s has no sources or headers; the framework "
+            "install may be incomplete (run 'esphome clean-all')",
+            name,
+        )
+    return lib
 
 
 def resolve_libraries(
@@ -271,6 +284,8 @@ def resolve_libraries(
     # dependency matching one is already in the build, not a drop (a false
     # "skipping" warning teaches users to ignore the real one)
     external_short_names = {lib.name.split("/")[-1] for lib in external if lib.name}
+
+    pending_drops: list[tuple[str, str]] = []
 
     def _add_bundled_dependencies(component: ConvertedLibrary) -> None:
         # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
@@ -327,15 +342,10 @@ def resolve_libraries(
                 )
                 continue
             if not bundled_dir.is_dir():
-                # The shared converter skips version-less deps too, so this
-                # is the only place the drop can be made visible before the
-                # missing sources surface as link errors.
-                _LOGGER.warning(
-                    "Dependency %s of library %s is not bundled with the "
-                    "framework and has no version to resolve; skipping",
-                    name,
-                    component.name,
-                )
+                # Deferred: the walk may still resolve this name as another
+                # library's transitive registry dependency, and a false
+                # "skipping" warning teaches users to ignore the real one
+                pending_drops.append((name, component.name))
                 continue
             try:
                 check_library_data(dep, pio_platform, "arduino")
@@ -405,5 +415,19 @@ def resolve_libraries(
                 f"libraries were not resolved (missing: "
                 f"{', '.join(dropped) or 'unknown'})"
             )
+
+    # The shared converter skips version-less deps too, so this is the only
+    # place a genuine drop can be made visible before the missing sources
+    # surface as link errors; names the walk resolved anyway stay quiet.
+    resolved_short_names = {c.name.split("__")[-1] for c in converted}
+    for name, requester in pending_drops:
+        if name in bundled_names or name in resolved_short_names:
+            continue
+        _LOGGER.warning(
+            "Dependency %s of library %s is not bundled with the framework "
+            "and has no version to resolve; skipping",
+            name,
+            requester,
+        )
 
     return bundled + converted
