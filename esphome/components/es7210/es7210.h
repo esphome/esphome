@@ -29,6 +29,7 @@ class ES7210 final : public audio_adc::AudioAdc, public Component, public i2c::I
   void set_bits_per_sample(ES7210BitsPerSample bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
   bool set_mic_gain(float mic_gain) override;
   void set_sample_rate(uint32_t sample_rate) { this->sample_rate_ = sample_rate; }
+  void set_tdm(bool enable_tdm) { this->enable_tdm_ = enable_tdm; }
 
   float mic_gain() override { return this->mic_gain_; };
 

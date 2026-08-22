@@ -7,6 +7,8 @@ from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_MIC_GAIN, CONF_SAM
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["i2c"]
 
+CONF_TDM = "tdm"
+
 es7210_ns = cg.esphome_ns.namespace("es7210")
 ES7210 = es7210_ns.class_("ES7210", AudioAdc, cg.Component, i2c.I2CDevice)
 
@@ -34,6 +36,7 @@ CONFIG_SCHEMA = (
                 cv.decibel, cv.one_of(*ES7210_MIC_GAINS)
             ),
             cv.Optional(CONF_SAMPLE_RATE, default=16000): cv.int_range(min=1),
+            cv.Optional(CONF_TDM, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -49,3 +52,4 @@ async def to_code(config):
     cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
     cg.add(var.set_mic_gain(config[CONF_MIC_GAIN]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))
+    cg.add(var.set_tdm(config[CONF_TDM]))
