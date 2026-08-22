@@ -74,7 +74,7 @@ SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
 SRC_FILE_EXTENSIONS = list(SOURCE_KIND_FOR_SUFFIX)
 # Suffixes that count as headers when probing whether a library has any
 # usable files at all (compare against Path.suffix.lower())
-HEADER_FILE_EXTENSIONS = frozenset(
+LIBRARY_HEADER_SUFFIXES = frozenset(
     {".h", ".hpp", ".hh", ".hxx", ".inc", ".ipp", ".tcc"}
 )
 
@@ -1158,30 +1158,32 @@ def convert_libraries(
                 if is_lib_ignored(dep_name, lib_ignore):
                     _LOGGER.debug("Skip ignored dependency %s", dep_name)
                     continue
-                if (
+                # The version field may actually be a URL (git/archive
+                # dependency), which names one specific source; it must not
+                # be substituted with a same-named bundled library below.
+                dep_version = dependency["version"]
+                dep_url = _url_or_none(dep_version)
+                if dep_url is not None:
+                    dep_version = None
+                elif (
                     backend.provides is not None
                     and not dependency.get("owner")
                     and backend.provides(dep_name)
                 ):
                     # The backend adds it from its own tree; resolving it here
                     # would fetch a same-named registry package instead
-                    if (pin := dependency.get("version")) and pin != "*":
+                    if dep_version and dep_version != "*":
                         # The version pin is discarded for the bundled copy;
                         # make the substitution visible
                         _LOGGER.warning(
                             "Dependency %s pins version %s; using the library "
                             "bundled with the framework instead",
                             dep_name,
-                            pin,
+                            dep_version,
                         )
                     else:
                         _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
                     continue
-                # The version field may actually be a URL (git/archive dependency).
-                dep_version = dependency["version"]
-                dep_url = _url_or_none(dep_version)
-                if dep_url is not None:
-                    dep_version = None
                 dep_key = add_spec(dep_name, dep_version, dep_url)
                 node.edges.add(dep_key)
                 worklist.append(dep_key)
