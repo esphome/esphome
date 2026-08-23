@@ -126,3 +126,38 @@ def test_print_summary_handles_no_memory_types(
     size_json = _write_size_json(tmp_path, {"image_size": 0})
     print_summary(size_json, partitions_csv=None)
     assert capsys.readouterr().out == ""
+
+
+def test_print_summary_non_dict_json_is_skipped(tmp_path, capsys) -> None:
+    """Valid JSON that is not an object must not raise past a build that
+    already linked."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text("[]")
+    print_summary(size_json, tmp_path / "partitions.csv")
+    assert capsys.readouterr().out == ""
+
+
+def test_print_summary_unreadable_partitions_is_skipped(tmp_path, capsys) -> None:
+    """An OSError reading the partition table is a skipped summary, not a
+    failed build."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
+    )
+    print_summary(size_json, tmp_path / "missing" / "partitions.csv")
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" not in out
+
+
+def test_print_summary_zero_app_partition_is_skipped(tmp_path, capsys) -> None:
+    """A malformed partition row parsing to 0 must not render a 0% bar for
+    CI's memory-impact extraction to ingest."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, ,\n")
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" not in out

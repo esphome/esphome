@@ -94,6 +94,12 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
 
+    if not isinstance(data, dict):
+        # Valid JSON that is not an object (truncated tool output) must
+        # not raise past a build that already linked
+        _LOGGER.debug("Skipping size summary: unexpected shape in %s", size_json)
+        return
+
     memory_types = data.get("memory_types", {})
     ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
     ram_used = ram_region.get("used")
@@ -106,7 +112,12 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         return
     try:
         app_size = _find_app_partition_size(partitions_csv)
-    except ValueError as e:
+    except (ValueError, OSError) as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
+        return
+    if app_size <= 0:
+        # A malformed partition row parses to 0; a 0% bar would feed CI's
+        # memory-impact extraction fabricated data
+        _LOGGER.debug("Skipping Flash summary: app partition size is 0")
         return
     print(f"Flash: {_format_bar(image_size, app_size)}")
