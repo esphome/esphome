@@ -1765,7 +1765,10 @@ void APIConnection::send_resume_ticket_() {
   NoiseResumeTicket msg;
   msg.set_session_id(ticket.session_id, noise::RESUME_SESSION_ID_SIZE);
   msg.set_secret(ticket.secret, noise::RESUME_SECRET_SIZE);
-  this->send_message(msg);
+  if (!this->send_message(msg)) {
+    // Harmless: the client simply does a full handshake next time
+    API_LOG_MSG_DROPPED(TAG, "Resume ticket");
+  }
   noise_clean(&ticket, sizeof(ticket));
 }
 #endif

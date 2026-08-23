@@ -9,8 +9,8 @@
 namespace esphome::noise {
 
 /// Noise-construction HKDF-SHA256; out2 may be scratch the caller wipes.
-static bool resume_hkdf_(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out1,
-                         size_t out1_len, uint8_t *out2, size_t out2_len) {
+static bool resume_hkdf(const uint8_t *key, size_t key_len, const uint8_t *data, size_t data_len, uint8_t *out1,
+                        size_t out1_len, uint8_t *out2, size_t out2_len) {
   NoiseHashState *hash = nullptr;
   if (noise_hashstate_new_by_id(&hash, NOISE_HASH_SHA256) != NOISE_ERROR_NONE) {
     return false;
@@ -21,8 +21,8 @@ static bool resume_hkdf_(const uint8_t *key, size_t key_len, const uint8_t *data
 }
 
 template<size_t N>
-static bool resume_mac_(const uint8_t *secret, const char (&label)[N], const uint8_t *a, size_t a_len, const uint8_t *b,
-                        size_t b_len, uint8_t *out_mac) {
+static bool resume_mac(const uint8_t *secret, const char (&label)[N], const uint8_t *a, size_t a_len, const uint8_t *b,
+                       size_t b_len, uint8_t *out_mac) {
   constexpr size_t label_len = N - 1;  // drop the terminating NUL
   // label || a || b, largest use is "confirm"(7) + 16 + 16 = 39
   uint8_t data[7 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE];
@@ -30,8 +30,8 @@ static bool resume_mac_(const uint8_t *secret, const char (&label)[N], const uin
   std::memcpy(data, label, label_len);
   std::memcpy(data + label_len, a, a_len);
   std::memcpy(data + label_len + a_len, b, b_len);
-  bool ok = resume_hkdf_(secret, RESUME_SECRET_SIZE, data, label_len + a_len + b_len, out_mac, RESUME_MAC_SIZE, scratch,
-                         sizeof(scratch));
+  bool ok = resume_hkdf(secret, RESUME_SECRET_SIZE, data, label_len + a_len + b_len, out_mac, RESUME_MAC_SIZE, scratch,
+                        sizeof(scratch));
   noise_clean(scratch, sizeof(scratch));
   return ok;
 }
@@ -116,12 +116,12 @@ void ResumeTicketCache::clear() {
 
 bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
                               uint8_t *out_mac) {
-  return resume_mac_(secret, "offer", session_id, RESUME_SESSION_ID_SIZE, client_nonce, RESUME_NONCE_SIZE, out_mac);
+  return resume_mac(secret, "offer", session_id, RESUME_SESSION_ID_SIZE, client_nonce, RESUME_NONCE_SIZE, out_mac);
 }
 
 bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
                                 uint8_t *out_mac) {
-  return resume_mac_(secret, "confirm", client_nonce, RESUME_NONCE_SIZE, server_nonce, RESUME_NONCE_SIZE, out_mac);
+  return resume_mac(secret, "confirm", client_nonce, RESUME_NONCE_SIZE, server_nonce, RESUME_NONCE_SIZE, out_mac);
 }
 
 bool resume_derive_keys(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
@@ -131,8 +131,9 @@ bool resume_derive_keys(const uint8_t *secret, const uint8_t *client_nonce, cons
     return false;
   }
   // "keys"(4) || client_nonce(16) || server_nonce(16) || SHA256(prologue)(32)
-  uint8_t data[4 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32];
-  std::memcpy(data, "keys", 4);
+  static constexpr uint8_t LABEL_KEYS[4] = {'k', 'e', 'y', 's'};
+  uint8_t data[sizeof(LABEL_KEYS) + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32];
+  std::memcpy(data, LABEL_KEYS, sizeof(LABEL_KEYS));
   std::memcpy(data + 4, client_nonce, RESUME_NONCE_SIZE);
   std::memcpy(data + 4 + RESUME_NONCE_SIZE, server_nonce, RESUME_NONCE_SIZE);
   int err = noise_hashstate_hash_one(hash, prologue, prologue_len, data + 4 + 2 * RESUME_NONCE_SIZE, 32);
