@@ -336,13 +336,9 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     )
 
     def _shape(entry: dict) -> str:
-        # The command minus its TU-specific paths: entries sharing a shape
-        # carry identical include sets (one ninja rule), so tokenize once
-        # per shape instead of once per TU. Response-file commands never
-        # dedupe: per-object .rsp names strip to one shape while the files
-        # may hold different include sets.
-        # Keyed on directory too: relative -I paths resolve against it, so
-        # identical commands in different dirs mean different include sets
+        # directory + command minus TU-specific paths: same shape means the
+        # same include set, so tokenize once per shape. Response-file
+        # commands never dedupe (the .rsp contents differ per object)
         command = entry["command"]
         directory = entry.get("directory", "")
         if "@" in command:
