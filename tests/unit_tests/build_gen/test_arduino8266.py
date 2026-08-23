@@ -1143,7 +1143,7 @@ def test_generate_ld_scripts_unreadable_note_still_warns(
     assert "could not be read" in caplog.text
 
 
-@pytest.mark.parametrize("value", ["0x8000", "0xC000ul", "32768", "48UL"])
+@pytest.mark.parametrize("value", ["0x8000", "0xC000ul", "0x10UL"])
 def test_mmu_custom_numeric_sizes_accepted(value: str) -> None:
     config = _resolve(
         "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
@@ -1153,16 +1153,50 @@ def test_mmu_custom_numeric_sizes_accepted(value: str) -> None:
     assert f"MMU_IRAM_SIZE={value}" in config.mmu_defines
 
 
-@pytest.mark.parametrize("flag", ["-DMMU_IRAM_SIZE=48K", "-DMMU_IRAM_SIZE"])
+@pytest.mark.parametrize(
+    "flag",
+    [
+        "-DMMU_IRAM_SIZE=48K",
+        # Decimal passes preprocessing but build_surgery's segment parser
+        # only reads hex, so testing-mode surgery would fail misleadingly
+        "-DMMU_IRAM_SIZE=32768",
+    ],
+)
 def test_mmu_custom_malformed_size_raises(flag: str) -> None:
-    """A bare or non-numeric size would corrupt the preprocessed segment
-    lengths and fail far away in ld; refuse by name."""
-    with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE must be a numeric"):
+    """A non-hex size would corrupt the preprocessed segment lengths (or
+    defeat the testing-mode surgery); refuse by name."""
+    with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE must be a hex"):
         _resolve(
             "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
             flag,
             "-DMMU_ICACHE_SIZE=0x8000",
         )
+
+
+def test_mmu_custom_valueless_switch_accepted_and_others_validated() -> None:
+    """Valueless MMU switches (MMU_IRAM_HEAP) pass; every valued MMU_* is
+    hex-validated, not just the two required sizes."""
+    config = _resolve(
+        "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
+        "-DMMU_IRAM_SIZE=0x8000",
+        "-DMMU_ICACHE_SIZE=0x8000",
+        "-DMMU_IRAM_HEAP",
+    )
+    assert "MMU_IRAM_HEAP" in config.mmu_defines
+    with pytest.raises(EsphomeError, match="MMU_SEC_HEAP_SIZE must be a hex"):
+        _resolve(
+            "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
+            "-DMMU_IRAM_SIZE=0x8000",
+            "-DMMU_ICACHE_SIZE=0x8000",
+            "-DMMU_SEC_HEAP_SIZE=48K",
+        )
+
+
+def test_mmu_no_knob_rejects_any_raw_mmu_flag() -> None:
+    """The no-knob branch refuses every raw MMU_*, like the knob branch; a
+    lone switch would win the compile line but not the linker script."""
+    with pytest.raises(EsphomeError, match="Raw MMU_IRAM_HEAP"):
+        _resolve("-DMMU_IRAM_HEAP")
 
 
 def test_raw_nonosdk_define_raises() -> None:
