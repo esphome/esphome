@@ -1,6 +1,7 @@
 """Generic toolchain installation helpers shared across framework implementations."""
 
 from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 import hashlib
 import io
@@ -735,6 +736,46 @@ def _stream_response_to_file(
         progress(downloaded)
     if own_bar is not None:
         own_bar.update(1)
+
+
+# Concurrent downloads per batch; enough to hide latency without
+# hammering the host or the mirrors.
+BATCH_DOWNLOAD_WORKERS = 4
+
+
+def run_batch_downloads(
+    progress: "BatchDownloadProgress",
+    jobs: list[tuple[str, Callable[[Callable[[int], None]], None]]],
+    max_workers: int = BATCH_DOWNLOAD_WORKERS,
+) -> list[tuple[str, Exception]]:
+    """Run download jobs concurrently, reporting into one combined bar.
+
+    ``jobs`` holds ``(name, fetch)`` pairs where ``fetch(tracker)`` performs
+    one download reporting absolute byte counts to ``tracker``. Failures are
+    collected (list.append is atomic under the GIL) and returned after the
+    bar is done, so the caller's warnings never land on the bar's row; a
+    failed job credits its tracker 0 so the bar can still complete. Ctrl-C
+    drops queued jobs instead of downloading them all before the process
+    can exit; in-flight ones still finish.
+    """
+    failures: list[tuple[str, Exception]] = []
+
+    def _run(name: str, fetch: Callable[[Callable[[int], None]], None]) -> None:
+        tracker = progress.tracker()
+        try:
+            fetch(tracker)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            failures.append((name, err))
+            tracker(0)
+
+    ex = ThreadPoolExecutor(max_workers=min(max_workers, len(jobs)))
+    try:
+        for future in [ex.submit(_run, name, fetch) for name, fetch in jobs]:
+            future.result()
+    finally:
+        ex.shutdown(wait=True, cancel_futures=True)
+        progress.done()
+    return failures
 
 
 class BatchDownloadProgress:
