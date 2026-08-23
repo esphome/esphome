@@ -280,6 +280,8 @@ def test_wave_requirement_growth_defers_the_superseded_download(tmp_path, monkey
         (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
 
     monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    # Hermetic: unknown sizes take the sequential path instead of real HEADs
+    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [None] * len(urls))
     _patch_registry_resolve(monkeypatch)
     top = convert_libraries(
         [Library("esphome/A", "1.0.0", None), Library("esphome/B", None, None)],
@@ -744,9 +746,7 @@ def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
             return SimpleNamespace(ok=True, headers={"content-length": "123, 123"})
         return SimpleNamespace(ok=True, headers={"content-length": "123"})
 
-    monkeypatch.setattr(
-        lib.requests if hasattr(lib, "requests") else requests, "head", fake_head
-    )
+    monkeypatch.setattr(requests, "head", fake_head)
     # None marks an unknown size (probe failure or non-2xx), distinct
     # from a genuine zero
     assert lib._content_lengths(
