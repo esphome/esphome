@@ -240,12 +240,17 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
 
     data = {}
 
+    # Metadata only: tolerate malformed shapes instead of crashing on a
+    # third-party manifest (repository may legally be {"url": ...} or a
+    # plain URL string)
     description = component.data.get("description")
-    if description:
+    if isinstance(description, str) and description:
         data["description"] = description
 
-    repository = component.data.get("repository", {}).get("url", None)
-    if repository:
+    repository = component.data.get("repository")
+    if isinstance(repository, dict):
+        repository = repository.get("url")
+    if isinstance(repository, str) and repository:
         data["repository"] = repository
 
     for dependency in component.dependencies:
