@@ -497,6 +497,24 @@ def test_env_unmodelled_subscript_degrades_one_branch(caplog) -> None:
     assert env.result.libs == ["still_captured"]
 
 
+def test_cppdefines_scons_spellings(tmp_path) -> None:
+    """A bare 2-tuple is one name=value pair, a dict maps names to values,
+    and a None value is a bare define (SCons processDefines)."""
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    env.Append(CPPDEFINES=("FOO", "1"))
+    env.Append(CPPDEFINES={"BAR": "2", "BAZ": None})
+    env.Append(CPPDEFINES=["PLAIN"])
+    flags = captured_as_build_flags(env.result, library_dir=tmp_path)
+    assert lex_build_flags(flags, "test") == [
+        "-DFOO=1",
+        "-DBAR=2",
+        "-DBAZ",
+        "-DPLAIN",
+    ]
+
+
 def test_uncaptured_append_key_warns_once(caplog) -> None:
     """A loop of Appends to the same uncaptured key warns once."""
 
