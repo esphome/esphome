@@ -743,21 +743,25 @@ BATCH_DOWNLOAD_WORKERS = 4
 
 
 def run_batch_downloads(
-    progress: "BatchDownloadProgress",
-    jobs: list[tuple[str, Callable[[Callable[[int], None]], None]]],
+    header: str,
+    jobs: list[tuple[str, int, Callable[[Callable[[int], None]], None]]],
     max_workers: int = BATCH_DOWNLOAD_WORKERS,
 ) -> list[tuple[str, Exception]]:
-    """Run ``(name, fetch)`` download jobs concurrently under one combined bar.
+    """Run ``(name, size, fetch)`` download jobs concurrently under one bar.
 
-    Each ``fetch(tracker)`` reports absolute byte counts. Failures are
-    returned after the bar is done so warnings never land on its row.
-    Ctrl-C drops queued jobs and aborts in-flight ones at their next tick;
-    ``.part`` files keep the fetched bytes. ``jobs`` must be non-empty.
+    Each ``fetch(tracker)`` reports absolute byte counts; the bar total is
+    the sum of the sizes. Failures are returned after the bar is done so
+    warnings never land on its row. Ctrl-C drops queued jobs and aborts
+    in-flight ones at their next tick; resumable destinations
+    (``download_with_resume``) keep their fetched ``.part`` bytes.
+    ``jobs`` must be non-empty.
     """
-    failures: list[tuple[str, Exception]] = []
+    progress = _BatchDownloadProgress(header, sum(size for _, size, _ in jobs))
     cancelled = threading.Event()
 
-    def _run(name: str, fetch: Callable[[Callable[[int], None]], None]) -> None:
+    def _run(
+        name: str, fetch: Callable[[Callable[[int], None]], None]
+    ) -> tuple[str, Exception] | None:
         tracker = progress.tracker()
 
         def checked(done: int) -> None:
@@ -770,13 +774,14 @@ def run_batch_downloads(
         except _BatchDownloadCancelled:
             tracker(0)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            failures.append((name, err))
             tracker(0)
+            return (name, err)
+        return None
 
-    ex = ThreadPoolExecutor(max_workers=min(max_workers, len(jobs)))
+    ex = ThreadPoolExecutor(max_workers=max_workers)
     try:
-        for future in [ex.submit(_run, name, fetch) for name, fetch in jobs]:
-            future.result()
+        futures = [ex.submit(_run, name, fetch) for name, _, fetch in jobs]
+        return [failure for f in futures if (failure := f.result()) is not None]
     except BaseException:
         # Without this the non-daemon workers download to completion before
         # the interpreter can exit, making Ctrl-C ineffective for minutes
@@ -785,14 +790,13 @@ def run_batch_downloads(
     finally:
         ex.shutdown(wait=True, cancel_futures=True)
         progress.done()
-    return failures
 
 
 class _BatchDownloadCancelled(Exception):
     """Raised inside a download job to abandon it after Ctrl-C."""
 
 
-class BatchDownloadProgress:
+class _BatchDownloadProgress:
     """One bar across several concurrent downloads, summing tracker bytes.
 
     The lock also serialises stderr writes so workers never interleave
@@ -821,13 +825,7 @@ class BatchDownloadProgress:
         return update
 
     def done(self) -> None:
-        # Nothing to end unless a frame was drawn and it was not the final
-        # one (update(1) already emitted its own newline).
-        if (
-            self._bar is not None
-            and self._bar.last_progress is not None
-            and self._bar.last_progress != 100
-        ):
+        if self._bar is not None:
             self._bar.done()
 
 
