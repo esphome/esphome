@@ -11,6 +11,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+from typing import NamedTuple
 
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
@@ -142,6 +143,15 @@ def _check_layout(name: str, dest: Path, expect: Collection[str]) -> None:
             )
 
 
+class _PendingArchive(NamedTuple):
+    name: str
+    version: str
+    dest: Path
+    url: str
+    sha256: str
+    size: int
+
+
 def prefetch_packages(
     packages: list[tuple[str, str, Path, list[str]]], downloads_dir: Path
 ) -> None:
@@ -157,7 +167,7 @@ def prefetch_packages(
     """
     from filelock import FileLock
 
-    pending: list[tuple[str, str, Path, str, str, int]] = []
+    pending: list[_PendingArchive] = []
     seen: set[str] = set()
     for name, version, dest, mirrors in packages:
         if mirrors or (dest / ".esphome_extracted").is_file():
@@ -178,31 +188,30 @@ def prefetch_packages(
         archive = downloads_dir / archive_name
         if archive.is_file() and archive.stat().st_size == size:
             continue
-        pending.append((name, version, dest, url, sha256, size))
+        pending.append(_PendingArchive(name, version, dest, url, sha256, size))
     if len(pending) < 2:
         return
     downloads_dir.mkdir(parents=True, exist_ok=True)
     _LOGGER.info(
         "Downloading %d package archive(s): %s",
         len(pending),
-        ", ".join(name for name, *_ in pending),
+        ", ".join(entry.name for entry in pending),
     )
 
-    def _fetch(entry: tuple[str, str, Path, str, str, int], tracker) -> None:
-        name, version, dest, url, sha256, size = entry
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        with FileLock(f"{dest}.lock", fallback_to_soft=False):
+    def _fetch(entry: _PendingArchive, tracker) -> None:
+        entry.dest.parent.mkdir(parents=True, exist_ok=True)
+        with FileLock(f"{entry.dest}.lock", fallback_to_soft=False):
             download_with_resume(
-                url,
-                downloads_dir / f"{name}-{version}",
-                sha256=sha256,
-                size=size,
+                entry.url,
+                downloads_dir / f"{entry.name}-{entry.version}",
+                sha256=entry.sha256,
+                size=entry.size,
                 progress=tracker,
             )
 
     failures = run_batch_downloads(
         "Downloading packages",
-        [(entry[0], entry[5], partial(_fetch, entry)) for entry in pending],
+        [(entry.name, entry.size, partial(_fetch, entry)) for entry in pending],
     )
     for name, err in failures:
         if isinstance(err, (EsphomeError, OSError)):
