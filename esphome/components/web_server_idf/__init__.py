@@ -2,8 +2,8 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     include_builtin_idf_component,
 )
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.core import CORE
 
 CODEOWNERS = ["@dentra"]
 
@@ -21,9 +21,8 @@ async def to_code(config):
     include_builtin_idf_component("esp-tls")
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    # multipart.cpp is fully #ifdef'd on USE_WEBSERVER_OTA (set by the
-    # web_server OTA platform); skip it when OTA uploads are not configured.
-    if not any(define.name == "USE_WEBSERVER_OTA" for define in CORE.defines):
-        return ["multipart.cpp"]
-    return []
+# multipart.cpp is fully #ifdef'd on USE_WEBSERVER_OTA (set by the
+# web_server OTA platform); skip it when OTA uploads are not configured.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"multipart.cpp": "USE_WEBSERVER_OTA"}
+)
