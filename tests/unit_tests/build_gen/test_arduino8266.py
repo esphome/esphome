@@ -28,12 +28,7 @@ from esphome.build_gen.arduino8266 import (
 )
 from esphome.components.esp8266.boards import BOARDS, ESP8266_BOARD_BUILD
 from esphome.components.esp8266.build_surgery import RATETABLE_RULE
-from esphome.components.esp8266.const import (
-    KEY_BOARD,
-    KEY_ESP8266,
-    KEY_FLASH_MODE,
-    KEY_SCANF_FLOAT,
-)
+from esphome.components.esp8266.const import KEY_BOARD, KEY_ESP8266, KEY_SCANF_FLOAT
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -48,12 +43,12 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 1, 2)}
     CORE.data[KEY_ESP8266] = {
         KEY_BOARD: "nodemcuv2",
-        KEY_FLASH_MODE: "dout",
         KEY_SCANF_FLOAT: False,
     }
-    # The producer esp8266/__init__ pins unconditionally
+    # The producers esp8266/__init__ pins unconditionally
     CORE.platformio_options = {
-        "build_src_flags": "-include esphome/components/esp8266/throw_stubs.h"
+        "board_build.flash_mode": "dout",
+        "build_src_flags": "-include esphome/components/esp8266/throw_stubs.h",
     }
     yield
     # CORE.reset() (the suite-wide autouse fixture) does not clear this flag
@@ -245,8 +240,16 @@ def test_write_project_rejects_bad_flash_mode(tmp_path: Path) -> None:
     """A flash mode outside the closed set fails by name before landing
     unquoted in the elf2bin command."""
     paths = _make_framework(tmp_path)
-    CORE.data[KEY_ESP8266][KEY_FLASH_MODE] = "dout; rm -rf /"
+    CORE.platformio_options["board_build.flash_mode"] = "dout; rm -rf /"
     with pytest.raises(EsphomeError, match="Invalid flash mode"):
+        _write_ninja(paths)
+
+
+def test_write_project_trailing_include_raises(tmp_path: Path) -> None:
+    """A dangling -include must fail by name, not become -include <src_dir>."""
+    paths = _make_framework(tmp_path)
+    CORE.platformio_options["build_src_flags"] = "-include"
+    with pytest.raises(EsphomeError, match="trailing '-include'"):
         _write_ninja(paths)
 
 
