@@ -797,11 +797,10 @@ def run_batch_downloads(
 
         try:
             fetch(checked)
-        except _BatchDownloadCancelled as err:
-            # Reported like a failure: an abandoned job must never read as
-            # a completed download if a caller sees the list after Ctrl-C
-            failure = (name, err)
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except (_BatchDownloadCancelled, Exception) as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # A cancelled job reports like a failure: an abandoned download
+            # must never read as completed if a caller sees the list after
+            # Ctrl-C
             failure = (name, err)
         else:
             return None
@@ -848,12 +847,12 @@ class _BatchDownloadProgress:
         self._lock = threading.Lock()
 
     def tracker(self) -> Callable[[int], None]:
+        if self._bar is None:
+            return lambda _: None
         last = 0
 
         def update(done: int) -> None:
             nonlocal last
-            if self._bar is None:
-                return
             with self._lock:
                 self._sum += done - last
                 last = done
@@ -883,13 +882,7 @@ class _BatchDownloadProgress:
         class _EndRow(logging.Filter):
             def filter(self, record: logging.LogRecord) -> bool:
                 with lock:
-                    if (
-                        the_bar.last_progress is not None
-                        and the_bar.last_progress != 100
-                    ):
-                        the_bar.done()
-                        # Force the next tick to redraw the frame
-                        the_bar.last_progress = None
+                    the_bar.interrupt()
                 return True
 
         end_row = _EndRow()
@@ -901,6 +894,11 @@ class _BatchDownloadProgress:
         finally:
             for handler in handlers:
                 handler.removeFilter(end_row)
+
+
+def _part_path(dest: Path) -> Path:
+    """The in-progress sidecar ``download_with_resume`` streams into."""
+    return dest.with_name(dest.name + ".part")
 
 
 def _cancellable_sleep(
@@ -963,7 +961,7 @@ def download_with_resume(
     ensure_happy_eyeballs()
 
     dest = Path(dest)
-    part = dest.with_name(dest.name + ".part")
+    part = _part_path(dest)
     meta = part.with_name(part.name + ".meta")
     dest.parent.mkdir(parents=True, exist_ok=True)
     last_error: Exception | None = None
@@ -1086,7 +1084,7 @@ def download_with_resume(
     ) from last_error
 
 
-def _failure_reason(e: Exception) -> str:
+def _failure_reason(e: BaseException) -> str:
     """Format a download exception for the aggregated error message.
 
     ``requests`` appends " for url: <url>" to HTTP errors; the URL is already
@@ -1357,7 +1355,14 @@ def download_from_mirrors(
                 sweep + 1,
                 _MIRROR_SWEEP_ATTEMPTS,
             )
-            _cancellable_sleep(delay, progress, 0)
+            # Tick with the bytes already on disk so a combined bar holds
+            # steady during the backoff instead of rewinding to zero
+            if f is not None:
+                done = f.tell()
+            else:
+                part = _part_path(path_target)
+                done = part.stat().st_size if part.is_file() else 0
+            _cancellable_sleep(delay, progress, done)
 
     # 4. Report every attempted URL if all mirrors failed. failures spans
     # all sweeps (deduplicated by URL and reason), so neither an early

@@ -82,6 +82,10 @@ LIBRARY_HEADER_SUFFIXES = frozenset(
 
 DOMAIN = "pio_components"
 
+# Marks a cache dir whose archive finished extracting; a missing marker
+# means a torn extraction that must be redone
+_EXTRACTED_MARKER = ".esphome_extracted"
+
 ESPHOME_DATA_KEY = "ESPHOME"
 ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
@@ -123,7 +127,7 @@ class URLSource(Source):
     def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
         """Whether a completed extraction already exists for this source."""
         return (
-            self._cache_dir(dir_suffix, salt, namespace) / ".esphome_extracted"
+            self._cache_dir(dir_suffix, salt, namespace) / _EXTRACTED_MARKER
         ).is_file()
 
     def download(
@@ -140,7 +144,7 @@ class URLSource(Source):
         # extraction is correctly detected and re-run on the next invocation,
         # and lets us extract directly into ``path`` — avoiding a
         # post-extraction rename that races with antivirus on Windows.
-        extracted_marker = path / ".esphome_extracted"
+        extracted_marker = path / _EXTRACTED_MARKER
         if not extracted_marker.is_file() or force:
             rmdir(path, msg=f"Clean up library directory {path}")
 
