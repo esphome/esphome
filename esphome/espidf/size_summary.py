@@ -83,9 +83,12 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         # Backstop for shapes the named guards below miss; warning so a
         # regression here cannot go missing indefinitely
         _LOGGER.warning(
-            "Skipping size summary for %s: %s: %s", size_json, type(e).__name__, e
+            "Skipping size summary for %s: %s: %s",
+            size_json,
+            type(e).__name__,
+            e,
+            exc_info=True,
         )
-        _LOGGER.debug("Size summary failure detail", exc_info=True)
 
 
 def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
@@ -104,7 +107,7 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
 
     if (ram := _ram_bar(data, size_json)) is not None:
         print_size_line("RAM", *ram)
-    if (flash := _flash_bar(data, partitions_csv)) is not None:
+    if (flash := _flash_bar(data, size_json, partitions_csv)) is not None:
         print_size_line("Flash", *flash)
 
 
@@ -129,17 +132,26 @@ def _ram_bar(data: dict, size_json: Path) -> tuple[int, int] | None:
     total = _dict_get(ram_region, "size")
     if _is_number(used) and _is_number(total) and total > 0:
         return int(used), int(total)
-    if _present_but_not_dict(memory_types) or _present_but_not_dict(ram_region):
+    malformed = (
+        _present_but_not_dict(memory_types)
+        or _present_but_not_dict(ram_region)
+        or any(v is not None and not _is_number(v) for v in (used, total))
+    )
+    if malformed:
         # A structurally corrupt report, not a variant without the region
         _LOGGER.warning("Skipping RAM summary: malformed memory_types in %s", size_json)
     else:
-        _LOGGER.warning(
+        # A variant may name its RAM region differently; healthy builds
+        # must not warn
+        _LOGGER.debug(
             "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
         )
     return None
 
 
-def _flash_bar(data: dict, partitions_csv: Path | None) -> tuple[int, int] | None:
+def _flash_bar(
+    data: dict, size_json: Path, partitions_csv: Path | None
+) -> tuple[int, int] | None:
     """The Flash bar's (used, total), or None (already logged) to skip it.
 
     Owns both sides of the bar, so nothing after a print can raise: the
@@ -147,7 +159,7 @@ def _flash_bar(data: dict, partitions_csv: Path | None) -> tuple[int, int] | Non
     """
     image_size = data.get("image_size")
     if not _is_number(image_size):
-        _LOGGER.warning("Skipping Flash summary: no usable image_size")
+        _LOGGER.warning("Skipping Flash summary: no usable image_size in %s", size_json)
         return None
     if partitions_csv is None:
         _LOGGER.debug("Skipping Flash summary: no partition table given")
