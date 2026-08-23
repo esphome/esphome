@@ -588,7 +588,7 @@ bool APIServer::load_and_apply_noise_psk_() {
   return true;
 }
 
-bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
+bool APIServer::save_noise_psk(noise::psk_t psk, bool make_active) {
 #ifdef USE_API_NOISE_PSK_FROM_YAML
   // When PSK is set from YAML, this function should never be called
   // but if it is, reject the change
