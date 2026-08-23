@@ -148,7 +148,11 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     except (EsphomeError, LookupError, OSError, RuntimeError, ValueError) as err:
         # Broad on purpose: idedata is a bonus artifact; nothing here may
         # fail a successful build.
-        _LOGGER.warning("Could not generate idedata: %s", err)
+        _LOGGER.warning(
+            "Could not generate idedata: %s (IDE, clang-tidy, and "
+            "memory-analysis data will be unavailable for this build)",
+            err,
+        )
         _LOGGER.debug("Idedata failure detail", exc_info=True)
     else:
         if idedata is None:
