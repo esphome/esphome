@@ -211,8 +211,14 @@ def prefetch_packages(
         [(entry[0], _fetch(entry)) for entry in pending],
     )
     for name, err in failures:
-        # install_package retries this one itself, with a visible bar
-        _LOGGER.debug("Prefetch of %s failed: %s", name, err)
+        if isinstance(err, (EsphomeError, OSError)):
+            # Expected download failures: install_package retries this one
+            # itself, with a visible bar
+            _LOGGER.debug("Prefetch of %s failed: %s", name, err)
+        else:
+            # Anything else is a programming error that would otherwise
+            # become a permanent silent no-op
+            _LOGGER.warning("Prefetch of %s failed: %r", name, err)
 
 
 def install_package(
