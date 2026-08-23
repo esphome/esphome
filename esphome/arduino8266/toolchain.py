@@ -107,6 +107,10 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         check=False,
         close_fds=False,
     )
+    if probe.stderr.strip():
+        # A load-time diagnostic (e.g. "multiple rules generate X") flags a
+        # generator bug; the skip branch would otherwise swallow it forever
+        _LOGGER.warning("ninja: %s", probe.stderr.strip())
     if probe.returncode == 0 and "no work to do" in probe.stdout:
         _LOGGER.debug("ninja: nothing to rebuild")
     else:
@@ -116,6 +120,14 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         ).returncode
         if rc != 0:
             return rc
+
+    # A generator defect emitting no default targets must not turn into a
+    # green build with no firmware (size summary and idedata only warn)
+    build_dir_artifacts = (get_elf_path(), get_build_dir() / "firmware.bin")
+    for artifact in build_dir_artifacts:
+        if not artifact.is_file():
+            _LOGGER.error("Build produced no %s", artifact)
+            return 1
 
     _print_size_summary(build_dir, paths)
     try:

@@ -236,3 +236,12 @@ def test_run_grouped_test_closes_group_when_subprocess_raises(
         )
 
     assert "::endgroup::" in capsys.readouterr().out
+
+
+def test_components_empty_match_fails(capsys: pytest.CaptureFixture[str]) -> None:
+    """A real component filtered to a platform with no matching test file
+    must not pass CI as a green zero-component compile. (An unknown
+    component name instead builds the reference baseline.)"""
+    rc = tbc.test_components(["logger"], "zz-none", "compile", False)
+    assert rc == 1
+    assert "No tests matched" in capsys.readouterr().out

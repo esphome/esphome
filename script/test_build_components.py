@@ -1178,6 +1178,12 @@ def test_components(
                         toolchain=toolchain,
                     )
 
+    if not test_results:
+        # A green run that compiled nothing (renamed/removed test fixture,
+        # bad platform filter) must not pass CI
+        print("No tests matched the requested components/platform")
+        return 1
+
     # Separate results into passed and failed
     passed_results = [r for r in test_results if r.success]
     failed_results = [r for r in test_results if not r.success]

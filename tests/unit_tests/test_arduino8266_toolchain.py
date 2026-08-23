@@ -38,6 +38,12 @@ def _setup_core(tmp_path: Path) -> None:
     CORE.config_path = tmp_path / "test8266.yaml"
     CORE.build_path = tmp_path
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 1, 2)}
+    # run_compile verifies the produced artifacts; give every test a build
+    # that "produced" them (tests for the guard delete them again)
+    build_dir = CORE.relative_pioenvs_path("test8266")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "firmware.elf").write_bytes(b"")
+    (build_dir / "firmware.bin").write_bytes(b"")
 
 
 def _paths(tmp_path: Path) -> framework.InstalledPaths:
@@ -82,7 +88,9 @@ def test_run_compile_success(tmp_path: Path) -> None:
         patch.object(framework, "get_build_env", return_value={}),
         patch("esphome.build_gen.arduino8266.write_project"),
         patch.object(
-            toolchain.subprocess, "run", return_value=MagicMock(returncode=0)
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
         ) as mock_run,
         patch.object(toolchain, "_write_compile_commands") as mock_compdb,
         patch.object(toolchain, "_print_size_summary") as mock_size,
@@ -114,7 +122,9 @@ def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
         patch.object(
             toolchain.subprocess,
             "run",
-            return_value=MagicMock(returncode=0, stdout="ninja: no work to do.\n"),
+            return_value=MagicMock(
+                returncode=0, stdout="ninja: no work to do.\n", stderr=""
+            ),
         ) as mock_run,
         patch.object(toolchain, "_write_compile_commands"),
         patch.object(toolchain, "_print_size_summary"),
@@ -127,6 +137,58 @@ def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
     assert ninja_calls[0][0][0][-1] == "-n"
 
 
+def test_run_compile_surfaces_probe_diagnostics(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A load-time ninja diagnostic (a generator bug signal) reaches the
+    user even when the no-work branch skips the real spawn."""
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project"),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(
+                returncode=0,
+                stdout="ninja: no work to do.\n",
+                stderr="ninja: warning: multiple rules generate x\n",
+            ),
+        ),
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary"),
+        patch.object(toolchain, "get_idedata"),
+    ):
+        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    assert rc == 0
+    assert "multiple rules generate x" in caplog.text
+
+
+def test_run_compile_missing_artifact_fails(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A zero ninja exit that produced no firmware must not be a green
+    build (size summary and idedata only warn)."""
+    (toolchain.get_build_dir() / "firmware.elf").unlink()
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project"),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary") as mock_size,
+        patch.object(toolchain, "get_idedata"),
+    ):
+        rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+    assert rc == 1
+    assert "Build produced no" in caplog.text
+    mock_size.assert_not_called()
+
+
 def test_run_compile_warns_when_idedata_fails(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -136,7 +198,11 @@ def test_run_compile_warns_when_idedata_fails(
         patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
         patch.object(framework, "get_build_env", return_value={}),
         patch("esphome.build_gen.arduino8266.write_project"),
-        patch.object(toolchain.subprocess, "run", return_value=MagicMock(returncode=0)),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
         patch.object(toolchain, "_write_compile_commands"),
         patch.object(toolchain, "_print_size_summary"),
         patch.object(toolchain, "get_idedata", return_value=None),
@@ -316,7 +382,7 @@ def test_get_idedata_no_ccache(tmp_path: Path) -> None:
 def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
     """An unchanged build.ninja means the compile DB is already current."""
     build_dir = toolchain.get_build_dir()
-    build_dir.mkdir(parents=True)
+    build_dir.mkdir(parents=True, exist_ok=True)
 
     def run(regenerate_expected: bool) -> None:
         with (
@@ -324,7 +390,9 @@ def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
             patch.object(framework, "get_build_env", return_value={}),
             patch("esphome.build_gen.arduino8266.write_project", return_value=False),
             patch.object(
-                toolchain.subprocess, "run", return_value=MagicMock(returncode=0)
+                toolchain.subprocess,
+                "run",
+                return_value=MagicMock(returncode=0, stdout="", stderr=""),
             ),
             patch.object(toolchain, "_write_compile_commands") as mock_compdb,
             patch.object(toolchain, "_print_size_summary"),
@@ -420,7 +488,11 @@ def test_run_compile_idedata_error_does_not_fail_build(
         patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
         patch.object(framework, "get_build_env", return_value={}),
         patch("esphome.build_gen.arduino8266.write_project"),
-        patch.object(toolchain.subprocess, "run", return_value=MagicMock(returncode=0)),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
         patch.object(toolchain, "_write_compile_commands"),
         patch.object(toolchain, "_print_size_summary"),
         patch.object(
