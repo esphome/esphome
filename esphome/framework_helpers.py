@@ -2,7 +2,7 @@
 
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 import hashlib
 import io
 import json
@@ -746,14 +746,15 @@ def run_batch_downloads(
     header: str,
     jobs: list[tuple[str, int, Callable[[Callable[[int], None]], None]]],
     max_workers: int = BATCH_DOWNLOAD_WORKERS,
-) -> list[tuple[str, Exception]]:
+) -> list[tuple[str, BaseException]]:
     """Run ``(name, size, fetch)`` download jobs concurrently under one bar.
 
     Each ``fetch(tracker)`` reports absolute byte counts; the bar total is
     the sum of the sizes. Failures are returned after the bar is done so
     warnings never land on its row. Ctrl-C drops queued jobs and aborts
     in-flight ones at their next progress tick or backoff boundary (a
-    parked socket read defers that by its timeout); resumable destinations
+    parked socket read defers that by its timeout, and an in-progress
+    archive extraction runs to completion); resumable destinations
     (``download_with_resume``) keep their fetched ``.part`` bytes.
     ``jobs`` must be non-empty.
     """
@@ -762,7 +763,7 @@ def run_batch_downloads(
 
     def _run(
         name: str, fetch: Callable[[Callable[[int], None]], None]
-    ) -> tuple[str, Exception] | None:
+    ) -> tuple[str, BaseException] | None:
         tracker = progress.tracker()
 
         def checked(done: int) -> None:
@@ -775,12 +776,15 @@ def run_batch_downloads(
         except _BatchDownloadCancelled as err:
             # Reported like a failure: an abandoned job must never read as
             # a completed download if a caller sees the list after Ctrl-C
-            tracker(0)
-            return (name, err)
+            failure = (name, err)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            failure = (name, err)
+        else:
+            return None
+        # A bar-frame write failure must not displace the download error
+        with suppress(Exception):
             tracker(0)
-            return (name, err)
-        return None
+        return failure
 
     ex = ThreadPoolExecutor(max_workers=max_workers)
     try:
