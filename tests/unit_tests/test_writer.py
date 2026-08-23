@@ -2161,7 +2161,7 @@ def test_copy_src_tree_missing_build_info_rebuilds_quietly(
     build_info_json_path.unlink()
     _run_copy_src_tree()
     assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xDEADBEEF
-    assert "damaged" not in caplog.text
+    assert "unreadable" not in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -2189,7 +2189,7 @@ def test_copy_src_tree_unremovable_damaged_build_info_is_logged(
 
     with patch.object(Path, "unlink", fail_on_build_info):
         _run_copy_src_tree()
-    assert "Could not remove damaged build_info.json" in caplog.text
+    assert "Could not remove unreadable build_info.json" in caplog.text
     assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xDEADBEEF
 
 

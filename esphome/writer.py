@@ -348,15 +348,17 @@ def copy_src_tree():
             sources_changed = True
         except (ValueError, OSError) as err:
             # ValueError covers both JSONDecodeError and UnicodeDecodeError;
-            # unlink so the regenerating write never re-reads the damage
-            _LOGGER.warning("Replacing damaged build_info.json: %s", err)
+            # unlink so the regenerating write never re-reads the bad copy.
+            # "Unreadable" not "damaged": EACCES/EISDIR land here too
+            _LOGGER.warning("Regenerating unreadable build_info.json: %s", err)
             try:
-                build_info_json_path.unlink()
+                # missing_ok: a concurrent clean may have removed it already
+                build_info_json_path.unlink(missing_ok=True)
             except OSError as unlink_err:
-                # The later write re-reads the file, so a kept damaged copy
+                # The later write re-reads the file, so a kept unreadable copy
                 # fails again with a misattributed error; name the real cause
                 _LOGGER.warning(
-                    "Could not remove damaged build_info.json: %s", unlink_err
+                    "Could not remove unreadable build_info.json: %s", unlink_err
                 )
             sources_changed = True
 
