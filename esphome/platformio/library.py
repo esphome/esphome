@@ -57,6 +57,9 @@ DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
 # Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES).
 # "asm" merges SCons's AS and ASPP sets: all compile as assembler-with-cpp.
+# The kind values drive the ESP8266 native ninja rules (later in this
+# chain); existing backends consume only the keys. Note .C/.C++ join the
+# suffix set here, matching PlatformIO's CXXSUFFIXES.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
@@ -649,6 +652,9 @@ def raise_on_empty_arg_flags(tokens: list[str], owner: str) -> None:
     """Reject bare ``-I``/``-D``/``-L``/``-l`` tokens left by an empty glued
     argument (``-D ""``).
 
+    Consumed by the ESP8266 native build generator (later in this chain)
+    for user build_flags; library manifests deliberately stay warn-and-drop.
+
     Lives next to ``join_flag_args`` because the bare token is its
     postcondition: a trailing bare flag is warned and dropped there, so a
     surviving one always means an empty argument. gcc would eat the next
@@ -683,7 +689,9 @@ def warn_properties_depends(name: str, data: object) -> None:
     ``library.properties`` spelling would otherwise drop silently.
     """
     if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
-        _LOGGER.warning(
+        # INFO: common and unactionable for transitive libraries; a WARNING
+        # on every build would train users to ignore the stream
+        _LOGGER.info(
             "Library %s declares dependencies via library.properties "
             "depends=, which are not resolved automatically; add them with "
             "add_library() if needed",
@@ -965,18 +973,14 @@ def _prefetch_wave(
         components.append(component)
     if len(components) < 2:
         return
-    _LOGGER.info(
-        "Downloading %d libraries: %s",
-        len(components),
-        ", ".join(c.name for c in components),
-    )
     # One combined bar over the batch, sized by HEAD requests. An unknown
     # size would mean a silent multi-MB download; fall back to sequential
     # downloads with their per-file bars instead.
     sizes = _content_lengths([c.source.url for c in components])
     if not all(sizes):
-        # Name the culprits so the fallback is distinguishable from a hang
-        _LOGGER.debug(
+        # Announced before the sequential per-file downloads take over, so
+        # the fallback is distinguishable from a hang
+        _LOGGER.info(
             "No Content-Length for %s; downloading sequentially",
             ", ".join(
                 c.source.url
@@ -985,6 +989,11 @@ def _prefetch_wave(
             ),
         )
         return
+    _LOGGER.info(
+        "Downloading %d libraries: %s",
+        len(components),
+        ", ".join(c.name for c in components),
+    )
 
     def _fetch(component: ConvertedLibrary):
         return lambda tracker: component.download(
@@ -1126,6 +1135,12 @@ def convert_libraries(
         _prefetch_wave(wave, salt, backend.cache_key)
         for key, component in wave:
             node = nodes[key]
+            if frozenset(node.requirements) != resolved_requirements[key]:
+                # An earlier wave entry grew this node's requirements after
+                # the drain resolved it; downloading the superseded version
+                # would be wasted work, and the next wave re-resolves it
+                worklist.append(key)
+                continue
             component.download(salt=salt, namespace=backend.cache_key)
 
             source_dir = component.source_dir
