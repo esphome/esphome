@@ -33,7 +33,7 @@ def apply_extra_script(
     """Run a library's ``extraScript`` and fold its captured env vars into
     ``build.flags``; ``board_mcu`` is a callable so it resolves lazily."""
     extra_script = component.data.get("build", {}).get("extraScript")
-    if not extra_script:
+    if extra_script is None or extra_script == "":
         return
     if not isinstance(extra_script, str):
         # A list/dict value would raise an opaque TypeError on the join below
@@ -169,6 +169,15 @@ class _FakeSConsEnv:
                 key,
             )
         return self._vars.get(key, default)
+
+    def __contains__(self, key: object) -> bool:
+        # Without this, "KEY" in env falls back to the legacy sequence
+        # protocol: __getitem__(0), (1), ... never raises, so it loops
+        # forever flooding the log
+        return key in self._vars
+
+    def __iter__(self):
+        return iter(self._vars)
 
     def __getitem__(self, key: str) -> str:
         # Scripts also read env["BOARD_MCU"]; an unmodelled subscript
