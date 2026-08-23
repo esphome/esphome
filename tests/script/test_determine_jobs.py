@@ -1139,6 +1139,16 @@ def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
 
 
+def test_esp_idf_infra_trigger_paths_exist() -> None:
+    """A renamed or moved trigger module must fail here, not silently stop
+    forcing the esp32 IDF compile."""
+    repo_root = Path(__file__).resolve().parents[2]
+    for file in determine_jobs.ESP_IDF_INFRA_TRIGGER_FILES:
+        assert (repo_root / file).is_file(), f"trigger file {file} moved or renamed"
+    for prefix in determine_jobs.ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES:
+        assert (repo_root / prefix).is_dir(), f"trigger dir {prefix} moved or renamed"
+
+
 @pytest.mark.parametrize(
     ("changed_files", "expected_result"),
     [
