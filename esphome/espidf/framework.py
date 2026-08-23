@@ -1,7 +1,6 @@
 """ESP-IDF framework tools for ESPHome."""
 
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 from ctypes.util import find_library
 import json
 import logging
@@ -25,6 +24,7 @@ from esphome.framework_helpers import (
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
+    run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
@@ -692,12 +692,6 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
-# Tool archives are large (tens to hundreds of MB) and served by GitHub /
-# dl.espressif.com; a few streams at once saturate most links without
-# hammering the host. Smaller than external_files' 8: those are tiny files.
-_PREFETCH_WORKERS = 4
-
-
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -735,17 +729,16 @@ def _prefetch_idf_tool_archives(
             )
             return
         dist_path = get_idf_tools_path() / "dist"
-        pending = [
-            entry
-            for entry in json.loads(stdout)
-            if not (dist_path / entry["dest"]).is_file()
-        ]
-        # tools.json always carries sha256 and size; an entry missing either
-        # must not be downloaded unverified here, so leave it to the
-        # installer (which fails loudly on a bad archive).
-        entries = [e for e in pending if e.get("sha256") and e.get("size")]
-        for entry in pending:
-            if entry not in entries:
+        entries = []
+        for entry in json.loads(stdout):
+            if (dist_path / entry["dest"]).is_file():
+                continue
+            # tools.json always carries sha256 and size; an entry missing
+            # either must not be downloaded unverified here, so leave it to
+            # the installer (which fails loudly on a bad archive).
+            if entry.get("sha256") and entry.get("size"):
+                entries.append(entry)
+            else:
                 _LOGGER.warning(
                     "Tool %s has no sha256/size in the download list; "
                     "leaving it to the installer",
@@ -758,42 +751,28 @@ def _prefetch_idf_tool_archives(
             len(entries),
             ", ".join(entry["name"] for entry in entries),
         )
+
         # Every entry carries a size (checked above), so the combined bar can
         # be trusted. Unlike the library prefetch there is no sequential
         # fallback: per-file bars from several threads would interleave, and
         # skipping the prefetch would lose the resume workaround for #17703.
-        progress = BatchDownloadProgress(
-            "Downloading ESP-IDF tools", sum(entry["size"] for entry in entries)
+        def _download(entry: dict):
+            return lambda tracker: download_with_resume(
+                entry["url"],
+                dist_path / entry["dest"],
+                sha256=entry["sha256"],
+                size=entry["size"],
+                progress=tracker,
+            )
+
+        # A failed archive is retried by the installer itself (without
+        # resume); keep prefetching the rest.
+        failures = run_batch_downloads(
+            BatchDownloadProgress(
+                "Downloading ESP-IDF tools", sum(entry["size"] for entry in entries)
+            ),
+            [(entry["name"], _download(entry)) for entry in entries],
         )
-        # Reported after the bar is done so the warnings do not land on
-        # its row; list.append is atomic under the GIL.
-        failures: list[tuple[str, Exception]] = []
-
-        def _download(entry: dict) -> None:
-            tracker = progress.tracker()
-            try:
-                download_with_resume(
-                    entry["url"],
-                    dist_path / entry["dest"],
-                    sha256=entry["sha256"],
-                    size=entry["size"],
-                    progress=tracker,
-                )
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                # Keep prefetching the remaining archives; the installer
-                # will retry this one itself (without resume).
-                tracker(0)
-                failures.append((entry["name"], e))
-
-        ex = ThreadPoolExecutor(max_workers=min(_PREFETCH_WORKERS, len(entries)))
-        try:
-            for future in [ex.submit(_download, entry) for entry in entries]:
-                future.result()
-        finally:
-            # On Ctrl-C drop the queued archives instead of downloading them
-            # all before the process can exit; in-flight ones still finish.
-            ex.shutdown(wait=True, cancel_futures=True)
-            progress.done()
         for name, e in failures:
             _LOGGER.warning("Could not prefetch %s: %s", name, e)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
