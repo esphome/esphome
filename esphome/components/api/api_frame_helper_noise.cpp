@@ -267,9 +267,8 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
   if (aerr != APIError::OK) {
     return handle_handshake_frame_error_(aerr);
   }
-  // Contents are extension flags; today the only defined extension is the
-  // session resume offer. Everything is mixed into the prologue either way.
-  // Resize for: existing prologue + 2 size bytes + frame data
+  // Contents are extension flags (today: the resume offer); mixed into the
+  // prologue either way. Resize for: existing prologue + 2 size bytes + frame data
   size_t old_size = this->prologue_.size();
   size_t rx_size = this->rx_buf_.size();
   this->prologue_.resize(old_size + 2 + rx_size);
@@ -283,12 +282,8 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::state_action_server_hello_() {
-  // A verified resume offer (still in rx_buf_ from the client hello step; no
-  // frame is read in between) replaces the whole handshake: the cache
-  // consumes the ticket, proves possession of its secret in a trailing
-  // ServerHello extension (old clients ignore trailing bytes), and hands
-  // back ready transport ciphers. Every failure silently falls back to the
-  // full handshake.
+  // A verified resume offer (still in rx_buf_ from the client hello step)
+  // replaces the whole handshake; any failure falls back to the full one.
   uint8_t resume_ext[noise::RESUME_ACCEPT_SIZE];
   bool resume = this->ctx_.resume_cache().try_accept(this->rx_buf_.data(), this->rx_buf_.size(), this->prologue_.data(),
                                                      this->prologue_.size(), resume_ext, send_cipher_, recv_cipher_);
@@ -329,8 +324,6 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
     return aerr;
 
   if (resume) {
-    // The client's full-handshake message 1 is already in flight; discard
-    // it before entering DATA.
     this->prologue_.release();
     this->frame_footer_size_ = noise_cipherstate_get_mac_length(this->send_cipher_);
     state_ = State::RESUME_DISCARD;
@@ -357,9 +350,8 @@ APIError APINoiseFrameHelper::state_action_handshake_() {
   HELPER_LOG("Bad action for handshake: %d", (int) action);
   return APIError::HANDSHAKESTATE_BAD_STATE;
 }
-/// Resumed session: read and discard the client's full-handshake message 1,
-/// which was already in flight when the resume offer was accepted, then
-/// enter DATA. The same status byte rules apply as for a real handshake read.
+/// Resumed session: discard the client's already-in-flight handshake
+/// message 1, then enter DATA.
 APIError APINoiseFrameHelper::state_action_resume_discard_() {
   APIError aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {

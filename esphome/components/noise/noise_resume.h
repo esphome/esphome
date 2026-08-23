@@ -14,23 +14,16 @@ namespace esphome::noise {
 
 /** Session resume for the noise transports.
  *
- * After a full NNpsk0 handshake the responder issues a single-use ticket
- * (session id + secret) over the encrypted channel. A client holding a
- * ticket places a resume offer in its ClientHello; the responder proves
- * possession of the secret in its ServerHello and both sides derive the
- * transport keys with HKDF-SHA256 alone, skipping the two curve25519
- * operations of a full handshake (~37 ms on ESP32, ~290 ms on ESP8266 at
- * 80 MHz). Old peers ignore the extension bytes on both sides, so every
- * mismatch degrades to a normal full handshake on the same connection.
+ * After a full handshake the responder issues a single-use ticket over the
+ * encrypted channel. A client presents it in its next ClientHello and both
+ * sides derive the transport keys with HKDF-SHA256 alone, skipping the two
+ * curve25519 operations. Old peers ignore the extension bytes on both
+ * sides, so every mismatch degrades to a normal full handshake.
  *
- * All HKDF calls use the Noise construction (noise_hashstate_hkdf):
- * temp = HMAC-SHA256(key, data); out1 = HMAC(temp, 0x01);
- * out2 = HMAC(temp, out1 || 0x02).
- *
+ * HKDF is the Noise construction (noise_hashstate_hkdf). Derivations:
  *   offer_mac   = HKDF(secret, "offer"   || session_id || client_nonce).out1[:16]
  *   confirm_mac = HKDF(secret, "confirm" || client_nonce || server_nonce).out1[:16]
- *   k_c2d, k_d2c = HKDF(secret, "keys"   || client_nonce || server_nonce
- *                                         || SHA256(prologue))   (32 bytes each)
+ *   k_c2d, k_d2c = HKDF(secret, "keys" || client_nonce || server_nonce || SHA256(prologue))
  */
 
 static constexpr uint8_t RESUME_OFFER_VERSION = 0x01;
@@ -61,14 +54,10 @@ class ResumeTicketCache {
   /// Generate a fresh ticket into out and store it, evicting the oldest
   /// slot. Returns false (and stores nothing) if the RNG fails.
   bool issue(ResumeTicket &out);
-  /// Try to accept a resume offer: recognizes the offer format, verifies
-  /// its MAC against a cached ticket (consuming it, single use), derives
-  /// the transport keys bound to the prologue, builds both ChaChaPoly
-  /// cipher states, and fills the RESUME_ACCEPT_SIZE ServerHello extension
-  /// proving possession of the secret. A miss, a bad MAC, or any internal
-  /// failure returns false with nothing allocated, and a forged offer never
-  /// burns a ticket. k_c2d decrypts client-to-device traffic (recv), k_d2c
-  /// encrypts device-to-client (send). All secrets are wiped internally.
+  /// Accept a resume offer: verify and consume the ticket (single use; a
+  /// forged MAC never burns one), build both transport ciphers, and fill
+  /// the RESUME_ACCEPT_SIZE ServerHello extension. Returns false with
+  /// nothing allocated on any miss or failure. Secrets are wiped internally.
   bool try_accept(const uint8_t *offer, size_t offer_len, const uint8_t *prologue, size_t prologue_len,
                   uint8_t *out_ext, NoiseCipherState *&send_cipher, NoiseCipherState *&recv_cipher);
   /// Forget every ticket (PSK change).
