@@ -245,6 +245,19 @@ def test_write_project_rejects_bad_flash_mode(tmp_path: Path) -> None:
         _write_ninja(paths)
 
 
+def test_write_project_flash_mode_reaches_define_and_elf2bin(
+    tmp_path: Path,
+) -> None:
+    """A non-default board_flash_mode lands in both the compile define and
+    the elf2bin image header, never silently falling back to dout."""
+    paths = _make_framework(tmp_path)
+    CORE.platformio_options["board_build.flash_mode"] = "dio"
+    content = _write_ninja(paths)
+    assert "-DFLASHMODE_DIO" in content
+    assert "--flash_mode dio" in content
+    assert "FLASHMODE_DOUT" not in content
+
+
 def test_write_project_trailing_include_raises(tmp_path: Path) -> None:
     """A dangling -include must fail by name, not become -include <src_dir>."""
     paths = _make_framework(tmp_path)
