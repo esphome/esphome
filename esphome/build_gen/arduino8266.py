@@ -320,15 +320,18 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
                 "MMU_ICACHE_SIZE build flags"
             )
-        for size_name in ("MMU_IRAM_SIZE", "MMU_ICACHE_SIZE"):
-            # These reach the linker-script preprocessor; a bare or
-            # non-numeric value would corrupt the segment lengths and fail
-            # far away in ld ("48K" and a valueless flag both preprocess
-            # wrong; ul suffixes survive preprocessing, see build_surgery)
-            value = defines[size_name].partition("=")[2]
-            if not re.fullmatch(r"(?:0[xX][0-9a-fA-F]+|\d+)[uUlL]*", value):
+        for name, body in defines.items():
+            if not name.startswith("MMU_") or "=" not in body:
+                # Valueless flags (MMU_IRAM_HEAP) are legitimate switches
+                continue
+            # Every valued MMU_* reaches the linker-script preprocessor; a
+            # bare or non-numeric value would corrupt the segment lengths
+            # and fail far away in ld. Hex only: build_surgery's segment
+            # parser (and upstream's spellings) cannot read decimal.
+            value = body.partition("=")[2]
+            if not re.fullmatch(r"0[xX][0-9a-fA-F]+[uUlL]*", value):
                 raise EsphomeError(
-                    f"{size_name} must be a numeric literal, got "
+                    f"{name} must be a hex literal (e.g. 0x8000), got "
                     f"{value or '(no value)'}"
                 )
         # Sorted so build.ninja and the linker-script stamp stay
@@ -336,11 +339,12 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         # iteration order).
         mmu = sorted(body for name, body in defines.items() if name.startswith("MMU_"))
     else:
-        if "MMU_IRAM_SIZE" in defines or "MMU_ICACHE_SIZE" in defines:
+        if raw := sorted(n for n in defines if n.startswith("MMU_")):
             # Unlike PlatformIO (whose defaults win the compile line), user
-            # MMU_* here would win the compile but not the linker script; refuse.
+            # MMU_* here would win the compile but not the linker script;
+            # refuse them all, like the knob branch above.
             raise EsphomeError(
-                "Custom MMU_IRAM_SIZE/MMU_ICACHE_SIZE build flags require "
+                f"Raw {', '.join(raw)} build flags require "
                 "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
             )
         mmu = list(_MMU_DEFAULT)
