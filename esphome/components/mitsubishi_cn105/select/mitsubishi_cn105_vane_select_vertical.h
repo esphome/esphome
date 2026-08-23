@@ -7,9 +7,9 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-class MitsubishiCN105VerticalVaneDirectionSelect : public select::Select,
-                                                   public Component,
-                                                   public Parented<MitsubishiCN105Component> {
+class MitsubishiCN105VerticalVaneDirectionSelect final : public select::Select,
+                                                         public Component,
+                                                         public Parented<MitsubishiCN105Component> {
  public:
   void setup() override;
   void publish_vane_state(MitsubishiCN105::VaneMode mode);
