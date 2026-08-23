@@ -432,6 +432,41 @@ def test_run_extra_script_bad_encoding_is_best_effort(tmp_path, caplog) -> None:
     assert "is not UTF-8" in caplog.text
 
 
+@pytest.mark.parametrize("method", ("Prepend", "AppendUnique", "PrependUnique"))
+def test_append_variants_capture_like_append(method: str) -> None:
+    """Prepend/AppendUnique/PrependUnique write the captured keys too."""
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    getattr(env, method)(LIBS=["algobsec"], LIBPATH=["lib"])
+    assert env.result.libs == ["algobsec"]
+    assert env.result.libpath == ["lib"]
+
+
+def test_env_get_unknown_key_warns_once(caplog) -> None:
+    """A script branching on an unmodelled env var is diagnosable."""
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    assert env.get("BOARD") is None
+    assert env.get("BOARD", "d1") == "d1"
+    assert env.get("BOARD_MCU") == "esp8266"
+    assert caplog.text.count("env.get('BOARD') is not modelled") == 1
+    assert "BOARD_MCU" not in caplog.text
+
+
+def test_spaced_linkflag_survives_relexing(tmp_path) -> None:
+    """A captured argv token with a space stays one token after lexing."""
+    result = ExtraScriptResult(
+        linkflags=["-Wl,-T my linker.ld"], cppflags=["-include my hdr.h"]
+    )
+    flags = captured_as_build_flags(result, library_dir=tmp_path)
+    assert lex_build_flags(flags, "test") == [
+        "-Wl,-T my linker.ld",
+        "-include my hdr.h",
+    ]
+
+
 def test_uncaptured_append_key_warns_once(caplog) -> None:
     """A loop of Appends to the same uncaptured key warns once."""
 
