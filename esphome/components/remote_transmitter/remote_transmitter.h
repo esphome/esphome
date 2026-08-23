@@ -12,6 +12,14 @@
 #endif  // SOC_RMT_SUPPORTED
 #endif  // USE_ESP32
 
+// The BK7231N-style PWM block (hardware shadow-load duty updates) enables the ISR-driven
+// transmitter on these families; family-level proxy for the SDK's CFG_SOC_NAME gate.
+// See remote_transmitter_bk72xx.cpp.
+#if defined(USE_LIBRETINY_VARIANT_BK7231N) || defined(USE_LIBRETINY_VARIANT_BK7238) || \
+    defined(USE_LIBRETINY_VARIANT_BK7252N)
+#define REMOTE_TRANSMITTER_BK_PWM
+#endif
+
 namespace esphome::remote_transmitter {
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
@@ -57,10 +65,11 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
 #endif
-#if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C)
+#if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C) || \
+    defined(REMOTE_TRANSMITTER_BK_PWM)
   void set_non_blocking(bool non_blocking) { this->non_blocking_ = non_blocking; }
 #endif
-#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(REMOTE_TRANSMITTER_BK_PWM)
   void loop() override;
   // called from the envelope timer ISR trampoline; not part of the public API
   void advance_envelope_isr();
@@ -71,7 +80,8 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
-#if defined(USE_ESP8266) || (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C)) || \
+#if defined(USE_ESP8266) || \
+    (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || \
     defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   void await_target_time_();
   uint32_t target_time_{0};
@@ -89,17 +99,14 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   uint32_t current_carrier_frequency_{0};
   void *pwm_{nullptr};  // pwmout_t*, opaque here to keep the SDK header out of this shared header
 #endif
-#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(REMOTE_TRANSMITTER_BK_PWM)
   void start_isr_item_(size_t index);
   void arm_envelope_timer_(uint32_t duration_us);
   void abort_stalled_chain_();
   void deliver_completion_();
   void wait_until_idle_();
   void arm_chain_(uint32_t send_times, uint32_t send_wait);
-  void update_carrier_(uint32_t carrier_frequency);
   std::vector<int32_t> isr_data_;  // owned copy of the frame; temp_ may be re-encoded mid-flight
-  float isr_mark_duty_{0.0f};
-  float isr_space_duty_{0.0f};
   volatile size_t isr_index_{0};
   volatile uint32_t isr_repeats_left_{0};
   uint32_t isr_send_wait_{0};
@@ -109,6 +116,18 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   bool non_blocking_{false};
   bool complete_pending_{false};
   bool stall_aborted_{false};  // this transmission ended via abort; blocks warning clear
+#endif
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+  void update_carrier_(uint32_t carrier_frequency);
+  float isr_mark_duty_{0.0f};
+  float isr_space_duty_{0.0f};
+#endif
+#ifdef REMOTE_TRANSMITTER_BK_PWM
+  void write_pwm_t1_(uint32_t t1_counts);
+  int8_t pwm_channel_{-1};
+  uint32_t isr_mark_t1_{0};
+  uint32_t isr_space_t1_{0};
+  uint32_t isr_period_t4_{684};  // 26MHz counts; ~38kHz default until a send sets the real carrier
 #endif
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
