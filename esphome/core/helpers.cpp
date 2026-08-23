@@ -723,23 +723,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 
 // Colors
 
-float gamma_correct(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
-float gamma_uncorrect(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
-
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
   float max_color_value = std::max({red, green, blue});
   float min_color_value = std::min({red, green, blue});
