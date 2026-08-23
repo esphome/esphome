@@ -193,6 +193,124 @@ def get_existing_cdc_acm_uart_label(board: str) -> str | None:
     return None
 
 
+def get_console_uart_label(board: str) -> str | None:
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    node = edt.chosen_node("zephyr,console")
+    if node is None or not node.labels:
+        return None
+    return node.labels[0]
+
+
+def get_uart_controller_labels(board: str) -> list[str] | None:
+    """Matches by the node's own binding declaring `bus: uart` (every real Zephyr
+    serial-controller binding includes uart-controller.yaml, which sets this) --
+    not a `current-speed` property, which a real but currently-unconfigured
+    peripheral (e.g. RA4M1's sci0/sci9, "disabled" with no current-speed set until
+    a board or overlay enables them) wouldn't have, and would otherwise be missed.
+    Enabled nodes first, then disabled-but-present ones (unlike _lookup_bus_labels(),
+    which only falls back to disabled when nothing enabled matched -- every real
+    candidate is wanted here, not just the best one).
+    """
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    enabled: list[str] = []
+    disabled: list[str] = []
+    for node in _iter_nodes(edt):
+        if "uart" in node.buses and node.labels:
+            (enabled if node.status == "okay" else disabled).append(node.labels[0])
+    return enabled + disabled
+
+
+def _discover_uart_node_labels(board: str) -> dict[str, str] | None:
+    """UART0 is always the board's real `zephyr,console` node, by convention -- not
+    just whichever UART happens to be discovered first.
+
+    No logging, no hard failure -- resolve_uart_node_label() and
+    log_board_capabilities() both build on this and log it their own way.
+    """
+    console = get_console_uart_label(board)
+    if console is None:
+        return None
+    others = [
+        label for label in (get_uart_controller_labels(board) or []) if label != console
+    ]
+    mapping = {"UART0": console}
+    mapping.update({f"UART{i + 1}": label for i, label in enumerate(others)})
+    return mapping
+
+
+def resolve_uart_node_label(
+    board: str, hw_uart: str, static_labels: dict[str, str]
+) -> str:
+    """`static_labels` empty means the variant declares no portable mapping across
+    its boards (e.g. stm32l4, where UART naming and which one is console both vary
+    per board) -- labels are discovered from DTS instead (_discover_uart_node_labels()).
+    Otherwise the hand-declared label is used, with UART0 verified (best effort)
+    against the board's real console -- a mismatch warns rather than hard-fails,
+    since the declared UART is still real and working, just not that board's console.
+    """
+    if static_labels:
+        label = static_labels.get(hw_uart)
+        if label is None:
+            raise cv.Invalid(
+                f"'{hw_uart}' is not a valid hardware_uart for board '{board}'. "
+                f"Valid values: {', '.join(static_labels)}"
+            )
+        _LOGGER.info(
+            "[zephyr] %s for '%s': %s (from hardcoded uart_node_labels)",
+            hw_uart,
+            board,
+            label,
+        )
+        if hw_uart == "UART0":
+            console = get_console_uart_label(board)
+            if console is not None and console != label:
+                _LOGGER.warning(
+                    "[zephyr] hardware_uart: UART0 is documented to always be the "
+                    "board's console UART, but the hardcoded UART0 label for board "
+                    "'%s' ('%s') does not match its actual zephyr,console ('%s'). "
+                    "Logging will still work, but not on the UART you may expect.",
+                    board,
+                    label,
+                    console,
+                )
+        return label
+
+    mapping = _discover_uart_node_labels(board)
+    if mapping is None:
+        raise cv.Invalid(
+            f"Cannot determine the console UART for board '{board}' -- its DTS "
+            "could not be resolved. Install gcc/cpp (C preprocessor) for automatic "
+            "DTS detection, or verify the board name."
+        )
+    label = mapping.get(hw_uart)
+    if label is None:
+        others = [v for k, v in mapping.items() if k != "UART0"]
+        raise cv.Invalid(
+            f"Board '{board}' has no '{hw_uart}' -- besides its console "
+            f"({mapping['UART0']}), its DTS has {len(others)} other enabled "
+            f"UART(s): {others or 'none'}."
+        )
+    source = "board's zephyr,console, from DTS" if hw_uart == "UART0" else "from DTS"
+    _LOGGER.info("[zephyr] %s for '%s': %s (%s)", hw_uart, board, label, source)
+    return label
+
+
+def format_uart_node_label_map(board: str, static_labels: dict[str, str]) -> str:
+    """Same source data resolve_uart_node_label() resolves against -- purely
+    informational here, no logging or hard failure of its own.
+    """
+    mapping = (
+        dict(static_labels) if static_labels else _discover_uart_node_labels(board)
+    )
+    if not mapping:
+        return "(unavailable)"
+    return ", ".join(f"{slot}={label}" for slot, label in mapping.items())
+
+
 # ---------------------------------------------------------------------------
 # Shared DTS helpers
 # ---------------------------------------------------------------------------
@@ -729,6 +847,18 @@ def _get_dts_include_paths(zephyr_base: Path) -> list[str]:
                 for subdir in dts_dir.iterdir()
                 if subdir.is_dir() and subdir.name != "bindings"
             )
+        # Some vendors (STM32, NXP, TI, ...) ship SoC/pinctrl devicetree fragments in
+        # their own HAL module -- a sibling `modules/hal/<vendor>/dts`, not under
+        # zephyr_base -- which boards #include from directly (e.g. nucleo_l476rg.dts's
+        # <st/l4/...-pinctrl.dtsi>). Without this, cpp fails on that include, silently
+        # breaking DTS lookups for those vendors only.
+        hal_dir = zephyr_base.parent / "modules" / "hal"
+        if hal_dir.is_dir():
+            paths.extend(
+                str(vendor_dts)
+                for vendor_dir in hal_dir.iterdir()
+                if (vendor_dts := vendor_dir / "dts").is_dir()
+            )
         zd["dts_include_paths"] = paths
     return zd["dts_include_paths"]
 
@@ -1128,6 +1258,11 @@ def log_board_capabilities(
             f"[zephyr]   {name} buses present: "
             + (", ".join(buses) if buses else "(none or unavailable)")
         )
+
+    lines.append(
+        "[zephyr]   hardware_uart label mapping: "
+        + format_uart_node_label_map(board, variant.uart_node_labels)
+    )
 
     lines.append(
         "[zephyr]   MCUboot swap methods this variant's port supports: "

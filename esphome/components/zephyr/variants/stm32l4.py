@@ -58,6 +58,11 @@ VARIANT = ZephyrVariant(
     # LL_IWDG_PRESCALER_1024), reload max 4095, LSI 32kHz (dts/arm/st/l4/stm32l4.dtsi):
     # 4095 x 256 / 32000 =~ 32.76s real ceiling, below the generic 60s schema max.
     watchdog_max_timeout_ms=32000,
+    # Explicitly empty, not the {"UART0": "uart0", "UART1": "uart1"} default: STM32L4
+    # boards don't share a portable UART naming or console convention (nucleo_l476rg's
+    # console is usart2, nucleo_l496zg's is lpuart1 with no usart1 at all). Empty tells
+    # resolve_uart_node_label() (dts_lookup.py) to resolve hardware_uart per board.
+    uart_node_labels={},
 )
 
 
