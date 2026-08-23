@@ -1,11 +1,20 @@
 #include "spi.h"
 #include <vector>
 
+#include <esp_memory_utils.h>
+
 namespace esphome::spi {
 
 #ifdef USE_ESP32
 static const char *const TAG = "spi";
 static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
+
+static uint32_t get_psram_dma_flags(const void *tx_buffer, const void *rx_buffer = nullptr) {
+  if ((tx_buffer != nullptr && esp_ptr_external_ram(tx_buffer)) ||
+      (rx_buffer != nullptr && esp_ptr_external_ram(rx_buffer)))
+    return SPI_TRANS_DMA_USE_PSRAM;
+  return 0;
+}
 
 class SPIDelegateHw : public SPIDelegate {
  public:
@@ -65,9 +74,9 @@ class SPIDelegateHw : public SPIDelegate {
       return;
     }
     spi_transaction_t desc = {};
-    desc.flags = 0;
     while (length != 0) {
       size_t const partial = std::min(length, MAX_TRANSFER_SIZE);
+      desc.flags = get_psram_dma_flags(txbuf, rxbuf);
       desc.length = partial * 8;
       desc.rxlength = this->write_only_ ? 0 : partial * 8;
       desc.tx_buffer = txbuf;
@@ -136,6 +145,7 @@ class SPIDelegateHw : public SPIDelegate {
     do {
       size_t chunk_size = std::min(length, MAX_TRANSFER_SIZE);
       if (data != nullptr && chunk_size != 0) {
+        desc.base.flags |= get_psram_dma_flags(data);
         desc.base.length = chunk_size * 8;
         desc.base.tx_buffer = data;
         length -= chunk_size;
