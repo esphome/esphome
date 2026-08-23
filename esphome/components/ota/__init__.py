@@ -1,6 +1,9 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -171,24 +174,17 @@ _filter_backend_source_files = filter_source_files_from_platform(
 )
 
 
+# USE_OTA_SIGNED_VERIFICATION_MULTI_KEY is set only on ESP32/IDF;
+# USE_OTA_PARTITIONS is set by the esphome OTA platform when
+# allow_partition_access is enabled.
+_filter_define_source_files = filter_source_files_from_defines(
+    {
+        "ota_signature_esp_idf.cpp": "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY",
+        "ota_bootloader_esp_idf.cpp": "USE_OTA_PARTITIONS",
+        "ota_partitions_esp_idf.cpp": "USE_OTA_PARTITIONS",
+    }
+)
+
+
 def FILTER_SOURCE_FILES() -> list[str]:
-    files = _filter_backend_source_files()
-    # ota_signature_esp_idf.cpp implements multi-key OTA signature verification,
-    # compiled only when the esp32 component enables it (external RSA signed
-    # OTA sets USE_OTA_SIGNED_VERIFICATION_MULTI_KEY). The define is set only on
-    # ESP32/IDF, so this also excludes the file on every other platform. Filter
-    # it out otherwise so the (otherwise fully #ifdef'd-out) file isn't opened
-    # and parsed on every build.
-    if not any(
-        define.name == "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY"
-        for define in CORE.defines
-    ):
-        files.append("ota_signature_esp_idf.cpp")
-    # ota_bootloader_esp_idf.cpp and ota_partitions_esp_idf.cpp are fully
-    # #ifdef'd on USE_OTA_PARTITIONS (set by the esphome OTA platform when
-    # allow_partition_access is enabled). Filter them out otherwise for the
-    # same reason as above.
-    if not any(define.name == "USE_OTA_PARTITIONS" for define in CORE.defines):
-        files.append("ota_bootloader_esp_idf.cpp")
-        files.append("ota_partitions_esp_idf.cpp")
-    return files
+    return _filter_backend_source_files() + _filter_define_source_files()

@@ -205,8 +205,19 @@ def test_print_summary_non_dict_json_warns(tmp_path, caplog) -> None:
 
 
 def test_print_summary_zero_app_partition_warns(tmp_path, caplog) -> None:
-    """A malformed partition row parsing to 0 must not render a 0% bar for
-    CI's memory-impact extraction to ingest."""
+    """A partition row with size 0 drops the Flash bar instead of rendering 0%."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, 0,\n")
+    print_summary(size_json, partitions)
+    assert "app partition size is" in caplog.text
+
+
+def test_print_summary_blank_partition_size_warns(tmp_path, caplog) -> None:
+    """A blank size cell raises ValueError by name instead of parsing to 0."""
     size_json = tmp_path / "size.json"
     size_json.write_text(
         '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
@@ -214,4 +225,21 @@ def test_print_summary_zero_app_partition_warns(tmp_path, caplog) -> None:
     partitions = tmp_path / "partitions.csv"
     partitions.write_text("app0, app, ota_0, 0x10000, ,\n")
     print_summary(size_json, partitions)
-    assert "app partition size is" in caplog.text
+    assert "blank partition size cell" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        '{"memory_types": []}',
+        '{"memory_types": {"DRAM": 5}}',
+        '{"memory_types": {"DRAM": {"used": "x", "size": "y"}}}',
+    ),
+    ids=("non-dict-memory-types", "scalar-region", "non-numeric-sizes"),
+)
+def test_print_summary_nested_shapes_never_raise(tmp_path, caplog, payload) -> None:
+    """The blanket guard keeps unexpected nested shapes from raising."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(payload)
+    print_summary(size_json, tmp_path / "partitions.csv")
+    assert "Skipping size summary" in caplog.text
