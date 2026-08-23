@@ -142,8 +142,7 @@ def test_print_summary_non_dict_json_is_skipped(
 def test_print_summary_unreadable_partitions_is_skipped(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An OSError reading the partition table skips the summary, never the
-    build (a missing file takes the ValueError path instead)."""
+    """An OSError reading the partition table skips the summary, not the build."""
     size_json = tmp_path / "size.json"
     size_json.write_text(
         '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
@@ -166,8 +165,7 @@ def test_print_summary_unreadable_partitions_is_skipped(
 def test_print_summary_zero_app_partition_is_skipped(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A partition row parsing to size 0 must not render a 0% bar for CI's
-    memory-impact extraction to ingest."""
+    """A 0-size app partition drops the Flash bar instead of rendering 0%."""
     size_json = tmp_path / "size.json"
     size_json.write_text(
         '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
@@ -205,8 +203,7 @@ def test_print_summary_happy_path_prints_both_bars(
 def test_print_summary_nested_bad_shapes_never_raise(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], payload: dict
 ) -> None:
-    """The blanket guard keeps nested non-dict values and non-numeric sizes
-    from raising past a linked build."""
+    """The blanket guard keeps unexpected nested shapes from raising."""
     size_json = _write_size_json(tmp_path, payload)
     print_summary(size_json, None)
     assert "Traceback" not in capsys.readouterr().err
@@ -215,8 +212,7 @@ def test_print_summary_nested_bad_shapes_never_raise(
 def test_print_summary_blank_size_cell_names_the_row(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A blank size cell is reported as the malformed input it is, via the
-    ValueError path, instead of parsing to 0."""
+    """A blank size cell raises ValueError instead of parsing to 0."""
     size_json = _write_size_json(
         tmp_path,
         {"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100},
