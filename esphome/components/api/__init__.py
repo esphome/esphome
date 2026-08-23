@@ -664,7 +664,9 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_EVENT): validate_homeassistant_event,
         cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
         cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_VARIABLES, default={}): KEY_VALUE_SCHEMA,
+        cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
+            {cv.string: cv.returning_lambda}
+        ),
     }
 )
 

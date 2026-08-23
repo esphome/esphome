@@ -9,6 +9,16 @@ esphome:
           event: esphome.button_pressed
           data:
             message: Button was pressed
+      # variables must be treated as lambdas, like homeassistant.action does.
+      # A plain block scalar was previously kept as a static string, so the C++
+      # source was sent to Home Assistant instead of the value it returns.
+      - homeassistant.event:
+          event: esphome.button_pressed_with_variables
+          data_template:
+            message: Button {{ button_name }} was pressed
+          variables:
+            button_name: |-
+              return std::string("test_button");
       - homeassistant.action:
           action: notify.html5
           data:
