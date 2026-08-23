@@ -603,36 +603,6 @@ def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
     assert top[0].dependencies == []
 
 
-def test_convert_libraries_warns_for_nonplatform_invalid_dependency_component(
-    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A dependency component dropped for any cause other than the platform
-    filter warns; only the routine cross-platform skip stays at debug."""
-    _patch_download_with_manifests(
-        monkeypatch,
-        tmp_path,
-        {
-            "esphome/A": {
-                "name": "A",
-                "dependencies": [{"name": "C", "owner": "esphome", "version": "1.0"}],
-            },
-            "esphome/C": {"name": "C"},
-        },
-    )
-    real = lib.check_library_data
-
-    def flaky(data, platform, framework):
-        # Fail only on C's resolved manifest, not on A's dependency entry
-        if data.get("name") == "C" and "version" not in data:
-            raise InvalidLibrary("manifest is corrupt")
-        return real(data, platform, framework)
-
-    monkeypatch.setattr(lib, "check_library_data", flaky)
-    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
-    assert "manifest is corrupt" in caplog.text
-    assert "Skipping dependency" in caplog.text
-
-
 def test_split_flag_entry_unbalanced_quote_is_clean() -> None:
     """A malformed flags entry raises EsphomeError, not a raw ValueError."""
 
@@ -886,20 +856,36 @@ def test_walk_warns_for_nonplatform_invalid_library(
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
-        {"esphome/A": {"name": "A", "dependencies": [{"name": "B", "version": "1.0"}]}},
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "B", "version": "1.0", "platforms": [123]}],
+            }
+        },
     )
-    calls = {"n": 0}
-    real = lib.check_library_data
-
-    def flaky(data, platform, framework):
-        calls["n"] += 1
-        if calls["n"] > 1:
-            raise InvalidLibrary("manifest is corrupt")
-        return real(data, platform, framework)
-
-    monkeypatch.setattr(lib, "check_library_data", flaky)
     convert_libraries([Library("esphome/A", None, None)], _backend())
-    assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
+    assert "Skipping dependency B of esphome/A: Malformed platforms" in caplog.text
+
+
+def test_convert_libraries_warns_for_nonplatform_invalid_dependency_component(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency component dropped for any cause other than the platform
+    filter warns; only the routine cross-platform skip stays at debug."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "C", "owner": "esphome", "version": "1.0"}],
+            },
+            "esphome/C": {"name": "C", "frameworks": [None]},
+        },
+    )
+    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+    assert "Malformed frameworks" in caplog.text
+    assert "Skipping dependency" in caplog.text
 
 
 def test_split_flag_entry_non_string_is_clean() -> None:
