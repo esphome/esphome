@@ -20,10 +20,28 @@ TEST(ATM90E32CalibrationPersistence, RequiresSaveAndSync) {
   EXPECT_FALSE(calibration_persistence_succeeded(false, true));
 }
 
-TEST(ATM90E32CalibrationPersistence, RequiresRollbackSaveAndSync) {
-  EXPECT_TRUE(calibration_rollback_succeeded(true, true));
-  EXPECT_FALSE(calibration_rollback_succeeded(true, false));
-  EXPECT_FALSE(calibration_rollback_succeeded(false, true));
+TEST(ATM90E32CalibrationPersistence, DoesNotAttemptSaveWhenWritesDoNotVerify) {
+  bool save_called = false;
+  const auto result = attempt_calibration_persistence(false, [&save_called] {
+    save_called = true;
+    return true;
+  });
+
+  EXPECT_FALSE(save_called);
+  EXPECT_FALSE(result.attempted);
+  EXPECT_FALSE(result.succeeded);
+}
+
+TEST(ATM90E32CalibrationPersistence, MarksFailedSaveAsAttempted) {
+  bool save_called = false;
+  const auto result = attempt_calibration_persistence(true, [&save_called] {
+    save_called = true;
+    return false;
+  });
+
+  EXPECT_TRUE(save_called);
+  EXPECT_TRUE(result.attempted);
+  EXPECT_FALSE(result.succeeded);
 }
 
 }  // namespace esphome::atm90e32::testing

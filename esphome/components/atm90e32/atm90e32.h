@@ -19,8 +19,16 @@ inline bool offset_register_value_matches(uint16_t actual, int16_t expected) {
 
 inline bool calibration_persistence_succeeded(bool saved, bool synced) { return saved && synced; }
 
-inline bool calibration_rollback_succeeded(bool saved, bool synced) {
-  return calibration_persistence_succeeded(saved, synced);
+struct CalibrationPersistenceAttempt {
+  bool attempted;
+  bool succeeded;
+};
+
+template<typename Save>
+inline CalibrationPersistenceAttempt attempt_calibration_persistence(bool writes_verified, Save save) {
+  if (!writes_verified)
+    return {false, false};
+  return {true, save()};
 }
 
 class ATM90E32Component final : public PollingComponent,
