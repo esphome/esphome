@@ -286,6 +286,15 @@ void APIServer::dump_config() {
 
 void APIServer::handle_disconnect(APIConnection *conn) {}
 
+#ifdef USE_DEVICES
+void APIServer::on_device_update(Device *device) {
+  for (auto &client : this->active_clients()) {
+    if (client->flags_.state_subscription)
+      client->send_device_state(device);
+  }
+}
+#endif
+
 // Macro for controller update dispatch
 #define API_DISPATCH_UPDATE(entity_type, entity_name) \
   void APIServer::on_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \

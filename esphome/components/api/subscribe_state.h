@@ -19,6 +19,9 @@ class APIConnection;
 class InitialStateIterator final : public ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
+#ifdef USE_DEVICES
+  bool on_begin() override;
+#endif
 
 // Entity overrides (generated from entity_types.h).
 // ENTITY_TYPE_ entities have no state to send and default to a no-op.

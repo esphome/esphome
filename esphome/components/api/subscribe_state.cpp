@@ -5,6 +5,17 @@
 
 namespace esphome::api {
 
+#ifdef USE_DEVICES
+bool InitialStateIterator::on_begin() {
+  const auto &devices = App.get_devices();
+  if (this->at_ >= devices.size())
+    return true;
+  if (!this->client_->send_device_state(devices[this->at_]))
+    return false;
+  return ++this->at_ >= devices.size();
+}
+#endif
+
 // Generate entity handler implementations using macros
 #ifdef USE_BINARY_SENSOR
 INITIAL_STATE_HANDLER(binary_sensor, binary_sensor::BinarySensor)

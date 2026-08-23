@@ -1,0 +1,6 @@
+esphome:
+  build_flags:
+    - -DUSE_DEVICES
+    - -DESPHOME_DEVICE_COUNT=1
+    - -DUSE_CONTROLLER_REGISTRY
+    - -DCONTROLLER_REGISTRY_MAX=1

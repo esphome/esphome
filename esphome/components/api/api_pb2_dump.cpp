@@ -908,6 +908,12 @@ const char *DeviceInfo::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("area_id"), this->area_id);
   return out.c_str();
 }
+const char *DeviceStateResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceStateResponse"));
+  dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
+  dump_field(out, ESPHOME_PSTR("available"), this->available);
+  return out.c_str();
+}
 #endif
 #ifdef USE_SERIAL_PROXY
 const char *SerialProxyInfo::dump_to(DumpBuffer &out) const {

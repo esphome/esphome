@@ -517,6 +517,23 @@ class DeviceInfo final : public ProtoMessage {
 
  protected:
 };
+class DeviceStateResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 149;
+  static constexpr uint8_t ESTIMATED_SIZE = 6;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("device_state_response"); }
+#endif
+  uint32_t device_id{0};
+  bool available{false};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
 #endif
 #ifdef USE_SERIAL_PROXY
 class SerialProxyInfo final : public ProtoMessage {

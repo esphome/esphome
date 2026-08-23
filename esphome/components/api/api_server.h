@@ -80,6 +80,9 @@ class APIServer final : public Component,
 #endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
+#ifdef USE_DEVICES
+  void on_device_update(Device *device) override;
+#endif
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
 #endif

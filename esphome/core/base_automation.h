@@ -157,6 +157,20 @@ class LoopTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
 };
 
+#ifdef USE_DEVICES
+template<typename... Ts> class DeviceSetAvailableAction final : public Action<Ts...> {
+ public:
+  explicit DeviceSetAvailableAction(Device *device) : device_(device) {}
+
+  TEMPLATABLE_VALUE(bool, available)
+
+  void play(const Ts &...x) override { this->device_->set_available(this->available_.value(x...)); }
+
+ protected:
+  Device *device_;
+};
+#endif
+
 #ifdef ESPHOME_PROJECT_NAME
 class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
  public:
