@@ -2,6 +2,7 @@
 
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
+// Include for ESPDEPRECATED, Remove before 2027.3.0
 #include "esphome/core/helpers.h"
 
 namespace esphome::preferences {
@@ -15,12 +16,14 @@ class IntervalSyncer final : public PollingComponent {
     if (global_preferences->sync()) {
       this->status_clear_warning();
     } else {
-      this->status_set_warning(LOG_STR("Failed to sync preferences to flash"));
+      this->status_set_warning(LOG_STR("Did not sync preferences to flash"));
     }
   }
   void on_shutdown() override {
+    // Clear first -- status_set_warning() only logs on a false->true transition.
+    this->status_clear_warning();
     if (!global_preferences->sync()) {
-      this->status_set_warning(LOG_STR("Failed to sync preferences to flash"));
+      this->status_set_warning(LOG_STR("Did not sync preferences to flash"));
     }
   }
   float get_setup_priority() const override { return setup_priority::BUS; }
