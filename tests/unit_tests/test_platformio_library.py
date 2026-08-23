@@ -804,10 +804,28 @@ def test_normalize_dependencies_forms(caplog) -> None:
     assert normalize_dependencies({"Foo": ["1.0", "2.0"]}, "libx") == []
     assert normalize_dependencies([{"name": "Foo", "version": 1}], "libx") == []
     assert caplog.text.count("unrecognized dependency entry") == 7
+    # A non-string owner would stringify into a malformed registry name
+    assert (
+        normalize_dependencies(
+            [{"name": "Foo", "owner": {"bad": 1}, "version": "1.0"}], "libx"
+        )
+        == []
+    )
+    # A falsey scalar (0, false) is malformed, not an empty list
+    assert normalize_dependencies(0, "libx") == []
+    assert "Ignoring unrecognized dependencies 0 of libx" in caplog.text
 
 
 @pytest.mark.parametrize(
-    "manifest", [["not", "a", "manifest"], {"name": "A", "build": "src"}]
+    "manifest",
+    [
+        ["not", "a", "manifest"],
+        {"name": "A", "build": "src"},
+        {"name": "A", "ESPHOME": "yes"},
+        {"name": "A", "build": {"srcDir": 123}},
+        {"name": "A", "build": {"includeDir": ["inc"]}},
+        {"name": "A", "build": {"srcFilter": {"+": "src"}}},
+    ],
 )
 def test_convert_libraries_malformed_manifest_raises(
     tmp_path, monkeypatch, manifest
