@@ -939,12 +939,15 @@ def test_vtables_conflicting_raises() -> None:
         _resolve("-DVTABLES_IN_DRAM", "-DVTABLES_IN_IRAM")
 
 
-def test_empty_lib_flags_raise() -> None:
-    """A bare -L would silently add the CWD to the search path; the shared
-    lex point raises for every consumer."""
-    CORE.build_flags = {'-L ""', '-l ""'}
-    with pytest.raises(EsphomeError, match=r"empty-argument flag\(s\): -L, -l"):
-        arduino8266._lexed_build_flags()
+def test_empty_lib_flags_warned_and_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A bare -L would silently add the CWD to the search path; the lex
+    funnel warns and drops it for every consumer."""
+    CORE.build_flags = {'-L ""', '-l ""', "-DFOO"}
+    assert arduino8266._lexed_build_flags() == ["-DFOO"]
+    assert "Ignoring '-L' with empty argument" in caplog.text
+    assert "Ignoring '-l' with empty argument" in caplog.text
 
 
 def test_generate_ld_scripts_surfaces_preprocessor_warnings(
@@ -968,6 +971,38 @@ def test_generate_ld_scripts_surfaces_preprocessor_warnings(
         pytest.raises(EsphomeError, match="SECTIONS"),
     ):
         _run_generate_ld_scripts(paths)
+
+
+def test_generate_ld_scripts_lost_warn_note_vetoes_the_stamp(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A warn note that could not persist skips the stamp, so the next build
+    re-runs -E and re-derives the diagnostic instead of losing it."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    result = MagicMock(
+        returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: something"
+    )
+    real_write_text = Path.write_text
+
+    def fail_note_writes(self: Path, text: str, encoding: str = "utf-8") -> int:
+        if self.name.endswith(".stderr"):
+            raise OSError("read-only build dir")
+        return real_write_text(self, text, encoding=encoding)
+
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result) as run1,
+        patch.object(Path, "write_text", fail_note_writes),
+    ):
+        _run_generate_ld_scripts(paths)
+    run1.assert_called_once()
+    assert "Could not write" in caplog.text
+
+    # Unstamped: the second build re-runs the preprocessor
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as run2:
+        _run_generate_ld_scripts(paths)
+    run2.assert_called_once()
+    assert caplog.text.count("Linker-script preprocessor: warning: something") == 2
 
 
 def test_build_config_mmu_knob_with_raw_mmu_flag_raises() -> None:
@@ -1077,20 +1112,6 @@ def test_generate_ld_scripts_invalid_flash_ld_name_raises(tmp_path: Path) -> Non
     config = _resolve()
     with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
         arduino8266.generate_ld_scripts(paths, config, "../evil.ld")
-
-
-def test_write_generated_replaces_damaged_file(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A non-UTF-8 existing copy is logged and overwritten; the write path
-    still raises for real failures (now the shared helper's contract)."""
-    from esphome.helpers import write_file_if_changed
-
-    target = tmp_path / "gen.ld"
-    target.write_bytes(b"\xff\xfe")
-    write_file_if_changed(target, "SECTIONS { }")
-    assert target.read_text(encoding="utf-8") == "SECTIONS { }"
-    assert "Replacing damaged file" in caplog.text
 
 
 def test_generate_ld_scripts_edited_output_regenerates(tmp_path: Path) -> None:
@@ -1395,12 +1416,15 @@ def test_board_tables_are_equal() -> None:
     assert set(BOARDS) == set(ESP8266_BOARD_BUILD)
 
 
-def test_bare_include_and_define_raise() -> None:
+def test_bare_include_and_define_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """An empty-argument -I or -D would make gcc eat the next flag as the
-    argument; the shared lex point raises for every consumer."""
+    argument; the lex funnel warns and drops both."""
     CORE.build_flags = {'-I ""', '-D ""'}
-    with pytest.raises(EsphomeError, match=r"empty-argument flag\(s\): -D, -I"):
-        arduino8266._lexed_build_flags()
+    assert arduino8266._lexed_build_flags() == []
+    assert "Ignoring '-I' with empty argument" in caplog.text
+    assert "Ignoring '-D' with empty argument" in caplog.text
 
 
 def test_generate_ld_scripts_gcc_change_invalidates_stamp(tmp_path: Path) -> None:
