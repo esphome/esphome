@@ -461,6 +461,27 @@ def test_prepend_inserts_ahead_of_existing(method: str) -> None:
     assert env.result.libs == ["algobsec", "bsec", "m"]
 
 
+def test_env_membership_and_iteration(tmp_path) -> None:
+    """Membership tests and for-loops must use the mapping protocol; the
+    legacy sequence fallback through __getitem__ would loop forever."""
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    assert "BOARD_MCU" in env
+    assert "NOPE" not in env
+    assert sorted(env) == ["BOARD_MCU", "PIOENV", "PIOPLATFORM"]
+
+
+def test_apply_extra_script_non_string_falsey_raises(tmp_path) -> None:
+    """A falsey non-string extraScript (false, 0, []) is a malformed
+    manifest, not an absent script."""
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": False}}
+    with pytest.raises(EsphomeError, match="must be a string"):
+        apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
+
+
 def test_env_get_unknown_key_warns_once(caplog) -> None:
     """A script branching on an unmodelled env var is diagnosable."""
     env = _FakeSConsEnv(

@@ -294,6 +294,19 @@ def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
     assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
 
 
+def test_generate_cmakelists_txt_escapes_embedded_quotes(tmp_component):
+    """A define value carrying a literal quote survives into CMake as an
+    escaped quote, not a prematurely-terminated string."""
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+    # shlex keeps the backslash-escaped quotes as literal characters
+    tmp_component.data = {"build": {"flags": ['-DMSG=\\"hi\\"']}}
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert '"-DMSG=\\"hi\\""' in content
+
+
 def test_generate_cmakelists_txt_extra_script_link_flags(tmp_component):
     """Captured extra-script LINKFLAGS come out as target_link_options, not
     compile options where they would be silently ineffective."""

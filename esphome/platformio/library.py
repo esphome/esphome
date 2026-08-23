@@ -687,15 +687,15 @@ def dependency_is_usable(
 
 
 def _valid_dependency_entry(entry: dict, manifest_name: str) -> bool:
-    """Whether a normalized entry carries a usable name (non-empty string)
-    and version (string, if present); invalid entries warn naming the
-    manifest."""
+    """Whether a normalized entry carries a usable name (non-empty string),
+    version (string, if present), and owner (string, if present); invalid
+    entries warn naming the manifest."""
     name = entry.get("name")
-    if (
-        isinstance(name, str)
-        and name
-        and ("version" not in entry or isinstance(entry["version"], str))
-    ):
+    owner = entry.get("owner")
+    name_ok = isinstance(name, str) and name
+    version_ok = "version" not in entry or isinstance(entry["version"], str)
+    owner_ok = owner is None or isinstance(owner, str)
+    if name_ok and version_ok and owner_ok:
         return True
     _LOGGER.warning(
         "Ignoring unrecognized dependency entry %r of %s", entry, manifest_name
@@ -714,7 +714,7 @@ def normalize_dependencies(
     so callers see a uniform list. ``manifest_name`` names the manifest in the
     warning for entries that cannot be normalized.
     """
-    if not dependencies:
+    if dependencies is None:
         return []
     if isinstance(dependencies, str):
         # A plain string is one or more comma-separated names; iterating it
@@ -1126,11 +1126,19 @@ def convert_libraries(
                     f"library.properties in {source_dir}"
                 )
 
-            if not isinstance(component.data, dict) or not isinstance(
-                component.data.get("build", {}), dict
-            ):
-                # A bare json.load imposes no shape; every backend dereferences
-                # data/build, so validate once here and name the library
+            # A bare json.load imposes no shape; every backend dereferences
+            # these fields, so validate once here and name the library
+            malformed = not isinstance(component.data, dict)
+            if not malformed:
+                build = component.data.get("build", {})
+                malformed = (
+                    not isinstance(build, dict)
+                    or not isinstance(component.data.get(ESPHOME_DATA_KEY, {}), dict)
+                    or not isinstance(build.get("srcDir", ""), str)
+                    or not isinstance(build.get("includeDir", ""), str)
+                    or not isinstance(build.get("srcFilter", ""), (str, list))
+                )
+            if malformed:
                 raise EsphomeError(f"Library {key} has a malformed manifest")
             warn_properties_depends(component.name, component.data)
 
@@ -1140,10 +1148,12 @@ def convert_libraries(
                 # An explicitly requested library fails fast; the routine
                 # cross-platform skip stays at debug, other causes warn
                 if key in top_level_keys:
-                    raise RuntimeError(
-                        f"Requested library {key} is not compatible with "
-                        f"{backend.framework}: {e}"
-                    ) from e
+                    reason = (
+                        f"is not compatible with {backend.framework}"
+                        if isinstance(e, IncompatiblePlatform)
+                        else "has a malformed manifest"
+                    )
+                    raise RuntimeError(f"Requested library {key} {reason}: {e}") from e
                 if isinstance(e, IncompatiblePlatform):
                     _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
                 else:
