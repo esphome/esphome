@@ -1,4 +1,4 @@
-from .const import KEY_FLASH_SIZE
+from .const import KEY_FLASH_SIZE, KEY_LDSCRIPT
 
 FLASH_SIZE_1_MB = 2**20
 FLASH_SIZE_512_KB = FLASH_SIZE_1_MB // 2
@@ -166,7 +166,8 @@ ESP8266_BOARD_PINS = {
 }
 
 """
-BOARDS generate with:
+BOARDS generate with (preserve per-board KEY_LDSCRIPT overrides such as
+d1_wroom_02; the recipe emits only name/flash_size):
 
 git clone https://github.com/platformio/platform-espressif8266
 for x in platform-espressif8266/boards/*.json; do
@@ -192,7 +193,9 @@ def board_ld_script(board_data: dict) -> str:
     Single source of truth for the PlatformIO pinning in __init__ and the
     native generator's fallback, so the per-board rule cannot drift.
     """
-    return board_data.get("ldscript", ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]][1])
+    return board_data.get(
+        KEY_LDSCRIPT, ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]][1]
+    )
 
 
 BOARDS = {
@@ -219,7 +222,7 @@ BOARDS = {
         # (64 KB filesystem region); the flash-size default (2m.ld) would
         # move _FS_end and with it the preferences sector, wiping existing
         # devices' flash-backed state on update.
-        "ldscript": "eagle.flash.2m64.ld",
+        KEY_LDSCRIPT: "eagle.flash.2m64.ld",
     },
     "d1": {
         "name": "WEMOS D1 R1",
