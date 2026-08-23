@@ -560,8 +560,8 @@ async def to_code(config):
     cg.add_global(light_ns.using)
 
 
-# light_json_schema.cpp is fully #ifdef'd on USE_JSON; only mqtt and
-# web_server use it.
+# light_json_schema.cpp is only used by mqtt and web_server, which both
+# auto load json; USE_JSON alone is too broad since other components load it.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"light_json_schema.cpp": "USE_JSON"}
+    {"light_json_schema.cpp": ("USE_MQTT", "USE_WEBSERVER")}
 )
