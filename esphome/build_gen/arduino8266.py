@@ -260,7 +260,7 @@ def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag.
 
     ``tokens`` comes from one ``_lexed_build_flags()`` call shared with
-    ``_project_flags``, which already raised on any bare "-D".
+    ``_project_flags``, which already warned about and dropped any bare "-D".
     """
     defines: dict[str, str] = {}
     for tok in tokens:
@@ -486,7 +486,7 @@ def _project_flags(
     for tok in tokens:
         if tok in unflags:
             continue
-        # _lexed_build_flags raised on any bare -I/-D/-L/-l
+        # _lexed_build_flags warned about and dropped any bare -I/-D/-L/-l
         if tok.startswith("-Wl,"):
             link_flags.append(_shell_token(tok))
         elif tok.startswith("-L"):
@@ -505,6 +505,15 @@ def _project_flags(
                     f"Linker flag {tok} in build_flags is not routed to the "
                     "link line; use the -Wl, form"
                 )
+            if tok.startswith("-") and not tok.startswith(_COMPILE_FLAG_PREFIXES):
+                # The linker deny lists are not exhaustive; an unlisted
+                # link-only spelling would be inert on the -c compile line,
+                # so at least surface the odd shape
+                _LOGGER.warning(
+                    "Build flag %s is not a recognized compile-flag shape; "
+                    "it is passed to the compile line only",
+                    tok,
+                )
             compile_flags.append(_shell_token(tok))
     return compile_flags, link_flags, lib_dirs, libs
 
@@ -512,7 +521,19 @@ def _project_flags(
 # Plain-form linker flags rejected by _project_flags: inert on a -c compile
 # line, so the firmware would silently lack the requested link behavior
 # Best-effort, not exhaustive: an unlisted link-only spelling still falls
-# through to the compile line
+# through to the compile line, with a warning from the shape check
+_COMPILE_FLAG_PREFIXES = (
+    "-D",
+    "-I",
+    "-U",
+    "-W",
+    "-f",
+    "-m",
+    "-O",
+    "-g",
+    "-std=",
+    "-include",
+)
 _PLAIN_LINKER_FLAGS = (
     "-u",
     "-e",
