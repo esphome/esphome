@@ -193,3 +193,25 @@ def test_print_summary_missing_flash_inputs_warn(
     size_json = _write_size_json(tmp_path, data)
     print_summary(size_json, partitions_csv=tmp_path / "partitions.cssv")
     assert "no image_size" in caplog.text
+
+
+def test_print_summary_non_dict_json_warns(tmp_path, caplog) -> None:
+    """Valid JSON that is not an object must warn, not raise past a build
+    that already linked."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text("[]")
+    print_summary(size_json, tmp_path / "partitions.csv")
+    assert "unexpected shape" in caplog.text
+
+
+def test_print_summary_zero_app_partition_warns(tmp_path, caplog) -> None:
+    """A malformed partition row parsing to 0 must not render a 0% bar for
+    CI's memory-impact extraction to ingest."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, ,\n")
+    print_summary(size_json, partitions)
+    assert "app partition size is" in caplog.text
