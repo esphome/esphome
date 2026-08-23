@@ -229,8 +229,18 @@ def captured_as_build_flags(
     generated build files stay portable.
     """
     flags: list[str] = []
+
+    def _strs(bucket: list, kind: str) -> list[str]:
+        # Third-party scripts legally append SCons nodes, ints, or dicts;
+        # stringifying those into flags would hand the compiler garbage
+        good = [entry for entry in bucket if isinstance(entry, str)]
+        for entry in bucket:
+            if not isinstance(entry, str):
+                _LOGGER.warning("Ignoring unsupported %s entry %r", kind, entry)
+        return good
+
     library_root = library_dir.resolve()
-    for path in result.libpath:
+    for path in _strs(result.libpath, "LIBPATH"):
         # Anchor relative paths to library_dir; the script's CWD has been
         # restored by now
         resolved = (library_dir / path).resolve()
@@ -238,7 +248,7 @@ def captured_as_build_flags(
             flags.append(f"-L{resolved.relative_to(library_root)}")
         except ValueError:
             flags.append(f"-L{resolved}")
-    flags.extend(f"-l{lib}" for lib in result.libs)
+    flags.extend(f"-l{lib}" for lib in _strs(result.libs, "LIBS"))
     for define in result.cppdefines:
         # SCons also accepts dict/list CPPDEFINES; formatting those blind
         # would hand the compiler garbage like -D{'FOO': '1'}
@@ -248,6 +258,6 @@ def captured_as_build_flags(
             flags.append(f"-D{define}")
         else:
             _LOGGER.warning("Ignoring unsupported CPPDEFINES entry %r", define)
-    flags.extend(result.linkflags)
-    flags.extend(result.cppflags)
+    flags.extend(_strs(result.linkflags, "LINKFLAGS"))
+    flags.extend(_strs(result.cppflags, "CPPFLAGS"))
     return flags
