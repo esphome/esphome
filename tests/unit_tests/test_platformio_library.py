@@ -4,7 +4,6 @@ Covers the shared download/parse/resolve/dependency-walk paths in
 ``esphome.platformio.library`` directly (the ESP-IDF and Zephyr backends are
 exercised in their own test modules)."""
 
-from contextlib import contextmanager
 import json
 import logging
 from pathlib import Path
@@ -154,23 +153,6 @@ def test_localsource_download_returns_empty_build_dir(setup_core: Path) -> None:
     assert plain != out
 
 
-@contextmanager
-def caplog_at_info():
-    records: list[logging.LogRecord] = []
-    handler = logging.Handler()
-    handler.emit = records.append
-    logger = logging.getLogger("esphome.platformio.library")
-    logger.addHandler(handler)
-    # The level must actually admit INFO or the no-INFO assertions are vacuous
-    old_level = logger.level
-    logger.setLevel(logging.INFO)
-    try:
-        yield records
-    finally:
-        logger.setLevel(old_level)
-        logger.removeHandler(handler)
-
-
 def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []
@@ -243,7 +225,7 @@ def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
 def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
     """Fake ConvertedLibrary.download to materialize canned manifests on disk."""
 
-    def fake_download(self, force=False, salt="", namespace="", progress=None):
+    def fake_download(self, force=False, salt="", namespace=""):
         self.path = tmp_path / self.get_require_name()
         self.path.mkdir(parents=True, exist_ok=True)
         if self.name in properties:
@@ -358,7 +340,6 @@ def _patch_download_without_manifest(
         force: bool = False,
         salt: str = "",
         namespace: str = "",
-        progress=None,
     ) -> None:
         calls.append(force)
         self.path = tmp_path / self.get_require_name()
