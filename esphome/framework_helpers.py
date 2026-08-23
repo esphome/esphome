@@ -858,7 +858,10 @@ class _BatchDownloadProgress:
             with self._lock:
                 self._sum += done - last
                 last = done
-                self._bar.update(min(self._sum / self._total, 1))
+                # A bar-write failure (broken stderr pipe) must not surface
+                # as a download failure and cost the .part file
+                with suppress(Exception):
+                    self._bar.update(min(self._sum / self._total, 1))
 
         return update
 
@@ -883,7 +886,9 @@ class _BatchDownloadProgress:
 
         class _EndRow(logging.Filter):
             def filter(self, record: logging.LogRecord) -> bool:
-                with lock:
+                # Handler.handle() runs filters outside handleError's try; a
+                # stderr write failure must not escape through the log call
+                with lock, suppress(Exception):
                     the_bar.interrupt()
                 return True
 
@@ -950,7 +955,7 @@ def download_with_resume(
     ``download_from_mirrors``.
 
     ``progress`` replaces the built-in bar: it receives the absolute bytes of
-    ``dest`` obtained so far (see ``BatchDownloadProgress``).
+    ``dest`` obtained so far (see ``_BatchDownloadProgress``).
 
     Raises EsphomeError when all attempts are exhausted.
     """
