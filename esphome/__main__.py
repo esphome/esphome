@@ -2029,10 +2029,11 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         ):
             if not tool.is_file():
                 # The analyzer would silently fall back to host binutils,
-                # which cannot read the target ELF
+                # which cannot read the target ELF. clean-all is heavy for
+                # ESP-IDF, so suggest a recompile first.
                 _LOGGER.error(
                     "%s is missing; the toolchain install may be incomplete "
-                    "(run 'esphome clean-all')",
+                    "(recompile, or run 'esphome clean-all' if it persists)",
                     tool,
                 )
                 return 1
@@ -2040,6 +2041,13 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
         readelf_path = str(native_toolchain.get_readelf_path())
 
         firmware_elf = native_toolchain.get_elf_path()
+        if not firmware_elf.is_file():
+            # The analyzer swallows tool failures, so a missing ELF would
+            # produce an exit-0 zeroed report
+            _LOGGER.error(
+                "%s is missing; compile the configuration first", firmware_elf
+            )
+            return 1
     else:
         from esphome.platformio import toolchain
 

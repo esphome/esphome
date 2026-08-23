@@ -27,13 +27,13 @@ _MAX_RAM_SIZE = 81920
 def _warn_ignored_platformio_options() -> None:
     """Warn for component-added platformio options the native build drops.
 
-    The consumed set derives from NATIVE_ARDUINO_PIO_OPTIONS so the two
-    lists cannot drift; YAML upload_speed never reaches
-    CORE.platformio_options here.
+    The consumed set is exported by core/config.py next to the routing that
+    stores these options, so the two cannot drift; YAML upload_speed never
+    reaches CORE.platformio_options here.
     """
-    from esphome.core.config import NATIVE_ARDUINO_PIO_OPTIONS
+    from esphome.core.config import NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
 
-    consumed = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
+    consumed = NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
     for key in sorted(CORE.platformio_options or {}):
         if key not in consumed:
             _LOGGER.warning(

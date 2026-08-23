@@ -670,6 +670,7 @@ ESP8266_NATIVE_TRIGGER_FILES = frozenset(
         "esphome/platformio/toolchain.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
+        ".github/actions/cache-arduino8266/action.yml",
     }
 )
 
