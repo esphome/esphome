@@ -394,16 +394,16 @@ def test_parse_entry_recovers_from_unconfigured_launcher(
     assert "Stripping unconfigured launcher" in caplog.text
 
 
-def test_parse_entry_keeps_launcher_without_program() -> None:
-    """A launcher followed only by flags (no program to recover) stays as
-    token zero; the cache layer refuses to persist it."""
+def test_parse_entry_rejects_launcher_without_program() -> None:
+    """A launcher followed only by flags is rejected in the parser itself,
+    so no caller can record ccache as the compiler."""
     entry = _entry(
         f"{ABS}build",
         f"{ABS}build/src/esphome/core/application.cpp",
         "/opt/homebrew/bin/ccache -c a.cpp -o a.o",
     )
-    cxx_path, _, _, _ = idedata.parse_entry(entry)
-    assert cxx_path == "/opt/homebrew/bin/ccache"
+    with pytest.raises(EsphomeError, match="compile database is unusable"):
+        idedata.parse_entry(entry)
 
 
 def _write_compile_commands(tmp_path: Path) -> Path:
@@ -623,7 +623,7 @@ def test_load_or_build_idedata_cache_hit_restamps_prog_path(tmp_path: Path) -> N
 def test_idedata_from_build_non_list_compile_db_raises(tmp_path: Path) -> None:
     """Valid JSON that is not a list raises by name, inside the best-effort tuple."""
     compile_commands = tmp_path / "compile_commands.json"
-    for bad in ("{}", "null", '"text"'):
+    for bad in ("{}", "null", '"text"', '["a", "b"]', "[1, 2]"):
         compile_commands.write_text(bad)
         with pytest.raises(EsphomeError, match="not a compile-command list"):
             idedata.idedata_from_build(compile_commands)
