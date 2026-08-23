@@ -177,3 +177,52 @@ def test_print_summary_zero_app_partition_is_skipped(
     print_summary(size_json, partitions)
     out = capsys.readouterr().out
     assert "RAM:" in out and "Flash:" not in out
+
+
+def test_print_summary_happy_path_prints_both_bars(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A well-formed size report and partition table print both bars."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": 1000, "size": 2000}}, "image_size": 100000}'
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, 0x180000,\n")
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" in out
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"memory_types": []},
+        {"memory_types": {"DRAM": 5}},
+        {"memory_types": {"DRAM": {"used": "x", "size": "y"}}, "image_size": 1},
+    ],
+)
+def test_print_summary_nested_bad_shapes_never_raise(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], payload: dict
+) -> None:
+    """The blanket guard keeps nested non-dict values and non-numeric sizes
+    from raising past a linked build."""
+    size_json = _write_size_json(tmp_path, payload)
+    print_summary(size_json, None)
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_print_summary_blank_size_cell_names_the_row(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A blank size cell is reported as the malformed input it is, via the
+    ValueError path, instead of parsing to 0."""
+    size_json = _write_size_json(
+        tmp_path,
+        {"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100},
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, ,\n")
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" not in out

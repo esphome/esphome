@@ -35,7 +35,9 @@ _SIZE_SUFFIXES = {"K": 1024, "M": 1024 * 1024}
 def _parse_size(token: str) -> int:
     token = token.strip()
     if not token:
-        return 0
+        # A blank size cell is a malformed row; naming it beats a
+        # meaningless "from 0 bytes" bar downstream
+        raise ValueError("blank partition size cell")
     if token.startswith(("0x", "0X")):
         return int(token, 16)
     suffix = token[-1].upper()
@@ -85,6 +87,15 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     Failures are non-fatal: the build has already succeeded, we just couldn't
     summarize. Logs the cause at debug level.
     """
+    try:
+        _print_summary(size_json, partitions_csv)
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # The named guards below cover the known shapes; this net keeps the
+        # promise for the rest (nested non-dict values, non-numeric sizes)
+        _LOGGER.debug("Skipping size summary: %s", e)
+
+
+def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     if not size_json.is_file():
         _LOGGER.debug("Skipping size summary: %s not found", size_json)
         return
@@ -95,8 +106,8 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         return
 
     if not isinstance(data, dict):
-        # Valid JSON that is not an object (truncated tool output) must
-        # not raise past a build that already linked
+        # Valid JSON that is not an object (a hand-edited or tool-emitted
+        # array) has no .get; skip with the file named
         _LOGGER.debug("Skipping size summary: unexpected shape in %s", size_json)
         return
 
@@ -116,8 +127,10 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
     if app_size <= 0:
-        # A malformed partition row parses to 0; a 0% bar would feed CI's
-        # memory-impact extraction fabricated data
+        # Defensive backstop behind _parse_size's blank-cell rejection: a
+        # "from 0 bytes" denominator is meaningless to a reader. Note the
+        # skip costs CI's memory-impact extraction its Flash match, which
+        # is the loud outcome a broken partition table deserves.
         _LOGGER.debug("Skipping Flash summary: app partition size is 0")
         return
     print(f"Flash: {_format_bar(image_size, app_size)}")
