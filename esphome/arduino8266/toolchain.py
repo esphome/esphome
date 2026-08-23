@@ -159,9 +159,11 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
             return 1
 
     _print_size_summary(build_dir, paths)
+    from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+
     try:
         idedata = get_idedata(ccache)
-    except (EsphomeError, LookupError, OSError, RuntimeError, ValueError) as err:
+    except IDEDATA_BEST_EFFORT_ERRORS as err:
         # Broad on purpose: idedata is a bonus artifact; nothing here may
         # fail a successful build.
         _LOGGER.warning(

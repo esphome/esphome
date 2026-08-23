@@ -248,13 +248,18 @@ def test_components_empty_match_fails_with_flag(
         ["logger"], "zz-none", "compile", False, fail_on_no_tests=True
     )
     assert rc == 1
-    assert "No tests matched" in capsys.readouterr().out
+    assert "No zz-none tests found" in capsys.readouterr().out
 
 
 def test_components_empty_match_tolerated_without_flag() -> None:
     """The esp32-ard smoke leg deliberately builds only the subset with a
     matching fixture; without the flag an empty match stays green."""
-    assert tbc.test_components(["logger"], "zz-none", "compile", False) == 0
+    assert (
+        tbc.test_components(
+            ["logger"], "zz-none", "compile", False, enable_grouping=False
+        )
+        == 0
+    )
 
 
 def test_components_unknown_component_fails_with_flag(
@@ -270,4 +275,7 @@ def test_components_unknown_component_fails_with_flag(
         fail_on_no_tests=True,
     )
     assert rc == 1
-    assert "No tests found for requested component(s)" in capsys.readouterr().out
+    assert (
+        "No esp8266-ard tests found for requested component(s)"
+        in capsys.readouterr().out
+    )

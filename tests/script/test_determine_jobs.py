@@ -117,6 +117,7 @@ def clear_determine_jobs_caches() -> None:
     """Clear all cached functions before each test."""
     determine_jobs._is_clang_tidy_full_scan.cache_clear()
     determine_jobs._component_has_tests.cache_clear()
+    determine_jobs._cached_components_closure.cache_clear()
 
 
 def test_main_all_tests_should_run(

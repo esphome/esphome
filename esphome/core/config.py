@@ -564,7 +564,12 @@ NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscri
 # that is stored rather than translated away. Consumed by the esp8266 native
 # backend (later in this chain) for its ignored-option warning; defined here
 # so it stays adjacent to the routing.
-NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
+# build_src_flags: set unconditionally by esp8266/__init__ (throw_stubs) and
+# read by the native generator; not user-routable, so not in the set above
+NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {
+    "lib_ignore",
+    "build_src_flags",
+}
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

@@ -500,11 +500,13 @@ def test_print_size_summary_missing_section_skips_summary(
 
 def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> None:
     """Component-added options the native build drops are warned by name;
-    the honored ones (lib_ignore, f_cpu, ldscript) stay quiet."""
+    the honored ones (lib_ignore, f_cpu, ldscript, build_src_flags) stay
+    quiet."""
     CORE.platformio_options = {
         "board_build.ldscript": "eagle.flash.4m2m.ld",
         "board_build.f_cpu": "160000000L",
         "board_build.filesystem": "littlefs",
+        "build_src_flags": "-include throw_stubs.h",
         "lib_ignore": ["Updater"],
         "upload_speed": "460800",
     }
@@ -514,6 +516,7 @@ def test_warn_ignored_platformio_options(caplog: pytest.LogCaptureFixture) -> No
     assert "board_build.ldscript is ignored" not in caplog.text
     assert "board_build.f_cpu is ignored" not in caplog.text
     assert "lib_ignore" not in caplog.text
+    assert "build_src_flags" not in caplog.text
     # Component-added upload_speed never gets read under the native
     # toolchain, so it must warn
     assert "upload_speed" in caplog.text

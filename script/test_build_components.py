@@ -1075,13 +1075,26 @@ def test_components(
         )
 
     # Renamed or removed fixtures must shrink coverage loudly, and the
-    # reference-baseline fallback below must not mask an empty match
+    # reference-baseline fallback below must not mask an empty match. The
+    # check is per platform: a component whose fixture exists only for other
+    # platforms contributes nothing to this leg.
+    def _has_platform_test(component: str) -> bool:
+        return any(
+            not platform_filter or test.stem.split(".")[-1].startswith(platform_filter)
+            for test in all_tests.get(component, [])
+        )
+
     if fail_on_no_tests and (
         unmatched := [
-            p for p in component_patterns if p and "*" not in p and p not in all_tests
+            p
+            for p in component_patterns
+            if p and "*" not in p and not _has_platform_test(p)
         ]
     ):
-        print(f"No tests found for requested component(s): {', '.join(unmatched)}")
+        target = f"{platform_filter} " if platform_filter else ""
+        print(
+            f"No {target}tests found for requested component(s): {', '.join(unmatched)}"
+        )
         return 1
 
     # If no components found, build a reference configuration for baseline comparison
