@@ -2130,7 +2130,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
   }
 #endif
 
-  psk_t psk{};
+  noise::psk_t psk{};
   if (msg.key_len == 0) {
     if (this->parent_->clear_noise_psk(true)) {
       resp.success = true;
@@ -2139,7 +2139,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
   } else if (base64_decode(msg.key, msg.key_len, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
-  } else if (APINoiseContext::is_all_zeros(psk)) {
+  } else if (noise::NoiseContext::is_all_zeros(psk)) {
     // Accepting the reserved provisioning PSK would report success without
     // enabling encryption (or silently clear an existing key)
     ESP_LOGW(TAG, "Rejecting all-zero encryption key");
