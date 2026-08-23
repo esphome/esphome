@@ -984,6 +984,15 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
 /// Fallback implementation for case insensitive substring comparison.
 bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
 
+#ifdef USE_ESP8266
+/// ESP8266 internal implementation reading the needle from flash — prefer the
+/// `str_contains_ignore_case` macro which wraps needle literals with PSTR() automatically.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle);
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// On ESP8266 the needle is wrapped with PSTR() so it stays in flash, which requires it to be
+/// a string literal; a runtime needle needs str_contains_ignore_case_p behind #ifdef USE_ESP8266.
+#define str_contains_ignore_case(haystack, needle) str_contains_ignore_case_p(haystack, PSTR(needle))
+#else
 /// Case-insensitive check if needle string is contained in haystack (no heap allocation).
 inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   if (!needle || !haystack) {
@@ -991,7 +1000,7 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   }
 
 // strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
-// ESP32/ESP8266/host builds get it from their framework or from g++ on Linux;
+// ESP32/host builds get it from their framework or from g++ on Linux;
 // LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
 #if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
   return str_contains_ignore_case_fallback(haystack, needle);
@@ -999,6 +1008,7 @@ inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
   return strcasestr(haystack, needle) != nullptr;
 #endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
 }
+#endif  // USE_ESP8266
 
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
