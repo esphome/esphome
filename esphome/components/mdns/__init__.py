@@ -62,7 +62,7 @@ def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def _require_network_interface(config: ConfigType) -> ConfigType:
+def _require_network_interface(config: ConfigType) -> None:
     """Require a network interface for mDNS on Arduino/LEAmDNS platforms.
 
     On ESP8266 and RP2040 the C++ implementation needs at least one IP state
@@ -71,7 +71,7 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
     that never initializes.
     """
     if config.get(CONF_DISABLED) or not (CORE.is_esp8266 or CORE.is_rp2):
-        return config
+        return
     full_config = fv.full_config.get()
     has_wifi = "wifi" in full_config
     has_ethernet = CORE.is_rp2 and "ethernet" in full_config
@@ -81,7 +81,6 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
             "mdns on this platform requires a network interface — "
             f"add a {options} component to your configuration."
         )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -209,7 +208,7 @@ async def to_code(config):
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.11.0")
+        add_idf_component(name="espressif/mdns", ref="1.11.3")
 
     cg.add_define("USE_MDNS")
 

@@ -6,6 +6,7 @@
 #include "esphome/core/string_ref.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
+#include "scan_list.h"
 
 namespace esphome::captive_portal {
 
@@ -14,7 +15,7 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
   stream->addHeader(ESPHOME_F("cache-control"), ESPHOME_F("public, max-age=0, must-revalidate"));
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   const char *mac_str = get_mac_address_pretty_into_buffer(mac_s);
 #ifdef USE_ESP8266
   stream->print(ESPHOME_F("{\"mac\":\""));
@@ -33,8 +34,10 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     // Invariant: only bounded in-memory work under the lock; the network send
     // happens later in request->send()
     wifi::ScanResultsLock lock(wifi::global_wifi_component);
-    for (const auto &scan : wifi::global_wifi_component->get_scan_result()) {
-      if (scan.get_is_hidden())
+    const auto &results = wifi::global_wifi_component->get_scan_result();
+    for (const auto &scan : results) {
+      bool with_auth = false;
+      if (!should_show_scan_entry(results, scan, with_auth))
         continue;
 
       json_escape_into_buffer(escaped_ssid, scan.get_ssid());
@@ -44,10 +47,10 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
       stream->print(ESPHOME_F("\",\"rssi\":"));
       stream->print(scan.get_rssi());
       stream->print(ESPHOME_F(",\"lock\":"));
-      stream->print(scan.get_with_auth());
+      stream->print(with_auth);
       stream->print(ESPHOME_F("}"));
 #else
-      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), scan.get_with_auth());
+      stream->printf(R"(,{"ssid":"%s","rssi":%d,"lock":%d})", escaped_ssid, scan.get_rssi(), with_auth);
 #endif
     }
   }

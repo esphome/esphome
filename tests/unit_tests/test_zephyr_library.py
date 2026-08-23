@@ -59,7 +59,10 @@ def test_generate_cmakelists_txt_flags_and_includes(tmp_path):
     assert "-DFOO" in out
     assert "-Wall" in out
     assert "zephyr_link_libraries(" in out
-    assert "-Llibdir" in out
+    # -L paths are absolutised against the library dir (the CMakeLists lives in a
+    # zephyr/ subdir, so a relative path would resolve from the wrong place).
+    abs_libdir = str((tmp_path / "libdir").resolve()).replace("\\", "\\\\")
+    assert f"-L{abs_libdir}" in out
     assert "-lm" in out
 
 

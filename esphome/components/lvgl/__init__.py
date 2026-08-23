@@ -1,4 +1,3 @@
-import functools
 import importlib
 from pathlib import Path
 import pkgutil
@@ -86,7 +85,7 @@ from .schemas import (
     any_widget_schema,
     container_schema,
     container_schema_value,
-    obj_dict,
+    theme_schema,
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
@@ -215,6 +214,18 @@ def multi_conf_validate(configs: list[dict]):
                     raise cv.Invalid(
                         f"'{item}' must have an explicit group set when using multiple LVGL instances"
                     )
+    # The hidden styles a `theme:` block creates are tracked in a single map shared
+    # by all LVGL instances (keyed only by widget type, not by instance), so a
+    # second instance's `theme:` would silently lose to whichever instance is
+    # processed first instead of doing what its config implies.
+    themed_configs = sum(
+        1 for config in configs if config.get(df.CONF_THEME) is not None
+    )
+    if themed_configs > 1:
+        raise cv.Invalid(
+            "'theme' may only be set on one LVGL instance when using multiple LVGL "
+            "instances -- combine both themes into a single instance's 'theme:' block"
+        )
     base_config = configs[0]
     for config in configs[1:]:
         for item in (
@@ -552,34 +563,6 @@ def add_hello_world(config):
     return config
 
 
-@functools.cache
-def _build_theme_schema(
-    widget_types: tuple[tuple[str, widgets.WidgetType], ...],
-) -> cv.Schema:
-    # The theme schema is value-independent: it depends only on the set of
-    # registered widget types. Key the cache on a snapshot of WIDGET_TYPES so
-    # that an external component registering a new widget after the first
-    # validation (legal per any_widget_schema's lazy-evaluation contract)
-    # produces a fresh tuple, a cache miss, and a rebuilt schema -- the cache
-    # self-heals instead of stale-rejecting valid themes. See obj_dict() in
-    # schemas.py for why chained .extend() is avoided here.
-    return cv.Schema(
-        {
-            cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
-            **{
-                cv.Optional(name): cv.Schema(
-                    {**obj_dict(w), **FULL_STYLE_SCHEMA.schema}
-                )
-                for name, w in widget_types
-            },
-        }
-    )
-
-
-def _theme_schema(value: dict) -> dict:
-    return _build_theme_schema(tuple(WIDGET_TYPES.items()))(value)
-
-
 FINAL_VALIDATE_SCHEMA = final_validation
 
 # The options accepted at the top level of an `lvgl:` block, on top of the base
@@ -647,7 +630,7 @@ LVGL_TOP_LEVEL_SCHEMA = (
             cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
             cv.Optional(df.CONF_TRANSPARENCY_KEY, default=0x000400): lvalid.lv_color,
-            cv.Optional(df.CONF_THEME): _theme_schema,
+            cv.Optional(df.CONF_THEME): theme_schema,
             cv.Optional(df.CONF_GRADIENTS): GRADIENT_SCHEMA,
             cv.Optional(df.CONF_TOUCHSCREENS, default=None): touchscreen_schema,
             cv.Optional(df.CONF_ENCODERS, default=None): ENCODERS_CONFIG,

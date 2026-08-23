@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_RESTART_ALERT
+from esphome.types import ConfigType
 
 from .. import factory_reset_ns
 
@@ -17,6 +18,6 @@ CONFIG_SCHEMA = switch.switch_schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_component(var, config)

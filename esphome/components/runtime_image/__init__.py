@@ -5,6 +5,7 @@ from esphome.components.const import CONF_BYTE_ORDER
 from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
+    validate_byte_order,
     validate_settings,
     validate_transparency,
     validate_type,
@@ -57,6 +58,18 @@ class Format:
         """Add defines and libraries needed for this format."""
 
 
+class AUTOFormat(Format):
+    """AUTO format - detect from MIME type."""
+
+    def __init__(self):
+        super().__init__("AUTO", None)
+
+    def actions(self) -> None:
+        # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
+        for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
+            image_format.actions()
+
+
 class BMPFormat(Format):
     """BMP format decoder configuration."""
 
@@ -76,13 +89,18 @@ class JPEGFormat(Format):
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        if CORE.is_host:
+            # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
+            # predefines the lowercase __linux__; without this a Linux host
+            # build tries to include Arduino.h.
+            cg.add_build_flag("-D__LINUX__")
         if CORE.is_esp32:
             from esphome.components.esp32 import add_idf_component
 
             # JPEGDEC uses ESP32-S3 SIMD optimizations (guarded by board-level
             # ARDUINO_ESP32S3_DEV define) that require esp-dsp headers.
             # On Arduino this overwrites the stub; on IDF it adds the component.
-            add_idf_component(name="espressif/esp-dsp", ref="1.7.1")
+            add_idf_component(name="espressif/esp-dsp", ref="1.8.2")
 
 
 class PNGFormat(Format):
@@ -96,18 +114,25 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
-# Registry of available formats
+# Decodable formats only; platforms that support runtime detection accept
+# "AUTO" in their own schema and get_format() resolves it
+_JPEG_FORMAT = JPEGFormat()
 IMAGE_FORMATS = {
     "BMP": BMPFormat(),
-    "JPEG": JPEGFormat(),
+    "JPEG": _JPEG_FORMAT,
+    "JPG": _JPEG_FORMAT,  # Alias for JPEG
     "PNG": PNGFormat(),
-    "JPG": JPEGFormat(),  # Alias for JPEG
 }
+
+AUTO_FORMAT = AUTOFormat()
 
 
 def get_format(format_name: str) -> Format | None:
     """Get a format instance by name."""
-    return IMAGE_FORMATS.get(format_name.upper())
+    name = format_name.upper()
+    if name == "AUTO":
+        return AUTO_FORMAT
+    return IMAGE_FORMATS.get(name)
 
 
 def enable_format(format_name: str) -> Format | None:
@@ -128,9 +153,7 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
-            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
-                "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
-            ),
+            cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
             cv.Optional(CONF_TRANSPARENCY, default="OPAQUE"): validate_transparency(),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
         }

@@ -33,12 +33,47 @@ def test_web_server_auth_explicit_basic_no_warning(
     generate_main: Callable[[str], str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Auth type basic builds Basic and does not warn."""
-    generate_main("tests/component_tests/web_server/web_server_auth_basic.yaml")
+    """Auth type basic on ESP32 uses plaintext credentials and does not warn."""
+    main_cpp = generate_main(
+        "tests/component_tests/web_server/web_server_auth_basic.yaml"
+    )
 
+    assert '->set_auth_username("admin");' in main_cpp
+    assert '->set_auth_password("password");' in main_cpp
+    assert "set_auth_basic_hash" not in main_cpp
     assert _has_define("USE_WEBSERVER_AUTH")
     assert not _has_define("USE_WEBSERVER_AUTH_DIGEST")
     assert _DEFAULT_CHANGE_WARNING not in caplog.text
+
+
+def test_web_server_auth_basic_esp8266_uses_precomputed_hash(
+    generate_main: Callable[[str], str],
+) -> None:
+    """Auth type basic on ESP8266 emits the precomputed base64 hash, not the credentials."""
+    main_cpp = generate_main(
+        "tests/component_tests/web_server/web_server_auth_basic_esp8266.yaml"
+    )
+
+    assert '->set_auth_basic_hash("YWRtaW46cGFzc3dvcmQ=");' in main_cpp
+    assert "set_auth_username" not in main_cpp
+    assert "set_auth_password" not in main_cpp
+    assert _has_define("USE_WEBSERVER_AUTH")
+    assert not _has_define("USE_WEBSERVER_AUTH_DIGEST")
+
+
+def test_web_server_auth_digest_esp8266_uses_plaintext_credentials(
+    generate_main: Callable[[str], str],
+) -> None:
+    """Auth type digest on ESP8266 uses plaintext credentials, not the basic hash."""
+    main_cpp = generate_main(
+        "tests/component_tests/web_server/web_server_auth_digest_esp8266.yaml"
+    )
+
+    assert '->set_auth_username("admin");' in main_cpp
+    assert '->set_auth_password("password");' in main_cpp
+    assert "set_auth_basic_hash" not in main_cpp
+    assert _has_define("USE_WEBSERVER_AUTH")
+    assert _has_define("USE_WEBSERVER_AUTH_DIGEST")
 
 
 def test_web_server_auth_explicit_digest(

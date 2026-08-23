@@ -1,8 +1,11 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 sensor:
   # Example using 11kg 100% propane tank.
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: mopeka_std_check
+    ble_hub_id: ble_tracker_hub
     mac_address: D3:75:F2:DC:16:91
     tank_type: Europe_11kg
     temperature:

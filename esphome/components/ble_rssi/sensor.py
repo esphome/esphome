@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import esp32_ble_tracker, sensor
+from esphome.components import ble_device_base, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_IBEACON_MAJOR,
@@ -14,11 +14,11 @@ from esphome.const import (
 
 CONF_IRK = "irk"
 
-DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["ble_device_base"]
 
 ble_rssi_ns = cg.esphome_ns.namespace("ble_rssi")
 BLERSSISensor = ble_rssi_ns.class_(
-    "BLERSSISensor", sensor.Sensor, cg.Component, esp32_ble_tracker.ESPBTDeviceListener
+    "BLERSSISensor", sensor.Sensor, cg.Component, ble_device_base.ESPBTDeviceListener
 )
 
 
@@ -31,6 +31,7 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("ble_rssi"),
     sensor.sensor_schema(
         BLERSSISensor,
         unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
@@ -42,14 +43,14 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_IRK): cv.uuid,
-            cv.Optional(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
+            cv.Optional(CONF_SERVICE_UUID): ble_device_base.bt_uuid,
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
-            cv.Optional(CONF_IBEACON_UUID): esp32_ble_tracker.bt_uuid,
+            cv.Optional(CONF_IBEACON_UUID): ble_device_base.bt_uuid,
         }
     )
-    .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA),
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
     cv.has_exactly_one_key(
         CONF_MAC_ADDRESS, CONF_IRK, CONF_SERVICE_UUID, CONF_IBEACON_UUID
     ),
@@ -60,26 +61,21 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await esp32_ble_tracker.register_ble_device(var, config)
+    await ble_device_base.register_ble_device(var, config)
 
     if mac_address := config.get(CONF_MAC_ADDRESS):
         cg.add(var.set_address(mac_address.as_hex))
 
     if irk := config.get(CONF_IRK):
-        irk = esp32_ble_tracker.as_hex_array(str(irk))
+        ble_device_base.request_irk_support()
+        irk = ble_device_base.as_hex_array(str(irk))
         cg.add(var.set_irk(irk))
 
     if service_uuid := config.get(CONF_SERVICE_UUID):
-        if len(service_uuid) == len(esp32_ble_tracker.bt_uuid16_format):
-            cg.add(var.set_service_uuid16(esp32_ble_tracker.as_hex(service_uuid)))
-        elif len(service_uuid) == len(esp32_ble_tracker.bt_uuid32_format):
-            cg.add(var.set_service_uuid32(esp32_ble_tracker.as_hex(service_uuid)))
-        elif len(service_uuid) == len(esp32_ble_tracker.bt_uuid128_format):
-            uuid128 = esp32_ble_tracker.as_reversed_hex_array(service_uuid)
-            cg.add(var.set_service_uuid128(uuid128))
+        ble_device_base.add_service_uuid(var, service_uuid)
 
     if ibeacon_uuid := config.get(CONF_IBEACON_UUID):
-        ibeacon_uuid = esp32_ble_tracker.as_reversed_hex_array(ibeacon_uuid)
+        ibeacon_uuid = ble_device_base.as_reversed_hex_array(ibeacon_uuid)
         cg.add(var.set_ibeacon_uuid(ibeacon_uuid))
 
         if (ibeacon_major := config.get(CONF_IBEACON_MAJOR)) is not None:

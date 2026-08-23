@@ -11,6 +11,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.platformio.toolchain import copy_ccache_script
+from esphome.types import ConfigType
 
 from .const import KEY_HOST
 
@@ -22,7 +23,7 @@ AUTO_LOAD = ["network", "preferences"]
 IS_TARGET_PLATFORM = True
 
 
-def set_core_data(config):
+def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_HOST] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_HOST
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "host"
@@ -40,9 +41,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_HOST")
     cg.add_define("USE_NATIVE_64BIT_TIME")
+    # The prefs file finds stored preferences by key, so key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
     cg.add_build_flag("-std=gnu++20")
     cg.add_define("ESPHOME_BOARD", "host")
