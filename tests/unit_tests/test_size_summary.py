@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -128,36 +129,51 @@ def test_print_summary_handles_no_memory_types(
     assert capsys.readouterr().out == ""
 
 
-def test_print_summary_non_dict_json_is_skipped(tmp_path, capsys) -> None:
-    """Valid JSON that is not an object must not raise past a build that
-    already linked."""
+def test_print_summary_non_dict_json_is_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Valid JSON that is not an object must not raise past a linked build."""
     size_json = tmp_path / "size.json"
     size_json.write_text("[]")
     print_summary(size_json, tmp_path / "partitions.csv")
     assert capsys.readouterr().out == ""
 
 
-def test_print_summary_unreadable_partitions_is_skipped(tmp_path, capsys) -> None:
-    """An OSError reading the partition table is a skipped summary, not a
-    failed build."""
-    size_json = tmp_path / "size.json"
-    size_json.write_text(
-        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
-    )
-    print_summary(size_json, tmp_path / "missing" / "partitions.csv")
-    out = capsys.readouterr().out
-    assert "RAM:" in out and "Flash:" not in out
-
-
-def test_print_summary_zero_app_partition_is_skipped(tmp_path, capsys) -> None:
-    """A malformed partition row parsing to 0 must not render a 0% bar for
-    CI's memory-impact extraction to ingest."""
+def test_print_summary_unreadable_partitions_is_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An OSError reading the partition table skips the summary, never the
+    build (a missing file takes the ValueError path instead)."""
     size_json = tmp_path / "size.json"
     size_json.write_text(
         '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
     )
     partitions = tmp_path / "partitions.csv"
-    partitions.write_text("app0, app, ota_0, 0x10000, ,\n")
+    partitions.write_text("app0, app, ota_0, 0x10000, 1M,\n")
+    real_read_text = Path.read_text
+
+    def fail_partitions_read(self: Path, *args: object, **kwargs: object) -> str:
+        if self == partitions:
+            raise OSError("permission denied")
+        return real_read_text(self, *args, **kwargs)
+
+    with patch.object(Path, "read_text", fail_partitions_read):
+        print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" not in out
+
+
+def test_print_summary_zero_app_partition_is_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A partition row parsing to size 0 must not render a 0% bar for CI's
+    memory-impact extraction to ingest."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, 0,\n")
     print_summary(size_json, partitions)
     out = capsys.readouterr().out
     assert "RAM:" in out and "Flash:" not in out
