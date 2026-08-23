@@ -1,3 +1,5 @@
+from .const import KEY_FLASH_SIZE
+
 FLASH_SIZE_1_MB = 2**20
 FLASH_SIZE_512_KB = FLASH_SIZE_1_MB // 2
 FLASH_SIZE_2_MB = 2 * FLASH_SIZE_1_MB
@@ -181,6 +183,17 @@ for x in platform-espressif8266/boards/*.json; do
   echo "    \"$board\": {\"name\": \"$name\", \"flash_size\": FLASH_SIZE_$size,},"
 done | sort
 """
+
+
+def board_ld_script(board_data: dict) -> str:
+    """The modern (core > 2.4.2) flash linker script for a board: its
+    shipped-layout override, else the size default (the no-FS layout).
+
+    Single source of truth for the PlatformIO pinning in __init__ and the
+    native generator's fallback, so the per-board rule cannot drift.
+    """
+    return board_data.get("ldscript", ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]][1])
+
 
 BOARDS = {
     "agruminolemon": {
