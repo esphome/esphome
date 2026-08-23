@@ -2506,6 +2506,9 @@ def test_build_info_stale_branches(tmp_path: Path) -> None:
     assert _build_info_stale(h, cpp, info, 1) is True  # JSON unreadable
     info.write_text("not json")
     assert _build_info_stale(h, cpp, info, 1) is True
+    # Valid JSON that is not an object is stale, not an AttributeError
+    info.write_text("[]")
+    assert _build_info_stale(h, cpp, info, 1) is True
     info.write_text(json_mod.dumps({"config_hash": 2, "esphome_version": __version__}))
     assert _build_info_stale(h, cpp, info, 1) is True  # hash mismatch
     info.write_text(json_mod.dumps({"config_hash": 1, "esphome_version": "0.0.0"}))
