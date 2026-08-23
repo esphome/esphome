@@ -2118,8 +2118,8 @@ def test_copy_src_tree_detects_version_change(
 
 @pytest.mark.parametrize(
     "damage",
-    (b"invalid json {{{", b"[]"),
-    ids=("invalid-json", "non-object"),
+    (b"invalid json {{{", b"[]", b'\xff{"config_hash": 1}'),
+    ids=("invalid-json", "non-object", "non-utf8"),
 )
 @patch("esphome.writer.CORE")
 @patch("esphome.writer.iter_components")
@@ -2141,35 +2141,6 @@ def test_copy_src_tree_regenerates_damaged_build_info(
     _run_copy_src_tree()
     new_json = json.loads(build_info_json_path.read_text())
     assert new_json["config_hash"] == 0xDEADBEEF
-
-
-@patch("esphome.writer.write_file_if_changed", return_value=False)
-@patch("esphome.writer.CORE")
-@patch("esphome.writer.iter_components")
-@patch("esphome.writer.walk_files")
-def test_copy_src_tree_non_utf8_build_info_reads_as_stale(
-    mock_walk_files: MagicMock,
-    mock_iter_components: MagicMock,
-    mock_core: MagicMock,
-    mock_write: MagicMock,
-    tmp_path: Path,
-) -> None:
-    """Non-UTF-8 build_info.json fires the staleness branch instead of raising.
-
-    Writes are stubbed (returning False, so nothing else can set
-    sources_changed): regenerating over the damaged file needs
-    write_file_if_changed's own recovery, which lands separately.
-    """
-    build_info_json_path = _setup_build_info_mocks(
-        mock_core, mock_iter_components, mock_walk_files, tmp_path
-    )
-    core_path = tmp_path / "src" / "esphome" / "core"
-    (core_path / "build_info_data.h").write_text("// old")
-    (core_path / "build_info_data.cpp").write_text("// old")
-    build_info_json_path.write_bytes(b'\xff{"config_hash": 1}')
-    _run_copy_src_tree()
-    written = [call.args[0] for call in mock_write.call_args_list]
-    assert build_info_json_path in written
 
 
 @patch("esphome.writer.CORE")
