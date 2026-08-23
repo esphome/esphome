@@ -4,7 +4,6 @@ platformio package (identical bits, esphome's own download machinery)."""
 from __future__ import annotations
 
 from collections.abc import Collection
-from concurrent.futures import ThreadPoolExecutor
 import io
 import json
 import logging
@@ -19,6 +18,7 @@ from esphome.framework_helpers import (
     download_from_mirrors,
     download_with_resume,
     rmdir,
+    run_batch_downloads,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -187,14 +187,11 @@ def prefetch_packages(
         len(pending),
         ", ".join(name for name, *_ in pending),
     )
-    progress = BatchDownloadProgress(
-        "Downloading packages", sum(size for *_, size in pending)
-    )
 
-    def _fetch(entry: tuple[str, str, Path, str, str, int]) -> None:
+    def _fetch(entry: tuple[str, str, Path, str, str, int]):
         name, version, dest, url, sha256, size = entry
-        tracker = progress.tracker()
-        try:
+
+        def fetch(tracker):
             dest.parent.mkdir(parents=True, exist_ok=True)
             with FileLock(f"{dest}.lock", fallback_to_soft=False):
                 download_with_resume(
@@ -204,17 +201,18 @@ def prefetch_packages(
                     size=size,
                     progress=tracker,
                 )
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            # install_package retries this one itself, with a visible bar
-            _LOGGER.debug("Prefetch of %s failed: %s", name, err)
 
-    ex = ThreadPoolExecutor(max_workers=len(pending))
-    try:
-        for future in [ex.submit(_fetch, entry) for entry in pending]:
-            future.result()
-    finally:
-        ex.shutdown(wait=True, cancel_futures=True)
-        progress.done()
+        return fetch
+
+    failures = run_batch_downloads(
+        BatchDownloadProgress(
+            "Downloading packages", sum(size for *_, size in pending)
+        ),
+        [(entry[0], _fetch(entry)) for entry in pending],
+    )
+    for name, err in failures:
+        # install_package retries this one itself, with a visible bar
+        _LOGGER.debug("Prefetch of %s failed: %s", name, err)
 
 
 def install_package(

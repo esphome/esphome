@@ -989,7 +989,7 @@ def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
         patch("esphome.espidf.framework.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch(
-            "esphome.espidf.framework.ThreadPoolExecutor", wraps=ThreadPoolExecutor
+            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
         ) as pool,
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -1008,7 +1008,7 @@ def test_prefetch_single_archive_uses_one_worker(tmp_path: Path) -> None:
         patch("esphome.espidf.framework.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch(
-            "esphome.espidf.framework.ThreadPoolExecutor", wraps=ThreadPoolExecutor
+            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
         ) as pool,
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -1108,7 +1108,7 @@ def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> Non
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
         patch(
-            "esphome.espidf.framework.ThreadPoolExecutor", wraps=ThreadPoolExecutor
+            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
         ) as pool_cls,
     ):
         pool = MagicMock(wraps=ThreadPoolExecutor(max_workers=2))

@@ -112,33 +112,15 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
 
 def test_get_build_env_prepends_toolchain_bin(tmp_path: Path) -> None:
     with patch.object(framework, "ccache_env", return_value={"CCACHE_DIR": "x"}):
-        env = framework.get_build_env(tmp_path)
+        env = framework.get_build_env(tmp_path, None)
     assert env["PATH"].startswith(str(tmp_path / "bin") + os.pathsep)
     assert env["CCACHE_DIR"] == "x"
 
 
-def test_ccache_path_delegates_uncached(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Delegates on every call; the env/PATH decision must not freeze for
-    the process lifetime."""
-    monkeypatch.delenv("ESPHOME_CCACHE_ENABLE", raising=False)
-    with patch.object(
-        framework, "resolve_ccache_path", return_value="/usr/bin/ccache"
-    ) as mock_resolve:
-        assert framework.ccache_path() == "/usr/bin/ccache"
-        assert framework.ccache_path() == "/usr/bin/ccache"
-    assert mock_resolve.call_count == 2
-
-
 def test_ccache_env(tmp_path: Path) -> None:
-    with patch.object(framework, "ccache_path", return_value=None):
-        assert framework.ccache_env() == {}
-    with (
-        patch.object(framework, "ccache_path", return_value="/usr/bin/ccache"),
-        patch.dict(os.environ, {"CCACHE_NOHASHDIR": "false"}, clear=True),
-    ):
-        env = framework.ccache_env()
+    assert framework.ccache_env(None) == {}
+    with patch.dict(os.environ, {"CCACHE_NOHASHDIR": "false"}, clear=True):
+        env = framework.ccache_env("/usr/bin/ccache")
     # User-set values are respected; the rest get defaults
     assert "CCACHE_NOHASHDIR" not in env
     assert env["CCACHE_DEPEND"] == "1"
@@ -159,7 +141,7 @@ def test_get_build_env_without_path_has_no_empty_entry(tmp_path: Path) -> None:
         patch.dict(os.environ, {}, clear=True),
         patch.object(framework, "ccache_env", return_value={}),
     ):
-        env = framework.get_build_env(tmp_path)
+        env = framework.get_build_env(tmp_path, None)
     assert env["PATH"] == str(tmp_path / "bin")
     with (
         patch.dict(
@@ -167,20 +149,16 @@ def test_get_build_env_without_path_has_no_empty_entry(tmp_path: Path) -> None:
         ),
         patch.object(framework, "ccache_env", return_value={}),
     ):
-        env = framework.get_build_env(tmp_path)
+        env = framework.get_build_env(tmp_path, None)
     assert env["PATH"].split(os.pathsep) == [str(tmp_path / "bin"), "/usr/bin", "/bin"]
 
 
 def test_ccache_env_accepts_a_preresolved_path() -> None:
-    """A caller that already resolved ccache threads it through; the probe
-    must not run again (None means resolved-and-disabled)."""
-    with (
-        patch.dict(os.environ, {}, clear=True),
-        patch.object(framework, "ccache_path") as mock_resolve,
-    ):
+    """The caller resolves ccache once and threads it through; None means
+    resolved-and-disabled."""
+    with patch.dict(os.environ, {}, clear=True):
         assert framework.ccache_env(None) == {}
         env = framework.ccache_env("/usr/bin/ccache")
-    mock_resolve.assert_not_called()
     assert env["CCACHE_DIR"].endswith("ccache")
 
 
