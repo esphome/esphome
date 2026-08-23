@@ -940,6 +940,26 @@ def test_prefetch_all_entries_unverifiable_is_a_noop(tmp_path: Path) -> None:
     download.assert_not_called()
 
 
+def test_prefetch_dedupes_entries_by_dest(tmp_path: Path) -> None:
+    """Two entries resolving to one dest would interleave writes into the
+    same .part file; only the first downloads."""
+    entries = json.loads(_PREFETCH_JSON)
+    dup = dict(entries[0]) | {"name": "cmake-alias@3.30.2"}
+    entries.append(dup)
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, json.dumps(entries), ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.BatchDownloadProgress"),
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+    dests = [call[0][1].name for call in download.call_args_list]
+    assert dests.count("cmake-3.30.2.tar.gz") == 1
+
+
 def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
     with (
         patch(

@@ -780,7 +780,7 @@ def run_batch_downloads(
     bar is done, so the caller's warnings never land on the bar's row; a
     failed job credits its tracker 0 so the bar can still complete. Ctrl-C
     drops queued jobs instead of downloading them all before the process
-    can exit; in-flight ones still finish.
+    can exit; in-flight ones still finish. ``jobs`` must be non-empty.
     """
     failures: list[tuple[str, Exception]] = []
 
