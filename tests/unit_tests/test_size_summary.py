@@ -328,3 +328,16 @@ def test_print_summary_bad_ram_region_still_prints_flash(
     out = capsys.readouterr().out
     assert "Flash:" in out and "RAM:" not in out
     assert "malformed memory_types" in caplog.text
+
+
+def test_print_summary_missing_partitions_named_in_backstop(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A vanished table is an impossible post-build state; the backstop
+    reports it by name instead of a bare FileNotFoundError."""
+    size_json = _write_size_json(tmp_path, _dram_size_data())
+    print_summary(size_json, tmp_path / "nope.csv")
+    assert "Flash:" not in capsys.readouterr().out
+    assert "partitions.csv not found" in caplog.text
