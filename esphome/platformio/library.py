@@ -32,6 +32,7 @@ from urllib.request import url2pathname
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import (
+    _failure_reason,
     archive_extract_all,
     download_from_mirrors,
     rmdir,
@@ -899,7 +900,9 @@ def _prefetch_wave(
     The walk's own ``download()`` stays authoritative; duplicate URLs
     prefetch once so two threads never share a cache directory. Archives
     whose size the registry did not report are left to the sequential
-    loop, whose per-file bars don't interleave.
+    loop, whose per-file bars don't interleave. A node a sibling in the
+    same wave supersedes has its archive fetched in vain (knowing better
+    would need the manifests being downloaded).
     """
     try:
         components: list[ConvertedLibrary] = []
@@ -942,7 +945,9 @@ def _prefetch_wave(
         for name, err in failures:
             # The sequential call below retries and raises the real error
             _LOGGER.warning(
-                "Prefetch of %s failed (retrying sequentially): %s", name, err
+                "Prefetch of %s failed (retrying sequentially): %s",
+                name,
+                _failure_reason(err),
             )
             _LOGGER.debug("Prefetch failure detail", exc_info=err)
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
