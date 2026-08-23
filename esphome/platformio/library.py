@@ -32,9 +32,9 @@ from urllib.request import url2pathname
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import (
-    _failure_reason,
     archive_extract_all,
     download_from_mirrors,
+    failure_reason,
     rmdir,
     run_batch_downloads,
 )
@@ -1009,7 +1009,7 @@ def _prefetch_wave(
             _LOGGER.warning(
                 "Prefetch of %s failed (retrying sequentially): %s",
                 name,
-                _failure_reason(err),
+                failure_reason(err),
             )
             _LOGGER.debug("Prefetch failure detail", exc_info=err)
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
