@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_PIN, ICON_TIMER, STATE_CLASS_MEASUREMENT, UNIT_SECOND
+from esphome.types import ConfigType
 
 pulse_width_ns = cg.esphome_ns.namespace("pulse_width")
 
@@ -27,7 +28,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

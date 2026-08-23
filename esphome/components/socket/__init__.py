@@ -6,6 +6,7 @@ import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -161,7 +162,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     impl = config[CONF_IMPLEMENTATION]
     if impl == IMPLEMENTATION_LWIP_TCP:
         cg.add_define("USE_SOCKET_IMPL_LWIP_TCP")
