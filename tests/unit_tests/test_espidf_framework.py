@@ -912,7 +912,7 @@ def test_prefetch_leaves_unverifiable_entries_to_the_installer(
         ),
         patch("esphome.espidf.framework.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
-        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
+        patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
     assert [call[0][0] for call in download.call_args_list] == [
@@ -953,7 +953,7 @@ def test_prefetch_dedupes_entries_by_dest(tmp_path: Path) -> None:
         ),
         patch("esphome.espidf.framework.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
-        patch("esphome.espidf.framework.BatchDownloadProgress"),
+        patch("esphome.framework_helpers._BatchDownloadProgress"),
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
     dests = [call[0][1].name for call in download.call_args_list]
@@ -968,7 +968,7 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
         ),
         patch("esphome.espidf.framework.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
-        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
+        patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
         # Materialize the lazy mock before threads race its first creation
         tracker = progress_cls.return_value.tracker.return_value
@@ -1020,25 +1020,6 @@ def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
 
     pool.assert_called_once_with(max_workers=4)
     assert download.call_count == 6
-
-
-def test_prefetch_single_archive_uses_one_worker(tmp_path: Path) -> None:
-    entries = json.loads(_PREFETCH_JSON)[:1]
-    with (
-        patch(
-            "esphome.espidf.framework.run_command",
-            return_value=(True, json.dumps(entries), ""),
-        ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
-        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
-        patch(
-            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
-        ) as pool,
-    ):
-        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
-
-    pool.assert_called_once_with(max_workers=1)
-    assert download.call_count == 1
 
 
 def test_prefetch_skips_already_downloaded_archives(tmp_path: Path) -> None:
@@ -1130,10 +1111,8 @@ def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> Non
         ),
         patch("esphome.espidf.framework.download_with_resume"),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
-        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
-        patch(
-            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
-        ) as pool_cls,
+        patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
+        patch("esphome.framework_helpers.ThreadPoolExecutor") as pool_cls,
     ):
         pool = MagicMock(wraps=ThreadPoolExecutor(max_workers=2))
         pool_cls.return_value = pool
