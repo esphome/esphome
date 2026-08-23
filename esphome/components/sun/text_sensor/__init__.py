@@ -8,6 +8,7 @@ from esphome.const import (
     ICON_WEATHER_SUNSET_DOWN,
     ICON_WEATHER_SUNSET_UP,
 )
+from esphome.types import ConfigType
 
 from .. import CONF_ELEVATION, CONF_SUN_ID, DEFAULT_ELEVATION, Sun, elevation, sun_ns
 
@@ -22,7 +23,7 @@ SUN_TYPES = {
 }
 
 
-def validate_optional_icon(config):
+def validate_optional_icon(config: ConfigType) -> ConfigType:
     if CONF_ICON not in config:
         config = config.copy()
         config[CONF_ICON] = {
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await text_sensor.new_text_sensor(config)
     await cg.register_component(var, config)
 
