@@ -32,10 +32,12 @@ from urllib.request import url2pathname
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import (
+    BATCH_DOWNLOAD_WORKERS,
     BatchDownloadProgress,
     archive_extract_all,
     download_from_mirrors,
     rmdir,
+    run_batch_downloads,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -896,10 +898,6 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
-# A few streams saturate most links without hammering the registry
-_DOWNLOAD_WORKERS = 4
-
-
 def _content_lengths(urls: list[str]) -> list[int | None]:
     """Content-Length per URL via HEAD requests; None when unknown."""
     import requests
@@ -915,7 +913,7 @@ def _content_lengths(urls: list[str]) -> list[int | None]:
             _LOGGER.debug("HEAD %s failed: %s", url, err)
             return None
 
-    with ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(urls))) as ex:
+    with ThreadPoolExecutor(max_workers=min(BATCH_DOWNLOAD_WORKERS, len(urls))) as ex:
         return list(ex.map(head, urls))
 
 
@@ -972,28 +970,16 @@ def _prefetch_wave(
             ),
         )
         return
-    progress = BatchDownloadProgress("Downloading libraries", sum(sizes))
-    # Reported after the bar is done so the warnings do not land on its
-    # row; list.append is atomic under the GIL.
-    failures: list[tuple[str, Exception]] = []
 
-    def _fetch(component: ConvertedLibrary) -> None:
-        tracker = progress.tracker()
-        try:
-            component.download(salt=salt, namespace=namespace, progress=tracker)
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            failures.append((component.name, err))
-            tracker(0)
+    def _fetch(component: ConvertedLibrary):
+        return lambda tracker: component.download(
+            salt=salt, namespace=namespace, progress=tracker
+        )
 
-    ex = ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(components)))
-    try:
-        for future in [ex.submit(_fetch, component) for component in components]:
-            future.result()
-    finally:
-        # On Ctrl-C drop the queued archives instead of downloading them
-        # all before the process can exit; in-flight ones still finish.
-        ex.shutdown(wait=True, cancel_futures=True)
-        progress.done()
+    failures = run_batch_downloads(
+        BatchDownloadProgress("Downloading libraries", sum(sizes)),
+        [(component.name, _fetch(component)) for component in components],
+    )
     for name, err in failures:
         # The sequential call below retries and raises the real error
         _LOGGER.warning("Prefetch of %s failed (retrying sequentially): %s", name, err)

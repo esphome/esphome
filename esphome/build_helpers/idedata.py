@@ -21,6 +21,17 @@ import subprocess
 from esphome.core import EsphomeError
 from esphome.helpers import write_file
 
+# Everything idedata generation may raise after a successful link. Broad on
+# purpose, and shared by every consumer: idedata is a bonus artifact, so
+# these must be caught and warned about, never allowed to fail the build.
+IDEDATA_BEST_EFFORT_ERRORS = (
+    EsphomeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    ValueError,
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 # C++ translation-unit suffixes used to identify ESPHome source files.
@@ -305,9 +316,24 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     build_includes: dict[str, None] = dict.fromkeys(
         rep_includes if _is_esphome_src(representative["file"]) else ()
     )
+
+    def _shape(entry: dict) -> str:
+        # The command minus its TU-specific paths: entries sharing a shape
+        # carry identical include sets (one ninja rule), so tokenize once
+        # per shape instead of once per TU
+        return (
+            entry["command"]
+            .replace(entry.get("file", ""), "")
+            .replace(entry.get("output", ""), "")
+        )
+
+    seen_shapes = {_shape(representative)}
     for entry in entries:
         if entry is representative or not _is_esphome_src(entry["file"]):
             continue
+        if (shape := _shape(entry)) in seen_shapes:
+            continue
+        seen_shapes.add(shape)
         for inc in parse_entry(entry, launcher)[2]:
             build_includes.setdefault(inc, None)
 
