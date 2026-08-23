@@ -655,6 +655,21 @@ def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
 BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
 
 
+def raise_on_empty_arg_flags(tokens: list[str], owner: str) -> None:
+    """Reject bare ``-I``/``-D``/``-L``/``-l`` tokens left by an empty glued
+    argument (``-D ""``).
+
+    Lives next to ``join_flag_args`` because the bare token is its
+    postcondition: a trailing bare flag is warned and dropped there, so a
+    surviving one always means an empty argument. gcc would eat the next
+    flag as the argument (or add the CWD for ``-L``); always a typo.
+    """
+    if empty := sorted({tok for tok in tokens if tok in BARE_ARG_FLAGS}):
+        raise EsphomeError(
+            f"{owner} contain empty-argument flag(s): {', '.join(empty)}"
+        )
+
+
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
     the way PlatformIO's ParseFlags lexes them."""
