@@ -3,7 +3,7 @@ platformio package (identical bits, esphome's own download machinery)."""
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from functools import partial
 import io
 import json
@@ -198,7 +198,7 @@ def prefetch_packages(
         ", ".join(entry.name for entry in pending),
     )
 
-    def _fetch(entry: _PendingArchive, tracker) -> None:
+    def _fetch(entry: _PendingArchive, tracker: Callable[[int], None]) -> None:
         entry.dest.parent.mkdir(parents=True, exist_ok=True)
         with FileLock(f"{entry.dest}.lock", fallback_to_soft=False):
             download_with_resume(
