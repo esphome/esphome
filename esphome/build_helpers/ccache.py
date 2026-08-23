@@ -36,6 +36,9 @@ def parse_enable_env(name: str) -> bool | None:
     if raw is None:
         return None
     lowered = raw.strip().lower()
+    if not lowered:
+        # ENV KNOB= (Docker/CI) has always read as a disable
+        return False
     if lowered in TRUTHY_ENV_STRINGS:
         return True
     if lowered in FALSY_ENV_STRINGS:

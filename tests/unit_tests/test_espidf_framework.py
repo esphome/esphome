@@ -1564,7 +1564,8 @@ def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
     # build_path is None here too: a disabled cache must not require it.
     p1, p2, p3 = _ccache_patches(tmp_path, None, None)
     with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
-        assert _ccache_env() == {}
+        # Canonical off, so an inherited/unparsable value cannot enable it
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
 def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
@@ -1578,12 +1579,12 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
 
 
 def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
-    # Explicit IDF_CCACHE_ENABLE=1 forces it on without probing PATH. It's
-    # already in the environment, so it isn't re-emitted, but the rest is.
+    # Explicit IDF_CCACHE_ENABLE=1 forces it on; the probe verdict is
+    # ignored but the resolver still runs for its no-binary warning.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
         env = _ccache_env()
-    assert "IDF_CCACHE_ENABLE" not in env
+    assert env["IDF_CCACHE_ENABLE"] == "1"
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
     assert env["CCACHE_DEPEND"] == "1"
 
@@ -1595,7 +1596,7 @@ def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
     env_vars = {"ESPHOME_CCACHE_ENABLE": "0", "PATH": "/usr/bin"}
     with patch.dict("os.environ", env_vars, clear=True), p2, p3:
         # The real resolver runs so the opt-out parse is exercised
-        assert _ccache_env() == {}
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
 @pytest.mark.parametrize("value", ["off", "no"])
@@ -1627,7 +1628,7 @@ def test_ccache_env_idf_knob_wins_over_shared_opt_out(tmp_path: Path) -> None:
     with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
         env = _ccache_env()
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
-    assert "IDF_CCACHE_ENABLE" not in env
+    assert env["IDF_CCACHE_ENABLE"] == "1"
 
 
 def test_ccache_env_preserves_user_overrides(tmp_path: Path) -> None:

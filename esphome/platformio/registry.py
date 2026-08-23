@@ -4,7 +4,7 @@ platformio package (identical bits, esphome's own download machinery)."""
 from __future__ import annotations
 
 from collections.abc import Callable, Collection
-from functools import partial
+from functools import cache, partial
 import io
 import json
 import logging
@@ -53,11 +53,14 @@ def get_systype() -> str:
     return f"{system}_{arch}" if arch else system
 
 
+@cache
 def registry_download(package: str, version: str) -> tuple[str, str, int | None]:
     """Resolve a package's download URL, sha256, and size via the registry.
 
     The metadata fetch goes through ``download_from_mirrors`` so it shares
     the retry, backoff, and error reporting of every other download here.
+    Cached per process so the prefetch and the install resolve each package
+    once (failures are not cached; the install retries them).
     """
     buf = io.BytesIO()
     download_from_mirrors([_REGISTRY_URL], {"package": package}, buf)
