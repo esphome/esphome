@@ -252,3 +252,50 @@ def test_print_summary_blank_size_cell_names_the_row(
     # warning fired instead
     assert "blank partition size cell" in caplog.text
     assert "app0" in caplog.text and str(partitions) in caplog.text
+
+
+def test_print_summary_suffixed_size_cell(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """K/M suffixes parse like PlatformIO's rule (1M = 1048576 bytes)."""
+    size_json = _write_size_json(
+        tmp_path,
+        {"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100},
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("# comment row\nshort,row\napp0, app, ota_0, 0x10000, 1M,\n")
+    print_summary(size_json, partitions)
+    assert "from 1048576 bytes" in capsys.readouterr().out
+
+
+def test_print_summary_missing_or_appless_partitions_stay_quiet(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A missing table or one without a qualifying app row is a legitimate
+    layout: the Flash line drops at debug, never at warning."""
+    size_json = _write_size_json(
+        tmp_path,
+        {"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100},
+    )
+    print_summary(size_json, tmp_path / "nope.csv")
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("st0, data, spiffs, 0x10000, 0x1000,\n")
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "Flash:" not in out
+    assert "Skipping Flash summary" not in caplog.text
+
+
+def test_print_summary_corrupt_size_json_warns(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The build's own size report failing to parse is a regression signal."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text("not json {{{")
+    print_summary(size_json, None)
+    assert capsys.readouterr().out == ""
+    assert "Skipping size summary" in caplog.text
