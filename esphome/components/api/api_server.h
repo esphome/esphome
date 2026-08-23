@@ -51,8 +51,8 @@ class APIServer final : public Component,
  public:
   APIServer();
   void setup() override;
-  uint16_t get_port() const;
-  float get_setup_priority() const override;
+  uint16_t get_port() const { return this->port_; }
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
@@ -63,9 +63,9 @@ class APIServer final : public Component,
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
 #endif
-  void set_port(uint16_t port);
-  void set_reboot_timeout(uint32_t reboot_timeout);
-  void set_batch_delay(uint16_t batch_delay);
+  void set_port(uint16_t port) { this->port_ = port; }
+  void set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
+  void set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
   uint16_t get_batch_delay() const { return batch_delay_; }
   void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
 

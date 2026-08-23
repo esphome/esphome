@@ -361,6 +361,8 @@ async def to_code(config):
             add_idf_component(name="espressif/mqtt", ref="1.0.0")
         else:
             include_builtin_idf_component("mqtt")
+        # mqtt_client.h drags in esp_tls types; esp-tls is excluded by default
+        include_builtin_idf_component("esp-tls")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
