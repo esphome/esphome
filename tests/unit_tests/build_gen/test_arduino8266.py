@@ -734,7 +734,6 @@ def test_write_project_returns_changed(tmp_path: Path) -> None:
     with (
         patch.object(arduino8266, "generate_ld_scripts"),
         patch("esphome.arduino.library.resolve_libraries", return_value=[]),
-        patch("esphome.arduino8266.framework.ccache_path", return_value=None),
     ):
         assert arduino8266.write_project(paths, None) is True
         assert arduino8266.write_project(paths, None) is False
