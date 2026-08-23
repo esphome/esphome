@@ -865,7 +865,11 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         except IDEDATA_BEST_EFFORT_ERRORS as err:
             # The firmware already built; an idedata failure must not fail
             # a successful build.
-            _LOGGER.warning("Could not generate idedata: %s", err)
+            _LOGGER.warning(
+                "Could not generate idedata: %s (IDE, clang-tidy, and "
+                "memory-analysis data will be unavailable for this build)",
+                err,
+            )
             _LOGGER.debug("Idedata failure detail", exc_info=True)
     else:
         from esphome.platformio import toolchain
