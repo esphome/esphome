@@ -471,6 +471,32 @@ def test_spaced_linkflag_survives_relexing(tmp_path) -> None:
     ]
 
 
+def test_env_attribute_access_warns_without_call(caplog) -> None:
+    """hasattr()/truthiness on an unsupported method is diagnosable; dunder
+    protocol probes stay silent."""
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    assert env.GetProjectOption
+    assert caplog.text.count("env.GetProjectOption is not supported") == 1
+    assert not hasattr(env, "__deepcopy__")
+    assert "__deepcopy__" not in caplog.text
+
+
+def test_env_unmodelled_subscript_degrades_one_branch(caplog) -> None:
+    """env[...] on an unmodelled var returns '' instead of KeyError
+    discarding the whole capture."""
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    assert env["PIOFRAMEWORK"] == ""
+    assert env["PIOFRAMEWORK"] == ""
+    assert caplog.text.count("env['PIOFRAMEWORK'] is not modelled") == 1
+    assert env["BOARD_MCU"] == "esp8266"
+    env.Append(LIBS=["still_captured"])
+    assert env.result.libs == ["still_captured"]
+
+
 def test_uncaptured_append_key_warns_once(caplog) -> None:
     """A loop of Appends to the same uncaptured key warns once."""
 

@@ -133,9 +133,7 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.warning("Skipping Flash summary: %s", e)
         return
     if app_size <= 0:
-        # A "from 0 bytes" denominator is meaningless to a reader. The skip
-        # costs CI's memory-impact extraction its Flash match, which is the
-        # loud outcome a broken partition table deserves.
+        # Skipping also fails CI's Flash extraction, the right outcome here
         _LOGGER.warning(
             "Skipping Flash summary: app partition size is %s in %s",
             app_size,
