@@ -215,8 +215,10 @@ def tool_version_runs(binary: str, warning: str) -> bool:
             # Repo-wide convention (posix_spawn fast path)
             close_fds=False,
         )
-    except (OSError, subprocess.SubprocessError):
-        _LOGGER.warning(warning, binary)
+    except (OSError, subprocess.SubprocessError) as err:
+        # The cause (permission denied, missing DLL, timeout) is the one
+        # detail the user needs to fix it
+        _LOGGER.warning("%s (%s)", warning % binary, err)
         return False
     return True
 
