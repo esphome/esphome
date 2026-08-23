@@ -443,7 +443,7 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
-  // Kept out of line: inlining these into the generated setup() grows flash
+  // init_sta/add_sta kept out of line: inlining them into the generated setup() grows flash
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
   void clear_sta();
