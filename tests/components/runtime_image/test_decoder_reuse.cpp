@@ -77,18 +77,12 @@ class TestableRuntimeImage : public RuntimeImage {
       : RuntimeImage(format, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, nullptr, false, 0, 0) {}
 
   ImageDecoder *decoder() { return this->decoder_.get(); }
-
-  /// Simulates the state a dynamic-format producer (PR #16337) would leave behind:
-  /// a cached decoder whose format no longer matches the image's format.
-  /// TODO: once #16337 adds a public way to change the format, drive the mismatch
-  /// through it and delete this seam.
-  void plant_decoder(ImageFormat format) { this->decoder_ = this->create_decoder_(format); }
 };
 
 /// Runs one full decode session. Returns true when every stage succeeded.
-static bool decode_all(TestableRuntimeImage &img, const uint8_t *data, size_t len) {
+static bool decode_all(TestableRuntimeImage &img, const uint8_t *data, size_t len, ImageFormat format = AUTO) {
   std::vector<uint8_t> buffer(data, data + len);  // feed_data needs mutable bytes
-  if (!img.begin_decode(len)) {
+  if (!img.begin_decode(len, format)) {
     return false;
   }
   size_t offset = 0;
@@ -203,25 +197,51 @@ TEST(RuntimeImageDecoder, ChunkedFeedDecodesLikeDownloadLoop) {
 }
 
 TEST(RuntimeImageDecoder, FormatSwitchEvictsMismatchedDecoder) {
-  // PNG image holding a stale BMP decoder: begin_decode must evict and recreate.
-  TestableRuntimeImage png_img(PNG);
-  png_img.plant_decoder(BMP);
-  ASSERT_NE(png_img.decoder(), nullptr);
-  ASSERT_EQ(png_img.decoder()->get_format(), BMP);
+  // Drive the format switch through begin_decode()'s format parameter, the way
+  // a dynamic-format producer (online_image MIME detection) does.
+  TestableRuntimeImage img(AUTO);
 
-  ASSERT_TRUE(decode_all(png_img, PNG_RGB, sizeof(PNG_RGB)));
-  EXPECT_EQ(png_img.decoder()->get_format(), PNG);
-  expect_pixels(png_img, PNG_RGB_EXPECTED);
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), BMP));
+  ASSERT_NE(img.decoder(), nullptr);
+  ASSERT_EQ(img.decoder()->get_format(), BMP);
+  expect_pixels(img, BMP_24BPP_EXPECTED);
 
-  // And the other direction: BMP image holding a stale PNG decoder.
-  TestableRuntimeImage bmp_img(BMP);
-  bmp_img.plant_decoder(PNG);
-  ASSERT_NE(bmp_img.decoder(), nullptr);
-  ASSERT_EQ(bmp_img.decoder()->get_format(), PNG);
+  // Same explicit format again: the decoder must stay warm.
+  ImageDecoder *bmp_decoder = img.decoder();
+  ASSERT_TRUE(decode_all(img, BMP_8BPP, sizeof(BMP_8BPP), BMP));
+  expect_pixels(img, BMP_8BPP_EXPECTED);
+  EXPECT_EQ(img.decoder(), bmp_decoder);
 
-  ASSERT_TRUE(decode_all(bmp_img, BMP_24BPP, sizeof(BMP_24BPP)));
-  EXPECT_EQ(bmp_img.decoder()->get_format(), BMP);
-  expect_pixels(bmp_img, BMP_24BPP_EXPECTED);
+  // Different format: the stale decoder must be evicted and recreated.
+  ASSERT_TRUE(decode_all(img, PNG_RGB, sizeof(PNG_RGB), PNG));
+  EXPECT_EQ(img.decoder()->get_format(), PNG);
+  expect_pixels(img, PNG_RGB_EXPECTED);
+
+  // And back again.
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), BMP));
+  EXPECT_EQ(img.decoder()->get_format(), BMP);
+  expect_pixels(img, BMP_24BPP_EXPECTED);
+}
+
+TEST(RuntimeImageDecoder, AutoFormatFallsBackToConfiguredAndKeepsDecoderWarm) {
+  // With a configured format, an AUTO begin_decode() must resolve to the
+  // configured format before the reuse check instead of evicting the decoder.
+  TestableRuntimeImage img(BMP);
+
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), AUTO));
+  ImageDecoder *first = img.decoder();
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->get_format(), BMP);
+
+  ASSERT_TRUE(decode_all(img, BMP_24BPP, sizeof(BMP_24BPP), AUTO));
+  expect_pixels(img, BMP_24BPP_EXPECTED);
+  EXPECT_EQ(img.decoder(), first) << "AUTO must not evict the configured-format decoder";
+}
+
+TEST(RuntimeImageDecoder, AutoWithoutConfiguredFormatFails) {
+  // Neither a configured format nor an explicit one: there is nothing to decode with.
+  TestableRuntimeImage img(AUTO);
+  EXPECT_FALSE(img.begin_decode(64));
 }
 
 TEST(RuntimeImageDecoder, ReleaseKeepsDecoderWarm) {
