@@ -61,6 +61,12 @@ def _toolchain_tool(name: str) -> Path:
     return framework.toolchain_tool(framework.get_toolchain_path(), name)
 
 
+def get_factory_firmware_path() -> Path:
+    """The image to serial-flash at 0x0 (same bytes as firmware.bin: the
+    8266 factory copy exists for artifact-contract parity, not content)."""
+    return get_build_dir() / "firmware.factory.bin"
+
+
 def get_addr2line_path() -> Path:
     return _toolchain_tool("addr2line")
 
@@ -98,22 +104,27 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         cmd += ["-j", str(jobs)]
 
     # A dry-run probe keeps a no-op rebuild quiet: ninja would only print
-    # "no work to do". cwd instead of -C also drops the "Entering
-    # directory" banner on real builds.
-    probe = subprocess.run(
-        [str(paths.ninja), "-n"],
-        cwd=build_dir,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-        close_fds=False,
-    )
-    if probe.stderr.strip():
-        # A load-time diagnostic (e.g. "multiple rules generate X") flags a
-        # generator bug; the skip branch would otherwise swallow it forever
-        _LOGGER.warning("ninja: %s", probe.stderr.strip())
-    if probe.returncode == 0 and "no work to do" in probe.stdout:
+    # "no work to do". A freshly rewritten manifest all but guarantees work,
+    # so skip the probe (and its full stat pass) on that path. cwd instead
+    # of -C also drops the "Entering directory" banner on real builds.
+    skip_build = False
+    if not ninja_changed:
+        probe = subprocess.run(
+            [str(paths.ninja), "-n"],
+            cwd=build_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            close_fds=False,
+        )
+        if probe.stderr.strip():
+            # A load-time diagnostic (e.g. "multiple rules generate X")
+            # flags a generator bug; the skip branch would otherwise
+            # swallow it forever
+            _LOGGER.warning("ninja: %s", probe.stderr.strip())
+        skip_build = probe.returncode == 0 and "no work to do" in probe.stdout
+    if skip_build:
         _LOGGER.debug("ninja: nothing to rebuild")
     else:
         _LOGGER.debug("Running: %s", " ".join(cmd))

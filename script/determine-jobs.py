@@ -52,6 +52,7 @@ import argparse
 from collections import Counter
 from collections.abc import Callable
 from enum import StrEnum
+import functools
 from functools import cache
 import json
 import os
@@ -525,6 +526,13 @@ def _path_or_file_trigger(
     )
 
 
+@functools.lru_cache
+def _cached_components_closure(files: tuple[str, ...]) -> frozenset[str]:
+    """The dependency closure walk is expensive; every toolchain smoke-test
+    job asks for the same file list, so compute it once per run."""
+    return frozenset(_changed_components_closure(list(files)))
+
+
 def _changed_components_closure(files: list[str]) -> set[str]:
     """Dependency closure of the changed components, from the changed files."""
     component_files = [f for f in files if filter_component_and_test_files(f)]
@@ -545,14 +553,19 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
 # compile. When they change we fold the `esp32` component into the matrix so
 # the default native-IDF build path is still compiled on an infra-only PR.
 ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
+# Shared library-conversion modules every native build imports; a new shared
+# module added to one native trigger set must not silently skip the other's
+# smoke test, so both sets union this one.
+_NATIVE_SHARED_TRIGGER_FILES = frozenset(
     {
-        "esphome/build_gen/espidf.py",
         "esphome/framework_helpers.py",
         "esphome/platformio/library.py",
         "esphome/platformio/extra_script.py",
     }
 )
+ESP_IDF_INFRA_TRIGGER_FILES = _NATIVE_SHARED_TRIGGER_FILES | {
+    "esphome/build_gen/espidf.py",
+}
 
 
 def _esp_idf_infra_changed(files: list[str]) -> bool:
@@ -613,7 +626,7 @@ def _toolchain_components_to_test(
     if core_changed(files) or infra_trigger(files):
         return sorted(test_set)
 
-    return sorted(test_set & _changed_components_closure(files))
+    return sorted(test_set & _cached_components_closure(tuple(files)))
 
 
 def should_run_esp32_platformio(branch: str | None = None) -> bool:
@@ -658,21 +671,18 @@ ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
     "esphome/arduino/",
     "esphome/build_helpers/",
 )
-ESP8266_NATIVE_TRIGGER_FILES = frozenset(
-    {
-        "esphome/build_gen/arduino8266.py",
-        "esphome/build_gen/build_tool.py",
-        "esphome/platformio/extra_script.py",
-        "esphome/components/esp8266/build_surgery.py",
-        "esphome/components/esp8266/boards.py",
-        "esphome/platformio/library.py",
-        "esphome/platformio/registry.py",
-        "esphome/platformio/toolchain.py",
-        "script/test_build_components.py",
-        ".github/workflows/ci.yml",
-        ".github/actions/cache-arduino8266/action.yml",
-    }
-)
+ESP8266_NATIVE_TRIGGER_FILES = _NATIVE_SHARED_TRIGGER_FILES | {
+    "esphome/build_gen/arduino8266.py",
+    "esphome/build_gen/build_tool.py",
+    "esphome/components/esp8266/build_surgery.py",
+    "esphome/components/esp8266/boards.py",
+    "esphome/platformio/registry.py",
+    # esp8266/__init__.py imports copy_ccache_script from it
+    "esphome/platformio/toolchain.py",
+    "script/test_build_components.py",
+    ".github/workflows/ci.yml",
+    ".github/actions/cache-arduino8266/action.yml",
+}
 
 
 def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:

@@ -86,7 +86,8 @@ def test_run_compile_success(tmp_path: Path) -> None:
     with (
         patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
         patch.object(framework, "get_build_env", return_value={}),
-        patch("esphome.build_gen.arduino8266.write_project"),
+        # An unchanged manifest is what makes the -n probe run
+        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
         patch.object(
             toolchain.subprocess,
             "run",
@@ -118,7 +119,8 @@ def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
     with (
         patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
         patch.object(framework, "get_build_env", return_value={}),
-        patch("esphome.build_gen.arduino8266.write_project"),
+        # An unchanged manifest is what makes the -n probe run
+        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
         patch.object(
             toolchain.subprocess,
             "run",
@@ -145,7 +147,8 @@ def test_run_compile_surfaces_probe_diagnostics(
     with (
         patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
         patch.object(framework, "get_build_env", return_value={}),
-        patch("esphome.build_gen.arduino8266.write_project"),
+        # An unchanged manifest is what makes the -n probe run
+        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
         patch.object(
             toolchain.subprocess,
             "run",

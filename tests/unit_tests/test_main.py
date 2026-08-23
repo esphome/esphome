@@ -7124,11 +7124,15 @@ def test_upload_using_esptool_arduino_toolchain(
     tmp_path: Path,
     mock_run_external_command_main: Mock,
 ) -> None:
-    """The native ESP8266 Arduino toolchain flashes CORE.firmware_bin at 0x0."""
+    """The native ESP8266 Arduino toolchain flashes its factory image at
+    0x0, dispatched through the platform's native_toolchain_module hook."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
     CORE.toolchain = Toolchain.ARDUINO
-    CORE.firmware_bin.parent.mkdir(parents=True, exist_ok=True)
-    CORE.firmware_bin.touch()
+    from esphome.arduino8266 import toolchain as native
+
+    factory = native.get_factory_firmware_path()
+    factory.parent.mkdir(parents=True, exist_ok=True)
+    factory.touch()
 
     config = {CONF_ESPHOME: {"platformio_options": {}}}
     result = upload_using_esptool(config, "/dev/ttyUSB0", None, None)
@@ -7137,7 +7141,7 @@ def test_upload_using_esptool_arduino_toolchain(
     cmd_list = list(mock_run_external_command_main.call_args[0][1:])
     firmware_offset_idx = cmd_list.index("write-flash") + 4
     assert cmd_list[firmware_offset_idx] == "0x0"
-    assert cmd_list[firmware_offset_idx + 1] == str(CORE.firmware_bin)
+    assert cmd_list[firmware_offset_idx + 1] == str(factory)
 
 
 @pytest.mark.parametrize(

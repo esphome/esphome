@@ -978,20 +978,15 @@ def upload_using_esptool(
 
     if file is not None:
         flash_images = [FlashImage(path=file, offset="0x0")]
-    elif CORE.using_toolchain_esp_idf:
-        from esphome.espidf import toolchain
-
-        flash_images = [
-            FlashImage(path=toolchain.get_factory_firmware_path(), offset="0x0")
-        ]
-    elif CORE.using_native_toolchain:
-        # The native backend writes PlatformIO-compatible output paths, so the
-        # shared property already points at the right file.
-        if not CORE.firmware_bin.is_file():
+    elif (native := _native_toolchain_module()) is not None:
+        # Every native backend supplies its own 0x0 flash image (bootloader
+        # and partitions included where the target needs them)
+        image = native.get_factory_firmware_path()
+        if not image.is_file():
             raise EsphomeError(
-                f"{CORE.firmware_bin} does not exist; compile the configuration first"
+                f"{image} does not exist; compile the configuration first"
             )
-        flash_images = [FlashImage(path=CORE.firmware_bin, offset="0x0")]
+        flash_images = [FlashImage(path=image, offset="0x0")]
     else:
         from esphome.platformio import toolchain
 
