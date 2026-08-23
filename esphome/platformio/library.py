@@ -59,7 +59,8 @@ DEFAULT_BUILD_FLAGS = []
 # "asm" merges SCons's AS and ASPP sets: all compile as assembler-with-cpp.
 # The kind values drive the ESP8266 native ninja rules (later in this
 # chain); existing backends consume only the keys. Note .C/.C++ join the
-# suffix set here, matching PlatformIO's CXXSUFFIXES.
+# suffix set here per CXXSUFFIXES; SCons demotes .C to C on
+# case-insensitive filesystems, we always treat it as C++.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
