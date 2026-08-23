@@ -828,9 +828,10 @@ void ATM90E32Component::run_offset_calibrations() {
   if (!persistence.succeeded) {
     const bool rollback_verified = attempt_calibration_rollback(
         [this, &previous_offsets] {
-          for (uint8_t phase = 0; phase < 3; phase++)
+          for (uint8_t phase = 0; phase < 3; phase++) {
             this->write_offsets_to_registers_(phase, previous_offsets[phase].voltage_offset_,
                                               previous_offsets[phase].current_offset_);
+          }
         },
         [this] { return this->verify_offset_writes_(); });
     if (persistence.attempted) {
@@ -888,9 +889,10 @@ void ATM90E32Component::run_power_offset_calibrations() {
   if (!persistence.succeeded) {
     const bool rollback_verified = attempt_calibration_rollback(
         [this, &previous_offsets] {
-          for (uint8_t phase = 0; phase < 3; phase++)
+          for (uint8_t phase = 0; phase < 3; phase++) {
             this->write_power_offsets_to_registers_(phase, previous_offsets[phase].active_power_offset,
                                                     previous_offsets[phase].reactive_power_offset);
+          }
         },
         [this] { return this->verify_power_offset_writes_(); });
     if (persistence.attempted) {
