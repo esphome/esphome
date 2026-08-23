@@ -171,6 +171,13 @@ def test_is_ip_address__valid(value):
         ("FOO", "fAlSe", True, False),
         ("FOO", "Yes", False, True),
         ("FOO", "123", False, True),
+        # cv.boolean's spellings; falsy rows use default=True on purpose
+        ("FOO", "on", False, True),
+        ("FOO", "enable", False, True),
+        ("FOO", "no", True, False),
+        ("FOO", "off", True, False),
+        ("FOO", "OFF", True, False),
+        ("FOO", "Disable", True, False),
     ),
 )
 def test_get_bool_env(monkeypatch, var, value, default, expected):
