@@ -1,5 +1,4 @@
 from collections.abc import Generator
-import errno
 import io
 import logging
 import os
@@ -189,32 +188,21 @@ def _run_probe_on_pty(
         # the controller is drained: macOS discards buffered pty output once
         # the last follower closes, so closing it early loses the probe's
         # output whenever the child finishes before the first read.
-        while True:
-            timeout = deadline - time.monotonic()
-            if timeout <= 0:
+        while proc.poll() is None:
+            if time.monotonic() > deadline:
                 pytest.fail(f"pty probe did not exit in time; got {output!r}")
-            exited = proc.poll() is not None
-            # After exit everything the child wrote is already buffered, so a
-            # zero timeout drains it without blocking.
-            wait = 0 if exited else min(timeout, 0.1)
-            if select.select([controller], [], [], wait)[0]:
-                try:
-                    chunk = os.read(controller, 4096)
-                except OSError as err:
-                    # EIO means the pty is gone; treat it as end of stream.
-                    if err.errno != errno.EIO:
-                        raise
-                    break
-                if chunk:
-                    output += chunk
-                    continue
-            if exited:
-                break
+            if select.select([controller], [], [], 0.01)[0]:
+                output += os.read(controller, 4096)
+        # Everything the child wrote is already buffered, so drain without waiting.
+        while select.select([controller], [], [], 0)[0] and (
+            chunk := os.read(controller, 4096)
+        ):
+            output += chunk
         stderr_text = ""
         if proc.stderr is not None:
             stderr_text = proc.stderr.read().decode(errors="replace")
             proc.stderr.close()
-        assert proc.wait(60) == 0, stderr_text
+        assert proc.returncode == 0, stderr_text
     finally:
         os.close(follower)
         os.close(controller)
