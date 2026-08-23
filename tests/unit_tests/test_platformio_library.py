@@ -687,9 +687,11 @@ def test_join_flag_args_empty_argument_warns_and_drops(
 
 
 def test_prefetch_wave_cache_probe_failure_still_prefetches(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """The cache probe is best-effort; a failing probe prefetches anyway."""
+    """A filesystem probe failure warns (a systematic one re-downloads
+    everything) but still prefetches; a programming error is NOT swallowed
+    here, it reaches the outer blanket guard."""
     calls: list[str] = []
     monkeypatch.setattr(
         URLSource,
@@ -699,7 +701,7 @@ def test_prefetch_wave_cache_probe_failure_still_prefetches(
     monkeypatch.setattr(
         URLSource,
         "is_cached",
-        lambda self, *a, **kw: (_ for _ in ()).throw(RuntimeError("no core")),
+        lambda self, *a, **kw: (_ for _ in ()).throw(OSError("cache root denied")),
     )
     wave = [
         ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
@@ -707,12 +709,14 @@ def test_prefetch_wave_cache_probe_failure_still_prefetches(
     ]
     lib._prefetch_wave(wave, "", "idf")
     assert sorted(calls) == ["https://x/a.tar.gz", "https://x/b.tar.gz"]
+    assert "Cache probe for a failed: cache root denied" in caplog.text
 
 
 def test_prefetch_wave_internal_error_never_fails_the_build(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """The blanket guard keeps a prefetch bug from failing the walk."""
+    monkeypatch.setattr(URLSource, "is_cached", lambda self, *a, **kw: False)
     monkeypatch.setattr(
         lib,
         "run_batch_downloads",
@@ -756,6 +760,7 @@ def test_prefetch_wave_single_archive_uses_the_batch(
     through the same runner so there is one download method and one bar."""
     caplog.set_level("INFO")
     calls: list[str] = []
+    monkeypatch.setattr(URLSource, "is_cached", lambda self, *a, **kw: False)
     monkeypatch.setattr(
         URLSource,
         "download",
