@@ -978,10 +978,12 @@ def _prefetch_wave(
                 # A warm build must stay silent
                 continue
             components.append(component)
-        if len(components) < 2:
+        if not components:
             return
+        # Single-item waves (a dependency chain discovers one archive per
+        # wave) go through the same runner: one download method, one bar
         _LOGGER.info(
-            "Downloading %d libraries: %s",
+            "Downloading %d library archive(s): %s",
             len(components),
             ", ".join(c.name for c in components),
         )
