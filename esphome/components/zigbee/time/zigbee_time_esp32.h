@@ -10,7 +10,7 @@ namespace esphome::zigbee {
 
 class ZigbeeComponent;
 
-class ZigbeeTime : public time::RealTimeClock {
+class ZigbeeTime final : public time::RealTimeClock {
  public:
   ZigbeeTime(ZigbeeComponent *parent, uint8_t ep) : endpoint_(ep), parent_(parent) {}
   void setup() override;

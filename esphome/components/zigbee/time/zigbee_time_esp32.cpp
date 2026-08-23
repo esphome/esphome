@@ -11,7 +11,7 @@ static const char *const TAG = "zigbee.time";
 // seconds since 0 hrs 0 mins 0 sec on 1st January 2000 UTC (Universal Coordinated Time).
 constexpr time_t EPOCH_2000 = 946684800;
 
-ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void ZigbeeTime::setup() {
   global_time = this;
@@ -32,9 +32,6 @@ void ZigbeeTime::register_zb_time_() {
   }
   this->registered_ = true;
   this->parent_->add_on_join_callback([this](bool x) { this->update(); });
-  if (this->parent_->is_joined()) {
-    this->update();
-  }
 }
 
 void ZigbeeTime::cb(ezb_err_t status) {
@@ -48,22 +45,36 @@ void ZigbeeTime::cb(ezb_err_t status) {
 }
 
 void ZigbeeTime::update() {
+  static uint8_t count = 0;
   if (this->parent_->is_joined() && this->registered_) {
-    if (esp_zigbee_lock_acquire(20 / portTICK_PERIOD_MS)) {
+    if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
       ESP_LOGV(TAG, "Updating time sync from Zigbee network...");
       ezb_zcl_time_server_synchronize_time(this->endpoint_, 10, esphome::zigbee::ZigbeeTime::cb,
                                            EZB_ZCL_TIME_SERVER_RANK_MASTER);
       esp_zigbee_lock_release();
+      count = 0;
     } else {
-      ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time, will retry...");
-      this->defer([this]() { this->update(); });
+      if (count == 0) {
+        ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time, will retry maximum 3 times");
+      }
+      if (count < 3) {
+        this->set_timeout("zb_time_sync", 100, [this]() { this->update(); });
+      } else {
+        ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time");
+      }
     }
   } else {
     ESP_LOGD(TAG, "Not connected to Zigbee network, cannot synchronize time");
   }
 }
 
-uint32_t ZigbeeTime::get_utc_time() { return (uint32_t) (global_time->timestamp_now() - EPOCH_2000); }
+uint32_t ZigbeeTime::get_utc_time() {
+  const time_t now = global_time->timestamp_now();
+  if (now < EPOCH_2000) {
+    return 0xFFFFFFFF;  // ZCL invalid UTCTime
+  }
+  return (uint32_t) (now - EPOCH_2000);
+}
 
 void ZigbeeTime::set_utc_time(uint32_t utc) { global_time->set_epoch_time(utc + EPOCH_2000); }
 
