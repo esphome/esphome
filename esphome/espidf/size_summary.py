@@ -53,8 +53,11 @@ def _find_app_partition_size(partitions_csv: Path) -> int | None:
     naive "prefer factory" rule would pick the wrong row. No qualifying
     row is legitimate absence (None); a build cannot succeed with a
     missing or malformed table (gen_esp32part consumes it first), so
-    those states belong to the backstop.
+    those states belong to the backstop -- the missing-file raise just
+    names that one cleanly.
     """
+    if not partitions_csv.is_file():
+        raise ValueError(f"partitions.csv not found at {partitions_csv}")
     for row in csv.reader(partitions_csv.read_text(encoding="utf-8").splitlines()):
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
