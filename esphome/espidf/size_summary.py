@@ -28,6 +28,8 @@ import json
 import logging
 from pathlib import Path
 
+from esphome.build_helpers.size_summary import print_size_line
+
 _LOGGER = logging.getLogger(__name__)
 _SIZE_SUFFIXES = {"K": 1024, "M": 1024 * 1024}
 
@@ -67,31 +69,20 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
-def _format_bar(used: int, total: int) -> str:
-    """Match PlatformIO's ``_format_availale_bytes`` (pioupload.py) exactly."""
-    pct_raw = used / total if total else 0
-    blocks = 10
-    filled = min(int(round(blocks * pct_raw)), blocks)
-    progress = "=" * filled
-    return (
-        f"[{progress:<{blocks}}] {pct_raw: 6.1%} "
-        f"(used {used:d} bytes from {total:d} bytes)"
-    )
-
-
 def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     """Print PlatformIO-shaped RAM and Flash one-liners.
 
     Failures are non-fatal: the build has already succeeded, we just couldn't
-    summarize. Logs the cause at debug level.
+    summarize. Logs the cause at warning level, so a missing RAM/Flash line
+    (which CI's memory-impact extraction greps for) is diagnosable.
     """
     if not size_json.is_file():
-        _LOGGER.debug("Skipping size summary: %s not found", size_json)
+        _LOGGER.warning("Skipping size summary: %s not found", size_json)
         return
     try:
         data = json.loads(size_json.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        _LOGGER.debug("Skipping size summary: %s", e)
+        _LOGGER.warning("Skipping size summary: %s", e)
         return
 
     memory_types = data.get("memory_types", {})
@@ -99,14 +90,22 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
     if ram_total and ram_used is not None:
-        print(f"RAM:   {_format_bar(ram_used, ram_total)}")
+        print_size_line("RAM", ram_used, ram_total)
+    else:
+        _LOGGER.warning(
+            "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
+        )
 
     image_size = data.get("image_size")
-    if image_size is None or partitions_csv is None:
+    if image_size is None:
+        _LOGGER.warning("Skipping Flash summary: no image_size in %s", size_json)
+        return
+    if partitions_csv is None:
+        _LOGGER.warning("Skipping Flash summary: no partition table given")
         return
     try:
         app_size = _find_app_partition_size(partitions_csv)
     except ValueError as e:
-        _LOGGER.debug("Skipping Flash summary: %s", e)
+        _LOGGER.warning("Skipping Flash summary: %s", e)
         return
-    print(f"Flash: {_format_bar(image_size, app_size)}")
+    print_size_line("Flash", image_size, app_size)

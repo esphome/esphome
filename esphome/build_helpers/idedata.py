@@ -1,10 +1,10 @@
-"""Derive idedata from an ESP-IDF native-toolchain ``compile_commands.json``.
+"""Derive idedata from a native (non-PlatformIO) build's ``compile_commands.json``.
 
-PlatformIO exposes a curated ``pio run -t idedata`` JSON; the native ESP-IDF
-toolchain has no such command, but its CMake build emits
-``build/compile_commands.json`` (CMAKE_EXPORT_COMPILE_COMMANDS). This module
-turns that file into the same fields consumers (IDE integration, clang-tidy)
-expect:
+PlatformIO exposes a curated ``pio run -t idedata`` JSON; the native
+toolchains have no such command, but each build produces a
+``compile_commands.json`` (CMAKE_EXPORT_COMPILE_COMMANDS for ESP-IDF, ninja's
+compdb tool otherwise). This module turns that file into the same fields
+consumers (IDE integration, clang-tidy) expect:
 
     {cc_path, cxx_path, cxx_flags, defines, includes: {build, toolchain}}
 """
@@ -17,6 +17,20 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+
+from esphome.core import EsphomeError
+from esphome.helpers import write_file
+
+# Everything idedata generation may raise after a successful link. Broad on
+# purpose, and shared by every consumer: idedata is a bonus artifact, so
+# these must be caught and warned about, never allowed to fail the build.
+IDEDATA_BEST_EFFORT_ERRORS = (
+    EsphomeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    ValueError,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,7 +134,18 @@ def _pick_entry(entries: list[dict]) -> dict:
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
 
-def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
+# Compiler launchers that may prefix a compile command; a closed launcher
+# denylist beats enumerating compiler names, an open set.
+_LAUNCHER_STEMS = frozenset({"ccache", "sccache", "distcc", "icecc", "buildcache"})
+
+
+def _is_launcher(token: str) -> bool:
+    return Path(token).stem.lower() in _LAUNCHER_STEMS
+
+
+def parse_entry(
+    entry: dict, launcher: str | None = None
+) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
     tokens = _expand_response_files(_split_command(entry["command"]), directory)
@@ -136,6 +161,14 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
             raw = os.path.normpath(directory / raw)
         return raw.replace("\\", "/")
 
+    # A launcher-wrapped command ("ccache g++ ...") names the compiler second
+    if launcher is not None and tokens[0] == launcher:
+        tokens = tokens[1:]
+    if _is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
+        # A stale compile DB built with a launcher the current run no longer
+        # configures: the real compiler is the next token.
+        _LOGGER.debug("Stripping unconfigured launcher %s", tokens[0])
+        tokens = tokens[1:]
     # token0 is the compiler path; the rest of the command already uses forward
     # slashes on Windows, so normalize it too for a consistent idedata file.
     cxx_path = tokens[0].replace("\\", "/")
@@ -168,7 +201,7 @@ def _parse_entry(entry: dict) -> tuple[str, list[str], list[str], list[str]]:
     return cxx_path, defines, includes, cxx_flags
 
 
-def _get_toolchain_includes(cxx_path: str) -> list[str]:
+def get_toolchain_includes(cxx_path: str) -> list[str]:
     """Query the compiler for its builtin ``#include <...>`` search dirs."""
     result = subprocess.run(
         [cxx_path, "-E", "-x", "c++", "-", "-v"],
@@ -219,25 +252,98 @@ def _cc_path_from_cxx(cxx_path: str) -> str:
     return f"{stem}{suffix}"
 
 
-def idedata_from_build(compile_commands: Path) -> dict:
+def load_or_build_idedata(
+    compile_commands: Path,
+    elf_path: Path,
+    cache: Path,
+    launcher: str | None = None,
+) -> dict | None:
+    """Return idedata for a compile_commands.json build, cached on mtime.
+
+    Shared by the native ESP-IDF and ESP8266 Arduino toolchains. Returns None
+    when the compile DB doesn't exist yet (nothing was built). ``launcher``
+    is the compiler-launcher path (ccache) the build was generated with, if
+    any; commands in the compile DB are prefixed with it.
+    """
+    if not compile_commands.is_file():
+        _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
+        return None
+
+    if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
+        try:
+            cached = json.loads(cache.read_text(encoding="utf-8"))
+        except (ValueError, OSError) as err:
+            # A recurring cause (interrupted write, disk full) would otherwise
+            # look like unexplained slow builds
+            _LOGGER.warning("Discarding unreadable idedata cache %s: %s", cache, err)
+        else:
+            # Rebuild pre-cc_path caches on the field, not the timestamp;
+            # the type check keeps "in" from substring-matching a string
+            if isinstance(cached, dict) and "cc_path" in cached:
+                return cached
+
+    data = idedata_from_build(compile_commands, launcher)
+    data["prog_path"] = str(elf_path)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    # Atomic so a crash mid-write cannot leave a truncated cache
+    write_file(cache, json.dumps(data, indent=2) + "\n")
+    return data
+
+
+def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> dict:
     """Parse compile_commands.json into the idedata fields consumers expect.
 
-    A single ESP-IDF compile entry only carries its own component's REQUIRES
-    include set, but consumers (clang-tidy) analyze ESPHome headers that
-    transitively pull in other components. So take cxx_path / cxx_flags /
-    defines from a representative ESPHome TU, but union the include dirs across
-    all ESPHome TUs to get a project-wide superset (as PlatformIO's idedata
-    provides).
+    A single compile entry only carries the include set its own translation
+    unit was built with (per-component under ESP-IDF), but consumers
+    (clang-tidy) analyze ESPHome headers that transitively pull in other
+    components. So take cxx_path / cxx_flags / defines from a representative
+    ESPHome TU, but union the include dirs across all ESPHome TUs to get a
+    project-wide superset (as PlatformIO's idedata provides).
     """
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
-    cxx_path, defines, _, cxx_flags = _parse_entry(_pick_entry(entries))
 
-    build_includes: dict[str, None] = {}
+    representative = _pick_entry(entries)
+    cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
+    if _is_launcher(cxx_path):
+        # Reject before the toolchain probe, which would fail opaquely on
+        # a launcher; never cache the unusable compile DB
+        raise EsphomeError(
+            f"compile_commands.json names the launcher {cxx_path} as the "
+            "compiler; the compile database is unusable"
+        )
+
+    # Seed with the representative's includes so it is not parsed twice
+    build_includes: dict[str, None] = dict.fromkeys(
+        rep_includes if _is_esphome_src(representative["file"]) else ()
+    )
+
+    def _shape(entry: dict) -> str:
+        # The command minus its TU-specific paths: entries sharing a shape
+        # carry identical include sets (one ninja rule), so tokenize once
+        # per shape instead of once per TU
+        return (
+            entry["command"]
+            .replace(entry.get("file", ""), "")
+            .replace(entry.get("output", ""), "")
+        )
+
+    seen_shapes = {_shape(representative)}
     for entry in entries:
-        if not _is_esphome_src(entry["file"]):
+        if entry is representative or not _is_esphome_src(entry["file"]):
             continue
-        for inc in _parse_entry(entry)[2]:
+        if (shape := _shape(entry)) in seen_shapes:
+            continue
+        seen_shapes.add(shape)
+        for inc in parse_entry(entry, launcher)[2]:
             build_includes.setdefault(inc, None)
+
+    if not build_includes:
+        # No ESPHome translation unit contributed includes: idedata with an
+        # empty build include set breaks clang-tidy/IDE consumers silently
+        _LOGGER.warning(
+            "No ESPHome source includes found in %s; idedata will be incomplete",
+            compile_commands,
+        )
 
     return {
         "cc_path": _cc_path_from_cxx(cxx_path),
@@ -246,6 +352,6 @@ def idedata_from_build(compile_commands: Path) -> dict:
         "defines": defines,
         "includes": {
             "build": list(build_includes),
-            "toolchain": _get_toolchain_includes(cxx_path),
+            "toolchain": get_toolchain_includes(cxx_path),
         },
     }

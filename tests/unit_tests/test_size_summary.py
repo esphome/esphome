@@ -126,3 +126,70 @@ def test_print_summary_handles_no_memory_types(
     size_json = _write_size_json(tmp_path, {"image_size": 0})
     print_summary(size_json, partitions_csv=None)
     assert capsys.readouterr().out == ""
+
+
+def test_print_summary_flash_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """image_size + a factory app partition produce the Flash line."""
+    size_json = tmp_path / "esp_idf_size.json"
+    size_json.write_text(
+        json.dumps(
+            {
+                "memory_types": {"DRAM": {"used": 100, "size": 200}},
+                "image_size": 500,
+            }
+        )
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text(
+        "# name, type, subtype, offset, size\napp0, app, factory, 0x10000, 0x100000\n"
+    )
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:   [=====     ]  50.0% (used 100 bytes from 200 bytes)" in out
+    assert "Flash: [          ]   0.0% (used 500 bytes from 1048576 bytes)" in out
+
+
+def test_print_summary_missing_ram_region_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A missing RAM line is diagnosable, not a silently absent CI metric."""
+    size_json = _write_size_json(tmp_path, {"memory_types": {}, "image_size": 100})
+    print_summary(size_json, partitions_csv=None)
+    assert "Skipping RAM summary" in caplog.text
+
+
+def test_print_summary_bad_partitions_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unparseable partition table skips the Flash line with a warning."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("not,a,valid,partition,table\n")
+    print_summary(size_json, partitions_csv=partitions)
+    assert "Skipping Flash summary" in caplog.text
+
+
+def test_print_summary_corrupt_json_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    size_json = tmp_path / "size.json"
+    size_json.write_text("{not json")
+    print_summary(size_json, partitions_csv=None)
+    assert "Skipping size summary" in caplog.text
+
+
+def test_print_summary_missing_flash_inputs_warn(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Both absent-input paths for the Flash line name their cause."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    print_summary(size_json, partitions_csv=None)
+    assert "no partition table given" in caplog.text
+    caplog.clear()
+    data = _esp32_size_data()
+    data.pop("image_size", None)
+    size_json = _write_size_json(tmp_path, data)
+    print_summary(size_json, partitions_csv=tmp_path / "partitions.cssv")
+    assert "no image_size" in caplog.text
