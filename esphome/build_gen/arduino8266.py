@@ -14,6 +14,7 @@ from the build flags with the same precedence as the PlatformIO builder.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from dataclasses import dataclass
 import hashlib
 import logging
@@ -49,11 +50,7 @@ from esphome.framework_helpers import (
     strip_win_long_path_prefix,
 )
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import (
-    SOURCE_KIND_FOR_SUFFIX,
-    lex_build_flags,
-    raise_on_empty_arg_flags,
-)
+from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX, lex_build_flags
 
 if TYPE_CHECKING:
     from esphome.arduino8266.framework import InstalledPaths
@@ -286,10 +283,8 @@ def _lexed_build_flags() -> list[str]:
 
     Lex once per build; consumers share the tokens.
     """
-    tokens = lex_build_flags(sorted(CORE.build_flags), "esphome")
-    # Raises for every consumer of the shared token list
-    raise_on_empty_arg_flags(tokens, "build_flags")
-    return tokens
+    # The funnel warns and drops empty glued arguments (-D "") itself
+    return lex_build_flags(sorted(CORE.build_flags), "esphome")
 
 
 def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
@@ -568,8 +563,19 @@ def _project_flags(
 
 # Plain-form linker flags rejected by _project_flags: inert on a -c compile
 # line, so the firmware would silently lack the requested link behavior
-_PLAIN_LINKER_FLAGS = ("-u", "-e", "-s", "-static", "-nostartfiles")
-_PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker")
+# Best-effort, not exhaustive: an unlisted link-only spelling still falls
+# through to the compile line
+_PLAIN_LINKER_FLAGS = (
+    "-u",
+    "-e",
+    "-s",
+    "-static",
+    "-nostartfiles",
+    "-nodefaultlibs",
+    "-nostdlib",
+    "-rdynamic",
+)
+_PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker", "-fuse-ld=", "--specs=")
 
 
 def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
@@ -602,17 +608,21 @@ def _stat_sig(path: Path) -> str:
         return f"unreadable:{os.urandom(8).hex()}"
 
 
-def _write_note(path: Path, text: str, *, warn: bool = False) -> None:
+def _write_note(path: Path, text: str, *, warn: bool = False) -> bool:
     """Best-effort bookkeeping write; a failure never fails the build.
 
     ``warn`` marks notes whose loss drops a diagnostic on later cached
     builds; a lost stamp only costs a cache miss and stays at debug.
+    Returns whether the write persisted, so a lost warn note can veto
+    the cache stamp and keep the diagnostic re-derivable.
     """
     try:
         path.write_text(text, encoding="utf-8")
     except OSError as err:
         log = _LOGGER.warning if warn else _LOGGER.debug
         log("Could not write %s: %s", path, err)
+        return False
+    return True
 
 
 def generate_ld_scripts(
@@ -691,13 +701,15 @@ def generate_ld_scripts(
             raise EsphomeError(f"Could not run {gcc}: {err}; {_CLEAN_HINT}") from err
         if result.returncode != 0:
             raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
+        note_persisted = True
         if result.stderr.strip():
             # Preprocessor warnings on the success path must reach the user
             # on this and every later cached build (see the re-emit below)
             _LOGGER.warning("Linker-script preprocessor: %s", result.stderr.strip())
-            _write_note(stderr_note, result.stderr.strip(), warn=True)
+            note_persisted = _write_note(stderr_note, result.stderr.strip(), warn=True)
         else:
-            stderr_note.unlink(missing_ok=True)
+            with suppress(OSError):
+                stderr_note.unlink(missing_ok=True)
         if "SECTIONS" not in result.stdout:
             # A degenerate zero-exit run must not be stamped as a good cache
             raise EsphomeError(
@@ -709,10 +721,13 @@ def generate_ld_scripts(
                 build_surgery.apply_testing_memory_patches, content, ("iram1_0_seg",)
             )
         write_file_if_changed(output, content)
-        _write_note(
-            stamp,
-            f"{stamp_content} content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
-        )
+        if note_persisted:
+            # An unstamped cache re-runs -E next build, re-deriving the
+            # diagnostic the lost note would have re-emitted
+            _write_note(
+                stamp,
+                f"{stamp_content} content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
+            )
     elif stderr_note.is_file():
         # Re-emit cached preprocessor warnings on cache hits
         try:
