@@ -852,20 +852,15 @@ def test_walk_warns_for_nonplatform_invalid_library(
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
-        {"esphome/A": {"name": "A", "dependencies": [{"name": "B", "version": "1.0"}]}},
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "B", "version": "1.0", "platforms": [123]}],
+            }
+        },
     )
-    calls = {"n": 0}
-    real = lib.check_library_data
-
-    def flaky(data, platform, framework):
-        calls["n"] += 1
-        if calls["n"] > 1:
-            raise InvalidLibrary("manifest is corrupt")
-        return real(data, platform, framework)
-
-    monkeypatch.setattr(lib, "check_library_data", flaky)
     convert_libraries([Library("esphome/A", None, None)], _backend())
-    assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
+    assert "Skipping dependency B of esphome/A: Malformed platforms" in caplog.text
 
 
 def test_convert_libraries_warns_for_nonplatform_invalid_dependency_component(
@@ -881,20 +876,11 @@ def test_convert_libraries_warns_for_nonplatform_invalid_dependency_component(
                 "name": "A",
                 "dependencies": [{"name": "C", "owner": "esphome", "version": "1.0"}],
             },
-            "esphome/C": {"name": "C"},
+            "esphome/C": {"name": "C", "frameworks": [None]},
         },
     )
-    real = lib.check_library_data
-
-    def flaky(data, platform, framework):
-        # Fail only on C's resolved manifest, not on A's dependency entry
-        if data.get("name") == "C" and "version" not in data:
-            raise InvalidLibrary("manifest is corrupt")
-        return real(data, platform, framework)
-
-    monkeypatch.setattr(lib, "check_library_data", flaky)
     convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
-    assert "manifest is corrupt" in caplog.text
+    assert "Malformed frameworks" in caplog.text
     assert "Skipping dependency" in caplog.text
 
 
