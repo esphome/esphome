@@ -823,12 +823,16 @@ void ATM90E32Component::run_offset_calibrations() {
 
   ESP_LOGI(TAG, "[CALIBRATION][%s] ==================================================================\n", cs);
 
-  const auto persistence = attempt_calibration_persistence(this->verify_offset_writes_(), [this] {
-    return this->save_offset_calibration_to_memory_();
-  });
+  const auto persistence = attempt_calibration_persistence(
+      this->verify_offset_writes_(), [this] { return this->save_offset_calibration_to_memory_(); });
   if (!persistence.succeeded) {
-    for (uint8_t phase = 0; phase < 3; phase++)
-      this->write_offsets_to_registers_(phase, previous_offsets[phase].voltage_offset_, previous_offsets[phase].current_offset_);
+    const bool rollback_verified = attempt_calibration_rollback(
+        [this, &previous_offsets] {
+          for (uint8_t phase = 0; phase < 3; phase++)
+            this->write_offsets_to_registers_(phase, previous_offsets[phase].voltage_offset_,
+                                              previous_offsets[phase].current_offset_);
+        },
+        [this] { return this->verify_offset_writes_(); });
     if (persistence.attempted) {
       const bool rollback_saved = this->offset_pref_.save(&previous_offsets);
       const bool rollback_synced = global_preferences->sync();
@@ -837,6 +841,10 @@ void ATM90E32Component::run_offset_calibrations() {
     }
     this->restored_offset_calibration_ = previous_restored;
     this->using_saved_calibrations_ = previous_using_saved;
+    if (!rollback_verified) {
+      ESP_LOGE(TAG, "[CALIBRATION][%s] Offset calibration failed; rollback readback verification failed.", cs);
+      return;
+    }
     ESP_LOGE(TAG, "[CALIBRATION][%s] Offset calibration failed; previous values restored.", cs);
     return;
   }
@@ -875,14 +883,16 @@ void ATM90E32Component::run_power_offset_calibrations() {
   }
   ESP_LOGI(TAG, "[CALIBRATION][%s] =====================================================================\n", cs);
 
-  const auto persistence = attempt_calibration_persistence(this->verify_power_offset_writes_(), [this] {
-    return this->save_power_offset_calibration_to_memory_();
-  });
+  const auto persistence = attempt_calibration_persistence(
+      this->verify_power_offset_writes_(), [this] { return this->save_power_offset_calibration_to_memory_(); });
   if (!persistence.succeeded) {
-    for (uint8_t phase = 0; phase < 3; phase++) {
-      this->write_power_offsets_to_registers_(phase, previous_offsets[phase].active_power_offset,
-                                              previous_offsets[phase].reactive_power_offset);
-    }
+    const bool rollback_verified = attempt_calibration_rollback(
+        [this, &previous_offsets] {
+          for (uint8_t phase = 0; phase < 3; phase++)
+            this->write_power_offsets_to_registers_(phase, previous_offsets[phase].active_power_offset,
+                                                    previous_offsets[phase].reactive_power_offset);
+        },
+        [this] { return this->verify_power_offset_writes_(); });
     if (persistence.attempted) {
       const bool rollback_saved = this->power_offset_pref_.save(&previous_offsets);
       const bool rollback_synced = global_preferences->sync();
@@ -891,6 +901,10 @@ void ATM90E32Component::run_power_offset_calibrations() {
     }
     this->restored_power_offset_calibration_ = previous_restored;
     this->using_saved_calibrations_ = previous_using_saved;
+    if (!rollback_verified) {
+      ESP_LOGE(TAG, "[CALIBRATION][%s] Power offset calibration failed; rollback readback verification failed.", cs);
+      return;
+    }
     ESP_LOGE(TAG, "[CALIBRATION][%s] Power offset calibration failed; previous values restored.", cs);
     return;
   }
@@ -1315,8 +1329,8 @@ bool ATM90E32Component::verify_power_offset_writes_() {
     uint16_t reactive = this->read16_(reactive_power_offset_registers[phase]);
     if (!offset_register_value_matches(active, this->power_offset_phase_[phase].active_power_offset) ||
         !offset_register_value_matches(reactive, this->power_offset_phase_[phase].reactive_power_offset)) {
-      ESP_LOGE(TAG, "[CALIBRATION][%s] Power offset readback failed for Phase %s: active %d/%d, reactive %d/%d.",
-               cs, phase_labels[phase], static_cast<int16_t>(active), this->power_offset_phase_[phase].active_power_offset,
+      ESP_LOGE(TAG, "[CALIBRATION][%s] Power offset readback failed for Phase %s: active %d/%d, reactive %d/%d.", cs,
+               phase_labels[phase], static_cast<int16_t>(active), this->power_offset_phase_[phase].active_power_offset,
                static_cast<int16_t>(reactive), this->power_offset_phase_[phase].reactive_power_offset);
       success = false;
     }

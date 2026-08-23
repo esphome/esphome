@@ -44,4 +44,29 @@ TEST(ATM90E32CalibrationPersistence, MarksFailedSaveAsAttempted) {
   EXPECT_FALSE(result.succeeded);
 }
 
+TEST(ATM90E32CalibrationRollback, VerifiesRegistersAfterRestoringValues) {
+  int step = 0;
+  bool restored = false;
+  const bool succeeded = attempt_calibration_rollback(
+      [&] {
+        EXPECT_EQ(step++, 0);
+        restored = true;
+      },
+      [&] {
+        EXPECT_EQ(step++, 1);
+        return restored && offset_register_value_matches(0xFF85, -123);
+      });
+
+  EXPECT_TRUE(succeeded);
+  EXPECT_EQ(step, 2);
+}
+
+TEST(ATM90E32CalibrationRollback, FailsWhenRestoredRegisterReadbackMismatches) {
+  bool restored = false;
+  const bool succeeded = attempt_calibration_rollback(
+      [&] { restored = true; }, [&] { return restored && offset_register_value_matches(0xFF84, -123); });
+
+  EXPECT_FALSE(succeeded);
+}
+
 }  // namespace esphome::atm90e32::testing
