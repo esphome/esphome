@@ -309,7 +309,10 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
+        if (
+            args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx"))
+            and TIDY_DISABLED_CHECKS
+        ):
             invocation.append(
                 "--checks=" + ",".join(f"-{c}" for c in TIDY_DISABLED_CHECKS)
             )
@@ -360,10 +363,9 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     """
     from esphome.components.nrf52.clang_tidy import generate_compile_commands
 
+    pinned_version = _codechecker_pinned_version()
     try:
-        executable = get_binary(
-            "CodeChecker", _codechecker_pinned_version(), version_args=["version"]
-        )
+        executable = get_binary("CodeChecker", pinned_version, version_args=["version"])
     except FileNotFoundError:
         return 1
 
@@ -405,8 +407,14 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     # CodeChecker honor .clang-tidy instead of its own default check profile.
     tidy_args = [
         f"--header-filter={basepath}/.*",
-        "--checks=" + ",".join(f"-{c}" for c in CODECHECKER_DISABLED_CHECKS),
+        # Cancels .clang-tidy's WarningsAsErrors (appends, doesn't override) so a
+        # finding books the file successful, not failed; parse's exit code still fails CI.
+        "--warnings-as-errors=-*",
     ]
+    if CODECHECKER_DISABLED_CHECKS:
+        tidy_args.append(
+            "--checks=" + ",".join(f"-{c}" for c in CODECHECKER_DISABLED_CHECKS)
+        )
     # Written into output_dir (recreated above) so it doesn't leak into the
     # system temp directory across runs.
     tidy_args_path = output_dir / "tidy_args.txt"

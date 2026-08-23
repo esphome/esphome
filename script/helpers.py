@@ -855,12 +855,22 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
     # Defaults to LLVM tools' `-version` flag; pass e.g. ["version"] for
     # CodeChecker's subcommand-style version check.
     version_args = version_args or ["-version"]
+    # Anchored to "version" followed by the exact version number, not just
+    # those digits appearing anywhere (e.g. a build year) in the output.
+    version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
+
     binary_file = f"{name}-{version}"
     try:
-        result = subprocess.check_output([binary_file, *version_args])
-        return binary_file
+        result = subprocess.run(
+            [binary_file, *version_args], text=True, capture_output=True, check=False
+        )
+        if result.returncode == 0 and re.search(
+            version_re, result.stdout, re.IGNORECASE
+        ):
+            return binary_file
     except FileNotFoundError:
         pass
+
     binary_file = name
     version_cmd = " ".join(version_args)
     try:
@@ -885,9 +895,6 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
         )
         raise
 
-    # Anchored to "version" followed by the exact version number, not just
-    # those digits appearing anywhere (e.g. a build year) in the output.
-    version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
     if result.returncode == 0 and re.search(version_re, result.stdout, re.IGNORECASE):
         return binary_file
 
