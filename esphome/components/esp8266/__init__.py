@@ -397,8 +397,8 @@ async def to_code(config: ConfigType) -> None:
     )
 
     if config[CONF_BOARD] in BOARDS:
-        flash_size = BOARDS[config[CONF_BOARD]][KEY_FLASH_SIZE]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
+        board_data = BOARDS[config[CONF_BOARD]]
+        ld_scripts = ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]]
 
         if ver <= cv.Version(2, 3, 0):
             # No ld script support
@@ -407,7 +407,9 @@ async def to_code(config: ConfigType) -> None:
             # Old ld script path
             ld_script = ld_scripts[0]
         else:
-            ld_script = ld_scripts[1]
+            # A per-board override preserves a layout the board shipped
+            # with (see d1_wroom_02 in boards.py)
+            ld_script = board_data.get("ldscript", ld_scripts[1])
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
