@@ -398,9 +398,9 @@ def get_bool_env(var, default=False):
     value = os.getenv(var, default)
     if isinstance(value, str):
         value = value.lower()
-        if value in ["1", "true"]:
+        if value in ("1", "true", "yes", "on", "enable"):
             return True
-        if value in ["0", "false"]:
+        if value in ("0", "false", "no", "off", "disable"):
             return False
     return bool(value)
 

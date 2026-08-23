@@ -1108,3 +1108,24 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
 def test_format_duration(seconds: float, expected: str) -> None:
     """Test that durations are rendered as short human-readable strings."""
     assert helpers.format_duration(seconds) == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("yes", True),
+        ("on", True),
+        ("enable", True),
+        ("no", False),
+        ("off", False),
+        ("disable", False),
+    ],
+)
+def test_get_bool_env_common_spellings(
+    monkeypatch: pytest.MonkeyPatch, value: str, expected: bool
+) -> None:
+    """The common on/off spellings parse instead of falling through to
+    bool(str), which read "off" as enabled (e.g. IDF_CCACHE_ENABLE=off
+    left ccache on)."""
+    monkeypatch.setenv("SOME_KNOB", value)
+    assert helpers.get_bool_env("SOME_KNOB") is expected
