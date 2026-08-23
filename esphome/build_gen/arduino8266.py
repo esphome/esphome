@@ -49,7 +49,11 @@ from esphome.framework_helpers import (
     strip_win_long_path_prefix,
 )
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import SOURCE_KIND_FOR_SUFFIX, lex_build_flags
+from esphome.platformio.library import (
+    BARE_ARG_FLAGS,
+    SOURCE_KIND_FOR_SUFFIX,
+    lex_build_flags,
+)
 
 if TYPE_CHECKING:
     from esphome.arduino8266.framework import InstalledPaths
@@ -66,66 +70,91 @@ _CORE_EXCLUDE_WAVEFORM = {
     "core_esp8266_waveform_phase.cpp",
 }
 
-# From platformio-build.py. The first entry is the default; with multiple SDK
-# knobs set (a pathological config) ties break by table order, since
-# upstream's tie-break depends on define order and is not reproducible here.
-_NONOSDK_VERSIONS = (
-    ("SDK22x_190703", "NONOSDK22x_190703"),
-    ("SDK221", "NONOSDK221"),
-    ("SDK22x_190313", "NONOSDK22x_190313"),
-    ("SDK22x_191024", "NONOSDK22x_191024"),
-    ("SDK22x_191105", "NONOSDK22x_191105"),
-    ("SDK22x_191122", "NONOSDK22x_191122"),
-    ("SDK305", "NONOSDK305"),
-)
+# Values that land unquoted on generated command lines are shape-checked
+# against these before use
+_MMU_HEX_VALUE_RE = re.compile(r"0[xX][0-9a-fA-F]+[uUlL]*")
+_BOARD_NAME_RE = re.compile(r"[\w.-]+")
+_F_CPU_RE = re.compile(r"\d+L?")
+_FLASH_LD_NAME_RE = re.compile(r"[\w.-]+\.ld")
 
-# knob define -> (TCP_MSS, LWIP_FEATURES, LWIP_IPV6, library name)
-_LWIP_VARIANTS = (
-    ("PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY", (536, 1, 1, "lwip6-536-feat")),
-    (
-        "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_HIGHER_BANDWIDTH",
-        (1460, 1, 1, "lwip6-1460-feat"),
+# Every supported board ships this clock; board_build.f_cpu overrides
+_DEFAULT_F_CPU = "80000000L"
+
+# The SDK linker-script template and the preprocessed copy the build links
+# against; the cache stamp and stderr sidecars derive from the output name
+_COMMON_LD_HEADER = "eagle.app.v6.common.ld.h"
+_COMMON_LD_NAME = "local.eagle.app.v6.common.ld"
+
+# Every supported board's f_flash is 40 MHz; re-check on a platform bump
+_FLASH_FREQ_MHZ = 40
+
+# From platformio-build.py. Knob suffix -> SDK define; the first entry is
+# the default (dicts preserve insertion order). With multiple SDK knobs set
+# (a pathological config) ties break by table order, since upstream's
+# tie-break depends on define order and is not reproducible here.
+_NONOSDK_VERSIONS = {
+    "SDK22x_190703": "NONOSDK22x_190703",
+    "SDK221": "NONOSDK221",
+    "SDK22x_190313": "NONOSDK22x_190313",
+    "SDK22x_191024": "NONOSDK22x_191024",
+    "SDK22x_191105": "NONOSDK22x_191105",
+    "SDK22x_191122": "NONOSDK22x_191122",
+    "SDK305": "NONOSDK305",
+}
+
+# Knob define -> (TCP_MSS, LWIP_FEATURES, LWIP_IPV6, library name); first
+# match wins, in insertion order (as in platformio-build.py)
+_LWIP_VARIANTS = {
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY": (536, 1, 1, "lwip6-536-feat"),
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_HIGHER_BANDWIDTH": (
+        1460,
+        1,
+        1,
+        "lwip6-1460-feat",
     ),
-    ("PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH", (1460, 1, 0, "lwip2-1460-feat")),
-    ("PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY_LOW_FLASH", (536, 0, 0, "lwip2-536")),
-    (
-        "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH",
-        (1460, 0, 0, "lwip2-1460"),
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH": (1460, 1, 0, "lwip2-1460-feat"),
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY_LOW_FLASH": (536, 0, 0, "lwip2-536"),
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH": (
+        1460,
+        0,
+        0,
+        "lwip2-1460",
     ),
-)
+}
 _LWIP_DEFAULT = (536, 1, 0, "lwip2-536-feat")
 
-# knob define -> MMU_* defines, first match wins (as in platformio-build.py)
-_MMU_VARIANTS = (
-    (
-        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
-        ("MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000"),
+# Knob define -> MMU_* defines; first match wins, in insertion order (as
+# in platformio-build.py)
+_MMU_VARIANTS = {
+    "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48": (
+        "MMU_IRAM_SIZE=0xC000",
+        "MMU_ICACHE_SIZE=0x4000",
     ),
-    (
-        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED",
-        ("MMU_IRAM_SIZE=0xC000", "MMU_ICACHE_SIZE=0x4000", "MMU_IRAM_HEAP"),
+    "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48_SECHEAP_SHARED": (
+        "MMU_IRAM_SIZE=0xC000",
+        "MMU_ICACHE_SIZE=0x4000",
+        "MMU_IRAM_HEAP",
     ),
-    (
-        "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED",
-        (
-            "MMU_IRAM_SIZE=0x8000",
-            "MMU_ICACHE_SIZE=0x4000",
-            "MMU_SEC_HEAP_SIZE=0x4000",
-            "MMU_SEC_HEAP=0x40108000",
-        ),
+    "PIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM32_SECHEAP_NOTSHARED": (
+        "MMU_IRAM_SIZE=0x8000",
+        "MMU_ICACHE_SIZE=0x4000",
+        "MMU_SEC_HEAP_SIZE=0x4000",
+        "MMU_SEC_HEAP=0x40108000",
     ),
-    (
-        "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K",
-        ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=128"),
+    "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_128K": (
+        "MMU_IRAM_SIZE=0x8000",
+        "MMU_ICACHE_SIZE=0x8000",
+        "MMU_EXTERNAL_HEAP=128",
     ),
-    (
-        # Upstream really does cap the 1024K option's heap knob at 256
-        # (platformio-build.py's MMU_EXTERNAL_1024K branch); transliterated
-        # verbatim
-        "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K",
-        ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"),
+    # Upstream really does cap the 1024K option's heap knob at 256
+    # (platformio-build.py's MMU_EXTERNAL_1024K branch); transliterated
+    # verbatim
+    "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K": (
+        "MMU_IRAM_SIZE=0x8000",
+        "MMU_ICACHE_SIZE=0x8000",
+        "MMU_EXTERNAL_HEAP=256",
     ),
-)
+}
 # Upstream reads these from the board manifest (build.mmu_iram_size etc.);
 # no supported board sets them, so the platformio-build.py defaults are
 # hardcoded here rather than drift
@@ -218,7 +247,7 @@ def _lexed_build_flags() -> list[str]:
     # The lexer glues '-D ""' to a bare "-D"; gcc would eat the next flag
     # as its argument (or add the CWD for -L). Always a typo, so raise for
     # every consumer of the shared token list.
-    if empty := sorted({tok for tok in tokens if tok in ("-I", "-D", "-L", "-l")}):
+    if empty := sorted({tok for tok in tokens if tok in BARE_ARG_FLAGS}):
         raise EsphomeError(
             f"build_flags contain empty-argument flag(s): {', '.join(empty)}"
         )
@@ -244,8 +273,8 @@ def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
 
 
 def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
-    nonosdk = _NONOSDK_VERSIONS[0][1]
-    for name, define in _NONOSDK_VERSIONS:
+    nonosdk = next(iter(_NONOSDK_VERSIONS.values()))
+    for name, define in _NONOSDK_VERSIONS.items():
         if f"PIO_FRAMEWORK_ARDUINO_ESPRESSIF_{name}" in defines:
             nonosdk = define
             break
@@ -260,7 +289,7 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         )
 
     tcp_mss, features, ipv6, lwip_lib = _LWIP_DEFAULT
-    for knob, variant in _LWIP_VARIANTS:
+    for knob, variant in _LWIP_VARIANTS.items():
         if knob in defines:
             tcp_mss, features, ipv6, lwip_lib = variant
             break
@@ -302,7 +331,7 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         )
     vtables = vtables_knobs[0] if vtables_knobs else "VTABLES_IN_FLASH"
 
-    mmu_knob = next((knob for knob, _variant in _MMU_VARIANTS if knob in defines), None)
+    mmu_knob = next((knob for knob in _MMU_VARIANTS if knob in defines), None)
     if mmu_knob is not None:
         if raw := sorted(n for n in defines if n.startswith("MMU_")):
             # Same compile-line/linker-script split as the no-knob case below
@@ -313,7 +342,7 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM"
             )
             raise EsphomeError(f"{', '.join(raw)} conflict with {mmu_knob}; {fix}")
-        mmu = list(dict(_MMU_VARIANTS)[mmu_knob])
+        mmu = list(_MMU_VARIANTS[mmu_knob])
     elif "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM" in defines:
         if "MMU_IRAM_SIZE" not in defines or "MMU_ICACHE_SIZE" not in defines:
             raise EsphomeError(
@@ -329,7 +358,7 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
             # and fail far away in ld. Hex only: build_surgery's segment
             # parser (and upstream's spellings) cannot read decimal.
             value = body.partition("=")[2]
-            if not re.fullmatch(r"0[xX][0-9a-fA-F]+[uUlL]*", value):
+            if not _MMU_HEX_VALUE_RE.fullmatch(value):
                 raise EsphomeError(
                     f"{name} must be a hex literal (e.g. 0x8000), got "
                     f"{value or '(no value)'}"
@@ -412,13 +441,13 @@ def _defines_flags(
     defines embed ``\"``), so they must be emitted unquoted; wrapping
     them in ``_shell_token`` would deliver literal backslashes to gcc.
     """
-    if not re.fullmatch(r"[\w.-]+", board):
+    if not _BOARD_NAME_RE.fullmatch(board):
         # The name lands unquoted in two -D bodies; reject it by name
         # instead of corrupting the compile line
         raise EsphomeError(f"Invalid board name {board!r}")
     # Every supported board ships 80 MHz; board_build.f_cpu overrides
-    f_cpu = _pio_option("board_build.f_cpu", "80000000L")
-    if not re.fullmatch(r"\d+L?", f_cpu):
+    f_cpu = _pio_option("board_build.f_cpu", _DEFAULT_F_CPU)
+    if not _F_CPU_RE.fullmatch(f_cpu):
         # The value lands unquoted on the compile line; reject by name
         # instead of corrupting it
         raise EsphomeError(f"Invalid board_build.f_cpu value {f_cpu!r}")
@@ -561,7 +590,7 @@ def generate_ld_scripts(
     ``eagle.app.v6.common.ld.h``, then applies ESPHome's surgeries: the wifi
     rate-table DRAM relocation, and enlarged memory segments in testing mode.
     """
-    if not re.fullmatch(r"[\w.-]+\.ld", flash_ld_name):
+    if not _FLASH_LD_NAME_RE.fullmatch(flash_ld_name):
         # Joined under the SDK and build ld dirs; never a path or traversal
         raise EsphomeError(f"Invalid flash linker script name {flash_ld_name!r}")
     framework = paths.framework
@@ -573,14 +602,14 @@ def generate_ld_scripts(
     cmd += [f"-D{d}" for d in config.mmu_defines]
     if config.fp_in_irom:
         cmd.append("-DFP_IN_IROM")
-    header = framework / "tools" / "sdk" / "ld" / "eagle.app.v6.common.ld.h"
+    header = framework / "tools" / "sdk" / "ld" / _COMMON_LD_HEADER
     cmd += [str(header), "-o", "-"]
 
     # The inputs are the command line (defines + framework version, which is
     # baked into the paths) plus testing mode; skip the preprocessor spawn on
     # incremental builds when nothing changed.
-    output = ld_dir / "local.eagle.app.v6.common.ld"
-    stamp = ld_dir / ".local.eagle.app.v6.common.ld.stamp"
+    output = ld_dir / _COMMON_LD_NAME
+    stamp = ld_dir / f".{_COMMON_LD_NAME}.stamp"
     # Stamp includes the header/gcc stat (catches in-place re-extraction)
     # and the surgery fingerprint (a build_surgery edit invalidates old
     # build dirs)
@@ -610,7 +639,7 @@ def generate_ld_scripts(
         except (OSError, UnicodeDecodeError):
             return False
 
-    stderr_note = ld_dir / ".local.eagle.app.v6.common.ld.stderr"
+    stderr_note = ld_dir / f".{_COMMON_LD_NAME}.stderr"
     if not _cached_ld_is_valid():
         try:
             result = subprocess.run(
@@ -912,11 +941,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
-        # --flash_freq 40: every supported board's f_flash is 40 MHz;
-        # re-check on a platform bump. --flash_size deliberately stays
-        # board-derived, as under PlatformIO (which reads
-        # upload.maximum_size, not the ldscript).
-        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
+        # --flash_size deliberately stays board-derived, as under
+        # PlatformIO (which reads upload.maximum_size, not the ldscript).
+        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
         "  command = $python $buildtool copy $in $out",
@@ -991,7 +1018,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         lines, _collect_sources(src_dir), src_dir, "src", flags="$srcflags"
     )
 
-    ld_deps = ["ld/local.eagle.app.v6.common.ld"]
+    ld_deps = [f"ld/{_COMMON_LD_NAME}"]
     if CORE.testing_mode:
         ld_deps.append(f"ld/{flash_ld}")
     lines.append(
