@@ -34,8 +34,6 @@ _SIZE_SUFFIXES = {"K": 1024, "M": 1024 * 1024}
 
 def _parse_size(token: str) -> int:
     token = token.strip()
-    if not token:
-        raise ValueError("blank partition size cell")
     if token.startswith(("0x", "0X")):
         return int(token, 16)
     suffix = token[-1].upper()
@@ -53,8 +51,9 @@ def _find_app_partition_size(partitions_csv: Path) -> int | None:
     layouts like Adafruit's ``partitions-4MB-tinyuf2.csv`` repurpose
     ``factory`` for a UF2 bootloader before the real OTA slot, so a
     naive "prefer factory" rule would pick the wrong row. A missing
-    table or no qualifying row is legitimate absence (None); a raise
-    always means a present-but-broken table.
+    table or no qualifying row is legitimate absence (None); malformed
+    tables cannot reach a successful build (gen_esp32part rejects them),
+    so parse failures go to the caller's backstop.
     """
     if not partitions_csv.is_file():
         return None
@@ -64,12 +63,7 @@ def _find_app_partition_size(partitions_csv: Path) -> int | None:
             continue
         ptype, psubtype, psize = cells[1], cells[2], cells[4]
         if ptype in ("app", "0") and psubtype in ("factory", "ota_0"):
-            try:
-                return _parse_size(psize)
-            except ValueError as err:
-                raise ValueError(
-                    f"{err} for partition {cells[0]} in {partitions_csv}"
-                ) from err
+            return _parse_size(psize)
     return None
 
 
@@ -175,20 +169,12 @@ def _flash_line(data: dict, size_json: Path, partitions_csv: Path | None) -> str
         return None
     try:
         app_size = _find_app_partition_size(partitions_csv)
-    except (ValueError, OSError, csv.Error) as e:
-        # The table is there but broken/unreadable: visible, like size 0
+    except OSError as e:
+        # A read race on a table the build just used; visible but non-fatal
         _LOGGER.warning("Skipping Flash summary: %s", e)
         return None
-    if app_size is None:
+    if not app_size:
         # No table or no qualifying row: legitimate for non-app layouts
         _LOGGER.debug("Skipping Flash summary: no app partition in %s", partitions_csv)
-        return None
-    if app_size <= 0:
-        # Skipping also fails CI's Flash extraction, the right outcome here
-        _LOGGER.warning(
-            "Skipping Flash summary: app partition size is %s in %s",
-            app_size,
-            partitions_csv,
-        )
         return None
     return f"Flash: {_format_bar(int(image_size), app_size)}"

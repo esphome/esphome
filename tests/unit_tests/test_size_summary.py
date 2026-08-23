@@ -174,17 +174,6 @@ def test_print_summary_unreadable_partitions_is_skipped(
     assert "RAM:" in out and "Flash:" not in out
 
 
-def test_print_summary_zero_app_partition_is_skipped(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A 0-size app partition drops the Flash bar instead of rendering 0%."""
-    size_json = _write_size_json(tmp_path, _dram_size_data())
-    partitions = _write_partitions(tmp_path, "0")
-    print_summary(size_json, partitions)
-    out = capsys.readouterr().out
-    assert "RAM:" in out and "Flash:" not in out
-
-
 def test_print_summary_happy_path_prints_both_bars(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -271,32 +260,16 @@ def test_print_summary_blanket_guard_catches_the_rest(
     assert "Skipping size summary for" in caplog.text
 
 
-@pytest.mark.parametrize("cell", ["", "1.5M", "abc"], ids=["blank", "float", "junk"])
-def test_print_summary_blank_size_cell_names_the_row(
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    caplog: pytest.LogCaptureFixture,
-    cell: str,
-) -> None:
-    """An unparseable size cell raises ValueError instead of parsing to 0."""
-    size_json = _write_size_json(tmp_path, _dram_size_data())
-    partitions = _write_partitions(tmp_path, cell)
-    print_summary(size_json, partitions)
-    out = capsys.readouterr().out
-    assert "RAM:" in out and "Flash:" not in out
-    # Pins the ValueError path: pre-diff, "" parsed to 0 and the size-0
-    # warning fired instead
-    assert "Skipping Flash summary" in caplog.text
-    assert "app0" in caplog.text and str(partitions) in caplog.text
-
-
+@pytest.mark.parametrize("cell", ["1M", "1048576"], ids=["suffixed", "decimal"])
 def test_print_summary_suffixed_size_cell(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], cell: str
 ) -> None:
-    """K/M suffixes parse like PlatformIO's rule (1M = 1048576 bytes)."""
+    """K/M suffixes and plain decimals parse like PlatformIO's rule."""
     size_json = _write_size_json(tmp_path, _dram_size_data())
     partitions = tmp_path / "partitions.csv"
-    partitions.write_text("# comment row\nshort,row\napp0, app, ota_0, 0x10000, 1M,\n")
+    partitions.write_text(
+        f"# comment row\nshort,row\napp0, app, ota_0, 0x10000, {cell},\n"
+    )
     print_summary(size_json, partitions)
     assert "from 1048576 bytes" in capsys.readouterr().out
 
