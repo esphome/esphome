@@ -17,7 +17,11 @@ from esphome.platformio.extra_script import (
     captured_as_build_flags,
     run_extra_script,
 )
-from esphome.platformio.library import ConvertedLibrary as IDFComponent, URLSource
+from esphome.platformio.library import (
+    ConvertedLibrary as IDFComponent,
+    URLSource,
+    lex_build_flags,
+)
 
 
 def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
@@ -49,13 +53,16 @@ def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
     assert "FOO" in result.cppdefines
     assert result.linkflags == ["-Wl,--gc-sections"]
 
-    flags = captured_as_build_flags(result, library_dir=tmp_path)
+    # Lex like the consumer does: quoting makes raw strings platform-varying
+    tokens = lex_build_flags(
+        captured_as_build_flags(result, library_dir=tmp_path), "test"
+    )
     sep = os.sep
-    assert f"-Lsrc{sep}esp32" in flags
-    assert "-lalgobsec" in flags
-    assert "-DFOO" in flags
-    assert "-DBAR=1" in flags
-    assert "-Wl,--gc-sections" in flags
+    assert f"-Lsrc{sep}esp32" in tokens
+    assert "-lalgobsec" in tokens
+    assert "-DFOO" in tokens
+    assert "-DBAR=1" in tokens
+    assert "-Wl,--gc-sections" in tokens
 
 
 def test_extra_script_libpath_relative_resolves_against_library_dir(
@@ -74,7 +81,7 @@ def test_extra_script_libpath_relative_resolves_against_library_dir(
     flags = captured_as_build_flags(result, library_dir=tmp_path)
 
     sep = os.sep
-    assert flags == [f"-Llib{sep}esp32"]
+    assert lex_build_flags(flags, "test") == [f"-Llib{sep}esp32"]
 
 
 def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
@@ -84,7 +91,7 @@ def test_extra_script_libpath_absolute_outside_library_dir(tmp_path):
     result = ExtraScriptResult(libpath=[str(outside)])
 
     flags = captured_as_build_flags(result, library_dir=tmp_path)
-    assert flags == [f"-L{outside.resolve()}"]
+    assert lex_build_flags(flags, "test") == [f"-L{outside.resolve()}"]
 
 
 def test_extra_script_failure_returns_empty_result(tmp_path, caplog):
@@ -326,13 +333,11 @@ def test_extra_script_cpppath_captured_as_include_flags(tmp_path, monkeypatch):
     result = ExtraScriptResult(cpppath=["include", str(outside), 7])
     flags = captured_as_build_flags(result, library_dir=tmp_path)
 
-    assert flags == ["-Iinclude", f"-I{outside.resolve()}"]
+    assert lex_build_flags(flags, "test") == ["-Iinclude", f"-I{outside.resolve()}"]
 
 
 def test_extra_script_spaced_paths_survive_relexing(tmp_path):
     """-I/-L paths with spaces round-trip through lex_build_flags as one token."""
-    from esphome.platformio.library import lex_build_flags
-
     (tmp_path / "my libs").mkdir()
     result = ExtraScriptResult(cpppath=["my libs"], libpath=["my libs"])
     flags = captured_as_build_flags(result, library_dir=tmp_path)
