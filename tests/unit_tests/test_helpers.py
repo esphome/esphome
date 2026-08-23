@@ -256,8 +256,7 @@ class Test_write_file_if_changed:
     def test_damaged_existing_file_is_replaced(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ):
-        """A non-UTF-8 existing file is logged and overwritten; aborting
-        would block the very regeneration that fixes it."""
+        """A non-UTF-8 existing file is logged and overwritten."""
         dst = tmp_path / "generated.txt"
         dst.write_bytes(b"\xff\xfe")
 
@@ -267,8 +266,7 @@ class Test_write_file_if_changed:
         assert "Replacing damaged file" in caplog.text
 
     def test_unreadable_existing_file_still_raises(self, tmp_path: Path):
-        """An OSError on the comparison read may hide an intact file, so it
-        propagates as EsphomeError instead of unlinking."""
+        """An OSError on the comparison read still raises EsphomeError."""
         dst = tmp_path / "generated.txt"
         dst.write_text("intact")
 

@@ -561,10 +561,8 @@ def write_file_if_changed(path: Path, text: str) -> bool:
         try:
             src_content = path.read_text(encoding="utf-8")
         except UnicodeDecodeError as err:
-            # A damaged existing file must be replaced, not abort the very
-            # regeneration that would fix it. Only decode failures recover:
-            # an OSError (permissions, I/O) may hide an intact file and
-            # propagates below like it always did.
+            # Replace a damaged file rather than abort the regeneration that
+            # fixes it; an OSError may hide an intact file, so it still raises
             _LOGGER.warning("Replacing damaged file %s: %s", path, err)
             with suppress(OSError):
                 path.unlink(missing_ok=True)
