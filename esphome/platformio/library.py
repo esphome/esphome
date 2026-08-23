@@ -1137,8 +1137,8 @@ def convert_libraries(
             node = nodes[key]
             if frozenset(node.requirements) != resolved_requirements[key]:
                 # An earlier wave entry grew this node's requirements after
-                # the drain resolved it; downloading the superseded version
-                # would be wasted work, and the next wave re-resolves it
+                # the drain resolved it; skip parsing and walking a manifest
+                # the next wave will replace (its archive is already fetched)
                 worklist.append(key)
                 continue
             component.download(salt=salt, namespace=backend.cache_key)
@@ -1205,9 +1205,9 @@ def convert_libraries(
                 component.data.get("dependencies"), component.name
             ):
                 if "version" not in dependency:
-                    # Cannot resolve from the registry; the arduino-backend
-                    # PR adds the reconciliation that reports real drops
-                    _LOGGER.debug(
+                    # Cannot resolve from the registry; common for bundled
+                    # names (Wire, SPI) -- add_library() is the fix if real
+                    _LOGGER.info(
                         "Skip version-less dependency %r of %s",
                         dependency.get("name"),
                         component.name,
