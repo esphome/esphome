@@ -238,10 +238,36 @@ def test_run_grouped_test_closes_group_when_subprocess_raises(
     assert "::endgroup::" in capsys.readouterr().out
 
 
-def test_components_empty_match_fails(capsys: pytest.CaptureFixture[str]) -> None:
-    """A real component filtered to a platform with no matching test file
-    must not pass CI as a green zero-component compile. (An unknown
-    component name instead builds the reference baseline.)"""
-    rc = tbc.test_components(["logger"], "zz-none", "compile", False)
+def test_components_empty_match_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Under --fail-on-no-tests, a real component filtered to a platform
+    with no matching test file must not pass CI as a green zero-component
+    compile."""
+    rc = tbc.test_components(
+        ["logger"], "zz-none", "compile", False, fail_on_no_tests=True
+    )
     assert rc == 1
     assert "No tests matched" in capsys.readouterr().out
+
+
+def test_components_empty_match_tolerated_without_flag() -> None:
+    """The esp32-ard smoke leg deliberately builds only the subset with a
+    matching fixture; without the flag an empty match stays green."""
+    assert tbc.test_components(["logger"], "zz-none", "compile", False) == 0
+
+
+def test_components_unknown_component_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A renamed smoke-test component must shrink coverage loudly, not fall
+    into the reference-baseline build."""
+    rc = tbc.test_components(
+        ["no_such_component_xyz"],
+        "esp8266-ard",
+        "compile",
+        False,
+        fail_on_no_tests=True,
+    )
+    assert rc == 1
+    assert "No tests found for requested component(s)" in capsys.readouterr().out

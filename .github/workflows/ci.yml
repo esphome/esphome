@@ -1149,7 +1149,7 @@ jobs:
 
           # compile validates config first, so a separate config pass is
           # redundant for this smoke test. ESP-IDF framework via PlatformIO:
-          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
+          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio --fail-on-no-tests
 
           echo ""
           echo "ESP-IDF-via-PlatformIO build passed! Starting Arduino smoke test..."
@@ -1191,7 +1191,7 @@ jobs:
 
           # ESP8266 Arduino built directly (no PlatformIO); compile validates
           # config first, so a separate config pass is redundant.
-          python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino
+          python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino --fail-on-no-tests
 
   device-builder:
     name: Test downstream esphome/device-builder

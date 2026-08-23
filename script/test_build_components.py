@@ -1027,6 +1027,7 @@ def test_components(
     isolated_components: set[str] | None = None,
     base_only: bool = False,
     toolchain: str | None = None,
+    fail_on_no_tests: bool = False,
 ) -> int:
     """Test components with optional intelligent grouping.
 
@@ -1072,6 +1073,16 @@ def test_components(
                 tests_dir, pattern, base_only, include_validate=include_validate
             )
         )
+
+    # Renamed or removed fixtures must shrink coverage loudly, and the
+    # reference-baseline fallback below must not mask an empty match
+    if fail_on_no_tests and (
+        unmatched := [
+            p for p in component_patterns if p and "*" not in p and p not in all_tests
+        ]
+    ):
+        print(f"No tests found for requested component(s): {', '.join(unmatched)}")
+        return 1
 
     # If no components found, build a reference configuration for baseline comparison
     # Create a synthetic "empty" component test that will build just the base config
@@ -1178,9 +1189,10 @@ def test_components(
                         toolchain=toolchain,
                     )
 
-    if not test_results:
+    if fail_on_no_tests and not test_results:
         # A green run that compiled nothing (renamed/removed test fixture,
-        # bad platform filter) must not pass CI
+        # bad platform filter) must not pass CI. Opt-in: some legs (the
+        # esp32-ard smoke subset) legitimately match nothing.
         print("No tests matched the requested components/platform")
         return 1
 
@@ -1270,6 +1282,12 @@ def main() -> int:
         "--toolchain",
         help="Select toolchain for compiling.",
     )
+    parser.add_argument(
+        "--fail-on-no-tests",
+        action="store_true",
+        help="Exit non-zero when no test matched (for CI legs whose "
+        "components must all have fixtures)",
+    )
 
     args = parser.parse_args()
 
@@ -1288,6 +1306,7 @@ def main() -> int:
         continue_on_fail=args.continue_on_fail,
         enable_grouping=not args.no_grouping,
         isolated_components=isolated_components,
+        fail_on_no_tests=args.fail_on_no_tests,
         base_only=args.base_only,
         toolchain=args.toolchain,
     )

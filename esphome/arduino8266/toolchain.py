@@ -93,8 +93,18 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     env = framework.get_build_env(paths.toolchain, ccache)
 
     # Regenerate the compile DB before the build (a pure function of
-    # build.ninja); skip when unchanged.
-    if ninja_changed or not (build_dir / "compile_commands.json").is_file():
+    # build.ninja); skip only when it is at least as fresh as build.ninja
+    # (an interrupted previous run may have rewritten the manifest without
+    # regenerating the DB).
+    compdb = build_dir / "compile_commands.json"
+    ninja_file = build_dir / "build.ninja"
+    if (
+        ninja_changed
+        or not compdb.is_file()
+        or (
+            ninja_file.is_file() and compdb.stat().st_mtime < ninja_file.stat().st_mtime
+        )
+    ):
         _write_compile_commands(paths.ninja, build_dir, env)
 
     cmd = [str(paths.ninja)]
@@ -135,8 +145,14 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
             return rc
 
     # A generator defect emitting no default targets must not turn into a
-    # green build with no firmware (size summary and idedata only warn)
-    build_dir_artifacts = (get_elf_path(), get_build_dir() / "firmware.bin")
+    # green build with no firmware (size summary and idedata only warn);
+    # the factory/ota copies are what upload and OTA actually consume
+    build_dir_artifacts = (
+        get_elf_path(),
+        get_build_dir() / "firmware.bin",
+        get_factory_firmware_path(),
+        get_build_dir() / "firmware.ota.bin",
+    )
     for artifact in build_dir_artifacts:
         if not artifact.is_file():
             _LOGGER.error("Build produced no %s", artifact)

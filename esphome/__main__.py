@@ -1939,6 +1939,12 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 def _native_toolchain_module():
     """The native build backend module for the resolved toolchain, via the
     target platform's ``native_toolchain_module`` hook."""
+    if not CORE.using_native_toolchain:
+        # Both hooks return None for PlatformIO anyway; returning early
+        # keeps the serial upload/logs fast path from importing the
+        # platform component package (see the esp32 variant comment in
+        # upload_using_esptool)
+        return None
     module = importlib.import_module("esphome.components." + CORE.target_platform)
     get_native = getattr(module, "native_toolchain_module", None)
     native = get_native() if get_native is not None else None

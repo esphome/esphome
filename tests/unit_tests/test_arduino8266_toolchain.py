@@ -42,8 +42,13 @@ def _setup_core(tmp_path: Path) -> None:
     # that "produced" them (tests for the guard delete them again)
     build_dir = CORE.relative_pioenvs_path("test8266")
     build_dir.mkdir(parents=True, exist_ok=True)
-    (build_dir / "firmware.elf").write_bytes(b"")
-    (build_dir / "firmware.bin").write_bytes(b"")
+    for artifact in (
+        "firmware.elf",
+        "firmware.bin",
+        "firmware.factory.bin",
+        "firmware.ota.bin",
+    ):
+        (build_dir / artifact).write_bytes(b"")
 
 
 def _paths(tmp_path: Path) -> framework.InstalledPaths:
@@ -137,6 +142,36 @@ def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
     ninja_calls = [c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0])]
     assert len(ninja_calls) == 1
     assert ninja_calls[0][0][0][-1] == "-n"
+
+
+def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
+    """An interrupted run can leave build.ninja newer than the compile DB;
+    mere existence must not skip regeneration."""
+    import os
+
+    build_dir = toolchain.get_build_dir()
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "build.ninja").write_text("")
+    compdb = build_dir / "compile_commands.json"
+    compdb.write_text("[]")
+    os.utime(compdb, ((build_dir / "build.ninja").stat().st_mtime - 5,) * 2)
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(
+                returncode=0, stdout="ninja: no work to do.\n", stderr=""
+            ),
+        ),
+        patch.object(toolchain, "_write_compile_commands") as mock_compdb,
+        patch.object(toolchain, "_print_size_summary"),
+        patch.object(toolchain, "get_idedata"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    mock_compdb.assert_called_once()
 
 
 def test_run_compile_surfaces_probe_diagnostics(
