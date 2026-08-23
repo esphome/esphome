@@ -5,10 +5,7 @@ from __future__ import annotations
 
 def format_bar(used: int, total: int) -> str:
     """Match PlatformIO's ``_format_availale_bytes`` (sic, pioupload.py) exactly."""
-    if total <= 0:
-        # A "from 0 bytes" bar is meaningless; make every caller handle it
-        raise ValueError(f"non-positive size total {total}")
-    pct_raw = used / total
+    pct_raw = used / total if total else 0
     blocks = 10
     filled = min(int(round(blocks * pct_raw)), blocks)
     progress = "=" * filled
