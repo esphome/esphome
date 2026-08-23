@@ -1751,11 +1751,13 @@ void APIConnection::complete_authentication_() {
 
 #ifdef USE_API_NOISE
 void APIConnection::send_resume_ticket_() {
+#ifdef USE_API_PLAINTEXT
   // Only encrypted transports get a ticket: on dual-mode builds a plaintext
   // connection has no frame footer
   if (this->helper_->frame_footer_size() == 0) {
     return;
   }
+#endif
   noise::ResumeTicket ticket;
   if (!this->parent_->get_noise_ctx().resume_cache().issue(ticket)) {
     return;
@@ -1764,7 +1766,7 @@ void APIConnection::send_resume_ticket_() {
   msg.set_session_id(ticket.session_id, noise::RESUME_SESSION_ID_SIZE);
   msg.set_secret(ticket.secret, noise::RESUME_SECRET_SIZE);
   this->send_message(msg);
-  noise::resume_wipe(&ticket, sizeof(ticket));
+  noise_clean(&ticket, sizeof(ticket));
 }
 #endif
 

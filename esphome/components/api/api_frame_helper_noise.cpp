@@ -252,6 +252,8 @@ APIError APINoiseFrameHelper::state_action_() {
       return this->state_action_server_hello_();
     case State::HANDSHAKE:
       return this->state_action_handshake_();
+    case State::RESUME_DISCARD:
+      return this->state_action_resume_discard_();
     case State::CLOSED:
     case State::FAILED:
       return APIError::BAD_STATE;
@@ -277,29 +279,19 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
     std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
   }
 
-  // A resume offer is decided on in the server hello step, which reads it
-  // from rx_buf_ (no frame is read in between, so the buffer stays intact).
-  this->resume_offer_pending_ = rx_size == noise::RESUME_OFFER_SIZE && this->rx_buf_[0] == noise::RESUME_OFFER_VERSION;
-
   state_ = State::SERVER_HELLO;
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::state_action_server_hello_() {
-  // A verified resume offer replaces the whole handshake: consume the ticket,
-  // prove possession of its secret in a trailing ServerHello extension (old
-  // clients ignore trailing bytes), and derive the transport keys via HKDF.
-  // Every failure on this path silently falls back to the full handshake.
-  uint8_t resume_secret[noise::RESUME_SECRET_SIZE];
-  uint8_t server_nonce[noise::RESUME_NONCE_SIZE];
-  uint8_t confirm_mac[noise::RESUME_MAC_SIZE];
-  bool resume =
-      this->resume_offer_pending_ && this->ctx_.resume_cache().take_verified(this->rx_buf_.data(), resume_secret);
-  this->resume_offer_pending_ = false;
-  if (resume) {
-    resume = random_bytes(server_nonce, sizeof(server_nonce)) &&
-             noise::resume_compute_confirm_mac(resume_secret, this->rx_buf_.data() + noise::RESUME_OFFER_NONCE_OFFSET,
-                                               server_nonce, confirm_mac);
-  }
+  // A verified resume offer (still in rx_buf_ from the client hello step; no
+  // frame is read in between) replaces the whole handshake: the cache
+  // consumes the ticket, proves possession of its secret in a trailing
+  // ServerHello extension (old clients ignore trailing bytes), and hands
+  // back ready transport ciphers. Every failure silently falls back to the
+  // full handshake.
+  uint8_t resume_ext[noise::RESUME_ACCEPT_SIZE];
+  bool resume = this->ctx_.resume_cache().try_accept(this->rx_buf_.data(), this->rx_buf_.size(), this->prologue_.data(),
+                                                     this->prologue_.size(), resume_ext, send_cipher_, recv_cipher_);
 
   // send server hello
   const auto &name = App.get_name();
@@ -328,26 +320,22 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
   if (resume) {
-    // version | server_nonce | confirm_mac
-    uint8_t *ext = msg + total_size;
-    ext[0] = noise::RESUME_ACCEPT_VERSION;
-    std::memcpy(ext + 1, server_nonce, sizeof(server_nonce));
-    std::memcpy(ext + 1 + sizeof(server_nonce), confirm_mac, sizeof(confirm_mac));
+    std::memcpy(msg + total_size, resume_ext, noise::RESUME_ACCEPT_SIZE);
     total_size += noise::RESUME_ACCEPT_SIZE;
   }
 
   APIError aerr = write_frame_(msg, total_size);
-  if (aerr != APIError::OK) {
-    noise::resume_wipe(resume_secret, sizeof(resume_secret));
+  if (aerr != APIError::OK)
     return aerr;
-  }
 
   if (resume) {
-    aerr = this->setup_resumed_session_(resume_secret, server_nonce);
-    noise::resume_wipe(resume_secret, sizeof(resume_secret));
-    return aerr;
+    // The client's full-handshake message 1 is already in flight; discard
+    // it before entering DATA.
+    this->prologue_.release();
+    this->frame_footer_size_ = noise_cipherstate_get_mac_length(this->send_cipher_);
+    state_ = State::RESUME_DISCARD;
+    return APIError::OK;
   }
-  noise::resume_wipe(resume_secret, sizeof(resume_secret));
 
   // start handshake
   aerr = init_handshake_();
@@ -357,39 +345,7 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   state_ = State::HANDSHAKE;
   return APIError::OK;
 }
-
-/// Derive the resumed session's transport ciphers. The client's full
-/// handshake message 1 is already in flight, so the connection stays in
-/// HANDSHAKE state to read and discard it before switching to DATA.
-APIError APINoiseFrameHelper::setup_resumed_session_(const uint8_t *resume_secret, const uint8_t *server_nonce) {
-  uint8_t k_c2d[32];
-  uint8_t k_d2c[32];
-  bool ok = noise::resume_derive_keys(resume_secret, this->rx_buf_.data() + noise::RESUME_OFFER_NONCE_OFFSET,
-                                      server_nonce, this->prologue_.data(), this->prologue_.size(), k_c2d, k_d2c);
-  if (ok) {
-    this->recv_cipher_ = noise::resume_make_cipher(k_c2d);
-    this->send_cipher_ = noise::resume_make_cipher(k_d2c);
-    ok = this->recv_cipher_ != nullptr && this->send_cipher_ != nullptr;
-  }
-  noise::resume_wipe(k_c2d, sizeof(k_c2d));
-  noise::resume_wipe(k_d2c, sizeof(k_d2c));
-  if (!ok) {
-    // The accept extension is already on the wire; the connection cannot
-    // fall back to a full handshake any more. Fail it; the client retries.
-    state_ = State::FAILED;
-    HELPER_LOG("Resume key derivation failed");
-    return APIError::HANDSHAKESTATE_SETUP_FAILED;
-  }
-  this->prologue_.release();
-  this->frame_footer_size_ = noise_cipherstate_get_mac_length(this->send_cipher_);
-  this->resume_discard_msg1_ = true;
-  state_ = State::HANDSHAKE;
-  return APIError::OK;
-}
 APIError APINoiseFrameHelper::state_action_handshake_() {
-  if (this->resume_discard_msg1_) {
-    return this->state_action_resume_discard_();
-  }
   noise::NoiseResponderHandshake::Action action = this->handshake_.action();
   if (action == noise::NoiseResponderHandshake::Action::ACTION_READ) {
     return this->state_action_handshake_read_();
@@ -414,7 +370,6 @@ APIError APINoiseFrameHelper::state_action_resume_discard_() {
     HELPER_LOG("Bad discarded handshake message");
     return APIError::BAD_HANDSHAKE_ERROR_BYTE;
   }
-  this->resume_discard_msg1_ = false;
   HELPER_LOG("Session resumed!");
   state_ = State::DATA;
   return APIError::OK;

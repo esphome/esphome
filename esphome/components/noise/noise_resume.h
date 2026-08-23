@@ -4,7 +4,11 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <noise/protocol.h>
+// Forward declaration matching <noise/protocol/cipherstate.h>; keeps noise-c
+// headers out of everything that includes noise.h.
+extern "C" {
+typedef struct NoiseCipherState_s NoiseCipherState;  // NOLINT(modernize-use-using)
+}
 
 namespace esphome::noise {
 
@@ -48,35 +52,39 @@ static constexpr size_t RESUME_ACCEPT_SIZE = 1 + RESUME_NONCE_SIZE + RESUME_MAC_
 struct ResumeTicket {
   uint8_t session_id[RESUME_SESSION_ID_SIZE];
   uint8_t secret[RESUME_SECRET_SIZE];
-  bool valid{false};
 };
 
 /// Fixed-slot RAM cache of single-use resume tickets. Lost on reboot by
 /// design: clients fall back to a full handshake.
 class ResumeTicketCache {
  public:
-  /// Generate and store a fresh ticket, evicting the oldest slot.
-  /// Returns false (and stores nothing) if the RNG fails.
+  /// Generate a fresh ticket into out and store it, evicting the oldest
+  /// slot. Returns false (and stores nothing) if the RNG fails.
   bool issue(ResumeTicket &out);
-  /// Verify a wire offer (RESUME_OFFER_SIZE bytes, version already checked).
-  /// On a valid MAC the ticket is consumed (single use) and its secret is
-  /// copied to secret_out. A miss or a bad MAC leaves the cache unchanged so
-  /// an attacker cannot burn tickets.
-  bool take_verified(const uint8_t *offer, uint8_t *secret_out);
+  /// Try to accept a resume offer: recognizes the offer format, verifies
+  /// its MAC against a cached ticket (consuming it, single use), derives
+  /// the transport keys bound to the prologue, builds both ChaChaPoly
+  /// cipher states, and fills the RESUME_ACCEPT_SIZE ServerHello extension
+  /// proving possession of the secret. A miss, a bad MAC, or any internal
+  /// failure returns false with nothing allocated, and a forged offer never
+  /// burns a ticket. k_c2d decrypts client-to-device traffic (recv), k_d2c
+  /// encrypts device-to-client (send). All secrets are wiped internally.
+  bool try_accept(const uint8_t *offer, size_t offer_len, const uint8_t *prologue, size_t prologue_len,
+                  uint8_t *out_ext, NoiseCipherState *&send_cipher, NoiseCipherState *&recv_cipher);
   /// Forget every ticket (PSK change).
   void clear();
 
  protected:
+  bool take_verified_(const uint8_t *offer, uint8_t *secret_out);
+
   static constexpr uint8_t SLOTS = 4;
   ResumeTicket slots_[SLOTS];
+  bool used_[SLOTS]{};
   uint8_t next_{0};
 };
 
-/// Best-effort secure wipe (not optimized away).
-void resume_wipe(void *p, size_t len);
-
 /// offer_mac for the ClientHello resume offer (what a client computes and
-/// take_verified checks).
+/// try_accept checks).
 bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
                               uint8_t *out_mac);
 
