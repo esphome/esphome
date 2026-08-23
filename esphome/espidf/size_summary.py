@@ -79,8 +79,9 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     try:
         _print_summary(size_json, partitions_csv)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Backstop for nested shapes the named guards below miss
+        # Backstop for shapes the named guards below miss
         _LOGGER.warning("Skipping size summary: %s", e)
+        _LOGGER.debug("Size summary failure detail", exc_info=True)
 
 
 def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
@@ -99,12 +100,21 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.warning("Skipping size summary: unexpected shape in %s", size_json)
         return
 
-    memory_types = data.get("memory_types", {})
+    memory_types = data.get("memory_types")
+    if not isinstance(memory_types, dict):
+        memory_types = {}
     ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
+    if not isinstance(ram_region, dict):
+        ram_region = {}
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
-    if ram_total and ram_used is not None:
-        print_size_line("RAM", ram_used, ram_total)
+    # Numeric checks isolate a malformed RAM region from the Flash line below
+    if (
+        isinstance(ram_used, (int, float))
+        and isinstance(ram_total, (int, float))
+        and ram_total > 0
+    ):
+        print_size_line("RAM", int(ram_used), int(ram_total))
     else:
         _LOGGER.warning(
             "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
