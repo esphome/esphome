@@ -58,8 +58,10 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
     """
 
     def escape_entry(p: PathType) -> str:
-        # In CMakeLists.txt, backslashes need to be escaped
-        return f'"{str(p)}"'.replace("\\", "\\\\")
+        # In CMakeLists.txt, backslashes and embedded quotes need escaping
+        # (a quoted define value reaches here via the shlex round-trip)
+        escaped = str(p).replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
 
     def escape_path(p: PathType) -> str:
         # CMake uses forward slashes for paths on every platform and treats
