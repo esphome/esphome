@@ -151,12 +151,22 @@ def prefetch_packages(
     an optimization: ``install_package`` verifies every archive and
     re-downloads anything this pass left unfinished. Mirror overrides and
     registry entries without a size stay on the sequential path so its
-    per-file bars remain trustworthy.
+    per-file bars remain trustworthy. Each fetch holds the same per-dest
+    lock as ``install_package``: the archive's ``.part`` file is shared, and
+    two concurrent writers would truncate each other's bytes.
     """
-    pending: list[tuple[str, str, str, str, int]] = []
+    from filelock import FileLock
+
+    pending: list[tuple[str, str, Path, str, str, int]] = []
+    seen: set[str] = set()
     for name, version, dest, mirrors in packages:
         if mirrors or (dest / ".esphome_extracted").is_file():
             continue
+        archive_name = f"{name}-{version}"
+        if archive_name in seen:
+            # A duplicate entry would race itself between two workers
+            continue
+        seen.add(archive_name)
         try:
             url, sha256, size = registry_download(name, version)
         except EsphomeError as err:
@@ -165,32 +175,35 @@ def prefetch_packages(
             continue
         if not size:
             continue
-        archive = downloads_dir / f"{name}-{version}"
+        archive = downloads_dir / archive_name
         if archive.is_file() and archive.stat().st_size == size:
             continue
-        pending.append((name, version, url, sha256, size))
+        pending.append((name, version, dest, url, sha256, size))
     if len(pending) < 2:
         return
     downloads_dir.mkdir(parents=True, exist_ok=True)
     _LOGGER.info(
         "Downloading %d package archive(s): %s",
         len(pending),
-        ", ".join(name for name, _, _, _, _ in pending),
+        ", ".join(name for name, *_ in pending),
     )
     progress = BatchDownloadProgress(
         "Downloading packages", sum(size for *_, size in pending)
     )
 
-    def _fetch(entry: tuple[str, str, str, str, int]) -> None:
-        name, version, url, sha256, size = entry
+    def _fetch(entry: tuple[str, str, Path, str, str, int]) -> None:
+        name, version, dest, url, sha256, size = entry
+        tracker = progress.tracker()
         try:
-            download_with_resume(
-                url,
-                downloads_dir / f"{name}-{version}",
-                sha256=sha256,
-                size=size,
-                progress=progress.tracker(),
-            )
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with FileLock(f"{dest}.lock", fallback_to_soft=False):
+                download_with_resume(
+                    url,
+                    downloads_dir / f"{name}-{version}",
+                    sha256=sha256,
+                    size=size,
+                    progress=tracker,
+                )
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # install_package retries this one itself, with a visible bar
             _LOGGER.debug("Prefetch of %s failed: %s", name, err)
