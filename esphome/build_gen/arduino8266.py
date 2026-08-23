@@ -456,7 +456,12 @@ def _flash_ld_name(board: str) -> str:
     """
     override = _pio_option("board_build.ldscript", "")
     if not override:
-        return ESP8266_LD_SCRIPTS[BOARDS[board][KEY_FLASH_SIZE]][1]
+        # The same per-board override the PlatformIO path pins (layout
+        # preservation, see boards.py)
+        board_data = BOARDS[board]
+        return board_data.get(
+            "ldscript", ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]][1]
+        )
     if Path(override).name != override:
         raise EsphomeError(
             f"board_build.ldscript must be a bare script name, got {override!r}"
@@ -892,6 +897,18 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if unmatched := sorted(unflags - flag_universe):
         _LOGGER.warning(
             "build_unflags entries matched no build flag: %s", ", ".join(unmatched)
+        )
+    # _LINKFLAGS stores -u and its operand as two tokens; unflagging the
+    # bare -u would strip all seven and leave the operands as ld "input
+    # files" with an error pointing nowhere near build_unflags
+    if plain := sorted(
+        u
+        for u in unflags
+        if u in _PLAIN_LINKER_FLAGS or u.startswith(_PLAIN_LINKER_PREFIXES)
+    ):
+        raise EsphomeError(
+            f"build_unflags cannot remove plain linker flag(s) "
+            f"{', '.join(plain)}; unflag the full -Wl, form or the symbol"
         )
     cflags, cxxflags, asflags, link_flags = (
         [f for f in flags if f not in unflags]
