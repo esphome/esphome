@@ -625,6 +625,38 @@ def test_generate_ld_scripts_surfaces_preprocessor_warnings(
         _run_generate_ld_scripts(paths)
 
 
+def test_generate_ld_scripts_lost_warn_note_vetoes_the_stamp(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A warn note that could not persist skips the stamp, so the next build
+    re-runs -E and re-derives the diagnostic instead of losing it."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    result = MagicMock(
+        returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: something"
+    )
+    real_write_text = Path.write_text
+
+    def fail_note_writes(self: Path, text: str, encoding: str = "utf-8") -> int:
+        if self.name.endswith(".stderr"):
+            raise OSError("read-only build dir")
+        return real_write_text(self, text, encoding=encoding)
+
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result) as run1,
+        patch.object(Path, "write_text", fail_note_writes),
+    ):
+        _run_generate_ld_scripts(paths)
+    run1.assert_called_once()
+    assert "Could not write" in caplog.text
+
+    # Unstamped: the second build re-runs the preprocessor
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as run2:
+        _run_generate_ld_scripts(paths)
+    run2.assert_called_once()
+    assert caplog.text.count("Linker-script preprocessor: warning: something") == 2
+
+
 def test_build_config_mmu_knob_with_raw_mmu_flag_raises() -> None:
     """A variant knob plus a raw MMU_* define would split the compile line
     from the linker script; refuse like the no-knob case."""
@@ -732,20 +764,6 @@ def test_generate_ld_scripts_invalid_flash_ld_name_raises(tmp_path: Path) -> Non
     config = _resolve()
     with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
         arduino8266.generate_ld_scripts(paths, config, "../evil.ld")
-
-
-def test_write_generated_replaces_damaged_file(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A non-UTF-8 existing copy is logged and overwritten; the write path
-    still raises for real failures (now the shared helper's contract)."""
-    from esphome.helpers import write_file_if_changed
-
-    target = tmp_path / "gen.ld"
-    target.write_bytes(b"\xff\xfe")
-    write_file_if_changed(target, "SECTIONS { }")
-    assert target.read_text(encoding="utf-8") == "SECTIONS { }"
-    assert "Replacing damaged file" in caplog.text
 
 
 def test_generate_ld_scripts_edited_output_regenerates(tmp_path: Path) -> None:
