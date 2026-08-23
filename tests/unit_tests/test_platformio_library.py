@@ -4,6 +4,7 @@ Covers the shared download/parse/resolve/dependency-walk paths in
 ``esphome.platformio.library`` directly (the ESP-IDF and Zephyr backends are
 exercised in their own test modules)."""
 
+from contextlib import contextmanager
 import json
 import logging
 from pathlib import Path
@@ -13,6 +14,7 @@ import pytest
 from esphome.core import EsphomeError, Library
 import esphome.platformio.library as lib
 from esphome.platformio.library import (
+    SOURCE_KIND_FOR_SUFFIX,
     ConvertedLibrary,
     GitSource,
     InvalidLibrary,
@@ -23,6 +25,8 @@ from esphome.platformio.library import (
     _resolve_registry_version,
     check_library_data,
     convert_libraries,
+    join_flag_args,
+    split_flag_entry,
 )
 
 
@@ -150,11 +154,30 @@ def test_localsource_download_returns_empty_build_dir(setup_core: Path) -> None:
     assert plain != out
 
 
+@contextmanager
+def caplog_at_info():
+    records: list[logging.LogRecord] = []
+    handler = logging.Handler()
+    handler.emit = records.append
+    logger = logging.getLogger("esphome.platformio.library")
+    logger.addHandler(handler)
+    # The level must actually admit INFO or the no-INFO assertions are vacuous
+    old_level = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        yield records
+    finally:
+        logger.setLevel(old_level)
+        logger.removeHandler(handler)
+
+
 def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []
     monkeypatch.setattr(
-        lib, "download_from_mirrors", lambda urls, headers, f: dl_calls.append(urls)
+        lib,
+        "download_from_mirrors",
+        lambda urls, headers, f: dl_calls.append(urls),
     )
 
     def fake_extract(fileobj, path):
@@ -213,7 +236,7 @@ def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
 def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properties=()):
     """Fake ConvertedLibrary.download to materialize canned manifests on disk."""
 
-    def fake_download(self, force=False, salt="", namespace=""):
+    def fake_download(self, force=False, salt="", namespace="", progress=None):
         self.path = tmp_path / self.get_require_name()
         self.path.mkdir(parents=True, exist_ok=True)
         if self.name in properties:
@@ -292,7 +315,11 @@ def _patch_download_without_manifest(
     calls: list[bool] = []
 
     def fake_download(
-        self: ConvertedLibrary, force: bool = False, salt: str = "", namespace: str = ""
+        self: ConvertedLibrary,
+        force: bool = False,
+        salt: str = "",
+        namespace: str = "",
+        progress=None,
     ) -> None:
         calls.append(force)
         self.path = tmp_path / self.get_require_name()
@@ -531,3 +558,182 @@ def test_convert_libraries_skips_incompatible_dependency(tmp_path, monkeypatch):
     top = convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
 
     assert top[0].dependencies == []
+
+
+def test_split_flag_entry_unbalanced_quote_is_clean() -> None:
+    """A malformed flags entry raises EsphomeError, not a raw ValueError."""
+
+    assert split_flag_entry('-DX="a b"', "library x") == ["-DX=a b"]
+    with pytest.raises(EsphomeError, match=r"Malformed build flag.*library x"):
+        split_flag_entry('-DX="unclosed', "library x")
+
+
+def test_join_flag_args_reglues_spaced_define() -> None:
+    """A spaced -D re-glues to its argument, as ParseFlags does."""
+
+    assert join_flag_args(["-D", "FOO=1", "-Os"], "x") == ["-DFOO=1", "-Os"]
+
+
+def test_join_flag_args_trailing_bare_flag_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+
+    assert join_flag_args(["-Os", "-l"], "library x") == ["-Os"]
+    assert "Ignoring trailing '-l'" in caplog.text
+
+
+def test_lex_build_flags_dangling_flag_does_not_cross_entries(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Each entry is lexed independently, as ParseFlags does: a dangling -I
+    ending one entry warns instead of absorbing the next entry's first token."""
+    from esphome.platformio.library import lex_build_flags
+
+    assert lex_build_flags(["-Wall -I", "-DFOO=1"], "lib x") == ["-Wall", "-DFOO=1"]
+    assert "Ignoring trailing '-I'" in caplog.text
+
+
+def test_join_flag_args_empty_argument_warns_and_drops(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An empty glued argument is dropped: a bare -D would eat the next flag."""
+    assert lib.lex_build_flags('-D "" -DFOO', "build_flags") == ["-DFOO"]
+    assert "Ignoring '-D' with empty argument in build_flags" in caplog.text
+
+
+def test_normalize_dependencies_forms(caplog) -> None:
+    """Every PIO-legal spelling normalizes; unrecognizable entries warn."""
+    from esphome.platformio.library import normalize_dependencies
+
+    assert normalize_dependencies(
+        ["Wire", {"name": "SPI"}, 5, "", {"version": "1.0"}], "libx"
+    ) == [
+        {"name": "Wire"},
+        {"name": "SPI"},
+    ]
+    # The int, the empty string, and the nameless dict all warn
+    assert caplog.text.count("unrecognized dependency entry") == 3
+    # A plain string is names, never iterated into characters
+    assert normalize_dependencies("Wire, SPI") == [
+        {"name": "Wire"},
+        {"name": "SPI"},
+    ]
+    assert normalize_dependencies("Wire") == [{"name": "Wire"}]
+    # A non-iterable value fails by manifest name, never a bare TypeError
+    assert normalize_dependencies(5, "libx") == []
+    assert "Ignoring unrecognized dependencies 5 of libx" in caplog.text
+    # The dict-shorthand form validates names like the list form: an empty
+    # key and a spec overriding name with a non-string both warn and drop
+    assert normalize_dependencies(
+        {"": "1.0", "Wire": {"name": 123, "version": "1.0"}, "SPI": "*"}, "libx"
+    ) == [{"name": "SPI", "owner": None, "version": "*"}]
+    assert caplog.text.count("unrecognized dependency entry") == 5
+    # A container or numeric version would raise from set.add() or fail
+    # opaquely in the registry; both spellings warn and drop
+    assert normalize_dependencies({"Foo": ["1.0", "2.0"]}, "libx") == []
+    assert normalize_dependencies([{"name": "Foo", "version": 1}], "libx") == []
+    assert caplog.text.count("unrecognized dependency entry") == 7
+
+
+@pytest.mark.parametrize(
+    "manifest", [["not", "a", "manifest"], {"name": "A", "build": "src"}]
+)
+def test_convert_libraries_malformed_manifest_raises(
+    tmp_path, monkeypatch, manifest
+) -> None:
+    """A manifest without the expected dict shape fails by library name
+    before any backend dereferences data/build."""
+    _patch_download_with_manifests(monkeypatch, tmp_path, {"esphome/A": manifest})
+    with pytest.raises(EsphomeError, match="has a malformed manifest"):
+        convert_libraries([Library("esphome/A", None, None)], _backend())
+
+
+def test_walk_warns_for_properties_only_depends(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A manifest declaring dependencies only as library.properties depends=
+    warns in the shared walk, so every backend reports the drop."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": "name=A\nversion=1.0\ndepends=Wire, SPI\n"},
+        properties=("esphome/A",),
+    )
+    caplog.set_level("INFO")
+    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+    assert "declares dependencies via library.properties" in caplog.text
+
+
+def test_walk_warns_for_nonplatform_invalid_library(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency dropped for any cause other than the routine platform
+    filter is visible in every backend."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "B", "version": "1.0"}]}},
+    )
+    calls = {"n": 0}
+    real = lib.check_library_data
+
+    def flaky(data, platform, framework):
+        calls["n"] += 1
+        if calls["n"] > 1:
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework)
+
+    monkeypatch.setattr(lib, "check_library_data", flaky)
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "Skipping dependency B of esphome/A: manifest is corrupt" in caplog.text
+
+
+def test_convert_libraries_warns_for_nonplatform_invalid_dependency_component(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency component dropped for any cause other than the platform
+    filter warns; only the routine cross-platform skip stays at debug."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "C", "owner": "esphome", "version": "1.0"}],
+            },
+            "esphome/C": {"name": "C"},
+        },
+    )
+    real = lib.check_library_data
+
+    def flaky(data, platform, framework):
+        # Fail only on C's resolved manifest, not on A's dependency entry
+        if data.get("name") == "C" and "version" not in data:
+            raise InvalidLibrary("manifest is corrupt")
+        return real(data, platform, framework)
+
+    monkeypatch.setattr(lib, "check_library_data", flaky)
+    convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
+    assert "manifest is corrupt" in caplog.text
+    assert "Skipping dependency" in caplog.text
+
+
+def test_split_flag_entry_non_string_is_clean() -> None:
+    """A dict or number from a third-party manifest fails naming the entry,
+    not with an opaque shlex traceback."""
+
+    with pytest.raises(EsphomeError, match="Malformed build flag"):
+        split_flag_entry({"esp32": ["-DX"]}, "lib x")
+    with pytest.raises(EsphomeError, match="Malformed build flag 5"):
+        split_flag_entry(5, "lib x")
+
+
+def test_source_kind_map_shape() -> None:
+    """The kind values the native compile rules key on, and the deliberate
+    AS/ASPP merge (.s and .S both map to asm)."""
+
+    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm"}
+    assert SOURCE_KIND_FOR_SUFFIX[".s"] == "asm"
+    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
+    assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
+    assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
