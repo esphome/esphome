@@ -1,4 +1,3 @@
-from contextlib import suppress
 import importlib
 import json
 import logging
@@ -344,12 +343,21 @@ def copy_src_tree():
             ):
                 # Non-object JSON is stale like every other damage case
                 sources_changed = True
+        except FileNotFoundError:
+            # An absent build_info.json is stale, not damaged; rebuild quietly
+            sources_changed = True
         except (ValueError, OSError) as err:
             # ValueError covers both JSONDecodeError and UnicodeDecodeError;
             # unlink so the regenerating write never re-reads the damage
             _LOGGER.warning("Replacing damaged build_info.json: %s", err)
-            with suppress(OSError):
-                build_info_json_path.unlink(missing_ok=True)
+            try:
+                build_info_json_path.unlink()
+            except OSError as unlink_err:
+                # The later write re-reads the file, so a kept damaged copy
+                # fails again with a misattributed error; name the real cause
+                _LOGGER.warning(
+                    "Could not remove damaged build_info.json: %s", unlink_err
+                )
             sources_changed = True
 
     # Write build_info header and JSON metadata

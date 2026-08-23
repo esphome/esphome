@@ -2146,6 +2146,56 @@ def test_copy_src_tree_regenerates_damaged_build_info(
 @patch("esphome.writer.CORE")
 @patch("esphome.writer.iter_components")
 @patch("esphome.writer.walk_files")
+def test_copy_src_tree_missing_build_info_rebuilds_quietly(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An absent build_info.json regenerates without claiming damage."""
+    build_info_json_path = _setup_build_info_mocks(
+        mock_core, mock_iter_components, mock_walk_files, tmp_path
+    )
+    _run_copy_src_tree()
+    build_info_json_path.unlink()
+    _run_copy_src_tree()
+    assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xDEADBEEF
+    assert "damaged" not in caplog.text
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
+def test_copy_src_tree_unremovable_damaged_build_info_is_logged(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A failed unlink of the damaged file names the real cause."""
+    build_info_json_path = _setup_build_info_mocks(
+        mock_core, mock_iter_components, mock_walk_files, tmp_path
+    )
+    _run_copy_src_tree()
+    build_info_json_path.write_text("invalid json {{{")
+    real_unlink = Path.unlink
+
+    def fail_on_build_info(self: Path, missing_ok: bool = False) -> None:
+        if self.name == "build_info.json":
+            raise OSError("simulated EACCES")
+        real_unlink(self, missing_ok=missing_ok)
+
+    with patch.object(Path, "unlink", fail_on_build_info):
+        _run_copy_src_tree()
+    assert "Could not remove damaged build_info.json" in caplog.text
+    assert json.loads(build_info_json_path.read_text())["config_hash"] == 0xDEADBEEF
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
 def test_copy_src_tree_build_info_timestamp_behavior(
     mock_walk_files: MagicMock,
     mock_iter_components: MagicMock,
