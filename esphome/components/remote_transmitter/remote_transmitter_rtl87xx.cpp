@@ -116,8 +116,10 @@ void RemoteTransmitterComponent::digital_write(bool value) {
   if (this->pwm_ == nullptr)
     return;
 #ifdef USE_LIBRETINY_VARIANT_RTL8720C
-  if (this->transmitting_)
+  if (this->transmitting_) {
+    ESP_LOGW(TAG, "digital_write ignored: transmission in flight");
     return;
+  }
 #endif
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), (value != this->pin_->is_inverted()) ? 1.0f : 0.0f);
 }
@@ -310,8 +312,10 @@ void RemoteTransmitterComponent::loop() {
     this->status_clear_warning();
   }
   this->complete_pending_ = false;
-  this->complete_trigger_.trigger();
+  // release the loop before user code runs: the automation may start a new non-blocking
+  // send, and its enable_loop() must be the last writer or its completion would strand
   this->disable_loop();
+  this->complete_trigger_.trigger();
 }
 
 #else  // !USE_LIBRETINY_VARIANT_RTL8720C -- AmebaZ (RTL8710B): spin-based envelope, per-frame priority boost
