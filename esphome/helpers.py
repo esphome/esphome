@@ -735,6 +735,16 @@ class ProgressBar:
         sys.stderr.write("\n")
         sys.stderr.flush()
 
+    def interrupt(self) -> None:
+        """End a mid-row frame so the next write starts on its own row.
+
+        The next ``update()`` redraws the bar; a finished bar stays done.
+        """
+        if self.last_progress == 100:
+            return
+        self.done()
+        self.last_progress = None
+
 
 def docs_url(path: str) -> str:
     """Return the URL to the documentation for a given path."""

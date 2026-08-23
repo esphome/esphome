@@ -1703,6 +1703,27 @@ class TestDownloadFromMirrors:
         assert mock_get.call_count == 2
         mock_sleep.assert_called_once_with(2)
 
+    def test_backoff_tick_reports_partial_bytes(self, tmp_path: Path) -> None:
+        """The backoff tick carries the bytes already in the part file, so a
+        combined bar holds steady instead of rewinding to zero."""
+        dest = tmp_path / "out.bin"
+        (tmp_path / "out.bin.part").write_bytes(b"12345")
+        ticks: list[int] = []
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("down"),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers._cancellable_sleep") as mock_sleep,
+        ):
+            download_from_mirrors(
+                ["https://mirror1.com/f"], {}, dest, progress=ticks.append
+            )
+        assert mock_sleep.call_args == call(2, ticks.append, 5)
+
     def test_permanent_failure_does_not_retry_sweep(self, tmp_path: Path) -> None:
         """An HTTP 404 will not heal on its own; fail after a single pass."""
         with (
