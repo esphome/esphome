@@ -48,6 +48,11 @@ _FLASH_LD_NAME_RE = re.compile(r"[\w.-]+\.ld")
 # Every supported board ships this clock; board_build.f_cpu overrides
 _DEFAULT_F_CPU = "80000000L"
 
+# The SDK linker-script template and the preprocessed copy the build links
+# against; the cache stamp and stderr sidecars derive from the output name
+_COMMON_LD_HEADER = "eagle.app.v6.common.ld.h"
+_COMMON_LD_NAME = "local.eagle.app.v6.common.ld"
+
 # Knob suffix -> SDK define; the first entry is the default (dicts
 # preserve insertion order)
 _NONOSDK_VERSIONS = {
@@ -525,14 +530,14 @@ def generate_ld_scripts(
     cmd += [f"-D{d}" for d in config.mmu_defines]
     if config.fp_in_irom:
         cmd.append("-DFP_IN_IROM")
-    header = framework / "tools" / "sdk" / "ld" / "eagle.app.v6.common.ld.h"
+    header = framework / "tools" / "sdk" / "ld" / _COMMON_LD_HEADER
     cmd += [str(header), "-o", "-"]
 
     # The inputs are the command line (defines + framework version, which is
     # baked into the paths) plus testing mode; skip the preprocessor spawn on
     # incremental builds when nothing changed.
-    output = ld_dir / "local.eagle.app.v6.common.ld"
-    stamp = ld_dir / ".local.eagle.app.v6.common.ld.stamp"
+    output = ld_dir / _COMMON_LD_NAME
+    stamp = ld_dir / f".{_COMMON_LD_NAME}.stamp"
     # Stamp includes the header/gcc stat (catches in-place re-extraction)
     # and the surgery fingerprint (a build_surgery edit invalidates old
     # build dirs)
@@ -562,7 +567,7 @@ def generate_ld_scripts(
         except (OSError, UnicodeDecodeError):
             return False
 
-    stderr_note = ld_dir / ".local.eagle.app.v6.common.ld.stderr"
+    stderr_note = ld_dir / f".{_COMMON_LD_NAME}.stderr"
     if not _cached_ld_is_valid():
         try:
             result = subprocess.run(
