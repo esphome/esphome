@@ -6,8 +6,10 @@ import json
 import logging
 from pathlib import Path
 import subprocess
+from typing import Any
 
 from esphome.arduino8266 import framework
+from esphome.build_helpers.ccache import resolve_ccache_path
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
@@ -78,7 +80,7 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
     # Resolved once per build: the resolution probes PATH and spawns the
     # runnability check, and three consumers need the same answer
-    ccache = framework.ccache_path()
+    ccache = resolve_ccache_path()
     ninja_changed = build_gen.write_project(paths, ccache)
 
     build_dir = get_build_dir()
@@ -262,7 +264,11 @@ def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> Non
     print_size_line("Flash", flash, app_size)
 
 
-def get_idedata(ccache: str | None = framework.CCACHE_UNRESOLVED) -> dict | None:
+# Sentinel: "resolve for me"; None is a real value meaning disabled.
+_CCACHE_UNRESOLVED: Any = object()
+
+
+def get_idedata(ccache: str | None = _CCACHE_UNRESOLVED) -> dict | None:
     """Derive idedata from the build's compile_commands.json.
 
     Same contract as ``espidf.toolchain.get_idedata``: the fields IDE
@@ -270,8 +276,10 @@ def get_idedata(ccache: str | None = framework.CCACHE_UNRESOLVED) -> dict | None
     """
     from esphome.build_helpers.idedata import load_or_build_idedata
 
-    if ccache is framework.CCACHE_UNRESOLVED:
-        ccache = framework.ccache_path()
+    if ccache is _CCACHE_UNRESOLVED:
+        # Deliberately uncached: env/PATH can change between builds in a
+        # long-lived host process
+        ccache = resolve_ccache_path()
     return load_or_build_idedata(
         get_build_dir() / "compile_commands.json",
         get_elf_path(),

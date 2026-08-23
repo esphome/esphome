@@ -357,7 +357,7 @@ def test_get_idedata_delegates(tmp_path: Path) -> None:
             "esphome.build_helpers.idedata.load_or_build_idedata",
             return_value={"cc_path": "x"},
         ) as mock_load,
-        patch.object(framework, "ccache_path", return_value=Path("/cc/ccache")),
+        patch.object(toolchain, "resolve_ccache_path", return_value="/cc/ccache"),
     ):
         assert toolchain.get_idedata() == {"cc_path": "x"}
     compile_commands, elf, cache = mock_load.call_args[0]
@@ -373,7 +373,7 @@ def test_get_idedata_no_ccache(tmp_path: Path) -> None:
         patch(
             "esphome.build_helpers.idedata.load_or_build_idedata", return_value={}
         ) as mock_load,
-        patch.object(framework, "ccache_path", return_value=None),
+        patch.object(toolchain, "resolve_ccache_path", return_value=None),
     ):
         toolchain.get_idedata()
     assert mock_load.call_args.kwargs["launcher"] is None
@@ -513,7 +513,7 @@ def test_get_idedata_accepts_preresolved_ccache() -> None:
             "esphome.build_helpers.idedata.load_or_build_idedata",
             return_value={"ok": True},
         ) as mock_build,
-        patch.object(framework, "ccache_path") as mock_resolve,
+        patch.object(toolchain, "resolve_ccache_path") as mock_resolve,
     ):
         assert toolchain.get_idedata("/usr/bin/ccache") == {"ok": True}
     mock_resolve.assert_not_called()
