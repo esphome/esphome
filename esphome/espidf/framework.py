@@ -17,6 +17,7 @@ import platformdirs
 from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
+    _failure_reason,
     archive_extract_all,
     create_venv,
     download_from_mirrors,
@@ -787,7 +788,8 @@ def _prefetch_idf_tool_archives(
             ],
         )
         for name, e in failures:
-            _LOGGER.warning("Could not prefetch %s: %s", name, e)
+            # _failure_reason: a message-less exception must not log blank
+            _LOGGER.warning("Could not prefetch %s: %s", name, _failure_reason(e))
             _LOGGER.debug("Prefetch failure detail", exc_info=e)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
