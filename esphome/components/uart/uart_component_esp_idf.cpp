@@ -393,5 +393,7 @@ void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback(uart_port_t uart_num, uart
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
+void IDFUARTComponent::on_shutdown() { uart_driver_delete(uart_num_); }
+
 }  // namespace esphome::uart
 #endif  // USE_ESP32
