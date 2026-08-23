@@ -1206,14 +1206,20 @@ def _ccache_env() -> dict[str, str]:
         # os.environ, where a non-false-constant string reads as truthy;
         # export the canonical off spelling instead
         return {"IDF_CCACHE_ENABLE": "0"}
-    if idf_knob is None and resolve_ccache_path() is None:
-        # ESP-IDF silently skips ccache without the binary; don't enable it.
-        return {}
+    if idf_knob is True:
+        # Forced on skips the runnability verdict, but still resolve for
+        # the "no ccache binary on PATH" warning
+        resolve_ccache_path()
+    elif resolve_ccache_path() is None:
+        # ESP-IDF silently skips ccache without the binary; export the
+        # canonical off spelling so an unparsable inherited value (or a
+        # probe-rejected ccache idf.py would still find) cannot enable it
+        return {"IDF_CCACHE_ENABLE": "0"}
 
     env = ccache_defaults_env(get_idf_tools_path() / "ccache")
-    if idf_knob is None:
-        # An unparsable IDF_CCACHE_ENABLE must not leak to idf.py as truthy
-        env["IDF_CCACHE_ENABLE"] = "1"
+    # Exactly one canonical spelling ever reaches idf.py, whatever the
+    # accepted input spelling was ("enable", "yes", ...)
+    env["IDF_CCACHE_ENABLE"] = "1"
     return env
 
 

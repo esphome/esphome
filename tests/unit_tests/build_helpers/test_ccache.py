@@ -109,6 +109,9 @@ def test_resolve_unrecognized_value_warns_and_probes(
         ("disable", False),
         ("Off", False),
         ("maybe", None),
+        # ENV KNOB= (Docker/CI) has always read as a disable
+        ("", False),
+        ("   ", False),
     ],
 )
 def test_parse_enable_env_spelling_tables(

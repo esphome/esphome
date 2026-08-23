@@ -14,6 +14,44 @@ from esphome.core import EsphomeError
 from esphome.platformio import registry
 
 
+def test_registry_download_resolves_once_per_process() -> None:
+    """The prefetch and the install share one metadata resolve per package."""
+    calls: list[dict] = []
+    payload = {
+        "versions": [
+            {
+                "name": "1.0.0",
+                "files": [
+                    {
+                        "download_url": "http://x/pkg.tar.gz",
+                        "checksum": {"sha256": "ab" * 32},
+                        "size": 5,
+                    }
+                ],
+            }
+        ]
+    }
+
+    def fake_download(mirrors, substitutions, target):
+        calls.append(substitutions)
+        target.write(json.dumps(payload).encode())
+        return mirrors[0]
+
+    with patch.object(registry, "download_from_mirrors", side_effect=fake_download):
+        first = registry.registry_download("o/pkg", "1.0.0")
+        second = registry.registry_download("o/pkg", "1.0.0")
+    assert first == second
+    assert len(calls) == 1
+
+
+@pytest.fixture(autouse=True)
+def _fresh_registry_cache():
+    # registry_download memoizes per process; tests reuse package names
+    registry.registry_download.cache_clear()
+    yield
+    registry.registry_download.cache_clear()
+
+
 @pytest.mark.parametrize(
     ("system", "machine", "expected"),
     [
