@@ -30,10 +30,7 @@ def apply_extra_script(
     pio_platform: str,
 ) -> None:
     """Run a library's ``extraScript`` and fold its captured env vars into
-    ``component.data["build"]["flags"]``.
-
-    ``board_mcu`` is a callable so its lookup runs only when a script will.
-    """
+    ``build.flags``; ``board_mcu`` is a callable so it resolves lazily."""
     extra_script = component.data.get("build", {}).get("extraScript")
     if not extra_script:
         return
@@ -177,12 +174,10 @@ def run_extra_script(
     board_mcu: str,
     pio_platform: str,
 ) -> ExtraScriptResult:
-    """Execute ``script_path`` with a fake SCons env and return captured vars.
+    """Execute ``script_path`` with a fake SCons env, ``library_dir`` as CWD.
 
-    Runs with ``library_dir`` as CWD so relative lookups resolve against
-    the library tree. A crashed script warns and returns an empty result,
-    never a partial capture.
-    """
+    A crashed script warns and returns an empty result, never a partial
+    capture."""
     env = _FakeSConsEnv(
         board_mcu=board_mcu,
         pio_env=f"esphome_{board_mcu}",
@@ -248,11 +243,8 @@ def run_extra_script(
 def captured_as_build_flags(
     result: ExtraScriptResult, *, library_dir: Path
 ) -> list[str]:
-    """Translate captured env vars into -L/-l/-D/raw build flags.
-
-    ``LIBPATH`` entries are made relative to ``library_dir`` so the
-    generated build files stay portable.
-    """
+    """Translate captured env vars into -L/-l/-D/raw build flags; path
+    entries anchor to ``library_dir`` so the build files stay portable."""
     flags: list[str] = []
 
     def _strs(bucket: list, kind: str) -> list[str]:
