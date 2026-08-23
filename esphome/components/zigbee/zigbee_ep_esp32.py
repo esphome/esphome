@@ -205,7 +205,8 @@ def create_ep(router: bool) -> None:
     cl_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_FIRST_EP_CL, [])
     if cl_list:
         first_ep = ep_dict[get_first_ep_num()]
-        if cl := _compare_clusters(first_ep.get(CONF_CLUSTERS, []), cl_list):
+        first_ep.setdefault(CONF_CLUSTERS, [])
+        if cl := _compare_clusters(first_ep[CONF_CLUSTERS], cl_list):
             raise cv.Invalid(
                 f"Endpoint {get_first_ep_num()} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
             )
