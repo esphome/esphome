@@ -12,6 +12,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
+import threading
+import time
 from unittest.mock import MagicMock, Mock, call, patch
 import zipfile
 
@@ -21,8 +23,8 @@ import requests as req
 from esphome import framework_helpers
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
-    BatchDownloadProgress,
     _7z_extract_all,
+    _BatchDownloadProgress,
     _detect_archive_root,
     _is_transient_download_error,
     _rename_with_retry,
@@ -38,6 +40,7 @@ from esphome.framework_helpers import (
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
+    run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
@@ -1161,11 +1164,6 @@ class TestDownloadWithResume:
 def test_run_batch_downloads_ctrl_c_aborts_in_flight_jobs() -> None:
     """Ctrl-C cancels in-flight downloads at their next tick instead of
     letting non-daemon workers download to completion."""
-    import threading
-    import time
-
-    from esphome.framework_helpers import BatchDownloadProgress, run_batch_downloads
-
     started = threading.Event()
     ticks: list[int] = []
 
@@ -1183,8 +1181,8 @@ def test_run_batch_downloads_ctrl_c_aborts_in_flight_jobs() -> None:
     t0 = time.monotonic()
     with pytest.raises(KeyboardInterrupt):
         run_batch_downloads(
-            BatchDownloadProgress("Downloading", 0),
-            [("boom", interrupter), ("slow", slow_download)],
+            "Downloading",
+            [("boom", 0, interrupter), ("slow", 0, slow_download)],
             max_workers=2,
         )
     # Uncancelled, slow_download alone takes ~5s
@@ -1192,10 +1190,10 @@ def test_run_batch_downloads_ctrl_c_aborts_in_flight_jobs() -> None:
     assert len(ticks) < 500
 
 
-class TestBatchDownloadProgress:
+class Test_BatchDownloadProgress:
     def test_sums_trackers_into_one_bar(self) -> None:
         with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
-            progress = BatchDownloadProgress("Downloading", 100)
+            progress = _BatchDownloadProgress("Downloading", 100)
             a = progress.tracker()
             b = progress.tracker()
             a(10)
@@ -1209,13 +1207,13 @@ class TestBatchDownloadProgress:
     def test_clamps_at_one(self) -> None:
         """Sizes are advisory; an over-delivering server never pushes past 100%."""
         with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
-            progress = BatchDownloadProgress("Downloading", 10)
+            progress = _BatchDownloadProgress("Downloading", 10)
             progress.tracker()(25)
         assert bar_cls.return_value.update.call_args[0][0] == 1
 
     def test_unknown_total_draws_nothing(self) -> None:
         with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
-            progress = BatchDownloadProgress("Downloading", 0)
+            progress = _BatchDownloadProgress("Downloading", 0)
             progress.tracker()(5)
             progress.done()
         bar_cls.assert_not_called()
@@ -1226,7 +1224,7 @@ class TestBatchDownloadProgress:
         stream = io.StringIO()
         stream.isatty = lambda: True  # type: ignore[method-assign]
         with patch("esphome.helpers.sys.stderr", stream):
-            progress = BatchDownloadProgress("Downloading", 10)
+            progress = _BatchDownloadProgress("Downloading", 10)
             progress.tracker()(5)
             progress.done()
         assert stream.getvalue().endswith("50% \n")
@@ -1237,14 +1235,14 @@ class TestBatchDownloadProgress:
         stream = io.StringIO()
         stream.isatty = lambda: True  # type: ignore[method-assign]
         with patch("esphome.helpers.sys.stderr", stream):
-            BatchDownloadProgress("Downloading", 10).done()
+            _BatchDownloadProgress("Downloading", 10).done()
         assert stream.getvalue() == ""
 
     def test_done_after_full_bar_adds_nothing(self) -> None:
         stream = io.StringIO()
         stream.isatty = lambda: True  # type: ignore[method-assign]
         with patch("esphome.helpers.sys.stderr", stream):
-            progress = BatchDownloadProgress("Downloading", 10)
+            progress = _BatchDownloadProgress("Downloading", 10)
             progress.tracker()(10)
             progress.done()
         assert stream.getvalue().endswith("100% Done...\r\n")
@@ -1260,6 +1258,22 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(["https://example.com/f"], {}, target)
         assert url == "https://example.com/f"
         assert target.read_bytes() == b"filedata"
+
+    def test_file_object_target_reports_progress(self) -> None:
+        """The library prefetch's production path: a file-object target
+        streams through the mirror fallback and ticks the tracker."""
+        buf = io.BytesIO()
+        ticks: list[int] = []
+        with patch(
+            "requests.get",
+            return_value=_mock_response(b"filedata"),
+        ):
+            url = download_from_mirrors(
+                ["https://example.com/f"], {}, buf, progress=ticks.append
+            )
+        assert url == "https://example.com/f"
+        assert buf.getvalue() == b"filedata"
+        assert ticks and ticks[-1] == len(b"filedata")
 
     def test_substitutions_applied_to_url(self, tmp_path: Path) -> None:
         with patch(
