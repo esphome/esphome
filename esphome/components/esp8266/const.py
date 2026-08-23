@@ -71,3 +71,6 @@ def enable_serial1() -> None:
             enable_serial1()
     """
     CORE.data.setdefault(KEY_ESP8266, {})[KEY_SERIAL1_REQUIRED] = True
+
+
+KEY_LDSCRIPT = "ldscript"
