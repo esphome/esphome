@@ -1074,6 +1074,27 @@ def test_prefetch_failures_never_raise(
     assert expected_log in caplog.text
 
 
+def test_prefetch_total_failure_logs_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every archive failing is a systematic fault (proxy, bad kwarg), not
+    a flaky mirror; it must be distinguishable at ERROR because the resume
+    workaround is off for the whole install."""
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, _PREFETCH_JSON, ""),
+        ),
+        patch(
+            "esphome.espidf.framework.download_with_resume",
+            side_effect=OSError("proxy refuses everything"),
+        ),
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+    assert "Every ESP-IDF tool prefetch failed" in caplog.text
+
+
 def test_prefetch_one_failed_archive_does_not_stop_the_rest(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1099,6 +1120,8 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
 
     assert download.call_count == 2
     assert "Could not prefetch cmake@3.30.2" in caplog.text
+    # One flaky archive is routine, never the systematic-fault ERROR
+    assert "Every ESP-IDF tool prefetch failed" not in caplog.text
 
 
 def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> None:
