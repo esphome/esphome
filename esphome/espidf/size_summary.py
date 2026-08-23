@@ -52,13 +52,11 @@ def _find_app_partition_size(partitions_csv: Path) -> int | None:
     whose subtype is ``factory`` or ``ota_0``. Order matters because
     layouts like Adafruit's ``partitions-4MB-tinyuf2.csv`` repurpose
     ``factory`` for a UF2 bootloader before the real OTA slot, so a
-    naive "prefer factory" rule would pick the wrong row. A missing
-    table or no qualifying row is legitimate absence (None); malformed
-    tables cannot reach a successful build (gen_esp32part rejects them),
-    so parse failures go to the caller's backstop.
+    naive "prefer factory" rule would pick the wrong row. No qualifying
+    row is legitimate absence (None); a build cannot succeed with a
+    missing or malformed table (gen_esp32part consumes it first), so
+    those states belong to the backstop.
     """
-    if not partitions_csv.is_file():
-        return None
     for row in csv.reader(partitions_csv.read_text(encoding="utf-8").splitlines()):
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
@@ -159,12 +157,7 @@ def _flash_bar(
     if partitions_csv is None:
         _LOGGER.debug("Skipping Flash summary: no partition table given")
         return None
-    try:
-        app_size = _find_app_partition_size(partitions_csv)
-    except OSError as e:
-        # A read race on a table the build just used; visible but non-fatal
-        _LOGGER.warning("Skipping Flash summary: %s", e)
-        return None
+    app_size = _find_app_partition_size(partitions_csv)
     if not app_size:
         # No table or no qualifying row: legitimate for non-app layouts
         _LOGGER.debug("Skipping Flash summary: no app partition in %s", partitions_csv)
