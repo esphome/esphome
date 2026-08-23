@@ -47,21 +47,27 @@ def _run_ar(ar: str, archive: str, rspfile: str) -> int:
     # 32767-char command-line limit it existed to avoid. "rc" creates,
     # "q" appends the remainder.
     op = "rc"
-    while objects:
-        batch = [objects.pop(0)]
-        batch_len = len(batch[0])
-        while objects and batch_len + len(objects[0]) < 25000:
-            batch_len += len(objects[0]) + 1
-            batch.append(objects.pop(0))
-        rc = subprocess.run(
-            [ar, op, archive, *batch], check=False, close_fds=False
-        ).returncode
-        if rc != 0:
-            # A failed batch must not leave a truncated archive behind
+    ok = False
+    try:
+        while objects:
+            batch = [objects.pop(0)]
+            batch_len = len(batch[0])
+            while objects and batch_len + len(objects[0]) < 25000:
+                batch_len += len(objects[0]) + 1
+                batch.append(objects.pop(0))
+            rc = subprocess.run(
+                [ar, op, archive, *batch], check=False, close_fds=False
+            ).returncode
+            if rc != 0:
+                return rc
+            op = "q"
+        ok = True
+        return 0
+    finally:
+        if not ok:
+            # Any failure (bad exit, missing ar binary, interrupt) must not
+            # leave a truncated archive behind
             Path(archive).unlink(missing_ok=True)
-            return rc
-        op = "q"
-    return 0
 
 
 def _run_copy(src: str, dst: str) -> int:
