@@ -57,10 +57,10 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void set_with_dma(bool with_dma) { this->with_dma_ = with_dma; }
   void set_eot_level(bool eot_level) { this->eot_level_ = eot_level; }
 #endif
-#if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_RTL87XX)
+#if (defined(USE_ESP32) && SOC_RMT_SUPPORTED) || defined(USE_LIBRETINY_VARIANT_RTL8720C)
   void set_non_blocking(bool non_blocking) { this->non_blocking_ = non_blocking; }
 #endif
-#ifdef USE_RTL87XX
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
   void loop() override;
   // called from the envelope timer ISR trampoline; not part of the public API
   void advance_envelope_isr();
@@ -84,11 +84,12 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void space_(uint32_t usec);
 #endif
 #ifdef USE_RTL87XX
-  void start_isr_item_(size_t index);
   // Carrier frequency the PWM is currently configured for; 0 = not yet configured
   uint32_t current_carrier_frequency_{0};
-  void *pwm_{nullptr};             // pwmout_t*, opaque here to keep the SDK header out of this shared header
-  void *timer_{nullptr};           // gtimer_t*, paces the mark/space envelope from its ISR
+  void *pwm_{nullptr};  // pwmout_t*, opaque here to keep the SDK header out of this shared header
+#endif
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+  void start_isr_item_(size_t index);
   std::vector<int32_t> isr_data_;  // owned copy of the frame; temp_ may be re-encoded mid-flight
   float isr_mark_duty_{0.0f};
   float isr_space_duty_{0.0f};

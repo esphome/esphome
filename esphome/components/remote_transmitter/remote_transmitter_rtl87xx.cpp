@@ -8,7 +8,7 @@
 // ArduinoPrivate.h = Arduino.h + the SDK's mbed HAL (pwmout, gtimer) with the core's fixes for
 // type-name collisions between the two (e.g. PinMode)
 #include <ArduinoPrivate.h>
-#if !LT_RTL8720C
+#ifndef USE_LIBRETINY_VARIANT_RTL8720C
 #include <FreeRTOS.h>
 #include <task.h>
 #endif
@@ -36,8 +36,11 @@ static const char *const TAG = "remote_transmitter";
 // exposes (GTimer1..GTimer7). The pool is shrunk to exclude GTimer7 before the PWM claims its tick
 // source, and GTimer7 paces the envelope -- so the two cannot collide.
 
-#if LT_RTL8720C
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
 static constexpr uint32_t ENVELOPE_TIMER_ID = TIMER6;  // GTimer7
+// Margin added to a transmission's expected duration before the waits in send_internal
+// declare the timer chain stalled; generous so it only trips on a genuinely dead chain
+static constexpr uint32_t STALL_MARGIN_MS = 1000;
 static uint8_t pwm_tick_sources[] = {GTimer1, GTimer2, GTimer3, GTimer4, GTimer5, GTimer6, 0xff};
 
 // One envelope timer shared by all instances (MULTI_CONF): a second gtimer_init on the
@@ -46,12 +49,14 @@ static uint8_t pwm_tick_sources[] = {GTimer1, GTimer2, GTimer3, GTimer4, GTimer5
 static gtimer_t s_envelope_timer;
 static bool s_envelope_timer_ready = false;
 static RemoteTransmitterComponent *volatile s_active_transmitter = nullptr;
+// Deadline for the in-flight transmission (millis-based); only touched from the main task
+static uint32_t s_expected_end_ms = 0;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 static void envelope_timer_isr(uint32_t arg) {
   reinterpret_cast<RemoteTransmitterComponent *>(arg)->advance_envelope_isr();
 }
-#endif  // LT_RTL8720C
+#endif  // USE_LIBRETINY_VARIANT_RTL8720C
 
 void RemoteTransmitterComponent::setup() {
   // Deliberately no pin_->setup(): registering the pin as GPIO claims it in the SDK's pin
@@ -67,7 +72,7 @@ void RemoteTransmitterComponent::setup() {
   auto *pwm = new pwmout_t();
   this->pwm_ = pwm;
   pwmout_init(pwm, static_cast<PinName>(info->gpio));
-#if LT_RTL8720C
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
   // only the AmebaZ2 SDK's pwmout_s reports init success
   if (!pwm->is_init) {
     ESP_LOGE(TAG, "PWM init failed on pin %u", this->pin_->get_pin());
@@ -77,14 +82,14 @@ void RemoteTransmitterComponent::setup() {
     return;
   }
 #endif
-#if LT_RTL8720C
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
   // Shrink the PWM tick-source pool before the period claim below so GTimer7 stays free.
   // pwmout_init just registered the full pool (a static latch inside pwmout_api).
   hal_pwm_comm_tick_source_list(pwm_tick_sources);
 #endif
   pwmout_period_us(pwm, 26);  // placeholder; the real carrier period is set per transmission
   pwmout_write(pwm, this->pin_->is_inverted() ? 1.0f : 0.0f);
-#if LT_RTL8720C
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
   if (!s_envelope_timer_ready) {
     gtimer_init(&s_envelope_timer, ENVELOPE_TIMER_ID);
     s_envelope_timer_ready = true;
@@ -96,19 +101,25 @@ void RemoteTransmitterComponent::setup() {
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Remote Transmitter:\n"
-                "  Carrier Duty: %u%%\n"
-                "  Non-blocking: %s",
-                this->carrier_duty_percent_, YESNO(this->non_blocking_));
+                "  Carrier Duty: %u%%",
+                this->carrier_duty_percent_);
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+  ESP_LOGCONFIG(TAG, "  Non-blocking: %s", YESNO(this->non_blocking_));
+#endif
   LOG_PIN("  Pin: ", this->pin_);
 }
 
 void RemoteTransmitterComponent::digital_write(bool value) {
-  if (this->pwm_ == nullptr || this->transmitting_)
+  if (this->pwm_ == nullptr)
     return;
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
+  if (this->transmitting_)
+    return;
+#endif
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), (value != this->pin_->is_inverted()) ? 1.0f : 0.0f);
 }
 
-#if LT_RTL8720C
+#ifdef USE_LIBRETINY_VARIANT_RTL8720C
 // Writes the duty for one envelope item and arms the timer for its duration.
 // Runs in ISR context (and once from send_internal to kick the chain): no logging, no allocation.
 void RemoteTransmitterComponent::start_isr_item_(size_t index) {
@@ -154,10 +165,28 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
     return;
   }
+  // Recovery if the timer chain ever stops advancing (e.g. gtimer_init failed silently -- it
+  // returns void): stop the timer, idle the pin, release the serialization token. Harmless if
+  // the chain completed between the deadline check and this call -- every step is then a no-op.
+  const auto abort_stalled = [](RemoteTransmitterComponent *stalled) {
+    gtimer_stop(&s_envelope_timer);
+    pwmout_write(static_cast<pwmout_t *>(stalled->pwm_), stalled->isr_space_duty_);
+    stalled->transmitting_ = false;
+    s_active_transmitter = nullptr;
+    stalled->status_set_warning();
+    ESP_LOGE(TAG, "Envelope timer stalled; transmission aborted");
+  };
   // A transmission may still be in flight (this instance or another sharing the timer);
   // wait it out. Its frame stays intact: each ISR reads that instance's isr_data_ copy.
+  // Bounded so a dead chain degrades to an aborted send instead of wedging the device,
+  // and yielding -- the hardware timer owns the timing, polling granularity is irrelevant.
   while (s_active_transmitter != nullptr) {
+    if ((int32_t) (millis() - s_expected_end_ms) > 0) {
+      abort_stalled(s_active_transmitter);
+      break;
+    }
     App.feed_wdt();
+    delay(1);
   }
   // report a completion that loop() has not delivered yet, so completions are never coalesced
   if (this->complete_pending_) {
@@ -165,7 +194,10 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     this->complete_trigger_.trigger();
   }
   if (send_times == 0) {
-    // parity with the loop-based implementations: transmit nothing
+    // parity with the loop-based implementations: transmit nothing, but both triggers
+    // still fire so an on_complete-sequenced automation does not stall
+    this->transmit_trigger_.trigger();
+    this->complete_trigger_.trigger();
     return;
   }
   ESP_LOGD(TAG, "Sending remote code");
@@ -187,14 +219,23 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
   // own copy: with non_blocking the caller may re-encode temp_ while this frame is in flight
   this->isr_data_.assign(this->temp_.get_data().begin(), this->temp_.get_data().end());
-  if (this->isr_data_.empty())
+  if (this->isr_data_.empty()) {
+    ESP_LOGW(TAG, "Empty data");
+    this->transmit_trigger_.trigger();
+    this->complete_trigger_.trigger();
     return;
+  }
   this->isr_mark_duty_ = mark_duty;
   this->isr_space_duty_ = space_duty;
   this->isr_repeats_left_ = send_times;
   this->isr_send_wait_ = send_wait;
   this->isr_index_ = 0;
   this->isr_in_gap_ = false;
+  uint64_t frame_us = 0;
+  for (int32_t item : this->isr_data_)
+    frame_us += uint32_t(item > 0 ? item : -item);
+  const uint64_t total_us = frame_us * send_times + uint64_t(send_wait) * (send_times - 1);
+  s_expected_end_ms = millis() + uint32_t(total_us / 1000) + STALL_MARGIN_MS;
   this->transmit_trigger_.trigger();
   this->transmitting_ = true;
   s_active_transmitter = this;
@@ -205,7 +246,12 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     return;
   }
   while (this->transmitting_) {
+    if ((int32_t) (millis() - s_expected_end_ms) > 0) {
+      abort_stalled(this);
+      break;
+    }
     App.feed_wdt();
+    delay(1);
   }
   this->complete_pending_ = false;
   this->complete_trigger_.trigger();
@@ -223,11 +269,7 @@ void RemoteTransmitterComponent::loop() {
   }
 }
 
-#else  // !LT_RTL8720C -- AmebaZ (RTL8710B): spin-based envelope, per-frame priority boost
-
-void RemoteTransmitterComponent::advance_envelope_isr() {}
-void RemoteTransmitterComponent::start_isr_item_(size_t index) {}
-void RemoteTransmitterComponent::loop() { this->disable_loop(); }
+#else  // !USE_LIBRETINY_VARIANT_RTL8720C -- AmebaZ (RTL8710B): spin-based envelope, per-frame priority boost
 
 void RemoteTransmitterComponent::await_target_time_() {
   const uint32_t current_time = micros();
@@ -293,7 +335,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->complete_trigger_.trigger();
 }
 
-#endif  // LT_RTL8720C
+#endif  // USE_LIBRETINY_VARIANT_RTL8720C
 
 }  // namespace esphome::remote_transmitter
 
