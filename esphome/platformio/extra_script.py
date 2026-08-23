@@ -127,9 +127,14 @@ class _FakeSConsEnv:
         return self._vars.get(key, default)
 
     def __getitem__(self, key: str) -> str:
-        # Scripts also read env["BOARD_MCU"]; without this the broad
-        # handler would discard every flag the script captured
-        return self._vars[key]
+        # Scripts also read env["BOARD_MCU"]; an unmodelled subscript
+        # degrades one branch instead of discarding the whole capture
+        if key not in self._vars and key not in self._warned_gets:
+            self._warned_gets.add(key)
+            _LOGGER.warning(
+                "PIO extra-script env[%r] is not modelled; returning ''", key
+            )
+        return self._vars.get(key, "")
 
     def Append(self, **kwargs) -> None:  # noqa: N802 (SCons API name)
         for key, value in kwargs.items():
@@ -155,14 +160,18 @@ class _FakeSConsEnv:
     # ----- Everything else is a no-op so unsupported scripts don't crash -----
 
     def __getattr__(self, name: str):
+        if name.startswith("__") and name.endswith("__"):
+            # Protocol probes (copy, pickle, iteration) are not script calls
+            raise AttributeError(name)
+        if name not in self._warned_methods:
+            # Warn on access, not call: hasattr()/truthiness branches would
+            # otherwise silently take the wrong path; a script whose whole
+            # effect is env.Replace() stays diagnosable either way
+            self._warned_methods.add(name)
+            _LOGGER.warning("PIO extra-script env.%s is not supported; ignoring", name)
+
         def _noop(*args, **kwargs):
-            # Once per method: a script whose whole effect is env.Replace()
-            # must be diagnosable from a normal build log
-            if name not in self._warned_methods:
-                self._warned_methods.add(name)
-                _LOGGER.warning(
-                    "PIO extra-script env.%s(...) is not supported; ignoring", name
-                )
+            return None
 
         return _noop
 
@@ -278,10 +287,14 @@ def captured_as_build_flags(
     for define in result.cppdefines:
         # SCons also accepts dict/list CPPDEFINES; formatting those blind
         # would hand the compiler garbage like -D{'FOO': '1'}
-        if isinstance(define, (tuple, list)) and len(define) == 2:
-            flags.append(f"-D{define[0]}={define[1]}")
+        if (
+            isinstance(define, (tuple, list))
+            and len(define) == 2
+            and all(isinstance(part, (str, int)) for part in define)
+        ):
+            flags.append(shlex.quote(f"-D{define[0]}={define[1]}"))
         elif isinstance(define, str):
-            flags.append(f"-D{define}")
+            flags.append(shlex.quote(f"-D{define}"))
         else:
             _LOGGER.warning("Ignoring unsupported CPPDEFINES entry %r", define)
     # Each captured entry is one argv token in SCons; quote so the

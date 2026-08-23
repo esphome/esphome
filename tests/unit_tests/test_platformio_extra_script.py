@@ -270,7 +270,7 @@ def test_apply_extra_script_ignores_uncaptured_env_calls(tmp_path, caplog) -> No
     apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
     assert c.data["build"]["flags"] == ["-lsingle"]
     assert "env.Append(UNCAPTURED=...) is not captured" in caplog.text
-    assert "env.Replace(...) is not supported" in caplog.text
+    assert "env.Replace is not supported" in caplog.text
 
 
 def test_apply_extra_script_swallows_script_errors(tmp_path, caplog) -> None:
@@ -378,7 +378,7 @@ def test_unsupported_env_method_warns_once(caplog) -> None:
     )
     env.Replace(CC="clang")
     env.Replace(CC="gcc")
-    assert caplog.text.count("env.Replace(...) is not supported") == 1
+    assert caplog.text.count("env.Replace is not supported") == 1
 
 
 def test_run_extra_script_sys_exit_is_best_effort(tmp_path, caplog) -> None:
@@ -458,10 +458,14 @@ def test_env_get_unknown_key_warns_once(caplog) -> None:
 def test_spaced_linkflag_survives_relexing(tmp_path) -> None:
     """A captured argv token with a space stays one token after lexing."""
     result = ExtraScriptResult(
-        linkflags=["-Wl,-T my linker.ld"], cppflags=["-include my hdr.h"]
+        linkflags=["-Wl,-T my linker.ld"],
+        cppflags=["-include my hdr.h"],
+        cppdefines=[("MSG", '"hello world"'), "PLAIN"],
     )
     flags = captured_as_build_flags(result, library_dir=tmp_path)
     assert lex_build_flags(flags, "test") == [
+        '-DMSG="hello world"',
+        "-DPLAIN",
         "-Wl,-T my linker.ld",
         "-include my hdr.h",
     ]
