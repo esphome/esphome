@@ -259,6 +259,37 @@ def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properti
     _patch_registry_resolve(monkeypatch)
 
 
+def test_wave_requirement_growth_defers_the_superseded_download(tmp_path, monkeypatch):
+    """A's manifest constrains B while B sits in the same wave: B's
+    drain-time resolution is superseded, so its download defers to the
+    next wave instead of fetching a version that is immediately replaced."""
+    download_names: list[str] = []
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "build": {},
+            "dependencies": {"esphome/B": ">=1.0"},
+        },
+        "esphome/B": {"name": "B", "build": {}},
+    }
+
+    def fake_download(self, force=False, salt="", namespace="", progress=None):
+        download_names.append(self.name)
+        self.path = tmp_path / self.get_require_name()
+        self.path.mkdir(parents=True, exist_ok=True)
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    _patch_registry_resolve(monkeypatch)
+    top = convert_libraries(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", None, None)],
+        _backend(),
+    )
+    assert sorted(c.name for c in top) == ["esphome/A", "esphome/B"]
+    # B downloads exactly once, after its requirement set stabilized
+    assert download_names.count("esphome/B") == 1
+
+
 def test_convert_libraries_parses_library_properties(tmp_path, monkeypatch):
     # A manifest provided as library.properties (Arduino style) instead of
     # library.json must still be parsed and converted.
@@ -848,6 +879,7 @@ def test_walk_warns_for_properties_only_depends(
         {"esphome/A": "name=A\nversion=1.0\ndepends=Wire, SPI\n"},
         properties=("esphome/A",),
     )
+    caplog.set_level("INFO")
     convert_libraries([Library("esphome/A", "1.0.0", None)], _backend())
     assert "declares dependencies via library.properties" in caplog.text
 
