@@ -791,10 +791,17 @@ def _prefetch_idf_tool_archives(
             # failure_reason: a message-less exception must not log blank
             _LOGGER.warning("Could not prefetch %s: %s", name, failure_reason(e))
             _LOGGER.debug("Prefetch failure detail", exc_info=e)
+        if failures and len(failures) == len(entries):
+            # A systematic fault, not one flaky mirror: the resume
+            # workaround (#17703) is off for this whole install
+            _LOGGER.error(
+                "Every ESP-IDF tool prefetch failed; the installer will "
+                "download without resume"
+            )
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.
-        _LOGGER.warning("ESP-IDF tool prefetch failed: %s", e)
+        _LOGGER.warning("ESP-IDF tool prefetch failed: %s", failure_reason(e))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
 
 
