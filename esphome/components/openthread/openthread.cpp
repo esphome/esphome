@@ -5,6 +5,7 @@
 #include <openthread/cli.h>
 #include <openthread/instance.h>
 #include <openthread/ip6.h>
+#include <openthread/link.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
@@ -52,7 +53,29 @@ void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) 
     // so we can safely call otThreadGetDeviceRole directly.
     otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
-    self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
+    bool now_connected = role >= OT_DEVICE_ROLE_CHILD;
+    if (!self->connected_ && now_connected) {
+      self->log_connect_params_(instance, role);
+    }
+    self->connected_ = now_connected;
+  }
+}
+
+void OpenThreadComponent::log_connect_params_(otInstance *instance, otDeviceRole role) {
+  ESP_LOGI(TAG, "Connected");
+  ESP_LOGCONFIG(TAG, "  Network: '%s'", otThreadGetNetworkName(instance));
+  ESP_LOGCONFIG(TAG, "  Role: %s", otThreadDeviceRoleToString(role));
+  ESP_LOGCONFIG(TAG, "  Channel: %u", otLinkGetChannel(instance));
+  ESP_LOGCONFIG(TAG, "  PAN ID: 0x%04X", otLinkGetPanId(instance));
+  ESP_LOGCONFIG(TAG, "  Addresses:");
+  char addr_str[OT_IP6_ADDRESS_STRING_SIZE];
+  for (const otNetifAddress *addr = otIp6GetUnicastAddresses(instance); addr; addr = addr->mNext) {
+    otIp6AddressToString(&addr->mAddress, addr_str, sizeof(addr_str));
+    const char *rloc_str = addr->mRloc ? " (routing locator)" : "";
+    if (addr->mValid)
+      ESP_LOGCONFIG(TAG, "    %s%s", addr_str, rloc_str);
+    else
+      ESP_LOGW(TAG, "    [INVALID] %s%s", addr_str, rloc_str);
   }
 }
 
