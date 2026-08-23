@@ -950,6 +950,8 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
     ):
+        # Materialize the lazy mock before threads race its first creation
+        tracker = progress_cls.return_value.tracker.return_value
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
     dist = get_idf_tools_path() / "dist"
@@ -964,7 +966,6 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
     assert kwargs["size"] == 123
     # every archive reports into the one combined progress bar
     progress_cls.assert_called_once_with("Downloading ESP-IDF tools", 123 + 45)
-    tracker = progress_cls.return_value.tracker.return_value
     assert all(kw["progress"] is tracker for kw in calls.values())
 
 
