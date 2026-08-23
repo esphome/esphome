@@ -15,7 +15,11 @@ static ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non
 
 void ZigbeeTime::setup() {
   global_time = this;
-  this->parent_->add_on_start_callback([this]() { this->register_zb_time_(); });
+  if (parent_->is_started()) {
+    this->register_zb_time_();
+  } else {
+    this->parent_->add_on_start_callback([this]() { this->register_zb_time_(); });
+  }
 }
 
 void ZigbeeTime::register_zb_time_() {
@@ -24,7 +28,12 @@ void ZigbeeTime::register_zb_time_() {
       .set_utc_time = esphome::zigbee::ZigbeeTime::set_utc_time,
   };
   ezb_err_t ret;
+  if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
+    this->set_timeout("zb_time_register", 100, [this]() { this->register_zb_time_(); });
+    return;
+  }
   ret = ezb_zcl_time_server_interface_register(this->endpoint_, time_interface);
+  esp_zigbee_lock_release();
   if (ret != EZB_ERR_NONE) {
     ESP_LOGW(TAG, "Setup failed: %u", ret);
     this->mark_failed();
@@ -34,7 +43,7 @@ void ZigbeeTime::register_zb_time_() {
   this->parent_->add_on_join_callback([this](bool x) { this->update(); });
 }
 
-void ZigbeeTime::cb(ezb_err_t status) {
+void ZigbeeTime::status_cb(ezb_err_t status) {
   if (status == EZB_ERR_NONE) {
     ESP_LOGV(TAG, "Time synchronization successful");
   } else if (status == EZB_ERR_TIMEOUT) {
@@ -45,22 +54,23 @@ void ZigbeeTime::cb(ezb_err_t status) {
 }
 
 void ZigbeeTime::update() {
-  static uint8_t count = 0;
   if (this->parent_->is_joined() && this->registered_) {
     if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
       ESP_LOGV(TAG, "Updating time sync from Zigbee network...");
-      ezb_zcl_time_server_synchronize_time(this->endpoint_, 10, esphome::zigbee::ZigbeeTime::cb,
+      ezb_zcl_time_server_synchronize_time(this->endpoint_, 10, esphome::zigbee::ZigbeeTime::status_cb,
                                            EZB_ZCL_TIME_SERVER_RANK_MASTER);
       esp_zigbee_lock_release();
-      count = 0;
+      this->retry_count_ = 0;
     } else {
-      if (count == 0) {
+      if (this->retry_count_ == 0) {
         ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time, will retry maximum 3 times");
       }
-      if (count < 3) {
+      if (this->retry_count_ < 3) {
         this->set_timeout("zb_time_sync", 100, [this]() { this->update(); });
+        this->retry_count_++;
       } else {
         ESP_LOGW(TAG, "Could not acquire Zigbee lock to synchronize time");
+        this->retry_count_ = 0;
       }
     }
   } else {

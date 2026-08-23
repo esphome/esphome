@@ -22,10 +22,11 @@ class ZigbeeTime final : public time::RealTimeClock {
   void register_zb_time_();
   static void set_utc_time(uint32_t utc);
   static uint32_t get_utc_time();
-  static void cb(ezb_err_t status);
+  static void status_cb(ezb_err_t status);
   uint8_t endpoint_;
   ZigbeeComponent *parent_;
   bool registered_{false};
+  uint8_t retry_count_{0};
 };
 
 }  // namespace esphome::zigbee
