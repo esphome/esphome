@@ -36,6 +36,12 @@ def apply_extra_script(
     extra_script = component.data.get("build", {}).get("extraScript")
     if not extra_script:
         return
+    if not isinstance(extra_script, str):
+        # A list/dict value would raise an opaque TypeError on the join below
+        raise EsphomeError(
+            f"extraScript of library {component.name} must be a string, "
+            f"got {type(extra_script).__name__}"
+        )
     # Resolve and confine to the library's source dir so a malicious
     # library.json can't escape (e.g. ``"extraScript": "../../etc/passwd"``).
     source_path = component.source_dir
@@ -77,13 +83,16 @@ def apply_extra_script(
 
 # Keys we know how to translate back into ESPHome's build-flag pipeline.
 # Other env.Append kwargs are recorded but ignored downstream.
-_CAPTURED_KEYS = frozenset({"LIBPATH", "LIBS", "CPPDEFINES", "LINKFLAGS", "CPPFLAGS"})
+_CAPTURED_KEYS = frozenset(
+    {"CPPPATH", "LIBPATH", "LIBS", "CPPDEFINES", "LINKFLAGS", "CPPFLAGS"}
+)
 
 
 @dataclass
 class ExtraScriptResult:
     """Build-var deltas captured from a PIO extra-script ``env.Append`` call."""
 
+    cpppath: list[str] = field(default_factory=list)
     libpath: list[str] = field(default_factory=list)
     libs: list[str] = field(default_factory=list)
     cppdefines: list[str | tuple[str, str]] = field(default_factory=list)
@@ -240,14 +249,18 @@ def captured_as_build_flags(
         return good
 
     library_root = library_dir.resolve()
-    for path in _strs(result.libpath, "LIBPATH"):
+
+    def _anchored(path: str) -> str:
         # Anchor relative paths to library_dir; the script's CWD has been
         # restored by now
         resolved = (library_dir / path).resolve()
         try:
-            flags.append(f"-L{resolved.relative_to(library_root)}")
+            return str(resolved.relative_to(library_root))
         except ValueError:
-            flags.append(f"-L{resolved}")
+            return str(resolved)
+
+    flags.extend(f"-I{_anchored(path)}" for path in _strs(result.cpppath, "CPPPATH"))
+    flags.extend(f"-L{_anchored(path)}" for path in _strs(result.libpath, "LIBPATH"))
     flags.extend(f"-l{lib}" for lib in _strs(result.libs, "LIBS"))
     for define in result.cppdefines:
         # SCons also accepts dict/list CPPDEFINES; formatting those blind

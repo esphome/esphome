@@ -302,6 +302,33 @@ def test_apply_extra_script_missing_script_raises(tmp_path) -> None:
         apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
 
 
+@pytest.mark.parametrize("bad", (["a.py"], {"esp32": "a.py"}), ids=("list", "dict"))
+def test_apply_extra_script_non_string_raises(tmp_path, bad) -> None:
+    """A non-string extraScript fails naming the library, not with a TypeError."""
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": bad}}
+    with pytest.raises(EsphomeError, match="of library owner/name must be a string"):
+        apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
+
+
+def test_extra_script_cpppath_captured_as_include_flags(tmp_path, monkeypatch):
+    """CPPPATH entries translate to -I flags anchored like LIBPATH."""
+
+    (tmp_path / "include").mkdir()
+    outside = tmp_path.parent / "system_inc"
+    outside.mkdir(exist_ok=True)
+    elsewhere = tmp_path.parent / "not_the_library_dir"
+    elsewhere.mkdir(exist_ok=True)
+    monkeypatch.chdir(elsewhere)
+
+    result = ExtraScriptResult(cpppath=["include", str(outside), 7])
+    flags = captured_as_build_flags(result, library_dir=tmp_path)
+
+    assert flags == ["-Iinclude", f"-I{outside.resolve()}"]
+
+
 def test_run_extra_script_failure_discards_partial_capture(tmp_path, caplog) -> None:
     """A crashed script yields an empty result: half-applied flags could
     build wrong-output firmware that links cleanly."""
@@ -396,6 +423,6 @@ def test_uncaptured_append_key_warns_once(caplog) -> None:
     env = _FakeSConsEnv(
         board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
     )
-    env.Append(CPPPATH=["a"])
-    env.Append(CPPPATH=["b"])
-    assert caplog.text.count("env.Append(CPPPATH=...) is not captured") == 1
+    env.Append(RANLIBFLAGS=["a"])
+    env.Append(RANLIBFLAGS=["b"])
+    assert caplog.text.count("env.Append(RANLIBFLAGS=...) is not captured") == 1

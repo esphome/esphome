@@ -258,6 +258,22 @@ def _cc_path_from_cxx(cxx_path: str) -> str:
     return f"{stem}{suffix}"
 
 
+def _cache_usable(cached: object) -> bool:
+    """Check a cached idedata dict against the guarantees of the write path.
+
+    Caches written by older versions predate the launcher rejection and the
+    include-union shape; serving one would bypass both. The dict check also
+    keeps "in" from substring-matching a bare JSON string.
+    """
+    if not isinstance(cached, dict) or "cc_path" not in cached:
+        return False
+    cxx_path = cached.get("cxx_path")
+    if not isinstance(cxx_path, str) or _is_launcher(cxx_path):
+        return False
+    includes = cached.get("includes")
+    return isinstance(includes, dict) and isinstance(includes.get("build"), list)
+
+
 def load_or_build_idedata(
     compile_commands: Path,
     elf_path: Path,
@@ -283,10 +299,11 @@ def load_or_build_idedata(
             # look like unexplained slow builds
             _LOGGER.warning("Discarding unreadable idedata cache %s: %s", cache, err)
         else:
-            # Rebuild pre-cc_path caches on the field, not the timestamp;
-            # the type check keeps "in" from substring-matching a string
-            if isinstance(cached, dict) and "cc_path" in cached:
+            if _cache_usable(cached):
+                # Re-stamp so a relocated build dir cannot serve a stale ELF path
+                cached["prog_path"] = str(elf_path)
                 return cached
+            _LOGGER.debug("Regenerating idedata: cache %s fails validation", cache)
 
     data = idedata_from_build(compile_commands, launcher)
     data["prog_path"] = str(elf_path)
@@ -320,6 +337,9 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     project-wide superset (as PlatformIO's idedata provides).
     """
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
+    if not isinstance(entries, list):
+        # A TypeError here would escape IDEDATA_BEST_EFFORT_ERRORS
+        raise EsphomeError(f"{compile_commands} is not a compile-command list")
 
     representative = _pick_entry(entries)
     cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
@@ -339,7 +359,7 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
         # may hold different include sets.
         command = entry["command"]
         if "@" in command:
-            return f"unique:{entry['file']}"
+            return f"unique:{entry.get('output') or command}"
         return command.replace(entry.get("file", ""), "").replace(
             entry.get("output", ""), ""
         )
