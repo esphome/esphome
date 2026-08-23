@@ -407,8 +407,24 @@ def _build_info_stale(
         return True
     try:
         existing = json.loads(json_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        _LOGGER.debug("Build info JSON unreadable; regenerating")
+    except FileNotFoundError:
+        # An absent build_info.json is stale, not damaged; rebuild quietly
+        _LOGGER.debug("Build info JSON missing; regenerating")
+        return True
+    except (ValueError, OSError) as err:
+        # ValueError covers both JSONDecodeError and UnicodeDecodeError;
+        # unlink so the regenerating write never re-reads the bad copy.
+        # "Unreadable" not "damaged": EACCES/EISDIR land here too
+        _LOGGER.warning("Regenerating unreadable build_info.json: %s", err)
+        try:
+            # missing_ok: a concurrent clean may have removed it already
+            json_path.unlink(missing_ok=True)
+        except OSError as unlink_err:
+            # The later write re-reads the file, so a kept unreadable copy
+            # fails again with a misattributed error; name the real cause
+            _LOGGER.warning(
+                "Could not remove unreadable build_info.json: %s", unlink_err
+            )
         return True
     if not isinstance(existing, dict):
         # Valid JSON that is not an object (truncated or hand-edited) is
