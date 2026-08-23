@@ -199,6 +199,15 @@ BOARDS = {
         "name": "WeMos D1 mini Pro",
         "flash_size": FLASH_SIZE_16_MB,
     },
+    "d1_wroom_02": {
+        "name": "WeMos D1 ESP-WROOM-02",
+        "flash_size": FLASH_SIZE_2_MB,
+        # This board joined BOARDS after shipping with the manifest default
+        # (64 KB filesystem region); the flash-size default (2m.ld) would
+        # move _FS_end and with it the preferences sector, wiping existing
+        # devices' flash-backed state on update.
+        "ldscript": "eagle.flash.2m64.ld",
+    },
     "d1": {
         "name": "WEMOS D1 R1",
         "flash_size": FLASH_SIZE_4_MB,
