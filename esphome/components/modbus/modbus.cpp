@@ -146,7 +146,7 @@ bool ModbusClientHub::tx_buffer_empty() {
   // other states are mid-transaction or owed bookkeeping, not queued sends - and a READY continuous
   // poll does not count either, since it ranks below every one-shot, so a new send goes out first.
   for (const auto &cmd : this->tx_buffer_) {
-    if (cmd.state == FrameState::READY && !cmd.continuous)
+    if (cmd.state == FrameState::READY && !cmd.options.continuous)
       return false;
   }
   return true;
@@ -946,7 +946,7 @@ bool ModbusDeviceCommand::notify_retired() {
 bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
   this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_RESPONSE;
   // A continuous poll is never consumed by its own response; a one-shot consumes one request here.
-  if (!this->continuous)
+  if (!this->options.continuous)
     this->decrement_pending();
   if (this->device == nullptr)
     return false;
@@ -1070,15 +1070,12 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     return false;
   }
 
+  // Normalize the caller's options in place (the param is a by-value copy) so everything stored or
+  // merged below carries effective options, never the raw request.
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
-  const bool mutates = priority == CommandPriority::WRITE;
-  bool continuous = false;
-  if (options.continuous) {
-    if (mutates) {
-      ESP_LOGV(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
-    } else {
-      continuous = true;
-    }
+  if (options.continuous && priority == CommandPriority::WRITE) {
+    ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
+    options.continuous = false;
   }
 
   // A duplicate of a live entry with the same owner is not queued twice; it resolves against that
@@ -1104,10 +1101,10 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       }
       return false;  // dropped: no entry, no callbacks - the refusal is the return value
     }
-    if (continuous) {
+    if (options.continuous) {
       item.make_continuous(true);
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
-    } else if (item.continuous) {
+    } else if (item.options.continuous) {
       // A one-shot duplicate downgrades the poll to a one-shot: it runs one more cycle to serve this
       // request, then stops (mirrors continuous incoming converting a one-shot the other way).
       item.make_continuous(false);
@@ -1140,7 +1137,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
 #endif
   ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
            format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-  this->tx_buffer_.emplace_back(device, address, pdu, continuous, this->next_seq_++);
+  this->tx_buffer_.emplace_back(device, address, pdu, options, this->next_seq_++);
   return true;
 }
 
