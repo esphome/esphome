@@ -16,7 +16,11 @@ def tools_cache_path(env_var: str, subdir: str) -> Path:
     from esphome.helpers import get_str_env
 
     if prefix := get_str_env(env_var, "").strip():
+        # resolve(): symlinked prefixes otherwise trip idf.py's
+        # venv-mismatch warning on every build
         return Path(prefix).expanduser().resolve()
+    # appauthor=False keeps the Windows path short (no vendor segment);
+    # deep IDF trees run into MAX_PATH otherwise
     return (
         Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / subdir
     ).resolve()
