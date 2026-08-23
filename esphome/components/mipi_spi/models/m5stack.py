@@ -4,6 +4,7 @@ from esphome.components.mipi import (
     GMCTRP1,
     IDMOFF,
     IFMODE,
+    MODE_BGR,
     PWCTR1,
     PWCTR2,
     SETEXTC,
