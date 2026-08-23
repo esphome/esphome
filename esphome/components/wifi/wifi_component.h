@@ -319,14 +319,15 @@ class WiFiScanResult {
 
   bool matches(const WiFiAP &config) const;
 
-  bool get_matches() const;
-  void set_matches(bool matches);
-  const bssid_t &get_bssid() const;
+  bool get_matches() const { return this->matches_; }
+  void set_matches(bool matches) { this->matches_ = matches; }
+  const bssid_t &get_bssid() const { return this->bssid_; }
   StringRef get_ssid() const { return this->ssid_.ref(); }
-  uint8_t get_channel() const;
-  int8_t get_rssi() const;
-  bool get_with_auth() const;
-  bool get_is_hidden() const;
+  uint8_t get_channel() const { return this->channel_; }
+  int8_t get_rssi() const { return this->rssi_; }
+  bool get_with_auth() const { return this->with_auth_; }
+  bool get_is_hidden() const { return this->is_hidden_; }
+  bool ssid_equals(const WiFiScanResult &other) const { return this->ssid_ == other.ssid_; }
   int8_t get_priority() const { return priority_; }
   void set_priority(int8_t priority) { priority_ = priority; }
 
