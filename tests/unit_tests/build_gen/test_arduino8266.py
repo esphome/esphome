@@ -399,6 +399,29 @@ def test_lwip_low_memory_loses_to_listed_knobs() -> None:
     assert config.lwip_lib == "lwip2-1460"
 
 
+def test_lwip_ipv6_wins_over_default_knob() -> None:
+    """The shipping IPv6 config: network emits IPV6_LOW_MEMORY, esp8266
+    always emits HIGHER_BANDWIDTH_LOW_FLASH; IPv6 must win exactly as in
+    platformio-build.py's elif chain."""
+    config = _resolve(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY",
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH",
+    )
+    assert config.lwip_lib == "lwip6-536-feat"
+    assert "LWIP_IPV6=1" in config.knob_defines
+
+
+def test_unrecognized_compile_flag_shape_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A link-only spelling missing from the deny lists still reaches the
+    compile line, but no longer silently."""
+    _set_flags("-shared")
+    compile_flags, _link_flags, _lib_dirs, _libs = _split_flags()
+    assert "-shared is not a recognized compile-flag shape" in caplog.text
+    assert "-shared" in compile_flags
+
+
 @pytest.mark.parametrize(
     ("knob", "expected"),
     [
