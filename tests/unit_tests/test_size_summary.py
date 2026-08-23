@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -69,6 +71,18 @@ def _s3_size_data() -> dict:
     }
 
 
+def _dram_size_data(image_size: int = 100) -> dict:
+    return {"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": image_size}
+
+
+def _write_partitions(
+    tmp_path: Path, size: str, ptype: str = "app", subtype: str = "ota_0"
+) -> Path:
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text(f"app0, {ptype}, {subtype}, 0x10000, {size},\n")
+    return partitions
+
+
 def test_print_summary_esp32_uses_dram(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -112,11 +126,14 @@ def test_print_summary_skips_when_diram_total_collapses(
 
 
 def test_print_summary_handles_missing_json(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Missing size json is non-fatal and prints nothing."""
     print_summary(tmp_path / "does_not_exist.json", partitions_csv=None)
     assert capsys.readouterr().out == ""
+    assert "Skipping size summary" in caplog.text
 
 
 def test_print_summary_handles_no_memory_types(
@@ -128,148 +145,197 @@ def test_print_summary_handles_no_memory_types(
     assert capsys.readouterr().out == ""
 
 
-def test_print_summary_flash_line(
+def test_print_summary_non_dict_json_is_skipped(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """image_size + a factory app partition produce the Flash line."""
-    size_json = tmp_path / "esp_idf_size.json"
-    size_json.write_text(
-        json.dumps(
-            {
-                "memory_types": {"DRAM": {"used": 100, "size": 200}},
-                "image_size": 500,
-            }
-        )
-    )
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text(
-        "# name, type, subtype, offset, size\napp0, app, factory, 0x10000, 0x100000\n"
-    )
-    print_summary(size_json, partitions)
-    out = capsys.readouterr().out
-    assert "RAM:   [=====     ]  50.0% (used 100 bytes from 200 bytes)" in out
-    assert "Flash: [          ]   0.0% (used 500 bytes from 1048576 bytes)" in out
-
-
-def test_print_summary_missing_ram_region_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A missing RAM line is diagnosable, not a silently absent CI metric."""
-    size_json = _write_size_json(tmp_path, {"memory_types": {}, "image_size": 100})
-    print_summary(size_json, partitions_csv=None)
-    assert "Skipping RAM summary" in caplog.text
-
-
-def test_print_summary_bad_partitions_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """An unparseable partition table skips the Flash line with a warning."""
-    size_json = _write_size_json(tmp_path, _esp32_size_data())
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text("not,a,valid,partition,table\n")
-    print_summary(size_json, partitions_csv=partitions)
-    assert "Skipping Flash summary" in caplog.text
-
-
-def test_print_summary_corrupt_json_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    size_json = tmp_path / "size.json"
-    size_json.write_text("{not json")
-    print_summary(size_json, partitions_csv=None)
-    assert "Skipping size summary" in caplog.text
-
-
-def test_print_summary_missing_flash_inputs_warn(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Both absent-input paths for the Flash line name their cause."""
-    size_json = _write_size_json(tmp_path, _esp32_size_data())
-    print_summary(size_json, partitions_csv=None)
-    assert "no partition table given" in caplog.text
-    caplog.clear()
-    data = _esp32_size_data()
-    data.pop("image_size", None)
-    size_json = _write_size_json(tmp_path, data)
-    print_summary(size_json, partitions_csv=tmp_path / "partitions.cssv")
-    assert "no image_size" in caplog.text
-
-
-def test_print_summary_non_dict_json_warns(tmp_path, caplog) -> None:
-    """Valid JSON that is not an object must warn, not raise past a build
-    that already linked."""
+    """Valid JSON that is not an object must not raise past a linked build."""
     size_json = tmp_path / "size.json"
     size_json.write_text("[]")
     print_summary(size_json, tmp_path / "partitions.csv")
-    assert "unexpected shape" in caplog.text
+    assert capsys.readouterr().out == ""
 
 
-def test_print_summary_zero_app_partition_warns(tmp_path, caplog) -> None:
-    """A partition row with size 0 drops the Flash bar instead of rendering 0%."""
+def test_print_summary_unreadable_partitions_is_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An OSError reading the partition table skips the summary, not the build."""
+    size_json = _write_size_json(tmp_path, _dram_size_data())
+    partitions = _write_partitions(tmp_path, "1M")
+    real_read_text = Path.read_text
+
+    def fail_partitions_read(self: Path, *args: object, **kwargs: object) -> str:
+        if self == partitions:
+            raise OSError("permission denied")
+        return real_read_text(self, *args, **kwargs)
+
+    with patch.object(Path, "read_text", fail_partitions_read):
+        print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" not in out
+
+
+def test_print_summary_zero_app_partition_is_skipped(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A 0-size app partition drops the Flash bar instead of rendering 0%."""
+    size_json = _write_size_json(tmp_path, _dram_size_data())
+    partitions = _write_partitions(tmp_path, "0")
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" not in out
+
+
+def test_print_summary_happy_path_prints_both_bars(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A well-formed size report and partition table print both bars."""
     size_json = tmp_path / "size.json"
     size_json.write_text(
-        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
+        '{"memory_types": {"DRAM": {"used": 1000, "size": 2000}}, "image_size": 100000}'
     )
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text("app0, app, ota_0, 0x10000, 0,\n")
+    partitions = _write_partitions(tmp_path, "0x180000")
     print_summary(size_json, partitions)
-    assert "app partition size is" in caplog.text
-
-
-def test_print_summary_blank_partition_size_warns(tmp_path, caplog) -> None:
-    """A blank size cell raises ValueError by name instead of parsing to 0."""
-    size_json = tmp_path / "size.json"
-    size_json.write_text(
-        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": 100}'
-    )
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text("app0, app, ota_0, 0x10000, ,\n")
-    print_summary(size_json, partitions)
-    assert "blank partition size cell" in caplog.text
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" in out
 
 
 @pytest.mark.parametrize(
     "payload",
-    (
-        '{"memory_types": []}',
-        '{"memory_types": {"DRAM": 5}}',
-        '{"memory_types": {"DRAM": {"used": "x", "size": "y"}}}',
-    ),
-    ids=("non-dict-memory-types", "scalar-region", "non-numeric-sizes"),
+    [
+        {"memory_types": []},
+        {"memory_types": {"DRAM": 5}},
+        {"memory_types": {"DRAM": {"used": "x", "size": "y"}}, "image_size": 1},
+    ],
 )
-def test_print_summary_nested_shapes_skip_ram_by_name(
-    tmp_path, caplog, payload
+def test_print_summary_nested_bad_shapes_never_raise(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    payload: dict,
 ) -> None:
-    """Malformed RAM shapes hit the named guard, not the blanket backstop."""
-    size_json = tmp_path / "size.json"
-    size_json.write_text(payload)
-    print_summary(size_json, tmp_path / "partitions.csv")
+    """Bad nested shapes hit the named RAM guard, not the blanket backstop."""
+    size_json = _write_size_json(tmp_path, payload)
+    print_summary(size_json, None)
+    # No half-formed bar for CI to scrape; every payload fails before printing
+    assert capsys.readouterr().out == ""
     assert "Skipping RAM summary" in caplog.text
+    assert "Skipping size summary for" not in caplog.text
+
+
+def test_print_summary_non_numeric_image_size_warns_by_name(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A non-numeric image_size hits the named guard, not the blanket."""
+    size_json = _write_size_json(
+        tmp_path,
+        {"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": "x"},
+    )
+    print_summary(size_json, _write_partitions(tmp_path, "0x100000"))
+    assert "Flash:" not in capsys.readouterr().out
+    assert "no usable image_size" in caplog.text
+    assert "Skipping size summary for" not in caplog.text
+
+
+def test_print_summary_blanket_guard_catches_the_rest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A genuinely unforeseen failure warns via the blanket backstop and
+    never raises past a linked build."""
+    size_json = _write_size_json(tmp_path, _dram_size_data())
+    with patch(
+        "esphome.espidf.size_summary._flash_bar",
+        side_effect=RuntimeError("unforeseen"),
+    ):
+        print_summary(size_json, None)
+    assert "Skipping size summary for" in caplog.text
+
+
+@pytest.mark.parametrize("cell", ["", "1.5M", "abc"], ids=["blank", "float", "junk"])
+def test_print_summary_blank_size_cell_names_the_row(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    cell: str,
+) -> None:
+    """An unparseable size cell raises ValueError instead of parsing to 0."""
+    size_json = _write_size_json(tmp_path, _dram_size_data())
+    partitions = _write_partitions(tmp_path, cell)
+    print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "RAM:" in out and "Flash:" not in out
+    # Pins the ValueError path: pre-diff, "" parsed to 0 and the size-0
+    # warning fired instead
+    assert "Skipping Flash summary" in caplog.text
+    assert "app0" in caplog.text and str(partitions) in caplog.text
+
+
+def test_print_summary_suffixed_size_cell(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """K/M suffixes parse like PlatformIO's rule (1M = 1048576 bytes)."""
+    size_json = _write_size_json(tmp_path, _dram_size_data())
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("# comment row\nshort,row\napp0, app, ota_0, 0x10000, 1M,\n")
+    print_summary(size_json, partitions)
+    assert "from 1048576 bytes" in capsys.readouterr().out
+
+
+def test_print_summary_missing_or_appless_partitions_stay_quiet(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A missing table or one without a qualifying app row is a legitimate
+    layout: the Flash line drops at debug, never at warning."""
+    size_json = _write_size_json(tmp_path, _dram_size_data())
+    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.size_summary"):
+        print_summary(size_json, tmp_path / "nope.csv")
+        partitions = _write_partitions(
+            tmp_path, "0x1000", ptype="data", subtype="spiffs"
+        )
+        print_summary(size_json, partitions)
+    out = capsys.readouterr().out
+    assert "Flash:" not in out
+    # Quiet means debug-logged, not unlogged
+    assert caplog.text.count("Skipping Flash summary: no app partition") == 2
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_print_summary_corrupt_size_json_warns(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The build's own size report failing to parse is a regression signal."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text("not json {{{")
+    print_summary(size_json, None)
+    assert capsys.readouterr().out == ""
+    assert "Skipping size summary" in caplog.text
+
+
+def test_print_summary_flash_line_matches_ci_extraction(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The exact padded shape script/ci_memory_impact_extract.py greps."""
+    size_json = _write_size_json(tmp_path, _dram_size_data(image_size=888511))
+    print_summary(size_json, _write_partitions(tmp_path, "0x1C0000"))
+    out = capsys.readouterr().out
+    assert "Flash: [=====     ]  48.4% (used 888511 bytes from 1835008 bytes)" in out
 
 
 def test_print_summary_bad_ram_region_still_prints_flash(
-    tmp_path, caplog, capsys
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
 ) -> None:
     """A malformed RAM region cannot suppress a computable Flash line."""
-    size_json = tmp_path / "size.json"
-    size_json.write_text(
-        '{"memory_types": {"DRAM": {"used": "x", "size": "y"}}, "image_size": 100}'
+    size_json = _write_size_json(
+        tmp_path, {"memory_types": {"DRAM": 5}, "image_size": 100}
     )
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text("app0, app, ota_0, 0x10000, 0x100000,\n")
-    print_summary(size_json, partitions)
-    assert "Skipping RAM summary" in caplog.text
-    assert "Flash:" in capsys.readouterr().out
-
-
-def test_print_summary_blanket_guard_never_raises(tmp_path, caplog) -> None:
-    """Shapes the named guards miss (non-numeric image_size) warn via the
-    blanket backstop instead of raising past a linked build."""
-    size_json = tmp_path / "size.json"
-    size_json.write_text(
-        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": "x"}'
-    )
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text("app0, app, ota_0, 0x10000, 0x100000,\n")
-    print_summary(size_json, partitions)
-    assert "Skipping size summary" in caplog.text
+    print_summary(size_json, _write_partitions(tmp_path, "0x100000"))
+    out = capsys.readouterr().out
+    assert "Flash:" in out and "RAM:" not in out
+    assert "malformed memory_types" in caplog.text
