@@ -828,13 +828,26 @@ def test_mmu_custom_valueless_switch_accepted_and_others_validated() -> None:
         "-DMMU_IRAM_HEAP",
     )
     assert "MMU_IRAM_HEAP" in config.mmu_defines
-    with pytest.raises(EsphomeError, match="MMU_SEC_HEAP_SIZE must be a hex"):
+    with pytest.raises(EsphomeError, match="MMU_SEC_HEAP_SIZE must be a numeric"):
         _resolve(
             "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
             "-DMMU_IRAM_SIZE=0x8000",
             "-DMMU_ICACHE_SIZE=0x8000",
             "-DMMU_SEC_HEAP_SIZE=48K",
         )
+
+
+def test_mmu_custom_accepts_decimal_non_segment_values() -> None:
+    """MMU_EXTERNAL_HEAP=128 (the module's own EXTERNAL_128K shape) is a
+    mmu_iram.h count, not a segment length; decimal is legal there while
+    the two segment sizes stay hex-only for the surgery parser."""
+    config = _resolve(
+        "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
+        "-DMMU_IRAM_SIZE=0x8000",
+        "-DMMU_ICACHE_SIZE=0x8000",
+        "-DMMU_EXTERNAL_HEAP=128",
+    )
+    assert "MMU_EXTERNAL_HEAP=128" in config.mmu_defines
 
 
 def test_mmu_no_knob_rejects_any_raw_mmu_flag() -> None:
