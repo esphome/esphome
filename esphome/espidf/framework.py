@@ -777,6 +777,7 @@ def _prefetch_idf_tool_archives(
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.
         _LOGGER.warning("ESP-IDF tool prefetch failed: %s", e)
+        _LOGGER.debug("Prefetch failure detail", exc_info=True)
 
 
 def _check_esphome_idf_framework_install(
