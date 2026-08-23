@@ -342,7 +342,9 @@ def copy_src_tree():
                 or existing.get("esphome_version") != __version__
             ):
                 sources_changed = True
-        except (json.JSONDecodeError, KeyError, OSError):
+        except (json.JSONDecodeError, AttributeError, KeyError, OSError):
+            # AttributeError: valid JSON that is not an object (truncated
+            # or hand-edited) has no .get; treat it as stale like the rest
             sources_changed = True
 
     # Write build_info header and JSON metadata

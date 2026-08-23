@@ -2217,6 +2217,56 @@ def test_copy_src_tree_handles_invalid_build_info_json(
 @patch("esphome.writer.CORE")
 @patch("esphome.writer.iter_components")
 @patch("esphome.writer.walk_files")
+def test_copy_src_tree_handles_non_dict_build_info_json(
+    mock_walk_files: MagicMock,
+    mock_iter_components: MagicMock,
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Valid JSON that is not an object (no .get) is treated as stale."""
+    # Setup directory structure
+    src_path = tmp_path / "src"
+    src_path.mkdir()
+    esphome_core_path = src_path / "esphome" / "core"
+    esphome_core_path.mkdir(parents=True)
+    build_path = tmp_path / "build"
+    build_path.mkdir()
+
+    # Create invalid build_info.json
+    build_info_json_path = build_path / "build_info.json"
+    build_info_json_path.write_text("[]")
+
+    # Create existing build_info_data.h
+    build_info_h_path = esphome_core_path / "build_info_data.h"
+    build_info_h_path.write_text("// old build_info_data.h")
+
+    # Setup mocks
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
+    mock_core.defines = []
+    mock_core.config_hash = 0xDEADBEEF
+    mock_core.comment = ""
+    mock_core.target_platform = "test_platform"
+    mock_core.config = {}
+    mock_iter_components.return_value = []
+    mock_walk_files.return_value = []
+
+    with (
+        patch("esphome.writer.__version__", "2025.1.0-dev"),
+        patch("esphome.writer.importlib.import_module") as mock_import,
+    ):
+        mock_import.side_effect = AttributeError
+        copy_src_tree()
+
+    # Verify build_info files were created despite invalid JSON
+    assert build_info_h_path.exists()
+    new_json = json.loads(build_info_json_path.read_text())
+    assert new_json["config_hash"] == 0xDEADBEEF
+
+
+@patch("esphome.writer.CORE")
+@patch("esphome.writer.iter_components")
+@patch("esphome.writer.walk_files")
 def test_copy_src_tree_build_info_timestamp_behavior(
     mock_walk_files: MagicMock,
     mock_iter_components: MagicMock,
