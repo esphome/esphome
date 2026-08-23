@@ -412,15 +412,15 @@ void APIConnection::finalize_iterator_sync_() {
 }
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
-  size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = MAX_INITIAL_PER_BATCH;
-  while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
-    iterator.advance();
-  }
+  // Budget by remaining batch capacity so a pass cannot overfill the batch;
+  // stops early on a refused send and resumes next loop pass
+  size_t batch_size = this->deferred_batch_.size();
+  if (batch_size < MAX_INITIAL_BATCH_SIZE)
+    iterator.try_advance(MAX_INITIAL_BATCH_SIZE - batch_size);
 
-  // If the batch is full, process it immediately
-  // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-  if (this->deferred_batch_.size() >= max_batch) {
+  // Flush immediately once enough is queued (not guaranteed every pass);
+  // partial batches go out via the batch timer or finalize_iterator_sync_()
+  if (this->deferred_batch_.size() >= MAX_INITIAL_BATCH_SIZE) {
     this->process_batch_();
   }
 }
@@ -2130,7 +2130,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
   }
 #endif
 
-  psk_t psk{};
+  noise::psk_t psk{};
   if (msg.key_len == 0) {
     if (this->parent_->clear_noise_psk(true)) {
       resp.success = true;
@@ -2139,7 +2139,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
   } else if (base64_decode(msg.key, msg.key_len, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
-  } else if (APINoiseContext::is_all_zeros(psk)) {
+  } else if (noise::NoiseContext::is_all_zeros(psk)) {
     // Accepting the reserved provisioning PSK would report success without
     // enabling encryption (or silently clear an existing key)
     ESP_LOGW(TAG, "Rejecting all-zero encryption key");
