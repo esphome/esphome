@@ -21,12 +21,22 @@ using climate::ClimateModeMask;
 using climate::ClimateSwingModeMask;
 using climate::ClimatePresetMask;
 
+// Channel used by `do_display_toggle()` and `midea_ac.display_toggle`. Many appliances
+// accept the UART display request without advertising `supportLightControl()` in their
+// 0xB5 capabilities report, so UART is the default.
+enum class DisplayControl : uint8_t {
+  DISPLAY_CONTROL_UART,  // always use the UART request
+  DISPLAY_CONTROL_AUTO,  // use UART when the appliance reports support, IR otherwise (legacy behavior)
+  DISPLAY_CONTROL_IR,    // always use the IR remote
+};
+
 class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {
  public:
   void dump_config() override;
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
+  void set_display_control(DisplayControl control) { this->display_control_ = control; }
   void on_status_change() override;
 
   /* ############### */
@@ -54,6 +64,7 @@ class AirConditioner final : public ApplianceBase<dudanov::midea::ac::AirConditi
   ClimateSwingModeMask supported_swing_modes_{};
   ClimatePresetMask supported_presets_{};
   bool frost_protection_set_{false};
+  DisplayControl display_control_{DisplayControl::DISPLAY_CONTROL_UART};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};

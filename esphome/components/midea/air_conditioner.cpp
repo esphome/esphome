@@ -183,7 +183,10 @@ void AirConditioner::do_swing_step() {
 }
 
 void AirConditioner::do_display_toggle() {
-  if (this->base_.getCapabilities().supportLightControl()) {
+  const bool use_uart = this->display_control_ == DisplayControl::DISPLAY_CONTROL_UART ||
+                        (this->display_control_ == DisplayControl::DISPLAY_CONTROL_AUTO &&
+                         this->base_.getCapabilities().supportLightControl());
+  if (use_uart) {
     this->base_.displayToggle();
   } else {
 #ifdef USE_REMOTE_TRANSMITTER

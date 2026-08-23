@@ -33,6 +33,7 @@ climate:
     timeout: 2s
     beeper: false
     autoconf: true
+    display_control: AUTO
     visual:
       min_temperature: 17 °C
       max_temperature: 30 °C
