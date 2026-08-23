@@ -1,8 +1,8 @@
 from esphome import preferences
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, SCHEDULER_DONT_RUN
-from esphome.core import TimePeriodMilliseconds, coroutine_with_priority
+from esphome.const import CONF_ID
+from esphome.core import coroutine_with_priority
 from esphome.coroutine import CoroPriority
 
 CODEOWNERS = ["@esphome/core"]
@@ -10,26 +10,12 @@ CODEOWNERS = ["@esphome/core"]
 preferences_ns = cg.esphome_ns.namespace("preferences")
 IntervalSyncer = preferences_ns.class_("IntervalSyncer", cg.PollingComponent)
 
-
-def _validate_flash_write_interval(
-    value: TimePeriodMilliseconds,
-) -> TimePeriodMilliseconds:
-    if value.total_milliseconds == SCHEDULER_DONT_RUN:
-        raise cv.Invalid(
-            "flash_write_interval: never would silently disable periodic flash "
-            "syncing; remove the option to use the default, or set an explicit interval"
-        )
-    return value
-
-
 CONF_FLASH_WRITE_INTERVAL = "flash_write_interval"
 CONF_RTC_STORAGE = "rtc_storage"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(IntervalSyncer),
-        cv.Optional(CONF_FLASH_WRITE_INTERVAL, default="60s"): cv.All(
-            cv.update_interval, _validate_flash_write_interval
-        ),
+        cv.Optional(CONF_FLASH_WRITE_INTERVAL, default="60s"): cv.update_interval,
         # Compile the RTC-backed storage into the ESP32 preferences backend even
         # when no other option selects it, so components (including external
         # ones) requesting in_flash=false are honoured instead of falling back
