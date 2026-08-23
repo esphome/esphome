@@ -14,7 +14,7 @@ import logging
 import os
 from pathlib import Path
 import shlex
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from esphome.core import EsphomeError
 from esphome.platformio.library import ESPHOME_DATA_KEY, ESPHOME_DATA_LINK_FLAGS_KEY
@@ -99,20 +99,47 @@ class ExtraScriptResult:
     cpppath: list[str] = field(default_factory=list)
     libpath: list[str] = field(default_factory=list)
     libs: list[str] = field(default_factory=list)
-    cppdefines: list[str | tuple[str, str]] = field(default_factory=list)
+    cppdefines: list[CppDefine] = field(default_factory=list)
     linkflags: list[str] = field(default_factory=list)
     cppflags: list[str] = field(default_factory=list)
 
 
-def _cppdefines_items(value: Any) -> list:
-    """Normalize SCons ``processDefines`` spellings: a bare 2-tuple is one
-    ``name=value`` pair, a dict maps names to values, a list is
-    element-wise."""
+class CppDefine(NamedTuple):
+    """One normalized CPPDEFINES entry; a ``value`` of None is a bare -DNAME."""
+
+    name: str
+    value: str | None = None
+
+
+def _cppdefine(entry: Any) -> CppDefine | None:
+    """Normalize one CPPDEFINES element, or warn and drop an unsupported
+    shape; formatting those blind would hand the compiler garbage like
+    ``-D{'FOO': '1'}``."""
+    if isinstance(entry, str):
+        return CppDefine(entry)
+    if (
+        isinstance(entry, (tuple, list))
+        and len(entry) == 2
+        and isinstance(entry[0], (str, int))
+        and isinstance(entry[1], (str, int, type(None)))
+    ):
+        value = entry[1]
+        return CppDefine(str(entry[0]), None if value is None else str(value))
+    _LOGGER.warning("Ignoring unsupported CPPDEFINES entry %r", entry)
+    return None
+
+
+def _cppdefines_items(value: Any) -> list[CppDefine]:
+    """Normalize SCons ``processDefines`` spellings into ``CppDefine``s: a
+    bare 2-tuple is one ``name=value`` pair, a dict maps names to values, a
+    list is element-wise."""
     if isinstance(value, tuple) and len(value) == 2:
-        return [value]
-    if isinstance(value, dict):
-        return list(value.items())
-    return list(value) if isinstance(value, (list, tuple)) else [value]
+        elements: list[Any] = [value]
+    elif isinstance(value, dict):
+        elements = list(value.items())
+    else:
+        elements = list(value) if isinstance(value, (list, tuple)) else [value]
+    return [d for e in elements if (d := _cppdefine(e)) is not None]
 
 
 class _FakeSConsEnv:
@@ -316,23 +343,11 @@ def captured_as_build_flags(
     )
     flags.extend(f"-l{shlex.quote(lib)}" for lib in _str_entries(result.libs, "LIBS"))
     for define in result.cppdefines:
-        # SCons also accepts nested containers; formatting those blind
-        # would hand the compiler garbage like -D{'FOO': '1'}
-        if (
-            isinstance(define, (tuple, list))
-            and len(define) == 2
-            and isinstance(define[0], (str, int))
-            and isinstance(define[1], (str, int, type(None)))
-        ):
-            if define[1] is None:
-                # {"FOO": None} / ("FOO", None) is a bare -DFOO in SCons
-                flags.append(shlex.quote(f"-D{define[0]}"))
-            else:
-                flags.append(shlex.quote(f"-D{define[0]}={define[1]}"))
-        elif isinstance(define, str):
-            flags.append(shlex.quote(f"-D{define}"))
+        if define.value is None:
+            # {"FOO": None} / ("FOO", None) is a bare -DFOO in SCons
+            flags.append(shlex.quote(f"-D{define.name}"))
         else:
-            _LOGGER.warning("Ignoring unsupported CPPDEFINES entry %r", define)
+            flags.append(shlex.quote(f"-D{define.name}={define.value}"))
     # Each captured entry is one argv token in SCons; quote so the
     # lex_build_flags round-trip cannot split a spaced value into two.
     # LINKFLAGS are deliberately absent: they travel via
