@@ -397,9 +397,9 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
 def get_bool_env(var, default=False):
     """Read a boolean environment knob.
 
-    Accepts the same spellings as ``cv.boolean`` does in YAML, so the
-    environment speaks the config language's boolean dialect; anything
-    unrecognized falls through to ``bool(value)``.
+    Accepts the ``cv.boolean`` spellings plus ``1``/``0``, so environment
+    knobs speak the config language's boolean dialect; anything else falls
+    through to ``bool(value)``.
     """
     value = os.getenv(var, default)
     if isinstance(value, str):

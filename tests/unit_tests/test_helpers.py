@@ -171,6 +171,14 @@ def test_is_ip_address__valid(value):
         ("FOO", "fAlSe", True, False),
         ("FOO", "Yes", False, True),
         ("FOO", "123", False, True),
+        # cv.boolean's spellings; the True-default falsy rows are the
+        # ESPHOME_LOG_STATES=off shape the old bool(str) fallthrough broke
+        ("FOO", "on", False, True),
+        ("FOO", "enable", False, True),
+        ("FOO", "no", True, False),
+        ("FOO", "off", True, False),
+        ("FOO", "OFF", True, False),
+        ("FOO", "Disable", True, False),
     ),
 )
 def test_get_bool_env(monkeypatch, var, value, default, expected):
@@ -1108,22 +1116,3 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
 def test_format_duration(seconds: float, expected: str) -> None:
     """Test that durations are rendered as short human-readable strings."""
     assert helpers.format_duration(seconds) == expected
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        ("yes", True),
-        ("on", True),
-        ("enable", True),
-        ("no", False),
-        ("off", False),
-        ("disable", False),
-    ],
-)
-def test_get_bool_env_common_spellings(
-    monkeypatch: pytest.MonkeyPatch, value: str, expected: bool
-) -> None:
-    """The cv.boolean spellings parse instead of reading as truthy."""
-    monkeypatch.setenv("SOME_KNOB", value)
-    assert helpers.get_bool_env("SOME_KNOB") is expected
