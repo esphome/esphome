@@ -925,9 +925,10 @@ def _prefetch_wave(
                 cached = source.is_cached(
                     component.get_sanitized_name(), salt=salt, namespace=namespace
                 )
-            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                # Best-effort: a failing probe prefetches (and re-downloads)
-                _LOGGER.debug("Cache probe for %s failed: %s", component.name, err)
+            except OSError as err:
+                # Best-effort, but visibly: a systematic probe failure makes
+                # every warm build re-download every archive
+                _LOGGER.warning("Cache probe for %s failed: %s", component.name, err)
                 cached = False
             if cached:
                 # A warm build must stay silent
@@ -960,7 +961,7 @@ def _prefetch_wave(
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Same policy as the ESP-IDF twin: the prefetch must never become a
         # new way for the build to fail
-        _LOGGER.warning("Library prefetch failed: %s", err)
+        _LOGGER.warning("Library prefetch failed: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
 
 
