@@ -75,6 +75,11 @@ class ResumeTicketCache {
 /// Best-effort secure wipe (not optimized away).
 void resume_wipe(void *p, size_t len);
 
+/// offer_mac for the ClientHello resume offer (what a client computes and
+/// take_verified checks).
+bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
+                              uint8_t *out_mac);
+
 /// confirm_mac for the ServerHello extension.
 bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
                                 uint8_t *out_mac);

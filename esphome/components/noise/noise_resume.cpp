@@ -70,8 +70,7 @@ bool ResumeTicketCache::take_verified(const uint8_t *offer, uint8_t *secret_out)
       continue;
     }
     uint8_t expected[RESUME_MAC_SIZE];
-    bool ok = resume_mac_(slot.secret, "offer", 5, session_id, RESUME_SESSION_ID_SIZE, client_nonce, RESUME_NONCE_SIZE,
-                          expected) &&
+    bool ok = resume_compute_offer_mac(slot.secret, session_id, client_nonce, expected) &&
               resume_ct_equal_(expected, offer_mac, RESUME_MAC_SIZE);
     resume_wipe(expected, sizeof(expected));
     if (!ok) {
@@ -91,6 +90,11 @@ void ResumeTicketCache::clear() {
   for (ResumeTicket &slot : this->slots_) {
     slot.valid = false;
   }
+}
+
+bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
+                              uint8_t *out_mac) {
+  return resume_mac_(secret, "offer", 5, session_id, RESUME_SESSION_ID_SIZE, client_nonce, RESUME_NONCE_SIZE, out_mac);
 }
 
 bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
