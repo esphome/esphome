@@ -131,9 +131,8 @@ bool resume_derive_keys(const uint8_t *secret, const uint8_t *client_nonce, cons
     return false;
   }
   // "keys"(4) || client_nonce(16) || server_nonce(16) || SHA256(prologue)(32)
-  static constexpr uint8_t LABEL_KEYS[4] = {'k', 'e', 'y', 's'};
-  uint8_t data[sizeof(LABEL_KEYS) + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32];
-  std::memcpy(data, LABEL_KEYS, sizeof(LABEL_KEYS));
+  uint8_t data[4 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32];
+  std::memcpy(data, "keys", 4);  // NOLINT(bugprone-not-null-terminated-result)
   std::memcpy(data + 4, client_nonce, RESUME_NONCE_SIZE);
   std::memcpy(data + 4 + RESUME_NONCE_SIZE, server_nonce, RESUME_NONCE_SIZE);
   int err = noise_hashstate_hash_one(hash, prologue, prologue_len, data + 4 + 2 * RESUME_NONCE_SIZE, 32);
