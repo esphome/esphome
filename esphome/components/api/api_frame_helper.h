@@ -36,7 +36,7 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and oth
 static constexpr uint16_t RX_BUF_NULL_TERMINATOR = 1;
 
 // Maximum number of messages to batch in a single write operation
-// Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
+// Must be >= MAX_INITIAL_BATCH_SIZE in api_connection.h (enforced by static_assert there)
 static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;
 
 // Max client name length (e.g., "Home Assistant 2026.1.0.dev0" = 28 chars)
