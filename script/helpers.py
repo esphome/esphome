@@ -851,32 +851,22 @@ def load_idedata(environment: str) -> dict[str, Any]:
     return data
 
 
-def get_binary(name: str, version: str, version_args: list[str] | None = None) -> str:
-    # Defaults to LLVM tools' `-version` flag; pass e.g. ["version"] for
-    # CodeChecker's subcommand-style version check.
-    version_args = version_args or ["-version"]
-    # Anchored to "version" followed by the exact version number, not just
-    # those digits appearing anywhere (e.g. a build year) in the output.
-    version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
-
+def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
-        result = subprocess.run(
-            [binary_file, *version_args], text=True, capture_output=True, check=False
-        )
-        if result.returncode == 0 and re.search(
-            version_re, result.stdout, re.IGNORECASE
-        ):
-            return binary_file
+        result = subprocess.check_output([binary_file, "-version"])
+        return binary_file
     except FileNotFoundError:
         pass
-
     binary_file = name
-    version_cmd = " ".join(version_args)
     try:
         result = subprocess.run(
-            [binary_file, *version_args], text=True, capture_output=True, check=False
+            [binary_file, "-version"], text=True, capture_output=True, check=False
         )
+        if result.returncode == 0 and (f"version {version}") in result.stdout:
+            return binary_file
+        raise FileNotFoundError(f"{name} not found")
+
     except FileNotFoundError:
         print(
             f"""
@@ -885,7 +875,7 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
               script/setup
               source venv/bin/activate.
 
-            Please confirm you can run "{name} {version_cmd}" or "{name}-{version} {version_cmd}"
+            Please confirm you can run "{name} -version" or "{name}-{version} -version"
             in your terminal and install
             {name} (v{version}) if necessary.
 
@@ -894,23 +884,6 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
             """
         )
         raise
-
-    if result.returncode == 0 and re.search(version_re, result.stdout, re.IGNORECASE):
-        return binary_file
-
-    # binary_file ran, so report what it actually said instead of masking a
-    # real cause (e.g. a missing dependency) as "not installed".
-    print(
-        f"""
-        Oops. "{name} {version_cmd}" ran but did not report version {version} as expected
-        (exit code {result.returncode}).
-          stdout: {result.stdout.strip()}
-          stderr: {result.stderr.strip()}
-
-        Please confirm {name} (v{version}) is installed correctly.
-        """
-    )
-    raise FileNotFoundError(f"{name} not found")
 
 
 def print_file_list(

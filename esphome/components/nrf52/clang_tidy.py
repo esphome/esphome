@@ -266,4 +266,9 @@ def generate_compile_commands(
     ):
         raise EsphomeError("nRF52 clang-tidy configure failed")
 
+    if not compile_commands_path.is_file():
+        raise EsphomeError(
+            f"west build reported success but {compile_commands_path} was not generated"
+        )
+
     return compile_commands_path

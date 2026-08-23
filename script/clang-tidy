@@ -354,6 +354,36 @@ def _codechecker_pinned_version() -> str:
     return match.group(1)
 
 
+def _get_codechecker_binary(pinned_version: str) -> str:
+    """Verify the installed CodeChecker's analyzer package version.
+
+    Raises FileNotFoundError if the binary itself is missing (propagated from
+    subprocess.run), or RuntimeError if it ran but didn't report the pinned
+    analyzer version.
+    """
+    result = subprocess.run(
+        ["CodeChecker", "version"], text=True, capture_output=True, check=False
+    )
+    section_match = re.search(
+        r"CodeChecker analyzer version:(.*?)(?:CodeChecker web version:|\Z)",
+        result.stdout,
+        re.IGNORECASE | re.DOTALL,
+    )
+    field_match = (
+        re.search(r"Base package version\s*\|\s*(\d+\.\d+)", section_match.group(1))
+        if section_match
+        else None
+    )
+    found_version = field_match.group(1) if field_match else None
+    if result.returncode == 0 and found_version == pinned_version:
+        return "CodeChecker"
+
+    raise RuntimeError(
+        f"CodeChecker analyzer version {found_version or 'unknown'} found, "
+        f"expected {pinned_version} (exit code {result.returncode})"
+    )
+
+
 def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     """Analyze ``files`` for a zephyr/nrf52 environment via CodeChecker.
 
@@ -365,8 +395,18 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
 
     pinned_version = _codechecker_pinned_version()
     try:
-        executable = get_binary("CodeChecker", pinned_version, version_args=["version"])
+        executable = _get_codechecker_binary(pinned_version)
     except FileNotFoundError:
+        # CodeChecker is deliberately kept out of requirements_dev.txt (see
+        # requirements_codechecker.txt), so script/setup won't install it.
+        print(
+            "CodeChecker is not installed in this venv. Activate the venv and install it with:\n"
+            "  pip install -r requirements_codechecker.txt",
+            file=sys.stderr,
+        )
+        return 1
+    except RuntimeError as err:
+        print(f"CodeChecker version check failed: {err}", file=sys.stderr)
         return 1
 
     work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
@@ -442,6 +482,8 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         check=False,
     )
 
+    parse_result = subprocess.run([executable, "parse", str(output_dir)], check=False)
+
     fixit_returncode = 0
     if args.fix:
         # Apply serially (like run_tidy() below) instead of passing --fix to
@@ -460,8 +502,6 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
                 f"CodeChecker fixit --apply failed (exit {fixit_returncode})",
                 file=sys.stderr,
             )
-
-    parse_result = subprocess.run([executable, "parse", str(output_dir)], check=False)
 
     try:
         stats = json.loads((output_dir / "metadata.json").read_text())["tools"][0][
@@ -504,7 +544,10 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             cache_key_path.unlink(missing_ok=True)
         return 1
 
-    return fixit_returncode or result.returncode or parse_result.returncode
+    # Does not return the number of failed files, just pass/fail
+    return (
+        1 if (fixit_returncode or result.returncode or parse_result.returncode) else 0
+    )
 
 
 def split_list(a, n):
