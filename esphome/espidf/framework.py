@@ -21,11 +21,11 @@ from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
     PathType,
-    _failure_reason,
     archive_extract_all,
     create_venv,
     download_from_mirrors,
     download_with_resume,
+    failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
@@ -780,8 +780,8 @@ def _prefetch_idf_tool_archives(
             ],
         )
         for name, e in failures:
-            # _failure_reason: a message-less exception must not log blank
-            _LOGGER.warning("Could not prefetch %s: %s", name, _failure_reason(e))
+            # failure_reason: a message-less exception must not log blank
+            _LOGGER.warning("Could not prefetch %s: %s", name, failure_reason(e))
             _LOGGER.debug("Prefetch failure detail", exc_info=e)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
