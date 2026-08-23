@@ -779,15 +779,25 @@ def run_batch_downloads(
     collected (list.append is atomic under the GIL) and returned after the
     bar is done, so the caller's warnings never land on the bar's row; a
     failed job credits its tracker 0 so the bar can still complete. Ctrl-C
-    drops queued jobs instead of downloading them all before the process
-    can exit; in-flight ones still finish. ``jobs`` must be non-empty.
+    drops queued jobs and aborts in-flight ones at their next progress
+    tick; resumable ``.part`` files keep the bytes already fetched.
+    ``jobs`` must be non-empty.
     """
     failures: list[tuple[str, Exception]] = []
+    cancelled = threading.Event()
 
     def _run(name: str, fetch: Callable[[Callable[[int], None]], None]) -> None:
         tracker = progress.tracker()
+
+        def checked(done: int) -> None:
+            if cancelled.is_set():
+                raise _BatchDownloadCancelled
+            tracker(done)
+
         try:
-            fetch(tracker)
+            fetch(checked)
+        except _BatchDownloadCancelled:
+            tracker(0)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             failures.append((name, err))
             tracker(0)
@@ -796,10 +806,19 @@ def run_batch_downloads(
     try:
         for future in [ex.submit(_run, name, fetch) for name, fetch in jobs]:
             future.result()
+    except BaseException:
+        # Without this the non-daemon workers download to completion before
+        # the interpreter can exit, making Ctrl-C ineffective for minutes
+        cancelled.set()
+        raise
     finally:
         ex.shutdown(wait=True, cancel_futures=True)
         progress.done()
     return failures
+
+
+class _BatchDownloadCancelled(Exception):
+    """Raised inside a download job to abandon it after Ctrl-C."""
 
 
 class BatchDownloadProgress:
