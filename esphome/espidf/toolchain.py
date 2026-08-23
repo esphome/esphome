@@ -456,8 +456,8 @@ def run_compile(config, verbose: bool) -> int:
     rc = run_idf_py(*args, jobs=config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT))
     if rc == 0:
         size_json = CORE.relative_build_path("build", "esp_idf_size.json")
-        partitions = CORE.relative_build_path("partitions.csv")
-        print_summary(size_json, partitions if partitions.is_file() else None)
+        # size_summary owns the missing-table policy
+        print_summary(size_json, CORE.relative_build_path("partitions.csv"))
     return rc
 
 

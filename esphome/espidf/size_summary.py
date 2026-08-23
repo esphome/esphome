@@ -44,24 +44,20 @@ def _parse_size(token: str) -> int:
     return int(token)
 
 
-class _MalformedPartitionRow(ValueError):
-    """A matched app row whose size cell cannot be parsed; warned, since the
-    table is present but broken."""
-
-
-def _find_app_partition_size(partitions_csv: Path) -> int:
-    """Return the size of the firmware's app partition.
+def _find_app_partition_size(partitions_csv: Path) -> int | None:
+    """The firmware's app partition size; None when there is nothing to find.
 
     Mirrors PlatformIO's ``platform-espressif32/builder/main.py::
     _update_max_upload_size``: take the first ``app``-type partition
     whose subtype is ``factory`` or ``ota_0``. Order matters because
     layouts like Adafruit's ``partitions-4MB-tinyuf2.csv`` repurpose
     ``factory`` for a UF2 bootloader before the real OTA slot, so a
-    naive "prefer factory" rule would pick the wrong row. Raises
-    ``ValueError`` if no qualifying partition is present.
+    naive "prefer factory" rule would pick the wrong row. A missing
+    table or no qualifying row is legitimate absence (None); a raise
+    always means a present-but-broken table.
     """
     if not partitions_csv.is_file():
-        raise ValueError(f"partitions.csv not found at {partitions_csv}")
+        return None
     for row in csv.reader(partitions_csv.read_text(encoding="utf-8").splitlines()):
         cells = [c.strip() for c in row]
         if not cells or cells[0].startswith("#") or len(cells) < 5:
@@ -71,10 +67,10 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
             try:
                 return _parse_size(psize)
             except ValueError as err:
-                raise _MalformedPartitionRow(
+                raise ValueError(
                     f"{err} for partition {cells[0]} in {partitions_csv}"
                 ) from err
-    raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
+    return None
 
 
 def _format_bar(used: int, total: int) -> str:
@@ -102,10 +98,8 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
 
 def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     # The build's own POST_BUILD step writes this file; its absence or an
-    # unexpected shape is a regression signal, so these skips warn
-    if not size_json.is_file():
-        _LOGGER.warning("Skipping size summary: %s not found", size_json)
-        return
+    # unexpected shape is a regression signal, so these skips warn.
+    # FileNotFoundError lands in the OSError arm with the path in its text.
     try:
         data = json.loads(size_json.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
@@ -116,12 +110,10 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.warning("Skipping size summary: unexpected shape in %s", size_json)
         return
 
-    # Buffered so a late failure prints nothing instead of half a report
-    lines: list[str] = []
     memory_types = data.get("memory_types")
     if not isinstance(memory_types, dict):
         memory_types = {}
-    ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
+    ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM")
     if not isinstance(ram_region, dict):
         ram_region = {}
     ram_used = ram_region.get("used")
@@ -131,38 +123,38 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         and isinstance(ram_total, (int, float))
         and ram_total > 0
     ):
-        lines.append(f"RAM:   {_format_bar(int(ram_used), int(ram_total))}")
+        print(f"RAM:   {_format_bar(int(ram_used), int(ram_total))}")
     else:
         _LOGGER.warning(
             "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
         )
 
-    app_size = _resolve_app_size(data, partitions_csv)
-    if app_size is not None:
-        lines.append(f"Flash: {_format_bar(data['image_size'], app_size)}")
-    for line in lines:
-        print(line)
+    if (flash := _flash_line(data, partitions_csv)) is not None:
+        print(flash)
 
 
-def _resolve_app_size(data: dict, partitions_csv: Path | None) -> int | None:
-    """The Flash bar's denominator, or None (already logged) to skip it."""
+def _flash_line(data: dict, partitions_csv: Path | None) -> str | None:
+    """The formatted Flash line, or None (already logged) to skip it.
+
+    Owns both sides of the bar, so nothing after a print can raise: the
+    blanket guard is left for genuinely unforeseen shapes.
+    """
     image_size = data.get("image_size")
-    if image_size is None:
-        _LOGGER.warning("Skipping Flash summary: no image_size in the size report")
+    if not isinstance(image_size, (int, float)):
+        _LOGGER.warning("Skipping Flash summary: no usable image_size")
         return None
     if partitions_csv is None:
         _LOGGER.debug("Skipping Flash summary: no partition table given")
         return None
     try:
         app_size = _find_app_partition_size(partitions_csv)
-    except (_MalformedPartitionRow, OSError) as e:
+    except (ValueError, OSError) as e:
         # The table is there but broken/unreadable: visible, like size 0
         _LOGGER.warning("Skipping Flash summary: %s", e)
         return None
-    except ValueError as e:
-        # Missing file or no qualifying partition: legitimate for
-        # non-app layouts, keep quiet
-        _LOGGER.debug("Skipping Flash summary: %s", e)
+    if app_size is None:
+        # No table or no qualifying row: legitimate for non-app layouts
+        _LOGGER.debug("Skipping Flash summary: no app partition in %s", partitions_csv)
         return None
     if app_size <= 0:
         # Skipping also fails CI's Flash extraction, the right outcome here
@@ -172,4 +164,4 @@ def _resolve_app_size(data: dict, partitions_csv: Path | None) -> int | None:
             partitions_csv,
         )
         return None
-    return app_size
+    return f"Flash: {_format_bar(int(image_size), app_size)}"
