@@ -28,7 +28,7 @@ from esphome.build_helpers.ninja import shell_token as _shell_token
 from esphome.components.esp8266 import build_surgery
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import BARE_ARG_FLAGS, lex_build_flags
+from esphome.platformio.library import lex_build_flags, raise_on_empty_arg_flags
 
 if TYPE_CHECKING:
     from esphome.arduino8266.framework import InstalledPaths
@@ -49,6 +49,26 @@ _DEFAULT_F_CPU = "80000000L"
 # against; the cache stamp and stderr sidecars derive from the output name
 _COMMON_LD_HEADER = "eagle.app.v6.common.ld.h"
 _COMMON_LD_NAME = "local.eagle.app.v6.common.ld"
+# Testing mode shadows the SDK flash ld with a patched copy under this name
+_TESTING_LD_PREFIX = "testing_"
+
+# The recovery hint for a half-extracted or damaged framework cache
+_CLEAN_HINT = "run 'esphome clean-all' and retry"
+
+
+def _sdk_ld_dir(framework: Path) -> Path:
+    return framework / "tools" / "sdk" / "ld"
+
+
+def _apply_surgery(fn, *args: object) -> str:
+    """Run one build_surgery edit, naming a failed anchor instead of a
+    traceback (the surgery module raises bare RuntimeError so its
+    ``.py.script`` twins stay importable without esphome)."""
+    try:
+        return fn(*args)
+    except RuntimeError as err:
+        raise EsphomeError(str(err)) from err
+
 
 # From platformio-build.py. Knob suffix -> SDK define; the first entry is
 # the default (dicts preserve insertion order). With multiple SDK knobs set
@@ -213,13 +233,8 @@ def _lexed_build_flags() -> list[str]:
     Lex once per build; consumers share the tokens.
     """
     tokens = lex_build_flags(sorted(CORE.build_flags), "esphome")
-    # The lexer glues '-D ""' to a bare "-D"; gcc would eat the next flag
-    # as its argument (or add the CWD for -L). Always a typo, so raise for
-    # every consumer of the shared token list.
-    if empty := sorted({tok for tok in tokens if tok in BARE_ARG_FLAGS}):
-        raise EsphomeError(
-            f"build_flags contain empty-argument flag(s): {', '.join(empty)}"
-        )
+    # Raises for every consumer of the shared token list
+    raise_on_empty_arg_flags(tokens, "build_flags")
     return tokens
 
 
@@ -242,11 +257,14 @@ def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
 
 
 def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
-    nonosdk = next(iter(_NONOSDK_VERSIONS.values()))
-    for name, define in _NONOSDK_VERSIONS.items():
-        if f"PIO_FRAMEWORK_ARDUINO_ESPRESSIF_{name}" in defines:
-            nonosdk = define
-            break
+    nonosdk = next(
+        (
+            define
+            for name, define in _NONOSDK_VERSIONS.items()
+            if f"PIO_FRAMEWORK_ARDUINO_ESPRESSIF_{name}" in defines
+        ),
+        next(iter(_NONOSDK_VERSIONS.values())),
+    )
     # Same compile-line/linked-artifact split as the lwIP knobs below: a
     # raw NONOSDK* would define a second SDK macro while the link still
     # resolves against the knob's libraries
@@ -257,11 +275,10 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
             "build flags"
         )
 
-    tcp_mss, features, ipv6, lwip_lib = _LWIP_DEFAULT
-    for knob, variant in _LWIP_VARIANTS.items():
-        if knob in defines:
-            tcp_mss, features, ipv6, lwip_lib = variant
-            break
+    tcp_mss, features, ipv6, lwip_lib = next(
+        (variant for knob, variant in _LWIP_VARIANTS.items() if knob in defines),
+        _LWIP_DEFAULT,
+    )
 
     # The lwIP triple selects a prebuilt library; a raw override would win
     # the compile line (user tokens come last here) while the link still
@@ -496,21 +513,6 @@ def _write_note(path: Path, text: str, *, warn: bool = False) -> None:
         log("Could not write %s: %s", path, err)
 
 
-def _write_generated(path: Path, content: str) -> None:
-    """write_file_if_changed, replacing an unreadable existing copy.
-
-    The recovery is scoped to the comparison read: a damaged cached file is
-    logged and overwritten, while a genuine write failure still raises.
-    """
-    try:
-        if path.is_file():
-            path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as err:
-        _LOGGER.warning("Replacing damaged generated file %s: %s", path, err)
-        path.unlink(missing_ok=True)
-    write_file_if_changed(path, content)
-
-
 def generate_ld_scripts(
     paths: InstalledPaths, config: _BuildConfig, flash_ld_name: str
 ) -> None:
@@ -532,7 +534,7 @@ def generate_ld_scripts(
     cmd += [f"-D{d}" for d in config.mmu_defines]
     if config.fp_in_irom:
         cmd.append("-DFP_IN_IROM")
-    header = framework / "tools" / "sdk" / "ld" / _COMMON_LD_HEADER
+    header = _sdk_ld_dir(framework) / _COMMON_LD_HEADER
     cmd += [str(header), "-o", "-"]
 
     # The inputs are the command line (defines + framework version, which is
@@ -584,9 +586,7 @@ def generate_ld_scripts(
             )
         except OSError as err:
             # A half-extracted or half-deleted toolchain cache reaches here
-            raise EsphomeError(
-                f"Could not run {gcc}: {err}; run 'esphome clean-all' and retry"
-            ) from err
+            raise EsphomeError(f"Could not run {gcc}: {err}; {_CLEAN_HINT}") from err
         if result.returncode != 0:
             raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
         if result.stderr.strip():
@@ -599,24 +599,14 @@ def generate_ld_scripts(
         if "SECTIONS" not in result.stdout:
             # A degenerate zero-exit run must not be stamped as a good cache
             raise EsphomeError(
-                "Generated linker script is missing its SECTIONS block; "
-                "run 'esphome clean-all' and retry"
+                f"Generated linker script is missing its SECTIONS block; {_CLEAN_HINT}"
             )
-        try:
-            content = build_surgery.relocate_ratetable(result.stdout)
-        except RuntimeError as err:
-            # The anchor moved in a new core release: a named error, not a
-            # traceback, and never a silently unrelocated rate table
-            raise EsphomeError(str(err)) from err
+        content = _apply_surgery(build_surgery.relocate_ratetable, result.stdout)
         if CORE.testing_mode:
-            try:
-                content = build_surgery.apply_testing_memory_patches(
-                    content, ("iram1_0_seg",)
-                )
-            except RuntimeError as err:
-                # Same changed-linker-script failure class as the ratetable
-                raise EsphomeError(str(err)) from err
-        _write_generated(output, content)
+            content = _apply_surgery(
+                build_surgery.apply_testing_memory_patches, content, ("iram1_0_seg",)
+            )
+        write_file_if_changed(output, content)
         _write_note(
             stamp,
             f"{stamp_content} content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
@@ -636,22 +626,25 @@ def generate_ld_scripts(
             )
 
     if CORE.testing_mode:
-        # A patched copy of the flash ld in the build dir; resolved through
-        # the same -L path as the SDK original it shadows.
-        flash_ld = framework / "tools" / "sdk" / "ld" / flash_ld_name
-        try:
-            flash_ld_text = flash_ld.read_text(encoding="utf-8")
-        except OSError as err:
-            # Same half-extracted-cache hazard as the gcc spawn above
-            raise EsphomeError(
-                f"Could not read {flash_ld}: {err}; run 'esphome clean-all' and retry"
-            ) from err
-        try:
-            patched_flash_ld = build_surgery.apply_testing_memory_patches(
-                flash_ld_text,
-                ("dram0_0_seg", "irom0_0_seg"),
-            )
-        except RuntimeError as err:
-            # Same changed-linker-script failure class as the ratetable
-            raise EsphomeError(str(err)) from err
-        _write_generated(ld_dir / f"testing_{flash_ld_name}", patched_flash_ld)
+        _generate_testing_flash_ld(framework, ld_dir, flash_ld_name)
+
+
+def _generate_testing_flash_ld(
+    framework: Path, ld_dir: Path, flash_ld_name: str
+) -> None:
+    """A patched copy of the flash ld in the build dir; resolved through the
+    same -L path as the SDK original it shadows."""
+    flash_ld = _sdk_ld_dir(framework) / flash_ld_name
+    try:
+        flash_ld_text = flash_ld.read_text(encoding="utf-8")
+    except OSError as err:
+        # Same half-extracted-cache hazard as the preprocessor spawn
+        raise EsphomeError(f"Could not read {flash_ld}: {err}; {_CLEAN_HINT}") from err
+    patched_flash_ld = _apply_surgery(
+        build_surgery.apply_testing_memory_patches,
+        flash_ld_text,
+        ("dram0_0_seg", "irom0_0_seg"),
+    )
+    write_file_if_changed(
+        ld_dir / f"{_TESTING_LD_PREFIX}{flash_ld_name}", patched_flash_ld
+    )

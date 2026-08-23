@@ -62,7 +62,33 @@ def _set_flags(*flags: str) -> None:
 def _resolve(*flags: str):
     """Set the build flags and resolve the knob config in one step."""
     _set_flags(*flags)
-    return _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags()))
+    return _resolve_current()
+
+
+def _defines():
+    """The -D map for the current build flags."""
+    return _flag_defines(set(), arduino8266._lexed_build_flags())
+
+
+def _resolve_current():
+    """Resolve whatever flags are already set (must not clear them)."""
+    return _resolve_build_config(_defines())
+
+
+def _split_flags():
+    """Classify the current build flags the way write_project does."""
+    return arduino8266._project_flags(
+        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
+    )
+
+
+def _ok_result(stdout=None, stderr=""):
+    """A successful preprocessor spawn (defaults to the common ld output)."""
+    return MagicMock(
+        returncode=0,
+        stdout=_COMMON_LD_H_OUTPUT if stdout is None else stdout,
+        stderr=stderr,
+    )
 
 
 def test_build_config_defaults() -> None:
@@ -100,9 +126,7 @@ def test_build_config_knobs() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48",
         "-DVTABLES_IN_DRAM",
     )
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve_current()
     assert config.nonosdk == "NONOSDK305"
     assert config.exceptions
     assert config.vtables == "VTABLES_IN_DRAM"
@@ -119,9 +143,7 @@ def test_build_config_mmu_custom_requires_sizes() -> None:
         "-DMMU_IRAM_SIZE=0xC000",
         "-DMMU_ICACHE_SIZE=0x4000",
     )
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve_current()
     # Emitted pre-sorted so build.ninja stays byte-stable across runs
     assert config.mmu_defines == [
         "MMU_ICACHE_SIZE=0x4000",
@@ -134,7 +156,7 @@ def test_defines_match_platformio_builder() -> None:
 
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
     assert _defines_flags(
-        _resolve_build_config(_flag_defines(set(), arduino8266._lexed_build_flags())),
+        _resolve_current(),
         "dout",
         "nodemcuv2",
         ESP8266_BOARD_BUILD["nodemcuv2"]["defines"],
@@ -240,12 +262,7 @@ def test_build_config_lwip_variants(
 def test_build_config_mmu_variants(knob: str, expected: list[str]) -> None:
 
     _set_flags(f"-D{knob}")
-    assert (
-        _resolve_build_config(
-            _flag_defines(set(), arduino8266._lexed_build_flags())
-        ).mmu_defines
-        == expected
-    )
+    assert _resolve_build_config(_defines()).mmu_defines == expected
 
 
 def test_build_config_waveform_locked_phase() -> None:
@@ -272,9 +289,7 @@ SECTIONS
 
 def _run_generate_ld_scripts(paths: InstalledPaths) -> Path:
 
-    config = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    config = _resolve_current()
     arduino8266.generate_ld_scripts(paths, config, "eagle.flash.4m.ld")
     return CORE.relative_pioenvs_path(CORE.name, "ld")
 
@@ -283,7 +298,7 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
     _set_flags("-DFP_IN_IROM")
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with (
         patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run,
         patch.object(arduino8266._LOGGER, "warning") as mock_warn,
@@ -318,7 +333,7 @@ def test_generate_ld_scripts(tmp_path: Path) -> None:
 def test_generate_ld_scripts_corrupt_cache_regenerates(tmp_path: Path) -> None:
     """A truncated cached linker script regenerates even with a fresh stamp."""
     paths = _make_framework(tmp_path)
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
     output = ld_dir / "local.eagle.app.v6.common.ld"
@@ -352,7 +367,7 @@ def test_generate_ld_scripts_testing_mode(tmp_path: Path) -> None:
         "}\n"
     )
     CORE.testing_mode = True
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
     patched = (ld_dir / "testing_eagle.flash.4m.ld").read_text()
@@ -365,7 +380,7 @@ def test_generate_ld_scripts_testing_mode_missing_flash_ld_raises(
     """A missing flash ld in testing mode names the file and the fix."""
     paths = _make_framework(tmp_path)
     CORE.testing_mode = True
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with (
         patch.object(arduino8266.subprocess, "run", return_value=result),
         pytest.raises(EsphomeError, match="Could not read .*clean-all"),
@@ -380,21 +395,14 @@ def test_build_config_nonosdk_precedence() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK305",
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
     )
-    assert (
-        _resolve_build_config(
-            _flag_defines(set(), arduino8266._lexed_build_flags())
-        ).nonosdk
-        == "NONOSDK221"
-    )
+    assert _resolve_build_config(_defines()).nonosdk == "NONOSDK221"
 
 
 def test_project_flags_trailing_bare_linker_flag_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     _set_flags("-l")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
-    )
+    compile_flags, link_flags, lib_dirs, libs = _split_flags()
     assert "Ignoring trailing '-l'" in caplog.text
     assert not libs
     assert not lib_dirs
@@ -404,9 +412,7 @@ def test_project_flags_trailing_bare_linker_flag_warns(
 
 def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
     _set_flags("-L /d -Wl,-Map=m stray")
-    compile_flags, link_flags, lib_dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
-    )
+    compile_flags, link_flags, lib_dirs, libs = _split_flags()
     assert lib_dirs == [Path("/d")]
     assert link_flags == ["-Wl,-Map=m"]
     assert "stray" in compile_flags
@@ -416,7 +422,7 @@ def test_project_flags_lexed_entry_scatters_non_linker_tokens() -> None:
 def test_flag_defines_lexes_multi_token_entries() -> None:
     """A knob inside a multi-token entry is detected like PlatformIO does."""
     _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH -DFOO=1 -Os")
-    defines = _flag_defines(set(), arduino8266._lexed_build_flags())
+    defines = _defines()
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert defines["FOO"] == "FOO=1"
     config = _resolve_build_config(defines)
@@ -426,9 +432,7 @@ def test_flag_defines_lexes_multi_token_entries() -> None:
 def test_project_flags_lexes_every_entry() -> None:
     """A linker flag anywhere in an entry reaches the link line (PIO parity)."""
     _set_flags("-DFOO=1 -lbar")
-    compile_flags, _link, _dirs, libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
-    )
+    compile_flags, _link, _dirs, libs = _split_flags()
     assert libs == ["bar"]
     assert "-DFOO=1" in compile_flags
 
@@ -437,9 +441,7 @@ def test_project_flags_unflags_match_tokens() -> None:
     """build_unflags removes a token embedded in a multi-token entry."""
     _set_flags("-Os -g3")
     CORE.build_unflags = {"-Os"}
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
-    )
+    compile_flags, _link, _dirs, _libs = _split_flags()
     assert "-g3" in compile_flags
     assert "-Os" not in compile_flags
 
@@ -447,9 +449,7 @@ def test_project_flags_unflags_match_tokens() -> None:
 def test_project_flags_requotes_lexed_defines() -> None:
     """A quoted spaced value stays one compiler argument after lex/emit."""
     _set_flags('-DGREETING="hello world"')
-    compile_flags, _link, _dirs, _libs = arduino8266._project_flags(
-        arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
-    )
+    compile_flags, _link, _dirs, _libs = _split_flags()
     # shlex folds the quotes (as PIO's ParseFlags does); _shell_token
     # re-quotes the spaced token so the shell passes one argv element
     expected = (
@@ -461,7 +461,7 @@ def test_project_flags_requotes_lexed_defines() -> None:
 def test_flag_defines_joins_spaced_define() -> None:
     """A spaced "-D KNOB" entry is detected exactly as PlatformIO detects it."""
     _set_flags("-D PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
-    defines = _flag_defines(set(), arduino8266._lexed_build_flags())
+    defines = _defines()
     assert "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH" in defines
     assert "" not in defines
 
@@ -475,20 +475,14 @@ def test_build_config_custom_mmu_without_knob_raises() -> None:
 def test_flag_defines_lexes_quoted_single_tokens() -> None:
     """A quoted single-token define reads the same as on the compile line."""
     _set_flags('-DMMU_SEC_HEAP="0x40108000"')
-    assert (
-        _flag_defines(set(), arduino8266._lexed_build_flags())["MMU_SEC_HEAP"]
-        == "MMU_SEC_HEAP=0x40108000"
-    )
+    assert _defines()["MMU_SEC_HEAP"] == "MMU_SEC_HEAP=0x40108000"
 
 
 def test_flag_defines_duplicate_defines_resolve_deterministically() -> None:
     """Duplicate conflicting defines pick the same winner every run (sorted
     iteration, last writer wins), independent of the set's hash seed."""
     _set_flags("-DMMU_IRAM_SIZE=0x8000", "-DMMU_IRAM_SIZE=0xC000")
-    assert (
-        _flag_defines(set(), arduino8266._lexed_build_flags())["MMU_IRAM_SIZE"]
-        == "MMU_IRAM_SIZE=0xC000"
-    )
+    assert _defines()["MMU_IRAM_SIZE"] == "MMU_IRAM_SIZE=0xC000"
 
 
 def test_flag_tables_match_platformio_builder() -> None:
@@ -647,9 +641,7 @@ def test_build_config_mmu_defines_do_not_alias_the_table() -> None:
     module table for later builds in the same process."""
     config = _resolve("-DPIO_FRAMEWORK_ARDUINO_MMU_CACHE16_IRAM48")
     config.mmu_defines.append("MMU_BOGUS")
-    again = _resolve_build_config(
-        _flag_defines(set(), arduino8266._lexed_build_flags())
-    )
+    again = _resolve_current()
     assert "MMU_BOGUS" not in again.mmu_defines
     assert all(isinstance(v, tuple) for v in arduino8266._MMU_VARIANTS.values())
 
@@ -695,7 +687,7 @@ def test_generate_ld_scripts_header_change_invalidates_stamp(
     paths = _make_framework(tmp_path)
     header = paths.framework / "tools" / "sdk" / "ld" / "eagle.app.v6.common.ld.h"
     header.write_text("v1")
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         _run_generate_ld_scripts(paths)
     header.write_text("v2 (longer)")
@@ -707,7 +699,7 @@ def test_generate_ld_scripts_header_change_invalidates_stamp(
 def test_generate_ld_scripts_unreadable_stamp_regenerates(tmp_path: Path) -> None:
     """A non-UTF-8 stamp is a damaged cache: regenerate, never abort."""
     paths = _make_framework(tmp_path)
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
     (ld_dir / ".local.eagle.app.v6.common.ld.stamp").write_bytes(b"\xff\xfe")
@@ -743,19 +735,21 @@ def test_write_generated_replaces_damaged_file(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A non-UTF-8 existing copy is logged and overwritten; the write path
-    still raises for real failures."""
+    still raises for real failures (now the shared helper's contract)."""
+    from esphome.helpers import write_file_if_changed
+
     target = tmp_path / "gen.ld"
     target.write_bytes(b"\xff\xfe")
-    arduino8266._write_generated(target, "SECTIONS { }")
+    write_file_if_changed(target, "SECTIONS { }")
     assert target.read_text(encoding="utf-8") == "SECTIONS { }"
-    assert "Replacing damaged generated file" in caplog.text
+    assert "Replacing damaged file" in caplog.text
 
 
 def test_generate_ld_scripts_edited_output_regenerates(tmp_path: Path) -> None:
     """The stamp records the content hash, so an externally edited cached
     script regenerates instead of linking untrusted content."""
     paths = _make_framework(tmp_path)
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
     output = ld_dir / "local.eagle.app.v6.common.ld"
@@ -770,7 +764,7 @@ def test_generate_ld_scripts_corrupt_output_is_overwritten(tmp_path: Path) -> No
     """A non-UTF-8 cached script must be overwritten by the regeneration,
     not abort it (write_file_if_changed reads the old content)."""
     paths = _make_framework(tmp_path)
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
     output = ld_dir / "local.eagle.app.v6.common.ld"
@@ -785,7 +779,7 @@ def test_generate_ld_scripts_unreadable_note_still_warns(
 ) -> None:
     """A cached diagnostic that cannot be read must not vanish silently."""
     paths = _make_framework(tmp_path)
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warn!")
+    result = _ok_result(stderr="warn!")
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
     (ld_dir / ".local.eagle.app.v6.common.ld.stderr").write_bytes(b"\xff\xfe")
@@ -928,7 +922,7 @@ def test_generate_ld_scripts_testing_surgery_failure_is_named(
     named error, like the ratetable surgery."""
     paths = _make_framework(tmp_path)
     CORE.testing_mode = True
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with (
         patch.object(arduino8266.subprocess, "run", return_value=result),
         patch.object(
@@ -950,7 +944,7 @@ def test_generate_ld_scripts_testing_flash_ld_surgery_failure_is_named(
         "MEMORY { }"
     )
     CORE.testing_mode = True
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with (
         patch.object(arduino8266.subprocess, "run", return_value=result),
         patch.object(
@@ -996,7 +990,7 @@ def test_generate_ld_scripts_unreadable_header_forces_regeneration(
             raise PermissionError(13, "denied")
         return real_stat(self, **kwargs)
 
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(Path, "stat", fake_stat):
         with patch.object(
             arduino8266.subprocess, "run", return_value=result
@@ -1024,7 +1018,7 @@ def test_generate_ld_scripts_gcc_change_invalidates_stamp(tmp_path: Path) -> Non
     paths = _make_framework(tmp_path)
     gcc = toolchain_tool(paths.toolchain, "gcc")
     gcc.write_text("v1")
-    result = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    result = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         _run_generate_ld_scripts(paths)
     gcc.write_text("v2 (longer)")
