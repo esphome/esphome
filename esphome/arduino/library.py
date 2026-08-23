@@ -326,9 +326,9 @@ def resolve_libraries(
     for that core (e.g. ``espressif8266``/``esp8266``); ``cache_key`` keys the
     shared converter's download cache.
 
-    The returned order is unordered with respect to link dependencies
-    (bundled dependencies precede their dependents); the caller must link
-    the archives inside one ``--start-group``/``--end-group`` pair.
+    The returned list is not topologically sorted, so the caller must link
+    the archives inside one ``--start-group``/``--end-group`` pair (the
+    bundled-first grouping is incidental).
     """
     bundled: list[ArduinoLibrary] = []
     external: list[Library] = []

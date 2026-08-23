@@ -179,6 +179,32 @@ def test_ar_batch_failure_stops(tmp_path: Path) -> None:
     assert not archive.exists()
 
 
+def test_ar_exception_leaves_no_partial_archive(tmp_path: Path) -> None:
+    """A missing ar binary mid-loop must not leave a truncated archive from
+    earlier successful batches."""
+    archive = tmp_path / "lib.a"
+    rsp = tmp_path / "lib.a.rsp"
+    rsp.write_text("a.o\n")
+    with (
+        patch.object(
+            build_tool.sys,
+            "argv",
+            ["build_tool", "ar", "ar-bin", str(archive), str(rsp)],
+        ),
+        patch.object(
+            build_tool.subprocess,
+            "run",
+            side_effect=lambda cmd, **kw: (
+                archive.write_text("partial"),
+                (_ for _ in ()).throw(FileNotFoundError("no ar")),
+            ),
+        ),
+        pytest.raises(FileNotFoundError),
+    ):
+        build_tool.main()
+    assert not archive.exists()
+
+
 def test_surplus_arguments_error(capsys: pytest.CaptureFixture[str]) -> None:
     """A mis-specified ninja rule passing extra operands errors instead of
     silently dropping them."""
