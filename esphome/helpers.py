@@ -550,18 +550,22 @@ def write_file_if_changed(path: Path, text: str) -> bool:
 
     Returns true if the file was changed.
     """
-    from esphome.core import EsphomeError
-
     src_content = None
     if path.is_file():
         try:
-            src_content = read_file(path)
-        except EsphomeError as err:
-            # read_file wraps OSError and UnicodeDecodeError alike
-            # A damaged existing file (unreadable, non-UTF-8) must be
-            # replaced, not abort the regeneration that would fix it
+            src_content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as err:
+            # A damaged existing file must be replaced, not abort the very
+            # regeneration that would fix it. Only decode failures recover:
+            # an OSError (permissions, I/O) may hide an intact file and
+            # propagates below like it always did.
             _LOGGER.warning("Replacing damaged file %s: %s", path, err)
-            path.unlink(missing_ok=True)
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+        except OSError as err:
+            from esphome.core import EsphomeError
+
+            raise EsphomeError(f"Error reading file {path}: {err}") from err
     if src_content == text:
         return False
     write_file(path, text)

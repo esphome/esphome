@@ -253,6 +253,33 @@ class Test_write_file_if_changed:
 
         assert dst.read_text() == text
 
+    def test_damaged_existing_file_is_replaced(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        """A non-UTF-8 existing file is logged and overwritten; aborting
+        would block the very regeneration that fixes it."""
+        dst = tmp_path / "generated.txt"
+        dst.write_bytes(b"\xff\xfe")
+
+        assert helpers.write_file_if_changed(dst, "fresh content") is True
+
+        assert dst.read_text(encoding="utf-8") == "fresh content"
+        assert "Replacing damaged file" in caplog.text
+
+    def test_unreadable_existing_file_still_raises(self, tmp_path: Path):
+        """An OSError on the comparison read may hide an intact file, so it
+        propagates as EsphomeError instead of unlinking."""
+        dst = tmp_path / "generated.txt"
+        dst.write_text("intact")
+
+        with (
+            patch.object(Path, "read_text", side_effect=OSError("permission denied")),
+            pytest.raises(EsphomeError, match="Error reading file"),
+        ):
+            helpers.write_file_if_changed(dst, "fresh content")
+
+        assert dst.exists()
+
     def test_dst_does_not_exist(self, tmp_path: Path):
         text = "A files are unique.\n"
         dst = tmp_path / "file-a.txt"
@@ -1108,15 +1135,3 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
 def test_format_duration(seconds: float, expected: str) -> None:
     """Test that durations are rendered as short human-readable strings."""
     assert helpers.format_duration(seconds) == expected
-
-
-def test_write_file_if_changed_replaces_damaged_file(tmp_path, caplog) -> None:
-    """A non-UTF-8 or unreadable existing file is logged and overwritten;
-    aborting would block the very regeneration that fixes it."""
-    from esphome.helpers import write_file_if_changed
-
-    target = tmp_path / "generated.txt"
-    target.write_bytes(b"\xff\xfe")
-    assert write_file_if_changed(target, "fresh content") is True
-    assert target.read_text(encoding="utf-8") == "fresh content"
-    assert "Replacing damaged file" in caplog.text
