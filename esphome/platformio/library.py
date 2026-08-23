@@ -55,12 +55,9 @@ DEFAULT_BUILD_SRC_FILTER = (
 DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
-# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES).
-# "asm" merges SCons's AS and ASPP sets: all compile as assembler-with-cpp.
-# The kind values drive the ESP8266 native ninja rules (later in this
-# chain); existing backends consume only the keys. Note .C/.C++ join the
-# suffix set here per CXXSUFFIXES; SCons demotes .C to C on
-# case-insensitive filesystems, we always treat it as C++.
+# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES);
+# "asm" merges SCons's AS and ASPP sets. Per CXXSUFFIXES .C/.C++ are C++
+# here, even where SCons demotes .C on case-insensitive filesystems.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
@@ -252,11 +249,8 @@ class InvalidLibrary(Exception):
 
 
 class IncompatiblePlatform(InvalidLibrary):
-    """The manifest's platform filter rejected the target platform.
-
-    A distinct type so callers can treat the routine cross-platform skip
-    differently from other manifest problems without matching message text.
-    """
+    """The routine cross-platform skip, typed so callers need not match
+    message text."""
 
 
 class ConvertedLibrary:
@@ -635,9 +629,8 @@ def split_flag_entry(entry: Any, owner: str) -> list[str]:
 def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
     """Shell-lex ``build.flags`` entries the way PlatformIO's ParseFlags
     does; bare -I/-L/-l/-D tokens re-glue to their argument."""
-    # Join per entry, as SCons's ParseFlags lexes each string independently:
-    # a dangling -I ending one entry must warn, not absorb the next entry's
-    # first token.
+    # Lex per entry as ParseFlags does: a dangling -I must warn, not absorb
+    # the next entry's first token
     return [
         token
         for entry in ensure_list(entries)
@@ -650,13 +643,9 @@ BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
 
 
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
-    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
-    the way PlatformIO's ParseFlags lexes them.
-
-    A trailing or empty argument (``-D ""``) is warned and dropped: the
-    bare flag would make gcc eat the next flag as its argument (or add
-    the CWD for ``-L``); always a typo.
-    """
+    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token, as
+    PlatformIO's ParseFlags does. A trailing or empty argument is warned and
+    dropped: the bare flag would make gcc eat the next flag."""
     out: list[str] = []
     it = iter(tokens)
     for tok in it:
@@ -676,11 +665,8 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
 
 
 def warn_properties_depends(name: str, data: object) -> None:
-    """Warn when a manifest declares dependencies only as ``depends=``.
-
-    The dependency walk reads the JSON ``dependencies`` key; the raw
-    ``library.properties`` spelling would otherwise drop silently.
-    """
+    """Warn for ``depends=``-only manifests; the walk reads only the JSON
+    ``dependencies`` key, so they would otherwise drop silently."""
     if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
         # INFO: common and unactionable for transitive libraries; a WARNING
         # on every build would train users to ignore the stream
@@ -711,13 +697,9 @@ def dependency_is_usable(
 
 
 def _valid_dependency_entry(entry: dict, manifest_name: str) -> bool:
-    """Whether a normalized entry carries a usable name and version.
-
-    The name must be a non-empty string (every consumer indexes or joins
-    it); a present version must be a string (a container would raise from
-    ``set.add()``, an int fails opaquely inside the registry resolution).
-    Invalid entries warn naming the manifest.
-    """
+    """Whether a normalized entry carries a usable name (non-empty string)
+    and version (string, if present); invalid entries warn naming the
+    manifest."""
     name = entry.get("name")
     if (
         isinstance(name, str)
