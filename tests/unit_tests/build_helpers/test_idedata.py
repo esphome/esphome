@@ -151,11 +151,16 @@ def test_is_esphome_src_handles_backslash_paths() -> None:
     assert not idedata._is_esphome_src(r"C:\b\src\esphome\core\app.h")
 
 
-def test_idedata_from_build_empty_includes_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A compile DB with no ESPHome TU yields no build includes; that is
-    never a usable idedata, so it must be diagnosable."""
+def test_parse_entry_empty_command_raises() -> None:
+    """A blank command fails with a named ValueError, not an IndexError."""
+    entry = {"directory": "/b", "file": "/b/src/x.cpp", "command": ""}
+    with pytest.raises(ValueError, match="empty compile command"):
+        idedata.parse_entry(entry)
+
+
+def test_idedata_from_build_empty_includes_raises(tmp_path: Path) -> None:
+    """A compile DB with no ESPHome TU is never usable idedata and must
+    not be cached (call sites downgrade the raise to a build warning)."""
     compile_commands = tmp_path / "compile_commands.json"
     compile_commands.write_text(
         json.dumps(
@@ -168,10 +173,11 @@ def test_idedata_from_build_empty_includes_warns(
             ]
         )
     )
-    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
-        data = idedata.idedata_from_build(compile_commands)
-    assert data["includes"]["build"] == []
-    assert "idedata will be incomplete" in caplog.text
+    with (
+        patch.object(idedata, "get_toolchain_includes", return_value=[]),
+        pytest.raises(EsphomeError, match="No ESPHome translation unit found"),
+    ):
+        idedata.idedata_from_build(compile_commands)
 
 
 def test_idedata_from_build_dedupes_identical_command_shapes(
