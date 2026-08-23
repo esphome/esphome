@@ -34,6 +34,7 @@ from esphome.core import (
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from . import boards
@@ -145,7 +146,7 @@ def only_on_variant(
     return validator_
 
 
-def get_download_types(storage_json):
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Binary-download entries for a built RP2040 firmware.
 
     Used by device-builder (esphome/device-builder), via
@@ -181,7 +182,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
 
 
-def _parse_platform_version(value):
+def _parse_platform_version(value: Any) -> str:
     value = cv.string(value)
     if value.startswith("http"):
         return value
@@ -205,7 +206,7 @@ RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
 RECOMMENDED_ARDUINO_PLATFORM_VERSION = "9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0"
 
 
-def _arduino_check_versions(value):
+def _arduino_check_versions(value: ConfigType) -> ConfigType:
     value = value.copy()
     lookups = {
         "dev": (cv.Version(6, 0, 0), "https://github.com/earlephilhower/arduino-pico"),
@@ -316,7 +317,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add(rp2_ns.setup_preferences())
 
     # Allow LDF to properly discover dependency including those in preprocessor
@@ -588,7 +589,7 @@ def _generate_lwipopts_h() -> None:
     write_file_if_changed(lwip_dir / "lwipopts.h", content)
 
 
-def add_pio_file(component: str, key: str, data: str):
+def add_pio_file(component: str, key: str, data: str) -> None:
     try:
         cv.validate_id_name(key)
     except cv.Invalid as e:
@@ -629,7 +630,7 @@ def generate_pio_files() -> bool:
 
 
 # Called by writer.py
-def copy_files():
+def copy_files() -> None:
     dir = Path(__file__).parent
     post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
@@ -670,7 +671,7 @@ def _addr2line(tool: str, elf: Path, addr: str) -> str:
         return f"{addr} (decode failed)"
 
 
-def process_stacktrace(config, line: str, backtrace_state: bool) -> bool:
+def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     """Decode RP2040 crash handler output using addr2line."""
     if _CRASH_RE.search(line):
         _LOGGER.error("RP2040 crash detected - decoding addresses")

@@ -460,8 +460,14 @@ def perform_ota(
         (upload_size >> 8) & 0xFF,
         (upload_size >> 0) & 0xFF,
     ]
+    # The device erases flash between receiving the size and acking the
+    # prepare, so this window shows the erase cost (near zero when the
+    # device erases lazily during the upload)
+    prepare_start = time.perf_counter()
     send_check(sock, upload_size_encoded, "binary size")
     receive_exactly(sock, 1, "update prepare result", RESPONSE_UPDATE_PREPARE_OK)
+    prepare_duration = time.perf_counter() - prepare_start
+    _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
     upload_md5 = hashlib.md5(upload_contents).hexdigest()
     _LOGGER.debug("MD5 of upload is %s", upload_md5)
@@ -528,11 +534,23 @@ def perform_ota(
     # reboots on its own; the exact commit point is not observable from
     # here, so treat everything past the data phase as non-retryable. A
     # re-upload could flash a device that already updated successfully.
+    commit_start = time.perf_counter()
     try:
         receive_exactly(sock, 1, "update receive result", RESPONSE_RECEIVE_OK)
         receive_exactly(sock, 1, "update end result", RESPONSE_UPDATE_END_OK)
     except OTANetworkError as err:
         raise _committed_error(err) from err
+    commit_duration = time.perf_counter() - commit_start
+
+    # Sum of the named windows so the breakdown is self consistent; connect,
+    # handshake, auth, and the one MD5 round trip are not included
+    _LOGGER.info(
+        "Update took %.2f seconds (prepare %.2f, upload %.2f, commit %.2f)",
+        prepare_duration + duration + commit_duration,
+        prepare_duration,
+        duration,
+        commit_duration,
+    )
 
     try:
         send_check(sock, RESPONSE_OK, "end acknowledgement")
