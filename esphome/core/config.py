@@ -561,9 +561,9 @@ def _add_library_str(lib: str) -> None:
 NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
 # The full set that survives into CORE.platformio_options under the native
 # arduino toolchain: lib_ignore is the only specially-translated key below
-# that is stored rather than translated away. Intentionally unused until the
-# esp8266 native backend (the final PR in this chain) consumes it for its
-# ignored-option warning; defined here so it stays adjacent to the routing.
+# that is stored rather than translated away. Consumed by the esp8266 native
+# backend (later in this chain) for its ignored-option warning; defined here
+# so it stays adjacent to the routing.
 NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
 
 
