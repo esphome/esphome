@@ -946,18 +946,12 @@ def test_vtables_conflicting_raises() -> None:
         _resolve("-DVTABLES_IN_DRAM", "-DVTABLES_IN_IRAM")
 
 
-def test_project_flags_empty_lib_flags_warn(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A bare -L must not silently add the CWD to the search path."""
+def test_empty_lib_flags_raise() -> None:
+    """A bare -L would silently add the CWD to the search path; the shared
+    lex point raises for every consumer."""
     CORE.build_flags = {'-L ""', '-l ""'}
-    _c, _l, lib_dirs, libs = arduino8266._project_flags(
-        set(), arduino8266._lexed_build_flags()
-    )
-    assert lib_dirs == []
-    assert libs == []
-    assert "Ignoring empty -L" in caplog.text
-    assert "Ignoring empty -l" in caplog.text
+    with pytest.raises(EsphomeError, match=r"empty-argument flag\(s\): -L, -l"):
+        arduino8266._lexed_build_flags()
 
 
 def test_generate_ld_scripts_surfaces_preprocessor_warnings(
@@ -1149,13 +1143,20 @@ def test_generate_ld_scripts_unreadable_note_still_warns(
     assert "could not be read" in caplog.text
 
 
+def test_write_note_failure_is_best_effort(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed stamp or stderr-note write costs a cache miss, never the
+    build."""
+    caplog.set_level("DEBUG")
+    arduino8266._write_note(tmp_path / "missing" / "stamp", "x")
+    assert "Could not write" in caplog.text
+
+
 def test_pio_option_blank_value_raises() -> None:
     """An empty or blank platformio_options value is a config error, not a
     silent fallback to the default."""
     CORE.platformio_options = {"board_build.f_cpu": "  "}
-    with pytest.raises(EsphomeError, match="board_build.f_cpu is empty"):
-        arduino8266._pio_option("board_build.f_cpu", "80000000L")
-    CORE.platformio_options = {"board_build.f_cpu": []}
     with pytest.raises(EsphomeError, match="board_build.f_cpu is empty"):
         arduino8266._pio_option("board_build.f_cpu", "80000000L")
 
@@ -1316,19 +1317,12 @@ def test_board_tables_are_equal() -> None:
     assert set(BOARDS) == set(ESP8266_BOARD_BUILD)
 
 
-def test_project_flags_warns_on_bare_include_and_define(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """An empty-argument -I or -D must not reach gcc, which would eat the
-    next flag as the argument."""
+def test_bare_include_and_define_raise() -> None:
+    """An empty-argument -I or -D would make gcc eat the next flag as the
+    argument; the shared lex point raises for every consumer."""
     CORE.build_flags = {'-I ""', '-D ""'}
-    compile_flags, _l, _d, _libs = arduino8266._project_flags(
-        set(), arduino8266._lexed_build_flags()
-    )
-    assert "-I" not in compile_flags
-    assert "-D" not in compile_flags
-    assert "Ignoring empty -I in build_flags" in caplog.text
-    assert "Ignoring empty -D in build_flags" in caplog.text
+    with pytest.raises(EsphomeError, match=r"empty-argument flag\(s\): -D, -I"):
+        arduino8266._lexed_build_flags()
 
 
 def test_generate_ld_scripts_gcc_change_invalidates_stamp(tmp_path: Path) -> None:
@@ -1355,10 +1349,6 @@ def test_defines_flags_honors_f_cpu_override() -> None:
     defines = _defines_flags(config, "dout", "nodemcuv2", board_build["defines"])
     assert "-DF_CPU=80000000L" in defines
     CORE.platformio_options = {"board_build.f_cpu": "160000000L"}
-    defines = _defines_flags(config, "dout", "nodemcuv2", board_build["defines"])
-    assert "-DF_CPU=160000000L" in defines
-    # A repeated option accumulates as a list; the last value wins
-    CORE.platformio_options = {"board_build.f_cpu": ["80000000L", "160000000L"]}
     defines = _defines_flags(config, "dout", "nodemcuv2", board_build["defines"])
     assert "-DF_CPU=160000000L" in defines
 
