@@ -55,7 +55,7 @@ temp_sensor_schema = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.ensure_list(
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(BQ76972Component),
@@ -86,35 +86,36 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    for conf in config:
+        var = cg.new_Pvariable(conf[CONF_ID])
+        await cg.register_component(var, conf)
+        await i2c.register_i2c_device(var, conf)
 
-    cg.add(var.set_address(config[CONF_ADDRESS]))
-    cg.add(var.set_crc_mode(config[CONF_CRC_ENABLED]))
-    cg.add(var.set_reg_disable(config[CONF_REG_DISABLED]))
-    cg.add(var.set_component_id(str(config[CONF_ID])))
+        cg.add(var.set_address(conf[CONF_ADDRESS]))
+        cg.add(var.set_crc_mode(conf[CONF_CRC_ENABLED]))
+        cg.add(var.set_reg_disable(conf[CONF_REG_DISABLED]))
+        cg.add(var.set_component_id(str(conf[CONF_ID])))
 
-    if CONF_STACK_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_STACK_VOLTAGE])
-        cg.add(var.set_stack_voltage_sensor(sens))
+        if CONF_STACK_VOLTAGE in conf:
+            sens = await sensor.new_sensor(conf[CONF_STACK_VOLTAGE])
+            cg.add(var.set_stack_voltage_sensor(sens))
 
-    for temp_key, setter in TEMP_SENSORS.items():
-        if temp_key in config:
-            sens = await sensor.new_sensor(config[temp_key])
-            cg.add(getattr(var, setter)(sens))
+        for temp_key, setter in TEMP_SENSORS.items():
+            if temp_key in conf:
+                sens = await sensor.new_sensor(conf[temp_key])
+                cg.add(getattr(var, setter)(sens))
 
-    for idx, cell_key in enumerate(CONF_CELL_VOLTAGES):
-        if cell_key in config:
-            sens = await sensor.new_sensor(config[cell_key])
-            cg.add(var.set_cell_sensor(idx, sens))
+        for idx, cell_key in enumerate(CONF_CELL_VOLTAGES):
+            if cell_key in conf:
+                sens = await sensor.new_sensor(conf[cell_key])
+                cg.add(var.set_cell_sensor(idx, sens))
 
-    if CONF_I2C_ADDRESS_SETTER in config:
-        n_var = await number.new_number(
-            config[CONF_I2C_ADDRESS_SETTER],
-            min_value=8,
-            max_value=119,
-            step=1,
-        )
-        cg.add(n_var.set_hub(var))
-        cg.add(var.set_address_number(n_var))
+        if CONF_I2C_ADDRESS_SETTER in conf:
+            n_var = await number.new_number(
+                conf[CONF_I2C_ADDRESS_SETTER],
+                min_value=8,
+                max_value=119,
+                step=1,
+            )
+            cg.add(n_var.set_hub(var))
+            cg.add(var.set_address_number(n_var))
