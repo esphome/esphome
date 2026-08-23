@@ -139,3 +139,13 @@ def test_deep_sleep_bk72xx_wakeup_pin_mode_without_wakeup_pin_rejected(
     config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
     with pytest.raises(cv.Invalid, match="requires wakeup_pin"):
         deep_sleep.validate_config(config)
+
+
+def test_deep_sleep_esp32_wakeup_pin_mode_without_wakeup_pin_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """On ESP32 the same mode-only config is rejected too, instead of being silently dead."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = {deep_sleep.CONF_WAKEUP_PIN_MODE: "KEEP_AWAKE"}
+    with pytest.raises(cv.Invalid, match="requires wakeup_pin"):
+        deep_sleep.validate_config(config)
