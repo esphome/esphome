@@ -1140,8 +1140,8 @@ def convert_libraries(
             ):
                 if "version" not in dependency:
                     # Cannot resolve from the registry; common for bundled
-                    # names (Wire, SPI) -- add_library() is the fix if real
-                    _LOGGER.info(
+                    # names (Wire, SPI) -- unactionable noise above debug
+                    _LOGGER.debug(
                         "Skip version-less dependency %r of %s",
                         dependency.get("name"),
                         component.name,
