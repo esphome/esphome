@@ -21,9 +21,8 @@ import subprocess
 from esphome.core import EsphomeError
 from esphome.helpers import write_file
 
-# Everything idedata generation may raise after a successful link. Broad on
-# purpose, and shared by every consumer: idedata is a bonus artifact, so
-# these must be caught and warned about, never allowed to fail the build.
+# Everything idedata generation may raise after a successful link; idedata
+# is a bonus artifact, so consumers warn instead of failing the build
 IDEDATA_BEST_EFFORT_ERRORS = (
     EsphomeError,
     LookupError,
@@ -44,12 +43,8 @@ _ESPHOME_SRC_MARKER = "/src/esphome/"
 
 
 def _is_esphome_src(file: str) -> bool:
-    """Whether ``file`` is an ESPHome C++ translation unit.
-
-    ``compile_commands.json`` ``file`` paths use the OS-native separator, so on
-    Windows they contain backslashes; normalize to ``/`` before testing the
-    marker, otherwise no source matches and the build-include union is empty.
-    """
+    """Whether ``file`` is an ESPHome C++ translation unit; normalized to
+    ``/`` first since Windows compile DBs use backslashes."""
     return _ESPHOME_SRC_MARKER in file.replace("\\", "/") and file.endswith(
         _CXX_SUFFIXES
     )
@@ -120,11 +115,8 @@ def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
 
 
 def _pick_entry(entries: list[dict]) -> dict:
-    """Pick a representative ESPHome C++ translation unit.
-
-    All ESPHome sources share the same component flags/defines, so any one of
-    them yields the cxx_path / cxx_flags / defines we need.
-    """
+    """Pick a representative ESPHome C++ TU; all share the same component
+    flags/defines."""
     for entry in entries:
         if _is_esphome_src(entry["file"]):
             return entry
@@ -151,11 +143,8 @@ def parse_entry(
     tokens = _expand_response_files(_split_command(entry["command"]), directory)
 
     def _include(raw: str) -> str:
-        # Include paths in compile_commands are interpreted relative to the
-        # entry's ``directory`` (e.g. build-local ``-Iconfig``); resolve them
-        # so the cached idedata is usable regardless of the consumer's cwd.
-        # Emit forward slashes (``normpath`` yields ``\`` on Windows) so the
-        # paths match the absolute, already-forward-slash entries in the JSON.
+        # Resolve against the entry's ``directory`` so cached idedata works
+        # from any cwd; emit forward slashes to match the JSON's own entries
         raw = raw.strip()
         if raw and not Path(raw).is_absolute():
             raw = os.path.normpath(directory / raw)
@@ -165,14 +154,11 @@ def parse_entry(
     if launcher is not None and tokens[:1] == [launcher]:
         tokens = tokens[1:]
     if not tokens:
-        # _split_command("") is [] by design, and a command that is only
-        # the launcher strips to nothing; fail like _pick_entry does
-        # instead of an IndexError traceback
+        # An empty command, or one that was only the launcher; fail by name
         raise ValueError(f"empty compile command for {entry.get('file')}")
     if _is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
-        # A stale compile DB built with a launcher the current run no longer
-        # configures: the real compiler is the next token. Warn: the DB is
-        # stale and worth regenerating.
+        # Stale DB built with a launcher this run no longer configures; the
+        # real compiler is the next token
         _LOGGER.warning("Stripping unconfigured launcher %s", tokens[0])
         tokens = tokens[1:]
     # token0 is the compiler path; the rest of the command already uses forward
@@ -316,11 +302,8 @@ def load_or_build_idedata(
 
 
 def reject_launcher_compiler(cxx_path: str) -> None:
-    """Reject a compile DB that names a launcher (ccache) as the compiler.
-
-    Reject before the toolchain probe, which would fail opaquely on a
-    launcher; the unusable compile DB must never be cached or consumed.
-    """
+    """Reject a compile DB naming a launcher (ccache) as the compiler; it
+    must never be probed, cached, or consumed."""
     if _is_launcher(cxx_path):
         raise EsphomeError(
             f"compile_commands.json names the launcher {cxx_path} as the "
@@ -353,13 +336,9 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     )
 
     def _shape(entry: dict) -> str:
-        # The command minus its TU-specific paths: entries sharing a shape
-        # carry identical include sets (one ninja rule), so tokenize once
-        # per shape instead of once per TU. Response-file commands never
-        # dedupe: per-object .rsp names strip to one shape while the files
-        # may hold different include sets.
-        # Keyed on directory too: relative -I paths resolve against it, so
-        # identical commands in different dirs mean different include sets
+        # directory + command minus TU-specific paths: same shape means the
+        # same include set, so tokenize once per shape. Response-file
+        # commands never dedupe (the .rsp contents differ per object)
         command = entry["command"]
         directory = entry.get("directory", "")
         if "@" in command:
@@ -382,10 +361,8 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
             build_includes.setdefault(inc, None)
 
     if not has_esphome_tu:
-        # _pick_entry fell back to an arbitrary C++ entry: idedata built
-        # from it breaks clang-tidy/IDE consumers, and a one-time warning
-        # would be cached into permanence. The best-effort call sites
-        # downgrade this to a build warning.
+        # An arbitrary fallback TU breaks clang-tidy/IDE consumers, and a
+        # warning would be cached into permanence; call sites downgrade this
         raise EsphomeError(
             f"No ESPHome translation unit found in {compile_commands}; "
             "refusing to cache unusable idedata"
