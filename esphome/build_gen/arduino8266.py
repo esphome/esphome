@@ -22,7 +22,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.arduino8266.framework import toolchain_tool
 from esphome.build_helpers.ninja import (
@@ -127,26 +127,37 @@ _NONOSDK_VERSIONS = {
     "SDK305": "NONOSDK305",
 }
 
-# Knob define -> (TCP_MSS, LWIP_FEATURES, LWIP_IPV6, library name); first
-# match wins, in insertion order (as in platformio-build.py)
+
+class _LwipVariant(NamedTuple):
+    """One lwIP build variant: the defines and the prebuilt library that
+    was compiled with them."""
+
+    tcp_mss: int
+    features: int
+    ipv6: int
+    lib: str
+
+
+# Knob define -> variant; first match wins, in insertion order (as in
+# platformio-build.py)
 _LWIP_VARIANTS = {
-    "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY": (536, 1, 1, "lwip6-536-feat"),
-    "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_HIGHER_BANDWIDTH": (
-        1460,
-        1,
-        1,
-        "lwip6-1460-feat",
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY": _LwipVariant(
+        536, 1, 1, "lwip6-536-feat"
     ),
-    "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH": (1460, 1, 0, "lwip2-1460-feat"),
-    "PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY_LOW_FLASH": (536, 0, 0, "lwip2-536"),
-    "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH": (
-        1460,
-        0,
-        0,
-        "lwip2-1460",
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_HIGHER_BANDWIDTH": _LwipVariant(
+        1460, 1, 1, "lwip6-1460-feat"
+    ),
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH": _LwipVariant(
+        1460, 1, 0, "lwip2-1460-feat"
+    ),
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY_LOW_FLASH": _LwipVariant(
+        536, 0, 0, "lwip2-536"
+    ),
+    "PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH": _LwipVariant(
+        1460, 0, 0, "lwip2-1460"
     ),
 }
-_LWIP_DEFAULT = (536, 1, 0, "lwip2-536-feat")
+_LWIP_DEFAULT = _LwipVariant(536, 1, 0, "lwip2-536-feat")
 
 # Knob define -> MMU_* defines; first match wins, in insertion order (as
 # in platformio-build.py)
@@ -318,7 +329,7 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
             "build flags"
         )
 
-    tcp_mss, features, ipv6, lwip_lib = next(
+    lwip = next(
         (variant for knob, variant in _LWIP_VARIANTS.items() if knob in defines),
         _LWIP_DEFAULT,
     )
@@ -335,9 +346,9 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         )
     knob_defines = [
         f"{nonosdk}=1",
-        f"TCP_MSS={tcp_mss}",
-        f"LWIP_FEATURES={features}",
-        f"LWIP_IPV6={ipv6}",
+        f"TCP_MSS={lwip.tcp_mss}",
+        f"LWIP_FEATURES={lwip.features}",
+        f"LWIP_IPV6={lwip.ipv6}",
     ]
     if "PIO_FRAMEWORK_ARDUINO_WAVEFORM_LOCKED_PHASE" in defines:
         knob_defines.append("WAVEFORM_LOCKED_PHASE=1")
@@ -416,7 +427,7 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
 
     return _BuildConfig(
         nonosdk=nonosdk,
-        lwip_lib=lwip_lib,
+        lwip_lib=lwip.lib,
         exceptions="PIO_FRAMEWORK_ARDUINO_ENABLE_EXCEPTIONS" in defines,
         vtables=vtables,
         fp_in_irom="FP_IN_IROM" in defines,
