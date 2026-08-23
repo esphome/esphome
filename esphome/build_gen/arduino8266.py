@@ -72,7 +72,12 @@ _CORE_EXCLUDE_WAVEFORM = {
 
 # Values that land unquoted on generated command lines are shape-checked
 # against these before use
+_MMU_VALUE_RE = re.compile(r"(?:0[xX][0-9a-fA-F]+|\d+)[uUlL]*")
 _MMU_HEX_VALUE_RE = re.compile(r"0[xX][0-9a-fA-F]+[uUlL]*")
+# Only these land in the preprocessed script's ``len =`` fields, which
+# build_surgery's segment parser reads back as hex; the other MMU_* macros
+# (MMU_EXTERNAL_HEAP=128) are consumed by mmu_iram.h and may be decimal
+_MMU_SEGMENT_SIZE_NAMES = ("MMU_IRAM_SIZE", "MMU_ICACHE_SIZE")
 _BOARD_NAME_RE = re.compile(r"[\w.-]+")
 _F_CPU_RE = re.compile(r"\d+L?")
 _FLASH_LD_NAME_RE = re.compile(r"[\w.-]+\.ld")
@@ -378,14 +383,21 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 # Valueless flags (MMU_IRAM_HEAP) are legitimate switches
                 continue
             # Every valued MMU_* reaches the linker-script preprocessor; a
-            # bare or non-numeric value would corrupt the segment lengths
-            # and fail far away in ld. Hex only: build_surgery's segment
-            # parser (and upstream's spellings) cannot read decimal.
+            # bare or non-numeric value would corrupt it and fail far away
+            # in ld. The two segment sizes must additionally be hex:
+            # build_surgery's segment parser cannot read decimal back.
             value = body.partition("=")[2]
-            if not _MMU_HEX_VALUE_RE.fullmatch(value):
+            rule = (
+                _MMU_HEX_VALUE_RE if name in _MMU_SEGMENT_SIZE_NAMES else _MMU_VALUE_RE
+            )
+            if not rule.fullmatch(value):
+                shape = (
+                    "a hex literal (e.g. 0x8000)"
+                    if name in _MMU_SEGMENT_SIZE_NAMES
+                    else "a numeric literal"
+                )
                 raise EsphomeError(
-                    f"{name} must be a hex literal (e.g. 0x8000), got "
-                    f"{value or '(no value)'}"
+                    f"{name} must be {shape}, got {value or '(no value)'}"
                 )
         # Sorted so build.ninja and the linker-script stamp stay
         # byte-stable across runs (the flag set has no deterministic
