@@ -178,37 +178,45 @@ def _run_probe_on_pty(
     output = b""
     deadline = time.monotonic() + 60
     try:
-        try:
-            proc = subprocess.Popen(
-                _probe_command(fixture_path),
-                stdout=follower,
-                stderr=follower if stderr_to_pty else subprocess.PIPE,
-                stdin=follower,
-                env=probe_env,
-            )
-        finally:
-            os.close(follower)
+        proc = subprocess.Popen(
+            _probe_command(fixture_path),
+            stdout=follower,
+            stderr=follower if stderr_to_pty else subprocess.PIPE,
+            stdin=follower,
+            env=probe_env,
+        )
+        # The parent keeps the follower open until the child has exited and
+        # the controller is drained: macOS discards buffered pty output once
+        # the last follower closes, so closing it early loses the probe's
+        # output whenever the child finishes before the first read.
         while True:
             timeout = deadline - time.monotonic()
-            if timeout <= 0 or not select.select([controller], [], [], timeout)[0]:
-                pytest.fail(f"pty probe produced no EOF in time; got {output!r}")
-            try:
-                chunk = os.read(controller, 1024)
-            except OSError as err:
-                # macOS raises EIO once the child closes its end of the pty;
-                # anything else is a real failure, not end-of-stream.
-                if err.errno != errno.EIO:
-                    raise
+            if timeout <= 0:
+                pytest.fail(f"pty probe did not exit in time; got {output!r}")
+            exited = proc.poll() is not None
+            # After exit everything the child wrote is already buffered, so a
+            # zero timeout drains it without blocking.
+            wait = 0 if exited else min(timeout, 0.1)
+            if select.select([controller], [], [], wait)[0]:
+                try:
+                    chunk = os.read(controller, 4096)
+                except OSError as err:
+                    # EIO means the pty is gone; treat it as end of stream.
+                    if err.errno != errno.EIO:
+                        raise
+                    break
+                if chunk:
+                    output += chunk
+                    continue
+            if exited:
                 break
-            if not chunk:
-                break
-            output += chunk
         stderr_text = ""
         if proc.stderr is not None:
             stderr_text = proc.stderr.read().decode(errors="replace")
             proc.stderr.close()
         assert proc.wait(60) == 0, stderr_text
     finally:
+        os.close(follower)
         os.close(controller)
         if proc is not None and proc.poll() is None:
             proc.kill()
