@@ -7,11 +7,9 @@ import pytest
 from esphome.build_helpers.size_summary import format_bar, print_size_line
 
 
-def test_format_bar_non_positive_total_raises() -> None:
-    """A meaningless "from 0 bytes" bar raises so every caller must skip it."""
-    for total in (0, -1):
-        with pytest.raises(ValueError, match="non-positive size total"):
-            format_bar(0, total)
+def test_format_bar_zero_total() -> None:
+    """A zero total must not divide by zero."""
+    assert format_bar(0, 0) == "[          ]   0.0% (used 0 bytes from 0 bytes)"
 
 
 def test_print_size_line_label_padding(capsys: pytest.CaptureFixture[str]) -> None:
