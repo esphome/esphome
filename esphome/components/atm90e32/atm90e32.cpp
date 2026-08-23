@@ -758,8 +758,9 @@ void ATM90E32Component::save_gain_calibration_to_memory_() {
 
 bool ATM90E32Component::save_offset_calibration_to_memory_() {
   const char *cs = this->get_calibration_id_();
-  bool success = this->offset_pref_.save(&this->offset_phase_);
-  global_preferences->sync();
+  const bool saved = this->offset_pref_.save(&this->offset_phase_);
+  const bool synced = global_preferences->sync();
+  const bool success = calibration_persistence_succeeded(saved, synced);
   if (success) {
     this->using_saved_calibrations_ = true;
     this->restored_offset_calibration_ = true;
@@ -775,8 +776,9 @@ bool ATM90E32Component::save_offset_calibration_to_memory_() {
 
 bool ATM90E32Component::save_power_offset_calibration_to_memory_() {
   const char *cs = this->get_calibration_id_();
-  bool success = this->power_offset_pref_.save(&this->power_offset_phase_);
-  global_preferences->sync();
+  const bool saved = this->power_offset_pref_.save(&this->power_offset_phase_);
+  const bool synced = global_preferences->sync();
+  const bool success = calibration_persistence_succeeded(saved, synced);
   if (success) {
     this->using_saved_calibrations_ = true;
     this->restored_power_offset_calibration_ = true;

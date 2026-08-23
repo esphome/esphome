@@ -14,4 +14,10 @@ TEST(ATM90E32OffsetRegisterVerification, RejectsMismatchedReadback) {
   EXPECT_FALSE(offset_register_value_matches(0xFF84, -123));
 }
 
+TEST(ATM90E32CalibrationPersistence, RequiresSaveAndSync) {
+  EXPECT_TRUE(calibration_persistence_succeeded(true, true));
+  EXPECT_FALSE(calibration_persistence_succeeded(true, false));
+  EXPECT_FALSE(calibration_persistence_succeeded(false, true));
+}
+
 }  // namespace esphome::atm90e32::testing

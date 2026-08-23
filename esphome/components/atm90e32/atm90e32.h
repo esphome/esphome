@@ -17,6 +17,8 @@ inline bool offset_register_value_matches(uint16_t actual, int16_t expected) {
   return actual == static_cast<uint16_t>(expected);
 }
 
+inline bool calibration_persistence_succeeded(bool saved, bool synced) { return saved && synced; }
+
 class ATM90E32Component final : public PollingComponent,
                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                       spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
