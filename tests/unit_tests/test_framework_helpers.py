@@ -1240,6 +1240,26 @@ def test_logging_guard_ends_the_bar_row_before_a_record() -> None:
         assert stream.getvalue().endswith("70% ")
 
 
+def test_logging_guard_without_a_bar_is_a_no_op() -> None:
+    """An unknown total draws no bar; the guard passes records through."""
+    from esphome.framework_helpers import _BatchDownloadProgress
+
+    progress = _BatchDownloadProgress("Downloading", 0)
+    with progress.logging_guard():
+        logging.getLogger("esphome.test").warning("plain record")
+
+
+def test_cancellable_sleep_sleeps_between_ticks() -> None:
+    """An uncancelled backoff actually waits out its delay in slices."""
+    from esphome.framework_helpers import _cancellable_sleep
+
+    ticks: list[int] = []
+    t0 = time.monotonic()
+    _cancellable_sleep(0.05, ticks.append, 3)
+    assert time.monotonic() - t0 >= 0.05
+    assert ticks and all(t == 3 for t in ticks)
+
+
 def test_cancellable_sleep_aborts_at_the_tick() -> None:
     """A backoff sleep observes the cancellation raise promptly."""
     from esphome.framework_helpers import _BatchDownloadCancelled, _cancellable_sleep
