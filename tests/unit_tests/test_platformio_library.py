@@ -690,6 +690,13 @@ def test_prefetch_wave_unknown_size_falls_back_to_sequential(
     assert "No Content-Length for https://x/b.tar.gz" in caplog.text
 
 
+def test_raise_on_empty_arg_flags() -> None:
+    """A surviving bare flag means an empty glued argument; reject by name."""
+    with pytest.raises(EsphomeError, match=r"build_flags contain empty-argument"):
+        lib.raise_on_empty_arg_flags(["-DFOO", "-D", "-l"], "build_flags")
+    lib.raise_on_empty_arg_flags(["-DFOO", "-Iinc"], "build_flags")
+
+
 def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
     """Sizes come from HEAD Content-Length; a failing HEAD reads as 0 so
     the combined bar is skipped rather than wrong."""
