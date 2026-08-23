@@ -44,6 +44,7 @@ from .const import (
     KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
+    KEY_LDSCRIPT,
     KEY_PIN_INITIAL_STATES,
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
@@ -416,7 +417,16 @@ async def to_code(config: ConfigType) -> None:
             # No ld script support
             ld_script = None
         elif ver <= cv.Version(2, 4, 2):
-            # Old ld script path
+            # Old ld script path; the modern per-board override names do
+            # not exist in this core's SDK, so it cannot be honored
+            if KEY_LDSCRIPT in board_data:
+                _LOGGER.warning(
+                    "Board %s pins %s, which Arduino core %s cannot honor; "
+                    "using the default flash layout",
+                    config[CONF_BOARD],
+                    board_data[KEY_LDSCRIPT],
+                    ver,
+                )
             ld_script = ld_scripts[0]
         else:
             # A per-board override preserves a layout the board shipped
