@@ -15,6 +15,7 @@ import platformdirs
 
 from esphome.core import CORE, Version
 from esphome.framework_helpers import (
+    BatchDownloadProgress,
     PathType,
     archive_extract_all,
     create_venv,
@@ -23,6 +24,7 @@ from esphome.framework_helpers import (
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
+    run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
@@ -702,10 +704,10 @@ def _prefetch_idf_tool_archives(
     which makes large archives effectively impossible to fetch on unstable
     connections (#17703). This asks the framework's idf_tools (via
     ``get_tool_downloads.py``) which archives the coming install needs, then
-    downloads each into ``<IDF_TOOLS_PATH>/dist`` with
-    ``download_with_resume``. The installer then finds the verified archives
-    already in place ("file ... is already downloaded") and never touches the
-    network.
+    downloads them into ``<IDF_TOOLS_PATH>/dist`` with
+    ``download_with_resume``, a few at a time under one combined progress
+    bar. The installer then finds the verified archives already in place
+    ("file ... is already downloaded") and never touches the network.
 
     Strictly best-effort: any failure here just logs and returns, leaving
     ``idf_tools.py install`` to download whatever is missing exactly as
@@ -727,26 +729,52 @@ def _prefetch_idf_tool_archives(
             )
             return
         dist_path = get_idf_tools_path() / "dist"
-        entries = [
-            entry
-            for entry in json.loads(stdout)
-            if not (dist_path / entry["dest"]).is_file()
-        ]
-        for index, entry in enumerate(entries, start=1):
-            _LOGGER.info(
-                "Downloading %s (%d/%d) ...", entry["name"], index, len(entries)
-            )
-            try:
-                download_with_resume(
-                    entry["url"],
-                    dist_path / entry["dest"],
-                    sha256=entry["sha256"],
-                    size=entry["size"],
+        entries = []
+        for entry in json.loads(stdout):
+            if (dist_path / entry["dest"]).is_file():
+                continue
+            # tools.json always carries sha256 and size; an entry missing
+            # either must not be downloaded unverified here, so leave it to
+            # the installer (which fails loudly on a bad archive).
+            if entry.get("sha256") and entry.get("size"):
+                entries.append(entry)
+            else:
+                _LOGGER.warning(
+                    "Tool %s has no sha256/size in the download list; "
+                    "leaving it to the installer",
+                    entry["name"],
                 )
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                # Keep prefetching the remaining archives; the installer
-                # will retry this one itself (without resume).
-                _LOGGER.warning("Could not prefetch %s: %s", entry["name"], e)
+        if not entries:
+            return
+        _LOGGER.info(
+            "Downloading %d ESP-IDF tool archive(s): %s",
+            len(entries),
+            ", ".join(entry["name"] for entry in entries),
+        )
+
+        # Every entry carries a size (checked above), so the combined bar can
+        # be trusted. Unlike the library prefetch there is no sequential
+        # fallback: per-file bars from several threads would interleave, and
+        # skipping the prefetch would lose the resume workaround for #17703.
+        def _download(entry: dict):
+            return lambda tracker: download_with_resume(
+                entry["url"],
+                dist_path / entry["dest"],
+                sha256=entry["sha256"],
+                size=entry["size"],
+                progress=tracker,
+            )
+
+        # A failed archive is retried by the installer itself (without
+        # resume); keep prefetching the rest.
+        failures = run_batch_downloads(
+            BatchDownloadProgress(
+                "Downloading ESP-IDF tools", sum(entry["size"] for entry in entries)
+            ),
+            [(entry["name"], _download(entry)) for entry in entries],
+        )
+        for name, e in failures:
+            _LOGGER.warning("Could not prefetch %s: %s", name, e)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.

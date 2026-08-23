@@ -2,6 +2,7 @@
 
 # pylint: disable=protected-access
 
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import importlib.util
 import io
@@ -14,7 +15,7 @@ import subprocess
 import sys
 import tarfile
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -887,6 +888,58 @@ _PREFETCH_JSON = json.dumps(
 )
 
 
+def test_prefetch_leaves_unverifiable_entries_to_the_installer(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An entry missing sha256 or size must not download unverified; the
+    installer handles it and fails loudly on a bad archive."""
+    entries = json.loads(_PREFETCH_JSON)
+    del entries[0]["sha256"]
+    del entries[1]["size"]
+    entries.append(
+        {
+            "name": "gcc@14.2.0",
+            "url": "https://example.com/gcc.tar.gz",
+            "size": 67,
+            "sha256": "ef" * 32,
+            "dest": "gcc.tar.gz",
+        }
+    )
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, json.dumps(entries), ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+    assert [call[0][0] for call in download.call_args_list] == [
+        "https://example.com/gcc.tar.gz"
+    ]
+    assert download.call_args[1]["sha256"] == "ef" * 32
+    progress_cls.assert_called_once_with("Downloading ESP-IDF tools", 67)
+    assert "cmake@3.30.2 has no sha256/size" in caplog.text
+    assert "ninja@1.12.1 has no sha256/size" in caplog.text
+
+
+def test_prefetch_all_entries_unverifiable_is_a_noop(tmp_path: Path) -> None:
+    entries = json.loads(_PREFETCH_JSON)
+    for entry in entries:
+        del entry["sha256"]
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, json.dumps(entries), ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+    download.assert_not_called()
+
+
 def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
     with (
         patch(
@@ -895,16 +948,73 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
         ),
         patch("esphome.espidf.framework.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
     ):
+        # Materialize the lazy mock before threads race its first creation
+        tracker = progress_cls.return_value.tracker.return_value
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
     dist = get_idf_tools_path() / "dist"
-    assert download.call_count == 2
-    assert download.call_args_list[0][0] == (
-        "https://example.com/cmake.tar.gz",
-        dist / "cmake-3.30.2.tar.gz",
-    )
-    assert download.call_args_list[0][1] == {"sha256": "ab" * 32, "size": 123}
+    # Archives download concurrently, so the call order is not fixed.
+    calls = {call[0]: call[1] for call in download.call_args_list}
+    assert set(calls) == {
+        ("https://example.com/cmake.tar.gz", dist / "cmake-3.30.2.tar.gz"),
+        ("https://example.com/ninja.zip", dist / "ninja.zip"),
+    }
+    kwargs = calls[("https://example.com/cmake.tar.gz", dist / "cmake-3.30.2.tar.gz")]
+    assert kwargs["sha256"] == "ab" * 32
+    assert kwargs["size"] == 123
+    # every archive reports into the one combined progress bar
+    progress_cls.assert_called_once_with("Downloading ESP-IDF tools", 123 + 45)
+    assert all(kw["progress"] is tracker for kw in calls.values())
+
+
+def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
+    """More than one archive fans out over a bounded thread pool."""
+    entries = [
+        {
+            "name": f"tool{i}@1",
+            "url": f"https://example.com/tool{i}.tar.gz",
+            "size": 10,
+            "sha256": "ab" * 32,
+            "dest": f"tool{i}.tar.gz",
+        }
+        for i in range(6)
+    ]
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, json.dumps(entries), ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch(
+            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
+        ) as pool,
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+
+    pool.assert_called_once_with(max_workers=4)
+    assert download.call_count == 6
+
+
+def test_prefetch_single_archive_uses_one_worker(tmp_path: Path) -> None:
+    entries = json.loads(_PREFETCH_JSON)[:1]
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, json.dumps(entries), ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch(
+            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
+        ) as pool,
+    ):
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+
+    pool.assert_called_once_with(max_workers=1)
+    assert download.call_count == 1
 
 
 def test_prefetch_skips_already_downloaded_archives(tmp_path: Path) -> None:
@@ -964,6 +1074,11 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
 ) -> None:
     """A single archive failing its download must not abort the prefetch of
     the remaining archives."""
+
+    def _fail_cmake_download(url: str, *args, **kwargs) -> None:
+        if "cmake" in url:
+            raise OSError("network down")
+
     with (
         patch(
             "esphome.espidf.framework.run_command",
@@ -971,7 +1086,7 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
         ),
         patch(
             "esphome.espidf.framework.download_with_resume",
-            side_effect=[OSError("network down"), None],
+            side_effect=_fail_cmake_download,
         ) as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
@@ -979,6 +1094,29 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
 
     assert download.call_count == 2
     assert "Could not prefetch cmake@3.30.2" in caplog.text
+
+
+def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> None:
+    """The batch bar is closed out after the pool, and the pool is shut down
+    with cancel_futures so Ctrl-C does not drain every queued archive."""
+    with (
+        patch(
+            "esphome.espidf.framework.run_command",
+            return_value=(True, _PREFETCH_JSON, ""),
+        ),
+        patch("esphome.espidf.framework.download_with_resume"),
+        patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
+        patch("esphome.espidf.framework.BatchDownloadProgress") as progress_cls,
+        patch(
+            "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
+        ) as pool_cls,
+    ):
+        pool = MagicMock(wraps=ThreadPoolExecutor(max_workers=2))
+        pool_cls.return_value = pool
+        _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+
+    pool.shutdown.assert_called_once_with(wait=True, cancel_futures=True)
+    progress_cls.return_value.done.assert_called_once_with()
 
 
 def test_prefetch_passes_targets_and_tools_to_script(tmp_path: Path) -> None:
