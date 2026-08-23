@@ -766,7 +766,7 @@ def _wrap_to_code(name, comp, yaml_util):
             # unsorted dump would churn main.cpp and relink every run
             conf_str = yaml_util.dump(conf, sort_keys=True)
             conf_str = conf_str.replace("//", "")
-            # remove tailing \ to avoid multi-line comment warning
+            # remove trailing \ to avoid multi-line comment warning
             conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)

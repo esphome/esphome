@@ -233,6 +233,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
+    "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
     "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
