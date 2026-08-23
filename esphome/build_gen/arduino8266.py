@@ -353,6 +353,12 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
                 "MMU_ICACHE_SIZE build flags"
             )
+        for name in _MMU_SEGMENT_SIZE_NAMES:
+            # A bare -Dname would preprocess to len = 1 and fail far away
+            if "=" not in defines[name]:
+                raise EsphomeError(
+                    f"{name} must be a hex literal (e.g. 0x8000), got (no value)"
+                )
         for name, body in defines.items():
             if not name.startswith("MMU_") or "=" not in body:
                 # Valueless flags (MMU_IRAM_HEAP) are legitimate switches
@@ -488,6 +494,12 @@ def _project_flags(
         elif tok.startswith("-l"):
             libs.append(tok[2:])
         else:
+            if tok.startswith(_PLAIN_DRIVER_LINK_PREFIXES):
+                # Driver options with no -Wl, spelling; ld would reject them
+                raise EsphomeError(
+                    f"Link flag {tok} in build_flags is not supported by the "
+                    "native toolchain"
+                )
             if tok in _PLAIN_LINKER_FLAGS or tok.startswith(_PLAIN_LINKER_PREFIXES):
                 raise EsphomeError(
                     f"Linker flag {tok} in build_flags is not routed to the "
@@ -511,7 +523,9 @@ _PLAIN_LINKER_FLAGS = (
     "-nostdlib",
     "-rdynamic",
 )
-_PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker", "-fuse-ld=", "--specs=")
+_PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker")
+# Driver options, not ld options: -Wl, has no equivalent for these
+_PLAIN_DRIVER_LINK_PREFIXES = ("-fuse-ld=", "--specs=", "-specs=")
 
 
 def _stat_sig(path: Path) -> str:
@@ -641,7 +655,13 @@ def generate_ld_scripts(
             except OSError as err:
                 # A kept stale note would re-emit an obsolete diagnostic on
                 # every cache hit; skip the stamp so -E re-derives the truth
-                _LOGGER.debug("Could not remove %s: %s", stderr_note, err)
+                _LOGGER.warning(
+                    "Could not remove %s (%s); the linker script will "
+                    "regenerate every build until it is removable; %s",
+                    stderr_note,
+                    err,
+                    _CLEAN_HINT,
+                )
                 note_persisted = False
         if "SECTIONS" not in result.stdout:
             # A degenerate zero-exit run must not be stamped as a good cache
