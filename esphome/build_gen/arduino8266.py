@@ -117,6 +117,13 @@ _MMU_VARIANTS = {
         "MMU_EXTERNAL_HEAP=256",
     ),
 }
+# From platformio-build.py: the invariant framework defines every TU gets
+# (ARDUINO=10805 encodes the IDE compatibility level); the board, flash-mode,
+# knob, and MMU defines are composed around them in _defines_flags, in
+# upstream's order.
+_FRAMEWORK_DEFINES = ("__ets__", "ICACHE_FLASH", "_GNU_SOURCE", "ARDUINO=10805")
+_ARCH_DEFINES = ("ESP8266", "ARDUINO_ARCH_ESP8266")
+
 # Upstream reads these from the board manifest (build.mmu_iram_size etc.);
 # no supported board sets them, so the platformio-build.py defaults are
 # hardcoded here rather than drift
@@ -390,10 +397,7 @@ def _defines_flags(
         f"-D{d}"
         for d in (
             f"F_CPU={f_cpu}",
-            "__ets__",
-            "ICACHE_FLASH",
-            "_GNU_SOURCE",
-            "ARDUINO=10805",
+            *_FRAMEWORK_DEFINES,
             f'ARDUINO_BOARD=\\"PLATFORMIO_{board.upper()}\\"',
             f'ARDUINO_BOARD_ID=\\"{board}\\"',
             f"FLASHMODE_{flash_mode.upper()}",
@@ -403,8 +407,7 @@ def _defines_flags(
             # User-supplied bodies re-quote like every other user token
             # (a no-op for real MMU values)
             *(_shell_token(d) for d in config.mmu_defines),
-            "ESP8266",
-            "ARDUINO_ARCH_ESP8266",
+            *_ARCH_DEFINES,
             *board_defines,
         )
     ]
