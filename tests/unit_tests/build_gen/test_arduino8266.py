@@ -51,6 +51,10 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
         KEY_FLASH_MODE: "dout",
         KEY_SCANF_FLOAT: False,
     }
+    # The producer esp8266/__init__ pins unconditionally
+    CORE.platformio_options = {
+        "build_src_flags": "-include esphome/components/esp8266/throw_stubs.h"
+    }
     yield
     # CORE.reset() (the suite-wide autouse fixture) does not clear this flag
     CORE.testing_mode = False
@@ -345,6 +349,8 @@ def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
         ),
         ("PIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH", "lwip2-1460-feat", 1460, 1, 0),
         ("PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY_LOW_FLASH", "lwip2-536", 536, 0, 0),
+        # LOW_MEMORY has no upstream branch: it is the default (else) variant
+        ("PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY", "lwip2-536-feat", 536, 1, 0),
     ],
 )
 def test_build_config_lwip_variants(
@@ -357,6 +363,17 @@ def test_build_config_lwip_variants(
     assert f"TCP_MSS={mss}" in config.knob_defines
     assert f"LWIP_FEATURES={features}" in config.knob_defines
     assert f"LWIP_IPV6={ipv6}" in config.knob_defines
+
+
+def test_lwip_low_memory_loses_to_listed_knobs() -> None:
+    """The ordinary SNTP multi-server config: sntp emits LOW_MEMORY, esp8266
+    always emits HIGHER_BANDWIDTH_LOW_FLASH, and the listed knob must win
+    exactly as in platformio-build.py's elif chain."""
+    config = _resolve(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY",
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH",
+    )
+    assert config.lwip_lib == "lwip2-1460"
 
 
 @pytest.mark.parametrize(
@@ -1003,6 +1020,38 @@ def test_generate_ld_scripts_lost_warn_note_vetoes_the_stamp(
         _run_generate_ld_scripts(paths)
     run2.assert_called_once()
     assert caplog.text.count("Linker-script preprocessor: warning: something") == 2
+
+
+def test_generate_ld_scripts_unremovable_stale_note_vetoes_the_stamp(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A stale warn note that cannot be removed skips the stamp, so the
+    obsolete diagnostic is not re-emitted on cache hits forever."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    warn = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: old")
+    clean = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    with patch.object(arduino8266.subprocess, "run", return_value=warn):
+        _run_generate_ld_scripts(paths)
+
+    real_unlink = Path.unlink
+
+    def fail_note_unlink(self: Path, missing_ok: bool = False) -> None:
+        if self.name.endswith(".stderr"):
+            raise OSError("locked")
+        real_unlink(self, missing_ok=missing_ok)
+
+    # Flags changed -> regenerate; clean stderr but the stale note is stuck
+    _set_flags("-DVTABLES_IN_DRAM")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=clean),
+        patch.object(Path, "unlink", fail_note_unlink),
+    ):
+        _run_generate_ld_scripts(paths)
+    # Unstamped: the next build re-runs -E instead of trusting the cache
+    with patch.object(arduino8266.subprocess, "run", return_value=clean) as run3:
+        _run_generate_ld_scripts(paths)
+    run3.assert_called_once()
 
 
 def test_build_config_mmu_knob_with_raw_mmu_flag_raises() -> None:
