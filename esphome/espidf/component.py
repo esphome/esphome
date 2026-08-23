@@ -20,6 +20,7 @@ from esphome.platformio.library import (
     DEFAULT_BUILD_SRC_FILTER,
     ESPHOME_DATA_EXTRA_CMAKE_KEY,
     ESPHOME_DATA_KEY,
+    ESPHOME_DATA_LINK_FLAGS_KEY,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary as IDFComponent,
     LibraryBackend,
@@ -203,6 +204,16 @@ def generate_cmakelists_txt(component: IDFComponent) -> str:
         for link_library in link_libraries:
             str_build_flag = escape_entry(link_library)
             content += f"  {str_build_flag}\n"
+        content += ")\n"
+
+    # Extra-script LINKFLAGS: routed to the link line; in
+    # target_compile_options they would be silently ineffective
+    if link_flags := component.data.get(ESPHOME_DATA_KEY, {}).get(
+        ESPHOME_DATA_LINK_FLAGS_KEY, []
+    ):
+        content += "target_link_options(${COMPONENT_LIB} INTERFACE\n"
+        for link_flag in link_flags:
+            content += f"  {escape_entry(link_flag)}\n"
         content += ")\n"
 
     # Add custom CMake scripts
