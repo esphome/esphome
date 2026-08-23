@@ -161,17 +161,19 @@ def parse_entry(
             raw = os.path.normpath(directory / raw)
         return raw.replace("\\", "/")
 
+    # A launcher-wrapped command ("ccache g++ ...") names the compiler second
+    if launcher is not None and tokens[:1] == [launcher]:
+        tokens = tokens[1:]
     if not tokens:
-        # _split_command("") is [] by design; fail like _pick_entry does
+        # _split_command("") is [] by design, and a command that is only
+        # the launcher strips to nothing; fail like _pick_entry does
         # instead of an IndexError traceback
         raise ValueError(f"empty compile command for {entry.get('file')}")
-    # A launcher-wrapped command ("ccache g++ ...") names the compiler second
-    if launcher is not None and tokens[0] == launcher:
-        tokens = tokens[1:]
     if _is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
         # A stale compile DB built with a launcher the current run no longer
-        # configures: the real compiler is the next token.
-        _LOGGER.debug("Stripping unconfigured launcher %s", tokens[0])
+        # configures: the real compiler is the next token. Warn: the DB is
+        # stale and worth regenerating.
+        _LOGGER.warning("Stripping unconfigured launcher %s", tokens[0])
         tokens = tokens[1:]
     # token0 is the compiler path; the rest of the command already uses forward
     # slashes on Windows, so normalize it too for a consistent idedata file.
@@ -332,11 +334,14 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     def _shape(entry: dict) -> str:
         # The command minus its TU-specific paths: entries sharing a shape
         # carry identical include sets (one ninja rule), so tokenize once
-        # per shape instead of once per TU
-        return (
-            entry["command"]
-            .replace(entry.get("file", ""), "")
-            .replace(entry.get("output", ""), "")
+        # per shape instead of once per TU. Response-file commands never
+        # dedupe: per-object .rsp names strip to one shape while the files
+        # may hold different include sets.
+        command = entry["command"]
+        if "@" in command:
+            return f"unique:{entry['file']}"
+        return command.replace(entry.get("file", ""), "").replace(
+            entry.get("output", ""), ""
         )
 
     seen_shapes = {_shape(representative)}
@@ -345,6 +350,7 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
             continue
         has_esphome_tu = True
         if (shape := _shape(entry)) in seen_shapes:
+            _LOGGER.debug("Include union: %s shares a command shape", entry["file"])
             continue
         seen_shapes.add(shape)
         for inc in parse_entry(entry, launcher)[2]:
