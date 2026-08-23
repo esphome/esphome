@@ -88,6 +88,9 @@ _MMU_VARIANTS = (
         ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=128"),
     ),
     (
+        # Upstream really does cap the 1024K option's heap knob at 256
+        # (platformio-build.py's MMU_EXTERNAL_1024K branch); transliterated
+        # verbatim
         "PIO_FRAMEWORK_ARDUINO_MMU_EXTERNAL_1024K",
         ("MMU_IRAM_SIZE=0x8000", "MMU_ICACHE_SIZE=0x8000", "MMU_EXTERNAL_HEAP=256"),
     ),
@@ -180,14 +183,22 @@ def _lexed_build_flags() -> list[str]:
 
     Lex once per build; consumers share the tokens.
     """
-    return lex_build_flags(sorted(CORE.build_flags), "esphome")
+    tokens = lex_build_flags(sorted(CORE.build_flags), "esphome")
+    # The lexer glues '-D ""' to a bare "-D"; gcc would eat the next flag
+    # as its argument (or add the CWD for -L). Always a typo, so raise for
+    # every consumer of the shared token list.
+    if empty := sorted({tok for tok in tokens if tok in ("-I", "-D", "-L", "-l")}):
+        raise EsphomeError(
+            f"build_flags contain empty-argument flag(s): {', '.join(empty)}"
+        )
+    return tokens
 
 
 def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
     """Map define name -> full ``NAME[=VALUE]`` for every -D build flag.
 
     ``tokens`` comes from one ``_lexed_build_flags()`` call shared with
-    ``_project_flags`` so a malformed entry warns once, structurally.
+    ``_project_flags``, which already raised on any bare "-D".
     """
     defines: dict[str, str] = {}
     for tok in tokens:
@@ -195,9 +206,7 @@ def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
         # being absent from the compile line
         if tok in unflags:
             continue
-        # A bare "-D" is skipped here and warned about in _project_flags,
-        # which sees the same token list
-        if tok.startswith("-D") and len(tok) > 2:
+        if tok.startswith("-D"):
             body = tok[2:]
             defines[body.split("=", 1)[0]] = body
     return defines
@@ -299,13 +308,11 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
 def _pio_option(key: str, default: str) -> str:
     """A platformio_options value the native build honors (str-normalized).
 
-    Routed into ``CORE.platformio_options`` by core/config.py under the
-    arduino toolchain; a repeated option accumulates as a list, where the
-    last value wins like a later platformio.ini line.
+    core/config.py routes these into ``CORE.platformio_options`` under the
+    arduino toolchain and already collapses a repeated option to its last
+    value (like a later platformio.ini line), so a scalar always arrives.
     """
     value = CORE.platformio_options.get(key)
-    if isinstance(value, list):
-        value = value[-1] if value else ""
     if value is None:
         return default
     value = str(value).strip()
@@ -382,23 +389,12 @@ def _project_flags(
     for tok in tokens:
         if tok in unflags:
             continue
-        if tok in ("-I", "-D"):
-            # A bare form from '-I ""' would make gcc eat the next flag as
-            # its argument (silently, for a nonexistent include dir)
-            _LOGGER.warning("Ignoring empty %s in build_flags", tok)
-            continue
+        # _lexed_build_flags raised on any bare -I/-D/-L/-l
         if tok.startswith("-Wl,"):
             link_flags.append(_shell_token(tok))
         elif tok.startswith("-L"):
-            if len(tok) == 2:
-                # Path("") is the CWD; never add it silently
-                _LOGGER.warning("Ignoring empty -L in build_flags")
-                continue
             lib_dirs.append(Path(tok[2:]))
         elif tok.startswith("-l"):
-            if len(tok) == 2:
-                _LOGGER.warning("Ignoring empty -l in build_flags")
-                continue
             libs.append(tok[2:])
         else:
             if tok in _PLAIN_LINKER_FLAGS or tok.startswith(_PLAIN_LINKER_PREFIXES):
@@ -436,6 +432,15 @@ def _stat_sig(path: Path) -> str:
             err,
         )
         return f"unreadable:{os.urandom(8).hex()}"
+
+
+def _write_note(path: Path, text: str) -> None:
+    """Best-effort bookkeeping write; a failure only costs a cache miss or
+    a lost re-emitted warning, never the build."""
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError as err:
+        _LOGGER.debug("Could not write %s: %s", path, err)
 
 
 def _write_generated(path: Path, content: str) -> None:
@@ -515,7 +520,14 @@ def generate_ld_scripts(
     if not _cached_ld_is_valid():
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, check=False, close_fds=False
+                cmd,
+                capture_output=True,
+                # Localized gcc diagnostics on a non-UTF-8 console must
+                # degrade, not UnicodeDecodeError the build
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                close_fds=False,
             )
         except OSError as err:
             # A half-extracted or half-deleted toolchain cache reaches here
@@ -528,7 +540,7 @@ def generate_ld_scripts(
             # Preprocessor warnings on the success path must reach the user
             # on this and every later cached build (see the re-emit below)
             _LOGGER.warning("Linker-script preprocessor: %s", result.stderr.strip())
-            stderr_note.write_text(result.stderr.strip(), encoding="utf-8")
+            _write_note(stderr_note, result.stderr.strip())
         else:
             stderr_note.unlink(missing_ok=True)
         if "SECTIONS" not in result.stdout:
@@ -552,9 +564,9 @@ def generate_ld_scripts(
                 # Same changed-linker-script failure class as the ratetable
                 raise EsphomeError(str(err)) from err
         _write_generated(output, content)
-        stamp.write_text(
+        _write_note(
+            stamp,
             f"{stamp_content} content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
-            encoding="utf-8",
         )
     elif stderr_note.is_file():
         # Re-emit cached preprocessor warnings on cache hits
