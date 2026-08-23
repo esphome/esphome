@@ -74,3 +74,4 @@ def enable_serial1() -> None:
 
 
 KEY_LDSCRIPT = "ldscript"
+BUILD_FLASH_MODES = ("qio", "qout", "dio", "dout")

@@ -37,9 +37,9 @@ from esphome.components.esp8266.boards import (
     board_ld_script,
 )
 from esphome.components.esp8266.const import (
+    BUILD_FLASH_MODES,
     KEY_BOARD,
     KEY_ESP8266,
-    KEY_FLASH_MODE,
     KEY_FLASH_SIZE,
     KEY_SCANF_FLOAT,
 )
@@ -107,8 +107,8 @@ def _apply_surgery(fn, *args: object) -> str:
 
 
 # Every supported board's f_flash is 40 MHz; re-check on a platform bump
-# board_flash_mode's closed set (cv.one_of in esp8266/__init__.py)
-_FLASH_MODES = frozenset({"qio", "qout", "dio", "dout"})
+# board_flash_mode's closed set, shared with cv.one_of's validation
+_FLASH_MODES = frozenset(BUILD_FLASH_MODES)
 _FLASH_FREQ_MHZ = 40
 
 # From platformio-build.py. Knob suffix -> SDK define; the first entry is
@@ -851,7 +851,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if board not in ESP8266_BOARD_BUILD:
         raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
-    flash_mode = esp8266_data[KEY_FLASH_MODE]
+    # From the same producer the PlatformIO path reads (one source)
+    flash_mode = _pio_option("board_build.flash_mode", "dout")
     if flash_mode not in _FLASH_MODES:
         # Lands unquoted in the elf2bin command and a -D body; validation
         # (cv.one_of on board_flash_mode) already gates it, defense-in-depth
@@ -1102,7 +1103,12 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     )
     for tok in src_it:
         if tok == "-include":
-            src_parts.append(f"-include {_q(src_dir / next(src_it, ''))}")
+            header = next(src_it, "")
+            if not header:
+                raise EsphomeError(
+                    "build_src_flags has a trailing '-include' with no header"
+                )
+            src_parts.append(f"-include {_q(src_dir / header)}")
         else:
             src_parts.append(_shell_token(tok))
     src_extra = " ".join(src_parts)

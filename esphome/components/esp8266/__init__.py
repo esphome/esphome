@@ -40,13 +40,13 @@ from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_BOARD_BUILD, ESP8266_LD_SCRIPTS, board_ld_script
 from .const import (
+    BUILD_FLASH_MODES,
     CONF_EARLY_PIN_INIT,
     CONF_ENABLE_SERIAL,
     CONF_ENABLE_SERIAL1,
     CONF_RESTORE_FROM_FLASH,
     KEY_BOARD,
     KEY_ESP8266,
-    KEY_FLASH_MODE,
     KEY_FLASH_SIZE,
     KEY_LDSCRIPT,
     KEY_PIN_INITIAL_STATES,
@@ -104,7 +104,6 @@ def set_core_data(config: ConfigType) -> ConfigType:
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_ESP8266][KEY_BOARD] = config[CONF_BOARD]
-    CORE.data[KEY_ESP8266][KEY_FLASH_MODE] = config[CONF_BOARD_FLASH_MODE]
     CORE.data[KEY_ESP8266][KEY_PIN_INITIAL_STATES] = [
         PinInitialState() for _ in range(16)
     ]
@@ -294,7 +293,6 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
 )
 
 
-BUILD_FLASH_MODES = ["qio", "qout", "dio", "dout"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -384,8 +382,7 @@ async def to_code(config: ConfigType) -> None:
             "enabling scanf float support (~8KB flash)"
         )
 
-    # The native toolchain reads this decision from CORE.data instead of the
-    # remove_float_scanf extra script.
+    # The native generator reads the same decision (KEY_SCANF_FLOAT)
     CORE.data[KEY_ESP8266][KEY_SCANF_FLOAT] = bool(enable_scanf_float)
     if use_platformio:
         extra_scripts = [
