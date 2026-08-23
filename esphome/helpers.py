@@ -562,7 +562,8 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     if path.is_file():
         try:
             src_content = read_file(path)
-        except (EsphomeError, UnicodeDecodeError) as err:
+        except EsphomeError as err:
+            # read_file wraps OSError and UnicodeDecodeError alike
             # A damaged existing file (unreadable, non-UTF-8) must be
             # replaced, not abort the regeneration that would fix it
             _LOGGER.warning("Replacing damaged file %s: %s", path, err)
