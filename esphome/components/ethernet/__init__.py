@@ -846,7 +846,8 @@ def _filter_source_files() -> list[str]:
         # to avoid shadowing. Native IDF builds always need the custom driver.
         if cv.Version(5, 4, 2) <= idf_version() < cv.Version(6, 0, 0):
             excluded.append("esp_eth_phy_jl1101.c")
-    return excluded
+    # The platform and define filters can both name the same file
+    return list(dict.fromkeys(excluded))
 
 
 FILTER_SOURCE_FILES = _filter_source_files

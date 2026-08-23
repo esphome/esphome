@@ -850,7 +850,7 @@ async def api_connected_to_code(
 # user_services.cpp is only needed when user defined actions exist; the
 # frame helpers are fully #ifdef'd on the protocol defines set in to_code
 # (both are set when encryption is configured without a key).
-_filter_define_source_files = filter_source_files_from_defines(
+_define_filter = filter_source_files_from_defines(
     {
         "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
         "api_frame_helper_noise.cpp": "USE_API_NOISE",
@@ -860,7 +860,7 @@ _filter_define_source_files = filter_source_files_from_defines(
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
-    files_to_filter = _filter_define_source_files()
+    files_to_filter = _define_filter()
 
     # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
     # This is a particularly large file that still needs to be opened and read
