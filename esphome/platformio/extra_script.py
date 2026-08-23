@@ -14,7 +14,7 @@ import logging
 import os
 from pathlib import Path
 import shlex
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from esphome.core import EsphomeError
 
@@ -98,6 +98,17 @@ class ExtraScriptResult:
     cppflags: list[str] = field(default_factory=list)
 
 
+def _cppdefines_items(value: Any) -> list:
+    """Normalize SCons ``processDefines`` spellings: a bare 2-tuple is one
+    ``name=value`` pair, a dict maps names to values, a list is
+    element-wise."""
+    if isinstance(value, tuple) and len(value) == 2:
+        return [value]
+    if isinstance(value, dict):
+        return list(value.items())
+    return list(value) if isinstance(value, (list, tuple)) else [value]
+
+
 class _FakeSConsEnv:
     """Minimal SCons ``Environment`` stand-in: ``get`` and ``Append`` work;
     every other method is a swallowed no-op so scripts don't abort."""
@@ -147,7 +158,10 @@ class _FakeSConsEnv:
                         key,
                     )
                 continue
-            items = list(value) if isinstance(value, (list, tuple)) else [value]
+            if key == "CPPDEFINES":
+                items = _cppdefines_items(value)
+            else:
+                items = list(value) if isinstance(value, (list, tuple)) else [value]
             bucket = getattr(self.result, key.lower())
             bucket.extend(items)
 
@@ -285,14 +299,19 @@ def captured_as_build_flags(
     )
     flags.extend(f"-l{shlex.quote(lib)}" for lib in _strs(result.libs, "LIBS"))
     for define in result.cppdefines:
-        # SCons also accepts dict/list CPPDEFINES; formatting those blind
+        # SCons also accepts nested containers; formatting those blind
         # would hand the compiler garbage like -D{'FOO': '1'}
         if (
             isinstance(define, (tuple, list))
             and len(define) == 2
-            and all(isinstance(part, (str, int)) for part in define)
+            and isinstance(define[0], (str, int))
+            and isinstance(define[1], (str, int, type(None)))
         ):
-            flags.append(shlex.quote(f"-D{define[0]}={define[1]}"))
+            if define[1] is None:
+                # {"FOO": None} / ("FOO", None) is a bare -DFOO in SCons
+                flags.append(shlex.quote(f"-D{define[0]}"))
+            else:
+                flags.append(shlex.quote(f"-D{define[0]}={define[1]}"))
         elif isinstance(define, str):
             flags.append(shlex.quote(f"-D{define}"))
         else:
