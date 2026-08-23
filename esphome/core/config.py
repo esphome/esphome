@@ -559,6 +559,10 @@ def _add_library_str(lib: str) -> None:
 # in this chain) will honor; its ignored-option warning will consume the same
 # list so the two cannot drift
 NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
+# The full set that survives into CORE.platformio_options under the native
+# arduino toolchain: lib_ignore is the only specially-translated key below
+# that is stored rather than translated away
+NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
