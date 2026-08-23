@@ -1936,24 +1936,27 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     return run_multiple_configs(files, build_command)
 
 
+# Native build backend per toolchain; keep in sync with NATIVE_TOOLCHAINS
+# in esphome.const. Keyed by toolchain rather than a platform hook so the
+# serial upload/logs fast path never imports the platform component package
+# (see the esp32 variant comment in upload_using_esptool).
+_NATIVE_TOOLCHAIN_MODULES = {
+    Toolchain.ESP_IDF: "esphome.espidf.toolchain",
+    Toolchain.ARDUINO: "esphome.arduino8266.toolchain",
+}
+
+
 def _native_toolchain_module():
-    """The native build backend module for the resolved toolchain, via the
-    target platform's ``native_toolchain_module`` hook."""
+    """The native build backend module for the resolved toolchain."""
     if not CORE.using_native_toolchain:
-        # Both hooks return None for PlatformIO anyway; returning early
-        # keeps the serial upload/logs fast path from importing the
-        # platform component package (see the esp32 variant comment in
-        # upload_using_esptool)
         return None
-    module = importlib.import_module("esphome.components." + CORE.target_platform)
-    get_native = getattr(module, "native_toolchain_module", None)
-    native = get_native() if get_native is not None else None
-    if native is None and CORE.using_native_toolchain:
+    if (module_path := _NATIVE_TOOLCHAIN_MODULES.get(CORE.toolchain)) is None:
+        # A native toolchain missing from the table is a bug; degrading to
+        # the PlatformIO path would build with the wrong backend
         raise EsphomeError(
-            f"Platform {CORE.target_platform} resolved toolchain "
-            f"'{CORE.toolchain.value}' but provides no native toolchain module"
+            f"Toolchain '{CORE.toolchain.value}' has no native build backend module"
         )
-    return native
+    return importlib.import_module(module_path)
 
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
@@ -2007,7 +2010,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     native_toolchain = _native_toolchain_module()
     if native_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
-            "analyze-memory is not supported with the '%s' toolchain",
+            "analyze-memory is not supported with the '%s' toolchain; it "
+            "requires a PlatformIO, ESP-IDF, or native Arduino build",
             CORE.toolchain.value if CORE.toolchain else "unresolved",
         )
         return 1

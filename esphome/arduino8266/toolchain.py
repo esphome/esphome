@@ -158,7 +158,10 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
             _LOGGER.error("Build produced no %s", artifact)
             return 1
 
-    _print_size_summary(build_dir, paths)
+    if not _print_size_summary(build_dir, paths):
+        # The cause was already warned; name the consequence so a build
+        # contributing no RAM/Flash metric is visible to CI harnesses
+        _LOGGER.warning("Firmware size summary unavailable for this build")
     from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
 
     try:
@@ -243,8 +246,8 @@ def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | N
     return app_size
 
 
-def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> None:
-    """Print the PlatformIO-shaped RAM/Flash lines.
+def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> bool:
+    """Print the PlatformIO-shaped RAM/Flash lines; False when skipped.
 
     The exact shape (including the bar) is parsed by
     ``script/ci_memory_impact_extract.py``; ``print_size_line`` matches it.
@@ -264,10 +267,10 @@ def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> Non
         # The summary is a bonus artifact like idedata; a truncated
         # toolchain extraction must not discard an already-linked build
         _LOGGER.warning("Could not summarize firmware size: %s", err)
-        return
+        return False
     if result.returncode != 0:
         _LOGGER.warning("Could not summarize firmware size: %s", result.stderr)
-        return
+        return False
     sections: dict[str, int] = {}
     for line in result.stdout.splitlines():
         parts = line.split()
@@ -284,17 +287,18 @@ def _print_size_summary(build_dir: Path, paths: framework.InstalledPaths) -> Non
             "Size output is missing section(s) %s; skipping the size summary",
             ", ".join(sorted(missing)),
         )
-        return
+        return False
     # Resolve the flash budget before printing anything: a RAM line without
     # its Flash line would let CI's memory-impact extraction sum the two
     # metrics over different build counts (_parse_app_size already warned).
     app_size = _parse_app_size(build_dir, paths)
     if not app_size:
-        return
+        return False
     ram = sum(sections[s] for s in _RAM_SECTIONS)
     flash = sum(sections[s] for s in _FLASH_SECTIONS)
     print_size_line("RAM", ram, _MAX_RAM_SIZE)
     print_size_line("Flash", flash, app_size)
+    return True
 
 
 # Sentinel: "resolve for me"; None is a real value meaning disabled.

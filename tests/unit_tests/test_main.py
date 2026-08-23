@@ -7390,12 +7390,15 @@ def test_compile_program_espidf_idedata_none_warns(
     assert "No idedata was generated" in caplog.text
 
 
-def test_native_toolchain_module_missing_hook_raises(tmp_path: Path) -> None:
-    """A resolved native toolchain whose platform lacks the hook is a bug
-    and must fail, not silently degrade to the PlatformIO path."""
-    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test_device")
-    CORE.toolchain = Toolchain.ARDUINO  # esp32 provides no hook
-    with pytest.raises(EsphomeError, match="no native toolchain module"):
+def test_native_toolchain_module_missing_backend_raises(tmp_path: Path) -> None:
+    """A native toolchain missing from the backend table is a bug and must
+    fail, not silently degrade to the PlatformIO path."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+    with (
+        patch.dict(main._NATIVE_TOOLCHAIN_MODULES, clear=True),
+        pytest.raises(EsphomeError, match="no native build backend"),
+    ):
         _native_toolchain_module()
 
 

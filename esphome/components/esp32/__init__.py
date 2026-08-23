@@ -3446,20 +3446,6 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
-def native_toolchain_module():
-    """The native build backend for the resolved toolchain, if any.
-
-    Hook for ``__main__``'s shared dispatch (idedata, analyze_memory);
-    esp32's crash decode still branches inline in _decode_pc. Same seam
-    the esp8266 component provides.
-    """
-    if not CORE.using_toolchain_esp_idf:
-        return None
-    from esphome.espidf import toolchain
-
-    return toolchain
-
-
 # gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
 # are instantiated solely by the pin schema codegen (esp32_pin_to_code)
 FILTER_SOURCE_FILES = filter_source_files_from_defines(

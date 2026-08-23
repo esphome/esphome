@@ -323,7 +323,8 @@ CONFIG_SCHEMA = cv.All(
 def native_toolchain_module():
     """The native build backend for the resolved toolchain, if any.
 
-    Hook for ``__main__``'s shared dispatch (idedata, analyze_memory).
+    ``__main__`` dispatches from its own toolchain-keyed table; this helper
+    serves the component's internal callers.
     """
     if not CORE.using_toolchain_arduino:
         return None
@@ -476,10 +477,9 @@ async def to_code(config: ConfigType) -> None:
     # implementation in the Arduino ESP8266 core.
     cg.add_build_flag("-Wl,--wrap=millis")
 
-    if use_platformio:
-        cg.add_platformio_option(
-            "board_build.flash_mode", config[CONF_BOARD_FLASH_MODE]
-        )
+    # Unconditional: the native build generator reads the same option,
+    # keeping one source of truth
+    cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     cg.add_define(
