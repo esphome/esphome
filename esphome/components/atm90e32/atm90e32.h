@@ -13,6 +13,10 @@
 
 namespace esphome::atm90e32 {
 
+inline bool offset_register_value_matches(uint16_t actual, int16_t expected) {
+  return actual == static_cast<uint16_t>(expected);
+}
+
 class ATM90E32Component final : public PollingComponent,
                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                       spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_1MHZ> {
@@ -174,13 +178,15 @@ class ATM90E32Component final : public PollingComponent,
   void restore_offset_calibrations_();
   void restore_power_offset_calibrations_();
   void restore_gain_calibrations_();
-  void save_offset_calibration_to_memory_();
+  bool save_offset_calibration_to_memory_();
   void save_gain_calibration_to_memory_();
-  void save_power_offset_calibration_to_memory_();
+  bool save_power_offset_calibration_to_memory_();
   void write_offsets_to_registers_(uint8_t phase, int16_t voltage_offset, int16_t current_offset);
   void write_power_offsets_to_registers_(uint8_t phase, int16_t p_offset, int16_t q_offset);
   void write_gains_to_registers_();
   bool verify_gain_writes_();
+  bool verify_offset_writes_();
+  bool verify_power_offset_writes_();
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
   const char *get_calibration_id_();
