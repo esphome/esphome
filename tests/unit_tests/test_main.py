@@ -7229,22 +7229,57 @@ def test_command_analyze_memory_native_toolchains(
     readelf = tmp_path / "readelf"
     objdump.write_text("")
     readelf.write_text("")
+    # The ELF must exist too: the analyzer swallows tool failures, so a
+    # missing image would report zeroes with exit 0
+    firmware_elf = tmp_path / "firmware.elf"
+    firmware_elf.write_text("")
     with (
         patch(f"{module}.get_objdump_path", return_value=objdump),
         patch(f"{module}.get_readelf_path", return_value=readelf),
-        patch(f"{module}.get_elf_path", return_value=Path("/build/firmware.elf")),
+        patch(f"{module}.get_elf_path", return_value=firmware_elf),
     ):
         result = command_analyze_memory(MockArgs(), config)
 
     assert result == 0
-    # str(Path(...)) so the expectation matches the platform's separators
     mock_memory_analyzer_cli.assert_called_once_with(
-        str(Path("/build/firmware.elf")),
+        str(firmware_elf),
         str(objdump),
         str(readelf),
         set(),
         idedata=None,
     )
+
+
+def test_command_analyze_memory_native_missing_elf_fails(
+    tmp_path: Path,
+    mock_write_cpp: Mock,
+    mock_compile_program: Mock,
+    mock_get_esphome_components: Mock,
+    mock_memory_analyzer_cli: Mock,
+    mock_ram_strings_analyzer: Mock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A missing firmware.elf fails by name instead of an exit-0 zeroed
+    report."""
+    setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test_device")
+    CORE.toolchain = Toolchain.ARDUINO
+
+    config = {CONF_ESPHOME: {CONF_NAME: "test_device"}}
+    objdump = tmp_path / "objdump"
+    readelf = tmp_path / "readelf"
+    objdump.write_text("")
+    readelf.write_text("")
+    module = "esphome.arduino8266.toolchain"
+    with (
+        patch(f"{module}.get_objdump_path", return_value=objdump),
+        patch(f"{module}.get_readelf_path", return_value=readelf),
+        patch(f"{module}.get_elf_path", return_value=tmp_path / "missing.elf"),
+    ):
+        result = command_analyze_memory(MockArgs(), config)
+
+    assert result == 1
+    assert "compile the configuration first" in caplog.text
+    mock_memory_analyzer_cli.assert_not_called()
 
 
 def test_command_analyze_memory_missing_binutils_fails_by_name(
