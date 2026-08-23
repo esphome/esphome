@@ -213,13 +213,30 @@ def test_print_summary_nested_bad_shapes_never_raise(
     caplog: pytest.LogCaptureFixture,
     payload: dict,
 ) -> None:
-    """Bad nested shapes hit the named RAM guard, not the blanket backstop."""
+    """Corrupt nested shapes hit the named malformed guard, not the blanket."""
     size_json = _write_size_json(tmp_path, payload)
     print_summary(size_json, None)
     # No half-formed bar for CI to scrape; every payload fails before printing
     assert capsys.readouterr().out == ""
-    assert "Skipping RAM summary" in caplog.text
+    assert "malformed memory_types" in caplog.text
     assert "Skipping size summary for" not in caplog.text
+
+
+def test_print_summary_absent_region_stays_quiet(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A well-shaped report without DRAM/DIRAM is a variant difference, not
+    a broken artifact: debug, never a per-build warning."""
+    size_json = _write_size_json(tmp_path, {"memory_types": {}, "image_size": 1})
+    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.size_summary"):
+        print_summary(size_json, None)
+    assert "RAM:" not in capsys.readouterr().out
+    assert "no usable DRAM/DIRAM region" in caplog.text
+    assert not [
+        r for r in caplog.records if r.levelno >= logging.WARNING and "RAM" in r.message
+    ]
 
 
 def test_print_summary_non_numeric_image_size_warns_by_name(
