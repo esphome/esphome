@@ -15,11 +15,11 @@ PROGMEM_STRING_TABLE(InterruptTypeStrings, "UNKNOWN", "RISING_EDGE", "FALLING_ED
 static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
   return InterruptTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
 }
-#endif
 
 static const LogString *gpio_mode_to_string(bool use_interrupt) {
   return use_interrupt ? LOG_STR("interrupt") : LOG_STR("polling");
 }
+#endif
 #endif
 
 #ifdef USE_GPIO_BINARY_SENSOR_INTERRUPT
@@ -64,11 +64,13 @@ void GPIOBinarySensor::setup() {
 void GPIOBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "GPIO Binary Sensor", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Mode: %s", LOG_STR_ARG(gpio_mode_to_string(this->store_.use_interrupt_)));
 #ifdef USE_GPIO_BINARY_SENSOR_INTERRUPT
+  ESP_LOGCONFIG(TAG, "  Mode: %s", LOG_STR_ARG(gpio_mode_to_string(this->store_.use_interrupt_)));
   if (this->store_.use_interrupt_) {
     ESP_LOGCONFIG(TAG, "  Interrupt Type: %s", LOG_STR_ARG(interrupt_type_to_string(this->store_.interrupt_type_)));
   }
+#else
+  ESP_LOGCONFIG(TAG, "  Mode: polling");
 #endif
 }
 
