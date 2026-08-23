@@ -998,10 +998,12 @@ def test_pio_option_blank_value_raises() -> None:
         arduino8266._pio_option("board_build.f_cpu", "80000000L")
 
 
-def test_defines_flags_invalid_f_cpu_raises() -> None:
+@pytest.mark.parametrize("value", ["160 MHz", "\u0661\u0666\u0660"])
+def test_defines_flags_invalid_f_cpu_raises(value: str) -> None:
     """A non-numeric board_build.f_cpu is rejected by name; it would land
-    unquoted on the compile line."""
-    CORE.platformio_options = {"board_build.f_cpu": "160 MHz"}
+    unquoted on the compile line. Unicode digits count as non-numeric: the
+    shape checks are ASCII-only."""
+    CORE.platformio_options = {"board_build.f_cpu": value}
     with pytest.raises(EsphomeError, match="Invalid board_build.f_cpu"):
         _defines_flags(
             _resolve(),

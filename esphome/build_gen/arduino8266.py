@@ -36,16 +36,17 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 # Values that land unquoted on generated command lines are shape-checked
-# against these before use
-_MMU_VALUE_RE = re.compile(r"(?:0[xX][0-9a-fA-F]+|\d+)[uUlL]*")
-_MMU_HEX_VALUE_RE = re.compile(r"0[xX][0-9a-fA-F]+[uUlL]*")
+# against these before use. re.ASCII: a Unicode digit or word character
+# (Arabic-Indic numerals) would pass \d/\w and defeat the named error
+_MMU_VALUE_RE = re.compile(r"(?:0[xX][0-9a-fA-F]+|\d+)[uUlL]*", re.ASCII)
+_MMU_HEX_VALUE_RE = re.compile(r"0[xX][0-9a-fA-F]+[uUlL]*", re.ASCII)
 # Only these land in the preprocessed script's ``len =`` fields, which
 # build_surgery's segment parser reads back as hex; the other MMU_* macros
 # (MMU_EXTERNAL_HEAP=128) are consumed by mmu_iram.h and may be decimal
 _MMU_SEGMENT_SIZE_NAMES = ("MMU_IRAM_SIZE", "MMU_ICACHE_SIZE")
-_BOARD_NAME_RE = re.compile(r"[\w.-]+")
-_F_CPU_RE = re.compile(r"\d+L?")
-_FLASH_LD_NAME_RE = re.compile(r"[\w.-]+\.ld")
+_BOARD_NAME_RE = re.compile(r"[\w.-]+", re.ASCII)
+_F_CPU_RE = re.compile(r"\d+L?", re.ASCII)
+_FLASH_LD_NAME_RE = re.compile(r"[\w.-]+\.ld", re.ASCII)
 
 # Every supported board ships this clock; board_build.f_cpu overrides
 _DEFAULT_F_CPU = "80000000L"
@@ -430,6 +431,9 @@ def _defines_flags(
     The returned tokens already carry shell-level escaping (the board
     defines embed ``\"``), so they must be emitted unquoted; wrapping
     them in ``_shell_token`` would deliver literal backslashes to gcc.
+    ``flash_mode`` also lands unquoted: callers pass it pre-validated
+    against ``BUILD_FLASH_MODES`` (cv.one_of at config time, the
+    ``_FLASH_MODES`` check at the emission half's read site).
     """
     if not _BOARD_NAME_RE.fullmatch(board):
         # The name lands unquoted in two -D bodies; reject it by name
