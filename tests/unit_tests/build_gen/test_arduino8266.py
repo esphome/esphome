@@ -591,12 +591,15 @@ def test_vtables_conflicting_raises() -> None:
         _resolve("-DVTABLES_IN_DRAM", "-DVTABLES_IN_IRAM")
 
 
-def test_empty_lib_flags_raise() -> None:
-    """A bare -L would silently add the CWD to the search path; the shared
-    lex point raises for every consumer."""
-    CORE.build_flags = {'-L ""', '-l ""'}
-    with pytest.raises(EsphomeError, match=r"empty-argument flag\(s\): -L, -l"):
-        arduino8266._lexed_build_flags()
+def test_empty_lib_flags_warned_and_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A bare -L would silently add the CWD to the search path; the lex
+    funnel warns and drops it for every consumer."""
+    CORE.build_flags = {'-L ""', '-l ""', "-DFOO"}
+    assert arduino8266._lexed_build_flags() == ["-DFOO"]
+    assert "Ignoring '-L' with empty argument" in caplog.text
+    assert "Ignoring '-l' with empty argument" in caplog.text
 
 
 def test_generate_ld_scripts_surfaces_preprocessor_warnings(
@@ -1017,12 +1020,15 @@ def test_generate_ld_scripts_unreadable_header_forces_regeneration(
         mock_run.assert_called_once()
 
 
-def test_bare_include_and_define_raise() -> None:
+def test_bare_include_and_define_dropped(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """An empty-argument -I or -D would make gcc eat the next flag as the
-    argument; the shared lex point raises for every consumer."""
+    argument; the lex funnel warns and drops both."""
     CORE.build_flags = {'-I ""', '-D ""'}
-    with pytest.raises(EsphomeError, match=r"empty-argument flag\(s\): -D, -I"):
-        arduino8266._lexed_build_flags()
+    assert arduino8266._lexed_build_flags() == []
+    assert "Ignoring '-I' with empty argument" in caplog.text
+    assert "Ignoring '-D' with empty argument" in caplog.text
 
 
 def test_generate_ld_scripts_gcc_change_invalidates_stamp(tmp_path: Path) -> None:

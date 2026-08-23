@@ -28,7 +28,7 @@ from esphome.build_helpers.ninja import shell_token as _shell_token
 from esphome.components.esp8266 import build_surgery
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, write_file_if_changed
-from esphome.platformio.library import lex_build_flags, raise_on_empty_arg_flags
+from esphome.platformio.library import lex_build_flags
 
 if TYPE_CHECKING:
     from esphome.arduino8266.framework import InstalledPaths
@@ -248,10 +248,8 @@ def _lexed_build_flags() -> list[str]:
 
     Lex once per build; consumers share the tokens.
     """
-    tokens = lex_build_flags(sorted(CORE.build_flags), "esphome")
-    # Raises for every consumer of the shared token list
-    raise_on_empty_arg_flags(tokens, "build_flags")
-    return tokens
+    # The funnel warns and drops empty glued arguments (-D "") itself
+    return lex_build_flags(sorted(CORE.build_flags), "esphome")
 
 
 def _flag_defines(unflags: set[str], tokens: list[str]) -> dict[str, str]:
