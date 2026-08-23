@@ -908,25 +908,7 @@ void EthernetComponent::dump_connect_params_() {
 #endif /* USE_NETWORK_IPV6 */
 }
 
-#ifdef USE_ETHERNET_SPI
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_miso_pin(uint8_t miso_pin) { this->miso_pin_ = miso_pin; }
-void EthernetComponent::set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_pin; }
-void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
-void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
-void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
-void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
-void EthernetComponent::set_interface(spi_host_device_t interface) { this->interface_ = interface; }
-#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
-void EthernetComponent::set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
-#endif
-#else
-void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
-void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
-void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
-void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
+#ifndef USE_ETHERNET_SPI
 void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
 #endif
 
@@ -944,11 +926,6 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   esp_err_t err;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_MAC_ADDR, mac);
   ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
-}
-
-std::string EthernetComponent::get_eth_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
 }
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(

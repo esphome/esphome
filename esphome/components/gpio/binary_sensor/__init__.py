@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_PIN,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from .. import gpio_ns
 
@@ -68,10 +69,10 @@ def _pin_shared_only_with_deep_sleep(pin_num: int) -> bool:
     return any(path and path[0] == "deep_sleep" for path, _, _ in pin_users)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     use_interrupt = config[CONF_USE_INTERRUPT]
     if not use_interrupt:
-        return config
+        return
 
     # Expander pins (e.g. PCF8574, MCP23017) don't support direct interrupt
     # attachment — only internal/native GPIO pins do.
@@ -82,7 +83,7 @@ def _final_validate(config):
             config.get(CONF_NAME, config[CONF_ID]),
         )
         config[CONF_USE_INTERRUPT] = False
-        return config
+        return
 
     pin_num = config[CONF_PIN][CONF_NUMBER]
 
@@ -96,7 +97,7 @@ def _final_validate(config):
             config.get(CONF_NAME, config[CONF_ID]),
         )
         config[CONF_USE_INTERRUPT] = False
-        return config
+        return
 
     # When a pin is shared, interrupts can interfere with other components
     # (e.g., duty_cycle sensor) that need to monitor the pin's state changes.
@@ -120,13 +121,11 @@ def _final_validate(config):
                 pin_num,
             )
 
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 

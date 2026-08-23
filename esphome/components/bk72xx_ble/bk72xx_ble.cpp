@@ -34,22 +34,26 @@
 
 // ---------------------------------------------------------------------------
 // SDK-capability gate (not a chip allowlist).
-// This component drives the Beken BLE *5.x* controller via its public API,
-// `ble_api.h`, which the LibreTiny beken-72xx builder ships only for the
-// BLE-5.x SoCs (it selects the `ble_pub` 5.x stack from CFG_BLE_VERSION; the
-// 4.2 SoCs build a different, older API with no ble_api.h). Gate on the header
-// itself so any BLE-5.x Beken chip — present or future — is supported without a
-// hard-coded list, and a non-5.x build fails here with a clear message instead
-// of a cryptic "ble_api.h: No such file or directory".
+// This component drives the Beken BLE *5.x* controller. `ble_api.h` cannot be
+// the probe: it ships for every SoC (driver/include) and merely switches on
+// CFG_BLE_VERSION internally. `app_ble.h` is on the include path only when the
+// LibreTiny beken-72xx builder selects a 5.x stack, so gating on it supports
+// any BLE-5.x chip — present or future — without a hard-coded list, and a
+// non-5.x build fails here with a clear message instead of a cryptic
+// "app_ble.h: No such file or directory".
 // ---------------------------------------------------------------------------
 #if defined(CLANG_TIDY)
 // The clang-tidy environment does not carry the full Beken BDK BLE 5.x API
 // (its ble_api.h variant lacks parts of the 5.x surface), so there is nothing
 // accurate to analyze the SDK calls against — skip the file under analysis.
 #define BK72XX_BLE_NO_SDK
-#elif !__has_include("ble_api.h")
+#elif !__has_include("ble_api.h") || !__has_include("app_ble.h")
+// Also skip the SDK body: #error does not stop the preprocessor, and on a 4.2
+// SoC ble_api.h exists, so without the guard the 5.x symbols would fail one by
+// one and bury this message.
+#define BK72XX_BLE_NO_SDK
 #error \
-    "bk72xx_ble requires a BLE 5.x Beken SDK (ble_api.h). Supported SoCs: BK7231N/BK7236 (BLE 5.1) and BK7238/BK7252N/BK7253 (BLE 5.2). BK7231T/BK7251/BK7271 (BLE 4.2) and BK7231Q (no BLE) are not supported."
+    "bk72xx_ble requires a BLE 5.x Beken SDK (app_ble.h). Supported SoCs: BK7231N/BK7236 (BLE 5.1) and BK7238/BK7252N/BK7253 (BLE 5.2). BK7231T/BK7251/BK7271 (BLE 4.2) and BK7231Q (no BLE) are not supported."
 #endif
 
 #ifndef BK72XX_BLE_NO_SDK

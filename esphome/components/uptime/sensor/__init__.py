@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor, time
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_TIME_ID,
@@ -59,3 +60,8 @@ async def to_code(config):
     if time_id_config := config.get(CONF_TIME_ID):
         time_id = await cg.get_variable(time_id_config)
         cg.add(var.set_time(time_id))
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"uptime_timestamp_sensor.cpp": "USE_TIME"}
+)
