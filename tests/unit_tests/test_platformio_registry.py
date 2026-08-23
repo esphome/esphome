@@ -481,14 +481,35 @@ def test_prefetch_packages_downloads_pending_in_parallel(tmp_path: Path) -> None
             tmp_path / "dl",
         )
     assert mock_download.call_count == 2
+    # Locking makes worker completion order nondeterministic
+    calls = sorted(mock_download.call_args_list, key=lambda c: c[0][0])
     for call, (name, version, size) in zip(
-        mock_download.call_args_list, [("a", "1.0", 10), ("b", "2.0", 20)], strict=True
+        calls, [("a", "1.0", 10), ("b", "2.0", 20)], strict=True
     ):
         assert call[0][0] == f"http://x/{name}.tar.gz"
         assert call[0][1] == tmp_path / "dl" / f"{name}-{version}"
         assert call[1]["sha256"] == "abc123"
         assert call[1]["size"] == size
         assert callable(call[1]["progress"])
+
+
+def test_prefetch_packages_dedupes_duplicate_entries(tmp_path: Path) -> None:
+    """Duplicate (name, version) entries would race each other between two
+    workers; only one survives (and one is too few to parallelize)."""
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10})
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", []),
+                ("a", "1.0", tmp_path / "a", []),
+            ],
+            tmp_path / "dl",
+        )
+    mock_download.assert_not_called()
 
 
 def test_prefetch_packages_single_pending_skips(tmp_path: Path) -> None:
