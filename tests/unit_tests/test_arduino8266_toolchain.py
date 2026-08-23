@@ -549,6 +549,28 @@ def test_run_compile_idedata_error_does_not_fail_build(
     assert "Could not generate idedata: compile database is unusable" in caplog.text
 
 
+def test_run_compile_skipped_size_summary_names_consequence(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A skipped RAM/Flash summary warns about the missing metric; the
+    per-cause warnings alone are invisible to CI harnesses."""
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project"),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary", return_value=False),
+        patch.object(toolchain, "get_idedata", return_value=None),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    assert "Firmware size summary unavailable for this build" in caplog.text
+
+
 def test_get_idedata_accepts_preresolved_ccache() -> None:
     """run_compile threads its resolved ccache through; the probe must not
     run again."""
