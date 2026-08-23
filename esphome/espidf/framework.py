@@ -1208,7 +1208,10 @@ def _ccache_env() -> dict[str, str]:
     # ESPHOME_CCACHE_ENABLE.
     idf_knob = parse_enable_env("IDF_CCACHE_ENABLE")
     if idf_knob is False:
-        return {}
+        # The raw value (e.g. "disable") is still inherited by idf.py via
+        # os.environ, where a non-false-constant string reads as truthy;
+        # export the canonical off spelling instead
+        return {"IDF_CCACHE_ENABLE": "0"}
     if idf_knob is None and resolve_ccache_path() is None:
         # ESP-IDF silently skips ccache without the binary; don't enable it.
         return {}
