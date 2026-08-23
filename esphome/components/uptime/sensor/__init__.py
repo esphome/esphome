@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor, time
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_TIME_ID,
@@ -10,7 +11,6 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_SECOND,
 )
-from esphome.core import CORE
 
 uptime_ns = cg.esphome_ns.namespace("uptime")
 UptimeSecondsSensor = uptime_ns.class_(
@@ -62,9 +62,6 @@ async def to_code(config):
         cg.add(var.set_time(time_id))
 
 
-def FILTER_SOURCE_FILES() -> list[str]:
-    # uptime_timestamp_sensor.cpp is fully #ifdef'd on USE_TIME; skip it
-    # when no time component is configured.
-    if not any(define.name == "USE_TIME" for define in CORE.defines):
-        return ["uptime_timestamp_sensor.cpp"]
-    return []
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"uptime_timestamp_sensor.cpp": "USE_TIME"}
+)

@@ -151,6 +151,31 @@ def filter_source_files_from_platform(
     return filter_source_files
 
 
+def filter_source_files_from_defines(
+    files_map: dict[str, str | tuple[str, ...]],
+) -> Callable[[], list[str]]:
+    """Helper to build a FILTER_SOURCE_FILES function from a define mapping.
+
+    Args:
+        files_map: Dict mapping filename to the define name (or tuple of
+            define names) that keeps the file in the build; the file is
+            excluded when none of its defines is set for the current config.
+
+    Returns:
+        Function that returns the files to exclude for the current config.
+    """
+
+    def filter_source_files() -> list[str]:
+        defines = {define.name for define in CORE.defines}
+        return [
+            filename
+            for filename, needed in files_map.items()
+            if defines.isdisjoint((needed,) if isinstance(needed, str) else needed)
+        ]
+
+    return filter_source_files
+
+
 def get_logger_level() -> str:
     """Get the configured logger level.
 
