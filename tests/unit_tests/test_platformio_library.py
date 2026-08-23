@@ -723,11 +723,12 @@ def test_prefetch_wave_unknown_size_falls_back_to_sequential(
     assert "No Content-Length for https://x/b.tar.gz" in caplog.text
 
 
-def test_raise_on_empty_arg_flags() -> None:
-    """A surviving bare flag means an empty glued argument; reject by name."""
-    with pytest.raises(EsphomeError, match=r"build_flags contain empty-argument"):
-        lib.raise_on_empty_arg_flags(["-DFOO", "-D", "-l"], "build_flags")
-    lib.raise_on_empty_arg_flags(["-DFOO", "-Iinc"], "build_flags")
+def test_join_flag_args_empty_argument_warns_and_drops(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An empty glued argument is dropped: a bare -D would eat the next flag."""
+    assert lib.lex_build_flags('-D "" -DFOO', "build_flags") == ["-DFOO"]
+    assert "Ignoring '-D' with empty argument in build_flags" in caplog.text
 
 
 def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:

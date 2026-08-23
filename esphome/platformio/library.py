@@ -661,27 +661,14 @@ def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
 BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
 
 
-def raise_on_empty_arg_flags(tokens: list[str], owner: str) -> None:
-    """Reject bare ``-I``/``-D``/``-L``/``-l`` tokens left by an empty glued
-    argument (``-D ""``).
-
-    Consumed by the ESP8266 native build generator (later in this chain)
-    for user build_flags; library manifests deliberately stay warn-and-drop.
-
-    Lives next to ``join_flag_args`` because the bare token is its
-    postcondition: a trailing bare flag is warned and dropped there, so a
-    surviving one always means an empty argument. gcc would eat the next
-    flag as the argument (or add the CWD for ``-L``); always a typo.
-    """
-    if empty := sorted({tok for tok in tokens if tok in BARE_ARG_FLAGS}):
-        raise EsphomeError(
-            f"{owner} contain empty-argument flag(s): {', '.join(empty)}"
-        )
-
-
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
     """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
-    the way PlatformIO's ParseFlags lexes them."""
+    the way PlatformIO's ParseFlags lexes them.
+
+    A trailing or empty argument (``-D ""``) is warned and dropped: the
+    bare flag would make gcc eat the next flag as its argument (or add
+    the CWD for ``-L``); always a typo.
+    """
     out: list[str] = []
     it = iter(tokens)
     for tok in it:
@@ -690,6 +677,11 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
             if arg is None:
                 _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)
                 break
+            if not arg:
+                _LOGGER.warning(
+                    "Ignoring '%s' with empty argument in %s build flags", tok, owner
+                )
+                continue
             tok += arg
         out.append(tok)
     return out
