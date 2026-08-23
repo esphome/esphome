@@ -241,6 +241,26 @@ def _write_ninja(
     return (CORE.relative_pioenvs_path(CORE.name) / "build.ninja").read_text()
 
 
+def test_write_project_rejects_bad_flash_mode(tmp_path: Path) -> None:
+    """A flash mode outside the closed set fails by name before landing
+    unquoted in the elf2bin command."""
+    paths = _make_framework(tmp_path)
+    CORE.data[KEY_ESP8266][KEY_FLASH_MODE] = "dout; rm -rf /"
+    with pytest.raises(EsphomeError, match="Invalid flash mode"):
+        _write_ninja(paths)
+
+
+def test_write_project_passes_other_src_flags_through(tmp_path: Path) -> None:
+    """Non-include build_src_flags tokens are requoted onto the src edges."""
+    paths = _make_framework(tmp_path)
+    CORE.platformio_options["build_src_flags"] = (
+        "-include esphome/components/esp8266/throw_stubs.h -DSRC_ONLY=1"
+    )
+    content = _write_ninja(paths)
+    assert "throw_stubs.h" in content
+    assert "-DSRC_ONLY=1" in content
+
+
 def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     paths = _make_framework(tmp_path)
     _set_flags(
