@@ -1074,6 +1074,24 @@ def test_generate_ld_scripts_unremovable_stale_note_vetoes_the_stamp(
     run3.assert_called_once()
 
 
+@pytest.mark.parametrize("name", ["MMU_IRAM_SIZE", "MMU_ICACHE_SIZE"])
+def test_mmu_custom_valueless_segment_size_raises(name: str) -> None:
+    """A bare -Dname would preprocess to len = 1 and fail far away in ld."""
+    other = "MMU_ICACHE_SIZE" if name == "MMU_IRAM_SIZE" else "MMU_IRAM_SIZE"
+    with pytest.raises(EsphomeError, match=f"{name} must be a hex literal"):
+        _resolve("-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM", f"-D{name}", f"-D{other}=0x8000")
+
+
+@pytest.mark.parametrize(
+    "flag", ["-fuse-ld=lld", "--specs=nano.specs", "-specs=nano.specs"]
+)
+def test_driver_link_flags_rejected_without_wl_advice(flag: str) -> None:
+    """No -Wl, spelling exists for these; the message must not suggest one."""
+    CORE.build_flags = {flag, "-DFOO"}
+    with pytest.raises(EsphomeError, match="not supported by the native toolchain"):
+        arduino8266._project_flags(set(), arduino8266._lexed_build_flags())
+
+
 def test_build_config_mmu_knob_with_raw_mmu_flag_raises() -> None:
     """A variant knob plus a raw MMU_* define would split the compile line
     from the linker script; refuse like the no-knob case."""
