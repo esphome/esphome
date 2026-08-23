@@ -110,6 +110,11 @@ class _FakeSConsEnv:
     def get(self, key: str, default: str | None = None) -> str | None:
         return self._vars.get(key, default)
 
+    def __getitem__(self, key: str) -> str:
+        # Scripts also read env["BOARD_MCU"]; without this the broad
+        # handler would discard every flag the script captured
+        return self._vars[key]
+
     def Append(self, **kwargs) -> None:  # noqa: N802 (SCons API name)
         for key, value in kwargs.items():
             if key not in _CAPTURED_KEYS:

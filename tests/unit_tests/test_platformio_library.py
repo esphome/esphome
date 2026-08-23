@@ -162,9 +162,13 @@ def caplog_at_info():
     handler.emit = records.append
     logger = logging.getLogger("esphome.platformio.library")
     logger.addHandler(handler)
+    # The level must actually admit INFO or the no-INFO assertions are vacuous
+    old_level = logger.level
+    logger.setLevel(logging.INFO)
     try:
         yield records
     finally:
+        logger.setLevel(old_level)
         logger.removeHandler(handler)
 
 
