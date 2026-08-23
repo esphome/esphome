@@ -337,14 +337,14 @@ def copy_src_tree():
     else:
         try:
             existing = json.loads(build_info_json_path.read_text(encoding="utf-8"))
-            if (
+            if not isinstance(existing, dict) or (
                 existing.get("config_hash") != config_hash
                 or existing.get("esphome_version") != __version__
             ):
+                # Valid JSON that is not an object (truncated or
+                # hand-edited) is stale like every other damage case
                 sources_changed = True
-        except (json.JSONDecodeError, AttributeError, KeyError, OSError):
-            # AttributeError: valid JSON that is not an object (truncated
-            # or hand-edited) has no .get; treat it as stale like the rest
+        except (json.JSONDecodeError, OSError):
             sources_changed = True
 
     # Write build_info header and JSON metadata

@@ -2232,7 +2232,7 @@ def test_copy_src_tree_handles_non_dict_build_info_json(
     build_path = tmp_path / "build"
     build_path.mkdir()
 
-    # Create invalid build_info.json
+    # Valid JSON that is not an object: no .get, must read as stale
     build_info_json_path = build_path / "build_info.json"
     build_info_json_path.write_text("[]")
 
