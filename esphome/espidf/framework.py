@@ -739,9 +739,8 @@ def _prefetch_idf_tool_archives(
                 # seek/truncate writes; mirror the library prefetch's dedupe
                 continue
             seen_dests.add(entry["dest"])
-            # tools.json always carries sha256 and size; an entry missing
-            # either must not be downloaded unverified here, so leave it to
-            # the installer (which fails loudly on a bad archive).
+            # Never download unverified: an entry without sha256/size is
+            # left to the installer, which fails loudly on a bad archive
             if entry.get("sha256") and entry.get("size"):
                 entries.append(entry)
             else:
@@ -758,10 +757,8 @@ def _prefetch_idf_tool_archives(
             ", ".join(entry["name"] for entry in entries),
         )
 
-        # Every entry carries a size (checked above), so the combined bar can
-        # be trusted. Unlike the library prefetch there is no sequential
-        # fallback: per-file bars from several threads would interleave, and
-        # skipping the prefetch would lose the resume workaround for #17703.
+        # No sequential fallback here: skipping the prefetch would lose the
+        # resume workaround for #17703, and every entry has a size (above)
         def _download(entry: dict):
             return lambda tracker: download_with_resume(
                 entry["url"],

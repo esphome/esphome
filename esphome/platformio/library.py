@@ -926,10 +926,8 @@ def _prefetch_wave(
 ) -> None:
     """Best-effort parallel download of a wave's registry archives.
 
-    The walk's own ``download()`` call stays authoritative (it surfaces real
-    failures, with resume); bars are suppressed since parallel bars would
-    interleave. Duplicate URLs prefetch once so two threads never extract
-    into the same cache directory.
+    The walk's own ``download()`` stays authoritative; duplicate URLs
+    prefetch once so two threads never share a cache directory.
     """
     components: list[ConvertedLibrary] = []
     seen: set[str] = set()
@@ -954,9 +952,8 @@ def _prefetch_wave(
         components.append(component)
     if len(components) < 2:
         return
-    # One combined bar over the batch, sized by HEAD requests. An unknown
-    # size would mean a silent multi-MB download; fall back to sequential
-    # downloads with their per-file bars instead.
+    # Combined bar sized by HEAD requests; unknown sizes fall back to
+    # sequential per-file bars rather than a silent multi-MB download
     sizes = _content_lengths([c.source.url for c in components])
     if not all(sizes):
         # Announced before the sequential per-file downloads take over, so
@@ -1087,8 +1084,7 @@ def convert_libraries(
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
         # Drain the frontier sequentially (spec resolution mutates shared
-        # node state), then prefetch the wave's registry archives in
-        # parallel; the per-component download() below stays authoritative.
+        # state), then prefetch the wave in parallel
         wave: list[tuple[str, ConvertedLibrary]] = []
         while worklist:
             key = worklist.popleft()
@@ -1117,9 +1113,8 @@ def convert_libraries(
         for key, component in wave:
             node = nodes[key]
             if frozenset(node.requirements) != resolved_requirements[key]:
-                # An earlier wave entry grew this node's requirements after
-                # the drain resolved it; skip parsing and walking a manifest
-                # the next wave will replace (its archive is already fetched)
+                # Requirements grew mid-wave: skip parsing a manifest the
+                # next wave will replace (its archive is already fetched)
                 worklist.append(key)
                 continue
             component.download(salt=salt, namespace=backend.cache_key)

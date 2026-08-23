@@ -712,9 +712,8 @@ def _stream_response_to_file(
     (effective offset 0) discards the stale bytes. ``offset`` also seeds the
     progress bar so a resumed download shows overall progress. ``size`` is
     the known full file size; when None it is derived from the response's
-    content-length, and without either there is no progress bar. With
-    ``progress`` set, no bar is drawn here; the callback gets the absolute
-    byte count, seeded with ``offset`` and then after each chunk.
+    content-length, and without either there is no bar. With ``progress``
+    set no bar is drawn here; the callback gets the absolute byte count.
     """
     f.seek(offset)
     f.truncate(offset)
@@ -748,16 +747,12 @@ def run_batch_downloads(
     jobs: list[tuple[str, Callable[[Callable[[int], None]], None]]],
     max_workers: int = BATCH_DOWNLOAD_WORKERS,
 ) -> list[tuple[str, Exception]]:
-    """Run download jobs concurrently, reporting into one combined bar.
+    """Run ``(name, fetch)`` download jobs concurrently under one combined bar.
 
-    ``jobs`` holds ``(name, fetch)`` pairs where ``fetch(tracker)`` performs
-    one download reporting absolute byte counts to ``tracker``. Failures are
-    collected (list.append is atomic under the GIL) and returned after the
-    bar is done, so the caller's warnings never land on the bar's row; a
-    failed job credits its tracker 0 so the bar can still complete. Ctrl-C
-    drops queued jobs and aborts in-flight ones at their next progress
-    tick; resumable ``.part`` files keep the bytes already fetched.
-    ``jobs`` must be non-empty.
+    Each ``fetch(tracker)`` reports absolute byte counts. Failures are
+    returned after the bar is done so warnings never land on its row.
+    Ctrl-C drops queued jobs and aborts in-flight ones at their next tick;
+    ``.part`` files keep the fetched bytes. ``jobs`` must be non-empty.
     """
     failures: list[tuple[str, Exception]] = []
     cancelled = threading.Event()
@@ -798,14 +793,11 @@ class _BatchDownloadCancelled(Exception):
 
 
 class BatchDownloadProgress:
-    """One progress bar across several concurrent ``download_with_resume`` calls.
+    """One bar across several concurrent downloads, summing tracker bytes.
 
-    Each ``tracker()`` is a ``progress`` callback for one download; it reports
-    that file's absolute byte count and the bar shows the sum over ``total``.
-    The lock also serialises the bar's stderr writes, so worker threads never
-    interleave frames. With an unknown ``total`` (0) nothing is drawn. Call
-    ``done()`` once every download has finished (or failed) so a bar that
-    never reached 100% still ends its line before the next log message.
+    The lock also serialises stderr writes so workers never interleave
+    frames; a ``total`` of 0 draws nothing. Call ``done()`` at the end so a
+    bar short of 100% still ends its line.
     """
 
     def __init__(self, header: str, total: int) -> None:
@@ -872,11 +864,8 @@ def download_with_resume(
     of consuming attempts — for callers with their own fallback, like
     ``download_from_mirrors``.
 
-    ``progress``, when given, replaces the built-in progress bar: it is called
-    with the absolute number of bytes of ``dest`` obtained so far (including
-    a resumed prefix, and the final size once the file is verified), so a
-    caller running several downloads at once can draw one combined bar (see
-    ``BatchDownloadProgress``).
+    ``progress`` replaces the built-in bar: it receives the absolute bytes of
+    ``dest`` obtained so far (see ``BatchDownloadProgress``).
 
     Raises EsphomeError when all attempts are exhausted.
     """
