@@ -762,16 +762,18 @@ def test_prefetch_wave_warm_cache_is_silent(
     assert "Downloading" not in caplog.text
 
 
-def test_prefetch_wave_single_archive_skips_the_pool(
-    monkeypatch: pytest.MonkeyPatch,
+def test_prefetch_wave_single_archive_uses_the_batch(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """One archive gains nothing from a pool; the sequential call keeps its
-    progress bar."""
+    """A dependency chain discovers one archive per wave; it downloads
+    through the same runner so there is one download method and one bar."""
+    caplog.set_level("INFO")
+    calls: list[str] = []
     monkeypatch.setattr(
         URLSource,
         "download",
-        lambda self, dir_suffix, **kw: (_ for _ in ()).throw(
-            AssertionError("prefetched")
+        lambda self, dir_suffix, force=False, salt="", namespace="", progress=None: (
+            calls.append(self.url)
         ),
     )
     lib._prefetch_wave(
@@ -779,6 +781,8 @@ def test_prefetch_wave_single_archive_skips_the_pool(
         "",
         "idf",
     )
+    assert calls == ["https://x/a.tar.gz"]
+    assert "Downloading 1 library archive(s): a" in caplog.text
 
 
 def test_normalize_dependencies_forms(caplog) -> None:
