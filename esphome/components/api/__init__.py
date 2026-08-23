@@ -6,7 +6,7 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
-from esphome.config_helpers import get_logger_level
+from esphome.config_helpers import filter_source_files_from_defines, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -847,11 +847,20 @@ async def api_connected_to_code(
     return var
 
 
+# user_services.cpp is only needed when user defined actions exist; the
+# frame helpers are fully #ifdef'd on the protocol defines set in to_code
+# (both are set when encryption is configured without a key).
+_filter_define_source_files = filter_source_files_from_defines(
+    {
+        "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
+        "api_frame_helper_noise.cpp": "USE_API_NOISE",
+        "api_frame_helper_plaintext.cpp": "USE_API_PLAINTEXT",
+    }
+)
+
+
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled,
-    user_services.cpp when no services are defined, and protocol-specific
-    implementations based on encryption configuration."""
-    files_to_filter: list[str] = []
+    files_to_filter = _filter_define_source_files()
 
     # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
     # This is a particularly large file that still needs to be opened and read
@@ -861,22 +870,5 @@ def FILTER_SOURCE_FILES() -> list[str]:
     # which happens when the logger level is VERY_VERBOSE
     if get_logger_level() != "VERY_VERBOSE":
         files_to_filter.append("api_pb2_dump.cpp")
-
-    # user_services.cpp is only needed when services are defined
-    config = CORE.config.get(DOMAIN, {})
-    if config and not config.get(CONF_ACTIONS) and not config[CONF_CUSTOM_SERVICES]:
-        files_to_filter.append("user_services.cpp")
-
-    # Filter protocol-specific implementations based on encryption configuration
-    encryption_config = config.get(CONF_ENCRYPTION) if config else None
-
-    # If encryption is not configured at all, we only need plaintext
-    if encryption_config is None:
-        files_to_filter.append("api_frame_helper_noise.cpp")
-    # If encryption is configured with a key, we only need noise
-    elif encryption_config.get(CONF_KEY):
-        files_to_filter.append("api_frame_helper_plaintext.cpp")
-    # If encryption is configured but no key is provided, we need both
-    # (this allows a plaintext client to provide a noise key)
 
     return files_to_filter
