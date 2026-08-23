@@ -71,7 +71,8 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 
  protected:
   void send_internal(uint32_t send_times, uint32_t send_wait) override;
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY) || defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
+#if defined(USE_ESP8266) || (defined(USE_LIBRETINY) && !defined(USE_LIBRETINY_VARIANT_RTL8720C)) || \
+    defined(USE_RP2) || (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   void await_target_time_();
   uint32_t target_time_{0};
 #endif
@@ -90,12 +91,15 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #endif
 #ifdef USE_LIBRETINY_VARIANT_RTL8720C
   void start_isr_item_(size_t index);
+  void arm_envelope_timer_(uint32_t duration_us);
+  void abort_stalled_chain_();
   std::vector<int32_t> isr_data_;  // owned copy of the frame; temp_ may be re-encoded mid-flight
   float isr_mark_duty_{0.0f};
   float isr_space_duty_{0.0f};
   volatile size_t isr_index_{0};
   volatile uint32_t isr_repeats_left_{0};
   uint32_t isr_send_wait_{0};
+  volatile uint32_t isr_wait_remaining_{0};  // remainder of a duration chained across one-shots
   volatile bool isr_in_gap_{false};
   volatile bool transmitting_{false};
   bool non_blocking_{false};

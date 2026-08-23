@@ -41,6 +41,9 @@ static constexpr uint32_t ENVELOPE_TIMER_ID = TIMER6;  // GTimer7
 // Margin added to a transmission's expected duration before the waits in send_internal
 // declare the timer chain stalled; generous so it only trips on a genuinely dead chain
 static constexpr uint32_t STALL_MARGIN_MS = 1000;
+// Longest single hardware one-shot armed; longer durations are chained in chunks. Well
+// inside the hardware-validated range, and costs one ~microsecond ISR per 50ms of gap.
+static constexpr uint32_t MAX_ONE_SHOT_US = 50000;
 static uint8_t pwm_tick_sources[] = {GTimer1, GTimer2, GTimer3, GTimer4, GTimer5, GTimer6, 0xff};
 
 // One envelope timer shared by all instances (MULTI_CONF): a second gtimer_init on the
@@ -120,17 +123,42 @@ void RemoteTransmitterComponent::digital_write(bool value) {
 }
 
 #ifdef USE_LIBRETINY_VARIANT_RTL8720C
+// Arms the shared envelope timer for one duration, chaining anything longer than
+// MAX_ONE_SHOT_US as consecutive one-shots: repeat gaps are unbounded user config and the
+// SDK's us->tick conversion lives in ROM with unverified headroom. ISR-safe.
+void RemoteTransmitterComponent::arm_envelope_timer_(uint32_t duration_us) {
+  // clamp to 1us: a zero-length one-shot never fires and would stall the chain
+  const uint32_t chunk = std::max(uint32_t(1), std::min(duration_us, MAX_ONE_SHOT_US));
+  this->isr_wait_remaining_ = duration_us - chunk;
+  gtimer_start_one_shout(&s_envelope_timer, chunk, (void *) envelope_timer_isr, (uint32_t) this);
+}
+
+// Recovery when the timer chain stops advancing (e.g. gtimer_init failed silently -- it
+// returns void): stop the timer, idle the pin, release the serialization token. Harmless if
+// the chain completed between the deadline check and this call -- every step is then a no-op.
+void RemoteTransmitterComponent::abort_stalled_chain_() {
+  gtimer_stop(&s_envelope_timer);
+  pwmout_write(static_cast<pwmout_t *>(this->pwm_), this->isr_space_duty_);
+  this->transmitting_ = false;
+  s_active_transmitter = nullptr;
+  this->status_set_warning("envelope timer stalled");
+  ESP_LOGE(TAG, "Envelope timer stalled; transmission aborted");
+}
+
 // Writes the duty for one envelope item and arms the timer for its duration.
 // Runs in ISR context (and once from send_internal to kick the chain): no logging, no allocation.
 void RemoteTransmitterComponent::start_isr_item_(size_t index) {
   const int32_t item = this->isr_data_[index];
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), item > 0 ? this->isr_mark_duty_ : this->isr_space_duty_);
-  // clamp to 1us: a zero-length one-shot never fires and would stall the chain
-  gtimer_start_one_shout(&s_envelope_timer, std::max(uint32_t(1), uint32_t(item > 0 ? item : -item)),
-                         (void *) envelope_timer_isr, (uint32_t) this);
+  this->arm_envelope_timer_(uint32_t(item > 0 ? item : -item));
 }
 
 void RemoteTransmitterComponent::advance_envelope_isr() {
+  if (this->isr_wait_remaining_ > 0) {
+    // continue a duration longer than one hardware one-shot
+    this->arm_envelope_timer_(this->isr_wait_remaining_);
+    return;
+  }
   if (this->isr_in_gap_) {
     // inter-repeat gap elapsed; restart the item chain
     this->isr_in_gap_ = false;
@@ -150,7 +178,7 @@ void RemoteTransmitterComponent::advance_envelope_isr() {
     this->isr_index_ = 0;
     if (this->isr_send_wait_ > 0) {
       this->isr_in_gap_ = true;
-      gtimer_start_one_shout(&s_envelope_timer, this->isr_send_wait_, (void *) envelope_timer_isr, (uint32_t) this);
+      this->arm_envelope_timer_(this->isr_send_wait_);
     } else {
       this->start_isr_item_(0);
     }
@@ -165,31 +193,24 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
     return;
   }
-  // Recovery if the timer chain ever stops advancing (e.g. gtimer_init failed silently -- it
-  // returns void): stop the timer, idle the pin, release the serialization token. Harmless if
-  // the chain completed between the deadline check and this call -- every step is then a no-op.
-  const auto abort_stalled = [](RemoteTransmitterComponent *stalled) {
-    gtimer_stop(&s_envelope_timer);
-    pwmout_write(static_cast<pwmout_t *>(stalled->pwm_), stalled->isr_space_duty_);
-    stalled->transmitting_ = false;
-    s_active_transmitter = nullptr;
-    stalled->status_set_warning();
-    ESP_LOGE(TAG, "Envelope timer stalled; transmission aborted");
-  };
   // A transmission may still be in flight (this instance or another sharing the timer);
   // wait it out. Its frame stays intact: each ISR reads that instance's isr_data_ copy.
   // Bounded so a dead chain degrades to an aborted send instead of wedging the device,
   // and yielding -- the hardware timer owns the timing, polling granularity is irrelevant.
-  while (s_active_transmitter != nullptr) {
-    if ((int32_t) (millis() - s_expected_end_ms) > 0) {
-      abort_stalled(s_active_transmitter);
-      break;
+  // Deferred completions are reported here so they are never coalesced; a completion
+  // automation may itself start a new send on this instance, so wait and flush until the
+  // transmitter is truly idle.
+  while (true) {
+    while (s_active_transmitter != nullptr) {
+      if ((int32_t) (millis() - s_expected_end_ms) > 0) {
+        s_active_transmitter->abort_stalled_chain_();
+        break;
+      }
+      App.feed_wdt();
+      delay(1);
     }
-    App.feed_wdt();
-    delay(1);
-  }
-  // report a completion that loop() has not delivered yet, so completions are never coalesced
-  if (this->complete_pending_) {
+    if (!this->complete_pending_)
+      break;
     this->complete_pending_ = false;
     this->complete_trigger_.trigger();
   }
@@ -245,14 +266,18 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     this->enable_loop();
     return;
   }
+  bool stalled = false;
   while (this->transmitting_) {
     if ((int32_t) (millis() - s_expected_end_ms) > 0) {
-      abort_stalled(this);
+      this->abort_stalled_chain_();
+      stalled = true;
       break;
     }
     App.feed_wdt();
     delay(1);
   }
+  if (!stalled)
+    this->status_clear_warning();
   this->complete_pending_ = false;
   this->complete_trigger_.trigger();
 }
@@ -262,11 +287,18 @@ void RemoteTransmitterComponent::loop() {
     this->disable_loop();
     return;
   }
-  if (!this->transmitting_) {
-    this->complete_pending_ = false;
-    this->complete_trigger_.trigger();
-    this->disable_loop();
+  if (this->transmitting_) {
+    // non-blocking stall recovery: without this, a dead chain would leave the carrier
+    // driven and on_complete unfired until the next send happened to abort it
+    if ((int32_t) (millis() - s_expected_end_ms) <= 0)
+      return;
+    this->abort_stalled_chain_();
+  } else {
+    this->status_clear_warning();
   }
+  this->complete_pending_ = false;
+  this->complete_trigger_.trigger();
+  this->disable_loop();
 }
 
 #else  // !USE_LIBRETINY_VARIANT_RTL8720C -- AmebaZ (RTL8710B): spin-based envelope, per-frame priority boost
