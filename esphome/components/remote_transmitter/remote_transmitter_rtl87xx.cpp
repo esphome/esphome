@@ -44,11 +44,11 @@ static constexpr uint32_t STALL_MARGIN_MS = 1000;
 // Longest single hardware one-shot armed; longer durations are chained in chunks. Well
 // inside the hardware-validated range, and costs one ~microsecond ISR per 50ms of gap.
 static constexpr uint32_t MAX_ONE_SHOT_US = 50000;
-static uint8_t pwm_tick_sources[] = {GTimer1, GTimer2, GTimer3, GTimer4, GTimer5, GTimer6, 0xff};
 
 // One envelope timer shared by all instances (MULTI_CONF): a second gtimer_init on the
 // same timer id fails silently, so instances serialize on s_active_transmitter instead.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+static uint8_t s_pwm_tick_sources[] = {GTimer1, GTimer2, GTimer3, GTimer4, GTimer5, GTimer6, 0xff};
 static gtimer_t s_envelope_timer;
 static bool s_envelope_timer_ready = false;
 static RemoteTransmitterComponent *volatile s_active_transmitter = nullptr;
@@ -88,7 +88,7 @@ void RemoteTransmitterComponent::setup() {
 #ifdef USE_LIBRETINY_VARIANT_RTL8720C
   // Shrink the PWM tick-source pool before the period claim below so GTimer7 stays free.
   // pwmout_init just registered the full pool (a static latch inside pwmout_api).
-  hal_pwm_comm_tick_source_list(pwm_tick_sources);
+  hal_pwm_comm_tick_source_list(s_pwm_tick_sources);
 #endif
   pwmout_period_us(pwm, 26);  // placeholder; the real carrier period is set per transmission
   pwmout_write(pwm, this->pin_->is_inverted() ? 1.0f : 0.0f);
@@ -97,8 +97,8 @@ void RemoteTransmitterComponent::setup() {
     gtimer_init(&s_envelope_timer, ENVELOPE_TIMER_ID);
     s_envelope_timer_ready = true;
   }
-#endif
   this->disable_loop();  // loop() is only needed while a non-blocking completion is pending
+#endif
 }
 
 void RemoteTransmitterComponent::dump_config() {
@@ -151,6 +151,15 @@ void RemoteTransmitterComponent::abort_stalled_chain_() {
   this->status_set_warning("envelope timer stalled");
   ESP_LOGE(TAG, "Envelope timer stalled; transmission aborted");
   delay(1);  // let any already-latched interrupt land while the chain state is safe
+}
+
+// Delivers one deferred completion with its status bookkeeping; shared by loop() and the
+// flush in send_internal so the delivery paths stay identical.
+void RemoteTransmitterComponent::deliver_completion_() {
+  if (!this->stall_aborted_)
+    this->status_clear_warning();
+  this->complete_pending_ = false;
+  this->complete_trigger_.trigger();
 }
 
 // Writes the duty for one envelope item and arms the timer for its duration.
@@ -225,8 +234,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     }
     if (!this->complete_pending_)
       break;
-    this->complete_pending_ = false;
-    this->complete_trigger_.trigger();
+    this->deliver_completion_();
   }
   if (send_times == 0) {
     // parity with the loop-based implementations: transmit nothing, but both triggers
@@ -289,10 +297,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     App.feed_wdt();
     delay(1);
   }
-  if (!this->stall_aborted_)
-    this->status_clear_warning();
-  this->complete_pending_ = false;
-  this->complete_trigger_.trigger();
+  this->deliver_completion_();
 }
 
 void RemoteTransmitterComponent::loop() {
@@ -306,16 +311,11 @@ void RemoteTransmitterComponent::loop() {
     if ((int32_t) (millis() - s_expected_end_ms) <= 0)
       return;
     this->abort_stalled_chain_();
-  } else if (!this->stall_aborted_) {
-    // only a completion that was not aborted (here or by another instance's recovery)
-    // clears the warning; stall_aborted_ resets when the next transmission is armed
-    this->status_clear_warning();
   }
-  this->complete_pending_ = false;
   // release the loop before user code runs: the automation may start a new non-blocking
   // send, and its enable_loop() must be the last writer or its completion would strand
   this->disable_loop();
-  this->complete_trigger_.trigger();
+  this->deliver_completion_();
 }
 
 #else  // !USE_LIBRETINY_VARIANT_RTL8720C -- AmebaZ (RTL8710B): spin-based envelope, per-frame priority boost

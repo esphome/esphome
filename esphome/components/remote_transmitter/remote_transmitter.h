@@ -93,6 +93,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void start_isr_item_(size_t index);
   void arm_envelope_timer_(uint32_t duration_us);
   void abort_stalled_chain_();
+  void deliver_completion_();
   std::vector<int32_t> isr_data_;  // owned copy of the frame; temp_ may be re-encoded mid-flight
   float isr_mark_duty_{0.0f};
   float isr_space_duty_{0.0f};
