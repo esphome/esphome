@@ -40,7 +40,7 @@ static RemoteTransmitterComponent *volatile s_active_transmitter = nullptr;
 static uint32_t s_expected_end_ms = 0;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
-static void envelope_timer_isr(uint32_t arg) {
+static void IRAM_ATTR envelope_timer_isr(uint32_t arg) {
   reinterpret_cast<RemoteTransmitterComponent *>(arg)->advance_envelope_isr();
 }
 #endif  // USE_LIBRETINY_VARIANT_RTL8720C
@@ -107,7 +107,7 @@ void RemoteTransmitterComponent::digital_write(bool value) {
 
 #ifdef USE_LIBRETINY_VARIANT_RTL8720C
 // Arms the shared envelope timer, chaining durations longer than MAX_ONE_SHOT_US. ISR-safe.
-void RemoteTransmitterComponent::arm_envelope_timer_(uint32_t duration_us) {
+void IRAM_ATTR RemoteTransmitterComponent::arm_envelope_timer_(uint32_t duration_us) {
   // clamp to 1us (a zero-length one-shot never fires); the remainder must not underflow
   const uint32_t chunk = std::max(uint32_t(1), std::min(duration_us, MAX_ONE_SHOT_US));
   this->isr_wait_remaining_ = duration_us > chunk ? duration_us - chunk : 0;
@@ -138,13 +138,13 @@ void RemoteTransmitterComponent::deliver_completion_() {
 
 // Writes the duty for one envelope item and arms the timer for its duration.
 // Runs in ISR context (and once from send_internal to kick the chain): no logging, no allocation.
-void RemoteTransmitterComponent::start_isr_item_(size_t index) {
+void IRAM_ATTR RemoteTransmitterComponent::start_isr_item_(size_t index) {
   const int32_t item = this->isr_data_[index];
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), item > 0 ? this->isr_mark_duty_ : this->isr_space_duty_);
   this->arm_envelope_timer_(uint32_t(item > 0 ? item : -item));
 }
 
-void RemoteTransmitterComponent::advance_envelope_isr() {
+void IRAM_ATTR RemoteTransmitterComponent::advance_envelope_isr() {
   if (!this->transmitting_)
     return;  // chain was aborted; this is a stale one-shot that was already latched
   if (this->isr_wait_remaining_ > 0) {
@@ -241,7 +241,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     // parity with the loop-based implementations: transmit nothing, but both triggers
     // still fire so an on_complete-sequenced automation does not stall
     this->transmit_trigger_.trigger();
-    this->complete_trigger_.trigger();
+    this->deliver_completion_();
     return;
   }
   ESP_LOGD(TAG, "Sending remote code");
@@ -260,7 +260,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   if (this->isr_data_.empty()) {
     ESP_LOGW(TAG, "Empty data");
     this->transmit_trigger_.trigger();
-    this->complete_trigger_.trigger();
+    this->deliver_completion_();
     return;
   }
   this->isr_mark_duty_ = mark_duty;
