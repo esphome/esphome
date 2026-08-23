@@ -329,6 +329,16 @@ def test_extra_script_cpppath_captured_as_include_flags(tmp_path, monkeypatch):
     assert flags == ["-Iinclude", f"-I{outside.resolve()}"]
 
 
+def test_extra_script_spaced_paths_survive_relexing(tmp_path):
+    """-I/-L paths with spaces round-trip through lex_build_flags as one token."""
+    from esphome.platformio.library import lex_build_flags
+
+    (tmp_path / "my libs").mkdir()
+    result = ExtraScriptResult(cpppath=["my libs"], libpath=["my libs"])
+    flags = captured_as_build_flags(result, library_dir=tmp_path)
+    assert lex_build_flags(flags, "test") == ["-Imy libs", "-Lmy libs"]
+
+
 def test_run_extra_script_failure_discards_partial_capture(tmp_path, caplog) -> None:
     """A crashed script yields an empty result: half-applied flags could
     build wrong-output firmware that links cleanly."""
