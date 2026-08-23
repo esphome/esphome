@@ -984,9 +984,13 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
     kwargs = calls[("https://example.com/cmake.tar.gz", dist / "cmake-3.30.2.tar.gz")]
     assert kwargs["sha256"] == "ab" * 32
     assert kwargs["size"] == 123
-    # every archive reports into the one combined progress bar
+    # every archive reports into the one combined progress bar via the
+    # cancellation-checked wrapper; verify it delegates to the tracker
     progress_cls.assert_called_once_with("Downloading ESP-IDF tools", 123 + 45)
-    assert all(kw["progress"] is tracker for kw in calls.values())
+    before = tracker.call_count
+    for kw in calls.values():
+        kw["progress"](7)
+    assert tracker.call_count == before + len(calls)
 
 
 def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
