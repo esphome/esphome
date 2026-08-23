@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_DISABLE_CRC,
+    CONF_FLOW_CONTROL_PIN,
+    CONF_ID,
+)
+from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import gpio_pin_expression
 import esphome.final_validate as fv
+from esphome.types import ConfigType, TemplateArgsType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,6 +53,73 @@ CONF_SEND_WAIT_TIME = "send_wait_time"
 CONF_TURNAROUND_TIME = "turnaround_time"
 
 MODBUS_ROLES = ["client", "server"]
+
+
+class _CommandOption(NamedTuple):
+    """One per-command option forwarded to the hub (modbus::CommandOptions)."""
+
+    conf_key: str
+    field: str  # the C++ field, and so the set_<field>() setter name
+    validator: Any  # the static (non-templatable) validator for the key
+    cpp_type: Any  # the C++ type the value is generated as
+    default: Any
+
+
+# Per-direction command options. Single-sourcing the schema and the setter generation here keeps
+# them from drifting; the C++ side must add the matching field per the rules documented on
+# CommandOptions (modbus.h).
+_COMMAND_OPTIONS: dict[str, list[_CommandOption]] = {
+    "read": [_CommandOption(CONF_CONTINUOUS, "continuous", cv.boolean, bool, False)],
+    "write": [],
+}
+
+
+def _command_options(direction: str) -> list[_CommandOption]:
+    try:
+        return _COMMAND_OPTIONS[direction]
+    except KeyError:
+        raise ValueError(f"unknown command-options direction {direction!r}") from None
+
+
+def command_options_schema(
+    *, direction: Literal["read", "write"], templatable: bool = False
+) -> dict[cv.Optional, Any]:
+    """Schema fragment for the per-command options a component forwards to the hub
+    (modbus::CommandOptions). Extend this into any schema that queues commands. Keys are
+    direction-specific so a schema never offers an option the hub would strip (e.g.
+    continuous on a write); the write side has no options yet. For actions (templatable=True the
+    keys also accept lambdas), register the values with register_templatable_command_options().
+    """
+    return {
+        cv.Optional(option.conf_key, default=option.default): (
+            cv.templatable(option.validator) if templatable else option.validator
+        )
+        for option in _command_options(direction)
+    }
+
+
+async def register_templatable_command_options(
+    var: MockObj, config: ConfigType, args: TemplateArgsType, direction: str
+) -> None:
+    """Generate the set_<option>() calls for the given direction's command options present in config.
+    Pass the same direction the action's command_options_schema() used, so the keys generated match
+    the ones the schema offered - a write action never emits a read option's setter. Options the
+    schema did not add are simply absent. The consumer's C++ class declares a matching
+    TEMPLATABLE_VALUE per option (e.g. TEMPLATABLE_VALUE(bool, continuous)).
+    """
+    for option in _command_options(direction):
+        if option.conf_key not in config:
+            continue
+        value = config[option.conf_key]
+        # Skip codegen when the value is its C++ zero (TemplatableFn::value() returns T{} when
+        # unset): behaviourally identical, and saves a thunk plus a setup() call per action.
+        if cg.is_template(value) or value != type(value)():
+            cg.add(
+                getattr(var, f"set_{option.field}")(
+                    await cg.templatable(value, args, option.cpp_type)
+                )
+            )
+
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -84,7 +159,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(modbus_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -112,7 +187,9 @@ def _validate_server_address(value: Any) -> int:
     return address
 
 
-def modbus_device_schema(default_address, role: Literal["client", "server"] = "client"):
+def modbus_device_schema(
+    default_address: int | None, role: Literal["client", "server"] = "client"
+) -> cv.Schema:
     hub_type = ModbusClient if role == "client" else ModbusServer
     address_validator = _validate_server_address if role == "server" else cv.hex_uint8_t
     schema = {
@@ -127,14 +204,14 @@ def modbus_device_schema(default_address, role: Literal["client", "server"] = "c
 
 def final_validate_modbus_device(
     name: str, *, role: Literal["server", "client"] | None = None
-):
-    def validate_role(value):
+) -> cv.Schema:
+    def validate_role(value: str) -> str:
         assert role in MODBUS_ROLES
         if value != role:
             raise cv.Invalid(f"Component {name} requires role to be {role}")
         return value
 
-    def validate_hub(hub_config):
+    def validate_hub(hub_config: ConfigType) -> ConfigType:
         hub_schema = {}
         if role is not None:
             hub_schema[cv.Required(CONF_ROLE)] = validate_role
@@ -147,19 +224,19 @@ def final_validate_modbus_device(
     )
 
 
-async def register_modbus_client_device(var, config):
+async def register_modbus_client_device(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_parent(parent))
     cg.add(var.set_address(config[CONF_ADDRESS]))
 
 
-async def register_modbus_server_device(var, config):
+async def register_modbus_server_device(var: MockObj, config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_MODBUS_ID])
     cg.add(var.set_address(config[CONF_ADDRESS]))
     cg.add(parent.register_device(var))
 
 
-async def register_modbus_device(var, config):
+async def register_modbus_device(var: MockObj, config: ConfigType) -> None:
     # Remove before 2026.12.0
     _LOGGER.warning(
         "'register_modbus_device' is deprecated, use 'register_modbus_client_device' "

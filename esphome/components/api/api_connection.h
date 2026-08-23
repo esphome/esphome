@@ -53,11 +53,11 @@ void log_dropped_message(const char *tag, int line, const LogString *what);
 
 // Keepalive timeout in milliseconds
 static constexpr uint32_t KEEPALIVE_TIMEOUT_MS = 60000;
-// Maximum number of entities to process in a single batch during initial state/info sending
-static constexpr size_t MAX_INITIAL_PER_BATCH = 34;
+// Deferred batch size cap during initial state/info sync
+static constexpr size_t MAX_INITIAL_BATCH_SIZE = 34;
 // Verify MAX_MESSAGES_PER_BATCH (defined in api_frame_helper.h) can hold the initial batch
-static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
-              "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
+static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_BATCH_SIZE,
+              "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_BATCH_SIZE");
 
 #ifdef USE_BENCHMARK
 class APIConnection;

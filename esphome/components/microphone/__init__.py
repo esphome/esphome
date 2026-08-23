@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -12,8 +14,10 @@ from esphome.const import (
     CONF_ON_DATA,
     CONF_TRIGGER_ID,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.coroutine import CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
@@ -50,7 +54,7 @@ IsCapturingCondition = microphone_ns.class_(
 IsMutedCondition = microphone_ns.class_("IsMutedCondition", automation.Condition)
 
 
-async def setup_microphone_core_(var, config):
+async def setup_microphone_core_(var: MockObj, config: ConfigType) -> None:
     for conf in config.get(CONF_ON_DATA, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
@@ -60,7 +64,7 @@ async def setup_microphone_core_(var, config):
         )
 
 
-async def register_microphone(var, config):
+async def register_microphone(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     await setup_microphone_core_(var, config)
@@ -85,7 +89,7 @@ def microphone_source_schema(
     max_bits_per_sample: int = 16,
     min_channels: int = 1,
     max_channels: int = 1,
-):
+) -> cv.All:
     """Schema for a microphone source
 
     Components requesting microphone data should use this schema instead of accessing a microphone directly.
@@ -97,7 +101,7 @@ def microphone_source_schema(
       max_channels (int, optional): Maximum number of channels the requesting component supports. Defaults to 1.
     """
 
-    def _validate_unique_channels(config):
+    def _validate_unique_channels(config: list[int]) -> list[int]:
         if len(config) != len(set(config)):
             raise cv.Invalid("Channels must be unique")
         return config
@@ -124,7 +128,7 @@ def microphone_source_schema(
 
 def final_validate_microphone_source_schema(
     component_name: str, sample_rate: int = cv.UNDEFINED
-):
+) -> Callable[[ConfigType], ConfigType]:
     """Validates that the microphone source can provide audio in the correct format. In particular it validates the sample rate and the enabled channels.
 
     Note that:
@@ -136,7 +140,7 @@ def final_validate_microphone_source_schema(
         sample_rate (int, optional): The sample rate the component requesting mic audio requires
     """
 
-    def _validate_audio_compatability(config):
+    def _validate_audio_compatability(config: ConfigType) -> ConfigType:
         if sample_rate is not cv.UNDEFINED:
             # Issues require changing the microphone configuration
             #  - Verifies sample rates match
@@ -161,7 +165,9 @@ def final_validate_microphone_source_schema(
     return _validate_audio_compatability
 
 
-async def microphone_source_to_code(config, passive=False):
+async def microphone_source_to_code(
+    config: ConfigType, passive: bool = False
+) -> MockObj:
     """Creates a MicrophoneSource variable for codegen.
 
     Setting passive to true makes the MicrophoneSource never start/stop the microphone, but only receives audio when another component has actively started the Microphone. If false, then the microphone needs to be explicitly started/stopped.
@@ -183,7 +189,12 @@ async def microphone_source_to_code(config, passive=False):
     return mic_source
 
 
-async def microphone_action(config, action_id, template_arg, args):
+async def microphone_action(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -219,6 +230,6 @@ automation.register_condition(
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(microphone_ns.using)
     cg.add_define("USE_MICROPHONE")
