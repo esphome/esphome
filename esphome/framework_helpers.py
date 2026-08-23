@@ -1,8 +1,8 @@
 """Generic toolchain installation helpers shared across framework implementations."""
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import hashlib
 import io
 import json
@@ -752,7 +752,8 @@ def run_batch_downloads(
     Each ``fetch(tracker)`` reports absolute byte counts; the bar total is
     the sum of the sizes. Failures are returned after the bar is done so
     warnings never land on its row. Ctrl-C drops queued jobs and aborts
-    in-flight ones at their next tick; resumable destinations
+    in-flight ones at their next progress tick or backoff boundary (a
+    parked socket read defers that by its timeout); resumable destinations
     (``download_with_resume``) keep their fetched ``.part`` bytes.
     ``jobs`` must be non-empty.
     """
@@ -771,8 +772,11 @@ def run_batch_downloads(
 
         try:
             fetch(checked)
-        except _BatchDownloadCancelled:
+        except _BatchDownloadCancelled as err:
+            # Reported like a failure: an abandoned job must never read as
+            # a completed download if a caller sees the list after Ctrl-C
             tracker(0)
+            return (name, err)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             tracker(0)
             return (name, err)
@@ -780,8 +784,9 @@ def run_batch_downloads(
 
     ex = ThreadPoolExecutor(max_workers=max_workers)
     try:
-        futures = [ex.submit(_run, name, fetch) for name, _, fetch in jobs]
-        return [failure for f in futures if (failure := f.result()) is not None]
+        with progress.logging_guard():
+            futures = [ex.submit(_run, name, fetch) for name, _, fetch in jobs]
+            return [failure for f in futures if (failure := f.result()) is not None]
     except BaseException:
         # Without this the non-daemon workers download to completion before
         # the interpreter can exit, making Ctrl-C ineffective for minutes
@@ -792,8 +797,12 @@ def run_batch_downloads(
         progress.done()
 
 
-class _BatchDownloadCancelled(Exception):
-    """Raised inside a download job to abandon it after Ctrl-C."""
+class _BatchDownloadCancelled(BaseException):
+    """Raised inside a download job to abandon it after Ctrl-C.
+
+    BaseException, like KeyboardInterrupt: a broad ``except Exception`` in
+    the download layers must not convert an abort into a retry.
+    """
 
 
 class _BatchDownloadProgress:
@@ -827,6 +836,56 @@ class _BatchDownloadProgress:
     def done(self) -> None:
         if self._bar is not None:
             self._bar.done()
+
+    @contextmanager
+    def logging_guard(self) -> Iterator[None]:
+        r"""End a partial bar row before any log record while active.
+
+        Worker warnings (mirror retries) share stderr with the bar's \r
+        frames; without this the record lands mid-row and the next frame
+        overwrites it. A handler-level filter runs just before emit, so
+        only a tiny window remains for a concurrent frame.
+        """
+        the_bar = self._bar
+        if the_bar is None:
+            yield
+            return
+        lock = self._lock
+
+        class _EndRow(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:
+                with lock:
+                    if (
+                        the_bar.last_progress is not None
+                        and the_bar.last_progress != 100
+                    ):
+                        the_bar.done()
+                        # Force the next tick to redraw the frame
+                        the_bar.last_progress = None
+                return True
+
+        end_row = _EndRow()
+        handlers = logging.getLogger().handlers
+        for handler in handlers:
+            handler.addFilter(end_row)
+        try:
+            yield
+        finally:
+            for handler in handlers:
+                handler.removeFilter(end_row)
+
+
+def _cancellable_sleep(
+    delay: float, progress: Callable[[int], None] | None, done: int
+) -> None:
+    """Backoff sleep that still observes a batch cancellation tick."""
+    if progress is None:
+        time.sleep(delay)
+        return
+    end = time.monotonic() + delay
+    while (remaining := end - time.monotonic()) > 0:
+        progress(done)  # raises when the batch was cancelled
+        time.sleep(min(0.5, remaining))
 
 
 def download_with_resume(
@@ -1270,7 +1329,7 @@ def download_from_mirrors(
                 sweep + 1,
                 _MIRROR_SWEEP_ATTEMPTS,
             )
-            time.sleep(delay)
+            _cancellable_sleep(delay, progress, 0)
 
     # 4. Report every attempted URL if all mirrors failed. failures spans
     # all sweeps (deduplicated by URL and reason), so neither an early
