@@ -438,6 +438,9 @@ def check_library_data(data: dict, platform: str | None, framework: str):
     if isinstance(platforms, str):
         platforms = [a.strip() for a in platforms.split(",")]
     platforms = ensure_list(platforms)
+    if not all(isinstance(pf, str) for pf in platforms):
+        # A real (non-platform) manifest problem; callers warn, not skip
+        raise InvalidLibrary(f"Malformed platforms value: {platforms!r}")
 
     # Check if library supports the target platform
     valid_platforms = platform is None or "*" in platforms or platform in platforms
@@ -449,6 +452,8 @@ def check_library_data(data: dict, platform: str | None, framework: str):
     if isinstance(frameworks, str):
         frameworks = [a.strip() for a in frameworks.split(",")]
     frameworks = ensure_list(frameworks)
+    if not all(isinstance(fw, str) for fw in frameworks):
+        raise InvalidLibrary(f"Malformed frameworks value: {frameworks!r}")
 
     # Check if library declares the active framework. PIO library manifests
     # often list only "arduino" even when the library actually compiles fine
@@ -1029,8 +1034,8 @@ def convert_libraries(
         ):
             if "version" not in dependency:
                 # Cannot resolve from the registry; common for bundled
-                # names (Wire, SPI) -- add_library() is the fix if real
-                _LOGGER.info(
+                # names (Wire, SPI) -- unactionable noise above debug
+                _LOGGER.debug(
                     "Skip version-less dependency %r of %s",
                     dependency.get("name"),
                     component.name,
