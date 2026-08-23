@@ -14,7 +14,6 @@ from the build flags with the same precedence as the PlatformIO builder.
 
 from __future__ import annotations
 
-from contextlib import suppress
 from dataclasses import dataclass
 import hashlib
 import logging
@@ -120,6 +119,10 @@ _LWIP_VARIANTS = {
         1460, 0, 0, "lwip2-1460"
     ),
 }
+# The default is PIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY's variant: upstream
+# has no branch for that spelling (it is the else), so any listed knob wins
+# over it -- sntp emits LOW_MEMORY while esp8266 always emits
+# HIGHER_BANDWIDTH_LOW_FLASH, and the latter must win as under PlatformIO
 _LWIP_DEFAULT = _LwipVariant(536, 1, 0, "lwip2-536-feat")
 
 # Knob define -> MMU_* defines; first match wins, in insertion order (as
@@ -633,8 +636,13 @@ def generate_ld_scripts(
             _LOGGER.warning("Linker-script preprocessor: %s", result.stderr.strip())
             note_persisted = _write_note(stderr_note, result.stderr.strip(), warn=True)
         else:
-            with suppress(OSError):
+            try:
                 stderr_note.unlink(missing_ok=True)
+            except OSError as err:
+                # A kept stale note would re-emit an obsolete diagnostic on
+                # every cache hit; skip the stamp so -E re-derives the truth
+                _LOGGER.debug("Could not remove %s: %s", stderr_note, err)
+                note_persisted = False
         if "SECTIONS" not in result.stdout:
             # A degenerate zero-exit run must not be stamped as a good cache
             raise EsphomeError(
@@ -660,11 +668,12 @@ def generate_ld_scripts(
                 "Linker-script preprocessor: %s",
                 stderr_note.read_text(encoding="utf-8"),
             )
-        except (OSError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError) as err:
             _LOGGER.warning(
                 "A cached linker-script preprocessor diagnostic exists at %s "
-                "but could not be read",
+                "but could not be read: %s",
                 stderr_note,
+                err,
             )
 
     if CORE.testing_mode:
