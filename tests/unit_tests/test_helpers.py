@@ -171,8 +171,7 @@ def test_is_ip_address__valid(value):
         ("FOO", "fAlSe", True, False),
         ("FOO", "Yes", False, True),
         ("FOO", "123", False, True),
-        # cv.boolean's spellings; the True-default falsy rows are the
-        # ESPHOME_LOG_STATES=off shape the old bool(str) fallthrough broke
+        # cv.boolean's spellings; falsy rows use default=True on purpose
         ("FOO", "on", False, True),
         ("FOO", "enable", False, True),
         ("FOO", "no", True, False),
