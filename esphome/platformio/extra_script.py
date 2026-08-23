@@ -240,10 +240,14 @@ def captured_as_build_flags(
             flags.append(f"-L{resolved}")
     flags.extend(f"-l{lib}" for lib in result.libs)
     for define in result.cppdefines:
-        if isinstance(define, tuple) and len(define) == 2:
+        # SCons also accepts dict/list CPPDEFINES; formatting those blind
+        # would hand the compiler garbage like -D{'FOO': '1'}
+        if isinstance(define, (tuple, list)) and len(define) == 2:
             flags.append(f"-D{define[0]}={define[1]}")
-        else:
+        elif isinstance(define, str):
             flags.append(f"-D{define}")
+        else:
+            _LOGGER.warning("Ignoring unsupported CPPDEFINES entry %r", define)
     flags.extend(result.linkflags)
     flags.extend(result.cppflags)
     return flags

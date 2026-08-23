@@ -169,6 +169,25 @@ def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
     assert c.data["build"]["flags"] == ["-DBASE=1", "-lesp8266"]
 
 
+def test_captured_dict_cppdefines_warn_and_skip(tmp_path, caplog) -> None:
+    """A dict CPPDEFINES entry (legal SCons) must warn and skip; formatting
+    it blind would hand the compiler -D{'FOO': '1'} garbage."""
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text(
+        "env.Append(CPPDEFINES=[{'FOO': '1'}, ('BAR', 2), ['BAZ', 3], 'PLAIN'])\n"
+    )
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+
+    apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
+
+    assert c.data["build"]["flags"] == ["-DBAR=2", "-DBAZ=3", "-DPLAIN"]
+    assert "Ignoring unsupported CPPDEFINES entry" in caplog.text
+
+
 def test_apply_extra_script_subscript_env_read(tmp_path) -> None:
     """Scripts also read env["BOARD_MCU"]; the subscript form must work or
     the broad handler discards every flag the script captured."""
