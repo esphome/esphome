@@ -66,6 +66,19 @@ enum OTAResponseTypes {
  */
 bool version_is_older(const char *candidate, const char *reference);
 
+// 64 KiB flash block; the erase granularity the ESP-IDF backend erases ahead with.
+static constexpr size_t OTA_BLOCK_ERASE_SIZE = 64 * 1024;
+
+/** Target erased watermark for lazy block erase-ahead.
+ *
+ * Rounds the write end offset up to a block boundary, clamped to the partition
+ * size. Platform-independent so the arithmetic is host-testable.
+ */
+constexpr size_t next_erase_end(size_t write_end, size_t partition_size) {
+  const size_t rounded = (write_end + OTA_BLOCK_ERASE_SIZE - 1) & ~(OTA_BLOCK_ERASE_SIZE - 1);
+  return rounded < partition_size ? rounded : partition_size;
+}
+
 enum OTAState {
   OTA_COMPLETED = 0,
   OTA_STARTED,

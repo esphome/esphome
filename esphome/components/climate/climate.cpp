@@ -511,29 +511,6 @@ ClimateTraits Climate::get_traits() {
   return traits;
 }
 
-#ifdef USE_CLIMATE_VISUAL_OVERRIDES
-void Climate::set_visual_min_temperature_override(float visual_min_temperature_override) {
-  this->visual_min_temperature_override_ = visual_min_temperature_override;
-}
-
-void Climate::set_visual_max_temperature_override(float visual_max_temperature_override) {
-  this->visual_max_temperature_override_ = visual_max_temperature_override;
-}
-
-void Climate::set_visual_temperature_step_override(float target, float current) {
-  this->visual_target_temperature_step_override_ = target;
-  this->visual_current_temperature_step_override_ = current;
-}
-
-void Climate::set_visual_min_humidity_override(float visual_min_humidity_override) {
-  this->visual_min_humidity_override_ = visual_min_humidity_override;
-}
-
-void Climate::set_visual_max_humidity_override(float visual_max_humidity_override) {
-  this->visual_max_humidity_override_ = visual_max_humidity_override;
-}
-#endif
-
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
 ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
