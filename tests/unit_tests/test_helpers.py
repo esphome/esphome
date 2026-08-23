@@ -1124,6 +1124,6 @@ def test_format_duration(seconds: float, expected: str) -> None:
 def test_get_bool_env_common_spellings(
     monkeypatch: pytest.MonkeyPatch, value: str, expected: bool
 ) -> None:
-    """The common on/off spellings parse instead of reading as truthy."""
+    """The cv.boolean spellings parse instead of reading as truthy."""
     monkeypatch.setenv("SOME_KNOB", value)
     assert helpers.get_bool_env("SOME_KNOB") is expected
