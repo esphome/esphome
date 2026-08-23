@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 import logging
 import os
 from pathlib import Path
+import shlex
 from typing import TYPE_CHECKING
 
 from esphome.core import EsphomeError
@@ -259,8 +260,13 @@ def captured_as_build_flags(
         except ValueError:
             return str(resolved)
 
-    flags.extend(f"-I{_anchored(path)}" for path in _strs(result.cpppath, "CPPPATH"))
-    flags.extend(f"-L{_anchored(path)}" for path in _strs(result.libpath, "LIBPATH"))
+    # shlex.quote so a spaced path survives lex_build_flags as one token
+    flags.extend(
+        f"-I{shlex.quote(_anchored(path))}" for path in _strs(result.cpppath, "CPPPATH")
+    )
+    flags.extend(
+        f"-L{shlex.quote(_anchored(path))}" for path in _strs(result.libpath, "LIBPATH")
+    )
     flags.extend(f"-l{lib}" for lib in _strs(result.libs, "LIBS"))
     for define in result.cppdefines:
         # SCons also accepts dict/list CPPDEFINES; formatting those blind
