@@ -1126,13 +1126,13 @@ class TestDownloadWithResume:
         seen: list[int] = []
         with (
             patch("requests.get", return_value=resp),
-            patch("esphome.framework_helpers.ProgressBar") as bar,
+            patch("esphome.framework_helpers.ProgressBar") as bar_cls,
         ):
             download_with_resume(
                 "https://example.com/t", dest, size=7, progress=seen.append
             )
         assert seen == [0, 4, 7, 7]
-        bar.assert_not_called()
+        bar_cls.assert_not_called()
 
     def test_progress_callback_seeds_with_resume_offset(self, tmp_path: Path) -> None:
         dest = tmp_path / "tool.tar.gz"
@@ -1188,6 +1188,69 @@ def test_run_batch_downloads_ctrl_c_aborts_in_flight_jobs() -> None:
     # Uncancelled, slow_download alone takes ~5s
     assert time.monotonic() - t0 < 3
     assert len(ticks) < 500
+
+
+def test_cancellation_escapes_broad_except_in_fetch() -> None:
+    """A fetch that wraps its work in except Exception cannot swallow the
+    Ctrl-C sentinel (it is a BaseException)."""
+    from esphome.framework_helpers import _BatchDownloadCancelled
+
+    started = threading.Event()
+    swallowed = []
+
+    def interrupter(tracker) -> None:
+        started.wait(5)
+        raise KeyboardInterrupt
+
+    def greedy_fetch(tracker) -> None:
+        started.set()
+        try:
+            for i in range(500):
+                tracker(i)
+                time.sleep(0.01)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            swallowed.append(err)
+
+    t0 = time.monotonic()
+    with pytest.raises(KeyboardInterrupt):
+        run_batch_downloads(
+            "Downloading",
+            [("boom", 0, interrupter), ("greedy", 0, greedy_fetch)],
+            max_workers=2,
+        )
+    assert time.monotonic() - t0 < 3
+    assert not swallowed
+    assert issubclass(_BatchDownloadCancelled, BaseException)
+    assert not issubclass(_BatchDownloadCancelled, Exception)
+
+
+def test_logging_guard_ends_the_bar_row_before_a_record() -> None:
+    r"""A worker warning gets its own line instead of the bar's \r row."""
+    stream = io.StringIO()
+    stream.isatty = lambda: True  # type: ignore[method-assign]
+    with patch("esphome.helpers.sys.stderr", stream):
+        progress = _BatchDownloadProgress("Downloading", 10)
+        progress.tracker()(5)
+        with progress.logging_guard():
+            logging.getLogger("esphome.test").warning("mirror retry")
+        # The partial 50% frame ended its line before the record was emitted
+        assert stream.getvalue().endswith("50% \n")
+        # And the next tick redraws the frame on a fresh row
+        progress.tracker()(2)
+        assert stream.getvalue().endswith("70% ")
+
+
+def test_cancellable_sleep_aborts_at_the_tick() -> None:
+    """A backoff sleep observes the cancellation raise promptly."""
+    from esphome.framework_helpers import _BatchDownloadCancelled, _cancellable_sleep
+
+    def cancelled_tick(done: int) -> None:
+        raise _BatchDownloadCancelled
+
+    t0 = time.monotonic()
+    with pytest.raises(_BatchDownloadCancelled):
+        _cancellable_sleep(30, cancelled_tick, 0)
+    assert time.monotonic() - t0 < 1
 
 
 class Test_BatchDownloadProgress:
