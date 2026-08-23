@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from ctypes.util import find_library
+from functools import partial
 import json
 import logging
 import os
@@ -19,7 +20,6 @@ from esphome.build_helpers.ccache import (
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
-    BatchDownloadProgress,
     PathType,
     archive_extract_all,
     create_venv,
@@ -684,6 +684,18 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
+def _download_tool(
+    dist_path: Path, entry: dict, tracker: Callable[[int], None]
+) -> None:
+    download_with_resume(
+        entry["url"],
+        dist_path / entry["dest"],
+        sha256=entry["sha256"],
+        size=entry["size"],
+        progress=tracker,
+    )
+
+
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -726,22 +738,23 @@ def _prefetch_idf_tool_archives(
         for entry in json.loads(stdout):
             if (dist_path / entry["dest"]).is_file():
                 continue
-            if entry["dest"] in seen_dests:
-                # Two workers on one .part file would interleave
-                # seek/truncate writes; mirror the library prefetch's dedupe
-                continue
-            seen_dests.add(entry["dest"])
-            # tools.json always carries sha256 and size; an entry missing
-            # either must not be downloaded unverified here, so leave it to
-            # the installer (which fails loudly on a bad archive).
-            if entry.get("sha256") and entry.get("size"):
-                entries.append(entry)
-            else:
+            # Never download unverified: an entry without sha256/size is
+            # left to the installer, which fails loudly on a bad archive.
+            # Checked before the dedupe so it cannot shadow a verifiable
+            # duplicate of the same dest.
+            if not (entry.get("sha256") and entry.get("size")):
                 _LOGGER.warning(
                     "Tool %s has no sha256/size in the download list; "
                     "leaving it to the installer",
                     entry["name"],
                 )
+                continue
+            if entry["dest"] in seen_dests:
+                # Two workers on one .part file would interleave
+                # seek/truncate writes; mirror the library prefetch's dedupe
+                continue
+            seen_dests.add(entry["dest"])
+            entries.append(entry)
         if not entries:
             return
         _LOGGER.info(
@@ -750,29 +763,24 @@ def _prefetch_idf_tool_archives(
             ", ".join(entry["name"] for entry in entries),
         )
 
-        # Every entry carries a size (checked above), so the combined bar can
-        # be trusted. Unlike the library prefetch there is no sequential
-        # fallback: per-file bars from several threads would interleave, and
-        # skipping the prefetch would lose the resume workaround for #17703.
-        def _download(entry: dict):
-            return lambda tracker: download_with_resume(
-                entry["url"],
-                dist_path / entry["dest"],
-                sha256=entry["sha256"],
-                size=entry["size"],
-                progress=tracker,
-            )
-
+        # No sequential fallback here: skipping the prefetch would lose the
+        # resume workaround for #17703, and every entry has a size (above).
         # A failed archive is retried by the installer itself (without
         # resume); keep prefetching the rest.
         failures = run_batch_downloads(
-            BatchDownloadProgress(
-                "Downloading ESP-IDF tools", sum(entry["size"] for entry in entries)
-            ),
-            [(entry["name"], _download(entry)) for entry in entries],
+            "Downloading ESP-IDF tools",
+            [
+                (
+                    entry["name"],
+                    entry["size"],
+                    partial(_download_tool, dist_path, entry),
+                )
+                for entry in entries
+            ],
         )
         for name, e in failures:
             _LOGGER.warning("Could not prefetch %s: %s", name, e)
+            _LOGGER.debug("Prefetch failure detail", exc_info=e)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.
