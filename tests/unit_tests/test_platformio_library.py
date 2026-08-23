@@ -8,7 +8,6 @@ from contextlib import contextmanager
 import json
 import logging
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -236,6 +235,7 @@ def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -276,8 +276,7 @@ def test_wave_requirement_growth_defers_the_superseded_download(tmp_path, monkey
         (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
 
     monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
-    # Hermetic: unknown sizes take the sequential path instead of real HEADs
-    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [None] * len(urls))
+    # Hermetic: the stubbed registry reports no size, so no batch prefetch
     _patch_registry_resolve(monkeypatch)
     top = convert_libraries(
         [Library("esphome/A", "1.0.0", None), Library("esphome/B", None, None)],
@@ -640,22 +639,23 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     git/local sources and failures are left to the sequential call."""
     calls: list[str] = []
 
-    def fake_download(self, force=False, salt="", namespace="", progress=None):
-        calls.append(self.source.url)
+    def fake_download(
+        self, dir_suffix, force=False, salt="", namespace="", progress=None
+    ):
+        calls.append(self.url)
         if progress is not None:
             progress(0)
-        if "boom" in self.source.url:
+        if "boom" in self.url:
             raise RuntimeError("boom")
 
-    monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
-    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [1] * len(urls))
+    monkeypatch.setattr(URLSource, "download", fake_download)
     wave = [
-        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
-        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
         # Duplicate URL must prefetch once (two threads must never extract
         # into the same cache directory)
-        ("b2", ConvertedLibrary("b2", "1.0", URLSource("https://x/b.tar.gz"))),
-        ("c", ConvertedLibrary("c", "1.0", URLSource("https://x/boom.tar.gz"))),
+        ("b2", ConvertedLibrary("b2", "1.0", URLSource("https://x/b.tar.gz", 1))),
+        ("c", ConvertedLibrary("c", "1.0", URLSource("https://x/boom.tar.gz", 1))),
         ("g", ConvertedLibrary("g", "*", lib.GitSource("https://x/g.git", None))),
     ]
     lib._prefetch_wave(wave, "", "idf")
@@ -668,25 +668,27 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
     assert "Prefetch of c failed (retrying sequentially)" in caplog.text
 
 
-def test_prefetch_wave_unknown_size_falls_back_to_sequential(
-    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+def test_prefetch_wave_unknown_size_left_to_sequential(
+    setup_core, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Any unknown HEAD size skips the parallel prefetch entirely so the
-    sequential downloads keep their per-file bars."""
-
-    def fail_download(self, force=False, salt="", namespace="", progress=None):
-        raise AssertionError("prefetched despite unknown size")
-
-    monkeypatch.setattr(ConvertedLibrary, "download", fail_download)
-    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [1, None])
+    """Archives without a registry-reported size skip the batch (their
+    sequential per-file bars don't interleave); the known subset still
+    prefetches."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        URLSource,
+        "download",
+        lambda self, dir_suffix, force=False, salt="", namespace="", progress=None: (
+            calls.append(self.url)
+        ),
+    )
     wave = [
-        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
-        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
+        ("u", ConvertedLibrary("u", "1.0", URLSource("https://x/u.tar.gz"))),
     ]
-    caplog.set_level("DEBUG")
     lib._prefetch_wave(wave, "", "idf")
-    # The culprit URL is named so the fallback is traceable
-    assert "No Content-Length for https://x/b.tar.gz" in caplog.text
+    assert sorted(calls) == ["https://x/a.tar.gz", "https://x/b.tar.gz"]
 
 
 def test_join_flag_args_empty_argument_warns_and_drops(
@@ -697,54 +699,24 @@ def test_join_flag_args_empty_argument_warns_and_drops(
     assert "Ignoring '-D' with empty argument in build_flags" in caplog.text
 
 
-def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Sizes come from HEAD Content-Length; a failing HEAD reads as 0 so
-    the combined bar is skipped rather than wrong."""
-    import requests
-
-    def fake_head(url, timeout, allow_redirects):
-        if "bad" in url:
-            raise requests.ConnectionError("down")
-        if "gone" in url:
-            return SimpleNamespace(ok=False, status_code=404, headers={})
-        if "garbage" in url:
-            # A proxy/CDN doubling the header ("123, 123") or emitting junk
-            # must degrade to unknown, not ValueError the build
-            return SimpleNamespace(ok=True, headers={"content-length": "123, 123"})
-        return SimpleNamespace(ok=True, headers={"content-length": "123"})
-
-    monkeypatch.setattr(requests, "head", fake_head)
-    # None marks an unknown size (probe failure or non-2xx), distinct
-    # from a genuine zero
-    assert lib._content_lengths(
-        ["https://x/a", "https://x/bad", "https://x/gone", "https://x/garbage"]
-    ) == [
-        123,
-        None,
-        None,
-        None,
-    ]
-
-
 def test_prefetch_wave_cache_probe_failure_still_prefetches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The cache probe is best-effort; a failing probe prefetches anyway."""
     calls: list[str] = []
     monkeypatch.setattr(
-        ConvertedLibrary,
+        URLSource,
         "download",
-        lambda self, **kw: calls.append(self.source.url),
+        lambda self, dir_suffix, **kw: calls.append(self.url),
     )
     monkeypatch.setattr(
         URLSource,
         "is_cached",
         lambda self, *a, **kw: (_ for _ in ()).throw(RuntimeError("no core")),
     )
-    monkeypatch.setattr(lib, "_content_lengths", lambda urls: [1] * len(urls))
     wave = [
-        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
-        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
     ]
     lib._prefetch_wave(wave, "", "idf")
     assert sorted(calls) == ["https://x/a.tar.gz", "https://x/b.tar.gz"]
@@ -756,13 +728,15 @@ def test_prefetch_wave_warm_cache_is_silent(
     """Already-extracted archives download nothing; a warm build must not
     print a Downloading line or draw a bar."""
     monkeypatch.setattr(
-        ConvertedLibrary,
+        URLSource,
         "download",
-        lambda self, **kw: (_ for _ in ()).throw(AssertionError("downloaded")),
+        lambda self, dir_suffix, **kw: (_ for _ in ()).throw(
+            AssertionError("downloaded")
+        ),
     )
     wave = []
     for name in ("a", "b", "c"):
-        comp = ConvertedLibrary(name, "1.0", URLSource(f"https://x/{name}.tar.gz"))
+        comp = ConvertedLibrary(name, "1.0", URLSource(f"https://x/{name}.tar.gz", 1))
         marker_dir = comp.source._cache_dir(comp.get_sanitized_name(), "", "idf")
         marker_dir.mkdir(parents=True)
         (marker_dir / ".esphome_extracted").touch()
@@ -777,12 +751,14 @@ def test_prefetch_wave_single_archive_skips_the_pool(
     """One archive gains nothing from a pool; the sequential call keeps its
     progress bar."""
     monkeypatch.setattr(
-        ConvertedLibrary,
+        URLSource,
         "download",
-        lambda self, **kw: (_ for _ in ()).throw(AssertionError("prefetched")),
+        lambda self, dir_suffix, **kw: (_ for _ in ()).throw(
+            AssertionError("prefetched")
+        ),
     )
     lib._prefetch_wave(
-        [("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz")))],
+        [("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1)))],
         "",
         "idf",
     )
