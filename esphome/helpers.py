@@ -395,12 +395,8 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
 
 
 def get_bool_env(var, default=False):
-    """Read a boolean environment knob.
-
-    Accepts the ``cv.boolean`` spellings plus ``1``/``0``, so environment
-    knobs speak the config language's boolean dialect; anything else falls
-    through to ``bool(value)``.
-    """
+    """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
+    anything else falls through to ``bool(value)``."""
     value = os.getenv(var, default)
     if isinstance(value, str):
         value = value.lower()
