@@ -157,7 +157,9 @@ def test_localsource_download_returns_empty_build_dir(setup_core: Path) -> None:
     assert plain != out
 
 
-def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
+def test_urlsource_download_extracts_then_reuses_marker(
+    setup_core, monkeypatch, caplog
+):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []
     monkeypatch.setattr(
@@ -183,10 +185,10 @@ def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch)
     assert len(dl_calls) == 1
 
     # A batch caller passes a tracker and owns the messaging; no per-file INFO
-    with caplog_at_info() as records:
-        src.download("mylib-batch", progress=lambda done: None)
+    caplog.set_level("INFO")
+    src.download("mylib-batch", progress=lambda done: None)
     assert len(dl_calls) == 2
-    assert not [r for r in records if "Downloading" in r.message]
+    assert "Downloading" not in caplog.text
 
 
 def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
