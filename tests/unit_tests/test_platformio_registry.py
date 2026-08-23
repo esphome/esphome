@@ -625,3 +625,26 @@ def test_prefetch_packages_download_failure_is_debug(
     assert mock_download.call_count == 2
     assert "Prefetch of a failed" in caplog.text
     assert "Prefetch of b failed" in caplog.text
+
+
+def test_prefetch_packages_unexpected_failure_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A programming error (not a download failure) surfaces at WARNING
+    instead of becoming a permanent silent no-op."""
+    with (
+        patch.object(
+            registry, "download_with_resume", side_effect=TypeError("bad call")
+        ),
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10, "b": 20})
+        ),
+    ):
+        registry.prefetch_packages(
+            [
+                ("a", "1.0", tmp_path / "a", []),
+                ("b", "2.0", tmp_path / "b", []),
+            ],
+            tmp_path / "dl",
+        )
+    assert "TypeError" in caplog.text
