@@ -341,8 +341,7 @@ def copy_src_tree():
                 existing.get("config_hash") != config_hash
                 or existing.get("esphome_version") != __version__
             ):
-                # Valid JSON that is not an object (truncated or
-                # hand-edited) is stale like every other damage case
+                # Non-object JSON is stale like every other damage case
                 sources_changed = True
         except (json.JSONDecodeError, OSError):
             sources_changed = True

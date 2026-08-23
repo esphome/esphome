@@ -2072,8 +2072,7 @@ def test_copy_src_tree_detects_config_hash_change(
         )
     )
 
-    # Create both existing build_info sources so the staleness decision
-    # reaches the JSON comparison instead of the missing-file branch
+    # Both sources must exist to reach the JSON comparison branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
     (esphome_core_path / "build_info_data.cpp").write_text("// old")
@@ -2138,8 +2137,7 @@ def test_copy_src_tree_detects_version_change(
         )
     )
 
-    # Create both existing build_info sources so the staleness decision
-    # reaches the JSON comparison instead of the missing-file branch
+    # Both sources must exist to reach the JSON comparison branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
     (esphome_core_path / "build_info_data.cpp").write_text("// old")
@@ -2190,8 +2188,7 @@ def test_copy_src_tree_handles_invalid_build_info_json(
     build_info_json_path = build_path / "build_info.json"
     build_info_json_path.write_text("invalid json {{{")
 
-    # Create both existing build_info sources so the staleness decision
-    # reaches the JSON comparison instead of the missing-file branch
+    # Both sources must exist to reach the JSON comparison branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
     (esphome_core_path / "build_info_data.cpp").write_text("// old")
@@ -2238,12 +2235,10 @@ def test_copy_src_tree_handles_non_dict_build_info_json(
     build_path = tmp_path / "build"
     build_path.mkdir()
 
-    # Valid JSON that is not an object: no .get, must read as stale
     build_info_json_path = build_path / "build_info.json"
     build_info_json_path.write_text("[]")
 
-    # Create both existing build_info sources so the staleness decision
-    # reaches the JSON comparison instead of the missing-file branch
+    # Both sources must exist to reach the JSON comparison branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
     (esphome_core_path / "build_info_data.cpp").write_text("// old")
