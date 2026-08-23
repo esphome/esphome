@@ -35,7 +35,7 @@ from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS, ESP8266_LD_SCRIPTS
+from .boards import BOARDS, ESP8266_LD_SCRIPTS, board_ld_script
 from .const import (
     CONF_EARLY_PIN_INIT,
     CONF_ENABLE_SERIAL,
@@ -412,7 +412,7 @@ async def to_code(config: ConfigType) -> None:
         else:
             # A per-board override preserves a layout the board shipped
             # with (see d1_wroom_02 in boards.py)
-            ld_script = board_data.get("ldscript", ld_scripts[1])
+            ld_script = board_ld_script(board_data)
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
