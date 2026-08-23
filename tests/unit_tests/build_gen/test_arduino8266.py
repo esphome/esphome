@@ -1447,12 +1447,29 @@ def test_flash_ld_name_honors_ldscript_override(tmp_path: Path) -> None:
         arduino8266._flash_ld_name("nodemcuv2")
 
 
-def test_write_project_quotes_spaced_ldscript_override(tmp_path: Path) -> None:
-    """An overridden script name re-quotes on the link line like every other
-    user token (a space would otherwise split into two argv elements)."""
+def test_unflagging_a_plain_linker_flag_raises(tmp_path: Path) -> None:
+    """build_unflags: -u would strip all seven -u tokens and leave the
+    operands as ld input files; refuse by name instead."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"-u _printf_float"}
+    with pytest.raises(EsphomeError, match="cannot remove plain linker"):
+        _write_ninja(paths)
+
+
+def test_d1_wroom_02_keeps_its_shipped_flash_layout() -> None:
+    """The board joined BOARDS late; the flash-size default (2m.ld) would
+    move _FS_end and the preferences sector on existing devices."""
+    assert arduino8266._flash_ld_name("d1_wroom_02") == "eagle.flash.2m64.ld"
+    assert arduino8266._flash_ld_name("nodemcuv2") == "eagle.flash.4m.ld"
+
+
+def test_write_project_rejects_spaced_ldscript_override(tmp_path: Path) -> None:
+    """A spaced override never reaches the link line: generate_ld_scripts
+    rejects the name first (the -T _shell_token quoting behind it is
+    defence-in-depth)."""
     CORE.platformio_options = {"board_build.ldscript": "my script.ld"}
     paths = _make_framework(tmp_path)
     _set_flags()
-    content = _write_ninja(paths)
-    assert "'my script.ld'" in content or '"my script.ld"' in content
-    assert "-T my script.ld" not in content
+    with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
+        arduino8266.write_project(paths, None)
