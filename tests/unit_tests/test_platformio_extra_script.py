@@ -11,6 +11,7 @@ import pytest
 
 from esphome.core import EsphomeError
 from esphome.platformio.extra_script import (
+    CppDefine,
     ExtraScriptResult,
     _FakeSConsEnv,
     apply_extra_script,
@@ -51,8 +52,8 @@ def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
 
     assert result.libpath == [str(Path("src") / "esp32")]
     assert result.libs == ["algobsec"]
-    assert ("BAR", "1") in result.cppdefines
-    assert "FOO" in result.cppdefines
+    assert CppDefine("BAR", "1") in result.cppdefines
+    assert CppDefine("FOO") in result.cppdefines
     assert result.linkflags == ["-Wl,--gc-sections"]
 
     # Lex like the consumer does: quoting makes raw strings platform-varying
@@ -476,7 +477,7 @@ def test_spaced_cppflag_survives_relexing(tmp_path) -> None:
     """A captured argv token with a space stays one token after lexing."""
     result = ExtraScriptResult(
         cppflags=["-include my hdr.h"],
-        cppdefines=[("MSG", '"hello world"'), "PLAIN"],
+        cppdefines=[CppDefine("MSG", '"hello world"'), CppDefine("PLAIN")],
     )
     flags = captured_as_build_flags(result, library_dir=tmp_path)
     assert lex_build_flags(flags, "test") == [
