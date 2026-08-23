@@ -123,17 +123,23 @@ def _dict_get(mapping: object, key: str) -> object:
     return mapping.get(key) if isinstance(mapping, dict) else None
 
 
+def _present_but_not_dict(value: object) -> bool:
+    return value is not None and not isinstance(value, dict)
+
+
+def _is_number(value: object) -> bool:
+    return isinstance(value, (int, float))
+
+
 def _ram_line(data: dict, size_json: Path) -> str | None:
     """The formatted RAM line, or None (already logged) to skip it."""
     memory_types = data.get("memory_types")
     ram_region = _dict_get(memory_types, "DRAM") or _dict_get(memory_types, "DIRAM")
     used = _dict_get(ram_region, "used")
     total = _dict_get(ram_region, "size")
-    if isinstance(used, (int, float)) and isinstance(total, (int, float)) and total > 0:
+    if _is_number(used) and _is_number(total) and total > 0:
         return f"RAM:   {_format_bar(int(used), int(total))}"
-    if (memory_types is not None and not isinstance(memory_types, dict)) or (
-        ram_region is not None and not isinstance(ram_region, dict)
-    ):
+    if _present_but_not_dict(memory_types) or _present_but_not_dict(ram_region):
         # A structurally corrupt report, not a variant without the region
         _LOGGER.warning("Skipping RAM summary: malformed memory_types in %s", size_json)
     else:
@@ -150,7 +156,7 @@ def _flash_line(data: dict, partitions_csv: Path | None) -> str | None:
     blanket guard is left for genuinely unforeseen shapes.
     """
     image_size = data.get("image_size")
-    if not isinstance(image_size, (int, float)):
+    if not _is_number(image_size):
         _LOGGER.warning("Skipping Flash summary: no usable image_size")
         return None
     if partitions_csv is None:
