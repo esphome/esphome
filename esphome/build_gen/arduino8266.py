@@ -34,7 +34,7 @@ from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
     ESP8266_BOARD_BUILD,
-    ESP8266_LD_SCRIPTS,
+    board_ld_script,
 )
 from esphome.components.esp8266.const import (
     KEY_BOARD,
@@ -107,6 +107,8 @@ def _apply_surgery(fn, *args: object) -> str:
 
 
 # Every supported board's f_flash is 40 MHz; re-check on a platform bump
+# board_flash_mode's closed set (cv.one_of in esp8266/__init__.py)
+_FLASH_MODES = frozenset({"qio", "qout", "dio", "dout"})
 _FLASH_FREQ_MHZ = 40
 
 # From platformio-build.py. Knob suffix -> SDK define; the first entry is
@@ -454,12 +456,9 @@ def _flash_ld_name(board: str) -> str:
     """
     override = _pio_option("board_build.ldscript", "")
     if not override:
-        # The same per-board override the PlatformIO path pins (layout
-        # preservation, see boards.py)
-        board_data = BOARDS[board]
-        return board_data.get(
-            "ldscript", ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]][1]
-        )
+        # The same shared rule the PlatformIO path pins (layout
+        # preservation, see boards.board_ld_script)
+        return board_ld_script(BOARDS[board])
     if Path(override).name != override:
         raise EsphomeError(
             f"board_build.ldscript must be a bare script name, got {override!r}"
@@ -826,12 +825,17 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     config = _resolve_build_config(flag_defines)
     esp8266_data = CORE.data[KEY_ESP8266]
     board = esp8266_data[KEY_BOARD]
-    # Config validation (_validate_native_toolchain) already gates boards;
+    # Config validation already gates boards;
     # kept as defense-in-depth for direct calls, since CONF_BOARD itself is
     # a free-form string
     if board not in ESP8266_BOARD_BUILD:
         raise EsphomeError(f"Board '{board}' is not supported by the native toolchain")
     board_build = ESP8266_BOARD_BUILD[board]
+    flash_mode = esp8266_data[KEY_FLASH_MODE]
+    if flash_mode not in _FLASH_MODES:
+        # Lands unquoted in the elf2bin command and a -D body; validation
+        # (cv.one_of on board_flash_mode) already gates it, defense-in-depth
+        raise EsphomeError(f"Invalid flash mode {flash_mode!r}")
     flash_ld_name = _flash_ld_name(board)
 
     generate_ld_scripts(paths, config, flash_ld_name)
@@ -885,9 +889,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         project_lib_dirs,
         project_libs,
     ) = _project_flags(unflags, build_tokens)
-    defines = _defines_flags(
-        config, esp8266_data[KEY_FLASH_MODE], board, board_build["defines"]
-    )
+    defines = _defines_flags(config, flash_mode, board, board_build["defines"])
     includes = [f"-I{_q(d)}" for d in include_dirs]
 
     common = _CCFLAGS + defines + includes + project_compile_flags
@@ -1004,7 +1006,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "rule elf2bin",
         # --flash_size deliberately stays board-derived, as under
         # PlatformIO (which reads upload.maximum_size, not the ldscript).
-        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
+        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
         "  command = $python $buildtool copy $in $out",
@@ -1071,7 +1073,19 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         lines.append(f"build {_e(archive)}: ar {' '.join(objs)}")
         archives.append(archive)
 
-    src_extra = f"-include {_q(src_dir / 'esphome' / 'components' / 'esp8266' / 'throw_stubs.h')}"
+    # One source of truth with the PlatformIO path: esp8266/__init__ pins
+    # build_src_flags (the throw_stubs force-include); -include paths
+    # resolve against the source root
+    src_parts: list[str] = []
+    src_it = iter(
+        lex_build_flags(_pio_option("build_src_flags", ""), "build_src_flags")
+    )
+    for tok in src_it:
+        if tok == "-include":
+            src_parts.append(f"-include {_q(src_dir / next(src_it, ''))}")
+        else:
+            src_parts.append(_shell_token(tok))
+    src_extra = " ".join(src_parts)
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {src_extra}")

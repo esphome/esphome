@@ -51,6 +51,10 @@ def _setup_core(tmp_path: Path) -> Generator[None]:
         KEY_FLASH_MODE: "dout",
         KEY_SCANF_FLOAT: False,
     }
+    # The producer esp8266/__init__ pins unconditionally
+    CORE.platformio_options = {
+        "build_src_flags": "-include esphome/components/esp8266/throw_stubs.h"
+    }
     yield
     # CORE.reset() (the suite-wide autouse fixture) does not clear this flag
     CORE.testing_mode = False
