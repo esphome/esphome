@@ -104,6 +104,7 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   volatile bool transmitting_{false};
   bool non_blocking_{false};
   bool complete_pending_{false};
+  bool stall_aborted_{false};  // this transmission ended via abort; blocks warning clear
 #endif
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED

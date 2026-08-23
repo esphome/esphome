@@ -129,20 +129,26 @@ void RemoteTransmitterComponent::digital_write(bool value) {
 void RemoteTransmitterComponent::arm_envelope_timer_(uint32_t duration_us) {
   // clamp to 1us: a zero-length one-shot never fires and would stall the chain
   const uint32_t chunk = std::max(uint32_t(1), std::min(duration_us, MAX_ONE_SHOT_US));
-  this->isr_wait_remaining_ = duration_us - chunk;
+  // guard the subtraction: a 0us item is clamped up to 1us and must not underflow the remainder
+  this->isr_wait_remaining_ = duration_us > chunk ? duration_us - chunk : 0;
   gtimer_start_one_shout(&s_envelope_timer, chunk, (void *) envelope_timer_isr, (uint32_t) this);
 }
 
 // Recovery when the timer chain stops advancing (e.g. gtimer_init failed silently -- it
 // returns void): stop the timer, idle the pin, release the serialization token. Harmless if
 // the chain completed between the deadline check and this call -- every step is then a no-op.
+// Task context only.
 void RemoteTransmitterComponent::abort_stalled_chain_() {
+  // clear the flag first: a straggler one-shot latched before gtimer_stop then bails at the
+  // ISR entry check instead of re-arming the chain
+  this->transmitting_ = false;
   gtimer_stop(&s_envelope_timer);
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), this->isr_space_duty_);
-  this->transmitting_ = false;
   s_active_transmitter = nullptr;
+  this->stall_aborted_ = true;
   this->status_set_warning("envelope timer stalled");
   ESP_LOGE(TAG, "Envelope timer stalled; transmission aborted");
+  delay(1);  // let any already-latched interrupt land while the chain state is safe
 }
 
 // Writes the duty for one envelope item and arms the timer for its duration.
@@ -154,6 +160,8 @@ void RemoteTransmitterComponent::start_isr_item_(size_t index) {
 }
 
 void RemoteTransmitterComponent::advance_envelope_isr() {
+  if (!this->transmitting_)
+    return;  // chain was aborted; this is a stale one-shot that was already latched
   if (this->isr_wait_remaining_ > 0) {
     // continue a duration longer than one hardware one-shot
     this->arm_envelope_timer_(this->isr_wait_remaining_);
@@ -201,9 +209,13 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   // automation may itself start a new send on this instance, so wait and flush until the
   // transmitter is truly idle.
   while (true) {
-    while (s_active_transmitter != nullptr) {
+    while (true) {
+      // snapshot: the final ISR can clear the volatile pointer between a check and a use
+      auto *active = s_active_transmitter;
+      if (active == nullptr)
+        break;
       if ((int32_t) (millis() - s_expected_end_ms) > 0) {
-        s_active_transmitter->abort_stalled_chain_();
+        active->abort_stalled_chain_();
         break;
       }
       App.feed_wdt();
@@ -252,6 +264,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->isr_send_wait_ = send_wait;
   this->isr_index_ = 0;
   this->isr_in_gap_ = false;
+  this->stall_aborted_ = false;
   uint64_t frame_us = 0;
   for (int32_t item : this->isr_data_)
     frame_us += uint32_t(item > 0 ? item : -item);
@@ -266,17 +279,15 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     this->enable_loop();
     return;
   }
-  bool stalled = false;
   while (this->transmitting_) {
     if ((int32_t) (millis() - s_expected_end_ms) > 0) {
       this->abort_stalled_chain_();
-      stalled = true;
       break;
     }
     App.feed_wdt();
     delay(1);
   }
-  if (!stalled)
+  if (!this->stall_aborted_)
     this->status_clear_warning();
   this->complete_pending_ = false;
   this->complete_trigger_.trigger();
@@ -293,7 +304,9 @@ void RemoteTransmitterComponent::loop() {
     if ((int32_t) (millis() - s_expected_end_ms) <= 0)
       return;
     this->abort_stalled_chain_();
-  } else {
+  } else if (!this->stall_aborted_) {
+    // only a completion that was not aborted (here or by another instance's recovery)
+    // clears the warning; stall_aborted_ resets when the next transmission is armed
     this->status_clear_warning();
   }
   this->complete_pending_ = false;
