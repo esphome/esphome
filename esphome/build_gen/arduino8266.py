@@ -631,6 +631,10 @@ _PLAIN_LINKER_FLAGS = (
     "-nostdlib",
     "-rdynamic",
 )
+# The subset whose next token is an operand; unflagging the bare flag
+# would strand the operand. Operand-less members of the list above filter
+# whole-token from both the compile and link lines, as PlatformIO allows.
+_PLAIN_LINKER_OPERAND_FLAGS = ("-u", "-e")
 _PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker")
 # Driver options, not ld options: -Wl, has no equivalent for these
 _PLAIN_DRIVER_LINK_PREFIXES = ("-fuse-ld=", "--specs=", "-specs=")
@@ -993,7 +997,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     if plain := sorted(
         u
         for u in unflags
-        if u in _PLAIN_LINKER_FLAGS or u.startswith(_PLAIN_LINKER_PREFIXES)
+        if u in _PLAIN_LINKER_OPERAND_FLAGS or u.startswith(_PLAIN_LINKER_PREFIXES)
     ):
         raise EsphomeError(
             f"build_unflags cannot remove plain linker flag(s) "
@@ -1040,7 +1044,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         f"buildtool = {_q(build_tool)}",
         f"ccache = {_q(ccache) if ccache else ''}",
         "",
-        # Rule names match SOURCE_KIND_FOR_SUFFIX values (c, cxx, asm)
+        # Rule names match SOURCE_KIND_FOR_SUFFIX values (c, cxx, asm, aspp)
         "rule c",
         "  command = $ccache $cc -MMD -MF $out.d $cflags $flags -c $in -o $out",
         "  depfile = $out.d",
@@ -1051,10 +1055,15 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = CXX $out",
-        "rule asm",
+        "rule aspp",
         "  command = $ccache $cc -MMD -MF $out.d -x assembler-with-cpp $asflags $flags -c $in -o $out",
         "  depfile = $out.d",
         "  deps = gcc",
+        "  description = AS $out",
+        # Plain assembler, as SCons's ASCOM: no preprocessor, so no
+        # depfile and no $flags (defines/includes) either
+        "rule asm",
+        "  command = $ccache $cc -x assembler $asflags -c $in -o $out",
         "  description = AS $out",
         "rule ar",
         f"  command = $python $buildtool ar {_q(toolchain_tool(paths.toolchain, 'ar'))} $out $out.rsp",
