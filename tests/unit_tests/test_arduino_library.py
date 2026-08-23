@@ -840,6 +840,7 @@ def test_bundled_library_properties_depends_warns(
     wire = framework / "libraries" / "Wire"
     (wire / "library.properties").write_text("name=Wire\nversion=1.0\ndepends=SPI\n")
     _add_library("Wire", None)
+    caplog.set_level("INFO")
     _resolve(framework)
     assert "Library Wire declares dependencies via library.properties" in caplog.text
 
