@@ -1568,7 +1568,9 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
     # short-circuits before build_path is needed.
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
-        assert _ccache_env() == {}
+        # The canonical off spelling is exported: the raw value is inherited
+        # by idf.py, where a spelling like "disable" would read as truthy
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
 def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
@@ -1598,7 +1600,7 @@ def test_ccache_env_idf_knob_parses_strictly(tmp_path: Path, value: str) -> None
     "off" disables instead of reading as truthy."""
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": value}, clear=True), p1, p2, p3:
-        assert _ccache_env() == {}
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
 def test_ccache_env_idf_knob_unrecognized_warns_and_defers(
