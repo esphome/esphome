@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -125,11 +126,14 @@ def test_print_summary_skips_when_diram_total_collapses(
 
 
 def test_print_summary_handles_missing_json(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Missing size json is non-fatal and prints nothing."""
     print_summary(tmp_path / "does_not_exist.json", partitions_csv=None)
     assert capsys.readouterr().out == ""
+    assert "Skipping size summary" in caplog.text
 
 
 def test_print_summary_handles_no_memory_types(
@@ -250,20 +254,22 @@ def test_print_summary_blanket_guard_catches_the_rest(
     assert "Skipping size summary for" in caplog.text
 
 
+@pytest.mark.parametrize("cell", ["", "1.5M", "abc"], ids=["blank", "float", "junk"])
 def test_print_summary_blank_size_cell_names_the_row(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     caplog: pytest.LogCaptureFixture,
+    cell: str,
 ) -> None:
-    """A blank size cell raises ValueError instead of parsing to 0."""
+    """An unparseable size cell raises ValueError instead of parsing to 0."""
     size_json = _write_size_json(tmp_path, _dram_size_data())
-    partitions = _write_partitions(tmp_path, "")
+    partitions = _write_partitions(tmp_path, cell)
     print_summary(size_json, partitions)
     out = capsys.readouterr().out
     assert "RAM:" in out and "Flash:" not in out
     # Pins the ValueError path: pre-diff, "" parsed to 0 and the size-0
     # warning fired instead
-    assert "blank partition size cell" in caplog.text
+    assert "Skipping Flash summary" in caplog.text
     assert "app0" in caplog.text and str(partitions) in caplog.text
 
 
@@ -286,12 +292,17 @@ def test_print_summary_missing_or_appless_partitions_stay_quiet(
     """A missing table or one without a qualifying app row is a legitimate
     layout: the Flash line drops at debug, never at warning."""
     size_json = _write_size_json(tmp_path, _dram_size_data())
-    print_summary(size_json, tmp_path / "nope.csv")
-    partitions = _write_partitions(tmp_path, "0x1000", ptype="data", subtype="spiffs")
-    print_summary(size_json, partitions)
+    with caplog.at_level(logging.DEBUG, logger="esphome.espidf.size_summary"):
+        print_summary(size_json, tmp_path / "nope.csv")
+        partitions = _write_partitions(
+            tmp_path, "0x1000", ptype="data", subtype="spiffs"
+        )
+        print_summary(size_json, partitions)
     out = capsys.readouterr().out
     assert "Flash:" not in out
-    assert "Skipping Flash summary" not in caplog.text
+    # Quiet means debug-logged, not unlogged
+    assert caplog.text.count("Skipping Flash summary: no app partition") == 2
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 def test_print_summary_corrupt_size_json_warns(

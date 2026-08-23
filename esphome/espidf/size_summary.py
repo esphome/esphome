@@ -92,7 +92,9 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Backstop for shapes the named guards below miss; warning so a
         # regression here cannot go missing indefinitely
-        _LOGGER.warning("Skipping size summary for %s: %s", size_json, e)
+        _LOGGER.warning(
+            "Skipping size summary for %s: %s: %s", size_json, type(e).__name__, e
+        )
         _LOGGER.debug("Size summary failure detail", exc_info=True)
 
 
@@ -111,19 +113,24 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         return
 
     memory_types = data.get("memory_types")
-    if not isinstance(memory_types, dict):
-        memory_types = {}
-    ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM")
-    if not isinstance(ram_region, dict):
-        ram_region = {}
-    ram_used = ram_region.get("used")
-    ram_total = ram_region.get("size")
+    ram_region = (
+        memory_types.get("DRAM") or memory_types.get("DIRAM")
+        if isinstance(memory_types, dict)
+        else None
+    )
+    ram_used = ram_region.get("used") if isinstance(ram_region, dict) else None
+    ram_total = ram_region.get("size") if isinstance(ram_region, dict) else None
     if (
         isinstance(ram_used, (int, float))
         and isinstance(ram_total, (int, float))
         and ram_total > 0
     ):
         print(f"RAM:   {_format_bar(int(ram_used), int(ram_total))}")
+    elif (memory_types is not None and not isinstance(memory_types, dict)) or (
+        ram_region is not None and not isinstance(ram_region, dict)
+    ):
+        # A structurally corrupt report, not a variant without the region
+        _LOGGER.warning("Skipping RAM summary: malformed memory_types in %s", size_json)
     else:
         _LOGGER.warning(
             "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
@@ -148,7 +155,7 @@ def _flash_line(data: dict, partitions_csv: Path | None) -> str | None:
         return None
     try:
         app_size = _find_app_partition_size(partitions_csv)
-    except (ValueError, OSError) as e:
+    except (ValueError, OSError, csv.Error) as e:
         # The table is there but broken/unreadable: visible, like size 0
         _LOGGER.warning("Skipping Flash summary: %s", e)
         return None
