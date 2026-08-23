@@ -44,6 +44,11 @@ def _parse_size(token: str) -> int:
     return int(token)
 
 
+class _MalformedPartitionRow(ValueError):
+    """A matched app row whose size cell cannot be parsed; warned, since the
+    table is present but broken."""
+
+
 def _find_app_partition_size(partitions_csv: Path) -> int:
     """Return the size of the firmware's app partition.
 
@@ -66,7 +71,7 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
             try:
                 return _parse_size(psize)
             except ValueError as err:
-                raise ValueError(
+                raise _MalformedPartitionRow(
                     f"{err} for partition {cells[0]} in {partitions_csv}"
                 ) from err
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
@@ -96,35 +101,69 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
 
 
 def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
+    # The build's own POST_BUILD step writes this file; its absence or an
+    # unexpected shape is a regression signal, so these skips warn
     if not size_json.is_file():
-        _LOGGER.debug("Skipping size summary: %s not found", size_json)
+        _LOGGER.warning("Skipping size summary: %s not found", size_json)
         return
     try:
         data = json.loads(size_json.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
-        _LOGGER.debug("Skipping size summary: %s", e)
+        _LOGGER.warning("Skipping size summary: %s", e)
         return
-
     if not isinstance(data, dict):
         # Non-object JSON has no .get
-        _LOGGER.debug("Skipping size summary: unexpected shape in %s", size_json)
+        _LOGGER.warning("Skipping size summary: unexpected shape in %s", size_json)
         return
 
-    memory_types = data.get("memory_types", {})
+    # Buffered so a late failure prints nothing instead of half a report
+    lines: list[str] = []
+    memory_types = data.get("memory_types")
+    if not isinstance(memory_types, dict):
+        memory_types = {}
     ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
+    if not isinstance(ram_region, dict):
+        ram_region = {}
     ram_used = ram_region.get("used")
     ram_total = ram_region.get("size")
-    if ram_total and ram_used is not None:
-        print(f"RAM:   {_format_bar(ram_used, ram_total)}")
+    if (
+        isinstance(ram_used, (int, float))
+        and isinstance(ram_total, (int, float))
+        and ram_total > 0
+    ):
+        lines.append(f"RAM:   {_format_bar(int(ram_used), int(ram_total))}")
+    else:
+        _LOGGER.warning(
+            "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
+        )
 
+    app_size = _resolve_app_size(data, partitions_csv)
+    if app_size is not None:
+        lines.append(f"Flash: {_format_bar(data['image_size'], app_size)}")
+    for line in lines:
+        print(line)
+
+
+def _resolve_app_size(data: dict, partitions_csv: Path | None) -> int | None:
+    """The Flash bar's denominator, or None (already logged) to skip it."""
     image_size = data.get("image_size")
-    if image_size is None or partitions_csv is None:
-        return
+    if image_size is None:
+        _LOGGER.warning("Skipping Flash summary: no image_size in the size report")
+        return None
+    if partitions_csv is None:
+        _LOGGER.debug("Skipping Flash summary: no partition table given")
+        return None
     try:
         app_size = _find_app_partition_size(partitions_csv)
-    except (ValueError, OSError) as e:
+    except (_MalformedPartitionRow, OSError) as e:
+        # The table is there but broken/unreadable: visible, like size 0
+        _LOGGER.warning("Skipping Flash summary: %s", e)
+        return None
+    except ValueError as e:
+        # Missing file or no qualifying partition: legitimate for
+        # non-app layouts, keep quiet
         _LOGGER.debug("Skipping Flash summary: %s", e)
-        return
+        return None
     if app_size <= 0:
         # Skipping also fails CI's Flash extraction, the right outcome here
         _LOGGER.warning(
@@ -132,5 +171,5 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
             app_size,
             partitions_csv,
         )
-        return
-    print(f"Flash: {_format_bar(image_size, app_size)}")
+        return None
+    return app_size

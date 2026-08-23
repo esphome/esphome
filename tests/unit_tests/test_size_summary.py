@@ -201,17 +201,42 @@ def test_print_summary_happy_path_prints_both_bars(
     ],
 )
 def test_print_summary_nested_bad_shapes_never_raise(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str], payload: dict
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+    payload: dict,
 ) -> None:
-    """The blanket guard keeps unexpected nested shapes from raising."""
+    """Bad nested shapes hit the named RAM guard, not the blanket backstop."""
     size_json = _write_size_json(tmp_path, payload)
     print_summary(size_json, None)
     # No half-formed bar for CI to scrape; every payload fails before printing
     assert capsys.readouterr().out == ""
+    assert "Skipping RAM summary" in caplog.text
+    assert "Skipping size summary for" not in caplog.text
+
+
+def test_print_summary_blanket_guard_catches_the_rest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Shapes the named guards miss (non-numeric image_size) warn via the
+    blanket backstop, and the buffered report prints nothing at all."""
+    size_json = _write_size_json(
+        tmp_path,
+        {"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": "x"},
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, 0x100000,\n")
+    print_summary(size_json, partitions)
+    assert capsys.readouterr().out == ""
+    assert "Skipping size summary for" in caplog.text
 
 
 def test_print_summary_blank_size_cell_names_the_row(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A blank size cell raises ValueError instead of parsing to 0."""
     size_json = _write_size_json(
@@ -223,3 +248,7 @@ def test_print_summary_blank_size_cell_names_the_row(
     print_summary(size_json, partitions)
     out = capsys.readouterr().out
     assert "RAM:" in out and "Flash:" not in out
+    # Pins the ValueError path: pre-diff, "" parsed to 0 and the size-0
+    # warning fired instead
+    assert "blank partition size cell" in caplog.text
+    assert "app0" in caplog.text and str(partitions) in caplog.text
