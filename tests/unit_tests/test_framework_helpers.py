@@ -1158,6 +1158,40 @@ class TestDownloadWithResume:
         assert seen == [8]
 
 
+def test_run_batch_downloads_ctrl_c_aborts_in_flight_jobs() -> None:
+    """Ctrl-C cancels in-flight downloads at their next tick instead of
+    letting non-daemon workers download to completion."""
+    import threading
+    import time
+
+    from esphome.framework_helpers import BatchDownloadProgress, run_batch_downloads
+
+    started = threading.Event()
+    ticks: list[int] = []
+
+    def interrupter(tracker) -> None:
+        started.wait(5)
+        raise KeyboardInterrupt
+
+    def slow_download(tracker) -> None:
+        started.set()
+        for i in range(500):
+            tracker(i)
+            ticks.append(i)
+            time.sleep(0.01)
+
+    t0 = time.monotonic()
+    with pytest.raises(KeyboardInterrupt):
+        run_batch_downloads(
+            BatchDownloadProgress("Downloading", 0),
+            [("boom", interrupter), ("slow", slow_download)],
+            max_workers=2,
+        )
+    # Uncancelled, slow_download alone takes ~5s
+    assert time.monotonic() - t0 < 3
+    assert len(ticks) < 500
+
+
 class TestBatchDownloadProgress:
     def test_sums_trackers_into_one_bar(self) -> None:
         with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
