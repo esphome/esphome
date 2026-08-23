@@ -15,11 +15,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import NamedTuple
 
-from esphome.build_helpers.ccache import ccache_defaults_env, resolve_ccache_path
+from esphome.build_helpers.ccache import ccache_defaults_env
 from esphome.build_helpers.ninja import find_ninja
-from esphome.build_helpers.tools_cache import tools_cache_path
+from esphome.build_helpers.tools_cache import ARDUINO8266_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
 from esphome.platformio.registry import install_package, prefetch_packages
@@ -41,7 +41,7 @@ ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS = str_to_lst_of_str(
 def get_arduino8266_tools_path() -> Path:
     # Machine-global so all projects share one install; see
     # espidf.framework.get_idf_tools_path for the location rationale.
-    return tools_cache_path("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
+    return tools_cache_path(*ARDUINO8266_TOOLS_CACHE)
 
 
 # 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0, and the
@@ -90,8 +90,8 @@ class InstalledPaths(NamedTuple):
 def check_and_install(framework_version: Version) -> InstalledPaths:
     """Ensure framework, toolchain, and ninja are installed; return their paths."""
     if framework_version < MIN_FRAMEWORK_VERSION:
-        # Config validation will enforce this once the native backend is
-        # wired in; keep the module honest when called directly.
+        # Config validation enforces this too; keep the module honest when
+        # called directly.
         raise EsphomeError(
             f"The native toolchain requires the Arduino core "
             f">= {MIN_FRAMEWORK_VERSION}, got {framework_version}"
@@ -102,48 +102,31 @@ def check_and_install(framework_version: Version) -> InstalledPaths:
     framework_path = get_framework_path(package_version)
     downloads_dir = get_arduino8266_tools_path() / "downloads"
     toolchain_path = get_toolchain_path()
+    # One spec per package: the prefetch and the installs must agree
+    specs = (
+        (
+            FRAMEWORK_PACKAGE,
+            package_version,
+            framework_path,
+            ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+            ("cores/esp8266", "tools/sdk", "libraries"),
+        ),
+        (
+            TOOLCHAIN_PACKAGE,
+            TOOLCHAIN_VERSION,
+            toolchain_path,
+            ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+            # xtensa-lx106-elf pins the target: every gcc package has a bin/
+            ("bin", "xtensa-lx106-elf"),
+        ),
+    )
     # Fetch both archives at once; the installs below verify and extract
-    prefetch_packages(
-        [
-            (
-                FRAMEWORK_PACKAGE,
-                package_version,
-                framework_path,
-                ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
-            ),
-            (
-                TOOLCHAIN_PACKAGE,
-                TOOLCHAIN_VERSION,
-                toolchain_path,
-                ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
-            ),
-        ],
-        downloads_dir,
-    )
-    install_package(
-        FRAMEWORK_PACKAGE,
-        package_version,
-        framework_path,
-        ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
-        downloads_dir,
-        expect=("cores/esp8266", "tools/sdk", "libraries"),
-    )
-    install_package(
-        TOOLCHAIN_PACKAGE,
-        TOOLCHAIN_VERSION,
-        toolchain_path,
-        ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
-        downloads_dir,
-        # xtensa-lx106-elf pins the target: every gcc package has a bin/
-        expect=("bin", "xtensa-lx106-elf"),
-    )
+    prefetch_packages([spec[:4] for spec in specs], downloads_dir)
+    for name, version, dest, mirrors, expect in specs:
+        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
     return InstalledPaths(
         framework=framework_path, toolchain=toolchain_path, ninja=ninja_path
     )
-
-
-# Sentinel: "resolve for me"; None is a real value meaning disabled.
-CCACHE_UNRESOLVED: Any = object()
 
 
 def toolchain_tool(toolchain_path: Path, name: str) -> Path:
@@ -156,9 +139,7 @@ def toolchain_tool(toolchain_path: Path, name: str) -> Path:
     return toolchain_path / "bin" / f"xtensa-lx106-elf-{name}{suffix}"
 
 
-def get_build_env(
-    toolchain_path: Path, ccache: str | None = CCACHE_UNRESOLVED
-) -> dict[str, str]:
+def get_build_env(toolchain_path: Path, ccache: str | None) -> dict[str, str]:
     env = os.environ.copy()
     # Drop empty entries: a trailing separator from an absent PATH would
     # make the shell search the current directory for tools
@@ -171,22 +152,13 @@ def get_build_env(
     return env
 
 
-def ccache_path() -> str | None:
-    """The ccache binary to prefix compiles with, or None when disabled.
-
-    Deliberately uncached: env/PATH can change between builds in a
-    long-lived host process.
-    """
-    return resolve_ccache_path()
-
-
-def ccache_env(ccache: str | None = CCACHE_UNRESOLVED) -> dict[str, str]:
+def ccache_env(ccache: str | None) -> dict[str, str]:
     """Return ccache settings for the build subprocess (not os.environ).
 
-    Values the user already set in the environment are respected.
+    ``ccache`` is the pre-resolved binary (resolve_ccache_path), or None
+    when disabled. Values the user already set in the environment are
+    respected.
     """
-    if ccache is CCACHE_UNRESOLVED:
-        ccache = ccache_path()
     if ccache is None:
         return {}
     return ccache_defaults_env(get_arduino8266_tools_path() / "ccache")
