@@ -107,7 +107,8 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     # FileNotFoundError lands in the OSError arm with the path in its text.
     try:
         data = json.loads(size_json.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
+        # ValueError covers JSONDecodeError and a non-UTF-8 (truncated) file
         _LOGGER.warning("Skipping size summary: %s", e)
         return
     if not isinstance(data, dict):
