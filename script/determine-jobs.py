@@ -52,7 +52,6 @@ import argparse
 from collections import Counter
 from collections.abc import Callable
 from enum import StrEnum
-import functools
 from functools import cache
 import json
 import os
@@ -506,13 +505,18 @@ ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = ("esphome/platformio/",)
 #   - esphome/build_gen/platformio.py -- the PlatformIO build generator
 #   - script/test_build_components.py -- the harness the job invokes
 #   - .github/workflows/ci.yml -- the job's own definition
-ESP32_PLATFORMIO_TRIGGER_FILES = frozenset(
+# Shared by every toolchain smoke-test job: the harness it invokes and the
+# workflow that defines it
+_SMOKE_HARNESS_TRIGGER_FILES = frozenset(
     {
-        "esphome/build_gen/platformio.py",
         "script/test_build_components.py",
         ".github/workflows/ci.yml",
     }
 )
+
+ESP32_PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
+    "esphome/build_gen/platformio.py",
+}
 
 
 def _path_or_file_trigger(
@@ -526,17 +530,14 @@ def _path_or_file_trigger(
     )
 
 
-@functools.lru_cache
+@cache
 def _cached_components_closure(files: tuple[str, ...]) -> frozenset[str]:
-    """The dependency closure walk is expensive; every toolchain smoke-test
-    job asks for the same file list, so compute it once per run."""
-    return frozenset(_changed_components_closure(list(files)))
+    """Dependency closure of the changed components, from the changed files.
 
-
-def _changed_components_closure(files: list[str]) -> set[str]:
-    """Dependency closure of the changed components, from the changed files."""
+    The walk is expensive and every toolchain smoke-test job asks for the
+    same file list, so compute it once per run."""
     component_files = [f for f in files if filter_component_and_test_files(f)]
-    return set(get_components_with_dependencies(component_files, True))
+    return frozenset(get_components_with_dependencies(component_files, True))
 
 
 def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
@@ -617,7 +618,7 @@ def esp32_platformio_components_to_test(branch: str | None = None) -> list[str]:
 
 def _toolchain_components_to_test(
     branch: str | None,
-    test_set: frozenset[str] | set[str],
+    test_set: frozenset[str],
     infra_trigger: Callable[[list[str]], bool],
 ) -> list[str]:
     """The shared narrowing rule for the per-toolchain smoke-test jobs."""
@@ -671,18 +672,20 @@ ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
     "esphome/arduino/",
     "esphome/build_helpers/",
 )
-ESP8266_NATIVE_TRIGGER_FILES = _NATIVE_SHARED_TRIGGER_FILES | {
-    "esphome/build_gen/arduino8266.py",
-    "esphome/build_gen/build_tool.py",
-    "esphome/components/esp8266/build_surgery.py",
-    "esphome/components/esp8266/boards.py",
-    "esphome/platformio/registry.py",
-    # esp8266/__init__.py imports copy_ccache_script from it
-    "esphome/platformio/toolchain.py",
-    "script/test_build_components.py",
-    ".github/workflows/ci.yml",
-    ".github/actions/cache-arduino8266/action.yml",
-}
+ESP8266_NATIVE_TRIGGER_FILES = (
+    _NATIVE_SHARED_TRIGGER_FILES
+    | _SMOKE_HARNESS_TRIGGER_FILES
+    | {
+        "esphome/build_gen/arduino8266.py",
+        "esphome/build_gen/build_tool.py",
+        "esphome/components/esp8266/build_surgery.py",
+        "esphome/components/esp8266/boards.py",
+        "esphome/platformio/registry.py",
+        # esp8266/__init__.py imports copy_ccache_script from it
+        "esphome/platformio/toolchain.py",
+        ".github/actions/cache-arduino8266/action.yml",
+    }
+)
 
 
 def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:

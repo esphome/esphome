@@ -188,10 +188,6 @@ jobs:
     # toolchain and discard it.
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
     timeout-minutes: 15
-    env:
-      # The composite action and the install below agree on this path by
-      # construction, not by matching the Python-side default
-      ESPHOME_ARDUINO8266_PREFIX: ~/.esphome-arduino8266
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1169,7 +1165,6 @@ jobs:
     env:
       # Computed by script/determine-jobs.py (ESP8266_NATIVE_TEST_COMPONENTS)
       TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp8266-native-components }}
-      ESPHOME_ARDUINO8266_PREFIX: ~/.esphome-arduino8266
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

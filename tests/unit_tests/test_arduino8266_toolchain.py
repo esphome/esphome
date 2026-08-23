@@ -147,8 +147,6 @@ def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
 def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
     """An interrupted run can leave build.ninja newer than the compile DB;
     mere existence must not skip regeneration."""
-    import os
-
     build_dir = toolchain.get_build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
     (build_dir / "build.ninja").write_text("")
@@ -246,7 +244,7 @@ def test_run_compile_warns_when_idedata_fails(
         patch.object(toolchain, "get_idedata", return_value=None),
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
-    assert "Could not generate idedata" in caplog.text
+    assert "No idedata was generated for this build" in caplog.text
 
 
 def test_write_compile_commands(tmp_path: Path) -> None:
@@ -422,6 +420,8 @@ def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
     """An unchanged build.ninja means the compile DB is already current."""
     build_dir = toolchain.get_build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
+    # write_project (stubbed below) always leaves a build.ninja behind
+    (build_dir / "build.ninja").write_text("# manifest")
 
     def run(regenerate_expected: bool) -> None:
         with (

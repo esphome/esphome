@@ -101,9 +101,7 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     if (
         ninja_changed
         or not compdb.is_file()
-        or (
-            ninja_file.is_file() and compdb.stat().st_mtime < ninja_file.stat().st_mtime
-        )
+        or compdb.stat().st_mtime < ninja_file.stat().st_mtime
     ):
         _write_compile_commands(paths.ninja, build_dir, env)
 
@@ -149,9 +147,9 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     # the factory/ota copies are what upload and OTA actually consume
     build_dir_artifacts = (
         get_elf_path(),
-        get_build_dir() / "firmware.bin",
+        build_dir / "firmware.bin",
         get_factory_firmware_path(),
-        get_build_dir() / "firmware.ota.bin",
+        build_dir / "firmware.ota.bin",
     )
     for artifact in build_dir_artifacts:
         if not artifact.is_file():
@@ -162,31 +160,16 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         # The cause was already warned; name the consequence so a build
         # contributing no RAM/Flash metric is visible to CI harnesses
         _LOGGER.warning("Firmware size summary unavailable for this build")
-    from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+    from esphome.build_helpers.idedata import warn_if_idedata_missing
 
-    try:
-        idedata = get_idedata(ccache)
-    except IDEDATA_BEST_EFFORT_ERRORS as err:
-        # Broad on purpose: idedata is a bonus artifact; nothing here may
-        # fail a successful build.
-        _LOGGER.warning(
-            "Could not generate idedata: %s (IDE, clang-tidy, and "
-            "memory-analysis data will be unavailable for this build)",
-            err,
-        )
-        _LOGGER.debug("Idedata failure detail", exc_info=True)
-    else:
-        if idedata is None:
-            _LOGGER.warning(
-                "Could not generate idedata from %s",
-                build_dir / "compile_commands.json",
-            )
+    warn_if_idedata_missing(lambda: get_idedata(ccache))
     return 0
 
 
 def _write_compile_commands(
     ninja_path: Path, build_dir: Path, env: dict[str, str]
 ) -> None:
+    compdb = build_dir / "compile_commands.json"
     result = subprocess.run(
         [str(ninja_path), "-C", str(build_dir), "-t", "compdb", "c", "cxx", "asm"],
         env=env,
@@ -198,12 +181,12 @@ def _write_compile_commands(
     if result.returncode != 0:
         # Drop any stale database so consumers (IDE integration, clang-tidy,
         # the memory analyzer) can't silently read outdated data.
-        (build_dir / "compile_commands.json").unlink(missing_ok=True)
+        compdb.unlink(missing_ok=True)
         raise EsphomeError(f"Could not generate compile_commands.json: {result.stderr}")
     try:
         entries = json.loads(result.stdout)
     except ValueError as err:
-        (build_dir / "compile_commands.json").unlink(missing_ok=True)
+        compdb.unlink(missing_ok=True)
         raise EsphomeError(
             f"ninja produced an unparsable compile database: {err} "
             f"(output starts {result.stdout[:120]!r})"
@@ -211,14 +194,14 @@ def _write_compile_commands(
     if not entries:
         # compdb exits 0 with [] for unknown rule names; a renamed compile
         # rule must fail the build, not silently strand every consumer
-        (build_dir / "compile_commands.json").unlink(missing_ok=True)
+        compdb.unlink(missing_ok=True)
         raise EsphomeError(
             "ninja produced an empty compile database; the generator's rule "
             "names no longer match"
         )
     # write_file_if_changed keeps the mtime stable on no-op builds so the
     # idedata cache in get_idedata() stays valid.
-    write_file_if_changed(build_dir / "compile_commands.json", result.stdout)
+    write_file_if_changed(compdb, result.stdout)
 
 
 def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | None:

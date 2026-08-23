@@ -11,6 +11,7 @@ consumers (IDE integration, clang-tidy) expect:
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import logging
 import os
@@ -30,6 +31,25 @@ IDEDATA_BEST_EFFORT_ERRORS = (
     RuntimeError,
     ValueError,
 )
+
+
+def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
+    """Run an idedata generator, downgrading any failure to a warning.
+
+    Shared by the native backends: the firmware already built, so a missing
+    or broken idedata must not fail a successful build.
+    """
+    try:
+        if get_idedata() is None:
+            _LOGGER.warning("No idedata was generated for this build")
+    except IDEDATA_BEST_EFFORT_ERRORS as err:
+        _LOGGER.warning(
+            "Could not generate idedata: %s (IDE, clang-tidy, and "
+            "memory-analysis data will be unavailable for this build)",
+            err,
+        )
+        _LOGGER.debug("Idedata failure detail", exc_info=True)
+
 
 _LOGGER = logging.getLogger(__name__)
 

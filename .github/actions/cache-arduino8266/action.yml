@@ -2,10 +2,11 @@ name: Cache Arduino ESP8266
 description: >
   Resolve the pinned Arduino core and xtensa toolchain versions and cache the
   native ESP8266 install (~110 MB framework + toolchain; no ccache store, the
-  seed job saves before any compile runs). Callers must set env
-  ESPHOME_ARDUINO8266_PREFIX: ~/.esphome-arduino8266 and have the Python venv
-  already restored. Mirrors cache-esp-idf: only dev-branch pushes write the
-  shared cache, everything else restores.
+  seed job saves before any compile runs). Exports
+  ESPHOME_ARDUINO8266_PREFIX to the job so every later step installs into
+  the cached path; the Python venv must already be restored. Mirrors
+  cache-esp-idf: only dev-branch pushes write the shared cache, everything
+  else restores.
 runs:
   using: composite
   steps:
@@ -16,14 +17,10 @@ runs:
       id: version
       shell: bash
       run: |
-        # The caller's install prefix must match the cached path below, or
-        # the cache silently stores/restores an empty directory. Compare
-        # tilde-expanded: the job env carries a literal ~ that Python's
-        # expanduser and actions/cache both resolve.
-        [ "${ESPHOME_ARDUINO8266_PREFIX/#\~/$HOME}" = "$HOME/.esphome-arduino8266" ] || {
-          echo "ESPHOME_ARDUINO8266_PREFIX is '$ESPHOME_ARDUINO8266_PREFIX', expected '$HOME/.esphome-arduino8266'" >&2
-          exit 1
-        }
+        # One owner for the install prefix: exporting it here (instead of a
+        # per-job env stanza) makes it impossible for a caller to install
+        # into a path other than the one cached below.
+        echo "ESPHOME_ARDUINO8266_PREFIX=$HOME/.esphome-arduino8266" >> "$GITHUB_ENV"
         . venv/bin/activate
         key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
         [ -n "$key" ] || exit 1

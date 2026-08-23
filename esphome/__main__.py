@@ -48,6 +48,7 @@ from esphome.const import (
     ENV_NOGITIGNORE,
     KEY_ESP32,
     KEY_VARIANT,
+    NATIVE_TOOLCHAINS,
     SECRETS_FILES,
     Toolchain,
 )
@@ -815,11 +816,9 @@ def write_cpp_file() -> int:
         from esphome.build_gen import espidf
 
         espidf.write_project()
-    elif CORE.using_native_toolchain:
-        # Native builds generate their project at compile time; never write
-        # a platformio.ini
-        pass
-    else:
+    elif not CORE.using_native_toolchain:
+        # Other native builds generate their project at compile time;
+        # never write a platformio.ini for them
         from esphome.build_gen import platformio
 
         platformio.write_project()
@@ -861,20 +860,9 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+        from esphome.build_helpers.idedata import warn_if_idedata_missing
 
-        try:
-            if toolchain.get_idedata() is None:
-                _LOGGER.warning("No idedata was generated for this build")
-        except IDEDATA_BEST_EFFORT_ERRORS as err:
-            # The firmware already built; an idedata failure must not fail
-            # a successful build.
-            _LOGGER.warning(
-                "Could not generate idedata: %s (IDE, clang-tidy, and "
-                "memory-analysis data will be unavailable for this build)",
-                err,
-            )
-            _LOGGER.debug("Idedata failure detail", exc_info=True)
+        warn_if_idedata_missing(toolchain.get_idedata)
     elif CORE.using_native_toolchain:
         raise EsphomeError(
             f"Toolchain '{CORE.toolchain.value}' resolved but no platform "
@@ -1936,25 +1924,28 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     return run_multiple_configs(files, build_command)
 
 
-# Native build backend per toolchain; keep in sync with NATIVE_TOOLCHAINS
-# in esphome.const. Keyed by toolchain rather than a platform hook so the
-# serial upload/logs fast path never imports the platform component package
-# (see the esp32 variant comment in upload_using_esptool).
+# Native build backend per (target platform, toolchain). Keyed here rather
+# than through a platform hook so the serial upload/logs fast path never
+# imports the platform component package (see the esp32 variant comment in
+# upload_using_esptool); the platform half comes from CORE.data the same way.
 _NATIVE_TOOLCHAIN_MODULES = {
-    Toolchain.ESP_IDF: "esphome.espidf.toolchain",
-    Toolchain.ARDUINO: "esphome.arduino8266.toolchain",
+    ("esp32", Toolchain.ESP_IDF): "esphome.espidf.toolchain",
+    ("esp8266", Toolchain.ARDUINO): "esphome.arduino8266.toolchain",
 }
+# Structure over prose: a native toolchain the table does not serve is a bug
+assert {tc for _, tc in _NATIVE_TOOLCHAIN_MODULES} == set(NATIVE_TOOLCHAINS)
 
 
 def _native_toolchain_module():
     """The native build backend module for the resolved toolchain."""
     if not CORE.using_native_toolchain:
         return None
-    if (module_path := _NATIVE_TOOLCHAIN_MODULES.get(CORE.toolchain)) is None:
-        # A native toolchain missing from the table is a bug; degrading to
-        # the PlatformIO path would build with the wrong backend
+    key = (CORE.target_platform, CORE.toolchain)
+    if (module_path := _NATIVE_TOOLCHAIN_MODULES.get(key)) is None:
+        # Degrading to the PlatformIO path would build with the wrong backend
         raise EsphomeError(
-            f"Toolchain '{CORE.toolchain.value}' has no native build backend module"
+            f"Toolchain '{CORE.toolchain.value}' has no native build backend "
+            f"module for platform {CORE.target_platform}"
         )
     return importlib.import_module(module_path)
 
@@ -2028,10 +2019,9 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     # Get idedata for analysis
     idedata = None
     if native_toolchain is not None:
-        for tool in (
-            native_toolchain.get_objdump_path(),
-            native_toolchain.get_readelf_path(),
-        ):
+        objdump = native_toolchain.get_objdump_path()
+        readelf = native_toolchain.get_readelf_path()
+        for tool in (objdump, readelf):
             if not tool.is_file():
                 # The analyzer would silently fall back to host binutils,
                 # which cannot read the target ELF. clean-all is heavy for
@@ -2042,8 +2032,8 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
                     tool,
                 )
                 return 1
-        objdump_path = str(native_toolchain.get_objdump_path())
-        readelf_path = str(native_toolchain.get_readelf_path())
+        objdump_path = str(objdump)
+        readelf_path = str(readelf)
 
         firmware_elf = native_toolchain.get_elf_path()
         if not firmware_elf.is_file():

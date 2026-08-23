@@ -3111,33 +3111,36 @@ def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
         assert find_elf_path(build_path) == elf, f"{platform} ELF not found"
 
 
-def test_esp8266_native_components_full_list_on_infra_change() -> None:
-    """Native-ESP8266 infrastructure changes run the full test list."""
-    for changed in (
-        ["esphome/arduino8266/framework.py"],
-        ["esphome/build_gen/arduino8266.py"],
-        ["esphome/components/esp8266/build_surgery.py"],
+@pytest.mark.parametrize(
+    "changed",
+    [
+        "esphome/arduino8266/framework.py",
+        "esphome/build_gen/arduino8266.py",
+        "esphome/components/esp8266/build_surgery.py",
         # Shared modules the native build depends on
-        ["esphome/build_helpers/idedata.py"],
-        ["esphome/platformio/library.py"],
+        "esphome/build_helpers/idedata.py",
+        "esphome/platformio/library.py",
         # Top-level esphome/*.py modules the backend imports directly
-        ["esphome/framework_helpers.py"],
-        ["esphome/writer.py"],
+        "esphome/framework_helpers.py",
+        "esphome/writer.py",
         # esp8266/__init__.py imports copy_ccache_script from it
-        ["esphome/platformio/toolchain.py"],
+        "esphome/platformio/toolchain.py",
         # The composite cache action must not ship unexercised
-        [".github/actions/cache-arduino8266/action.yml"],
+        ".github/actions/cache-arduino8266/action.yml",
+    ],
+)
+def test_esp8266_native_components_full_list_on_infra_change(changed: str) -> None:
+    """Native-ESP8266 infrastructure changes run the full test list."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=[changed]),
+        patch.object(
+            determine_jobs,
+            "get_components_with_dependencies",
+            return_value=["wifi"],
+        ),
     ):
-        with (
-            patch.object(determine_jobs, "changed_files", return_value=changed),
-            patch.object(
-                determine_jobs,
-                "get_components_with_dependencies",
-                return_value=["wifi"],
-            ),
-        ):
-            result = determine_jobs.esp8266_native_components_to_test()
-            assert result == sorted(determine_jobs.ESP8266_NATIVE_TEST_COMPONENTS)
+        result = determine_jobs.esp8266_native_components_to_test()
+        assert result == sorted(determine_jobs.ESP8266_NATIVE_TEST_COMPONENTS)
 
 
 @pytest.mark.parametrize(
