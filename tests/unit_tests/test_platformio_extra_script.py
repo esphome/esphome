@@ -169,6 +169,22 @@ def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
     assert c.data["build"]["flags"] == ["-DBASE=1", "-lesp8266"]
 
 
+def test_apply_extra_script_subscript_env_read(tmp_path) -> None:
+    """Scripts also read env["BOARD_MCU"]; the subscript form must work or
+    the broad handler discards every flag the script captured."""
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text("env.Append(LIBS=[env['BOARD_MCU']])\n")
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+
+    apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
+
+    assert c.data["build"]["flags"] == ["-lesp8266"]
+
+
 def test_apply_extra_script_no_script_and_no_flags(tmp_path) -> None:
 
     # No extraScript declared: nothing happens, the target is never resolved
