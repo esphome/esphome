@@ -343,7 +343,8 @@ def copy_src_tree():
             ):
                 # Non-object JSON is stale like every other damage case
                 sources_changed = True
-        except (json.JSONDecodeError, OSError):
+        except (ValueError, OSError):
+            # ValueError covers both JSONDecodeError and UnicodeDecodeError
             sources_changed = True
 
     # Write build_info header and JSON metadata
