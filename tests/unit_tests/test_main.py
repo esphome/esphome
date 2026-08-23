@@ -11,6 +11,7 @@ from pathlib import Path
 import re
 import sys
 import time
+from types import SimpleNamespace
 from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -18,7 +19,7 @@ import pytest
 from pytest import CaptureFixture
 from zeroconf import ServiceStateChange
 
-from esphome import __main__ as main
+from esphome import __main__ as main, yaml_util
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
@@ -29,6 +30,7 @@ from esphome.__main__ import (
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
+    _wrap_to_code,
     check_permissions,
     choose_upload_log_host,
     command_analyze_memory,
@@ -116,6 +118,7 @@ from esphome.espota2 import (
     OTA_TYPE_UPDATE_PARTITION_TABLE,
 )
 from esphome.platformio import toolchain
+from esphome.types import ConfigType
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -7130,3 +7133,28 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
 
     # Same tree, so the path comparison still finds them equal and stays silent
     assert not caplog.text
+
+
+@pytest.mark.asyncio
+async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
+    """The config comment dumps with sorted keys: voluptuous fills schema
+    defaults in set-iteration order, so an unsorted dump would churn
+    main.cpp and relink the firmware on every run."""
+    comments: list[str] = []
+
+    async def to_code(conf: ConfigType) -> None:
+        """Accept any config; only the wrapper's comment output matters."""
+
+    comp = SimpleNamespace(to_code=to_code, config_schema=object())
+    wrapped = _wrap_to_code("demo", comp, yaml_util)
+    with patch("esphome.codegen.add", side_effect=lambda st: comments.append(str(st))):
+        # Nested on purpose: the real churn lives in nested action configs,
+        # so sorting must apply at every mapping level
+        await wrapped({"beta": 1, "alpha": {"z": 1, "a": 2}})
+        first = "\n".join(comments)
+        comments.clear()
+        await wrapped({"alpha": {"a": 2, "z": 1}, "beta": 1})
+    second = "\n".join(comments)
+    assert first == second
+    assert second.index("alpha") < second.index("beta")
+    assert second.index("a: 2") < second.index("z: 1")
