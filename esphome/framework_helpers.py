@@ -1333,7 +1333,14 @@ def download_from_mirrors(
                 sweep + 1,
                 _MIRROR_SWEEP_ATTEMPTS,
             )
-            _cancellable_sleep(delay, progress, 0)
+            # Tick with the bytes already on disk so a combined bar holds
+            # steady during the backoff instead of rewinding to zero
+            if f is not None:
+                done = f.tell()
+            else:
+                part = path_target.with_name(path_target.name + ".part")
+                done = part.stat().st_size if part.is_file() else 0
+            _cancellable_sleep(delay, progress, done)
 
     # 4. Report every attempted URL if all mirrors failed. failures spans
     # all sweeps (deduplicated by URL and reason), so neither an early
