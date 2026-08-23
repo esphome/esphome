@@ -1,0 +1,74 @@
+sensor:
+  - platform: as734x
+    type: AS7343
+    i2c_id: i2c_bus
+    update_interval: 15s
+    gain: X512
+    atime: 120
+    astep: 99
+    normalize_basic_counts: clear
+    saturation_level: Saturation level
+    illuminance: Illuminance
+    irradiance_photopic: Irradiance photopic
+    irradiance_par: Irradiance PAR
+    ppfd: PPFD
+    color_temperature: CCT
+    rgb_hex: RGB hex
+    calibration:
+      glass_attenuation_factor: 1.2
+      dark_current: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      channel_correction: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    counts:
+      f1:
+        name: F1
+      f2:
+        name: F2
+      fz:
+        name: FZ
+      f3:
+        name: F3
+      f4:
+        name: F4
+      fy:
+        name: FY
+      f5:
+        name: F5
+      fxl:
+        name: FXL
+      f6:
+        name: F6
+      f7:
+        name: F7
+      f8:
+        name: F8
+      nir:
+        name: NIR
+      clear:
+        name: CLEAR
+    basic_counts:
+      f1:
+        name: BC F1
+      f2:
+        name: BC F2
+      fz:
+        name: BC FZ
+      f3:
+        name: BC F3
+      f4:
+        name: BC F4
+      fy:
+        name: BC FY
+      f5:
+        name: BC F5
+      fxl:
+        name: BC FXL
+      f6:
+        name: BC F6
+      f7:
+        name: BC F7
+      f8:
+        name: BC F8
+      nir:
+        name: BC NIR
+      clear:
+        name: BC CLEAR
