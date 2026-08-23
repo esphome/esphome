@@ -16,7 +16,7 @@ from esphome.build_helpers.ccache import (
     parse_enable_env,
     resolve_ccache_path,
 )
-from esphome.build_helpers.tools_cache import tools_cache_path
+from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
     BatchDownloadProgress,
@@ -97,7 +97,7 @@ def get_idf_tools_path() -> Path:
     # Machine-global so all projects share the multi-GB install instead of
     # a per-config-directory copy; see build_helpers.tools_cache.tools_cache_path
     # for the env-override and normalization rules.
-    return tools_cache_path("ESPHOME_ESP_IDF_PREFIX", "idf")
+    return tools_cache_path(*IDF_TOOLS_CACHE)
 
 
 # Windows' default MAX_PATH is 260 characters. ESP-IDF toolchains nest deeply
