@@ -618,9 +618,6 @@ class ModbusClientDevice {
   inline void clear_tx_queue_for_address() { this->parent_->clear_tx_queue_for_address(this->address_); }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
-  // If more than one device is connected block sending a new command before a response is received
-  ESPDEPRECATED("Use ready_for_immediate_send() instead. Removed in 2026.9.0", "2026.3.0")
-  bool waiting_for_response() { return !this->ready_for_immediate_send(); }
   bool ready_for_immediate_send() { return this->parent_->tx_buffer_empty() && !this->parent_->tx_blocked(); }
 
  protected:
