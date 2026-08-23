@@ -574,11 +574,101 @@ def test_load_or_build_idedata_never_caches_a_launcher(tmp_path: Path) -> None:
     assert not cache.exists()
 
 
+@pytest.mark.parametrize(
+    "cached",
+    (
+        {"cc_path": "/x/gcc", "cxx_path": "/opt/homebrew/bin/ccache"},
+        {"cc_path": "/x/gcc", "cxx_path": "/tools/g++"},
+        {"cc_path": "/x/gcc", "cxx_path": "/tools/g++", "includes": {}},
+    ),
+    ids=("launcher-cxx", "no-includes", "no-build-list"),
+)
+def test_load_or_build_idedata_regenerates_invalid_cache(
+    tmp_path: Path, cached: dict
+) -> None:
+    """A cache written by an older version fails validation and regenerates."""
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "c.json"
+    cache.write_text(json.dumps(cached))
+    os.utime(cache, (compile_commands.stat().st_mtime + 5,) * 2)
+    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+        data = idedata.load_or_build_idedata(
+            compile_commands, tmp_path / "f.elf", cache
+        )
+    assert data["cxx_path"] == "/tools/g++"
+    assert "includes" in data
+
+
+def test_load_or_build_idedata_cache_hit_restamps_prog_path(tmp_path: Path) -> None:
+    """A served cache carries the current ELF path, not the one it was written with."""
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "c.json"
+    cache.write_text(
+        json.dumps(
+            {
+                "cc_path": "/tools/gcc",
+                "cxx_path": "/tools/g++",
+                "includes": {"build": [], "toolchain": []},
+                "prog_path": "/old/location/firmware.elf",
+            }
+        )
+    )
+    os.utime(cache, (compile_commands.stat().st_mtime + 5,) * 2)
+    data = idedata.load_or_build_idedata(
+        compile_commands, tmp_path / "firmware.elf", cache
+    )
+    assert data["prog_path"] == str(tmp_path / "firmware.elf")
+
+
+def test_idedata_from_build_non_list_compile_db_raises(tmp_path: Path) -> None:
+    """Valid JSON that is not a list raises by name, inside the best-effort tuple."""
+    compile_commands = tmp_path / "compile_commands.json"
+    for bad in ("{}", "null", '"text"'):
+        compile_commands.write_text(bad)
+        with pytest.raises(EsphomeError, match="not a compile-command list"):
+            idedata.idedata_from_build(compile_commands)
+
+
+def test_idedata_from_build_same_file_rsp_commands_never_dedupe(
+    tmp_path: Path,
+) -> None:
+    """Two objects built from one source with different .rsp files keep both
+    include sets; the rsp sentinel keys on the output, not the source."""
+    file = f"{ABS}build/src/esphome/core/shared.cpp"
+    entries = []
+    for name in ("a", "b"):
+        rsp = tmp_path / f"{name}.o.rsp"
+        rsp.write_text(f"-I{ABS}inc/{name}")
+        entries.append(
+            {
+                "directory": str(tmp_path),
+                "file": file,
+                "command": f"/tools/g++ @{rsp.name} -c {file} -o {name}.o",
+                "output": f"{name}.o",
+            }
+        )
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(json.dumps(entries))
+    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+        data = idedata.idedata_from_build(compile_commands)
+    joined = " ".join(data["includes"]["build"])
+    assert "inc/a" in joined and "inc/b" in joined
+
+
 def test_load_or_build_idedata_cache_hit_skips_rebuild(tmp_path: Path) -> None:
     """A valid cache newer than the compile DB is served without re-parsing."""
     compile_commands = _write_compile_commands(tmp_path)
     cache = tmp_path / "c.json"
-    cache.write_text(json.dumps({"cc_path": "/tools/gcc", "cached": True}))
+    cache.write_text(
+        json.dumps(
+            {
+                "cc_path": "/tools/gcc",
+                "cxx_path": "/tools/g++",
+                "includes": {"build": ["/inc"], "toolchain": []},
+                "cached": True,
+            }
+        )
+    )
     os.utime(cache, (compile_commands.stat().st_mtime + 5,) * 2)
     with patch.object(idedata, "idedata_from_build") as mock_build:
         data = idedata.load_or_build_idedata(
