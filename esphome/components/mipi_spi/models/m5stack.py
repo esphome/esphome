@@ -12,7 +12,7 @@ from esphome.components.mipi import (
     DriverChip,
 )
 
-from .ili import ILI9341, ST7789V
+from .ili import ILI9341, ST7735, ST7789V
 
 # fmt: off
 DriverChip(
