@@ -337,6 +337,14 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
         for inc in parse_entry(entry, launcher)[2]:
             build_includes.setdefault(inc, None)
 
+    if not build_includes:
+        # No ESPHome translation unit contributed includes: idedata with an
+        # empty build include set breaks clang-tidy/IDE consumers silently
+        _LOGGER.warning(
+            "No ESPHome source includes found in %s; idedata will be incomplete",
+            compile_commands,
+        )
+
     return {
         "cc_path": _cc_path_from_cxx(cxx_path),
         "cxx_path": cxx_path,
