@@ -17,6 +17,7 @@ import shlex
 from typing import TYPE_CHECKING, Any
 
 from esphome.core import EsphomeError
+from esphome.platformio.library import ESPHOME_DATA_KEY, ESPHOME_DATA_LINK_FLAGS_KEY
 
 if TYPE_CHECKING:
     from esphome.platformio.library import ConvertedLibrary
@@ -63,6 +64,11 @@ def apply_extra_script(
         board_mcu=board_mcu(),
         pio_platform=pio_platform,
     )
+    if link_flags := _str_entries(result.linkflags, "LINKFLAGS"):
+        # Kept apart from build.flags: the CMake emitters route those to
+        # target_compile_options, where a link flag is silently ineffective
+        esphome_data = component.data.setdefault(ESPHOME_DATA_KEY, {})
+        esphome_data.setdefault(ESPHOME_DATA_LINK_FLAGS_KEY, []).extend(link_flags)
     extra_flags = captured_as_build_flags(result, library_dir=source_path)
     if not extra_flags:
         return
@@ -148,6 +154,12 @@ class _FakeSConsEnv:
         return self._vars.get(key, "")
 
     def Append(self, **kwargs) -> None:  # noqa: N802 (SCons API name)
+        self._add(kwargs, prepend=False)
+
+    def Prepend(self, **kwargs) -> None:  # noqa: N802 (SCons API name)
+        self._add(kwargs, prepend=True)
+
+    def _add(self, kwargs: dict[str, Any], *, prepend: bool) -> None:
         for key, value in kwargs.items():
             if key not in _CAPTURED_KEYS:
                 # Warn once per key so a loop of Appends cannot spam
@@ -163,13 +175,16 @@ class _FakeSConsEnv:
             else:
                 items = list(value) if isinstance(value, (list, tuple)) else [value]
             bucket = getattr(self.result, key.lower())
-            bucket.extend(items)
+            if prepend:
+                # SCons order: new values ahead of what is already there
+                # (scripts prepend LIBS for static-link symbol resolution)
+                bucket[:0] = items
+            else:
+                bucket.extend(items)
 
-    # Same keys, same flattened capture; ordering/dedup don't matter since
-    # the consumer re-orders anyway
-    Prepend = Append
+    # Dedup is not modelled; a repeated flag is harmless on the command line
     AppendUnique = Append
-    PrependUnique = Append
+    PrependUnique = Prepend
 
     # ----- Everything else is a no-op so unsupported scripts don't crash -----
 
@@ -263,22 +278,22 @@ def run_extra_script(
     return env.result
 
 
+def _str_entries(bucket: list, kind: str) -> list[str]:
+    # Third-party scripts legally append SCons nodes, ints, or dicts;
+    # stringifying those into flags would hand the compiler garbage
+    good = [entry for entry in bucket if isinstance(entry, str)]
+    for entry in bucket:
+        if not isinstance(entry, str):
+            _LOGGER.warning("Ignoring unsupported %s entry %r", kind, entry)
+    return good
+
+
 def captured_as_build_flags(
     result: ExtraScriptResult, *, library_dir: Path
 ) -> list[str]:
     """Translate captured env vars into -L/-l/-D/raw build flags; path
     entries anchor to ``library_dir`` so the build files stay portable."""
     flags: list[str] = []
-
-    def _strs(bucket: list, kind: str) -> list[str]:
-        # Third-party scripts legally append SCons nodes, ints, or dicts;
-        # stringifying those into flags would hand the compiler garbage
-        good = [entry for entry in bucket if isinstance(entry, str)]
-        for entry in bucket:
-            if not isinstance(entry, str):
-                _LOGGER.warning("Ignoring unsupported %s entry %r", kind, entry)
-        return good
-
     library_root = library_dir.resolve()
 
     def _anchored(path: str) -> str:
@@ -292,12 +307,14 @@ def captured_as_build_flags(
 
     # shlex.quote so a spaced path survives lex_build_flags as one token
     flags.extend(
-        f"-I{shlex.quote(_anchored(path))}" for path in _strs(result.cpppath, "CPPPATH")
+        f"-I{shlex.quote(_anchored(path))}"
+        for path in _str_entries(result.cpppath, "CPPPATH")
     )
     flags.extend(
-        f"-L{shlex.quote(_anchored(path))}" for path in _strs(result.libpath, "LIBPATH")
+        f"-L{shlex.quote(_anchored(path))}"
+        for path in _str_entries(result.libpath, "LIBPATH")
     )
-    flags.extend(f"-l{shlex.quote(lib)}" for lib in _strs(result.libs, "LIBS"))
+    flags.extend(f"-l{shlex.quote(lib)}" for lib in _str_entries(result.libs, "LIBS"))
     for define in result.cppdefines:
         # SCons also accepts nested containers; formatting those blind
         # would hand the compiler garbage like -D{'FOO': '1'}
@@ -317,7 +334,8 @@ def captured_as_build_flags(
         else:
             _LOGGER.warning("Ignoring unsupported CPPDEFINES entry %r", define)
     # Each captured entry is one argv token in SCons; quote so the
-    # lex_build_flags round-trip cannot split a spaced value into two
-    flags.extend(shlex.quote(f) for f in _strs(result.linkflags, "LINKFLAGS"))
-    flags.extend(shlex.quote(f) for f in _strs(result.cppflags, "CPPFLAGS"))
+    # lex_build_flags round-trip cannot split a spaced value into two.
+    # LINKFLAGS are deliberately absent: they travel via
+    # ESPHOME_DATA_LINK_FLAGS_KEY straight to the link line.
+    flags.extend(shlex.quote(f) for f in _str_entries(result.cppflags, "CPPFLAGS"))
     return flags
