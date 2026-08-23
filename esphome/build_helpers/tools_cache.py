@@ -20,3 +20,13 @@ def tools_cache_path(env_var: str, subdir: str) -> Path:
     return (
         Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / subdir
     ).resolve()
+
+
+# (env override, cache subdir) per native backend. writer.clean_all wipes
+# every entry via tools_cache_path, so listing a cache here is the single
+# step that registers it for removal; the backends' own path getters use
+# the same named pairs so the two cannot drift.
+IDF_TOOLS_CACHE = ("ESPHOME_ESP_IDF_PREFIX", "idf")
+SDK_NRF_TOOLS_CACHE = ("ESPHOME_SDK_NRF_PREFIX", "sdk-nrf")
+ARDUINO8266_TOOLS_CACHE = ("ESPHOME_ARDUINO8266_PREFIX", "arduino8266")
+TOOLS_CACHE_SPECS = (IDF_TOOLS_CACHE, SDK_NRF_TOOLS_CACHE, ARDUINO8266_TOOLS_CACHE)
