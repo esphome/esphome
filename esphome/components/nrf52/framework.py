@@ -7,7 +7,7 @@ import shutil
 import sys
 import tempfile
 
-from esphome.build_helpers.tools_cache import tools_cache_path
+from esphome.build_helpers.tools_cache import SDK_NRF_TOOLS_CACHE, tools_cache_path
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
@@ -51,7 +51,7 @@ SDK_NG_MINIMAL_MIRRORS = str_to_lst_of_str(
 def get_sdk_nrf_tools_path() -> Path:
     # Machine-global (OS user cache dir) so all projects share one install;
     # see espidf.framework.get_idf_tools_path for the location rationale.
-    return tools_cache_path("ESPHOME_SDK_NRF_PREFIX", "sdk-nrf")
+    return tools_cache_path(*SDK_NRF_TOOLS_CACHE)
 
 
 def _needs_venv_rebuild(

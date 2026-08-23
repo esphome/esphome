@@ -861,18 +861,14 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
+        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+
         try:
             if toolchain.get_idedata() is None:
                 _LOGGER.warning("No idedata was generated for this build")
-        except (
-            EsphomeError,
-            LookupError,
-            OSError,
-            RuntimeError,
-            ValueError,
-        ) as err:
-            # Broad on purpose: the firmware already built; an idedata
-            # failure must not fail a successful build.
+        except IDEDATA_BEST_EFFORT_ERRORS as err:
+            # The firmware already built; an idedata failure must not fail
+            # a successful build.
             _LOGGER.warning("Could not generate idedata: %s", err)
             _LOGGER.debug("Idedata failure detail", exc_info=True)
     elif CORE.using_native_toolchain:
