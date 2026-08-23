@@ -161,6 +161,10 @@ def parse_entry(
             raw = os.path.normpath(directory / raw)
         return raw.replace("\\", "/")
 
+    if not tokens:
+        # _split_command("") is [] by design; fail like _pick_entry does
+        # instead of an IndexError traceback
+        raise ValueError(f"empty compile command for {entry.get('file')}")
     # A launcher-wrapped command ("ccache g++ ...") names the compiler second
     if launcher is not None and tokens[0] == launcher:
         tokens = tokens[1:]
@@ -290,6 +294,19 @@ def load_or_build_idedata(
     return data
 
 
+def reject_launcher_compiler(cxx_path: str) -> None:
+    """Reject a compile DB that names a launcher (ccache) as the compiler.
+
+    Reject before the toolchain probe, which would fail opaquely on a
+    launcher; the unusable compile DB must never be cached or consumed.
+    """
+    if _is_launcher(cxx_path):
+        raise EsphomeError(
+            f"compile_commands.json names the launcher {cxx_path} as the "
+            "compiler; the compile database is unusable"
+        )
+
+
 def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> dict:
     """Parse compile_commands.json into the idedata fields consumers expect.
 
@@ -304,17 +321,12 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
 
     representative = _pick_entry(entries)
     cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
-    if _is_launcher(cxx_path):
-        # Reject before the toolchain probe, which would fail opaquely on
-        # a launcher; never cache the unusable compile DB
-        raise EsphomeError(
-            f"compile_commands.json names the launcher {cxx_path} as the "
-            "compiler; the compile database is unusable"
-        )
+    reject_launcher_compiler(cxx_path)
 
     # Seed with the representative's includes so it is not parsed twice
+    has_esphome_tu = _is_esphome_src(representative["file"])
     build_includes: dict[str, None] = dict.fromkeys(
-        rep_includes if _is_esphome_src(representative["file"]) else ()
+        rep_includes if has_esphome_tu else ()
     )
 
     def _shape(entry: dict) -> str:
@@ -331,18 +343,21 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     for entry in entries:
         if entry is representative or not _is_esphome_src(entry["file"]):
             continue
+        has_esphome_tu = True
         if (shape := _shape(entry)) in seen_shapes:
             continue
         seen_shapes.add(shape)
         for inc in parse_entry(entry, launcher)[2]:
             build_includes.setdefault(inc, None)
 
-    if not build_includes:
-        # No ESPHome translation unit contributed includes: idedata with an
-        # empty build include set breaks clang-tidy/IDE consumers silently
-        _LOGGER.warning(
-            "No ESPHome source includes found in %s; idedata will be incomplete",
-            compile_commands,
+    if not has_esphome_tu:
+        # _pick_entry fell back to an arbitrary C++ entry: idedata built
+        # from it breaks clang-tidy/IDE consumers, and a one-time warning
+        # would be cached into permanence. The best-effort call sites
+        # downgrade this to a build warning.
+        raise EsphomeError(
+            f"No ESPHome translation unit found in {compile_commands}; "
+            "refusing to cache unusable idedata"
         )
 
     return {
