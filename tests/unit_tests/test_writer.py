@@ -2072,9 +2072,11 @@ def test_copy_src_tree_detects_config_hash_change(
         )
     )
 
-    # Create existing build_info_data.h
+    # Create both existing build_info sources so the staleness decision
+    # reaches the JSON comparison instead of the missing-file branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
+    (esphome_core_path / "build_info_data.cpp").write_text("// old")
 
     # Setup mocks
     mock_core.relative_src_path.side_effect = src_path.joinpath
@@ -2136,9 +2138,11 @@ def test_copy_src_tree_detects_version_change(
         )
     )
 
-    # Create existing build_info_data.h
+    # Create both existing build_info sources so the staleness decision
+    # reaches the JSON comparison instead of the missing-file branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
+    (esphome_core_path / "build_info_data.cpp").write_text("// old")
 
     # Setup mocks
     mock_core.relative_src_path.side_effect = src_path.joinpath
@@ -2186,9 +2190,11 @@ def test_copy_src_tree_handles_invalid_build_info_json(
     build_info_json_path = build_path / "build_info.json"
     build_info_json_path.write_text("invalid json {{{")
 
-    # Create existing build_info_data.h
+    # Create both existing build_info sources so the staleness decision
+    # reaches the JSON comparison instead of the missing-file branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
+    (esphome_core_path / "build_info_data.cpp").write_text("// old")
 
     # Setup mocks
     mock_core.relative_src_path.side_effect = src_path.joinpath
@@ -2236,9 +2242,11 @@ def test_copy_src_tree_handles_non_dict_build_info_json(
     build_info_json_path = build_path / "build_info.json"
     build_info_json_path.write_text("[]")
 
-    # Create existing build_info_data.h
+    # Create both existing build_info sources so the staleness decision
+    # reaches the JSON comparison instead of the missing-file branch
     build_info_h_path = esphome_core_path / "build_info_data.h"
     build_info_h_path.write_text("// old build_info_data.h")
+    (esphome_core_path / "build_info_data.cpp").write_text("// old")
 
     # Setup mocks
     mock_core.relative_src_path.side_effect = src_path.joinpath
