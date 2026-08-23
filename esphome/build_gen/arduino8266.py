@@ -14,6 +14,7 @@ from the build flags with the same precedence as the PlatformIO builder.
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from dataclasses import dataclass
 import hashlib
 import logging
@@ -615,7 +616,7 @@ _PLAIN_LINKER_PREFIXES = ("-T", "-Xlinker")
 _PLAIN_DRIVER_LINK_PREFIXES = ("-fuse-ld=", "--specs=", "-specs=")
 
 
-def _collect_sources(root: Path, exclude: set[str] = frozenset()) -> list[Path]:
+def _collect_sources(root: Path, exclude: Collection[str] = frozenset()) -> list[Path]:
     return sorted(
         p
         for p in root.rglob("*")
