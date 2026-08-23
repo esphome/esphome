@@ -237,9 +237,39 @@ def test_print_summary_blank_partition_size_warns(tmp_path, caplog) -> None:
     ),
     ids=("non-dict-memory-types", "scalar-region", "non-numeric-sizes"),
 )
-def test_print_summary_nested_shapes_never_raise(tmp_path, caplog, payload) -> None:
-    """The blanket guard keeps unexpected nested shapes from raising."""
+def test_print_summary_nested_shapes_skip_ram_by_name(
+    tmp_path, caplog, payload
+) -> None:
+    """Malformed RAM shapes hit the named guard, not the blanket backstop."""
     size_json = tmp_path / "size.json"
     size_json.write_text(payload)
     print_summary(size_json, tmp_path / "partitions.csv")
+    assert "Skipping RAM summary" in caplog.text
+
+
+def test_print_summary_bad_ram_region_still_prints_flash(
+    tmp_path, caplog, capsys
+) -> None:
+    """A malformed RAM region cannot suppress a computable Flash line."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": "x", "size": "y"}}, "image_size": 100}'
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, 0x100000,\n")
+    print_summary(size_json, partitions)
+    assert "Skipping RAM summary" in caplog.text
+    assert "Flash:" in capsys.readouterr().out
+
+
+def test_print_summary_blanket_guard_never_raises(tmp_path, caplog) -> None:
+    """Shapes the named guards miss (non-numeric image_size) warn via the
+    blanket backstop instead of raising past a linked build."""
+    size_json = tmp_path / "size.json"
+    size_json.write_text(
+        '{"memory_types": {"DRAM": {"used": 1, "size": 2}}, "image_size": "x"}'
+    )
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text("app0, app, ota_0, 0x10000, 0x100000,\n")
+    print_summary(size_json, partitions)
     assert "Skipping size summary" in caplog.text

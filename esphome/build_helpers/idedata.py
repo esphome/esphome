@@ -178,6 +178,8 @@ def parse_entry(
     # token0 is the compiler path; the rest of the command already uses forward
     # slashes on Windows, so normalize it too for a consistent idedata file.
     cxx_path = tokens[0].replace("\\", "/")
+    # Enforced here so no caller can record ccache as the compiler
+    reject_launcher_compiler(cxx_path)
     defines: list[str] = []
     includes: list[str] = []
     cxx_flags: list[str] = []
@@ -337,13 +339,12 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
     project-wide superset (as PlatformIO's idedata provides).
     """
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
-    if not isinstance(entries, list):
+    if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
         # A TypeError here would escape IDEDATA_BEST_EFFORT_ERRORS
         raise EsphomeError(f"{compile_commands} is not a compile-command list")
 
     representative = _pick_entry(entries)
     cxx_path, defines, rep_includes, cxx_flags = parse_entry(representative, launcher)
-    reject_launcher_compiler(cxx_path)
 
     # Seed with the representative's includes so it is not parsed twice
     has_esphome_tu = _is_esphome_src(representative["file"])
@@ -357,12 +358,16 @@ def idedata_from_build(compile_commands: Path, launcher: str | None = None) -> d
         # per shape instead of once per TU. Response-file commands never
         # dedupe: per-object .rsp names strip to one shape while the files
         # may hold different include sets.
+        # Keyed on directory too: relative -I paths resolve against it, so
+        # identical commands in different dirs mean different include sets
         command = entry["command"]
+        directory = entry.get("directory", "")
         if "@" in command:
-            return f"unique:{entry.get('output') or command}"
-        return command.replace(entry.get("file", ""), "").replace(
+            return f"unique:{directory}|{entry.get('output') or command}"
+        stripped = command.replace(entry.get("file", ""), "").replace(
             entry.get("output", ""), ""
         )
+        return f"{directory}|{stripped}"
 
     seen_shapes = {_shape(representative)}
     for entry in entries:
