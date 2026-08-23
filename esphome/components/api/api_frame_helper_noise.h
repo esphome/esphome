@@ -42,6 +42,8 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError state_action_handshake_();
   APIError state_action_handshake_read_();
   APIError state_action_handshake_write_();
+  APIError state_action_resume_discard_();
+  APIError setup_resumed_session_(const uint8_t *resume_secret, const uint8_t *server_nonce);
   APIError try_read_frame_();
   APIError write_frame_(const uint8_t *data, uint16_t len);
   APIError encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint8_t message_type,
@@ -69,7 +71,14 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Note: Maximum message size is UINT16_MAX (65535), with a limit of 128 bytes during handshake phase
   uint8_t rx_header_buf_[noise::FRAME_HEADER_SIZE];
   uint8_t rx_header_buf_len_ = 0;
-  // 4 bytes total, no padding
+  // The ClientHello body carried a well-formed resume offer; decided on in
+  // state_action_server_hello_, which reads the offer from the still-intact
+  // rx_buf_.
+  bool resume_offer_pending_ = false;
+  // Resume accepted: the client's already-in-flight full-handshake message 1
+  // must be read and discarded before the connection enters DATA.
+  bool resume_discard_msg1_ = false;
+  // 6 bytes total, 2 padding
 };
 
 }  // namespace esphome::api

@@ -1133,6 +1133,33 @@ class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
 
  protected:
 };
+class NoiseResumeTicket final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 151;
+  static constexpr uint8_t ESTIMATED_SIZE = 38;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("noise_resume_ticket"); }
+#endif
+  const uint8_t *session_id_ptr_{nullptr};
+  size_t session_id_len_{0};
+  void set_session_id(const uint8_t *data, size_t len) {
+    this->session_id_ptr_ = data;
+    this->session_id_len_ = len;
+  }
+  const uint8_t *secret_ptr_{nullptr};
+  size_t secret_len_{0};
+  void set_secret(const uint8_t *data, size_t len) {
+    this->secret_ptr_ = data;
+    this->secret_len_ = len;
+  }
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 class HomeassistantServiceMap final : public ProtoMessage {

@@ -1372,6 +1372,12 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("success"), this->success);
   return out.c_str();
 }
+const char *NoiseResumeTicket::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("NoiseResumeTicket"));
+  dump_bytes_field(out, ESPHOME_PSTR("session_id"), this->session_id_ptr_, this->session_id_len_);
+  dump_bytes_field(out, ESPHOME_PSTR("secret"), this->secret_ptr_, this->secret_len_);
+  return out.c_str();
+}
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {

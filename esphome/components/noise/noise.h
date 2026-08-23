@@ -6,6 +6,8 @@
 #include <cstdint>
 #include "esphome/core/log.h"
 
+#include "noise_resume.h"
+
 namespace esphome::noise {
 
 using psk_t = std::array<uint8_t, 32>;
@@ -26,12 +28,16 @@ class NoiseContext {
   void set_psk(psk_t psk) {
     this->psk_ = psk;
     this->has_psk_ = !is_all_zeros(psk);
+    // Resume tickets were minted under the old key; forget them
+    this->resume_cache_.clear();
   }
   const psk_t &get_psk() const { return this->psk_; }
   bool has_psk() const { return this->has_psk_; }
+  ResumeTicketCache &resume_cache() { return this->resume_cache_; }
 
  protected:
   psk_t psk_{};
+  ResumeTicketCache resume_cache_;
   bool has_psk_{false};
 };
 

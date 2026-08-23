@@ -892,6 +892,20 @@ message NoiseEncryptionSetKeyResponse {
   bool success = 1;
 }
 
+// Single-use session resume ticket, sent unsolicited by the device after a
+// Noise connection authenticates. A client presents it in the ClientHello of
+// its next connection to skip the curve25519 handshake; the device then
+// issues a fresh ticket on that connection. Never sent on plaintext
+// connections. Clients that do not understand it drop it silently.
+message NoiseResumeTicket {
+  option (id) = 151;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_API_NOISE";
+
+  bytes session_id = 1;  // 8 bytes
+  bytes secret = 2;      // 32 bytes
+}
+
 // ==================== HOMEASSISTANT.SERVICE ====================
 message SubscribeHomeassistantServicesRequest {
   option (id) = 34;

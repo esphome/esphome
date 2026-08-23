@@ -388,6 +388,11 @@ class APIConnection final : public APIServerConnectionBase {
   // Helper function to handle authentication completion
   void complete_authentication_();
 
+#ifdef USE_API_NOISE
+  // Issue a fresh single-use session resume ticket over the encrypted channel
+  void send_resume_ticket_();
+#endif
+
   // Pattern B helpers: send response and return success/failure
   bool send_hello_response_(const HelloRequest &msg);
   bool send_disconnect_response_();

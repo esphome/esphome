@@ -1059,6 +1059,18 @@ uint32_t NoiseEncryptionSetKeyResponse::calculate_size() const {
   size += ProtoSize::calc_bool(1, this->success);
   return size;
 }
+uint8_t *NoiseResumeTicket::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 1, this->session_id_ptr_, this->session_id_len_);
+  ProtoEncode::encode_bytes(pos PROTO_ENCODE_DEBUG_ARG, 2, this->secret_ptr_, this->secret_len_);
+  return pos;
+}
+uint32_t NoiseResumeTicket::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_length(1, this->session_id_len_);
+  size += ProtoSize::calc_length(1, this->secret_len_);
+  return size;
+}
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 uint8_t *HomeassistantServiceMap::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {

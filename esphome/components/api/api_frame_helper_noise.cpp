@@ -265,7 +265,8 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
   if (aerr != APIError::OK) {
     return handle_handshake_frame_error_(aerr);
   }
-  // ignore contents, may be used in future for flags
+  // Contents are extension flags; today the only defined extension is the
+  // session resume offer. Everything is mixed into the prologue either way.
   // Resize for: existing prologue + 2 size bytes + frame data
   size_t old_size = this->prologue_.size();
   size_t rx_size = this->rx_buf_.size();
@@ -276,10 +277,30 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
     std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
   }
 
+  // A resume offer is decided on in the server hello step, which reads it
+  // from rx_buf_ (no frame is read in between, so the buffer stays intact).
+  this->resume_offer_pending_ = rx_size == noise::RESUME_OFFER_SIZE && this->rx_buf_[0] == noise::RESUME_OFFER_VERSION;
+
   state_ = State::SERVER_HELLO;
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::state_action_server_hello_() {
+  // A verified resume offer replaces the whole handshake: consume the ticket,
+  // prove possession of its secret in a trailing ServerHello extension (old
+  // clients ignore trailing bytes), and derive the transport keys via HKDF.
+  // Every failure on this path silently falls back to the full handshake.
+  uint8_t resume_secret[noise::RESUME_SECRET_SIZE];
+  uint8_t server_nonce[noise::RESUME_NONCE_SIZE];
+  uint8_t confirm_mac[noise::RESUME_MAC_SIZE];
+  bool resume =
+      this->resume_offer_pending_ && this->ctx_.resume_cache().take_verified(this->rx_buf_.data(), resume_secret);
+  this->resume_offer_pending_ = false;
+  if (resume) {
+    resume = random_bytes(server_nonce, sizeof(server_nonce)) &&
+             noise::resume_compute_confirm_mac(resume_secret, this->rx_buf_.data() + noise::RESUME_OFFER_NONCE_OFFSET,
+                                               server_nonce, confirm_mac);
+  }
+
   // send server hello
   const auto &name = App.get_name();
   char mac[MAC_ADDRESS_BUFFER_SIZE];
@@ -293,7 +314,9 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
 
   // 1 (proto) + name (max ESPHOME_DEVICE_NAME_MAX_LEN) + 1 (name null)
   // + mac (MAC_ADDRESS_BUFFER_SIZE - 1) + 1 (mac null)
-  constexpr size_t max_msg_size = 1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MAC_ADDRESS_BUFFER_SIZE;
+  // + optional resume accept extension
+  constexpr size_t max_msg_size =
+      1 + ESPHOME_DEVICE_NAME_MAX_LEN + 1 + MAC_ADDRESS_BUFFER_SIZE + noise::RESUME_ACCEPT_SIZE;
   uint8_t msg[max_msg_size];
 
   // chosen proto
@@ -304,9 +327,27 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   // node mac, terminated by null byte
   std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
+  if (resume) {
+    // version | server_nonce | confirm_mac
+    uint8_t *ext = msg + total_size;
+    ext[0] = noise::RESUME_ACCEPT_VERSION;
+    std::memcpy(ext + 1, server_nonce, sizeof(server_nonce));
+    std::memcpy(ext + 1 + sizeof(server_nonce), confirm_mac, sizeof(confirm_mac));
+    total_size += noise::RESUME_ACCEPT_SIZE;
+  }
+
   APIError aerr = write_frame_(msg, total_size);
-  if (aerr != APIError::OK)
+  if (aerr != APIError::OK) {
+    noise::resume_wipe(resume_secret, sizeof(resume_secret));
     return aerr;
+  }
+
+  if (resume) {
+    aerr = this->setup_resumed_session_(resume_secret, server_nonce);
+    noise::resume_wipe(resume_secret, sizeof(resume_secret));
+    return aerr;
+  }
+  noise::resume_wipe(resume_secret, sizeof(resume_secret));
 
   // start handshake
   aerr = init_handshake_();
@@ -316,7 +357,39 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   state_ = State::HANDSHAKE;
   return APIError::OK;
 }
+
+/// Derive the resumed session's transport ciphers. The client's full
+/// handshake message 1 is already in flight, so the connection stays in
+/// HANDSHAKE state to read and discard it before switching to DATA.
+APIError APINoiseFrameHelper::setup_resumed_session_(const uint8_t *resume_secret, const uint8_t *server_nonce) {
+  uint8_t k_c2d[32];
+  uint8_t k_d2c[32];
+  bool ok = noise::resume_derive_keys(resume_secret, this->rx_buf_.data() + noise::RESUME_OFFER_NONCE_OFFSET,
+                                      server_nonce, this->prologue_.data(), this->prologue_.size(), k_c2d, k_d2c);
+  if (ok) {
+    this->recv_cipher_ = noise::resume_make_cipher(k_c2d);
+    this->send_cipher_ = noise::resume_make_cipher(k_d2c);
+    ok = this->recv_cipher_ != nullptr && this->send_cipher_ != nullptr;
+  }
+  noise::resume_wipe(k_c2d, sizeof(k_c2d));
+  noise::resume_wipe(k_d2c, sizeof(k_d2c));
+  if (!ok) {
+    // The accept extension is already on the wire; the connection cannot
+    // fall back to a full handshake any more. Fail it; the client retries.
+    state_ = State::FAILED;
+    HELPER_LOG("Resume key derivation failed");
+    return APIError::HANDSHAKESTATE_SETUP_FAILED;
+  }
+  this->prologue_.release();
+  this->frame_footer_size_ = noise_cipherstate_get_mac_length(this->send_cipher_);
+  this->resume_discard_msg1_ = true;
+  state_ = State::HANDSHAKE;
+  return APIError::OK;
+}
 APIError APINoiseFrameHelper::state_action_handshake_() {
+  if (this->resume_discard_msg1_) {
+    return this->state_action_resume_discard_();
+  }
   noise::NoiseResponderHandshake::Action action = this->handshake_.action();
   if (action == noise::NoiseResponderHandshake::Action::ACTION_READ) {
     return this->state_action_handshake_read_();
@@ -328,6 +401,25 @@ APIError APINoiseFrameHelper::state_action_handshake_() {
   HELPER_LOG("Bad action for handshake: %d", (int) action);
   return APIError::HANDSHAKESTATE_BAD_STATE;
 }
+/// Resumed session: read and discard the client's full-handshake message 1,
+/// which was already in flight when the resume offer was accepted, then
+/// enter DATA. The same status byte rules apply as for a real handshake read.
+APIError APINoiseFrameHelper::state_action_resume_discard_() {
+  APIError aerr = this->try_read_frame_();
+  if (aerr != APIError::OK) {
+    return this->handle_handshake_frame_error_(aerr);
+  }
+  if (this->rx_buf_.empty() || this->rx_buf_[0] != noise::HANDSHAKE_STATUS_OK) {
+    state_ = State::FAILED;
+    HELPER_LOG("Bad discarded handshake message");
+    return APIError::BAD_HANDSHAKE_ERROR_BYTE;
+  }
+  this->resume_discard_msg1_ = false;
+  HELPER_LOG("Session resumed!");
+  state_ = State::DATA;
+  return APIError::OK;
+}
+
 APIError APINoiseFrameHelper::state_action_handshake_read_() {
   APIError aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {
