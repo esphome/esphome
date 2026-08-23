@@ -980,6 +980,12 @@ def _content_lengths(urls: list[str]) -> list[int | None]:
     """Content-Length per URL via HEAD requests; None when unknown."""
     import requests
 
+    from esphome.happy_eyeballs import ensure_happy_eyeballs
+
+    # Same convention as every other network call: without it a broken-IPv6
+    # network burns the full timeout per HEAD before falling back
+    ensure_happy_eyeballs()
+
     def head(url: str) -> int | None:
         try:
             resp = requests.head(url, timeout=10, allow_redirects=True)
