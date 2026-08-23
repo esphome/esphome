@@ -374,6 +374,18 @@ def test_generate_idf_component_yml_basic(tmp_component):
     assert result == "description: test\nrepository: http://aaa\n"
 
 
+def test_generate_idf_component_yml_tolerates_malformed_metadata(tmp_component):
+    """A string repository is the URL itself; junk shapes drop instead of
+    crashing on a third-party manifest."""
+    tmp_component.data = {"description": "test", "repository": "http://aaa"}
+    assert (
+        generate_idf_component_yml(tmp_component)
+        == "description: test\nrepository: http://aaa\n"
+    )
+    tmp_component.data = {"description": {"en": "x"}, "repository": 123}
+    assert generate_idf_component_yml(tmp_component) == "{}\n"
+
+
 def test_generate_idf_component_yml_with_dependencies(tmp_component, tmp_path):
     dep = IDFComponent("dep", "1.0", source=URLSource("http://dummy.com"))
     dep.path = tmp_path / "dep"
