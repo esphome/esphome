@@ -1108,3 +1108,15 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
 def test_format_duration(seconds: float, expected: str) -> None:
     """Test that durations are rendered as short human-readable strings."""
     assert helpers.format_duration(seconds) == expected
+
+
+def test_write_file_if_changed_replaces_damaged_file(tmp_path, caplog) -> None:
+    """A non-UTF-8 or unreadable existing file is logged and overwritten;
+    aborting would block the very regeneration that fixes it."""
+    from esphome.helpers import write_file_if_changed
+
+    target = tmp_path / "generated.txt"
+    target.write_bytes(b"\xff\xfe")
+    assert write_file_if_changed(target, "fresh content") is True
+    assert target.read_text(encoding="utf-8") == "fresh content"
+    assert "Replacing damaged file" in caplog.text
