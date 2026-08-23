@@ -112,17 +112,11 @@ def clang_options(idedata, environment):
         "-mthumb-interwork",
     )
 
-    cmd.extend(
-        [
-            # disable built-in include directories from the host
-            "-nostdinc++",
-        ]
-    )
-
     # set flags
     cmd.extend(
         [
             # disable built-in include directories from the host
+            "-nostdinc++",
             "-nostdinc",
             # allow to condition code on the presence of clang-tidy
             "-DCLANG_TIDY",
@@ -412,14 +406,14 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
     platformio_ini = Path(root_path) / "platformio.ini"
 
+    from clang_tidy_hash import is_cached, update_cache
+
     cache_key_path = None
     extra = None
     regenerated = False
     if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
         compile_commands_path = Path(explicit)
     else:
-        from clang_tidy_hash import is_cached, update_cache
-
         source_files = [str(Path(f).resolve()) for f in files]
         extra = "\n".join(sorted(source_files))
         compile_commands_path = work_dir / "build" / "compile_commands.json"
@@ -492,7 +486,14 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         # when present; we never want that here and don't want to inherit a
         # pipe that could block waiting for a writer that never closes.
         fixit_result = subprocess.run(
-            [executable, "fixit", "--apply", str(output_dir)],
+            [
+                executable,
+                "fixit",
+                "--apply",
+                str(output_dir),
+                "--file",
+                *file_patterns,
+            ],
             stdin=subprocess.DEVNULL,
             check=False,
         )
