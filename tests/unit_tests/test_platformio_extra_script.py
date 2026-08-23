@@ -18,6 +18,8 @@ from esphome.platformio.extra_script import (
     run_extra_script,
 )
 from esphome.platformio.library import (
+    ESPHOME_DATA_KEY,
+    ESPHOME_DATA_LINK_FLAGS_KEY,
     ConvertedLibrary as IDFComponent,
     URLSource,
     lex_build_flags,
@@ -62,7 +64,8 @@ def test_extra_script_captures_libpath_libs_and_defines(tmp_path):
     assert "-lalgobsec" in tokens
     assert "-DFOO" in tokens
     assert "-DBAR=1" in tokens
-    assert "-Wl,--gc-sections" in tokens
+    # LINKFLAGS travel via the link-flags channel, never the compile flags
+    assert "-Wl,--gc-sections" not in tokens
 
 
 def test_extra_script_libpath_relative_resolves_against_library_dir(
@@ -194,9 +197,11 @@ def test_captured_nonstring_buckets_warn_and_skip(tmp_path, caplog) -> None:
     apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
 
     flags = c.data["build"]["flags"]
-    assert "-lm" in flags and "-Wl,-x" in flags and "-Os" in flags
+    assert "-lm" in flags and "-Os" in flags
+    assert c.data[ESPHOME_DATA_KEY][ESPHOME_DATA_LINK_FLAGS_KEY] == ["-Wl,-x"]
     assert not any("42" in f or "no" in f or "3.5" in f for f in flags)
     assert "Ignoring unsupported LIBS entry 42" in caplog.text
+    assert "Ignoring unsupported LINKFLAGS entry {'no': 1}" in caplog.text
     assert "Ignoring unsupported LIBPATH entry 7" in caplog.text
 
 
@@ -443,6 +448,18 @@ def test_append_variants_capture_like_append(method: str) -> None:
     assert env.result.libpath == ["lib"]
 
 
+@pytest.mark.parametrize("method", ("Prepend", "PrependUnique"))
+def test_prepend_inserts_ahead_of_existing(method: str) -> None:
+    """Prepend keeps SCons order: new values land ahead of what is already
+    captured (scripts prepend LIBS for static-link symbol resolution)."""
+    env = _FakeSConsEnv(
+        board_mcu="esp8266", pio_env="esphome_esp8266", pio_platform="espressif8266"
+    )
+    env.Append(LIBS=["m"])
+    getattr(env, method)(LIBS=["algobsec", "bsec"])
+    assert env.result.libs == ["algobsec", "bsec", "m"]
+
+
 def test_env_get_unknown_key_warns_once(caplog) -> None:
     """A script branching on an unmodelled env var is diagnosable."""
     env = _FakeSConsEnv(
@@ -455,10 +472,9 @@ def test_env_get_unknown_key_warns_once(caplog) -> None:
     assert "BOARD_MCU" not in caplog.text
 
 
-def test_spaced_linkflag_survives_relexing(tmp_path) -> None:
+def test_spaced_cppflag_survives_relexing(tmp_path) -> None:
     """A captured argv token with a space stays one token after lexing."""
     result = ExtraScriptResult(
-        linkflags=["-Wl,-T my linker.ld"],
         cppflags=["-include my hdr.h"],
         cppdefines=[("MSG", '"hello world"'), "PLAIN"],
     )
@@ -466,7 +482,6 @@ def test_spaced_linkflag_survives_relexing(tmp_path) -> None:
     assert lex_build_flags(flags, "test") == [
         '-DMSG="hello world"',
         "-DPLAIN",
-        "-Wl,-T my linker.ld",
         "-include my hdr.h",
     ]
 
