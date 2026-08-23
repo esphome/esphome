@@ -151,6 +151,40 @@ def test_is_esphome_src_handles_backslash_paths() -> None:
     assert not idedata._is_esphome_src(r"C:\b\src\esphome\core\app.h")
 
 
+def test_idedata_from_build_dedupes_identical_command_shapes(
+    tmp_path: Path,
+) -> None:
+    """Translation units sharing one ninja rule (same command modulo
+    file/output) carry
+    identical includes, so only one per shape is tokenized; a differing
+    shape still contributes its includes."""
+
+    def _tu(name: str, inc: str) -> dict:
+        # ninja's compdb embeds the file and output strings verbatim
+        file = f"{ABS}build/src/esphome/core/{name}.cpp"
+        return _entry(
+            f"{ABS}build", file, f"/tools/g++ -I{ABS}inc/{inc} -c {file} -o {name}.o"
+        ) | {"output": f"{name}.o"}
+
+    entries = [_tu(name, "shared") for name in ("application", "component", "helpers")]
+    entries.append(_tu("extra", "extra"))
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(json.dumps(entries))
+    with (
+        patch.object(idedata, "get_toolchain_includes", return_value=[]),
+        patch.object(idedata, "parse_entry", wraps=idedata.parse_entry) as spy,
+    ):
+        data = idedata.idedata_from_build(compile_commands)
+    includes = set(data["includes"]["build"])
+    assert f"{ABS}inc/shared".replace("\\", "/") in {
+        i.replace("\\", "/") for i in includes
+    }
+    assert any("inc/extra" in i for i in includes)
+    # Representative + one distinct shape; the two same-shape duplicates
+    # are never tokenized
+    assert spy.call_count == 2
+
+
 def test_idedata_from_build(tmp_path: Path) -> None:
     """Full transform: representative entry + include union + toolchain dirs."""
     compile_commands = tmp_path / "compile_commands.json"
