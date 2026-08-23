@@ -156,7 +156,7 @@ def test_print_summary_non_dict_json_is_skipped(
 
 
 def test_print_summary_unreadable_partitions_is_skipped(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
 ) -> None:
     """An OSError reading the partition table skips the summary, not the build."""
     size_json = _write_size_json(tmp_path, _dram_size_data())
@@ -170,8 +170,10 @@ def test_print_summary_unreadable_partitions_is_skipped(
 
     with patch.object(Path, "read_text", fail_partitions_read):
         print_summary(size_json, partitions)
+    # An impossible post-build state is the backstop's business
     out = capsys.readouterr().out
     assert "RAM:" in out and "Flash:" not in out
+    assert "Skipping size summary for" in caplog.text
 
 
 def test_print_summary_happy_path_prints_both_bars(
@@ -279,19 +281,16 @@ def test_print_summary_missing_or_appless_partitions_stay_quiet(
     capsys: pytest.CaptureFixture[str],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A missing table or one without a qualifying app row is a legitimate
-    layout: the Flash line drops at debug, never at warning."""
+    """A table without a qualifying app row is a legitimate layout: the
+    Flash line drops at debug, never at warning."""
     size_json = _write_size_json(tmp_path, _dram_size_data())
+    partitions = _write_partitions(tmp_path, "0x1000", ptype="data", subtype="spiffs")
     with caplog.at_level(logging.DEBUG, logger="esphome.espidf.size_summary"):
-        print_summary(size_json, tmp_path / "nope.csv")
-        partitions = _write_partitions(
-            tmp_path, "0x1000", ptype="data", subtype="spiffs"
-        )
         print_summary(size_json, partitions)
     out = capsys.readouterr().out
     assert "Flash:" not in out
     # Quiet means debug-logged, not unlogged
-    assert caplog.text.count("Skipping Flash summary: no app partition") == 2
+    assert "Skipping Flash summary: no app partition" in caplog.text
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
