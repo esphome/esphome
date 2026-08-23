@@ -688,6 +688,23 @@ def test_build_config_nonosdk_precedence() -> None:
     assert _resolve_build_config(_defines()).nonosdk == "NONOSDK221"
 
 
+def test_write_project_unflagged_symbol_takes_its_dash_u(tmp_path: Path) -> None:
+    """Unflagging a -u symbol drops the -u that carried it; a dangling -u
+    would consume the next token and hand ld a symbol as an input file."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"_printf_float"}
+    content = _write_ninja(paths)
+    link_line = next(
+        line for line in content.splitlines() if line.startswith("linkflags = ")
+    )
+    assert "_printf_float" not in link_line
+    assert "-u -u" not in link_line
+    # The neighbors survive as intact pairs
+    assert "-u app_entry" in link_line
+    assert "-u _DebugExceptionVector" in link_line
+
+
 def test_write_project_build_unflags_apply_to_framework_flags(tmp_path: Path) -> None:
     """build_unflags removes flags from the framework sets, as PlatformIO does."""
     paths = _make_framework(tmp_path)

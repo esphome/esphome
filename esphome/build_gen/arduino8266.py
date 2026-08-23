@@ -446,6 +446,22 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
 _INCOMPLETE_INSTALL = "Arduino toolchain install is incomplete"
 
 
+def _filter_link_flags(unflags: set[str]) -> list[str]:
+    """_LINKFLAGS minus ``unflags``, pair-aware: unflagging a symbol also
+    drops the ``-u`` that carried it, so no dangling operand-less flag
+    reaches ld as the next token's consumer."""
+    out: list[str] = []
+    it = iter(_LINKFLAGS)
+    for tok in it:
+        if tok == "-u":
+            symbol = next(it)
+            if symbol not in unflags:
+                out += [tok, symbol]
+        elif tok not in unflags:
+            out.append(tok)
+    return out
+
+
 def _active_flash_ld_name(flash_ld_name: str) -> str:
     """The flash linker-script filename the link uses (testing mode renames
     the surgically patched copy)."""
@@ -979,10 +995,10 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             f"build_unflags cannot remove plain linker flag(s) "
             f"{', '.join(plain)}; unflag the full -Wl, form or the symbol"
         )
-    cflags, cxxflags, asflags, link_flags = (
-        [f for f in flags if f not in unflags]
-        for flags in (cflags, cxxflags, asflags, _LINKFLAGS)
+    cflags, cxxflags, asflags = (
+        [f for f in flags if f not in unflags] for flags in (cflags, cxxflags, asflags)
     )
+    link_flags = _filter_link_flags(unflags)
     if esp8266_data[KEY_SCANF_FLOAT]:
         link_flags += ["-u", "_scanf_float"]
     link_flags += project_link_flags

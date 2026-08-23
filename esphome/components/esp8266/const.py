@@ -16,7 +16,6 @@ KEY_WAVEFORM_REQUIRED = "waveform_required"
 KEY_SERIAL_REQUIRED = "serial_required"
 KEY_SERIAL1_REQUIRED = "serial1_required"
 # Set for the native (non-PlatformIO) toolchain's build generator
-KEY_FLASH_MODE = "flash_mode"
 KEY_SCANF_FLOAT = "scanf_float"
 
 # esp8266 namespace is already defined by arduino, manually prefix esphome
