@@ -716,6 +716,30 @@ def test_bundled_dependency_dict_shorthand_prefers_bundled(tmp_path: Path) -> No
     assert "Wire" in [lib.name for lib in libs]
 
 
+def test_unfulfilled_provides_promise_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The walk records every provides()-skipped dependency; one nothing
+    added must warn instead of surfacing as link errors, while satisfied
+    ones stay silent."""
+    component._warn_unfulfilled_provides(["Wire", "Hash"], {"Hash"})
+    assert "provides() skipped dependency Wire but nothing added it" in caplog.text
+    assert "Hash" not in caplog.text
+
+
+def test_fulfilled_provides_promise_is_silent_end_to_end(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The normal path: the walk records the skip and the backend adds the
+    bundled copy, so the reconciliation stays quiet."""
+    framework = _make_framework(tmp_path)
+    converted = _webserver(tmp_path, {"build": {}, "dependencies": {"Wire": "*"}})
+    with _emitting_converter(converted):
+        libs = _resolve(framework)
+    assert "Wire" in [lib.name for lib in libs]
+    assert "provides() skipped dependency" not in caplog.text
+
+
 def test_bundled_dependency_platform_rejection_is_debug(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

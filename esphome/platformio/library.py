@@ -351,8 +351,10 @@ class LibraryBackend:
     cache_key: str
     # Owner-less dependency names this returns True for are skipped by the
     # walk; the backend supplies them outside the registry (e.g. core-bundled
-    # libraries).
+    # libraries). The walk records every skipped name in provided_requests
+    # so the backend can reconcile its promise after resolving.
     provides: Callable[[str], bool] | None = None
+    provided_requests: list[str] = field(default_factory=list)
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -1303,6 +1305,7 @@ def convert_libraries(
                         )
                     else:
                         _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
+                    backend.provided_requests.append(dep_name)
                     continue
                 dep_key = add_spec(dep_name, dep_version, dep_url)
                 node.edges.add(dep_key)

@@ -317,6 +317,22 @@ def _external_short_name(name: str) -> str:
     return short.partition("#")[0].removesuffix(".git")
 
 
+def _warn_unfulfilled_provides(
+    provided_requests: list[str], satisfied: set[str]
+) -> None:
+    """Reconcile the provides() promise: every dependency the walk skipped
+    on the backend's word must have been added from the framework tree (or
+    knowingly satisfied by a converted/external library); an unfulfilled
+    promise would surface only as undefined symbols at link."""
+    for name in provided_requests:
+        if name not in satisfied:
+            _LOGGER.warning(
+                "provides() skipped dependency %s but nothing added it; "
+                "the build is missing a library",
+                name,
+            )
+
+
 def resolve_libraries(
     framework_path: Path, *, pio_platform: str, board_mcu: str, cache_key: str
 ) -> list[ArduinoLibrary]:
@@ -430,8 +446,11 @@ def resolve_libraries(
                 continue
             try:
                 # framework=None: the walk already ran dependency_is_usable
-                # on this entry (and warned for any non-platform cause);
-                # re-checking with a framework would warn twice
+                # on this entry and warned for any non-platform cause, so
+                # debug here is what keeps one manifest fault from warning
+                # twice. That invariant is pinned by
+                # test_nonplatform_rejection_warns_once_through_real_converter,
+                # which fails if the walk stops evaluating these deps.
                 check_library_data(dep, pio_platform, None)
             except InvalidLibrary as err:
                 _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
@@ -458,19 +477,17 @@ def resolve_libraries(
         )
         _add_bundled_dependencies(component)
 
+    backend = LibraryBackend(
+        platform=pio_platform,
+        framework="arduino",
+        emit=_emit,
+        cache_key=cache_key,
+        # The walk must not resolve bundled names from the registry;
+        # _add_bundled_dependencies adds them after emit
+        provides=_provided,
+    )
     if external:
-        convert_libraries(
-            external,
-            LibraryBackend(
-                platform=pio_platform,
-                framework="arduino",
-                emit=_emit,
-                cache_key=cache_key,
-                # The walk must not resolve bundled names from the registry;
-                # _add_bundled_dependencies adds them after emit
-                provides=_provided,
-            ),
-        )
+        convert_libraries(external, backend)
     for name in pending_bundled:
         if name in converted_manifest_names:
             # Manifest-name evidence: the converted library is this library,
@@ -485,5 +502,10 @@ def resolve_libraries(
             continue
         bundled_names.add(name)
         bundled.append(_bundled_library(framework_path, name))
+
+    _warn_unfulfilled_provides(
+        backend.provided_requests,
+        bundled_names | converted_manifest_names | external_short_names,
+    )
 
     return bundled + converted
