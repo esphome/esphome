@@ -1143,6 +1143,44 @@ def test_generate_ld_scripts_unreadable_note_still_warns(
     assert "could not be read" in caplog.text
 
 
+@pytest.mark.parametrize("value", ["0x8000", "0xC000ul", "32768", "48UL"])
+def test_mmu_custom_numeric_sizes_accepted(value: str) -> None:
+    config = _resolve(
+        "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
+        f"-DMMU_IRAM_SIZE={value}",
+        "-DMMU_ICACHE_SIZE=0x8000",
+    )
+    assert f"MMU_IRAM_SIZE={value}" in config.mmu_defines
+
+
+@pytest.mark.parametrize("flag", ["-DMMU_IRAM_SIZE=48K", "-DMMU_IRAM_SIZE"])
+def test_mmu_custom_malformed_size_raises(flag: str) -> None:
+    """A bare or non-numeric size would corrupt the preprocessed segment
+    lengths and fail far away in ld; refuse by name."""
+    with pytest.raises(EsphomeError, match="MMU_IRAM_SIZE must be a numeric"):
+        _resolve(
+            "-DPIO_FRAMEWORK_ARDUINO_MMU_CUSTOM",
+            flag,
+            "-DMMU_ICACHE_SIZE=0x8000",
+        )
+
+
+def test_raw_nonosdk_define_raises() -> None:
+    """A raw NONOSDK* define would split the compile line from the linked
+    SDK libraries, like the lwIP knob overrides."""
+    with pytest.raises(EsphomeError, match="NONOSDK305 are set by the"):
+        _resolve("-DNONOSDK305=1")
+
+
+def test_write_note_warn_level(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A lost stderr note drops a diagnostic on later cached builds, so it
+    warns; a lost stamp only costs a cache miss."""
+    arduino8266._write_note(tmp_path / "missing" / "note", "x", warn=True)
+    assert "Could not write" in caplog.text
+
+
 def test_write_note_failure_is_best_effort(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

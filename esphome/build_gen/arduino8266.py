@@ -249,6 +249,15 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
         if f"PIO_FRAMEWORK_ARDUINO_ESPRESSIF_{name}" in defines:
             nonosdk = define
             break
+    # Same compile-line/linked-artifact split as the lwIP knobs below: a
+    # raw NONOSDK* would define a second SDK macro while the link still
+    # resolves against the knob's libraries
+    if raw_sdk := sorted(n for n in defines if n.startswith("NONOSDK")):
+        raise EsphomeError(
+            f"{', '.join(raw_sdk)} are set by the "
+            "PIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK* knobs; drop the raw "
+            "build flags"
+        )
 
     tcp_mss, features, ipv6, lwip_lib = _LWIP_DEFAULT
     for knob, variant in _LWIP_VARIANTS:
@@ -311,6 +320,17 @@ def _resolve_build_config(defines: dict[str, str]) -> _BuildConfig:
                 "PIO_FRAMEWORK_ARDUINO_MMU_CUSTOM requires MMU_IRAM_SIZE and "
                 "MMU_ICACHE_SIZE build flags"
             )
+        for size_name in ("MMU_IRAM_SIZE", "MMU_ICACHE_SIZE"):
+            # These reach the linker-script preprocessor; a bare or
+            # non-numeric value would corrupt the segment lengths and fail
+            # far away in ld ("48K" and a valueless flag both preprocess
+            # wrong; ul suffixes survive preprocessing, see build_surgery)
+            value = defines[size_name].partition("=")[2]
+            if not re.fullmatch(r"(?:0[xX][0-9a-fA-F]+|\d+)[uUlL]*", value):
+                raise EsphomeError(
+                    f"{size_name} must be a numeric literal, got "
+                    f"{value or '(no value)'}"
+                )
         # Sorted so build.ninja and the linker-script stamp stay
         # byte-stable across runs (the flag set has no deterministic
         # iteration order).
@@ -500,13 +520,17 @@ def _stat_sig(path: Path) -> str:
         return f"unreadable:{os.urandom(8).hex()}"
 
 
-def _write_note(path: Path, text: str) -> None:
-    """Best-effort bookkeeping write; a failure only costs a cache miss or
-    a lost re-emitted warning, never the build."""
+def _write_note(path: Path, text: str, *, warn: bool = False) -> None:
+    """Best-effort bookkeeping write; a failure never fails the build.
+
+    ``warn`` marks notes whose loss drops a diagnostic on later cached
+    builds; a lost stamp only costs a cache miss and stays at debug.
+    """
     try:
         path.write_text(text, encoding="utf-8")
     except OSError as err:
-        _LOGGER.debug("Could not write %s: %s", path, err)
+        log = _LOGGER.warning if warn else _LOGGER.debug
+        log("Could not write %s: %s", path, err)
 
 
 def _write_generated(path: Path, content: str) -> None:
@@ -606,7 +630,7 @@ def generate_ld_scripts(
             # Preprocessor warnings on the success path must reach the user
             # on this and every later cached build (see the re-emit below)
             _LOGGER.warning("Linker-script preprocessor: %s", result.stderr.strip())
-            _write_note(stderr_note, result.stderr.strip())
+            _write_note(stderr_note, result.stderr.strip(), warn=True)
         else:
             stderr_note.unlink(missing_ok=True)
         if "SECTIONS" not in result.stdout:
