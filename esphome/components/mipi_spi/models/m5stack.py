@@ -72,3 +72,23 @@ GC9107.extend(
     cs_pin=14,
     requires={"psram"},
 )
+
+# M5Stack AtomS3R (ST7735 revision - May 14, 2026+)
+ST7735.extend(
+    "M5STACK-ATOMS3R-ST7735",
+    native_width=132,
+    native_height=132,
+    width=128,
+    height=128,
+    offset_width=2,
+    offset_height=1,
+    pad_width=2,
+    pad_height=3,
+    data_rate="40MHz",
+    color_order=MODE_BGR,
+    invert_colors=True,
+    reset_pin=48,
+    dc_pin=42,
+    cs_pin=14,
+    requires={"psram"},
+)
