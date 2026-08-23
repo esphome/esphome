@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef USE_LIBRETINY
@@ -262,12 +263,12 @@ class WiFiAP {
 
  public:
   void set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
-  void set_ssid(const char *ssid) { this->ssid_ = CompactString(ssid, strlen(ssid)); }
+  void set_ssid(const char *ssid) { this->set_ssid(StringRef(ssid)); }
   void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
   void set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
   void clear_bssid() { this->bssid_ = {}; }
   void set_password(const std::string &password) { this->password_ = CompactString(password.c_str(), password.size()); }
-  void set_password(const char *password) { this->password_ = CompactString(password, strlen(password)); }
+  void set_password(const char *password) { this->set_password(StringRef(password)); }
   void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
