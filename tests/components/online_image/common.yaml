@@ -60,6 +60,7 @@ image:
   - platform: online_image
     id: online_auto_image
     url: http://www.faqs.org/images/library.jpg
+    format: AUTO
     type: RGB565
 
 # Check the set_url action

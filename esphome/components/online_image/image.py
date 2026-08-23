@@ -47,9 +47,7 @@ ONLINE_IMAGE_SCHEMA = (
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Required(CONF_URL): cv.url,
             # AUTO (Content-Type detection) is online_image specific; not in the shared registry
-            cv.Optional(CONF_FORMAT, default="AUTO"): cv.one_of(
-                *IMAGE_FORMATS, "AUTO", upper=True
-            ),
+            cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, "AUTO", upper=True),
             cv.Optional(CONF_BUFFER_SIZE, default=65536): cv.int_range(256, 65536),
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(
                 cv.Schema({cv.string: cv.templatable(cv.string)})
