@@ -722,6 +722,23 @@ def test_prefetch_wave_cache_probe_failure_still_prefetches(
     assert sorted(calls) == ["https://x/a.tar.gz", "https://x/b.tar.gz"]
 
 
+def test_prefetch_wave_internal_error_never_fails_the_build(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The blanket guard keeps a prefetch bug from failing the walk."""
+    monkeypatch.setattr(
+        lib,
+        "run_batch_downloads",
+        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("bug")),
+    )
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+    assert "Library prefetch failed: bug" in caplog.text
+
+
 def test_prefetch_wave_warm_cache_is_silent(
     setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
