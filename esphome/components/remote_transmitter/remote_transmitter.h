@@ -94,6 +94,9 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void arm_envelope_timer_(uint32_t duration_us);
   void abort_stalled_chain_();
   void deliver_completion_();
+  void wait_until_idle_();
+  void arm_chain_(uint32_t send_times, uint32_t send_wait);
+  void update_carrier_(uint32_t carrier_frequency);
   std::vector<int32_t> isr_data_;  // owned copy of the frame; temp_ may be re-encoded mid-flight
   float isr_mark_duty_{0.0f};
   float isr_space_duty_{0.0f};
