@@ -70,9 +70,6 @@ _CORE_EXCLUDE_WAVEFORM = {
     "core_esp8266_waveform_phase.cpp",
 }
 
-# From platformio-build.py. The first entry is the default; with multiple SDK
-# knobs set (a pathological config) ties break by table order, since
-# upstream's tie-break depends on define order and is not reproducible here.
 # Values that land unquoted on generated command lines are shape-checked
 # against these before use
 _MMU_HEX_VALUE_RE = re.compile(r"0[xX][0-9a-fA-F]+[uUlL]*")
@@ -83,8 +80,18 @@ _FLASH_LD_NAME_RE = re.compile(r"[\w.-]+\.ld")
 # Every supported board ships this clock; board_build.f_cpu overrides
 _DEFAULT_F_CPU = "80000000L"
 
-# Knob suffix -> SDK define; the first entry is the default (dicts
-# preserve insertion order)
+# The SDK linker-script template and the preprocessed copy the build links
+# against; the cache stamp and stderr sidecars derive from the output name
+_COMMON_LD_HEADER = "eagle.app.v6.common.ld.h"
+_COMMON_LD_NAME = "local.eagle.app.v6.common.ld"
+
+# Every supported board's f_flash is 40 MHz; re-check on a platform bump
+_FLASH_FREQ_MHZ = 40
+
+# From platformio-build.py. Knob suffix -> SDK define; the first entry is
+# the default (dicts preserve insertion order). With multiple SDK knobs set
+# (a pathological config) ties break by table order, since upstream's
+# tie-break depends on define order and is not reproducible here.
 _NONOSDK_VERSIONS = {
     "SDK22x_190703": "NONOSDK22x_190703",
     "SDK221": "NONOSDK221",
@@ -595,14 +602,14 @@ def generate_ld_scripts(
     cmd += [f"-D{d}" for d in config.mmu_defines]
     if config.fp_in_irom:
         cmd.append("-DFP_IN_IROM")
-    header = framework / "tools" / "sdk" / "ld" / "eagle.app.v6.common.ld.h"
+    header = framework / "tools" / "sdk" / "ld" / _COMMON_LD_HEADER
     cmd += [str(header), "-o", "-"]
 
     # The inputs are the command line (defines + framework version, which is
     # baked into the paths) plus testing mode; skip the preprocessor spawn on
     # incremental builds when nothing changed.
-    output = ld_dir / "local.eagle.app.v6.common.ld"
-    stamp = ld_dir / ".local.eagle.app.v6.common.ld.stamp"
+    output = ld_dir / _COMMON_LD_NAME
+    stamp = ld_dir / f".{_COMMON_LD_NAME}.stamp"
     # Stamp includes the header/gcc stat (catches in-place re-extraction)
     # and the surgery fingerprint (a build_surgery edit invalidates old
     # build dirs)
@@ -632,7 +639,7 @@ def generate_ld_scripts(
         except (OSError, UnicodeDecodeError):
             return False
 
-    stderr_note = ld_dir / ".local.eagle.app.v6.common.ld.stderr"
+    stderr_note = ld_dir / f".{_COMMON_LD_NAME}.stderr"
     if not _cached_ld_is_valid():
         try:
             result = subprocess.run(
@@ -934,11 +941,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  rspfile_content = $in_newline",
         "  description = LINK $out",
         "rule elf2bin",
-        # --flash_freq 40: every supported board's f_flash is 40 MHz;
-        # re-check on a platform bump. --flash_size deliberately stays
-        # board-derived, as under PlatformIO (which reads
-        # upload.maximum_size, not the ldscript).
-        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq 40 --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
+        # --flash_size deliberately stays board-derived, as under
+        # PlatformIO (which reads upload.maximum_size, not the ldscript).
+        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {esp8266_data[KEY_FLASH_MODE]} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
         "  command = $python $buildtool copy $in $out",
@@ -1013,7 +1018,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         lines, _collect_sources(src_dir), src_dir, "src", flags="$srcflags"
     )
 
-    ld_deps = ["ld/local.eagle.app.v6.common.ld"]
+    ld_deps = [f"ld/{_COMMON_LD_NAME}"]
     if CORE.testing_mode:
         ld_deps.append(f"ld/{flash_ld}")
     lines.append(
