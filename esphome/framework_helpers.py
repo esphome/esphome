@@ -1082,11 +1082,11 @@ def download_with_resume(
 
     raise EsphomeError(
         f"Failed to download {url} after {attempts} attempts: "
-        f"{_failure_reason(last_error)}"
+        f"{failure_reason(last_error)}"
     ) from last_error
 
 
-def _failure_reason(e: BaseException) -> str:
+def failure_reason(e: BaseException) -> str:
     """Format a download exception for the aggregated error message.
 
     ``requests`` appends " for url: <url>" to HTTP errors; the URL is already
@@ -1102,7 +1102,7 @@ def _spent_attempts_error(e: Exception, attempts: int) -> Exception:
     the sweep classifies it as permanent."""
     from esphome.core import EsphomeError
 
-    err = EsphomeError(f"failed after {attempts} attempts: {_failure_reason(e)}")
+    err = EsphomeError(f"failed after {attempts} attempts: {failure_reason(e)}")
     err.__cause__ = e
     return err
 
@@ -1328,7 +1328,7 @@ def download_from_mirrors(
             _LOGGER.warning(
                 "Download of %s failed (%s); retrying in %d seconds (attempt %d/%d)",
                 transient[0],
-                _failure_reason(transient[1]),
+                failure_reason(transient[1]),
                 delay,
                 sweep + 1,
                 _MIRROR_SWEEP_ATTEMPTS,
@@ -1349,7 +1349,7 @@ def download_from_mirrors(
         seen: set[tuple[str, str]] = set()
         attempts = ""
         for url, e in failures:
-            reason = _failure_reason(e)
+            reason = failure_reason(e)
             if (url, reason) not in seen:
                 seen.add((url, reason))
                 attempts += f"\n  {url}\n    {reason}"
