@@ -23,6 +23,8 @@ from esphome.espidf.component import (
 )
 import esphome.platformio.library
 from esphome.platformio.library import (
+    ESPHOME_DATA_KEY,
+    ESPHOME_DATA_LINK_FLAGS_KEY,
     ConvertedLibrary as IDFComponent,
     GitSource,
     URLSource,
@@ -290,6 +292,25 @@ def test_generate_cmakelists_txt_multi_token_flag(tmp_component):
     content = generate_cmakelists_txt(tmp_component)
     assert '"-include cp_custom_alloc.h"' not in content
     assert '  "-include"\n  "cp_custom_alloc.h"\n' in content
+
+
+def test_generate_cmakelists_txt_extra_script_link_flags(tmp_component):
+    """Captured extra-script LINKFLAGS come out as target_link_options, not
+    compile options where they would be silently ineffective."""
+    src_dir = tmp_component.path / "src"
+    src_dir.mkdir()
+    (src_dir / "main.c").write_text("int main() {}")
+
+    tmp_component.data = {
+        ESPHOME_DATA_KEY: {ESPHOME_DATA_LINK_FLAGS_KEY: ["-Wl,--gc-sections"]}
+    }
+
+    content = generate_cmakelists_txt(tmp_component)
+    assert (
+        'target_link_options(${COMPONENT_LIB} INTERFACE\n  "-Wl,--gc-sections"\n)'
+        in content
+    )
+    assert "target_compile_options" not in content
 
 
 def test_generate_cmakelists_txt_space_separated_classified_flags(tmp_component):

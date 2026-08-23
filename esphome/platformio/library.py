@@ -83,6 +83,9 @@ _EXTRACTED_MARKER = ".esphome_extracted"
 
 ESPHOME_DATA_KEY = "ESPHOME"
 ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
+# Captured extra-script LINKFLAGS; kept apart from build.flags so they reach
+# the link line (target_link_options), not target_compile_options
+ESPHOME_DATA_LINK_FLAGS_KEY = "LINK_FLAGS"
 
 
 class Source:
