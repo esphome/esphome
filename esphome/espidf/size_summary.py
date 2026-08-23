@@ -26,6 +26,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import math
 from pathlib import Path
 
 from esphome.build_helpers.size_summary import print_size_line
@@ -94,7 +95,7 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         data = json.loads(size_json.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
         # ValueError covers JSONDecodeError and a non-UTF-8 (truncated) file
-        _LOGGER.warning("Skipping size summary: %s", e)
+        _LOGGER.warning("Skipping size summary: cannot read %s: %s", size_json, e)
         return
     if not isinstance(data, dict):
         # Non-object JSON has no .get
@@ -117,13 +118,25 @@ def _present_but_not_dict(value: object) -> bool:
 
 
 def _is_number(value: object) -> bool:
-    return isinstance(value, (int, float))
+    # bool subclasses int; NaN/Infinity are valid JSON for json.loads
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
 
 
 def _ram_bar(data: dict, size_json: Path) -> tuple[int, int] | None:
     """The RAM bar's (used, total), or None (already logged) to skip it."""
     memory_types = data.get("memory_types")
-    ram_region = _dict_get(memory_types, "DRAM") or _dict_get(memory_types, "DIRAM")
+    ram_region = None
+    if isinstance(memory_types, dict):
+        # Key presence, not truthiness: a falsy DRAM value is corrupt, not
+        # absent, and must not fall through to DIRAM
+        for key in ("DRAM", "DIRAM"):
+            if key in memory_types:
+                ram_region = memory_types[key]
+                break
     used = _dict_get(ram_region, "used")
     total = _dict_get(ram_region, "size")
     if _is_number(used) and _is_number(total) and total > 0:
@@ -162,7 +175,8 @@ def _flash_bar(
         return None
     app_size = _find_app_partition_size(partitions_csv)
     if not app_size:
-        # No table or no qualifying row: legitimate for non-app layouts
+        # No qualifying row (a zero-size row has nothing to report either):
+        # legitimate for non-app layouts
         _LOGGER.debug("Skipping Flash summary: no app partition in %s", partitions_csv)
         return None
     return int(image_size), app_size
