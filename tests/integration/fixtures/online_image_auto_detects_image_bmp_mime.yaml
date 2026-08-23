@@ -10,8 +10,8 @@ display:
 image:
   - platform: online_image
     url: http://127.0.0.1:HTTP_PORT/foo.bmp
+    format: AUTO
     id: myimg
-    format: BMP
     type: RGB
     on_download_finished:
       logger.log:

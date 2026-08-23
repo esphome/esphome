@@ -58,6 +58,18 @@ class Format:
         """Add defines and libraries needed for this format."""
 
 
+class AUTOFormat(Format):
+    """AUTO format - detect from MIME type."""
+
+    def __init__(self):
+        super().__init__("AUTO", None)
+
+    def actions(self) -> None:
+        # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
+        for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
+            image_format.actions()
+
+
 class BMPFormat(Format):
     """BMP format decoder configuration."""
 
@@ -102,18 +114,25 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
-# Registry of available formats
+# Decodable formats only; platforms that support runtime detection accept
+# "AUTO" in their own schema and get_format() resolves it
+_JPEG_FORMAT = JPEGFormat()
 IMAGE_FORMATS = {
     "BMP": BMPFormat(),
-    "JPEG": JPEGFormat(),
+    "JPEG": _JPEG_FORMAT,
+    "JPG": _JPEG_FORMAT,  # Alias for JPEG
     "PNG": PNGFormat(),
-    "JPG": JPEGFormat(),  # Alias for JPEG
 }
+
+AUTO_FORMAT = AUTOFormat()
 
 
 def get_format(format_name: str) -> Format | None:
     """Get a format instance by name."""
-    return IMAGE_FORMATS.get(format_name.upper())
+    name = format_name.upper()
+    if name == "AUTO":
+        return AUTO_FORMAT
+    return IMAGE_FORMATS.get(name)
 
 
 def enable_format(format_name: str) -> Format | None:
