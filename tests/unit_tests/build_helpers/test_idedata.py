@@ -436,15 +436,23 @@ def test_load_or_build_idedata_discards_unreadable_cache_file(
     compile_commands = _write_compile_commands(tmp_path)
     cache = tmp_path / "c.json"
     cache.write_text("{}")
-    cache.chmod(0)
     os.utime(cache, (compile_commands.stat().st_mtime + 5,) * 2)
-    try:
-        with patch.object(idedata, "get_toolchain_includes", return_value=[]):
-            data = idedata.load_or_build_idedata(
-                compile_commands, tmp_path / "f.elf", cache
-            )
-    finally:
-        cache.chmod(0o600)
+    real_read_text = Path.read_text
+
+    def fail_cache_read(self: Path, *args: object, **kwargs: object) -> str:
+        # chmod(0) cannot revoke read access on Windows, so fault the read
+        # itself for a platform-independent OSError
+        if self == cache:
+            raise OSError("permission denied")
+        return real_read_text(self, *args, **kwargs)
+
+    with (
+        patch.object(idedata, "get_toolchain_includes", return_value=[]),
+        patch.object(Path, "read_text", fail_cache_read),
+    ):
+        data = idedata.load_or_build_idedata(
+            compile_commands, tmp_path / "f.elf", cache
+        )
     assert data["cxx_path"] == "/tools/g++"
     assert "Discarding unreadable idedata cache" in caplog.text
 
