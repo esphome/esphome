@@ -112,21 +112,26 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.warning("Skipping size summary: unexpected shape in %s", size_json)
         return
 
+    if (ram := _ram_line(data, size_json)) is not None:
+        print(ram)
+    if (flash := _flash_line(data, partitions_csv)) is not None:
+        print(flash)
+
+
+def _dict_get(mapping: object, key: str) -> object:
+    """dict.get that reads None from any non-dict."""
+    return mapping.get(key) if isinstance(mapping, dict) else None
+
+
+def _ram_line(data: dict, size_json: Path) -> str | None:
+    """The formatted RAM line, or None (already logged) to skip it."""
     memory_types = data.get("memory_types")
-    ram_region = (
-        memory_types.get("DRAM") or memory_types.get("DIRAM")
-        if isinstance(memory_types, dict)
-        else None
-    )
-    ram_used = ram_region.get("used") if isinstance(ram_region, dict) else None
-    ram_total = ram_region.get("size") if isinstance(ram_region, dict) else None
-    if (
-        isinstance(ram_used, (int, float))
-        and isinstance(ram_total, (int, float))
-        and ram_total > 0
-    ):
-        print(f"RAM:   {_format_bar(int(ram_used), int(ram_total))}")
-    elif (memory_types is not None and not isinstance(memory_types, dict)) or (
+    ram_region = _dict_get(memory_types, "DRAM") or _dict_get(memory_types, "DIRAM")
+    used = _dict_get(ram_region, "used")
+    total = _dict_get(ram_region, "size")
+    if isinstance(used, (int, float)) and isinstance(total, (int, float)) and total > 0:
+        return f"RAM:   {_format_bar(int(used), int(total))}"
+    if (memory_types is not None and not isinstance(memory_types, dict)) or (
         ram_region is not None and not isinstance(ram_region, dict)
     ):
         # A structurally corrupt report, not a variant without the region
@@ -135,9 +140,7 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.warning(
             "Skipping RAM summary: no usable DRAM/DIRAM region in %s", size_json
         )
-
-    if (flash := _flash_line(data, partitions_csv)) is not None:
-        print(flash)
+    return None
 
 
 def _flash_line(data: dict, partitions_csv: Path | None) -> str | None:
