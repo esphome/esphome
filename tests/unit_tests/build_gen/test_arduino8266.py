@@ -651,7 +651,7 @@ def test_build_config_mmu_defines_do_not_alias_the_table() -> None:
         _flag_defines(set(), arduino8266._lexed_build_flags())
     )
     assert "MMU_BOGUS" not in again.mmu_defines
-    assert all(isinstance(v, tuple) for _k, v in arduino8266._MMU_VARIANTS)
+    assert all(isinstance(v, tuple) for v in arduino8266._MMU_VARIANTS.values())
 
 
 def test_lexed_build_flags_shared_between_consumers(
