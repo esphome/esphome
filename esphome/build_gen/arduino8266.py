@@ -35,9 +35,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# From platformio-build.py. The first entry is the default; with multiple SDK
-# knobs set (a pathological config) ties break by table order, since
-# upstream's tie-break depends on define order and is not reproducible here.
 # Values that land unquoted on generated command lines are shape-checked
 # against these before use
 _MMU_HEX_VALUE_RE = re.compile(r"0[xX][0-9a-fA-F]+[uUlL]*")
@@ -53,8 +50,10 @@ _DEFAULT_F_CPU = "80000000L"
 _COMMON_LD_HEADER = "eagle.app.v6.common.ld.h"
 _COMMON_LD_NAME = "local.eagle.app.v6.common.ld"
 
-# Knob suffix -> SDK define; the first entry is the default (dicts
-# preserve insertion order)
+# From platformio-build.py. Knob suffix -> SDK define; the first entry is
+# the default (dicts preserve insertion order). With multiple SDK knobs set
+# (a pathological config) ties break by table order, since upstream's
+# tie-break depends on define order and is not reproducible here.
 _NONOSDK_VERSIONS = {
     "SDK22x_190703": "NONOSDK22x_190703",
     "SDK221": "NONOSDK221",
