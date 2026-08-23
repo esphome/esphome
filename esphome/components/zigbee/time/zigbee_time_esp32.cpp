@@ -41,6 +41,9 @@ void ZigbeeTime::register_zb_time_() {
   }
   this->registered_ = true;
   this->parent_->add_on_join_callback([this](bool x) { this->update(); });
+  if (this->parent_->is_joined()) {
+    this->update();
+  }
 }
 
 void ZigbeeTime::status_cb(ezb_err_t status) {
