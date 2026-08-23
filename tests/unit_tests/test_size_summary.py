@@ -133,7 +133,8 @@ def test_print_summary_handles_missing_json(
     """Missing size json is non-fatal and prints nothing."""
     print_summary(tmp_path / "does_not_exist.json", partitions_csv=None)
     assert capsys.readouterr().out == ""
-    assert "Skipping size summary" in caplog.text
+    assert "cannot read" in caplog.text
+    assert "Skipping size summary for" not in caplog.text
 
 
 def test_print_summary_handles_no_memory_types(
@@ -196,6 +197,8 @@ def test_print_summary_happy_path_prints_both_bars(
         {"memory_types": []},
         {"memory_types": {"DRAM": 5}},
         {"memory_types": {"DRAM": {"used": "x", "size": "y"}}, "image_size": 1},
+        {"memory_types": {"DRAM": []}},
+        {"memory_types": {"DRAM": {"used": True, "size": True}}},
     ],
 )
 def test_print_summary_nested_bad_shapes_never_raise(
@@ -303,8 +306,12 @@ def test_print_summary_corrupt_size_json_warns(
     size_json = tmp_path / "size.json"
     size_json.write_text("not json {{{")
     print_summary(size_json, None)
+    size_json.write_bytes(b"\xff\xfe\x00")
+    print_summary(size_json, None)
     assert capsys.readouterr().out == ""
-    assert "Skipping size summary" in caplog.text
+    # The named arm, not the blanket, for both damage classes
+    assert caplog.text.count("cannot read") == 2
+    assert "Skipping size summary for" not in caplog.text
 
 
 def test_print_summary_flash_line_matches_ci_extraction(
