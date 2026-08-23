@@ -261,7 +261,7 @@ def load_or_build_idedata(
     if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
         try:
             cached = json.loads(cache.read_text(encoding="utf-8"))
-        except ValueError as err:
+        except (ValueError, OSError) as err:
             # A recurring cause (interrupted write, disk full) would otherwise
             # look like unexplained slow builds
             _LOGGER.warning("Discarding unreadable idedata cache %s: %s", cache, err)

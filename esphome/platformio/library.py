@@ -962,16 +962,27 @@ def _prefetch_wave(
     # downloads with their per-file bars instead.
     sizes = _content_lengths([c.source.url for c in components])
     if not all(sizes):
+        # Name the culprits so the fallback is distinguishable from a hang
+        _LOGGER.debug(
+            "No Content-Length for %s; downloading sequentially",
+            ", ".join(
+                c.source.url
+                for c, size in zip(components, sizes, strict=True)
+                if not size
+            ),
+        )
         return
     progress = BatchDownloadProgress("Downloading libraries", sum(sizes))
+    # Reported after the bar is done so the warnings do not land on its
+    # row; list.append is atomic under the GIL.
+    failures: list[tuple[str, Exception]] = []
 
     def _fetch(component: ConvertedLibrary) -> None:
         tracker = progress.tracker()
         try:
             component.download(salt=salt, namespace=namespace, progress=tracker)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            # The sequential call below retries and reports the failure
-            _LOGGER.debug("Prefetch of %s failed: %s", component.name, err)
+            failures.append((component.name, err))
             tracker(0)
 
     ex = ThreadPoolExecutor(max_workers=min(_DOWNLOAD_WORKERS, len(components)))
@@ -983,6 +994,9 @@ def _prefetch_wave(
         # all before the process can exit; in-flight ones still finish.
         ex.shutdown(wait=True, cancel_futures=True)
         progress.done()
+    for name, err in failures:
+        # The sequential call below retries and raises the real error
+        _LOGGER.warning("Prefetch of %s failed (retrying sequentially): %s", name, err)
 
 
 def convert_libraries(

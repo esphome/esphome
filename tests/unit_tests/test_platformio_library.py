@@ -597,7 +597,7 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
 
 
 def test_prefetch_wave_downloads_registry_archives_in_parallel(
-    setup_core, monkeypatch: pytest.MonkeyPatch
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Registry archives in one wave download concurrently, deduped by URL;
     git/local sources and failures are left to the sequential call."""
@@ -627,10 +627,12 @@ def test_prefetch_wave_downloads_registry_archives_in_parallel(
         "https://x/b.tar.gz",
         "https://x/boom.tar.gz",
     ]
+    # The failure surfaces at default verbosity, after the bar
+    assert "Prefetch of c failed (retrying sequentially)" in caplog.text
 
 
 def test_prefetch_wave_unknown_size_falls_back_to_sequential(
-    setup_core, monkeypatch: pytest.MonkeyPatch
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Any unknown HEAD size skips the parallel prefetch entirely so the
     sequential downloads keep their per-file bars."""
@@ -644,7 +646,10 @@ def test_prefetch_wave_unknown_size_falls_back_to_sequential(
         ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz"))),
         ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz"))),
     ]
+    caplog.set_level("DEBUG")
     lib._prefetch_wave(wave, "", "idf")
+    # The culprit URL is named so the fallback is traceable
+    assert "No Content-Length for https://x/b.tar.gz" in caplog.text
 
 
 def test_content_lengths_head_requests(monkeypatch: pytest.MonkeyPatch) -> None:
