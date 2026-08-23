@@ -23,7 +23,11 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
-from esphome.build_helpers.idedata import get_toolchain_includes, parse_entry
+from esphome.build_helpers.idedata import (
+    get_toolchain_includes,
+    parse_entry,
+    reject_launcher_compiler,
+)
 
 TIDY_PROJECT_NAME = "esphome_tidy"
 
@@ -422,6 +426,7 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
     if entry is None:
         raise RuntimeError(f"tidy.cpp not found in {compile_commands}")
     cxx_path, defines, includes, cxx_flags = parse_entry(entry)
+    reject_launcher_compiler(cxx_path)
 
     return {
         "cxx_path": cxx_path,
