@@ -447,12 +447,11 @@ async def to_code(config: ConfigType) -> None:
     # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
     # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
     # See throw_stubs.h for details. Must be prepended before <string>, so this
-    # uses build_src_flags with -include. The native toolchain's build
-    # generator adds the equivalent flag itself.
-    if use_platformio:
-        cg.add_platformio_option(
-            "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
-        )
+    # uses build_src_flags with -include. Unconditional: the native build
+    # generator reads the same option, keeping one source of truth.
+    cg.add_platformio_option(
+        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
+    )
 
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
