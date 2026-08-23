@@ -37,7 +37,7 @@ _SIZE_SUFFIXES = {"K": 1024, "M": 1024 * 1024}
 def _parse_size(token: str) -> int:
     token = token.strip()
     if not token:
-        return 0
+        raise ValueError("blank partition size cell")
     if token.startswith(("0x", "0X")):
         return int(token, 16)
     suffix = token[-1].upper()
@@ -76,6 +76,14 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     summarize. Logs the cause at warning level, so a missing RAM/Flash line
     (which CI's memory-impact extraction greps for) is diagnosable.
     """
+    try:
+        _print_summary(size_json, partitions_csv)
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Backstop for nested shapes the named guards below miss
+        _LOGGER.warning("Skipping size summary: %s", e)
+
+
+def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     if not size_json.is_file():
         _LOGGER.warning("Skipping size summary: %s not found", size_json)
         return
