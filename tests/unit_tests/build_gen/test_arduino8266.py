@@ -346,7 +346,7 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
     assert "core_esp8266_waveform_phase.cpp" not in content
     assert "core_esp8266_main.cpp.o" in content
     # Assembly and C sources compile through their own rules
-    assert "cont.S.o: asm" in content
+    assert "cont.S.o: aspp" in content
     assert "abi.c.o: c" in content
     # throw_stubs is force-included for ESPHome sources only, via one shared
     # srcflags variable rather than a copy of the flags line per edge
@@ -686,6 +686,30 @@ def test_build_config_nonosdk_precedence() -> None:
         "-DPIO_FRAMEWORK_ARDUINO_ESPRESSIF_SDK221",
     )
     assert _resolve_build_config(_defines()).nonosdk == "NONOSDK221"
+
+
+def test_write_project_plain_asm_rule_skips_preprocessor(tmp_path: Path) -> None:
+    """A lowercase .s source assembles plain (SCons AS), never through the
+    preprocessor rule that a .S source gets."""
+    paths = _make_framework(tmp_path)
+    core_dir = paths.framework / "cores" / "esp8266"
+    (core_dir / "lowlevel.s").write_text("nop\n")
+    _set_flags()
+    content = _write_ninja(paths)
+    assert "lowlevel.s.o: asm " in content
+    assert "rule asm\n  command = $ccache $cc -x assembler $asflags -c $in -o $out" in (
+        content
+    )
+
+
+def test_write_project_unflags_operandless_linker_flag(tmp_path: Path) -> None:
+    """build_unflags: -nostdlib filters whole-token from both lines, as
+    PlatformIO allows; only operand-taking flags hard-error."""
+    paths = _make_framework(tmp_path)
+    _set_flags()
+    CORE.build_unflags = {"-nostdlib"}
+    content = _write_ninja(paths)
+    assert "-nostdlib" not in content
 
 
 def test_write_project_unflagged_symbol_takes_its_dash_u(tmp_path: Path) -> None:
