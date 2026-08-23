@@ -3,6 +3,13 @@ binary_sensor:
     pin: ${binary_sensor_pin}
     id: gpio_binary_sensor
 
+  # Polling sensor alongside an interrupt sensor: proves the mixed build where
+  # both code paths are compiled and selected per instance at runtime.
+  - platform: gpio
+    pin: ${binary_sensor_pin_2}
+    id: gpio_binary_sensor_polling
+    use_interrupt: false
+
 output:
   - platform: gpio
     pin: ${output_pin}

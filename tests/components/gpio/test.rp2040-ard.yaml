@@ -1,5 +1,6 @@
 substitutions:
   binary_sensor_pin: GPIO2
+  binary_sensor_pin_2: GPIO8
   output_pin: GPIO3
   switch_pin: GPIO4
   switch_pin_2: GPIO5
