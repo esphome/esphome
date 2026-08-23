@@ -169,6 +169,30 @@ def test_apply_extra_script_callable_target_and_str_flags(tmp_path) -> None:
     assert c.data["build"]["flags"] == ["-DBASE=1", "-lesp8266"]
 
 
+def test_captured_nonstring_buckets_warn_and_skip(tmp_path, caplog) -> None:
+    """Non-string LIBS/LINKFLAGS/CPPFLAGS/LIBPATH entries (legal SCons
+    nodes) are skipped by name instead of stringified into garbage flags."""
+    (tmp_path / "src").mkdir()
+    script = tmp_path / "extra.py"
+    script.write_text(
+        "env.Append(LIBS=['m', 42], LINKFLAGS=['-Wl,-x', {'no': 1}], "
+        "CPPFLAGS=['-Os', 3.5], LIBPATH=['libs', 7])\n"
+    )
+    (tmp_path / "libs").mkdir()
+
+    c = IDFComponent("owner/name", "1.0", source=URLSource("http://dummy"))
+    c.path = tmp_path
+    c.data = {"build": {"extraScript": "extra.py"}}
+
+    apply_extra_script(c, board_mcu=lambda: "esp8266", pio_platform="espressif8266")
+
+    flags = c.data["build"]["flags"]
+    assert "-lm" in flags and "-Wl,-x" in flags and "-Os" in flags
+    assert not any("42" in f or "no" in f or "3.5" in f for f in flags)
+    assert "Ignoring unsupported LIBS entry 42" in caplog.text
+    assert "Ignoring unsupported LIBPATH entry 7" in caplog.text
+
+
 def test_captured_dict_cppdefines_warn_and_skip(tmp_path, caplog) -> None:
     """A dict CPPDEFINES entry (legal SCons) must warn and skip; formatting
     it blind would hand the compiler -D{'FOO': '1'} garbage."""

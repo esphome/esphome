@@ -730,9 +730,15 @@ def _prefetch_idf_tool_archives(
             return
         dist_path = get_idf_tools_path() / "dist"
         entries = []
+        seen_dests: set[str] = set()
         for entry in json.loads(stdout):
             if (dist_path / entry["dest"]).is_file():
                 continue
+            if entry["dest"] in seen_dests:
+                # Two workers on one .part file would interleave
+                # seek/truncate writes; mirror the library prefetch's dedupe
+                continue
+            seen_dests.add(entry["dest"])
             # tools.json always carries sha256 and size; an entry missing
             # either must not be downloaded unverified here, so leave it to
             # the installer (which fails loudly on a bad archive).
