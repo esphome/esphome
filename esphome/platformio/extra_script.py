@@ -114,10 +114,19 @@ class _FakeSConsEnv:
         self.result = ExtraScriptResult()
         self._warned_methods: set[str] = set()
         self._warned_keys: set[str] = set()
+        self._warned_gets: set[str] = set()
 
     # ----- SCons env API the common scripts use -----
 
     def get(self, key: str, default: str | None = None) -> str | None:
+        if key not in self._vars and key not in self._warned_gets:
+            # A script branching on an unmodelled var silently takes the
+            # default branch; make that diagnosable from a normal build log
+            self._warned_gets.add(key)
+            _LOGGER.warning(
+                "PIO extra-script env.get(%r) is not modelled; returning the default",
+                key,
+            )
         return self._vars.get(key, default)
 
     def __getitem__(self, key: str) -> str:
@@ -139,6 +148,12 @@ class _FakeSConsEnv:
             items = list(value) if isinstance(value, (list, tuple)) else [value]
             bucket = getattr(self.result, key.lower())
             bucket.extend(items)
+
+    # Same keys, same flattened capture; ordering/dedup don't matter since
+    # the consumer re-orders anyway
+    Prepend = Append
+    AppendUnique = Append
+    PrependUnique = Append
 
     # ----- Everything else is a no-op so unsupported scripts don't crash -----
 
@@ -267,7 +282,7 @@ def captured_as_build_flags(
     flags.extend(
         f"-L{shlex.quote(_anchored(path))}" for path in _strs(result.libpath, "LIBPATH")
     )
-    flags.extend(f"-l{lib}" for lib in _strs(result.libs, "LIBS"))
+    flags.extend(f"-l{shlex.quote(lib)}" for lib in _strs(result.libs, "LIBS"))
     for define in result.cppdefines:
         # SCons also accepts dict/list CPPDEFINES; formatting those blind
         # would hand the compiler garbage like -D{'FOO': '1'}
@@ -277,6 +292,8 @@ def captured_as_build_flags(
             flags.append(f"-D{define}")
         else:
             _LOGGER.warning("Ignoring unsupported CPPDEFINES entry %r", define)
-    flags.extend(_strs(result.linkflags, "LINKFLAGS"))
-    flags.extend(_strs(result.cppflags, "CPPFLAGS"))
+    # Each captured entry is one argv token in SCons; quote so the
+    # lex_build_flags round-trip cannot split a spaced value into two
+    flags.extend(shlex.quote(f) for f in _strs(result.linkflags, "LINKFLAGS"))
+    flags.extend(shlex.quote(f) for f in _strs(result.cppflags, "CPPFLAGS"))
     return flags
