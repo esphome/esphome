@@ -428,6 +428,27 @@ def test_load_or_build_idedata_corrupted_cache_is_logged(
     assert "Discarding unreadable idedata cache" in caplog.text
 
 
+def test_load_or_build_idedata_discards_unreadable_cache_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An OSError on the cache read (permissions, I/O) regenerates like a
+    parse failure instead of aborting the consumer."""
+    compile_commands = _write_compile_commands(tmp_path)
+    cache = tmp_path / "c.json"
+    cache.write_text("{}")
+    cache.chmod(0)
+    os.utime(cache, (compile_commands.stat().st_mtime + 5,) * 2)
+    try:
+        with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+            data = idedata.load_or_build_idedata(
+                compile_commands, tmp_path / "f.elf", cache
+            )
+    finally:
+        cache.chmod(0o600)
+    assert data["cxx_path"] == "/tools/g++"
+    assert "Discarding unreadable idedata cache" in caplog.text
+
+
 def test_load_or_build_idedata_never_caches_a_launcher(tmp_path: Path) -> None:
     """A compile DB naming a launcher as the compiler is rejected, never cached."""
     compile_commands = tmp_path / "compile_commands.json"

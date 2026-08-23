@@ -410,6 +410,11 @@ def _build_info_stale(
     except (json.JSONDecodeError, OSError):
         _LOGGER.debug("Build info JSON unreadable; regenerating")
         return True
+    if not isinstance(existing, dict):
+        # Valid JSON that is not an object (truncated or hand-edited) is
+        # stale, not a traceback
+        _LOGGER.debug("Build info JSON malformed; regenerating")
+        return True
     if (
         existing.get("config_hash") != config_hash
         or existing.get("esphome_version") != __version__
