@@ -4,6 +4,7 @@ platformio package (identical bits, esphome's own download machinery)."""
 from __future__ import annotations
 
 from collections.abc import Collection
+from functools import partial
 import io
 import json
 import logging
@@ -13,7 +14,6 @@ import platform
 
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
-    BatchDownloadProgress,
     archive_extract_all,
     download_from_mirrors,
     download_with_resume,
@@ -188,27 +188,21 @@ def prefetch_packages(
         ", ".join(name for name, *_ in pending),
     )
 
-    def _fetch(entry: tuple[str, str, Path, str, str, int]):
+    def _fetch(entry: tuple[str, str, Path, str, str, int], tracker) -> None:
         name, version, dest, url, sha256, size = entry
-
-        def fetch(tracker):
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with FileLock(f"{dest}.lock", fallback_to_soft=False):
-                download_with_resume(
-                    url,
-                    downloads_dir / f"{name}-{version}",
-                    sha256=sha256,
-                    size=size,
-                    progress=tracker,
-                )
-
-        return fetch
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with FileLock(f"{dest}.lock", fallback_to_soft=False):
+            download_with_resume(
+                url,
+                downloads_dir / f"{name}-{version}",
+                sha256=sha256,
+                size=size,
+                progress=tracker,
+            )
 
     failures = run_batch_downloads(
-        BatchDownloadProgress(
-            "Downloading packages", sum(size for *_, size in pending)
-        ),
-        [(entry[0], _fetch(entry)) for entry in pending],
+        "Downloading packages",
+        [(entry[0], entry[5], partial(_fetch, entry)) for entry in pending],
     )
     for name, err in failures:
         if isinstance(err, (EsphomeError, OSError)):
