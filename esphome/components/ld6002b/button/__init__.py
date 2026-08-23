@@ -129,7 +129,7 @@ BUTTON_MAP = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for key, button_type in BUTTON_MAP.items():
         if button_config := config.get(key):
             b = cg.new_Pvariable(button_config[CONF_ID], button_type)

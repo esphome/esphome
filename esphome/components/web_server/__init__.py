@@ -4,6 +4,7 @@ import base64
 import gzip
 import logging
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -39,6 +40,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -128,7 +130,7 @@ def validate_ota(config: ConfigType) -> ConfigType:
 _ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
 
 
-def validate_origin(value: str) -> str:
+def validate_origin(value: Any) -> str:
     # "*" is the wildcard that allows any origin.
     if value == "*":
         return value
@@ -306,7 +308,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def add_sorting_groups(web_server_var, config):
+def add_sorting_groups(web_server_var: MockObj, config: list[ConfigType]) -> None:
     for group in config:
         sorting_groups[group[CONF_ID]] = group[CONF_NAME]
         group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
@@ -317,7 +319,7 @@ def add_sorting_groups(web_server_var, config):
         )
 
 
-async def add_entity_config(entity, config):
+async def add_entity_config(entity: MockObj, config: ConfigType) -> None:
     web_server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
     sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
     sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
@@ -332,7 +334,7 @@ async def add_entity_config(entity, config):
     )
 
 
-def build_index_html(config) -> str:
+def build_index_html(config: ConfigType) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
@@ -366,7 +368,7 @@ def add_resource_as_progmem(
 
 
 @coroutine_with_priority(CoroPriority.WEB)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
