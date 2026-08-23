@@ -9,6 +9,7 @@ from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
@@ -473,3 +474,10 @@ async def to_code(config):
 async def time_has_time_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+# posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a
+# timezone is configured or detected.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"posix_tz.cpp": "USE_TIME_TIMEZONE"}
+)
