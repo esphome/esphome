@@ -728,7 +728,7 @@ bool AsyncEventSource::loop() {
   for (size_t i = 0; i < this->sessions_.size();) {
     auto *ses = this->sessions_[i];
     // If the session has a dead socket (marked by destroy callback)
-    if (ses->fd_.load() == 0) {
+    if (ses->safe_to_delete_()) {
       // destroy() already logged the close with the fd; don't double-log here.
       delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
       // Remove by swapping with last element (O(1) removal, order doesn't matter for sessions)
@@ -751,7 +751,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
   }
   for (auto *rsp : incoming) {
     // Already disconnected? Drop it; skip on_connect_/session start on a dead session.
-    if (rsp->fd_.load() == 0) {
+    if (rsp->safe_to_delete_()) {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
@@ -865,10 +865,16 @@ void AsyncEventSourceResponse::deq_push_back_with_dedup_(void *source, message_g
 }
 
 void AsyncEventSourceResponse::process_deferred_queue_() {
+  if (this->close_requested_) {
+    return;
+  }
   while (!deferred_queue_.empty()) {
     DeferredEvent &de = deferred_queue_.front();
     auto message = de.message_generator_(web_server_, de.source_);
     if (this->try_send_nodefer(message.c_str(), message.size(), "state")) {
+      if (this->close_requested_ || deferred_queue_.empty()) {
+        return;
+      }
       // O(n) but memory efficiency is more important than speed here which is why std::vector was chosen
       deferred_queue_.erase(deferred_queue_.begin());
     } else {
@@ -877,8 +883,69 @@ void AsyncEventSourceResponse::process_deferred_queue_() {
   }
 }
 
+void AsyncEventSourceResponse::request_close_() {
+  if (!this->close_requested_) {
+    this->close_requested_ = true;
+    this->deferred_queue_.clear();
+    this->event_buffer_.clear();
+    this->event_bytes_sent_ = 0;
+    this->next_close_attempt_ms_ = 0;
+  }
+
+  this->process_close_();
+}
+
+void AsyncEventSourceResponse::process_close_() {
+  if (!this->close_requested_ || this->close_work_queued_.load(std::memory_order_acquire)) {
+    return;
+  }
+  const int fd = this->fd_.load();
+  if (fd == 0) {
+    return;
+  }
+
+  const uint32_t now = millis();
+  if (this->next_close_attempt_ms_ != 0 && static_cast<int32_t>(now - this->next_close_attempt_ms_) < 0) {
+    return;
+  }
+
+  // Queue an identity-checked shutdown on the HTTPD task. The public
+  // httpd_sess_trigger_close() queues only a reusable fd/session slot and can
+  // therefore close a new client if the original peer disconnects meanwhile.
+  this->close_work_queued_.store(true, std::memory_order_release);
+  this->next_close_attempt_ms_ = now + CLOSE_CONFIRM_INTERVAL_MS;
+  const esp_err_t err = httpd_queue_work(this->hd_, &AsyncEventSourceResponse::close_session_work, this);
+  if (err == ESP_OK) {
+    return;
+  }
+
+  this->close_work_queued_.store(false, std::memory_order_release);
+  this->next_close_attempt_ms_ = now + CLOSE_RETRY_INTERVAL_MS;
+  if (!this->close_retry_warning_logged_) {
+    ESP_LOGW(TAG, "Failed to queue EventSource close (%s); retrying", esp_err_to_name(err));
+    this->close_retry_warning_logged_ = true;
+  }
+}
+
+void AsyncEventSourceResponse::close_session_work(void *arg) {
+  auto *response = static_cast<AsyncEventSourceResponse *>(arg);
+  if (response == nullptr) {
+    return;
+  }
+
+  const int fd = response->fd_.load();
+  if (fd != 0 && httpd_sess_get_ctx(response->hd_, fd) == response) {
+    // The HTTPD task remains the session owner. Shutting the socket down makes
+    // its next select/recv path delete the session and invoke destroy().
+    shutdown(fd, SHUT_RDWR);
+  }
+
+  // Release self only after the HTTPD-task callback has finished every access.
+  response->close_work_queued_.store(false, std::memory_order_release);
+}
+
 void AsyncEventSourceResponse::process_buffer_() {
-  if (event_buffer_.empty()) {
+  if (this->close_requested_ || event_buffer_.empty()) {
     return;
   }
   if (event_bytes_sent_ == event_buffer_.size()) {
@@ -892,32 +959,37 @@ void AsyncEventSourceResponse::process_buffer_() {
       httpd_socket_send(this->hd_, this->fd_.load(), event_buffer_.c_str() + event_bytes_sent_, remaining, 0);
   if (bytes_sent == HTTPD_SOCK_ERR_TIMEOUT) {
     // EAGAIN/EWOULDBLOCK - socket buffer full, try again later
-    // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_()
-    // The implementations differ due to platform-specific APIs (HTTPD_SOCK_ERR_TIMEOUT vs DISCARDED, fd_.store(0) vs
-    // close()), but the failure counting and timeout logic should be kept in sync. If you change this logic, also
-    // update the Arduino implementation.
-    this->consecutive_send_failures_++;
-    if (this->consecutive_send_failures_ >= MAX_CONSECUTIVE_SEND_FAILURES) {
-      // Too many failures, connection is likely dead
-      ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu16 " failed sends",
-               this->consecutive_send_failures_);
-      this->fd_.store(0);  // Mark for cleanup
-      this->deferred_queue_.clear();
+    // NOTE: Similar logic exists in web_server/web_server.cpp in DeferredUpdateEventSource::process_deferred_queue_().
+    // The IDF path is intentionally time-based and closes through HTTPD to preserve session ownership.
+    const uint32_t now = millis();
+    if (this->consecutive_send_failures_ == 0) {
+      this->send_failure_started_ms_ = now;
+    }
+    if (this->consecutive_send_failures_ != UINT16_MAX) {
+      this->consecutive_send_failures_++;
+    }
+    if (static_cast<int32_t>(now - (this->send_failure_started_ms_ + SEND_STALL_TIMEOUT_MS)) >= 0) {
+      ESP_LOGW(TAG, "Closing stuck EventSource connection after %" PRIu32 " ms without send progress",
+               now - this->send_failure_started_ms_);
+      this->request_close_();
     }
     return;
   }
   if (bytes_sent == HTTPD_SOCK_ERR_FAIL) {
-    // Real socket error - connection will be closed by httpd and destroy callback will be called
+    // Low-level asynchronous sends do not make HTTPD close the session automatically.
+    this->request_close_();
     return;
   }
   if (bytes_sent <= 0) {
     // Unexpected error or zero bytes sent
     ESP_LOGW(TAG, "Unexpected send result: %d", bytes_sent);
+    this->request_close_();
     return;
   }
 
   // Successful send - reset failure counter
   this->consecutive_send_failures_ = 0;
+  this->send_failure_started_ms_ = 0;
   event_bytes_sent_ += bytes_sent;
 
   // Log partial sends for debugging
@@ -933,20 +1005,28 @@ void AsyncEventSourceResponse::process_buffer_() {
 }
 
 void AsyncEventSourceResponse::loop() {
+  if (this->close_requested_) {
+    this->process_close_();
+    return;
+  }
   process_buffer_();
+  if (this->close_requested_)
+    return;
   process_deferred_queue_();
+  if (this->close_requested_)
+    return;
   if (!this->entities_iterator_.completed())
     this->entities_iterator_.advance();
 }
 
 bool AsyncEventSourceResponse::try_send_nodefer(const char *message, size_t message_len, const char *event, uint32_t id,
                                                 uint32_t reconnect) {
-  if (this->fd_.load() == 0) {
+  if (this->fd_.load() == 0 || this->close_requested_) {
     return false;
   }
 
   process_buffer_();
-  if (!event_buffer_.empty()) {
+  if (this->close_requested_ || !event_buffer_.empty()) {
     // there is still pending event data to send first
     return false;
   }
@@ -1097,6 +1177,10 @@ void AsyncEventSourceResponse::deferrable_send_state(void *source, const char *e
 
   process_buffer_();
   process_deferred_queue_();
+
+  if (this->close_requested_) {
+    return;
+  }
 
   if (!event_buffer_.empty() || !deferred_queue_.empty()) {
     // outgoing event buffer or deferred queue still not empty which means downstream tcp send buffer full, no point
