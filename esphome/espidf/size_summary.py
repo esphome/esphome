@@ -63,7 +63,12 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
             continue
         ptype, psubtype, psize = cells[1], cells[2], cells[4]
         if ptype in ("app", "0") and psubtype in ("factory", "ota_0"):
-            return _parse_size(psize)
+            try:
+                return _parse_size(psize)
+            except ValueError as err:
+                raise ValueError(
+                    f"{err} for partition {cells[0]} in {partitions_csv}"
+                ) from err
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
@@ -84,8 +89,10 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
     try:
         _print_summary(size_json, partitions_csv)
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Backstop for shapes the named guards below miss
-        _LOGGER.debug("Skipping size summary: %s", e)
+        # Backstop for shapes the named guards below miss; warning so a
+        # regression here cannot go missing indefinitely
+        _LOGGER.warning("Skipping size summary for %s: %s", size_json, e)
+        _LOGGER.debug("Size summary failure detail", exc_info=True)
 
 
 def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
@@ -120,6 +127,10 @@ def _print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         return
     if app_size <= 0:
         # Skipping also fails CI's Flash extraction, the right outcome here
-        _LOGGER.debug("Skipping Flash summary: app partition size is 0")
+        _LOGGER.warning(
+            "Skipping Flash summary: app partition size is %s in %s",
+            app_size,
+            partitions_csv,
+        )
         return
     print(f"Flash: {_format_bar(image_size, app_size)}")

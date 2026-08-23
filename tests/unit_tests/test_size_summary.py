@@ -206,7 +206,8 @@ def test_print_summary_nested_bad_shapes_never_raise(
     """The blanket guard keeps unexpected nested shapes from raising."""
     size_json = _write_size_json(tmp_path, payload)
     print_summary(size_json, None)
-    assert "Traceback" not in capsys.readouterr().err
+    # No half-formed bar for CI to scrape; every payload fails before printing
+    assert capsys.readouterr().out == ""
 
 
 def test_print_summary_blank_size_cell_names_the_row(
