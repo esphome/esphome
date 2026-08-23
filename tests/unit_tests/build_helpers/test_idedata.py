@@ -151,11 +151,20 @@ def test_is_esphome_src_handles_backslash_paths() -> None:
     assert not idedata._is_esphome_src(r"C:\b\src\esphome\core\app.h")
 
 
-def test_parse_entry_empty_command_raises() -> None:
-    """A blank command fails with a named ValueError, not an IndexError."""
-    entry = {"directory": "/b", "file": "/b/src/x.cpp", "command": ""}
+@pytest.mark.parametrize(
+    ("command", "launcher"),
+    [
+        ("", None),
+        # A command that is only the launcher strips to nothing
+        ("/usr/bin/ccache", "/usr/bin/ccache"),
+    ],
+)
+def test_parse_entry_empty_command_raises(command: str, launcher: str | None) -> None:
+    """A blank (or launcher-only) command fails with a named ValueError,
+    not an IndexError."""
+    entry = {"directory": "/b", "file": "/b/src/x.cpp", "command": command}
     with pytest.raises(ValueError, match="empty compile command"):
-        idedata.parse_entry(entry)
+        idedata.parse_entry(entry, launcher)
 
 
 def test_idedata_from_build_empty_includes_raises(tmp_path: Path) -> None:
@@ -178,6 +187,30 @@ def test_idedata_from_build_empty_includes_raises(tmp_path: Path) -> None:
         pytest.raises(EsphomeError, match="No ESPHome translation unit found"),
     ):
         idedata.idedata_from_build(compile_commands)
+
+
+def test_idedata_from_build_rsp_commands_never_dedupe(tmp_path: Path) -> None:
+    """Per-object response files strip to one shape while holding different
+    include sets; @-commands must tokenize per TU."""
+    entries = []
+    for name in ("a", "b"):
+        rsp = tmp_path / f"{name}.cpp.o.rsp"
+        rsp.write_text(f"-I{ABS}inc/{name}")
+        file = f"{ABS}build/src/esphome/core/{name}.cpp"
+        entries.append(
+            {
+                "directory": str(tmp_path),
+                "file": file,
+                "command": f"/tools/g++ @{rsp.name} -c {file} -o {name}.o",
+                "output": f"{name}.o",
+            }
+        )
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(json.dumps(entries))
+    with patch.object(idedata, "get_toolchain_includes", return_value=[]):
+        data = idedata.idedata_from_build(compile_commands)
+    joined = " ".join(data["includes"]["build"])
+    assert "inc/a" in joined and "inc/b" in joined
 
 
 def test_idedata_from_build_dedupes_identical_command_shapes(
