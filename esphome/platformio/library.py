@@ -14,8 +14,8 @@ regardless of which toolchain consumes the result.
 
 from collections import deque
 from collections.abc import Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from functools import partial
 import glob
 import hashlib
 import itertools
@@ -32,8 +32,6 @@ from urllib.request import url2pathname
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import (
-    BATCH_DOWNLOAD_WORKERS,
-    BatchDownloadProgress,
     archive_extract_all,
     download_from_mirrors,
     rmdir,
@@ -55,12 +53,9 @@ DEFAULT_BUILD_SRC_FILTER = (
 DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
-# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES).
-# "asm" merges SCons's AS and ASPP sets: all compile as assembler-with-cpp.
-# The kind values drive the ESP8266 native ninja rules (later in this
-# chain); existing backends consume only the keys. Note .C/.C++ join the
-# suffix set here per CXXSUFFIXES; SCons demotes .C to C on
-# case-insensitive filesystems, we always treat it as C++.
+# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES);
+# "asm" merges SCons's AS and ASPP sets. Per CXXSUFFIXES .C/.C++ are C++
+# here, even where SCons demotes .C on case-insensitive filesystems.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
@@ -92,12 +87,7 @@ ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
 
 class Source:
     def download(
-        self,
-        dir_suffix: str,
-        force: bool = False,
-        salt: str = "",
-        namespace: str = "",
-        progress: Callable[[int], None] | None = None,
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
     ) -> Path:
         raise NotImplementedError
 
@@ -111,8 +101,11 @@ class Source:
 
 
 class URLSource(Source):
-    def __init__(self, url: str):
+    def __init__(self, url: str, size: int | None = None):
         self.url = url
+        # Archive size as reported by the registry, when known; sizes the
+        # combined prefetch bar without any extra network probe
+        self.size = size
 
     def _cache_dir(self, dir_suffix: str, salt: str, namespace: str) -> Path:
         # Namespace the cache per backend (e.g. pio_components/idf, .../zephyr) so
@@ -174,12 +167,7 @@ class GitSource(Source):
         self.ref = ref
 
     def download(
-        self,
-        dir_suffix: str,
-        force: bool = False,
-        salt: str = "",
-        namespace: str = "",
-        progress: Callable[[int], None] | None = None,
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
     ) -> Path:
         domain = DOMAIN
         if namespace:
@@ -214,12 +202,7 @@ class LocalSource(Source):
         self.local_path = path
 
     def download(
-        self,
-        dir_suffix: str,
-        force: bool = False,
-        salt: str = "",
-        namespace: str = "",
-        progress: Callable[[int], None] | None = None,
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
     ) -> Path:
         src = Path(self.local_path)
         if not src.is_dir():
@@ -257,11 +240,8 @@ class InvalidLibrary(Exception):
 
 
 class IncompatiblePlatform(InvalidLibrary):
-    """The manifest's platform filter rejected the target platform.
-
-    A distinct type so callers can treat the routine cross-platform skip
-    differently from other manifest problems without matching message text.
-    """
+    """The routine cross-platform skip, typed so callers need not match
+    message text."""
 
 
 class ConvertedLibrary:
@@ -312,13 +292,7 @@ class ConvertedLibrary:
     def get_require_name(self):
         return self.get_sanitized_name().replace("/", "__")
 
-    def download(
-        self,
-        force: bool = False,
-        salt: str = "",
-        namespace: str = "",
-        progress: Callable[[int], None] | None = None,
-    ):
+    def download(self, force: bool = False, salt: str = "", namespace: str = ""):
         """Fetch the library into the shared cache and record its ``path``.
 
         The cache directory is named after the sanitized library name; backends
@@ -327,11 +301,7 @@ class ConvertedLibrary:
         ``get_require_name``). ``namespace`` keeps each backend's cache separate.
         """
         self.path = self.source.download(
-            self.get_sanitized_name(),
-            force=force,
-            salt=salt,
-            namespace=namespace,
-            progress=progress,
+            self.get_sanitized_name(), force=force, salt=salt, namespace=namespace
         )
         self.source_path = self.source.source_root(self.path)
 
@@ -596,9 +566,10 @@ def _make_registry_client() -> Any:
 
 def _resolve_registry_version(
     owner: str | None, pkgname: str, requirements: set[str]
-) -> tuple[str, str, str, str]:
+) -> tuple[str, str, str, str, int | None]:
     """Resolve a registry package to the single highest version satisfying ALL
-    the given requirements; return ``(owner, name, version, download_url)``.
+    the given requirements; return ``(owner, name, version, download_url,
+    size)`` (``size`` is None when the registry omits it).
 
     Intersecting every requirement (rather than resolving each consumer in
     isolation) makes the result independent of processing order and guarantees
@@ -628,7 +599,7 @@ def _resolve_registry_version(
     pkgfile = registry.pick_compatible_pkg_file(best["files"])
     if not pkgfile:
         raise RuntimeError(f"No package file for {owner}/{name}@{best['name']}")
-    return owner, name, best["name"], pkgfile["download_url"]
+    return owner, name, best["name"], pkgfile["download_url"], pkgfile.get("size")
 
 
 def split_flag_entry(entry: Any, owner: str) -> list[str]:
@@ -647,9 +618,8 @@ def split_flag_entry(entry: Any, owner: str) -> list[str]:
 def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
     """Shell-lex ``build.flags`` entries the way PlatformIO's ParseFlags
     does; bare -I/-L/-l/-D tokens re-glue to their argument."""
-    # Join per entry, as SCons's ParseFlags lexes each string independently:
-    # a dangling -I ending one entry must warn, not absorb the next entry's
-    # first token.
+    # Lex per entry as ParseFlags does: a dangling -I must warn, not absorb
+    # the next entry's first token
     return [
         token
         for entry in ensure_list(entries)
@@ -662,13 +632,9 @@ BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
 
 
 def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
-    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token,
-    the way PlatformIO's ParseFlags lexes them.
-
-    A trailing or empty argument (``-D ""``) is warned and dropped: the
-    bare flag would make gcc eat the next flag as its argument (or add
-    the CWD for ``-L``); always a typo.
-    """
+    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token, as
+    PlatformIO's ParseFlags does. A trailing or empty argument is warned and
+    dropped: the bare flag would make gcc eat the next flag."""
     out: list[str] = []
     it = iter(tokens)
     for tok in it:
@@ -688,11 +654,8 @@ def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
 
 
 def warn_properties_depends(name: str, data: object) -> None:
-    """Warn when a manifest declares dependencies only as ``depends=``.
-
-    The dependency walk reads the JSON ``dependencies`` key; the raw
-    ``library.properties`` spelling would otherwise drop silently.
-    """
+    """Warn for ``depends=``-only manifests; the walk reads only the JSON
+    ``dependencies`` key, so they would otherwise drop silently."""
     if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
         # INFO: common and unactionable for transitive libraries; a WARNING
         # on every build would train users to ignore the stream
@@ -723,13 +686,9 @@ def dependency_is_usable(
 
 
 def _valid_dependency_entry(entry: dict, manifest_name: str) -> bool:
-    """Whether a normalized entry carries a usable name and version.
-
-    The name must be a non-empty string (every consumer indexes or joins
-    it); a present version must be a string (a container would raise from
-    ``set.add()``, an int fails opaquely inside the registry resolution).
-    Invalid entries warn naming the manifest.
-    """
+    """Whether a normalized entry carries a usable name (non-empty string)
+    and version (string, if present); invalid entries warn naming the
+    manifest."""
     name = entry.get("name")
     if (
         isinstance(name, str)
@@ -969,29 +928,17 @@ def _warn_unsatisfied_versionless(
         )
 
 
-def _content_lengths(urls: list[str]) -> list[int | None]:
-    """Content-Length per URL via HEAD requests; None when unknown."""
-    import requests
-
-    from esphome.happy_eyeballs import ensure_happy_eyeballs
-
-    # Same convention as every other network call: without it a broken-IPv6
-    # network burns the full timeout per HEAD before falling back
-    ensure_happy_eyeballs()
-
-    def head(url: str) -> int | None:
-        try:
-            resp = requests.head(url, timeout=10, allow_redirects=True)
-            if not resp.ok:
-                _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
-                return None
-            return int(resp.headers.get("content-length", 0)) or None
-        except (requests.RequestException, ValueError) as err:
-            _LOGGER.debug("HEAD %s failed: %s", url, err)
-            return None
-
-    with ThreadPoolExecutor(max_workers=min(BATCH_DOWNLOAD_WORKERS, len(urls))) as ex:
-        return list(ex.map(head, urls))
+def _fetch_source(
+    component: ConvertedLibrary,
+    salt: str,
+    namespace: str,
+    tracker: Callable[[int], None],
+) -> None:
+    # Straight to URLSource: only it takes progress, and mutating the
+    # shared component from a worker is the authoritative loop's job
+    component.source.download(
+        component.get_sanitized_name(), salt=salt, namespace=namespace, progress=tracker
+    )
 
 
 def _prefetch_wave(
@@ -999,68 +946,58 @@ def _prefetch_wave(
 ) -> None:
     """Best-effort parallel download of a wave's registry archives.
 
-    The walk's own ``download()`` call stays authoritative (it surfaces real
-    failures, with resume); bars are suppressed since parallel bars would
-    interleave. Duplicate URLs prefetch once so two threads never extract
-    into the same cache directory.
+    The walk's own ``download()`` stays authoritative; duplicate URLs
+    prefetch once so two threads never share a cache directory. Archives
+    whose size the registry did not report are left to the sequential
+    loop, whose per-file bars don't interleave.
     """
-    components: list[ConvertedLibrary] = []
-    seen: set[str] = set()
-    for _key, component in wave:
-        if not isinstance(component.source, URLSource):
-            continue
-        if component.source.url in seen:
-            continue
-        seen.add(component.source.url)
-        try:
-            cached = component.source.is_cached(
-                component.get_sanitized_name(), salt=salt, namespace=namespace
-            )
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            # Best-effort: a failing probe prefetches (and re-downloads)
-            _LOGGER.debug("Cache probe for %s failed: %s", component.name, err)
-            cached = False
-        if cached:
-            # A completed extraction downloads nothing; a warm build must
-            # stay silent
-            continue
-        components.append(component)
-    if len(components) < 2:
-        return
-    # One combined bar over the batch, sized by HEAD requests. An unknown
-    # size would mean a silent multi-MB download; fall back to sequential
-    # downloads with their per-file bars instead.
-    sizes = _content_lengths([c.source.url for c in components])
-    if not all(sizes):
-        # Announced before the sequential per-file downloads take over, so
-        # the fallback is distinguishable from a hang
+    try:
+        components: list[ConvertedLibrary] = []
+        seen: set[str] = set()
+        for _key, component in wave:
+            source = component.source
+            if not isinstance(source, URLSource) or not source.size:
+                continue
+            if source.url in seen:
+                continue
+            seen.add(source.url)
+            try:
+                cached = source.is_cached(
+                    component.get_sanitized_name(), salt=salt, namespace=namespace
+                )
+            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                # Best-effort: a failing probe prefetches (and re-downloads)
+                _LOGGER.debug("Cache probe for %s failed: %s", component.name, err)
+                cached = False
+            if cached:
+                # A warm build must stay silent
+                continue
+            components.append(component)
+        if len(components) < 2:
+            return
         _LOGGER.info(
-            "No Content-Length for %s; downloading sequentially",
-            ", ".join(
-                c.source.url
-                for c, size in zip(components, sizes, strict=True)
-                if not size
-            ),
+            "Downloading %d libraries: %s",
+            len(components),
+            ", ".join(c.name for c in components),
         )
-        return
-    _LOGGER.info(
-        "Downloading %d libraries: %s",
-        len(components),
-        ", ".join(c.name for c in components),
-    )
-
-    def _fetch(component: ConvertedLibrary):
-        return lambda tracker: component.download(
-            salt=salt, namespace=namespace, progress=tracker
+        failures = run_batch_downloads(
+            "Downloading libraries",
+            [
+                (c.name, c.source.size, partial(_fetch_source, c, salt, namespace))
+                for c in components
+            ],
         )
-
-    failures = run_batch_downloads(
-        BatchDownloadProgress("Downloading libraries", sum(sizes)),
-        [(component.name, _fetch(component)) for component in components],
-    )
-    for name, err in failures:
-        # The sequential call below retries and raises the real error
-        _LOGGER.warning("Prefetch of %s failed (retrying sequentially): %s", name, err)
+        for name, err in failures:
+            # The sequential call below retries and raises the real error
+            _LOGGER.warning(
+                "Prefetch of %s failed (retrying sequentially): %s", name, err
+            )
+            _LOGGER.debug("Prefetch failure detail", exc_info=err)
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Same policy as the ESP-IDF twin: the prefetch must never become a
+        # new way for the build to fail
+        _LOGGER.warning("Library prefetch failed: %s", err)
+        _LOGGER.debug("Prefetch failure detail", exc_info=True)
 
 
 def convert_libraries(
@@ -1162,8 +1099,7 @@ def convert_libraries(
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
         # Drain the frontier sequentially (spec resolution mutates shared
-        # node state), then prefetch the wave's registry archives in
-        # parallel; the per-component download() below stays authoritative.
+        # state), then prefetch the wave in parallel
         wave: list[tuple[str, ConvertedLibrary]] = []
         while worklist:
             key = worklist.popleft()
@@ -1181,20 +1117,19 @@ def convert_libraries(
             elif node.is_local:
                 component = ConvertedLibrary(key, "*", LocalSource(node.local_path))
             else:
-                owner, name, version, url = _resolve_registry_version(
+                owner, name, version, url, size = _resolve_registry_version(
                     node.owner, node.pkgname, node.requirements
                 )
                 component = ConvertedLibrary(
-                    _owner_pkgname_to_name(owner, name), version, URLSource(url)
+                    _owner_pkgname_to_name(owner, name), version, URLSource(url, size)
                 )
             wave.append((key, component))
         _prefetch_wave(wave, salt, backend.cache_key)
         for key, component in wave:
             node = nodes[key]
             if frozenset(node.requirements) != resolved_requirements[key]:
-                # An earlier wave entry grew this node's requirements after
-                # the drain resolved it; downloading the superseded version
-                # would be wasted work, and the next wave re-resolves it
+                # Requirements grew mid-wave: skip parsing a manifest the
+                # next wave will re-resolve and replace
                 worklist.append(key)
                 continue
             component.download(salt=salt, namespace=backend.cache_key)
