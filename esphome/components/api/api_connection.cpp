@@ -417,15 +417,15 @@ void APIConnection::finalize_iterator_sync_() {
 }
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
-  size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = MAX_INITIAL_PER_BATCH;
-  while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
-    iterator.advance();
-  }
+  // Budget by remaining batch capacity so a pass cannot overfill the batch;
+  // stops early on a refused send and resumes next loop pass
+  size_t batch_size = this->deferred_batch_.size();
+  if (batch_size < MAX_INITIAL_BATCH_SIZE)
+    iterator.try_advance(MAX_INITIAL_BATCH_SIZE - batch_size);
 
-  // If the batch is full, process it immediately
-  // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-  if (this->deferred_batch_.size() >= max_batch) {
+  // Flush immediately once enough is queued (not guaranteed every pass);
+  // partial batches go out via the batch timer or finalize_iterator_sync_()
+  if (this->deferred_batch_.size() >= MAX_INITIAL_BATCH_SIZE) {
     this->process_batch_();
   }
 }
