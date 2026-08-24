@@ -7,6 +7,7 @@
 #include "esphome/core/version.h"
 
 #include "esphome/components/logger/logger.h"
+#include "esphome/components/wifi/scan_list.h"
 
 namespace esphome::improv_serial {
 
@@ -230,31 +231,17 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       return true;
     }
     case improv::GET_WIFI_NETWORKS: {
-      std::vector<std::string> networks;
       const auto &results = wifi::global_wifi_component->get_scan_result();
-      for (auto &scan : results) {
-        if (scan.get_is_hidden())
+      for (const auto &scan : results) {
+        bool with_auth = false;
+        if (!wifi::should_show_scan_entry(results, scan, with_auth))
           continue;
-        const char *ssid_cstr = scan.get_ssid().c_str();
-        // Check if we've already sent this SSID
-        bool duplicate = false;
-        for (const auto &seen : networks) {
-          if (strcmp(seen.c_str(), ssid_cstr) == 0) {
-            duplicate = true;
-            break;
-          }
-        }
-        if (duplicate)
-          continue;
-        // Only allocate std::string after confirming it's not a duplicate
-        std::string ssid(ssid_cstr);
         // Send each ssid separately to avoid overflowing the buffer
         char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
         *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
-        std::vector<uint8_t> data =
-            improv::build_rpc_response(improv::GET_WIFI_NETWORKS, {ssid, rssi_buf, YESNO(scan.get_with_auth())}, false);
+        std::vector<uint8_t> data = improv::build_rpc_response(
+            improv::GET_WIFI_NETWORKS, {scan.get_ssid().str(), rssi_buf, YESNO(with_auth)}, false);
         this->send_response_(data);
-        networks.push_back(std::move(ssid));
       }
       // Send empty response to signify the end of the list.
       std::vector<uint8_t> data =

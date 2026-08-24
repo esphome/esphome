@@ -160,11 +160,6 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #else
 #error "No frame helper defined"
 #endif
-#ifdef USE_CAMERA
-  if (camera::Camera::instance() != nullptr) {
-    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
-  }
-#endif
 }
 
 void APIConnection::start() {
@@ -417,15 +412,15 @@ void APIConnection::finalize_iterator_sync_() {
 }
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
-  size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = MAX_INITIAL_PER_BATCH;
-  while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
-    iterator.advance();
-  }
+  // Budget by remaining batch capacity so a pass cannot overfill the batch;
+  // stops early on a refused send and resumes next loop pass
+  size_t batch_size = this->deferred_batch_.size();
+  if (batch_size < MAX_INITIAL_BATCH_SIZE)
+    iterator.try_advance(MAX_INITIAL_BATCH_SIZE - batch_size);
 
-  // If the batch is full, process it immediately
-  // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-  if (this->deferred_batch_.size() >= max_batch) {
+  // Flush immediately once enough is queued (not guaranteed every pass);
+  // partial batches go out via the batch timer or finalize_iterator_sync_()
+  if (this->deferred_batch_.size() >= MAX_INITIAL_BATCH_SIZE) {
     this->process_batch_();
   }
 }
@@ -1140,6 +1135,7 @@ void APIConnection::try_send_camera_image_() {
   if (!this->image_reader_)
     return;
 
+  const auto *cam = camera::Camera::instance();
   // Send as many chunks as possible without blocking
   while (this->image_reader_->available()) {
     if (!this->helper_->can_write_without_blocking())
@@ -1149,11 +1145,11 @@ void APIConnection::try_send_camera_image_() {
     bool done = this->image_reader_->available() == to_send;
 
     CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.key = cam->get_object_id_hash();
     msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
     msg.done = done;
 #ifdef USE_DEVICES
-    msg.device_id = camera::Camera::instance()->get_device_id();
+    msg.device_id = cam->get_device_id();
 #endif
 
     if (!this->send_message(msg)) {
@@ -1169,15 +1165,19 @@ void APIConnection::try_send_camera_image_() {
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
-  if (!this->image_reader_)
+  if (this->image_reader_ && this->image_reader_->available())
     return;
-  if (this->image_reader_->available())
+  if (!image->was_requested_by(esphome::camera::API_REQUESTER) && !image->was_requested_by(esphome::camera::IDLE))
     return;
-  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
-    this->image_reader_->set_image(std::move(image));
-    // Try to send immediately to reduce latency
-    this->try_send_camera_image_();
+  if (!this->image_reader_) {
+    // Created on the first image this connection will send, so connections
+    // that never receive one never pay for a reader. Only a registered
+    // camera's listener can reach this, so instance() is non-null here.
+    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
   }
+  this->image_reader_->set_image(std::move(image));
+  // Try to send immediately to reduce latency
+  this->try_send_camera_image_();
 }
 uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *camera = static_cast<camera::Camera *>(entity);
@@ -1204,31 +1204,28 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
-    if (!value.timezone.empty()) {
-      // Check if the sender provided pre-parsed timezone data.
-      // If std_offset is non-zero or DST rules are present, the parsed data was populated.
-      // For UTC (all zeros), string parsing produces the same result, so the fallback is equivalent.
+    // Apply only if the sender provided pre-parsed timezone data (Home Assistant 2026.3.0
+    // and newer); field presence distinguishes a genuine all-zero UTC timezone from an
+    // absent field. Older clients send only the deprecated timezone string, which is no
+    // longer decoded; for them the device keeps its codegen-configured timezone.
+    if (value.has_parsed_timezone) {
       const auto &pt = value.parsed_timezone;
-      if (pt.std_offset_seconds != 0 || pt.dst_start.type != enums::DST_RULE_TYPE_NONE) {
-        time::ParsedTimezone tz{};
-        tz.std_offset_seconds = pt.std_offset_seconds;
-        tz.dst_offset_seconds = pt.dst_offset_seconds;
-        tz.dst_start.time_seconds = pt.dst_start.time_seconds;
-        tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
-        tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
-        tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
-        tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
-        tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
-        tz.dst_end.time_seconds = pt.dst_end.time_seconds;
-        tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
-        tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
-        tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
-        tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
-        tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
-        time::set_global_tz(tz);
-      } else {
-        homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
-      }
+      time::ParsedTimezone tz{};
+      tz.std_offset_seconds = pt.std_offset_seconds;
+      tz.dst_offset_seconds = pt.dst_offset_seconds;
+      tz.dst_start.time_seconds = pt.dst_start.time_seconds;
+      tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
+      tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
+      tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
+      tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
+      tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
+      tz.dst_end.time_seconds = pt.dst_end.time_seconds;
+      tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
+      tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
+      tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
+      tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
+      tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
+      time::set_global_tz(tz);
     }
 #endif
   }
@@ -1384,7 +1381,12 @@ void APIConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
 }
 
 void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
-  zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+  ZWaveProxyRequestResponse resp{};
+  resp.type = msg.type;
+  resp.status = zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Z-Wave proxy response");
+  }
 }
 #endif
 
@@ -1553,15 +1555,50 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
 #endif
 
 #ifdef USE_SERIAL_PROXY
+static enums::SerialProxyStatus serial_proxy_result_to_status(serial_proxy::SerialProxyResult result) {
+  switch (result) {
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_OK:
+      return enums::SERIAL_PROXY_STATUS_OK;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_ASSUMED_SUCCESS:
+      return enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE:
+      return enums::SERIAL_PROXY_STATUS_PORT_IN_USE;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT:
+      return enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_TIMEOUT:
+      return enums::SERIAL_PROXY_STATUS_TIMEOUT;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED:
+      return enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_ERROR:
+      return enums::SERIAL_PROXY_STATUS_ERROR;
+  }
+  return enums::SERIAL_PROXY_STATUS_ERROR;  // Unreachable; all enum values handled above
+}
+
+static void send_serial_proxy_ack(APIConnection *conn, uint32_t instance, enums::SerialProxyRequestType type,
+                                  enums::SerialProxyStatus status) {
+  SerialProxyRequestResponse resp{};
+  resp.instance = instance;
+  resp.type = type;
+  resp.status = status;
+  if (!conn->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
+}
+
 void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range (max %" PRIu32 ")", msg.instance,
              static_cast<uint32_t>(proxies.size()));
+    send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE,
+                          enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
-  proxies[msg.instance]->configure(this, msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity),
-                                   msg.stop_bits, msg.data_size);
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->configure(
+      this, msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits, msg.data_size);
+  send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE,
+                        serial_proxy_result_to_status(result));
 }
 
 void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
@@ -1577,20 +1614,30 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS,
+                          enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
-  proxies[msg.instance]->set_modem_pins(this, msg.line_states);
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->set_modem_pins(this, msg.line_states);
+  send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS,
+                        serial_proxy_result_to_status(result));
 }
 
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
-  if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
-    return;
-  }
   SerialProxyGetModemPinsResponse resp{};
   resp.instance = msg.instance;
-  resp.line_states = proxies[msg.instance]->get_modem_pins();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    // Pre-1.16 clients do not read the status field and would take this error
+    // for a successful "both pins deasserted" answer; let them time out as before
+    if (!this->client_supports_api_version(1, 16)) {
+      return;
+    }
+    resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+  } else {
+    resp.line_states = proxies[msg.instance]->get_modem_pins();
+  }
   if (!this->send_message(resp)) {
     API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
   }
@@ -1600,40 +1647,31 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    send_serial_proxy_ack(this, msg.instance, msg.type, enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
+  auto *proxy = proxies[msg.instance];
+  enums::SerialProxyStatus status;
   switch (msg.type) {
     case enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
     case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
-      proxies[msg.instance]->serial_proxy_request(this, msg.type);
+      status = serial_proxy_result_to_status(proxy->serial_proxy_request(this, msg.type));
       break;
-    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH: {
-      SerialProxyRequestResponse resp{};
-      resp.instance = msg.instance;
-      resp.type = enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH;
-      switch (proxies[msg.instance]->flush_port()) {
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS:
-          resp.status = enums::SERIAL_PROXY_STATUS_OK;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS:
-          resp.status = enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT:
-          resp.status = enums::SERIAL_PROXY_STATUS_TIMEOUT;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED:
-          resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
-          break;
-      }
-      if (!this->send_message(resp)) {
-        API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
-      }
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
+      status = serial_proxy_result_to_status(proxy->flush_port(this));
       break;
-    }
+    case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+      // Response-only discriminators; never valid in a request
+      ESP_LOGW(TAG, "Response-only serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
+      status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+      break;
     default:
       ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
+      status = enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
       break;
   }
+  send_serial_proxy_ack(this, msg.instance, msg.type, status);
 }
 
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
@@ -1760,7 +1798,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 15;
+  resp.api_version_minor = 16;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -1894,6 +1932,7 @@ bool APIConnection::send_device_info_response_() {
     auto &info = resp.serial_proxies[serial_proxy_index++];
     info.name = StringRef(proxy->get_name());
     info.port_type = proxy->get_port_type();
+    info.configured_line_states = proxy->get_configured_modem_pins();
   }
 #endif
 #ifdef USE_API_NOISE
@@ -1954,6 +1993,7 @@ bool APIConnection::send_device_capabilities_response_() {
     auto &info = resp.serial_proxies[serial_proxy_index++];
     info.name = StringRef(proxy->get_name());
     info.port_type = proxy->get_port_type();
+    info.configured_line_states = proxy->get_configured_modem_pins();
   }
 #endif
   return this->send_message(resp);
@@ -2130,7 +2170,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
   }
 #endif
 
-  psk_t psk{};
+  noise::psk_t psk{};
   if (msg.key_len == 0) {
     if (this->parent_->clear_noise_psk(true)) {
       resp.success = true;
@@ -2139,7 +2179,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
   } else if (base64_decode(msg.key, msg.key_len, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
-  } else if (APINoiseContext::is_all_zeros(psk)) {
+  } else if (noise::NoiseContext::is_all_zeros(psk)) {
     // Accepting the reserved provisioning PSK would report success without
     // enabling encryption (or silently clear an existing key)
     ESP_LOGW(TAG, "Rejecting all-zero encryption key");

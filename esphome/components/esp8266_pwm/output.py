@@ -4,11 +4,14 @@ from esphome.components import output
 from esphome.components.esp8266.const import require_waveform
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp8266"]
 
 
-def valid_pwm_pin(value):
+def valid_pwm_pin(value: ConfigType) -> ConfigType:
     num = value[CONF_NUMBER]
     cv.one_of(0, 1, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16)(num)
     return value
@@ -35,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config) -> None:
+async def to_code(config: ConfigType) -> None:
     require_waveform()
 
     var = cg.new_Pvariable(config[CONF_ID])
@@ -59,7 +62,12 @@ async def to_code(config) -> None:
     ),
     synchronous=True,
 )
-async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
+async def esp8266_set_frequency_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)

@@ -121,6 +121,8 @@ class DateTimeCall {
   optional<uint8_t> second_;
 };
 
+inline DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
+
 template<typename... Ts> class DateTimeSetAction final : public Action<Ts...>, public Parented<DateTimeEntity> {
  public:
   TEMPLATABLE_VALUE(ESPTime, datetime)

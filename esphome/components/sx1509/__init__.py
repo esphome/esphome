@@ -15,6 +15,8 @@ from esphome.const import (
     CONF_PULLUP,
     CONF_TRIGGER_ID,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CONF_KEYPAD = "keypad"
 CONF_KEYS = "keys"
@@ -40,7 +42,7 @@ SX1509KeyTrigger = sx1509_ns.class_(
 )
 
 
-def check_keys(config):
+def check_keys(config: ConfigType) -> ConfigType:
     if (
         CONF_KEYS in config
         and len(config[CONF_KEYS]) != config[CONF_KEY_ROWS] * config[CONF_KEY_COLUMNS]
@@ -82,7 +84,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -104,7 +106,7 @@ async def to_code(config):
             await automation.build_automation(trigger, [(cg.uint8, "x")], tconf)
 
 
-def validate_mode(value):
+def validate_mode(value: ConfigType) -> ConfigType:
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -142,7 +144,7 @@ SX1509_PIN_SCHEMA = cv.All(
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_SX1509, SX1509_PIN_SCHEMA)
-async def sx1509_pin_to_code(config):
+async def sx1509_pin_to_code(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_SX1509])
     cg.add(var.set_parent(parent))
