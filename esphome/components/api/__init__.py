@@ -1,5 +1,6 @@
 import base64
 import logging
+from typing import Any
 
 from esphome import automation
 from esphome.automation import Condition
@@ -129,7 +130,7 @@ def _register_provisioning_source(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_encryption_key(value):
+def validate_encryption_key(value: Any) -> str:
     value = cv.string_strict(value)
     try:
         decoded = base64.b64decode(value, validate=True)
@@ -217,7 +218,7 @@ def _auto_detect_supports_response(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_supports_response(value):
+def _validate_supports_response(value: Any) -> str:
     """Validate supports_response after auto-detection has set the value."""
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
@@ -256,7 +257,7 @@ ENCRYPTION_SCHEMA = cv.Schema(
 )
 
 
-def _encryption_schema(config):
+def _encryption_schema(config: ConfigType | None) -> ConfigType:
     if config is None:
         config = {}
     return ENCRYPTION_SCHEMA(config)
@@ -393,7 +394,7 @@ async def to_code(config: ConfigType) -> None:
 
     if actions := config.get(CONF_ACTIONS, []):
         # Collect all triggers first, then register all at once with initializer_list
-        triggers: list[cg.Pvariable] = []
+        triggers: list[cg.MockObj] = []
         for conf in actions:
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
@@ -581,7 +582,7 @@ async def homeassistant_service_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-):
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
@@ -647,7 +648,7 @@ async def homeassistant_service_to_code(
     return var
 
 
-def validate_homeassistant_event(value):
+def validate_homeassistant_event(value: Any) -> str:
     value = cv.string(value)
     if not value.startswith("esphome."):
         raise cv.Invalid(
@@ -676,7 +677,12 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
     synchronous=True,
 )
-async def homeassistant_event_to_code(config, action_id, template_arg, args):
+async def homeassistant_event_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
@@ -724,7 +730,12 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
     synchronous=True,
 )
-async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+async def homeassistant_tag_scanned_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
@@ -740,7 +751,7 @@ CONF_SUCCESS = "success"
 CONF_ERROR_MESSAGE = "error_message"
 
 
-def _validate_api_respond_data(config):
+def _validate_api_respond_data(config: ConfigType) -> ConfigType:
     """Set flag during validation so AUTO_LOAD can include json component."""
     if CONF_DATA in config:
         CORE.data.setdefault(DOMAIN, {})[CONF_CAPTURE_RESPONSE] = True
@@ -824,7 +835,12 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 @automation.register_condition(
     "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
 )
-async def api_connected_to_code(config, condition_id, template_arg, args):
+async def api_connected_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
     cg.add(var.set_state_subscription_only(templ))
