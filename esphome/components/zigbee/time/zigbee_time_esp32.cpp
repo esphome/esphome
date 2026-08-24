@@ -15,7 +15,7 @@ static ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non
 
 void ZigbeeTime::setup() {
   global_time = this;
-  if (parent_->is_started()) {
+  if (this->parent_->is_started()) {
     this->register_zb_time_();
   } else {
     this->parent_->add_on_start_callback([this]() { this->register_zb_time_(); });
@@ -35,7 +35,7 @@ void ZigbeeTime::register_zb_time_() {
   ret = ezb_zcl_time_server_interface_register(this->endpoint_, time_interface);
   esp_zigbee_lock_release();
   if (ret != EZB_ERR_NONE) {
-    ESP_LOGW(TAG, "Setup failed: %u", ret);
+    ESP_LOGW(TAG, "Setup failed: %d", ret);
     this->mark_failed();
     return;
   }
@@ -89,7 +89,12 @@ uint32_t ZigbeeTime::get_utc_time() {
   return (uint32_t) (now - EPOCH_2000);
 }
 
-void ZigbeeTime::set_utc_time(uint32_t utc) { global_time->set_epoch_time(utc + EPOCH_2000); }
+void ZigbeeTime::set_utc_time(uint32_t utc) {
+  // prevent overflow
+  if (utc <= (std::numeric_limits<uint32_t>::max() - EPOCH_2000)) {
+    global_time->set_epoch_time(utc + EPOCH_2000);
+  }
+}
 
 void ZigbeeTime::set_epoch_time(uint32_t utc) {
   // called from zigbee task, defer to main loop
@@ -103,7 +108,7 @@ void ZigbeeTime::set_epoch_time(uint32_t utc) {
 void ZigbeeTime::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Zigbee Time\n"
-                "  Endpoint: %d",
+                "  Endpoint: %u",
                 this->endpoint_);
   RealTimeClock::dump_config();
 }

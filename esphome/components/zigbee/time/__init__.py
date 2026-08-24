@@ -52,7 +52,6 @@ CONFIG_SCHEMA = cv.All(
                 CONF_UPDATE_INTERVAL,
                 nrf52="1s",
                 esp32="15min",
-                visibility=cv.Visibility.ADVANCED,
             ): cv.update_interval,  # override default from TIME_SCHEMA. Remove once nrf52 implementation is aligned.
         }
     ).extend(cv.COMPONENT_SCHEMA),
