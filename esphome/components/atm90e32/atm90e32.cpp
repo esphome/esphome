@@ -264,13 +264,6 @@ void ATM90E32Component::setup() {
     }
 
     this->restore_gain_calibrations_();
-
-    if (!this->using_saved_calibrations_) {
-      for (uint8_t phase = 0; phase < 3; ++phase) {
-        this->write16_(voltage_gain_registers[phase], this->phase_[phase].voltage_gain_);
-        this->write16_(current_gain_registers[phase], this->phase_[phase].ct_gain_);
-      }
-    }
   } else {
     ESP_LOGI(TAG, "[CALIBRATION][%s] Gain calibration is disabled. Using config file values.", cs);
     for (uint8_t phase = 0; phase < 3; ++phase) {
@@ -664,6 +657,10 @@ void ATM90E32Component::run_gain_calibrations() {
       cs);
   ESP_LOGI(TAG, "[CALIBRATION][%s] ---------------------------------------------------------------------", cs);
 
+  GainCalibration previous_gains[3] = {this->gain_phase_[0], this->gain_phase_[1], this->gain_phase_[2]};
+  const bool previous_restored = this->restored_gain_calibration_;
+  const bool previous_using_saved = this->using_saved_calibrations_;
+
   for (uint8_t phase = 0; phase < 3; phase++) {
     float measured_voltage = this->get_phase_voltage_avg_(phase);
     float measured_current = this->get_phase_current_avg_(phase);
@@ -734,22 +731,60 @@ void ATM90E32Component::run_gain_calibrations() {
 
   ESP_LOGI(TAG, "[CALIBRATION][%s] =====================================================================\n", cs);
 
-  this->save_gain_calibration_to_memory_();
   this->write_gains_to_registers_();
-  this->verify_gain_writes_();
+  this->finish_gain_calibration_(previous_gains, previous_restored, previous_using_saved);
 }
 
-void ATM90E32Component::save_gain_calibration_to_memory_() {
+void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previous)[3], bool previous_restored,
+                                                 bool previous_using_saved) {
   const char *cs = this->get_calibration_id_();
-  bool success = this->gain_calibration_pref_.save(&this->gain_phase_);
-  global_preferences->sync();
-  if (success) {
-    this->using_saved_calibrations_ = true;
-    ESP_LOGI(TAG, "[CALIBRATION][%s] Gain calibration saved to memory.", cs);
-  } else {
-    this->using_saved_calibrations_ = false;
-    ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save gain calibration to memory!", cs);
+  const bool writes_verified = this->verify_gain_writes_();
+  bool saved = false;
+  bool synced = false;
+  if (writes_verified) {
+    saved = this->gain_calibration_pref_.save(&this->gain_phase_);
+    synced = global_preferences->sync();
   }
+
+  if (writes_verified && saved && synced) {
+    this->using_saved_calibrations_ = true;
+    this->has_stored_gain_calibration_ = true;
+    this->restored_gain_calibration_ = true;
+    for (bool &phase : this->gain_calibration_mismatch_)
+      phase = false;
+    ESP_LOGI(TAG, "[CALIBRATION][%s] Gain calibration saved to memory.", cs);
+    ESP_LOGI(TAG, "[CALIBRATION][%s] Gain calibration completed and verified.", cs);
+    return;
+  }
+
+  if (writes_verified)
+    ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save gain calibration to memory!", cs);
+
+  for (uint8_t phase = 0; phase < 3; phase++)
+    this->gain_phase_[phase] = previous[phase];
+  this->write_gains_to_registers_();
+  const bool rollback_verified = this->verify_gain_writes_();
+
+  bool rollback_persisted = false;
+  if (writes_verified) {
+    GainCalibration rollback[3]{};
+    prepare_calibration_rollback(previous, previous_restored, GainCalibration{0, 0}, rollback);
+    const bool rollback_saved = this->gain_calibration_pref_.save(&rollback);
+    const bool rollback_synced = global_preferences->sync();
+    rollback_persisted = rollback_saved && rollback_synced;
+    if (!rollback_persisted)
+      ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored gain calibration values!", cs);
+  }
+
+  this->restored_gain_calibration_ = previous_restored;
+  if (rollback_persisted)
+    this->has_stored_gain_calibration_ = previous_restored;
+  this->using_saved_calibrations_ = previous_using_saved;
+  if (!rollback_verified) {
+    ESP_LOGE(TAG, "[CALIBRATION][%s] Gain calibration failed; rollback readback verification failed.", cs);
+    return;
+  }
+  ESP_LOGE(TAG, "[CALIBRATION][%s] Gain calibration failed; previous values restored.", cs);
 }
 
 void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
@@ -794,7 +829,7 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
   bool rollback_persisted = false;
   if (writes_verified) {
     OffsetCalibration rollback[3]{};
-    prepare_offset_rollback(previous, previous_restored, rollback);
+    prepare_calibration_rollback(previous, previous_restored, OffsetCalibration{}, rollback);
     const bool rollback_saved = preference->save(&rollback);
     const bool rollback_synced = global_preferences->sync();
     rollback_persisted = rollback_saved && rollback_synced;
@@ -928,52 +963,64 @@ void ATM90E32Component::restore_gain_calibrations_() {
     this->gain_phase_[i] = this->config_gain_phase_[i];
   }
 
-  bool have_data = this->gain_calibration_pref_.load(&this->gain_phase_);
-
+  const bool have_data = this->gain_calibration_pref_.load(&this->gain_phase_);
+  bool all_zero = true;
+  bool same_as_config = true;
   if (have_data) {
-    bool all_zero = true;
-    bool same_as_config = true;
     for (uint8_t phase = 0; phase < 3; ++phase) {
-      const auto &cfg = this->config_gain_phase_[phase];
+      const auto &config = this->config_gain_phase_[phase];
       const auto &saved = this->gain_phase_[phase];
       if (saved.voltage_gain != 0 || saved.current_gain != 0)
         all_zero = false;
-      if (saved.voltage_gain != cfg.voltage_gain || saved.current_gain != cfg.current_gain)
+      if (saved.voltage_gain != config.voltage_gain || saved.current_gain != config.current_gain)
         same_as_config = false;
-    }
-
-    if (!all_zero && !same_as_config) {
-      for (uint8_t phase = 0; phase < 3; ++phase) {
-        bool mismatch = false;
-        if (this->has_config_voltage_gain_[phase] &&
-            this->gain_phase_[phase].voltage_gain != this->config_gain_phase_[phase].voltage_gain)
-          mismatch = true;
-        if (this->has_config_current_gain_[phase] &&
-            this->gain_phase_[phase].current_gain != this->config_gain_phase_[phase].current_gain)
-          mismatch = true;
-        if (mismatch)
-          this->gain_calibration_mismatch_[phase] = true;
-      }
-
-      this->write_gains_to_registers_();
-
-      if (this->verify_gain_writes_()) {
-        this->using_saved_calibrations_ = true;
-        this->restored_gain_calibration_ = true;
-        return;
-      }
-
-      this->using_saved_calibrations_ = false;
-      ESP_LOGE(TAG, "[CALIBRATION][%s] Gain verification failed! Calibration may not be applied correctly.", cs);
     }
   }
 
-  this->using_saved_calibrations_ = false;
-  for (uint8_t i = 0; i < 3; ++i)
-    this->gain_phase_[i] = this->config_gain_phase_[i];
-  this->write_gains_to_registers_();
+  this->has_stored_gain_calibration_ = have_data && !all_zero && !same_as_config;
+  this->restored_gain_calibration_ = false;
+  for (uint8_t phase = 0; phase < 3; ++phase) {
+    this->gain_calibration_mismatch_[phase] = false;
+    if (this->has_stored_gain_calibration_) {
+      this->gain_calibration_mismatch_[phase] =
+          (this->has_config_voltage_gain_[phase] &&
+           this->gain_phase_[phase].voltage_gain != this->config_gain_phase_[phase].voltage_gain) ||
+          (this->has_config_current_gain_[phase] &&
+           this->gain_phase_[phase].current_gain != this->config_gain_phase_[phase].current_gain);
+    }
+  }
 
-  ESP_LOGW(TAG, "[CALIBRATION][%s] No stored gain calibrations found. Using config file values.", cs);
+  if (!this->has_stored_gain_calibration_) {
+    for (uint8_t phase = 0; phase < 3; ++phase)
+      this->gain_phase_[phase] = this->config_gain_phase_[phase];
+    ESP_LOGW(TAG, "[CALIBRATION][%s] No stored gain calibrations found. Using config file values.", cs);
+  }
+
+  this->write_gains_to_registers_();
+  const bool initial_values_verified = this->verify_gain_writes_();
+  if (initial_values_verified) {
+    const auto state = resolve_calibration_restore_state(this->has_stored_gain_calibration_, true, false);
+    this->restored_gain_calibration_ = state.restored;
+    this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_ ||
+                                      this->restored_gain_calibration_;
+    return;
+  }
+
+  for (uint8_t phase = 0; phase < 3; ++phase) {
+    this->gain_calibration_mismatch_[phase] = false;
+    this->gain_phase_[phase] = this->config_gain_phase_[phase];
+  }
+  this->write_gains_to_registers_();
+  const auto state =
+      resolve_calibration_restore_state(this->has_stored_gain_calibration_, false, this->verify_gain_writes_());
+  this->restored_gain_calibration_ = state.restored;
+  this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_ ||
+                                    this->restored_gain_calibration_;
+  if (state.values_verified) {
+    ESP_LOGE(TAG, "[CALIBRATION][%s] Gain calibration restore failed verification; config values verified.", cs);
+  } else {
+    ESP_LOGE(TAG, "[CALIBRATION][%s] Gain calibration restore failed; config readback verification failed.", cs);
+  }
 }
 
 void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type) {
@@ -1027,7 +1074,7 @@ void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type)
   }
   const bool initial_values_verified = this->verify_offset_writes_(type);
   if (initial_values_verified) {
-    const auto state = resolve_offset_restore_state(*has_stored, true, false);
+    const auto state = resolve_calibration_restore_state(*has_stored, true, false);
     *restored = state.restored;
     ESP_LOGI(TAG, "[CALIBRATION][%s] %s calibration values verified.", cs, name);
     return;
@@ -1040,7 +1087,7 @@ void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type)
     (*offsets)[phase] = (*config_offsets)[phase];
     this->write_offsets_to_registers_(phase, (*offsets)[phase].first_offset, (*offsets)[phase].second_offset, type);
   }
-  const auto state = resolve_offset_restore_state(*has_stored, false, this->verify_offset_writes_(type));
+  const auto state = resolve_calibration_restore_state(*has_stored, false, this->verify_offset_writes_(type));
   *restored = state.restored;
   if (state.values_verified) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration restore failed verification; config values verified.", cs, name);
@@ -1051,7 +1098,7 @@ void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type)
 
 void ATM90E32Component::clear_gain_calibrations() {
   const char *cs = this->get_calibration_id_();
-  if (!this->using_saved_calibrations_) {
+  if (!this->has_stored_gain_calibration_) {
     ESP_LOGI(TAG, "[CALIBRATION][%s] No stored gain calibrations to clear. Current values:", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] ----------------------------------------------------------", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] | Phase | voltage_gain | current_gain |", cs);
@@ -1083,15 +1130,17 @@ void ATM90E32Component::clear_gain_calibrations() {
   ESP_LOGI(TAG, "[CALIBRATION][%s] ==========================================================\n", cs);
 
   GainCalibration zero_gains[3]{{0, 0}, {0, 0}, {0, 0}};
-  bool success = this->gain_calibration_pref_.save(&zero_gains);
-  global_preferences->sync();
+  const bool saved = this->gain_calibration_pref_.save(&zero_gains);
+  const bool synced = global_preferences->sync();
 
-  this->using_saved_calibrations_ = false;
+  if (saved && synced)
+    this->has_stored_gain_calibration_ = false;
   this->restored_gain_calibration_ = false;
+  this->using_saved_calibrations_ = this->restored_offset_calibration_ || this->restored_power_offset_calibration_;
   for (bool &phase : this->gain_calibration_mismatch_)
     phase = false;
 
-  if (!success) {
+  if (!saved || !synced) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to clear gain calibrations!", cs);
   }
 
