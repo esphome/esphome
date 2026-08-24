@@ -208,21 +208,21 @@ void LvglComponent::esphome_lvgl_init() {
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
 
-void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
-  lv_obj_add_event_cb(obj, callback, event, nullptr);
+void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event, void *user_data) {
+  lv_obj_add_event_cb(obj, callback, event, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
+                                 lv_event_code_t event2, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2, lv_event_code_t event3) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
-  add_event_cb(obj, callback, event3);
+                                 lv_event_code_t event2, lv_event_code_t event3, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
+  add_event_cb(obj, callback, event3, user_data);
 }
 
 void LvglComponent::add_page(LvPageType *page) {
@@ -963,6 +963,25 @@ lv_obj_t *lv_container_create(lv_obj_t *parent) {
   lv_obj_class_init_obj(obj);
   return obj;
 }
+
+#ifdef USE_LVGL_LIST
+int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child) {
+  for (lv_obj_t *obj = child; obj != nullptr; obj = lv_obj_get_parent(obj)) {
+    if (lv_obj_get_parent(obj) == list)
+      return lv_obj_get_index(obj);
+  }
+  ESP_LOGW(TAG, "lvgl.list: entry is not inside the list it was added to");
+  return -1;
+}
+
+lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index) {
+  lv_obj_t *child = index < 0 ? nullptr : lv_obj_get_child(list, index);
+  if (child == nullptr) {
+    ESP_LOGW(TAG, "lvgl.list.remove: index %d is out of range, ignoring", index);
+  }
+  return child;
+}
+#endif  // USE_LVGL_LIST
 }  // namespace esphome::lvgl
 
 lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }

@@ -1214,6 +1214,64 @@ lvgl:
             id: checkbox_id
             text: Checkbox
             align: bottom_right
+        - list:
+            id: test_list_id
+            align: top_right
+            width: 150px
+            height: 120px
+            pad_row: 4
+            on_add:
+              - logger.log:
+                  format: "list entry added at %d"
+                  args: [list_index]
+            on_remove:
+              - logger.log:
+                  format: "list entry removed at %d"
+                  args: [list_index]
+            on_click:
+              - lvgl.list.add_text:
+                  id: test_list_id
+                  text: !lambda return "Section";
+              - lvgl.list.add_text:
+                  id: test_list_id
+                  text: "Pinned section"
+                  index: 0
+              - lvgl.list.add:
+                  id: test_list_id
+                  button:
+                    text: "Entry"
+                    checkable: true
+              - lvgl.list.add:
+                  id: test_list_id
+                  index: 1
+                  obj:
+                    widgets:
+                      - label:
+                          text: !lambda return "Dynamic row " + std::to_string(millis());
+                      - button:
+                          widgets:
+                            - label:
+                                text: "Tap"
+                          on_click:
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row button clicked, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
+                      - dropdown:
+                          options:
+                            - "One"
+                            - "Two"
+                          on_value:
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row dropdown changed, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
+              - lvgl.list.remove:
+                  id: test_list_id
+                  index: 0
+              - lvgl.list.clear:
+                  id: test_list_id
+              - lvgl.list.update:
+                  id: test_list_id
+                  pad_row: 8
         - slider:
             id: slider_id
             align: top_mid
