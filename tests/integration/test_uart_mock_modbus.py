@@ -737,6 +737,68 @@ async def test_uart_mock_modbus_custom_pdu(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_continuous(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that `continuous: true` polls faster than the update_interval.
+
+    The controller's update_interval is 30s, so without continuous polling only the boot poll would
+    run during the short test window. With continuous the read is re-queued after each success, filling
+    idle bus time, so many reads arrive. The server returns an incrementing counter, so every read is a
+    distinct published state the tracker can count. (Bus warnings are not asserted here: continuous
+    polling deliberately saturates the bus, so the occasional timing hiccup is expected and off-topic;
+    the other tests cover clean operation at normal poll rates.)
+    """
+
+    tracker = SensorTracker(["continuous_reg"])
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        # setup_and_start_scenario presses the Start Scenario button, whose on_press triggers the
+        # controller's first update(). With continuous that one read re-queues and streams; without it
+        # the next poll would not run until the 30s update_interval elapses.
+        entities = await tracker.setup_and_start_scenario(client)
+        # Count reads over a window far shorter than the update_interval. Absent continuous polling we
+        # would see ~1 (the triggered poll); continuous re-queues, so the bus fills with reads.
+        await asyncio.sleep(3.0)
+        reads = len(tracker.sensor_states["continuous_reg"])
+        assert reads >= 5, (
+            "expected many continuous reads within the window (update_interval is 30s, so absent "
+            f"continuous polling we would see ~1), got {reads}"
+        )
+
+        # Recovery path: a live continuous poll that starts failing goes offline, and the next update()
+        # re-arms it once the device answers again. Silence the server so the poll's reads time out; with
+        # max_cmd_retries=1 and send_wait_time=100ms the device trips offline quickly and streaming stops.
+        silence = find_entity(entities, "silence_server", SwitchInfo)
+        assert silence is not None, "Silence Server switch not found"
+        start = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start is not None, "Start Scenario button not found"
+
+        client.switch_command(silence.key, True)
+        await asyncio.sleep(1.0)  # let the poll fail and the device trip offline
+        plateau = len(tracker.sensor_states["continuous_reg"])
+        await asyncio.sleep(1.0)  # offline: no polls should land
+        assert len(tracker.sensor_states["continuous_reg"]) == plateau, (
+            "reads kept arriving after the server was silenced - the failed continuous poll did not stop"
+        )
+
+        # Answer again and trigger update(): the offline probe recovers the device and the continuous
+        # poll re-arms, so streaming resumes.
+        client.switch_command(silence.key, False)
+        client.button_command(start.key)
+        await asyncio.sleep(3.0)
+        resumed = len(tracker.sensor_states["continuous_reg"]) - plateau
+        assert resumed >= 5, (
+            f"continuous polling did not resume after the device recovered (got {resumed} new reads)"
+        )
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_offline(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
