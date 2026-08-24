@@ -1,8 +1,7 @@
 #include "one_wire_bus.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace one_wire {
+namespace esphome::one_wire {
 
 static const char *const TAG = "one_wire";
 
@@ -57,8 +56,11 @@ void OneWireBus::search() {
   }
 }
 
-void OneWireBus::skip() {
+bool OneWireBus::skip() {
+  if (!this->reset_())
+    return false;
   this->write8(0xCC);  // skip ROM
+  return true;
 }
 
 const LogString *OneWireBus::get_model_str(uint8_t model) {
@@ -90,5 +92,4 @@ void OneWireBus::dump_devices_(const char *tag) {
   }
 }
 
-}  // namespace one_wire
-}  // namespace esphome
+}  // namespace esphome::one_wire

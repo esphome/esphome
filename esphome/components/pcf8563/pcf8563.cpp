@@ -4,8 +4,7 @@
 // Datasheet:
 // - https://nl.mouser.com/datasheet/2/302/PCF8563-1127619.pdf
 
-namespace esphome {
-namespace pcf8563 {
+namespace esphome::pcf8563 {
 
 static const char *const TAG = "PCF8563";
 
@@ -40,14 +39,11 @@ void PCF8563Component::read_time() {
       .hour = uint8_t(pcf8563_.reg.hour + 10u * pcf8563_.reg.hour_10),
       .day_of_week = uint8_t(pcf8563_.reg.weekday),
       .day_of_month = uint8_t(pcf8563_.reg.day + 10u * pcf8563_.reg.day_10),
-      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = uint8_t(pcf8563_.reg.month + 10u * pcf8563_.reg.month_10),
       .year = uint16_t(pcf8563_.reg.year + 10u * pcf8563_.reg.year_10 + 2000),
-      .is_dst = false,  // not used
-      .timestamp = 0,   // overwritten by recalc_timestamp_utc(false)
   };
   rtc_time.recalc_timestamp_utc(false);
-  if (!rtc_time.is_valid()) {
+  if (!rtc_time.is_valid(/*check_day_of_week=*/true, /*check_day_of_year=*/false)) {
     ESP_LOGE(TAG, "Invalid RTC time, not syncing to system clock.");
     return;
   }
@@ -102,5 +98,4 @@ bool PCF8563Component::write_rtc_() {
            pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
   return true;
 }
-}  // namespace pcf8563
-}  // namespace esphome
+}  // namespace esphome::pcf8563

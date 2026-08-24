@@ -1,8 +1,9 @@
 import logging
+from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import i2c, socket
+from esphome.components import i2c
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.psram import DOMAIN as psram_domain
 import esphome.config_validation as cv
@@ -24,12 +25,13 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.core.entity_helpers import setup_entity
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["camera", "socket"]
+AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["esp32"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
@@ -179,7 +181,7 @@ CONF_ON_IMAGE = "on_image"
 camera_range_param = cv.int_range(min=-2, max=2)
 
 
-def validate_fb_location_(value):
+def validate_fb_location_(value: Any) -> MockObj:
     validator = cv.enum(ENUM_FB_LOCATION, upper=True)
     if value.lower() == psram_domain:
         validator = cv.All(validator, cv.requires_component(psram_domain))
@@ -310,7 +312,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     # Check psram requirement for non-JPEG formats
     if (
         config.get(CONF_PIXEL_FORMAT, "JPEG") != "JPEG"
@@ -368,9 +370,8 @@ SETTERS = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_CAMERA")
-    socket.require_wake_loop_threadsafe()
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)
@@ -400,7 +401,7 @@ async def to_code(config):
     if config[CONF_JPEG_QUALITY] != 0 and config[CONF_PIXEL_FORMAT] != "JPEG":
         cg.add_define("USE_ESP32_CAMERA_JPEG_CONVERSION")
 
-    add_idf_component(name="espressif/esp32-camera", ref="2.1.1")
+    add_idf_component(name="espressif/esp32-camera", ref="2.1.7")
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_NEW", True)
     add_idf_sdkconfig_option("CONFIG_SCCB_HARDWARE_I2C_DRIVER_LEGACY", False)
 

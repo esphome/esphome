@@ -1,8 +1,7 @@
 #include "st7567_i2c.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7567_i2c {
+namespace esphome::st7567_i2c {
 
 static const char *const TAG = "st7567_i2c";
 
@@ -58,5 +57,4 @@ void HOT I2CST7567::write_display_data() {
   }
 }
 
-}  // namespace st7567_i2c
-}  // namespace esphome
+}  // namespace esphome::st7567_i2c

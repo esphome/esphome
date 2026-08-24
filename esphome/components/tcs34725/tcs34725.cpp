@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 
-namespace esphome {
-namespace tcs34725 {
+namespace esphome::tcs34725 {
 
 static const char *const TAG = "tcs34725";
 
@@ -257,7 +256,7 @@ void TCS34725Component::update() {
     // increase only if not already maximum
     // do not use max gain, as ist will not get better
     if (this->gain_reg_ < 3) {
-      if (((float) raw_c / 655.35 < 20.f) && (this->integration_time_ > 600.f)) {
+      if (((float) raw_c / 655.35f < 20.f) && (this->integration_time_ > 600.f)) {
         gain_reg_val_new = this->gain_reg_ + 1;
         // update integration time to new situation
         integration_time_ideal = integration_time_ideal / 4;
@@ -266,7 +265,7 @@ void TCS34725Component::update() {
 
     // decrease gain, if very high clear values and integration times alreadey low
     if (this->gain_reg_ > 0) {
-      if (70 < ((float) raw_c / 655.35) && (this->integration_time_ < 200)) {
+      if (70 < ((float) raw_c / 655.35f) && (this->integration_time_ < 200)) {
         gain_reg_val_new = this->gain_reg_ - 1;
         // update integration time to new situation
         integration_time_ideal = integration_time_ideal * 4;
@@ -315,7 +314,7 @@ void TCS34725Component::set_integration_time(TCS34725IntegrationTime integration
     my_integration_time_regval = integration_time;
     this->integration_time_auto_ = false;
   }
-  this->integration_time_ = (256.f - my_integration_time_regval) * 2.4f;
+  this->integration_time_ = (256.f - (float) my_integration_time_regval) * 2.4f;
   ESP_LOGI(TAG, "TCS34725I Integration time set to: %.1fms", this->integration_time_);
 }
 void TCS34725Component::set_gain(TCS34725Gain gain) {
@@ -348,5 +347,4 @@ void TCS34725Component::set_glass_attenuation_factor(float ga) {
   this->glass_attenuation_ = ga;
 }
 
-}  // namespace tcs34725
-}  // namespace esphome
+}  // namespace esphome::tcs34725

@@ -64,7 +64,7 @@ mqtt:
         topic: some/topic
         payload: Good-bye
     - lambda: |-
-        ESP_LOGD("MQTT", "Disconnect reason %d", reason);
+        ESP_LOGD("MQTT", "Disconnect reason %d", (int) reason);
   publish_nan_as_none: false
 
 binary_sensor:
@@ -74,7 +74,7 @@ binary_sensor:
     state_topic: some/topic/binary_sensor
     qos: 2
     lambda: |-
-      if (id(template_sens).state > 30) {
+      if (id(mqtt_template_sens).state > 30) {
         // Garage Door is open.
         return true;
       }
@@ -105,8 +105,8 @@ button:
 climate:
   - platform: thermostat
     name: Test Thermostat
-    sensor: template_sens
-    humidity_sensor: template_sens
+    sensor: mqtt_template_sens
+    humidity_sensor: mqtt_template_sens
     action_state_topic: some/topicaction_state
     current_temperature_state_topic: some/topiccurrent_temperature_state
     current_humidity_state_topic: some/topiccurrent_humidity_state
@@ -283,10 +283,10 @@ cover:
 datetime:
   - platform: template
     name: Date
-    id: test_date
+    id: mqtt_test_date
     type: date
     state_topic: some/topic/date
-    command_topic: test_date/custom_command_topic
+    command_topic: mqtt_test_date/custom_command_topic
     qos: 2
     subscribe_qos: 2
     set_action:
@@ -300,7 +300,7 @@ datetime:
             - x.day_of_month
   - platform: template
     name: Time
-    id: test_time
+    id: mqtt_test_time
     type: time
     state_topic: some/topic/time
     qos: 2
@@ -315,7 +315,7 @@ datetime:
             - x.second
   - platform: template
     name: DateTime
-    id: test_datetime
+    id: mqtt_test_datetime
     type: datetime
     state_topic: some/topic/datetime
     qos: 2
@@ -407,7 +407,7 @@ select:
 sensor:
   - platform: template
     name: Template Sensor
-    id: template_sens
+    id: mqtt_template_sens
     lambda: |-
       if (id(some_binary_sensor).state) {
         return 42.0;
@@ -423,13 +423,13 @@ sensor:
   - platform: mqtt_subscribe
     name: MQTT Subscribe Sensor
     topic: mqtt/topic
-    id: the_sensor
+    id: mqtt_the_sensor
     qos: 2
     on_value:
       - mqtt.publish_json:
           topic: the/topic
           payload: |-
-            root["key"] = id(template_sens).state;
+            root["key"] = id(mqtt_template_sens).state;
             root["greeting"] = "Hello World";
 
 switch:

@@ -4,10 +4,9 @@
 #include "esphome/core/component.h"
 #include "aic3204.h"
 
-namespace esphome {
-namespace aic3204 {
+namespace esphome::aic3204 {
 
-template<typename... Ts> class SetAutoMuteAction : public Action<Ts...> {
+template<typename... Ts> class SetAutoMuteAction final : public Action<Ts...> {
  public:
   explicit SetAutoMuteAction(AIC3204 *aic3204) : aic3204_(aic3204) {}
 
@@ -19,5 +18,4 @@ template<typename... Ts> class SetAutoMuteAction : public Action<Ts...> {
   AIC3204 *aic3204_;
 };
 
-}  // namespace aic3204
-}  // namespace esphome
+}  // namespace esphome::aic3204

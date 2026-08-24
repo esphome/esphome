@@ -25,11 +25,14 @@ void BLENUS::write_array(const uint8_t *data, size_t len) {
   if (atomic_get(&this->tx_status_) == TX_DISABLED) {
     return;
   }
-  auto sent = ring_buf_put(&global_ble_tx_ring_buf, data, len);
-  if (sent < len) {
-    ESP_LOGE(TAG, "TX dropping %u bytes", len - sent);
+  // ring_buf_put() performs a partial write when the buffer is nearly full, which would commit a
+  // truncated fragment and corrupt the stream. Only write when the whole payload fits, so the byte
+  // stream never contains a partial message.
+  if (ring_buf_space_get(&global_ble_tx_ring_buf) < len) {
+    ESP_LOGE(TAG, "TX dropping %u bytes", len);
     return;
   }
+  ring_buf_put(&global_ble_tx_ring_buf, data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
@@ -67,14 +70,14 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
 
   // First, use the peek buffer if available
   if (this->has_peek_) {
+#ifdef USE_UART_DEBUGGER
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_);
+#endif
     data[0] = this->peek_buffer_;
     this->has_peek_ = false;
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
-#ifdef USE_UART_DEBUGGER
-      this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_);
-#endif
-      return true;  // No more to read
+      return true;     // No more to read
     }
   }
 
@@ -103,17 +106,17 @@ size_t BLENUS::available() {
 #endif
 }
 
-uart::FlushResult BLENUS::flush() {
+uart::UARTFlushResult BLENUS::flush() {
   constexpr uint32_t timeout_500ms = 500;
   uint32_t start = millis();
   while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
     if (millis() - start > timeout_500ms) {
       ESP_LOGW(TAG, "Flush timeout");
-      return uart::FlushResult::TIMEOUT;
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
     delay(1);
   }
-  return uart::FlushResult::SUCCESS;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {
@@ -197,6 +200,10 @@ void BLENUS::setup() {
 void BLENUS::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
+  // make sure there is space for '\n' or entire message is dropped
+  if (ring_buf_space_get(&global_ble_tx_ring_buf) < message_len + 1) {
+    return;
+  }
   this->write_array(reinterpret_cast<const uint8_t *>(message), message_len);
   const char c = '\n';
   this->write_array(reinterpret_cast<const uint8_t *>(&c), 1);

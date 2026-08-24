@@ -1,0 +1,61 @@
+esphome:
+  name: logger-recursion-test
+host:
+api:
+logger:
+  level: DEBUG
+  on_message:
+    # Fires on the main loop for every message delivered to listeners, including
+    # messages drained from the task log buffer (i.e. logged from a non-main thread).
+    # The lambda logs again on the main task. Without a recursion guard on the buffered
+    # drain path this re-entrant log reuses the shared tx_buffer_ and clobbers the
+    # buffered message that is still being delivered, corrupting its console output.
+    - level: VERY_VERBOSE
+      then:
+        - lambda: |-
+            ESP_LOGD("reentry", "REENTRANT_CLOBBER_MARKER");
+
+button:
+  - platform: template
+    name: "Start Race Test"
+    id: start_test_button
+    on_press:
+      - lambda: |-
+          // Keep the count well under the host task-log-buffer slot count so every
+          // message goes through the ring buffer (buffered drain path) instead of the
+          // emergency console fallback. The main loop is blocked in pthread_join while
+          // the thread logs, so all messages are drained together once it returns.
+          static const int NUM_MESSAGES = 30;
+
+          struct ThreadTest {
+            static void *thread_func(void *arg) {
+              char thread_name[16];
+              snprintf(thread_name, sizeof(thread_name), "LogThread");
+              #ifdef __APPLE__
+              pthread_setname_np(thread_name);
+              #else
+              pthread_setname_np(pthread_self(), thread_name);
+              #endif
+
+              for (int i = 0; i < NUM_MESSAGES; i++) {
+                // Verifiable payload: data is a deterministic function of the message
+                // index, so a clobbered buffer shows up as a missing or mismatched line.
+                ESP_LOGD("thread_test", "THREADMSG%03d_DATA_%08X", i, i * 12345);
+              }
+              return nullptr;
+            }
+          };
+
+          // RACE_TEST_START / RACE_TEST_COMPLETE are logged from the main task (the
+          // synchronous path, which already holds the recursion guard) so the test can
+          // always detect completion even when the buffered path is corrupted.
+          ESP_LOGI("thread_test", "RACE_TEST_START: logging %d messages from a thread", NUM_MESSAGES);
+
+          pthread_t thread;
+          if (pthread_create(&thread, nullptr, ThreadTest::thread_func, nullptr) != 0) {
+            ESP_LOGE("thread_test", "RACE_TEST_ERROR: Failed to create thread");
+            return;
+          }
+          pthread_join(thread, nullptr);
+
+          ESP_LOGI("thread_test", "RACE_TEST_COMPLETE: thread finished, expected %d messages", NUM_MESSAGES);

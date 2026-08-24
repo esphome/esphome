@@ -2,6 +2,7 @@ import base64
 from pathlib import Path
 import re
 import secrets
+from typing import Any
 
 import requests
 from ruamel.yaml import YAML
@@ -12,6 +13,8 @@ from esphome.components.packages import validate_source_shorthand
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_REF, CONF_WIFI
 import esphome.final_validate as fv
+from esphome.happy_eyeballs import ensure_happy_eyeballs
+from esphome.types import ConfigType
 from esphome.yaml_util import dump
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
@@ -22,14 +25,14 @@ DEPENDENCIES = ["api"]
 CODEOWNERS = ["@esphome/core"]
 
 
-def validate_import_url(value):
+def validate_import_url(value: Any) -> str:
     value = cv.string_strict(value)
     value = cv.Length(max=255)(value)
     validate_source_shorthand(value)
     return value
 
 
-def validate_full_url(config):
+def validate_full_url(config: ConfigType) -> ConfigType:
     if not config[CONF_IMPORT_FULL_CONFIG]:
         return config
     source = validate_source_shorthand(config[CONF_PACKAGE_IMPORT_URL])
@@ -54,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()[CONF_ESPHOME]
     if CONF_PROJECT not in full_config:
         raise cv.Invalid(
@@ -72,12 +75,12 @@ wifi:
 """
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_DASHBOARD_IMPORT")
     url = config[CONF_PACKAGE_IMPORT_URL]
     if config[CONF_IMPORT_FULL_CONFIG]:
         url += "?full_config"
-    cg.add(dashboard_import_ns.set_package_import_url(url))
+    cg.add(dashboard_import_ns.set_package_import_url(cg.FlashStringLiteral(url)))
 
 
 def import_config(
@@ -89,6 +92,16 @@ def import_config(
     network: str = CONF_WIFI,
     encryption: bool = False,
 ) -> None:
+    """Materialise a dashboard-imported device's YAML on disk.
+
+    Used by:
+    - device-builder (esphome/device-builder) — called from the
+      ``devices/import`` WS handler to seed the YAML for an adopted
+      factory firmware. Coordinate before changing the kwargs or the
+      generated YAML's top-level keys; both consumers depend on the
+      output shape (``esphome.name`` / ``packages:`` import url) to
+      route subsequent compile + flash operations.
+    """
     p = Path(path)
 
     if p.exists():
@@ -99,6 +112,7 @@ def import_config(
     if git_file.query and "full_config" in git_file.query:
         url = git_file.raw_url
         try:
+            ensure_happy_eyeballs()
             req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:

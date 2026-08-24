@@ -13,20 +13,15 @@ namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
-// Intermediate connection parameters for standard operation
-// ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
-// causing disconnections. These medium parameters balance responsiveness with bandwidth usage.
-static constexpr uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
-static constexpr uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
-// The timeout value was increased from 6s to 8s to address stability issues observed
-// in certain BLE devices when operating through WiFi-based BLE proxies. The longer
-// timeout reduces the likelihood of disconnections during periods of high latency.
-static constexpr uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
-
-// Fastest connection parameters for devices with short discovery timeouts
-static constexpr uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
-static constexpr uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
-static constexpr uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
+// Connection parameters are shared with the other GATT client backends
+// (ble_device_base/ble_client_state.h) so the platforms cannot drift.
+using ble_device_base::FAST_CONN_TIMEOUT;
+using ble_device_base::FAST_MAX_CONN_INTERVAL;
+using ble_device_base::FAST_MIN_CONN_INTERVAL;
+using ble_device_base::MEDIUM_CONN_TIMEOUT;
+using ble_device_base::MEDIUM_MAX_CONN_INTERVAL;
+using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
+static constexpr uint32_t DISCONNECTING_TIMEOUT = 10000;  // 10s
 static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,
     .uuid =
@@ -62,6 +57,16 @@ void BLEClientBase::loop() {
   // will enable it again when a connection is needed.
   else if (this->state() == espbt::ClientState::IDLE) {
     this->disable_loop();
+  } else if (this->state() == espbt::ClientState::DISCONNECTING &&
+             (millis() - this->disconnecting_started_) > DISCONNECTING_TIMEOUT) {
+    ESP_LOGE(TAG, "[%d] [%s] Timeout waiting for CLOSE_EVT after disconnect, forcing IDLE", this->connection_index_,
+             this->address_str_);
+    // release_services() must be called before set_idle_() — if we entered DISCONNECTING
+    // via unconditional_disconnect() (which doesn't call release_services()), and ESP-IDF
+    // never delivered CLOSE_EVT/DISCONNECT_EVT, services would leak without this call.
+    this->release_services();
+    this->set_idle_();
+    this->on_disconnect_complete(ESP_GATT_CONN_TIMEOUT);
   }
 }
 
@@ -101,15 +106,22 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 #endif
 
 void BLEClientBase::connect() {
-  // Prevent duplicate connection attempts
+  // Prevent duplicate connection attempts or connecting while still disconnecting
   if (this->state() == espbt::ClientState::CONNECTING || this->state() == espbt::ClientState::CONNECTED ||
       this->state() == espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%d] [%s] Connection already in progress, state=%s", this->connection_index_, this->address_str_,
              espbt::client_state_to_string(this->state()));
     return;
+  } else if (this->state() == espbt::ClientState::DISCONNECTING) {
+    ESP_LOGW(TAG, "[%d] [%s] Cannot connect, still waiting for CLOSE_EVT to complete disconnect",
+             this->connection_index_, this->address_str_);
+    return;
   }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);
   this->paired_ = false;
+  // A registration whose event never arrived must not block this connection's release.
+  this->services_released_ = false;
+  this->pending_notify_regs_ = 0;
   // Enable loop for state processing
   this->enable_loop();
   // Immediately transition to CONNECTING to prevent duplicate connection attempts
@@ -174,7 +186,7 @@ void BLEClientBase::unconditional_disconnect() {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
-    this->set_state(espbt::ClientState::DISCONNECTING);
+    this->set_disconnecting_();
   }
 }
 
@@ -185,8 +197,24 @@ void BLEClientBase::release_services() {
   this->services_.clear();
 #endif
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
+  // Only the cache clean makes the stack's database unsafe to walk.
+  this->services_released_ = true;
   esp_ble_gattc_cache_clean(this->remote_bda_);
 #endif
+}
+
+esp_err_t BLEClientBase::register_for_notify(uint16_t char_handle) {
+  esp_err_t err = esp_ble_gattc_register_for_notify(this->gattc_if_, this->remote_bda_, char_handle);
+  if (err != ESP_OK)
+    return err;
+  if (this->pending_notify_regs_ == UINT8_MAX) {
+    // Saturating undercounts, so the release can run before the last registration completes.
+    // Wrapping to zero would undercount by the full range instead, which is worse.
+    this->log_warning_("Too many outstanding notify registrations to track");
+    return err;
+  }
+  this->pending_notify_regs_++;
+  return err;
 }
 
 void BLEClientBase::log_event_(const char *name) {
@@ -220,6 +248,7 @@ void BLEClientBase::log_connection_params_(const char *param_type) {
 void BLEClientBase::handle_connection_result_(esp_err_t ret) {
   if (ret) {
     this->log_gattc_warning_("esp_ble_gattc_open", ret);
+    // Don't use set_idle_() here — CONNECT_EVT never fired so conn_id_ is still UNSET_CONN_ID.
     this->set_state(espbt::ClientState::IDLE);
   }
 }
@@ -311,15 +340,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
-        this->set_state(espbt::ClientState::IDLE);
+        // Connection was never established so CLOSE_EVT may not follow
+        this->set_idle_();
         break;
       }
       if (this->want_disconnect_) {
         // Disconnect was requested after connecting started,
         // but before the connection was established. Now that we have
         // this->conn_id_ set, we can disconnect it.
+        // Don't reset conn_id_ here — CLOSE_EVT needs it to match and call set_idle_().
         this->unconditional_disconnect();
-        this->conn_id_ = UNSET_CONN_ID;
         break;
       }
       // MTU negotiation already started in ESP_GATTC_CONNECT_EVT
@@ -334,7 +364,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // For V3_WITHOUT_CACHE, we already set fast params before connecting
       // No need to update them again here
       this->log_event_("Searching for services");
-      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
+      esp_ble_gattc_search_service(esp_gattc_if, param->open.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {
@@ -363,8 +393,22 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
                  param->disconnect.reason);
       }
+      // For active disconnects (esp_ble_gattc_close), CLOSE_EVT arrives before
+      // DISCONNECT_EVT. If CLOSE_EVT already transitioned us to IDLE, don't go
+      // backwards to DISCONNECTING — the connection is already fully cleaned up.
+      if (this->state() == espbt::ClientState::IDLE) {
+        this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
+        break;
+      }
+      // For passive disconnects (remote device disconnected or link lost),
+      // DISCONNECT_EVT arrives first. Don't transition to IDLE yet — wait for
+      // CLOSE_EVT to ensure the controller has fully freed resources (L2CAP
+      // channels, ATT resources, HCI connection handle). Transitioning to IDLE
+      // here would allow reconnection before cleanup is complete, causing the
+      // controller to reject the new connection (status=133) or crash with
+      // ASSERT_PARAM in lld_evt.c.
       this->release_services();
-      this->set_state(espbt::ClientState::IDLE);
+      this->set_disconnecting_();
       break;
     }
 
@@ -387,8 +431,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         return false;
       this->log_gattc_lifecycle_event_("CLOSE");
       this->release_services();
-      this->set_state(espbt::ClientState::IDLE);
-      this->conn_id_ = UNSET_CONN_ID;
+      this->set_idle_();
+      this->on_disconnect_complete(param->close.reason);
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
@@ -467,10 +511,18 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
       this->log_gattc_data_event_("REG_FOR_NOTIFY");
+      // The event carries no conn_id, so this is the only place the request can be retired.
+      if (this->pending_notify_regs_ > 0)
+        this->pending_notify_regs_--;
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
           this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         // Client is responsible for flipping the descriptor value
         // when using the cache
+        break;
+      }
+      if (this->services_released_) {
+        // The lookup below walks the freed GATT cache, and Bluedroid asserts on it rather than erroring.
+        this->log_warning_("REG_FOR_NOTIFY after services released, notifications not enabled");
         break;
       }
       esp_gattc_descr_elem_t desc_result;

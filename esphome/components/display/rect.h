@@ -2,8 +2,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace display {
+namespace esphome::display {
 
 static const int16_t VALUE_NO_SET = 32766;
 
@@ -32,5 +31,4 @@ class Rect {
   void info(const std::string &prefix = "rect info:");
 };
 
-}  // namespace display
-}  // namespace esphome
+}  // namespace esphome::display

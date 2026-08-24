@@ -10,11 +10,14 @@ from esphome.const import (
     CONF_PIN_B,
     CONF_RESOLUTION,
     CONF_RESTORE_MODE,
-    CONF_TRIGGER_ID,
     CONF_VALUE,
     ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_STEPS,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
 
@@ -43,21 +46,14 @@ RotaryEncoderSetValueAction = rotary_encoder_ns.class_(
     "RotaryEncoderSetValueAction", automation.Action
 )
 
-RotaryEncoderClockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderClockwiseTrigger", automation.Trigger
-)
-RotaryEncoderAnticlockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderAnticlockwiseTrigger", automation.Trigger
-)
 
-
-def validate_min_max_value(config):
+def validate_min_max_value(config: ConfigType) -> ConfigType:
     if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
         min_val = config[CONF_MIN_VALUE]
         max_val = config[CONF_MAX_VALUE]
         if min_val >= max_val:
             raise cv.Invalid(
-                f"Max value {max_val} must be smaller than min value {min_val}"
+                f"Max value {max_val} must be greater than min value {min_val}"
             )
     return config
 
@@ -68,6 +64,7 @@ CONFIG_SCHEMA = cv.All(
         unit_of_measurement=UNIT_STEPS,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
@@ -81,20 +78,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_ZERO"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
-            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderClockwiseTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderAnticlockwiseTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -102,7 +87,15 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CLOCKWISE, "add_on_clockwise_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_ANTICLOCKWISE, "add_on_anticlockwise_callback"
+    ),
+)
+
+
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
@@ -122,12 +115,7 @@ async def to_code(config):
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
 
-    for conf in config.get(CONF_ON_CLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(
@@ -135,14 +123,20 @@ async def to_code(config):
     RotaryEncoderSetValueAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_ID): cv.use_id(RotaryEncoderSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.int_),
         }
     ),
+    synchronous=True,
 )
-async def sensor_template_publish_to_code(config, action_id, template_arg, args):
+async def sensor_template_publish_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALUE], args, int)
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.int_)
     cg.add(var.set_value(template_))
     return var

@@ -7,8 +7,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace cs5460a {
+namespace esphome::cs5460a {
 
 enum CS5460ACommand {
   CMD_SYNC0 = 0xfe,
@@ -53,9 +52,9 @@ enum CS5460APGAGain {
   CS5460A_PGA_GAIN_50X = 0b1,
 };
 
-class CS5460AComponent : public Component,
-                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+class CS5460AComponent final : public Component,
+                               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                     spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   void set_samples(uint32_t samples) { samples_ = samples; }
   void set_phase_offset(int8_t phase_offset) { phase_offset_ = phase_offset; }
@@ -109,7 +108,7 @@ class CS5460AComponent : public Component,
   uint32_t prev_raw_energy_{0};
 };
 
-template<typename... Ts> class CS5460ARestartAction : public Action<Ts...> {
+template<typename... Ts> class CS5460ARestartAction final : public Action<Ts...> {
  public:
   CS5460ARestartAction(CS5460AComponent *cs5460a) : cs5460a_(cs5460a) {}
 
@@ -119,5 +118,4 @@ template<typename... Ts> class CS5460ARestartAction : public Action<Ts...> {
   CS5460AComponent *cs5460a_;
 };
 
-}  // namespace cs5460a
-}  // namespace esphome
+}  // namespace esphome::cs5460a

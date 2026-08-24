@@ -1,8 +1,7 @@
 #include "sen21231.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sen21231_sensor {
+namespace esphome::sen21231_sensor {
 
 static const char *const TAG = "sen21231_sensor.sensor";
 
@@ -33,5 +32,4 @@ void Sen21231Sensor::read_data_() {
   }
 }
 
-}  // namespace sen21231_sensor
-}  // namespace esphome
+}  // namespace esphome::sen21231_sensor

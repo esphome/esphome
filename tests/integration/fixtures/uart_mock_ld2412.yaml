@@ -3,6 +3,7 @@ esphome:
 
 host:
 api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
 logger:
   level: VERBOSE
 

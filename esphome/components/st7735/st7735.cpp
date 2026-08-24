@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace st7735 {
+namespace esphome::st7735 {
 
 static const uint8_t ST_CMD_DELAY = 0x80;  // special signifier for command lists
 
@@ -476,5 +475,4 @@ void ST7735::spi_master_write_addr_(uint16_t addr1, uint16_t addr2) {
   this->write_array(byte, 4);
 }
 
-}  // namespace st7735
-}  // namespace esphome
+}  // namespace esphome::st7735

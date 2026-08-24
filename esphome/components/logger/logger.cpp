@@ -83,7 +83,7 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
   message_sent =
-      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
+      this->log_buffer_.send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
   if (message_sent) {
     // Enable logger loop to process the buffered message
     // This is safe to call from any context including ISRs
@@ -161,20 +161,6 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
   this->main_thread_ = pthread_self();
 #endif
 }
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-void Logger::init_log_buffer(size_t total_buffer_size) {
-  // Host uses slot count instead of byte size
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
-
-#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
-  // Start with loop disabled when using task buffer
-  // The loop will be enabled automatically when messages arrive
-  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
-  this->disable_loop_when_buffer_empty_();
-#endif
-}
-#endif
 
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
 void Logger::loop() {
@@ -188,16 +174,20 @@ void Logger::loop() {
 void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
-  if (this->log_buffer_->has_messages()) {
+  if (this->log_buffer_.has_messages()) {
+    // Prevent main-task logs emitted by listener callbacks (e.g. the API send path) from re-entering
+    // and corrupting the shared tx_buffer_ / API shared_write_buffer_ while we are draining here.
+    // Mirrors the guard held by log_message_to_buffer_and_send_ on the synchronous logging path.
+    RecursionGuard guard(this->main_task_recursion_guard_);
     logger::TaskLogBuffer::LogMessage *message;
     uint16_t text_length;
-    while (this->log_buffer_->borrow_message_main_loop(message, text_length)) {
+    while (this->log_buffer_.borrow_message_main_loop(message, text_length)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
       LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name,
                                                 message->text_data(), text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
-      this->log_buffer_->release_message_main_loop();
+      this->log_buffer_.release_message_main_loop();
       this->write_log_buffer_to_console_(buf);
     }
   }
@@ -211,16 +201,9 @@ void Logger::process_messages_() {
 #endif  // USE_ESPHOME_TASK_LOG_BUFFER
 }
 
-void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
 void Logger::set_log_level(const char *tag, uint8_t log_level) { this->log_levels_[tag] = log_level; }
 #endif
-
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
-UARTSelection Logger::get_uart() const { return this->uart_; }
-#endif
-
-float Logger::get_setup_priority() const { return setup_priority::BUS + 500.0f; }
 
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
@@ -243,13 +226,11 @@ void Logger::dump_config() {
                 this->baud_rate_, LOG_STR_ARG(get_uart_selection_()));
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  if (this->log_buffer_) {
 #ifdef USE_HOST
-    ESP_LOGCONFIG(TAG, "  Task Log Buffer Slots: %u", static_cast<unsigned int>(this->log_buffer_->size()));
+  ESP_LOGCONFIG(TAG, "  Task Log Buffer Slots: %u", static_cast<unsigned int>(this->log_buffer_.size()));
 #else
-    ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u bytes", static_cast<unsigned int>(this->log_buffer_->size()));
+  ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u bytes", static_cast<unsigned int>(this->log_buffer_.size()));
 #endif
-  }
 #endif
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
@@ -259,6 +240,19 @@ void Logger::dump_config() {
 #endif
 #ifdef USE_ZEPHYR
   dump_crash_();
+  if (!device_is_ready(this->uart_dev_)) {
+    ESP_LOGE(TAG, "  %s is not ready.", LOG_STR_ARG(get_uart_selection_()));
+  }
+#endif
+  // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
+  // Only the compiled log level matters — all log calls up to this level
+  // are in the binary and will be formatted (vsnprintf) and block UART.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  ESP_LOGW(TAG, "VERY_VERBOSE logging is active — significant performance impact, short-term debugging only\n"
+                "  May cause connection instability. Set log level to DEBUG or lower for long-term use.");
+#elif ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  ESP_LOGI(TAG, "VERBOSE logging is active — performance impact, short-term debugging only\n"
+                "  Set log level to DEBUG or lower for long-term use.");
 #endif
 }
 

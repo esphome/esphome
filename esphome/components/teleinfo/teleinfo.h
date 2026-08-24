@@ -5,8 +5,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace teleinfo {
+namespace esphome::teleinfo {
 /*
  * 198 bytes should be enough to contain a full session in historical mode with
  * three phases. But go with 1024 just to be sure.
@@ -21,7 +20,7 @@ class TeleInfoListener {
   std::string tag;
   virtual void publish_val(const std::string &val){};
 };
-class TeleInfo : public PollingComponent, public uart::UARTDevice {
+class TeleInfo final : public PollingComponent, public uart::UARTDevice {
  public:
   TeleInfo(bool historical_mode);
   void register_teleinfo_listener(TeleInfoListener *listener);
@@ -41,14 +40,13 @@ class TeleInfo : public PollingComponent, public uart::UARTDevice {
   char val_[MAX_VAL_SIZE];
   char timestamp_[MAX_TIMESTAMP_SIZE];
   enum State {
-    OFF,
-    ON,
+    STATE_OFF,
+    STATE_ON,
     START_FRAME_RECEIVED,
     END_FRAME_RECEIVED,
-  } state_{OFF};
+  } state_{STATE_OFF};
   bool read_chars_until_(bool drop, uint8_t c);
   bool check_crc_(const char *grp, const char *grp_end);
   void publish_value_(const std::string &tag, const std::string &val);
 };
-}  // namespace teleinfo
-}  // namespace esphome
+}  // namespace esphome::teleinfo

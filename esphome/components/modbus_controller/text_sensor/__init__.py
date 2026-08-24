@@ -1,13 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 
 from .. import (
-    MODBUS_REGISTER_TYPE,
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
+    migrate_custom_command,
     modbus_calc_properties,
     modbus_controller_ns,
     validate_modbus_register,
@@ -19,7 +20,6 @@ from ..const import (
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
-    CONF_SKIP_UPDATES,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -55,13 +55,15 @@ CONFIG_SCHEMA = cv.All(
     validate_modbus_register,
 )
 
+FINAL_VALIDATE_SCHEMA = migrate_custom_command
+
 
 async def to_code(config):
     byte_offset, reg_count = modbus_calc_properties(config)
     response_size = config[CONF_RESPONSE_SIZE]
     reg_count = config[CONF_REGISTER_COUNT]
     if reg_count == 0:
-        reg_count = response_size / 2
+        reg_count = response_size // 2
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],
@@ -70,7 +72,6 @@ async def to_code(config):
         reg_count,
         config[CONF_RESPONSE_SIZE],
         config[CONF_RAW_ENCODE],
-        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
 

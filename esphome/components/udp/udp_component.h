@@ -18,7 +18,7 @@
 namespace esphome::udp {
 
 static const size_t MAX_PACKET_SIZE = 508;
-class UDPComponent : public Component {
+class UDPComponent final : public Component {
  public:
   void set_addresses(std::initializer_list<const char *> addresses) { this->addresses_ = addresses; }
   /// Prevent accidental use of std::string which would dangle
@@ -28,9 +28,7 @@ class UDPComponent : public Component {
   void set_broadcast_port(uint16_t port) { this->broadcast_port_ = port; }
   void set_should_broadcast() { this->should_broadcast_ = true; }
   void set_should_listen() { this->should_listen_ = true; }
-  void add_listener(std::function<void(std::span<const uint8_t>)> &&listener) {
-    this->packet_listeners_.add(std::move(listener));
-  }
+  template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
   void loop() override;
   void dump_config() override;

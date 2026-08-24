@@ -120,11 +120,13 @@ void RemoteTransmitterComponent::configure_rmt_() {
     channel.gpio_num = gpio_num_t(this->pin_->get_pin());
     channel.mem_block_symbols = this->rmt_symbols_;
     channel.trans_queue_depth = 1;
-    channel.flags.io_loop_back = open_drain;
-    channel.flags.io_od_mode = open_drain;
     channel.flags.invert_out = 0;
     channel.flags.with_dma = this->with_dma_;
     channel.intr_priority = 0;
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+    channel.flags.io_loop_back = open_drain;
+    channel.flags.io_od_mode = open_drain;
+#endif
     error = rmt_new_tx_channel(&channel, &this->channel_);
     if (error != ESP_OK) {
       this->error_code_ = error;
@@ -136,6 +138,13 @@ void RemoteTransmitterComponent::configure_rmt_() {
       this->mark_failed();
       return;
     }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    if (open_drain) {
+      gpio_num_t gpio = gpio_num_t(this->pin_->get_pin());
+      gpio_od_enable(gpio);
+      gpio_input_enable(gpio);
+    }
+#endif
     if (this->pin_->get_flags() & gpio::FLAG_PULLUP) {
       gpio_pullup_en(gpio_num_t(this->pin_->get_pin()));
     } else {

@@ -15,8 +15,9 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
 )
+from esphome.core import ID
 from esphome.cpp_generator import MockObj, literal
-from esphome.types import TemplateArgsType
+from esphome.types import ConfigType, TemplateArgsType
 
 CODEOWNERS = ["@ssieb"]
 
@@ -90,7 +91,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     for source_conf in config.get(CONF_SOURCE_ID, ()):
@@ -142,8 +143,14 @@ async def to_code(config):
             cv.GenerateID(): cv.use_id(KeyCollector),
         }
     ),
+    synchronous=True,
 )
-async def enable_to_code(config, action_id, template_arg, args):
+async def enable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -157,8 +164,14 @@ async def enable_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(KeyCollector),
         }
     ),
+    synchronous=True,
 )
-async def disable_to_code(config, action_id, template_arg, args):
+async def disable_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

@@ -1,8 +1,7 @@
 #include "whynter.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace whynter {
+namespace esphome::whynter {
 
 static const char *const TAG = "climate.whynter";
 
@@ -177,5 +176,4 @@ void Whynter::transmit_(uint32_t value) {
   transmit.perform();
 }
 
-}  // namespace whynter
-}  // namespace esphome
+}  // namespace esphome::whynter

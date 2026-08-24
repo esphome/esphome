@@ -1,0 +1,1 @@
+CODEOWNERS = ["@G-Pereira", "@jesserockz"]

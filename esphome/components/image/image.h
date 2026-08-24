@@ -6,8 +6,7 @@
 #include "esphome/components/lvgl/lvgl_proxy.h"
 #endif  // USE_LVGL
 
-namespace esphome {
-namespace image {
+namespace esphome::image {
 
 enum ImageType {
   IMAGE_TYPE_BINARY = 0,
@@ -41,7 +40,7 @@ class Image : public display::BaseImage {
   bool has_transparency() const { return this->transparency_ != TRANSPARENCY_OPAQUE; }
 
 #ifdef USE_LVGL
-  lv_img_dsc_t *get_lv_img_dsc();
+  lv_image_dsc_t *get_lv_image_dsc();
 #endif
  protected:
   bool get_binary_pixel_(int x, int y) const;
@@ -61,5 +60,4 @@ class Image : public display::BaseImage {
 #endif
 };
 
-}  // namespace image
-}  // namespace esphome
+}  // namespace esphome::image

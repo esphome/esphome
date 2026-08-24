@@ -13,3 +13,4 @@ dsmr:
   request_pin: ${request_pin}
   request_interval: 20s
   receive_timeout: 100ms
+  thermal_mbus_id: 3

@@ -13,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
@@ -20,7 +21,9 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_KELVIN,
     UNIT_KILOWATT,
+    UNIT_LITRE_PER_HOUR,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@cfeenstra1024"]
 DEPENDENCIES = ["uart"]
@@ -36,7 +39,6 @@ CONF_TEMP2 = "temp2"
 CONF_TEMP_DIFF = "temp_diff"
 
 UNIT_GIGA_JOULE = "GJ"
-UNIT_LITRE_PER_HOUR = "l/h"
 
 # Note: The sensor units are set automatically based un the received data from the meter
 CONFIG_SCHEMA = (
@@ -75,7 +77,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_FLOW): sensor.sensor_schema(
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLUME,
+                device_class=DEVICE_CLASS_VOLUME_FLOW_RATE,
                 state_class=STATE_CLASS_MEASUREMENT,
                 unit_of_measurement=UNIT_LITRE_PER_HOUR,
             ),
@@ -104,7 +106,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

@@ -27,7 +27,7 @@ class LightTransitionTransformer : public LightTransformer {
     }
 
     // When changing color mode, go through off state, as color modes are orthogonal and there can't be two active.
-    if (this->start_values_.get_color_mode() != this->target_values_.get_color_mode()) {
+    if (this->start_values_.get_color_mode() != this->end_values_.get_color_mode()) {
       this->changing_color_mode_ = true;
       this->intermediate_values_ = this->start_values_;
       this->intermediate_values_.set_state(false);
@@ -39,15 +39,15 @@ class LightTransitionTransformer : public LightTransformer {
 
     // Halfway through, when intermediate state (off) is reached, flip it to the target, but remain off.
     if (this->changing_color_mode_ && p > 0.5f &&
-        this->intermediate_values_.get_color_mode() != this->target_values_.get_color_mode()) {
-      this->intermediate_values_ = this->target_values_;
+        this->intermediate_values_.get_color_mode() != this->end_values_.get_color_mode()) {
+      this->intermediate_values_ = this->end_values_;
       this->intermediate_values_.set_state(false);
     }
 
     LightColorValues &start = this->changing_color_mode_ && p > 0.5f ? this->intermediate_values_ : this->start_values_;
     LightColorValues &end = this->changing_color_mode_ && p < 0.5f ? this->intermediate_values_ : this->end_values_;
     if (this->changing_color_mode_)
-      p = p < 0.5f ? p * 2 : (p - 0.5) * 2;
+      p = p < 0.5f ? p * 2 : (p - 0.5f) * 2;
 
     float v = LightTransformer::smoothed_progress(p);
     return LightColorValues::lerp(start, end, v);

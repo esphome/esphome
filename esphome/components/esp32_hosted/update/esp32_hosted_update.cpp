@@ -56,7 +56,10 @@ static bool parse_version(const std::string &version_str, int &major, int &minor
   major = minor = patch = 0;
   const char *ptr = version_str.c_str();
 
-  if (!parse_int(ptr, major) || *ptr++ != '.' || !parse_int(ptr, minor))
+  if (!parse_int(ptr, major) || *ptr != '.')
+    return false;
+  ++ptr;
+  if (!parse_int(ptr, minor))
     return false;
   if (*ptr == '.')
     parse_int(++ptr, patch);
@@ -92,7 +95,7 @@ void Esp32HostedUpdate::setup() {
   if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
     // 16 bytes: "255.255.255" (11 chars) + null + safety margin
     char buf[16];
-    snprintf(buf, sizeof(buf), "%d.%d.%d", ver_info.major1, ver_info.minor1, ver_info.patch1);
+    snprintf(buf, sizeof(buf), "%" PRIu32 ".%" PRIu32 ".%" PRIu32, ver_info.major1, ver_info.minor1, ver_info.patch1);
     this->update_info_.current_version = buf;
   } else {
     this->update_info_.current_version = "unknown";
@@ -120,8 +123,8 @@ void Esp32HostedUpdate::setup() {
         this->state_ = update::UPDATE_STATE_NO_UPDATE;
       }
     } else {
-      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08x (expected 0x%08x)", app_desc->magic_word,
-               ESP_APP_DESC_MAGIC_WORD);
+      ESP_LOGW(TAG, "Invalid app description magic word: 0x%08" PRIx32 " (expected 0x%08" PRIx32 ")",
+               app_desc->magic_word, static_cast<uint32_t>(ESP_APP_DESC_MAGIC_WORD));
       this->state_ = update::UPDATE_STATE_NO_UPDATE;
     }
   } else {
@@ -132,6 +135,10 @@ void Esp32HostedUpdate::setup() {
   // Publish state
   this->status_clear_error();
   this->publish_state();
+  // Defer so the automation runs on the main loop after setup, not during App.setup()
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && this->update_available_trigger_) {
+    this->defer([this]() { this->update_available_trigger_->trigger(this->update_info_); });
+  }
 #else
   // HTTP mode: check every 10s until network is ready (max 6 attempts)
   // Only if update interval is > 1 minute to avoid redundant checks
@@ -182,6 +189,8 @@ void Esp32HostedUpdate::check() {
     return;
   }
 
+  const bool was_available = this->state_ == update::UPDATE_STATE_AVAILABLE;
+
   // Compare versions
   if (this->update_info_.latest_version.empty() ||
       this->update_info_.latest_version == this->update_info_.current_version) {
@@ -194,6 +203,9 @@ void Esp32HostedUpdate::check() {
   this->update_info_.progress = 0.0f;
   this->status_clear_error();
   this->publish_state();
+  if (this->state_ == update::UPDATE_STATE_AVAILABLE && !was_available && this->update_available_trigger_) {
+    this->update_available_trigger_->trigger(this->update_info_);
+  }
 #endif
 }
 
@@ -447,6 +459,13 @@ void Esp32HostedUpdate::perform(bool force) {
     ESP_LOGW(TAG, "Update not available");
     return;
   }
+
+#ifdef USE_ESP32_HOSTED_HTTP_UPDATE
+  if (this->firmware_url_.empty()) {
+    ESP_LOGW(TAG, "No firmware URL available, run check first");
+    return;
+  }
+#endif
 
   update::UpdateState prev_state = this->state_;
   this->state_ = update::UPDATE_STATE_INSTALLING;

@@ -23,7 +23,7 @@ output:
 
 sensor:
   - platform: template
-    id: template_sensor1
+    id: pid_template_sensor1
     lambda: |-
       if (millis() > 10000) {
         return 42.0;
@@ -35,8 +35,8 @@ climate:
   - platform: pid
     id: pid_climate
     name: PID Climate Controller
-    sensor: template_sensor1
-    humidity_sensor: template_sensor1
+    sensor: pid_template_sensor1
+    humidity_sensor: pid_template_sensor1
     default_target_temperature: 21°C
     heat_output: pid_slow_pwm
     control_parameters:

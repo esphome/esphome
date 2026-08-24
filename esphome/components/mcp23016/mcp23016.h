@@ -5,8 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
 
-namespace esphome {
-namespace mcp23016 {
+namespace esphome::mcp23016 {
 
 enum MCP23016GPIORegisters {
   // 0 side
@@ -25,7 +24,7 @@ enum MCP23016GPIORegisters {
   MCP23016_IOCON1 = 0x0B,
 };
 
-class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint16_t, 16> {
+class MCP23016 final : public Component, public i2c::I2CDevice, public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   MCP23016() = default;
 
@@ -35,7 +34,10 @@ class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::
 
   float get_setup_priority() const override;
 
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+
  protected:
+  static void IRAM_ATTR gpio_intr(MCP23016 *arg);
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;
@@ -51,9 +53,10 @@ class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::
   uint16_t olat_{0x0000};
   // Cache for input values (16-bit combined for both banks)
   uint16_t input_mask_{0x0000};
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
-class MCP23016GPIOPin : public GPIOPin {
+class MCP23016GPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -75,5 +78,4 @@ class MCP23016GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace mcp23016
-}  // namespace esphome
+}  // namespace esphome::mcp23016

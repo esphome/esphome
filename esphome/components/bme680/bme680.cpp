@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bme680 {
+namespace esphome::bme680 {
 
 static const char *const TAG = "bme680.sensor";
 
@@ -78,43 +77,43 @@ void BME680Component::setup() {
   }
 
   // Read calibration
-  uint8_t cal1[25];
-  if (!this->read_bytes(BME680_REGISTER_COEFF1, cal1, 25)) {
+  uint8_t coeff1[25];
+  if (!this->read_bytes(BME680_REGISTER_COEFF1, coeff1, 25)) {
     this->mark_failed();
     return;
   }
-  uint8_t cal2[16];
-  if (!this->read_bytes(BME680_REGISTER_COEFF2, cal2, 16)) {
+  uint8_t coeff2[16];
+  if (!this->read_bytes(BME680_REGISTER_COEFF2, coeff2, 16)) {
     this->mark_failed();
     return;
   }
 
-  this->calibration_.t1 = cal2[9] << 8 | cal2[8];
-  this->calibration_.t2 = cal1[2] << 8 | cal1[1];
-  this->calibration_.t3 = cal1[3];
+  this->calibration_.t1 = coeff2[9] << 8 | coeff2[8];
+  this->calibration_.t2 = coeff1[2] << 8 | coeff1[1];
+  this->calibration_.t3 = coeff1[3];
 
-  this->calibration_.h1 = cal2[2] << 4 | (cal2[1] & 0x0F);
-  this->calibration_.h2 = cal2[0] << 4 | cal2[1] >> 4;
-  this->calibration_.h3 = cal2[3];
-  this->calibration_.h4 = cal2[4];
-  this->calibration_.h5 = cal2[5];
-  this->calibration_.h6 = cal2[6];
-  this->calibration_.h7 = cal2[7];
+  this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
+  this->calibration_.h2 = coeff2[0] << 4 | coeff2[1] >> 4;
+  this->calibration_.h3 = coeff2[3];
+  this->calibration_.h4 = coeff2[4];
+  this->calibration_.h5 = coeff2[5];
+  this->calibration_.h6 = coeff2[6];
+  this->calibration_.h7 = coeff2[7];
 
-  this->calibration_.p1 = cal1[6] << 8 | cal1[5];
-  this->calibration_.p2 = cal1[8] << 8 | cal1[7];
-  this->calibration_.p3 = cal1[9];
-  this->calibration_.p4 = cal1[12] << 8 | cal1[11];
-  this->calibration_.p5 = cal1[14] << 8 | cal1[13];
-  this->calibration_.p6 = cal1[16];
-  this->calibration_.p7 = cal1[15];
-  this->calibration_.p8 = cal1[20] << 8 | cal1[19];
-  this->calibration_.p9 = cal1[22] << 8 | cal1[21];
-  this->calibration_.p10 = cal1[23];
+  this->calibration_.p1 = coeff1[6] << 8 | coeff1[5];
+  this->calibration_.p2 = coeff1[8] << 8 | coeff1[7];
+  this->calibration_.p3 = coeff1[9];
+  this->calibration_.p4 = coeff1[12] << 8 | coeff1[11];
+  this->calibration_.p5 = coeff1[14] << 8 | coeff1[13];
+  this->calibration_.p6 = coeff1[16];
+  this->calibration_.p7 = coeff1[15];
+  this->calibration_.p8 = coeff1[20] << 8 | coeff1[19];
+  this->calibration_.p9 = coeff1[22] << 8 | coeff1[21];
+  this->calibration_.p10 = coeff1[23];
 
-  this->calibration_.gh1 = cal2[14];
-  this->calibration_.gh2 = cal2[12] << 8 | cal2[13];
-  this->calibration_.gh3 = cal2[15];
+  this->calibration_.gh1 = coeff2[14];
+  this->calibration_.gh2 = coeff2[12] << 8 | coeff2[13];
+  this->calibration_.gh3 = coeff2[15];
 
   uint8_t temp_var = 0;
   if (!this->read_byte(0x02, &temp_var)) {
@@ -508,5 +507,4 @@ void BME680Component::set_heater(uint16_t heater_temperature, uint16_t heater_du
   this->heater_duration_ = heater_duration;
 }
 
-}  // namespace bme680
-}  // namespace esphome
+}  // namespace esphome::bme680

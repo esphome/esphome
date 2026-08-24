@@ -41,7 +41,7 @@ SelectCall &SelectCall::with_index(size_t index) {
   this->operation_ = SELECT_OP_SET;
   if (index >= this->parent_->size()) {
     ESP_LOGW(TAG, "'%s' - Index value %zu out of bounds", this->parent_->get_name().c_str(), index);
-    this->index_ = {};  // Store nullopt for invalid index
+    this->index_ = nullopt;  // Store nullopt for invalid index
   } else {
     this->index_ = index;
   }
@@ -52,7 +52,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   const auto &options = this->parent_->traits.get_options();
   if (options.empty()) {
     ESP_LOGW(TAG, "'%s' - Select has no options", name);
-    return {};
+    return nullopt;
   }
 
   if (this->operation_ == SELECT_OP_FIRST) {
@@ -64,16 +64,16 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
   }
 
   if (this->operation_ == SELECT_OP_SET) {
-    ESP_LOGD(TAG, "'%s' - Setting", name);
+    ESP_LOGV(TAG, "'%s' - Setting", name);
     if (!this->index_.has_value()) {
       ESP_LOGW(TAG, "'%s' - No option set", name);
-      return {};
+      return nullopt;
     }
     return this->index_;
   }
 
   // SELECT_OP_NEXT or SELECT_OP_PREVIOUS
-  ESP_LOGD(TAG, "'%s' - Selecting %s, with%s cycling", name,
+  ESP_LOGV(TAG, "'%s' - Selecting %s, with%s cycling", name,
            this->operation_ == SELECT_OP_NEXT ? LOG_STR_LITERAL("next") : LOG_STR_LITERAL("previous"),
            this->cycle_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
 
@@ -96,7 +96,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
     return active_index + 1;
   }
 
-  return {};  // Can't navigate further without cycling
+  return nullopt;  // Can't navigate further without cycling
 }
 
 void SelectCall::perform() {
@@ -116,7 +116,7 @@ void SelectCall::perform() {
 
   auto idx = target_index.value();
   // All operations use indices, call control() by index to avoid string conversion
-  ESP_LOGD(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
+  ESP_LOGV(TAG, "'%s' - Set selected option to: %s", name, parent->option_at(idx));
   parent->control(idx);
 }
 

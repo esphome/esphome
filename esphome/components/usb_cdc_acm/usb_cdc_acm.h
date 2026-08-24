@@ -1,14 +1,16 @@
 #pragma once
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
 #include "esphome/core/component.h"
 #include "esphome/core/event_pool.h"
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/components/uart/uart_component.h"
 
+#include <atomic>
 #include <functional>
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
@@ -50,7 +52,7 @@ struct CDCEvent {
 class USBCDCACMComponent;
 
 /// Represents a single CDC ACM interface instance
-class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
+class USBCDCACMInstance final : public uart::UARTComponent, public Parented<USBCDCACMComponent> {
  public:
   void setup();
   void loop();
@@ -82,17 +84,39 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
-  uart::FlushResult flush() override;
+  uart::UARTFlushResult flush() override;
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  // No-op: in CDC ACM device mode the host dictates the line coding, so there are no
+  // local UART settings to (re)apply.
+  void load_settings(bool dump_config) override {}
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
 
  protected:
   void check_logger_conflict() override;
 
   // Process queued events and invoke callbacks (called from main loop)
   void process_events_();
+  // True while TX bytes are still in the ring buffer or held by the TX task
+  bool tx_pending_();
   TaskHandle_t usb_tx_task_handle_{nullptr};
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
+  // Non-zero while the TX task holds bytes it has pulled from the ring buffer but not
+  // yet handed to TinyUSB; lets flush() account for data that is in neither the ring
+  // buffer nor TinyUSB's FIFO.
+  // Threading: written only by usb_tx_task(); read by flush()'s bounded wait on the
+  // caller's task (typically the main loop).
+  // std::atomic<uint8_t> rather than std::atomic<bool> because GCC on Xtensa
+  // generates an indirect function call for atomic<bool> ops instead of inlining
+  // them; atomic<uint8_t> inlines correctly on all platforms.
+  std::atomic<uint8_t> usb_tx_busy_{0};
+  // Running total of bytes dropped by write_array() (never reset), and the timestamp
+  // of the last "buffer full" log line (throttled so a sustained host stall doesn't
+  // flood the log).
+  uint32_t tx_dropped_bytes_{0};
+  uint32_t tx_dropped_log_ms_{0};
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};
@@ -102,12 +126,16 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   LineStateCallback line_state_callback_{nullptr};
 
   // Lock-free queue and event pool for cross-task event passing
-  EventPool<CDCEvent, EVENT_QUEUE_SIZE> event_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing both a pool slot leak and an SPSC
+  // violation on the pool's internal free list.
+  EventPool<CDCEvent, EVENT_QUEUE_SIZE - 1> event_pool_;
   LockFreeQueue<CDCEvent, EVENT_QUEUE_SIZE> event_queue_;
 };
 
 /// Main USB CDC ACM component that manages the USB device and all CDC interfaces
-class USBCDCACMComponent : public Component {
+class USBCDCACMComponent final : public Component {
  public:
   USBCDCACMComponent();
 

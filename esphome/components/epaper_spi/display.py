@@ -5,10 +5,15 @@ from esphome import core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
-from esphome.components.mipi import flatten_sequence, map_sequence
+from esphome.components.mipi import (
+    flatten_sequence,
+    map_sequence,
+    model_schema_extractor,
+)
 import esphome.config_validation as cv
 from esphome.config_validation import update_interval
 from esphome.const import (
+    CONF_AUTO_CLEAR_ENABLED,
     CONF_BUSY_PIN,
     CONF_CS_PIN,
     CONF_DATA_RATE,
@@ -107,10 +112,12 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            **model.get_config_options(),
         }
     )
 
 
+@model_schema_extractor(MODELS, model_schema)
 def customise_schema(config):
     """
     Create a customised config schema for a specific model and validate the configuration.
@@ -124,13 +131,29 @@ def customise_schema(config):
         },
         extra=cv.ALLOW_EXTRA,
     )(config)
-    return model_schema(config)(config)
+    model = MODELS[config[CONF_MODEL]]
+    config = model_schema(config)(config)
+    width, height = model.get_dimensions(config)
+    display.add_metadata(
+        config[CONF_ID],
+        width,
+        height,
+        has_hardware_rotation=True,
+        byte_order=cv.UNDEFINED,
+        has_writer=config.get(CONF_AUTO_CLEAR_ENABLED) is True
+        or config.get(CONF_PAGES) is not None
+        or config.get(CONF_LAMBDA) is not None
+        or config.get(CONF_SHOW_TEST_CARD) is True,
+        rotation=config.get(CONF_ROTATION, 0),
+        draw_rounding=0,
+    )
+    return config
 
 
 CONFIG_SCHEMA = customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     spi.final_validate_device_schema(
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
@@ -147,7 +170,6 @@ def _final_validate(config):
             config[CONF_SHOW_TEST_CARD] = True
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -175,9 +197,8 @@ async def to_code(config):
         *model.get_constructor_args(config),
     )
 
-    # Rotation is handled by setting the transform
-    display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
-    await display.register_display(var, display_config)
+    await display.register_display(var, config)
+    config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
@@ -194,6 +215,9 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
+    if enable_pin := config.get(CONF_ENABLE_PIN):
+        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
+        cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
@@ -201,16 +225,6 @@ async def to_code(config):
         transform[CONF_SWAP_XY] = False
     else:
         transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
-    rotation = config[CONF_ROTATION]
-    if rotation == 180:
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-    elif rotation == 90:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-    elif rotation == 270:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
     transform_str = "|".join(
         {
             str(getattr(Transform, x.upper()))

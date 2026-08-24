@@ -6,8 +6,7 @@
 
 const size_t DFPLAYER_READ_BUFFER_LENGTH = 25;  // two messages + some extra
 
-namespace esphome {
-namespace dfplayer {
+namespace esphome::dfplayer {
 
 enum EqPreset {
   NORMAL = 0,
@@ -25,7 +24,7 @@ enum Device {
 
 // See the datasheet here:
 // https://github.com/DFRobot/DFRobotDFPlayerMini/blob/master/doc/FN-M16P%2BEmbedded%2BMP3%2BAudio%2BModule%2BDatasheet.pdf
-class DFPlayer : public uart::UARTDevice, public Component {
+class DFPlayer final : public uart::UARTDevice, public Component {
  public:
   void loop() override;
 
@@ -51,8 +50,8 @@ class DFPlayer : public uart::UARTDevice, public Component {
   bool is_playing() { return is_playing_; }
   void dump_config() override;
 
-  void add_on_finished_playback_callback(std::function<void()> callback) {
-    this->on_finished_playback_callback_.add(std::move(callback));
+  template<typename F> void add_on_finished_playback_callback(F &&callback) {
+    this->on_finished_playback_callback_.add(std::forward<F>(callback));
   }
 
  protected:
@@ -83,7 +82,7 @@ class DFPlayer : public uart::UARTDevice, public Component {
 DFPLAYER_SIMPLE_ACTION(NextAction, next)
 DFPLAYER_SIMPLE_ACTION(PreviousAction, previous)
 
-template<typename... Ts> class PlayMp3Action : public Action<Ts...>, public Parented<DFPlayer> {
+template<typename... Ts> class PlayMp3Action final : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint16_t, file)
 
@@ -93,7 +92,7 @@ template<typename... Ts> class PlayMp3Action : public Action<Ts...>, public Pare
   }
 };
 
-template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Parented<DFPlayer> {
+template<typename... Ts> class PlayFileAction final : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(bool, loop)
@@ -109,7 +108,7 @@ template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Par
   }
 };
 
-template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public Parented<DFPlayer> {
+template<typename... Ts> class PlayFolderAction final : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint16_t, folder)
   TEMPLATABLE_VALUE(uint16_t, file)
@@ -127,7 +126,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
   }
 };
 
-template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Parented<DFPlayer> {
+template<typename... Ts> class SetDeviceAction final : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(Device, device)
 
@@ -137,7 +136,7 @@ template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Pa
   }
 };
 
-template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Parented<DFPlayer> {
+template<typename... Ts> class SetVolumeAction final : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint8_t, volume)
 
@@ -147,7 +146,7 @@ template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Pa
   }
 };
 
-template<typename... Ts> class SetEqAction : public Action<Ts...>, public Parented<DFPlayer> {
+template<typename... Ts> class SetEqAction final : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(EqPreset, eq)
 
@@ -166,17 +165,9 @@ DFPLAYER_SIMPLE_ACTION(RandomAction, random)
 DFPLAYER_SIMPLE_ACTION(VolumeUpAction, volume_up)
 DFPLAYER_SIMPLE_ACTION(VolumeDownAction, volume_down)
 
-template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
+template<typename... Ts> class DFPlayerIsPlayingCondition final : public Condition<Ts...>, public Parented<DFPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
-class DFPlayerFinishedPlaybackTrigger : public Trigger<> {
- public:
-  explicit DFPlayerFinishedPlaybackTrigger(DFPlayer *parent) {
-    parent->add_on_finished_playback_callback([this]() { this->trigger(); });
-  }
-};
-
-}  // namespace dfplayer
-}  // namespace esphome
+}  // namespace esphome::dfplayer

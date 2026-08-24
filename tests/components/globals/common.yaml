@@ -4,6 +4,14 @@ esphome:
       - globals.set:
           id: glob_int
           value: "10"
+      # Set a float global with an integer literal - must emit the correct
+      # return type so TemplatableFn stores a direct function pointer.
+      - globals.set:
+          id: glob_float
+          value: "102"
+      - globals.set:
+          id: glob_float
+          value: !lambda "return 42;"
 
 globals:
   - id: glob_int

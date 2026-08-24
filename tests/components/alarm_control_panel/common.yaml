@@ -1,6 +1,6 @@
 binary_sensor:
   - platform: gpio
-    id: bin1
+    id: alarm_control_panel_bin1
     pin: 1
 
 alarm_control_panel:
@@ -18,7 +18,7 @@ alarm_control_panel:
     pending_time: 15s
     trigger_time: 30s
     binary_sensors:
-      - input: bin1
+      - input: alarm_control_panel_bin1
         bypass_armed_home: true
         bypass_armed_night: true
         bypass_auto: true
@@ -39,7 +39,7 @@ alarm_control_panel:
     pending_time: 15s
     trigger_time: 30s
     binary_sensors:
-      - input: bin1
+      - input: alarm_control_panel_bin1
         bypass_armed_home: true
         bypass_armed_night: true
         bypass_auto: true

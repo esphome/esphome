@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lcd_base {
+namespace esphome::lcd_base {
 
 static const char *const TAG = "lcd";
 
@@ -173,5 +172,4 @@ void LCDDisplay::loadchar(uint8_t location, uint8_t charmap[]) {
   }
 }
 
-}  // namespace lcd_base
-}  // namespace esphome
+}  // namespace esphome::lcd_base

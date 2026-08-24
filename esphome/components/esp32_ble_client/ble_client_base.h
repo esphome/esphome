@@ -44,6 +44,12 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void unconditional_disconnect();
   void release_services();
 
+  /// Register for notifications, holding the service release until the registration completes.
+  esp_err_t register_for_notify(uint16_t char_handle);
+
+  /// True while a register_for_notify() request has not completed.
+  bool notify_registration_pending() const { return this->pending_notify_regs_ > 0; }
+
   bool connected() { return this->state() == espbt::ClientState::ESTABLISHED; }
 
   void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
@@ -86,6 +92,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint16_t get_conn_id() const { return this->conn_id_; }
   uint64_t get_address() const { return this->address_; }
   bool is_paired() const { return this->paired_; }
+  // The proxy clears this when a bond is removed while the link is up.
+  void set_unpaired() { this->paired_ = false; }
 
   uint8_t get_connection_index() const { return this->connection_index_; }
 
@@ -113,18 +121,27 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
   esp_bd_addr_t remote_bda_;  // 6 bytes
 
-  // Group 5: 2-byte types
+  // Group 5: 4-byte types
+  uint32_t disconnecting_started_{0};
+
+  // Group 6: 2-byte types
   uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t mtu_{23};
 
-  // Group 6: 1-byte types and small enums
+  // Group 7: 1-byte types and small enums
   esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
   uint8_t connection_index_;
   uint8_t service_count_{0};  // ESP32 has max handles < 255, typical devices have < 50 services
+  // Outstanding register_for_notify() requests
+  // A count, not per-request state, so a raw esp_ble_gattc_register_for_notify() on the same client can retire one
+  // services_released_ is the backstop if that ever lets the release run early
+  uint8_t pending_notify_regs_{0};
   bool auto_connect_{false};
   bool paired_{false};
-  // 6 bytes used, 2 bytes padding
+  // Set only when release_services() cleans the stack's GATT cache, which no API may then walk
+  bool services_released_{false};
+  // 8 bytes used, no padding
 
   void log_event_(const char *name);
   void log_gattc_lifecycle_event_(const char *name);
@@ -137,6 +154,26 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
+  /// Hook called once a connection has been fully torn down (after release_services() and
+  /// set_idle_()), from both the CLOSE_EVT handler and the DISCONNECTING safety timeout.
+  /// Subclasses with extra per-connection accounting (e.g. bluetooth_proxy slot state)
+  /// override this to release that state. `reason` is the controller reason code, or
+  /// ESP_GATT_CONN_TIMEOUT for the safety-timeout path.
+  virtual void on_disconnect_complete(esp_err_t reason) {}
+  /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
+  void set_idle_() {
+    this->set_state(espbt::ClientState::IDLE);
+    this->conn_id_ = UNSET_CONN_ID;
+  }
+  /// Transition to DISCONNECTING and start the safety timeout.
+  void set_disconnecting_() {
+    this->disconnecting_started_ = millis();
+    this->set_state(espbt::ClientState::DISCONNECTING);
+    // BluetoothConnection::loop() disables the component loop after service discovery
+    // completes, so the DISCONNECTING timeout check in loop() would never run if CLOSE_EVT
+    // gets lost. Re-enable the loop so the 10s safety timeout can force IDLE.
+    this->enable_loop();
+  }
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);
   void log_error_(const char *message, int code);

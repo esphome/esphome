@@ -14,3 +14,6 @@ esphome:
         assert(x == 95);
         x = clamp_at_most(x, 40);
         assert(x == 40);
+    - lambda: |-
+        float value = 0.0f;
+        sscanf("3.14", "%f", &value);

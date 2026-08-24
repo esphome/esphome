@@ -6,7 +6,7 @@
 
 namespace esphome::button {
 
-template<typename... Ts> class PressAction : public Action<Ts...> {
+template<typename... Ts> class PressAction final : public Action<Ts...> {
  public:
   explicit PressAction(Button *button) : button_(button) {}
 
@@ -16,7 +16,7 @@ template<typename... Ts> class PressAction : public Action<Ts...> {
   Button *button_;
 };
 
-class ButtonPressTrigger : public Trigger<> {
+class ButtonPressTrigger final : public Trigger<> {
  public:
   ButtonPressTrigger(Button *button) {
     button->add_on_press_callback([this]() { this->trigger(); });

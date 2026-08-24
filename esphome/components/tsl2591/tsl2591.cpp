@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace tsl2591 {
+namespace esphome::tsl2591 {
 
 static const char *const TAG = "tsl2591.sensor";
 
@@ -475,5 +474,4 @@ float TSL2591Component::get_actual_gain() {
   }
 }
 
-}  // namespace tsl2591
-}  // namespace esphome
+}  // namespace esphome::tsl2591

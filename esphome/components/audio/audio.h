@@ -1,12 +1,12 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"  // for ESPDEPRECATED
 
 #include <cstddef>
 #include <cstdint>
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 class AudioStreamInfo {
   /* Class to respresent important parameters of the audio stream that also provides helper function to convert between
@@ -116,7 +116,9 @@ enum class AudioFileType : uint8_t {
 #ifdef USE_AUDIO_OPUS_SUPPORT
   OPUS,
 #endif
+#ifdef USE_AUDIO_WAV_SUPPORT
   WAV,
+#endif
 };
 
 struct AudioFile {
@@ -142,6 +144,8 @@ AudioFileType detect_audio_file_type(const char *content_type, const char *url);
 /// @param output_buffer Buffer to store the scaled samples
 /// @param scale_factor Q15 fixed point scaling factor
 /// @param samples_to_scale Number of samples to scale
+// Remove before 2026.12.0
+ESPDEPRECATED("Use esp_audio_libs::gain::apply() (from <gain.h>) instead. Removed in 2026.12.0.", "2026.6.0")
 void scale_audio_samples(const int16_t *audio_samples, int16_t *output_buffer, int16_t scale_factor,
                          size_t samples_to_scale);
 
@@ -193,5 +197,4 @@ inline void pack_q31_as_audio_sample(int32_t sample, uint8_t *data, size_t bytes
   }
 }
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio

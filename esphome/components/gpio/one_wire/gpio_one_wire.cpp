@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gpio {
+namespace esphome::gpio {
 
 static const char *const TAG = "gpio.one_wire";
 
@@ -131,7 +130,7 @@ uint8_t IRAM_ATTR GPIOOneWireBus::read8() {
 uint64_t IRAM_ATTR GPIOOneWireBus::read64() {
   InterruptLock lock;
   uint64_t ret = 0;
-  for (uint8_t i = 0; i < 8; i++) {
+  for (uint8_t i = 0; i < 64; i++) {
     ret |= (uint64_t(this->read_bit_()) << i);
   }
   return ret;
@@ -202,5 +201,4 @@ uint64_t IRAM_ATTR GPIOOneWireBus::search_int() {
   return address;
 }
 
-}  // namespace gpio
-}  // namespace esphome
+}  // namespace esphome::gpio

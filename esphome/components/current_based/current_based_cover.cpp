@@ -4,8 +4,7 @@
 #include "esphome/core/application.h"
 #include <cfloat>
 
-namespace esphome {
-namespace current_based {
+namespace esphome::current_based {
 
 static const char *const TAG = "current_based.cover";
 
@@ -40,7 +39,7 @@ void CurrentBasedCover::control(const CoverCall &call) {
   auto opt_pos = call.get_position();
   if (opt_pos.has_value()) {
     auto pos = *opt_pos;
-    if (fabsf(this->position - pos) < 0.01) {
+    if (fabsf(this->position - pos) < 0.01f) {
       // already at target
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
@@ -271,5 +270,4 @@ void CurrentBasedCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace current_based
-}  // namespace esphome
+}  // namespace esphome::current_based

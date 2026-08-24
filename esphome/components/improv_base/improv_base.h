@@ -3,8 +3,7 @@
 #include <cstddef>
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace improv_base {
+namespace esphome::improv_base {
 
 class ImprovBase {
  public:
@@ -20,5 +19,4 @@ class ImprovBase {
 #endif
 };
 
-}  // namespace improv_base
-}  // namespace esphome
+}  // namespace esphome::improv_base

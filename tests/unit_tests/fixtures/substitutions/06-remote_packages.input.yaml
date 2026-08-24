@@ -2,16 +2,26 @@ substitutions:
   x: 10
   y: 20
   z: 30
+  my_repo: default_repo
+  my_file: default_file
+  my_ref: main
+
+# The following key is only used by the test framework
+# to simulate command line substitutions
+command_line_substitutions:
+  my_repo: repo1
+  my_file: file1
+
 packages:
   package1:
     url: https://github.com/esphome/repo1
+    ref: main
     files:
       - path: file1.yaml
         vars:
           package_name: package1
           x: 3
           y: 4
-    ref: main
   package2: !include  # a package that just includes the given remote package
     file: remote_package_proxy.yaml
     vars:
@@ -41,3 +51,13 @@ packages:
       repo: repo1
       file: file1.yaml
       ref: main
+  package6:
+    url: https://github.com/esphome/${my_repo}
+    ref: ${my_ref}
+    files:
+      - path: ${my_file + ".yaml"}
+        vars:
+          package_name: package6
+          x: 12
+          y: 13
+  package7: github://esphome/${my_repo}/${my_file + ".yaml"}@${my_ref}

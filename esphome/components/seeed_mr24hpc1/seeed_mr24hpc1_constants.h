@@ -2,8 +2,7 @@
 
 #include <cstdint>
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
 static const uint8_t FRAME_BUF_MAX_SIZE = 128;
 static const uint8_t PRODUCT_BUF_MAX_SIZE = 32;
@@ -169,5 +168,4 @@ static const uint8_t GET_KEEP_AWAY[] = {
     FRAME_TAIL1_VALUE,   FRAME_TAIL2_VALUE,
 };
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

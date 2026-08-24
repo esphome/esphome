@@ -3,7 +3,7 @@
 #ifdef USE_TIME_TIMEZONE
 
 #include "posix_tz.h"
-#include <cctype>
+#include <cstdio>
 
 namespace esphome::time {
 
@@ -17,41 +17,48 @@ const ParsedTimezone &get_global_tz() { return global_tz_; }
 
 namespace internal {
 
-// Remove before 2026.9.0: parse_uint, skip_tz_name, parse_offset, parse_dst_rule,
-// and parse_transition_time are only used by parse_posix_tz() (bridge code).
-static uint32_t parse_uint(const char *&p) {
-  uint32_t value = 0;
-  while (std::isdigit(static_cast<unsigned char>(*p))) {
-    value = value * 10 + (*p - '0');
-    p++;
-  }
-  return value;
-}
-
 bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
 
 // Get days in year (avoids duplicate is_leap_year calls)
 static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
 
-// Convert days since epoch to year, updating days to remainder
-static int __attribute__((noinline)) days_to_year(int64_t &days) {
-  int year = 1970;
-  int diy;
-  while (days >= (diy = days_in_year(year)) && year < 2200) {
-    days -= diy;
+// Count leap years in [1, year] (i.e. up to and including year)
+static constexpr int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
+
+constexpr int EPOCH_YEAR = 1970;
+constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
+constexpr int DAYS_PER_YEAR = 365;
+constexpr int SECONDS_PER_DAY = 86400;
+
+// Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
+static inline int64_t days_to_year_start(int year) {
+  return static_cast<int64_t>(DAYS_PER_YEAR) * (year - EPOCH_YEAR) +
+         (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
+}
+
+// Convert days since epoch to year, updating days to day-of-year remainder.
+// The initial estimate from days/365 can overshoot by multiple years for
+// far-future dates (e.g., year 5000+) due to accumulated leap days,
+// so we use loops rather than single-step correction.
+static int days_to_year(int64_t &days) {
+  int year = static_cast<int>(EPOCH_YEAR + days / DAYS_PER_YEAR);
+  int64_t year_start = days_to_year_start(year);
+  while (days < year_start) {
+    year--;
+    year_start = days_to_year_start(year);
+  }
+  while (days >= year_start + days_in_year(year)) {
+    year_start += days_in_year(year);
     year++;
   }
-  while (days < 0 && year > 1900) {
-    year--;
-    days += days_in_year(year);
-  }
+  days -= year_start;
   return year;
 }
 
-// Extract just the year from a UTC epoch
+// Extract just the year from a UTC epoch — O(1)
 static int epoch_to_year(time_t epoch) {
-  int64_t days = epoch / 86400;
-  if (epoch < 0 && epoch % 86400 != 0)
+  int64_t days = epoch / SECONDS_PER_DAY;
+  if (epoch < 0 && epoch % SECONDS_PER_DAY != 0)
     days--;
   return days_to_year(days);
 }
@@ -86,11 +93,11 @@ int __attribute__((noinline)) day_of_week(int year, int month, int day) {
 
 void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   // Days since epoch
-  int64_t days = epoch / 86400;
-  int32_t remaining_secs = epoch % 86400;
+  int64_t days = epoch / SECONDS_PER_DAY;
+  int32_t remaining_secs = epoch % SECONDS_PER_DAY;
   if (remaining_secs < 0) {
     days--;
-    remaining_secs += 86400;
+    remaining_secs += SECONDS_PER_DAY;
   }
 
   out_tm->tm_sec = remaining_secs % 60;
@@ -119,62 +126,6 @@ void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) 
   out_tm->tm_mon = month - 1;
   out_tm->tm_mday = static_cast<int>(days) + 1;
   out_tm->tm_isdst = 0;
-}
-
-bool skip_tz_name(const char *&p) {
-  if (*p == '<') {
-    // Angle-bracket quoted name: <+07>, <-03>, <AEST>
-    p++;  // skip '<'
-    while (*p && *p != '>') {
-      p++;
-    }
-    if (*p == '>') {
-      p++;  // skip '>'
-      return true;
-    }
-    return false;  // Unterminated
-  }
-
-  // Standard name: 3+ letters
-  const char *start = p;
-  while (*p && std::isalpha(static_cast<unsigned char>(*p))) {
-    p++;
-  }
-  return (p - start) >= 3;
-}
-
-int32_t __attribute__((noinline)) parse_offset(const char *&p) {
-  int sign = 1;
-  if (*p == '-') {
-    sign = -1;
-    p++;
-  } else if (*p == '+') {
-    p++;
-  }
-
-  int hours = parse_uint(p);
-  int minutes = 0;
-  int seconds = 0;
-
-  if (*p == ':') {
-    p++;
-    minutes = parse_uint(p);
-    if (*p == ':') {
-      p++;
-      seconds = parse_uint(p);
-    }
-  }
-
-  return sign * (hours * 3600 + minutes * 60 + seconds);
-}
-
-// Helper to parse the optional /time suffix (reuses parse_offset logic)
-static void parse_transition_time(const char *&p, DSTRule &rule) {
-  rule.time_seconds = 2 * 3600;  // Default 02:00
-  if (*p == '/') {
-    p++;
-    rule.time_seconds = parse_offset(p);
-  }
 }
 
 void __attribute__((noinline)) julian_to_month_day(int julian_day, int &out_month, int &out_day) {
@@ -217,75 +168,11 @@ void __attribute__((noinline)) day_of_year_to_month_day(int day_of_year, int yea
   out_day = 31;
 }
 
-bool parse_dst_rule(const char *&p, DSTRule &rule) {
-  rule = {};  // Zero initialize
-
-  if (*p == 'M' || *p == 'm') {
-    // M format: Mm.w.d (month.week.day)
-    rule.type = DSTRuleType::MONTH_WEEK_DAY;
-    p++;
-
-    rule.month = parse_uint(p);
-    if (rule.month < 1 || rule.month > 12)
-      return false;
-
-    if (*p++ != '.')
-      return false;
-
-    rule.week = parse_uint(p);
-    if (rule.week < 1 || rule.week > 5)
-      return false;
-
-    if (*p++ != '.')
-      return false;
-
-    rule.day_of_week = parse_uint(p);
-    if (rule.day_of_week > 6)
-      return false;
-
-  } else if (*p == 'J' || *p == 'j') {
-    // J format: Jn (Julian day 1-365, not counting Feb 29)
-    rule.type = DSTRuleType::JULIAN_NO_LEAP;
-    p++;
-
-    rule.day = parse_uint(p);
-    if (rule.day < 1 || rule.day > 365)
-      return false;
-
-  } else if (std::isdigit(static_cast<unsigned char>(*p))) {
-    // Plain number format: n (day 0-365, counting Feb 29)
-    rule.type = DSTRuleType::DAY_OF_YEAR;
-
-    rule.day = parse_uint(p);
-    if (rule.day > 365)
-      return false;
-
-  } else {
-    return false;
-  }
-
-  // Parse optional /time suffix
-  parse_transition_time(p, rule);
-
-  return true;
-}
-
 // Calculate days from Jan 1 of given year to given month/day
 static int __attribute__((noinline)) days_from_year_start(int year, int month, int day) {
   int days = day - 1;
   for (int m = 1; m < month; m++) {
     days += days_in_month(year, m);
-  }
-  return days;
-}
-
-// Calculate days from epoch to Jan 1 of given year (for DST transition calculations)
-// Only supports years >= 1970. Timezone is either compiled in from YAML or set by
-// Home Assistant, so pre-1970 dates are not a concern.
-static int64_t __attribute__((noinline)) days_to_year_start(int year) {
-  int64_t days = 0;
-  for (int y = 1970; y < year; y++) {
-    days += days_in_year(y);
   }
   return days;
 }
@@ -338,7 +225,7 @@ time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRul
   int64_t days = days_to_year_start(year) + days_from_year_start(year, month, day);
 
   // Convert to epoch and add transition time and base offset
-  return days * 86400 + rule.time_seconds + base_offset_seconds;
+  return days * SECONDS_PER_DAY + rule.time_seconds + base_offset_seconds;
 }
 
 }  // namespace internal
@@ -365,81 +252,16 @@ bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone 
   }
 }
 
-// Remove before 2026.9.0: This parser is bridge code for backward compatibility with
-// older Home Assistant clients that send the timezone as a POSIX TZ string instead of
-// the pre-parsed ParsedTimezone protobuf struct. Once all clients send the struct
-// directly, this function and the parsing helpers above (skip_tz_name, parse_offset,
-// parse_dst_rule, parse_transition_time) can be removed.
-// See https://github.com/esphome/backlog/issues/91
-bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
-  if (!tz_string || !*tz_string) {
-    return false;
-  }
-
-  const char *p = tz_string;
-
-  // Initialize result (dst_start/dst_end default to type=NONE, so has_dst() returns false)
-  result.std_offset_seconds = 0;
-  result.dst_offset_seconds = 0;
-  result.dst_start = {};
-  result.dst_end = {};
-
-  // Skip standard timezone name
-  if (!internal::skip_tz_name(p)) {
-    return false;
-  }
-
-  // Parse standard offset (required)
-  if (!*p || (!std::isdigit(static_cast<unsigned char>(*p)) && *p != '+' && *p != '-')) {
-    return false;
-  }
-  result.std_offset_seconds = internal::parse_offset(p);
-
-  // Check for DST name
-  if (!*p) {
-    return true;  // No DST
-  }
-
-  // If next char is comma, there's no DST name but there are rules (invalid)
-  if (*p == ',') {
-    return false;
-  }
-
-  // Check if there's something that looks like a DST name start
-  // (letter or angle bracket). If not, treat as trailing garbage and return success.
-  if (!std::isalpha(static_cast<unsigned char>(*p)) && *p != '<') {
-    return true;  // No DST, trailing characters ignored
-  }
-
-  if (!internal::skip_tz_name(p)) {
-    return false;  // Invalid DST name (started but malformed)
-  }
-
-  // Optional DST offset (default is std - 1 hour)
-  if (*p && *p != ',' && (std::isdigit(static_cast<unsigned char>(*p)) || *p == '+' || *p == '-')) {
-    result.dst_offset_seconds = internal::parse_offset(p);
-  } else {
-    result.dst_offset_seconds = result.std_offset_seconds - 3600;
-  }
-
-  // Parse DST rules (required when DST name is present)
-  if (*p != ',') {
-    // DST name without rules - treat as no DST since we can't determine transitions
-    return true;
-  }
-
-  p++;
-  if (!internal::parse_dst_rule(p, result.dst_start)) {
-    return false;
-  }
-
-  // Second rule is required per POSIX
-  if (*p != ',') {
-    return false;
-  }
-  p++;
-  // has_dst() now returns true since dst_start.type was set by parse_dst_rule
-  return internal::parse_dst_rule(p, result.dst_end);
+// Format a POSIX offset (positive = west) as "+HHMM" / "-HHMM" for display.
+// Convention: negate POSIX sign so east-of-UTC is positive (ISO 8601 / RFC 2822).
+void format_designation(int32_t posix_offset, char *buf, size_t buf_size) {
+  int32_t display = -posix_offset;
+  char sign = display >= 0 ? '+' : '-';
+  if (display < 0)
+    display = -display;
+  int h = display / 3600;
+  int m = (display % 3600) / 60;
+  snprintf(buf, buf_size, "%c%02d%02d", sign, h, m);
 }
 
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {

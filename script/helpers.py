@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from functools import cache
 import hashlib
 import json
@@ -15,12 +17,10 @@ from typing import Any
 
 import colorama
 
-from esphome.loader import get_platform
-
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
-basepath = os.path.join(root_path, "esphome")
-temp_folder = os.path.join(root_path, ".temp")
-temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+root_path = str(Path(__file__).resolve().parent.parent)
+basepath = str(Path(root_path) / "esphome")
+temp_folder = str(Path(root_path) / ".temp")
+temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
@@ -53,6 +53,7 @@ BASE_BUS_COMPONENTS = {
     "canbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 }
 
 # Cache version for components graph
@@ -103,9 +104,7 @@ def get_component_from_path(file_path: str) -> str | None:
     Returns:
         Component name if path is in components or tests directory, None otherwise
     """
-    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
-        ESPHOME_TESTS_COMPONENTS_PATH
-    ):
+    if file_path.startswith((ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)):
         parts = file_path.split("/")
         if len(parts) >= 3 and parts[2]:
             # Verify that parts[2] is actually a component directory, not a file
@@ -117,7 +116,7 @@ def get_component_from_path(file_path: str) -> str | None:
 
 
 def get_component_test_files(
-    component: str, *, all_variants: bool = False
+    component: str, *, all_variants: bool = False, include_validate: bool = False
 ) -> list[Path]:
     """Get test files for a component.
 
@@ -125,6 +124,10 @@ def get_component_test_files(
         component: Component name (e.g., "wifi")
         all_variants: If True, returns all test files including variants (test-*.yaml).
                      If False, returns only base test files (test.*.yaml).
+                     Default is False.
+        include_validate: If True, also returns config-only files (validate.*.yaml,
+                     and validate-*.yaml when all_variants is True). These files
+                     are validated with `esphome config` but never compiled.
                      Default is False.
 
     Returns:
@@ -136,9 +139,212 @@ def get_component_test_files(
 
     if all_variants:
         # Match both test.*.yaml and test-*.yaml patterns
-        return list(tests_dir.glob("test[.-]*.yaml"))
+        files = list(tests_dir.glob("test[.-]*.yaml"))
+        if include_validate:
+            files.extend(tests_dir.glob("validate[.-]*.yaml"))
+        return files
     # Match only test.*.yaml (base tests)
-    return list(tests_dir.glob("test.*.yaml"))
+    files = list(tests_dir.glob("test.*.yaml"))
+    if include_validate:
+        files.extend(tests_dir.glob("validate.*.yaml"))
+    return files
+
+
+def get_component_test_platforms(component: str, *, base_only: bool = True) -> set[str]:
+    """Return the set of platforms a component has compilable test files for.
+
+    Uses the same discovery as ``test_build_components.py`` (``get_component_test_files``
+    + ``parse_test_filename``) so callers agree with what the build runner would
+    actually compile. With ``base_only=True`` (the default, matching the
+    memory-impact build's ``--base-only``), only base ``test.<platform>.yaml``
+    files are considered; variant ``test-<variant>.<platform>.yaml`` files are
+    excluded. The ``"all"`` platform sentinel is excluded.
+
+    Args:
+        component: Component name (e.g. "wifi")
+        base_only: If True, only consider base test files (default).
+
+    Returns:
+        Set of platform identifiers (e.g. {"esp32-idf", "esp8266-ard"}).
+    """
+    platforms: set[str] = set()
+    for test_file in get_component_test_files(component, all_variants=not base_only):
+        platform = parse_test_filename(test_file)[1]
+        if platform != "all":
+            platforms.add(platform)
+    return platforms
+
+
+def is_validate_only_file(test_file: Path) -> bool:
+    """Return True if the given path is a config-only validate file.
+
+    Validate files follow the same grammar as test files but with a
+    ``validate`` prefix instead of ``test``: ``validate.<platform>.yaml``
+    or ``validate-<variant>.<platform>.yaml``. They are exercised with
+    ``esphome config`` only and skipped during compile.
+    """
+    name = test_file.name
+    return name.startswith(("validate.", "validate-"))
+
+
+@dataclass(frozen=True)
+class ComponentMetadata:
+    """Statically-parsed AUTO_LOAD and CONFLICTS_WITH declarations."""
+
+    auto_load: frozenset[str] = field(default_factory=frozenset)
+    conflicts_with: frozenset[str] = field(default_factory=frozenset)
+
+
+@cache
+def parse_component_metadata(name: str) -> ComponentMetadata:
+    """Return the AUTO_LOAD / CONFLICTS_WITH declarations for a component.
+
+    Parses the component's ``esphome/components/<name>/__init__.py`` statically.
+    Callable forms (``def AUTO_LOAD():``) require runtime imports and are
+    reported as empty -- safe for conflict detection since they cannot be
+    evaluated without executing the module.
+    """
+    init_file = Path(root_path) / ESPHOME_COMPONENTS_PATH / name / "__init__.py"
+    if not init_file.exists():
+        return ComponentMetadata()
+    try:
+        tree = ast.parse(init_file.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeError):
+        return ComponentMetadata()
+    fields: dict[str, frozenset[str]] = {
+        "AUTO_LOAD": frozenset(),
+        "CONFLICTS_WITH": frozenset(),
+    }
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or not isinstance(node.value, ast.List):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Name) or target.id not in fields:
+                continue
+            fields[target.id] = frozenset(
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            )
+    return ComponentMetadata(
+        auto_load=fields["AUTO_LOAD"],
+        conflicts_with=fields["CONFLICTS_WITH"],
+    )
+
+
+@dataclass
+class _ConflictWalk:
+    loaded: set[str]
+    rejects: set[str]
+
+
+@cache
+def _get_test_config_components(component: str, platform: str) -> frozenset[str]:
+    """Return the components referenced by a component's test config for a platform.
+
+    Loads ``tests/components/<component>/test.<platform>.yaml`` and extracts the
+    top-level component keys (and list ``platform:`` values). This lets the
+    conflict splitter see components that are only pulled in via a test config
+    (e.g. nRF52 ``network`` tests that also enable ``openthread``), which a
+    purely static AUTO_LOAD/CONFLICTS_WITH parse cannot discover -- notably for
+    components like ``api`` whose ``AUTO_LOAD`` is a callable.
+
+    Failures (missing file, parse error) are treated as empty so the splitter
+    never crashes on a malformed or absent test config.
+    """
+    from esphome import yaml_util
+
+    test_file = (
+        Path(root_path) / "tests" / "components" / component / f"test.{platform}.yaml"
+    )
+    if not test_file.exists():
+        return frozenset()
+    try:
+        config = yaml_util.load_yaml(test_file)
+    except Exception:  # noqa: BLE001 - never let a bad test config crash grouping
+        # Matches analyze_component_buses, which loads these same files and
+        # silently tolerates parse failures; surfacing it only here would be
+        # inconsistent and noisy.
+        return frozenset()
+    if not isinstance(config, dict):
+        return frozenset()
+    return frozenset(_extract_components_from_yaml(config))
+
+
+@cache
+def _conflict_walk(comp: str, platform: str) -> _ConflictWalk:
+    """Build the platform-aware conflict walk for a single component.
+
+    Seeds the walk with the component itself plus any components pulled in via
+    its ``test.<platform>.yaml`` config, then folds in each seed's static
+    AUTO_LOAD closure and CONFLICTS_WITH declarations. Cached per
+    ``(component, platform)`` since the test-config seeds are platform-specific.
+    """
+    seeds = {comp} | set(_get_test_config_components(comp, platform))
+    walk = _ConflictWalk(loaded=set(seeds), rejects=set())
+    stack = list(seeds)
+    while stack:
+        metadata = parse_component_metadata(stack.pop())
+        walk.rejects |= metadata.conflicts_with
+        new = metadata.auto_load - walk.loaded
+        walk.loaded |= new
+        stack.extend(new)
+    return walk
+
+
+def components_conflict(a: str, b: str, platform: str) -> bool:
+    """Return True if components ``a`` and ``b`` cannot share a build on ``platform``.
+
+    Uses the same platform-aware conflict walk as :func:`split_conflicting_groups`
+    so callers (e.g. the no-bus redistribution in ``test_build_components.py``)
+    agree with how groups were originally split. The conflict relation is
+    symmetric even when only one side declares CONFLICTS_WITH.
+    """
+    wa, wb = _conflict_walk(a, platform), _conflict_walk(b, platform)
+    return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(wa.loaded)
+
+
+def split_conflicting_groups(
+    grouped_components: dict[tuple[str, str], list[str]],
+) -> dict[tuple[str, str], list[str]]:
+    """Split groups so components declaring mutual CONFLICTS_WITH end up in separate builds.
+
+    A conflict propagates through AUTO_LOAD: if X declares CONFLICTS_WITH=[Y]
+    and Z auto-loads Y, then X and Z conflict (e.g. bme680_bsec vs.
+    bme68x_bsec2_i2c which auto-loads bme68x_bsec2). Only components that
+    appear in the batch (and their AUTO_LOAD closures) are parsed. The
+    conflict relation is treated as symmetric even when only one side
+    declares it (e.g. ethernet rejects wifi but wifi does not declare the
+    reverse).
+
+    The walk is platform-aware: in addition to the static AUTO_LOAD closure,
+    each ``(component, platform)`` walk is seeded with the components found in
+    that component's ``test.<platform>.yaml`` config. This catches conflicts
+    that only exist on a given platform and are expressed through the test
+    config rather than static metadata -- e.g. on nRF52 the ``network``/``api``
+    test configs also enable ``openthread``, which ``zigbee`` declares a
+    conflict with, so ``api`` and ``zigbee`` end up split there. On ESP32 those
+    test configs have no ``openthread``, so the components still group together.
+    """
+    result: dict[tuple[str, str], list[str]] = {}
+    for (platform, signature), components in grouped_components.items():
+        buckets: list[list[str]] = []
+        for comp in components:
+            for bucket in buckets:
+                if not any(
+                    components_conflict(comp, other, platform) for other in bucket
+                ):
+                    bucket.append(comp)
+                    break
+            else:
+                buckets.append([comp])
+        if len(buckets) == 1:
+            result[(platform, signature)] = buckets[0]
+            continue
+        for index, bucket in enumerate(buckets):
+            key = signature if index == 0 else f"{signature}__conflict{index}"
+            result[(platform, key)] = bucket
+    return result
 
 
 def styled(color: str | tuple[str, ...], msg: str, reset: bool = True) -> str:
@@ -176,7 +382,12 @@ def build_all_include(header_files: list[str] | None = None) -> None:
             if line
         ]
 
-    headers = [f'#include "{h}"' for h in header_files]
+    from esphome.writer import ENTITY_TYPES_H_TARGET
+
+    # X-macro files are included multiple times with different macro definitions
+    # and must not be included bare in the all-include header
+    exclude = {ENTITY_TYPES_H_TARGET}
+    headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -209,8 +420,11 @@ def _get_github_event_data() -> dict | None:
         Parsed event data dictionary, or None if not available
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
+    if github_event_path and Path(github_event_path).exists():
+        # The event payload is UTF-8 JSON; without an explicit encoding
+        # Windows decodes it as cp1252 and any non ASCII byte (an ellipsis in
+        # a commit title is enough) raises UnicodeDecodeError.
+        with Path(github_event_path).open(encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -255,6 +469,77 @@ def get_target_branch() -> str | None:
     return None
 
 
+# Substrings (matched case-insensitively against gh's stderr) that identify
+# transient failures worth retrying: server errors (HTTP 5xx) and dropped or
+# failed connections. Permanent failures (bad auth, missing PR, the 300-file
+# diff limit) never match so callers see them immediately. Phrases are
+# anchored so gh's GraphQL "Could not resolve to a PullRequest" (a missing
+# PR) never classifies as a DNS failure.
+_TRANSIENT_GH_ERROR_RE = re.compile(
+    r"http 5\d\d"
+    r"|timed out|timeout"
+    r"|connection (?:reset|refused|closed)"
+    r"|no such host|could not resolve host"
+    # gh intercepts DNS errors and prints its own "error connecting to
+    # <host>" text; the Go phrases above are kept as a hedge in case a
+    # future gh stops swallowing the underlying error
+    r"|error connecting to"
+    r"|failed to verify certificate"
+    # Go reports a server-closed connection as 'Post "<url>": EOF'; the
+    # quote-and-colon anchor keeps a URL or message body containing the
+    # letters from matching
+    r"|unexpected eof"
+    r'|": eof'
+    r"|network is unreachable"
+    r"|temporary failure"
+)
+
+# Same retry policy as git network commands in esphome/git.py: 3 attempts
+# with 2s/4s backoff.
+_GH_MAX_ATTEMPTS = 3
+
+
+def run_gh_command(
+    args: list[str], *, retry: bool = True
+) -> subprocess.CompletedProcess[str]:
+    """Run a gh CLI command, retrying transient network and server failures.
+
+    Args:
+        args: Full command line, including the leading "gh".
+        retry: Pass False for commands that are not idempotent (e.g. posting
+            a comment), where a retry after a dropped response could repeat
+            a write that already succeeded server-side.
+
+    Returns:
+        CompletedProcess with captured text output.
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails with a permanent
+            error, or is still failing after the retries are exhausted.
+    """
+    attempts = _GH_MAX_ATTEMPTS if retry else 1
+    attempt = 0
+    while True:
+        try:
+            return subprocess.run(
+                args, check=True, capture_output=True, text=True, close_fds=False
+            )
+        except subprocess.CalledProcessError as err:
+            attempt += 1
+            stderr = err.stderr or ""
+            if attempt >= attempts or not _TRANSIENT_GH_ERROR_RE.search(stderr.lower()):
+                raise
+            delay = 2**attempt
+            # Only the leading arguments: comment-update calls carry the
+            # whole multi-KB comment body in the argument list
+            print(
+                f"WARNING: {' '.join(args[:3])} failed: {stderr.strip()}; "
+                f"retrying in {delay}s (attempt {attempt}/{attempts})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+
+
 @cache
 def _get_changed_files_github_actions() -> list[str] | None:
     """Get changed files in GitHub Actions environment.
@@ -273,8 +558,9 @@ def _get_changed_files_github_actions() -> list[str] | None:
             try:
                 return _get_changed_files_from_command(cmd)
             except Exception as e:
-                # If it fails due to the 300 file limit, use the API method
-                if "maximum" in str(e) and "files" in str(e):
+                # If it fails due to a diff limit (300 files or 20000 lines),
+                # use the API method which only returns filenames
+                if "diff exceeded the maximum" in str(e):
                     cmd = [
                         "gh",
                         "api",
@@ -328,13 +614,26 @@ def changed_files(branch: str | None = None) -> list[str]:
 
 
 def _get_changed_files_from_command(command: list[str]) -> list[str]:
-    """Run a git command to get changed files and return them as a list."""
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
+    """Run a git or gh command to get changed files and return them as a list."""
+    if command[0] == "gh":
+        try:
+            proc = run_gh_command(command)
+        except subprocess.CalledProcessError as e:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {e.stderr}"
+            ) from e
+    else:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, check=False, close_fds=False
+        )
+        if proc.returncode != 0:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}"
+            )
 
     changed_files = splitlines_no_ends(proc.stdout)
-    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    cwd = Path.cwd()
+    changed_files = [os.path.relpath(f, cwd) for f in changed_files if f]  # noqa: PTH109
     changed_files.sort()
     return changed_files
 
@@ -369,7 +668,7 @@ def get_changed_components() -> list[str] | None:
         return None
 
     # Use list-components.py to get changed components
-    script_path = os.path.join(root_path, "script", "list-components.py")
+    script_path = str(Path(root_path) / "script" / "list-components.py")
     cmd = [script_path, "--changed"]
 
     try:
@@ -489,7 +788,7 @@ def filter_changed(files: list[str]) -> list[str]:
 def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
-        with open(file, encoding="utf-8") as handle:
+        with Path(file).open(encoding="utf-8") as handle:
             contents = handle.read()
         if any(v in contents for v in value):
             matched.append(file)
@@ -510,26 +809,22 @@ def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
-    platformio_ini = Path(root_path) / "platformio.ini"
+    # Reuse the clang-tidy input hash as the cache key: it already covers every
+    # file baked into the generated idedata (platformio.ini, sdkconfig.defaults,
+    # esphome/idf_component.yml), so this can't drift from that file list. A
+    # content hash -- unlike an mtime comparison -- stays correct across git
+    # checkouts, which don't preserve mtimes.
+    from clang_tidy_hash import calculate_clang_tidy_hash
+
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
-    changed = False
-    if (
-        not platformio_ini.is_file()
-        or not temp_idedata.is_file()
-        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
-    ):
-        changed = True
+    temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    if "idf" in environment:
-        # remove full sdkconfig when the defaults have changed so that it is regenerated
-        default_sdkconfig = Path(root_path) / "sdkconfig.defaults"
-        temp_sdkconfig = Path(temp_folder) / f"sdkconfig-{environment}"
-
-        if not temp_sdkconfig.is_file():
-            changed = True
-        elif default_sdkconfig.stat().st_mtime >= temp_sdkconfig.stat().st_mtime:
-            temp_sdkconfig.unlink()
-            changed = True
+    cache_key = calculate_clang_tidy_hash()
+    changed = (
+        not temp_idedata.is_file()
+        or not temp_hash.is_file()
+        or temp_hash.read_text().strip() != cache_key
+    )
 
     if not changed:
         data = json.loads(temp_idedata.read_text())
@@ -540,7 +835,12 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    if "nrf" in environment:
+    platformio_ini = Path(root_path) / "platformio.ini"
+    if "esp32" in environment:
+        from esphome.espidf.clang_tidy import load_idedata as idf_load_idedata
+
+        data = idf_load_idedata(environment, temp_folder, platformio_ini)
+    elif "nrf" in environment:
         from helpers_zephyr import load_idedata as zephyr_load_idedata
 
         data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
@@ -551,6 +851,7 @@ def load_idedata(environment: str) -> dict[str, Any]:
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
+    temp_hash.write_text(cache_key + "\n")
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")
@@ -627,14 +928,12 @@ def get_usable_cpu_count() -> int:
 
 
 def get_all_dependencies(
-    component_names: set[str], cpp_testing: bool = False
+    component_names: set[str],
 ) -> set[str]:
     """Get all dependencies for a set of components.
 
     Args:
         component_names: Set of component names to get dependencies for
-        cpp_testing: If True, set CORE.cpp_testing so AUTO_LOAD callables that
-                     conditionally include testing-only dependencies work correctly
 
     Returns:
         Set of all components including dependencies and auto-loaded components
@@ -646,13 +945,12 @@ def get_all_dependencies(
         PLATFORM_HOST,
     )
     from esphome.core import CORE
-    from esphome.loader import get_component
+    from esphome.loader import get_component, get_platform
 
     all_components: set[str] = set(component_names)
 
     # Reset CORE to ensure clean state
     CORE.reset()
-    CORE.cpp_testing = cpp_testing
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
@@ -700,37 +998,141 @@ def get_all_dependencies(
     return all_components
 
 
+def _extract_components_from_yaml(config: dict) -> set[str]:
+    """Extract component names from a parsed YAML config.
+
+    Args:
+        config: Parsed YAML configuration dictionary
+
+    Returns:
+        Set of component names found in the config
+    """
+    components: set[str] = set()
+
+    # Add all top-level component keys (skip YAML anchor keys starting with '.')
+    components.update(k for k in config if isinstance(k, str) and not k.startswith("."))
+
+    # Add platform values from list entries (e.g., sensor -> platform: template adds "template")
+    for value in config.values():
+        if isinstance(value, list):
+            components.update(
+                item["platform"]
+                for item in value
+                if isinstance(item, dict) and "platform" in item
+            )
+
+    return components
+
+
 def get_components_from_integration_fixtures() -> set[str]:
     """Extract all components used in integration test fixtures.
 
     Returns:
         Set of component names used in integration test fixtures
     """
+    return {
+        comp
+        for components in get_components_per_integration_fixture().values()
+        for comp in components
+    }
+
+
+@cache
+def get_components_per_integration_fixture() -> dict[str, set[str]]:
+    """Extract components used in each integration test fixture.
+
+    Returns:
+        Dictionary mapping fixture name (stem) to set of component names
+    """
     from esphome import yaml_util
 
-    components: set[str] = set()
+    result: dict[str, set[str]] = {}
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
+        config: dict[str, Any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 
-        # Add all top-level component keys (skip YAML anchor keys starting with '.')
-        components.update(
-            k for k in config if isinstance(k, str) and not k.startswith(".")
-        )
+        result[yaml_file.stem] = _extract_components_from_yaml(config)
 
-        # Add platform components (e.g., output.template)
-        for value in config.values():
-            if not isinstance(value, list):
-                continue
+    return result
 
-            for item in value:
-                if isinstance(item, dict) and "platform" in item:
-                    components.add(item["platform"])
 
-    return components
+_TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
+
+
+@cache
+def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
+    """Map integration test fixture names to the test files that use them.
+
+    Returns:
+        Dictionary mapping fixture name to frozenset of test file paths
+        (relative to repo root)
+    """
+    integration_dir = Path(__file__).parent.parent / "tests" / "integration"
+    result: dict[str, set[str]] = {}
+
+    for test_file in integration_dir.glob("test_*.py"):
+        content = test_file.read_text(encoding="utf-8")
+        rel_path = test_file.relative_to(Path(__file__).parent.parent).as_posix()
+        for func in _TEST_FUNC_RE.findall(content):
+            base_name = func.replace("test_", "").partition("[")[0]
+            result.setdefault(base_name, set()).add(rel_path)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
+@cache
+def _get_component_to_integration_test_files() -> dict[str, frozenset[str]]:
+    """Build index mapping each component to the test files that depend on it.
+
+    Resolves full dependency trees once per fixture, then inverts the mapping
+    so lookups are O(1) per component.
+
+    Returns:
+        Dictionary mapping component name to frozenset of test file paths
+    """
+    fixture_components = get_components_per_integration_fixture()
+    fixture_to_test_files = get_fixture_to_test_files()
+
+    result: dict[str, set[str]] = {}
+    for fixture_name, components in fixture_components.items():
+        test_files = fixture_to_test_files.get(fixture_name)
+        if not test_files:
+            continue
+        # Get full dependency tree for this fixture's components
+        all_deps = get_all_dependencies(components)
+        for dep in all_deps:
+            result.setdefault(dep, set()).update(test_files)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
+def get_integration_test_files_for_components(
+    changed_components: set[str],
+) -> list[str]:
+    """Get integration test file paths that use any of the given components.
+
+    Uses a precomputed component → test files index for O(C) lookup
+    where C is the number of changed components.
+
+    Args:
+        changed_components: Set of component names that have changed
+
+    Returns:
+        Sorted list of test file paths relative to repo root
+        (e.g., ["tests/integration/test_api.py", ...])
+    """
+    component_to_tests = _get_component_to_integration_test_files()
+
+    return sorted(
+        {
+            test_file
+            for component in changed_components
+            for test_file in component_to_tests.get(component, ())
+        }
+    )
 
 
 def filter_component_and_test_files(file_path: str) -> bool:
@@ -1058,6 +1460,27 @@ def core_changed(files: list[str]) -> bool:
     """
     return any(
         f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def base_python_changed(files: list[str]) -> bool:
+    """Check if any Python file directly in esphome/ has changed.
+
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any top-level esphome Python file has changed
+    """
+    return any(
+        f.startswith("esphome/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and "/" not in f.removeprefix("esphome/")
         for f in files
     )
 

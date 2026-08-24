@@ -45,7 +45,7 @@ class UARTDevice {
 
   size_t available() { return this->parent_->available(); }
 
-  FlushResult flush() { return this->parent_->flush(); }
+  UARTFlushResult flush() { return this->parent_->flush(); }
 
   // Compat APIs
   int read() {

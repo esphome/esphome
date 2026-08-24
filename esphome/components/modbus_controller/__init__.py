@@ -1,19 +1,21 @@
 import binascii
+from dataclasses import dataclass
+from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
-from esphome.components.const import CONF_ENABLED
-import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_ID,
-    CONF_LAMBDA,
-    CONF_NAME,
-    CONF_OFFSET,
-    CONF_TRIGGER_ID,
+from esphome.components.modbus.helpers import (
+    MODBUS_REGISTER_TYPE,
+    TYPE_REGISTER_MAP,
+    EntityType,
 )
+import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
+from esphome.core import CORE
 from esphome.cpp_helpers import logging
+import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .const import (
     CONF_ALLOW_DUPLICATE_COMMANDS,
@@ -21,6 +23,7 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
+    CONF_CUSTOM_PDU,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
@@ -29,11 +32,10 @@ from .const import (
     CONF_ON_OFFLINE,
     CONF_ON_ONLINE,
     CONF_REGISTER_COUNT,
-    CONF_REGISTER_LAST_ADDRESS,
     CONF_REGISTER_TYPE,
-    CONF_REGISTER_VALUE,
     CONF_RESPONSE_SIZE,
     CONF_SERVER_COURTESY_RESPONSE,
+    CONF_SERVER_REGISTERS,
     CONF_SKIP_UPDATES,
     CONF_VALUE_TYPE,
 )
@@ -42,174 +44,126 @@ CODEOWNERS = ["@martgras"]
 
 AUTO_LOAD = ["modbus"]
 
-CONF_READ_LAMBDA = "read_lambda"
-CONF_WRITE_LAMBDA = "write_lambda"
-CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
+DOMAIN = "modbus_controller"
+
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
-modbus_ns = cg.esphome_ns.namespace("modbus")
-ModbusController = modbus_controller_ns.class_(
-    "ModbusController", cg.PollingComponent, modbus.ModbusDevice
-)
+ModbusController = modbus_controller_ns.class_("ModbusController", cg.PollingComponent)
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
-ServerCourtesyResponse = modbus_controller_ns.struct("ServerCourtesyResponse")
-ServerRegister = modbus_controller_ns.struct("ServerRegister")
-
-ModbusFunctionCode_ns = modbus_ns.namespace("ModbusFunctionCode")
-ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
-MODBUS_FUNCTION_CODE = {
-    "read_coils": ModbusFunctionCode.READ_COILS,
-    "read_discrete_inputs": ModbusFunctionCode.READ_DISCRETE_INPUTS,
-    "read_holding_registers": ModbusFunctionCode.READ_HOLDING_REGISTERS,
-    "read_input_registers": ModbusFunctionCode.READ_INPUT_REGISTERS,
-    "write_single_coil": ModbusFunctionCode.WRITE_SINGLE_COIL,
-    "write_single_register": ModbusFunctionCode.WRITE_SINGLE_REGISTER,
-    "write_multiple_coils": ModbusFunctionCode.WRITE_MULTIPLE_COILS,
-    "write_multiple_registers": ModbusFunctionCode.WRITE_MULTIPLE_REGISTERS,
-}
-
-ModbusRegisterType_ns = modbus_controller_ns.namespace("ModbusRegisterType")
-ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
-
-MODBUS_WRITE_REGISTER_TYPE = {
-    "custom": ModbusRegisterType.CUSTOM,
-    "coil": ModbusRegisterType.COIL,
-    "holding": ModbusRegisterType.HOLDING,
-}
-
-MODBUS_REGISTER_TYPE = {
-    **MODBUS_WRITE_REGISTER_TYPE,
-    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
-    "read": ModbusRegisterType.READ,
-}
-
-SensorValueType_ns = modbus_controller_ns.namespace("SensorValueType")
-SensorValueType = SensorValueType_ns.enum("SensorValueType")
-SENSOR_VALUE_TYPE = {
-    "RAW": SensorValueType.RAW,
-    "U_WORD": SensorValueType.U_WORD,
-    "S_WORD": SensorValueType.S_WORD,
-    "U_DWORD": SensorValueType.U_DWORD,
-    "U_DWORD_R": SensorValueType.U_DWORD_R,
-    "S_DWORD": SensorValueType.S_DWORD,
-    "S_DWORD_R": SensorValueType.S_DWORD_R,
-    "U_QWORD": SensorValueType.U_QWORD,
-    "U_QWORD_R": SensorValueType.U_QWORD_R,
-    "S_QWORD": SensorValueType.S_QWORD,
-    "S_QWORD_R": SensorValueType.S_QWORD_R,
-    "FP32": SensorValueType.FP32,
-    "FP32_R": SensorValueType.FP32_R,
-}
-
-TYPE_REGISTER_MAP = {
-    "RAW": 1,
-    "U_WORD": 1,
-    "S_WORD": 1,
-    "U_DWORD": 2,
-    "U_DWORD_R": 2,
-    "S_DWORD": 2,
-    "S_DWORD_R": 2,
-    "U_QWORD": 4,
-    "U_QWORD_R": 4,
-    "S_QWORD": 4,
-    "S_QWORD_R": 4,
-    "FP32": 2,
-    "FP32_R": 2,
-}
-
-CPP_TYPE_REGISTER_MAP = {
-    "RAW": cg.uint16,
-    "U_WORD": cg.uint16,
-    "S_WORD": cg.int16,
-    "U_DWORD": cg.uint32,
-    "U_DWORD_R": cg.uint32,
-    "S_DWORD": cg.int32,
-    "S_DWORD_R": cg.int32,
-    "U_QWORD": cg.uint64,
-    "U_QWORD_R": cg.uint64,
-    "S_QWORD": cg.int64,
-    "S_QWORD_R": cg.int64,
-    "FP32": cg.float_,
-    "FP32_R": cg.float_,
-}
-
-ModbusCommandSentTrigger = modbus_controller_ns.class_(
-    "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
-)
-
-ModbusOnlineTrigger = modbus_controller_ns.class_(
-    "ModbusOnlineTrigger", automation.Trigger.template(cg.int_, cg.int_)
-)
-
-ModbusOfflineTrigger = modbus_controller_ns.class_(
-    "ModbusOfflineTrigger", automation.Trigger.template(cg.int_, cg.int_)
-)
 
 _LOGGER = logging.getLogger(__name__)
 
-SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_ENABLED, default=False): cv.boolean,
-        cv.Optional(CONF_REGISTER_LAST_ADDRESS, default=0xFFFF): cv.hex_uint16_t,
-        cv.Optional(CONF_REGISTER_VALUE, default=0): cv.hex_uint16_t,
-    }
-)
 
-ModbusServerRegisterSchema = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(ServerRegister),
-        cv.Required(CONF_ADDRESS): cv.positive_int,
-        cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
-        cv.Required(CONF_READ_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
-    }
-)
+@dataclass
+class ModbusControllerData:
+    # Set once the deprecated 'skip_updates' warning has been emitted so we warn only once total.
+    skip_updates_warned: bool = False
+
+
+def _get_data() -> ModbusControllerData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = ModbusControllerData()
+    return CORE.data[DOMAIN]
+
+
+# Remove before 2027.2.0
+_REMOVED_OPTIONS = {
+    CONF_COMMAND_THROTTLE: "Command spacing is handled by the 'modbus' component - use 'turnaround_time' there instead.",
+    CONF_ALLOW_DUPLICATE_COMMANDS: "Polling commands are deduplicated by the modbus hub; one-shot commands (writes) are always transmitted.",
+}
+
+
+def _warn_removed_options(config: ConfigType) -> ConfigType:
+    """Warn about options that no longer do anything, but let the config compile."""
+    for option, replacement in _REMOVED_OPTIONS.items():
+        if option in config:
+            _LOGGER.warning(
+                "[modbus_controller] '%s' no longer has any effect and will be removed in 2027.2.0. %s",
+                option,
+                replacement,
+            )
+    return config
+
+
+def _reject_broadcast_address(config: ConfigType) -> ConfigType:
+    """A modbus_controller polls one device, so its address cannot be the broadcast address (0):
+    a broadcast is never answered (Modbus 4.1), so no register could ever read back."""
+    modbus.reject_broadcast_address(
+        config.get(CONF_ADDRESS),
+        "a modbus_controller device address",
+        "Assign the unit address of the device you want to poll.",
+        [CONF_ADDRESS],
+    )
+    return config
+
+
+# Remove before 2027.3.0. skip_updates (a per-sensor option) no longer does anything: every range is
+# polled each update_interval. The key is still accepted so existing configs keep working, with a warning.
+def validate_skip_updates_deprecated(value: Any) -> int:
+    data = _get_data()
+    if not data.skip_updates_warned:
+        _LOGGER.warning(
+            "[modbus_controller] 'skip_updates' no longer has any effect and will be removed in 2027.3.0. "
+            "To poll some registers less often, add a second modbus_controller with the same address and a "
+            "slower update_interval, and attach the slow sensors to it."
+        )
+        data.skip_updates_warned = True
+    return cv.positive_int(value)
 
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusController),
-            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS, default=False): cv.boolean,
-            cv.Optional(
-                CONF_COMMAND_THROTTLE, default="0ms"
-            ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_SERVER_COURTESY_RESPONSE): SERVER_COURTESY_RESPONSE_SCHEMA,
+            # Removed options: accepted (and ignored) until 2027.2.0 so existing configs keep building.
+            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS): cv.boolean,
+            cv.Optional(CONF_COMMAND_THROTTLE): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_SERVER_COURTESY_RESPONSE): cv.invalid(
+                "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
+            ),
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
             cv.Optional(
                 CONF_SERVER_REGISTERS,
-            ): cv.ensure_list(ModbusServerRegisterSchema),
-            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ModbusCommandSentTrigger
-                    ),
-                }
+            ): cv.invalid(
+                "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
             ),
-            cv.Optional(CONF_ON_ONLINE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOnlineTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_OFFLINE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOfflineTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ONLINE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_OFFLINE): automation.validate_automation({}),
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(modbus.modbus_device_schema(0x01))
+    .extend(modbus.modbus_device_schema(0x01)),
+    _warn_removed_options,
+    _reject_broadcast_address,
 )
 
 ModbusItemBaseSchema = cv.Schema(
     {
         cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
         cv.Optional(CONF_ADDRESS): cv.positive_int,
-        cv.Optional(CONF_CUSTOM_COMMAND): cv.ensure_list(cv.hex_uint8_t),
+        cv.Exclusive(
+            CONF_CUSTOM_PDU,
+            "custom_source",
+            f"{CONF_CUSTOM_PDU} and {CONF_CUSTOM_COMMAND} can't be used together",
+        ): cv.All(
+            cv.ensure_list(cv.hex_uint8_t),
+            cv.Length(min=1, max=modbus.MAX_PDU_SIZE),
+        ),
+        # Deprecated: takes a raw frame with a leading device address byte. Auto-migrated to
+        # custom_pdu in migrate_custom_command (final validate). Remove before 2027.3.0. The upper
+        # bound is MAX_PDU_SIZE + 1: the extra byte is the address the migration strips.
+        cv.Exclusive(
+            CONF_CUSTOM_COMMAND,
+            "custom_source",
+            f"{CONF_CUSTOM_PDU} and {CONF_CUSTOM_COMMAND} can't be used together",
+        ): cv.All(
+            cv.ensure_list(cv.hex_uint8_t),
+            cv.Length(min=2, max=modbus.MAX_PDU_SIZE + 1),
+        ),
         cv.Exclusive(
             CONF_OFFSET,
             "offset",
@@ -221,7 +175,7 @@ ModbusItemBaseSchema = cv.Schema(
             f"{CONF_OFFSET} and {CONF_BYTE_OFFSET} can't be used together",
         ): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
-        cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
+        cv.Optional(CONF_SKIP_UPDATES): validate_skip_updates_deprecated,
         cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
         cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.positive_int,
@@ -230,28 +184,58 @@ ModbusItemBaseSchema = cv.Schema(
 
 
 def validate_modbus_register(config):
-    if CONF_CUSTOM_COMMAND not in config and CONF_ADDRESS not in config:
+    # custom_command is the deprecated alias for custom_pdu (migrated later in final validate); treat
+    # either as "a custom frame is configured" so the address/register_type rules match.
+    has_custom = CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config
+    if not has_custom and CONF_ADDRESS not in config:
         raise cv.Invalid(
-            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+            f" {CONF_ADDRESS} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
-    if CONF_CUSTOM_COMMAND in config and CONF_REGISTER_TYPE in config:
+    if has_custom and CONF_REGISTER_TYPE in config:
         raise cv.Invalid(
-            f"can't use '{CONF_REGISTER_TYPE}:' together with '{CONF_CUSTOM_COMMAND}:'",
+            f"can't use '{CONF_REGISTER_TYPE}:' together with '{CONF_CUSTOM_PDU}:'",
         )
 
-    if CONF_CUSTOM_COMMAND not in config and CONF_REGISTER_TYPE not in config:
+    if not has_custom and CONF_REGISTER_TYPE not in config:
         raise cv.Invalid(
-            f" {CONF_REGISTER_TYPE} is a required property if '{CONF_CUSTOM_COMMAND}:' isn't used"
+            f" {CONF_REGISTER_TYPE} is a required property if '{CONF_CUSTOM_PDU}:' isn't used"
         )
     return config
 
 
-def _final_validate(config):
-    if CONF_SERVER_COURTESY_RESPONSE in config or CONF_SERVER_REGISTERS in config:
-        return modbus.final_validate_modbus_device("modbus_controller", role="server")(
-            config
+def migrate_custom_command(config: ConfigType) -> None:
+    """Final-validate: auto-migrate the deprecated custom_command (raw frame incl. device address)
+    to custom_pdu (PDU only). custom_pdu is always sent to the controller's own address, so a frame
+    whose address byte does not match the controller's address is a hard error (it targeted a
+    different unit). Mutates config in place; final validate discards the return value."""
+    frame = config.get(CONF_CUSTOM_COMMAND)
+    if frame is None:
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    # the controller's DEVICE address (from modbus_device_schema)
+    address = controller[CONF_ADDRESS]
+    if frame[0] != address:
+        raise cv.Invalid(
+            f"'custom_command' begins with device address {frame[0]:#04x}, but this sensor's "
+            f"modbus_controller uses address {address:#04x}. 'custom_command' is renamed to "
+            f"'custom_pdu', which is always sent to the controller's own address. Drop the leading "
+            f"address byte and use 'custom_pdu' if {address:#04x} is correct, or move this sensor to "
+            f"the modbus_controller for device {frame[0]:#04x}.",
+            [CONF_CUSTOM_COMMAND],
         )
-    return config
+    _LOGGER.warning(
+        "[modbus_controller] 'custom_command' is deprecated and will be removed in 2027.3.0; "
+        "auto-migrated to 'custom_pdu' (dropped the leading device address byte). Rename the key "
+        "and drop that byte to silence this warning."
+    )
+    config[CONF_CUSTOM_PDU] = list(frame[1:])
+    del config[CONF_CUSTOM_COMMAND]
+
+
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("modbus_controller", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -271,7 +255,7 @@ def modbus_calc_properties(config):
         value_type = config[CONF_VALUE_TYPE]
         if reg_count == 0:
             reg_count = TYPE_REGISTER_MAP[value_type]
-    if CONF_CUSTOM_COMMAND in config:
+    if CONF_CUSTOM_PDU in config:
         if CONF_ADDRESS not in config:
             # generate a unique modbus address using the hash of the name
             # CONF_NAME set even if only CONF_ID is used.
@@ -288,8 +272,8 @@ def modbus_calc_properties(config):
 async def add_modbus_base_properties(
     var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
 ):
-    if CONF_CUSTOM_COMMAND in config:
-        cg.add(var.set_custom_data(config[CONF_CUSTOM_COMMAND]))
+    if CONF_CUSTOM_PDU in config:
+        cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
 
     if config[CONF_RESPONSE_SIZE] > 0:
         cg.add(var.set_register_size(config[CONF_RESPONSE_SIZE]))
@@ -300,100 +284,55 @@ async def add_modbus_base_properties(
             [
                 (sensor_type.operator("ptr"), "item"),
                 (lambda_param_type, "x"),
-                (
-                    cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
-                    "data",
-                ),
+                (cg.std_span.template(cg.uint8.operator("const")), "data"),
             ],
             return_type=cg.optional.template(lambda_return_type),
         )
         cg.add(var.set_template(template_))
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_COMMAND_SENT,
+        "add_on_command_sent_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ONLINE,
+        "add_on_online_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_OFFLINE,
+        "add_on_offline_callback",
+        [(cg.int_, "function_code"), (cg.int_, "address")],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
-    cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
-    if server_courtesy_response := config.get(CONF_SERVER_COURTESY_RESPONSE):
-        cg.add(
-            var.set_server_courtesy_response(
-                cg.StructInitializer(
-                    ServerCourtesyResponse,
-                    ("enabled", server_courtesy_response[CONF_ENABLED]),
-                    (
-                        "register_last_address",
-                        server_courtesy_response[CONF_REGISTER_LAST_ADDRESS],
-                    ),
-                    ("register_value", server_courtesy_response[CONF_REGISTER_VALUE]),
-                )
-            )
-        )
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
-    if CONF_SERVER_REGISTERS in config:
-        for server_register in config[CONF_SERVER_REGISTERS]:
-            server_register_var = cg.new_Pvariable(
-                server_register[CONF_ID],
-                server_register[CONF_ADDRESS],
-                server_register[CONF_VALUE_TYPE],
-                TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]],
-            )
-            cpp_type = CPP_TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]]
-            cg.add(
-                server_register_var.set_read_lambda(
-                    cg.TemplateArguments(cpp_type),
-                    await cg.process_lambda(
-                        server_register[CONF_READ_LAMBDA],
-                        [(cg.uint16, "address")],
-                        return_type=cpp_type,
-                    ),
-                )
-            )
-            if CONF_WRITE_LAMBDA in server_register:
-                cg.add(
-                    server_register_var.set_write_lambda(
-                        cg.TemplateArguments(cpp_type),
-                        await cg.process_lambda(
-                            server_register[CONF_WRITE_LAMBDA],
-                            parameters=[(cg.uint16, "address"), (cpp_type, "x")],
-                            return_type=cg.bool_,
-                        ),
-                    )
-                )
-            cg.add(var.add_server_register(server_register_var))
     await register_modbus_device(var, config)
-    for conf in config.get(CONF_ON_COMMAND_SENT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
-        )
-    for conf in config.get(CONF_ON_ONLINE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
-        )
-    for conf in config.get(CONF_ON_OFFLINE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 async def register_modbus_device(var, config):
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
-    return await modbus.register_modbus_device(var, config)
+    return await modbus.register_modbus_client_device(var, config)
 
 
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
-        "read_coils": ModbusRegisterType.COIL,
-        "read_discrete_inputs": ModbusRegisterType.DISCRETE,
-        "read_holding_registers": ModbusRegisterType.HOLDING,
-        "read_input_registers": ModbusRegisterType.READ,
-        "write_single_coil": ModbusRegisterType.COIL,
-        "write_single_register": ModbusRegisterType.HOLDING,
-        "write_multiple_coils": ModbusRegisterType.COIL,
-        "write_multiple_registers": ModbusRegisterType.HOLDING,
+        "read_coils": EntityType.COIL,
+        "read_discrete_inputs": EntityType.DISCRETE_INPUT,
+        "read_holding_registers": EntityType.HOLDING,
+        "read_input_registers": EntityType.INPUT_REGISTER,
+        "write_single_coil": EntityType.COIL,
+        "write_single_register": EntityType.HOLDING,
+        "write_multiple_coils": EntityType.COIL,
+        "write_multiple_registers": EntityType.HOLDING,
     }
     return FUNCTION_CODE_TYPE_MAP[function_code]

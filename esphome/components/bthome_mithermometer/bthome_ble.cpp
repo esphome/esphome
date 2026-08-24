@@ -8,12 +8,23 @@
 #include <cstring>
 #include <span>
 
+// AES-CCM backend for encrypted-advertisement (bindkey) decryption:
+//   - ESP32 + ESP-IDF >= 6.0 -> PSA crypto (psa_aead_decrypt), hardware-backed.
+//   - every other platform   -> the portable software AES-CCM in ble_device_base, so
+//     decryption never depends on the SDK exposing mbedtls/PSA to application code
+//     (e.g. LibreTiny beken-72xx keeps its mbedtls internal). Works on any BLE platform.
 #ifdef USE_ESP32
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include <psa/crypto.h>
+#define BTHOME_CRYPTO_PSA
+#endif
+#endif
+#ifndef BTHOME_CRYPTO_PSA
+#include "esphome/components/ble_device_base/ble_aes_ccm.h"
+#endif
 
-#include "mbedtls/ccm.h"
-
-namespace esphome {
-namespace bthome_mithermometer {
+namespace esphome::bthome_mithermometer {
 
 static const char *const TAG = "bthome_mithermometer";
 static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
@@ -21,6 +32,9 @@ static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
 
+// Both callers are log macros (LOGCONFIG / LOGVV); below CONFIG level they
+// compile away and an ungated helper trips -Wunused-function.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
 static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer, uint64_t address) {
   std::array<uint8_t, MAC_ADDRESS_SIZE> mac{};
   for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
@@ -30,6 +44,7 @@ static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_
   format_mac_addr_upper(mac.data(), buffer.data());
   return buffer.data();
 }
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
 
 static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
   switch (obj_type) {
@@ -149,7 +164,7 @@ void BTHomeMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Signal Strength", this->signal_strength_);
 }
 
-bool BTHomeMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool BTHomeMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
   bool matched = false;
   for (auto &service_data : device.get_service_datas()) {
     if (this->handle_service_data_(service_data, device)) {
@@ -196,28 +211,50 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
   const uint8_t *ciphertext = data.data() + 1;
   const uint8_t *mic = data.data() + data.size() - BTHOME_MIC_SIZE;
 
-  mbedtls_ccm_context ctx;
-  mbedtls_ccm_init(&ctx);
+#if defined(BTHOME_CRYPTO_PSA)
+  // PSA AEAD expects ciphertext + tag concatenated
+  // BLE advertisement max payload is 31 bytes, so this is always sufficient
+  static constexpr size_t MAX_CT_WITH_TAG = 32;
+  uint8_t ct_with_tag[MAX_CT_WITH_TAG];
+  size_t ct_with_tag_size = ciphertext_size + BTHOME_MIC_SIZE;
+  memcpy(ct_with_tag, ciphertext, ciphertext_size);
+  memcpy(ct_with_tag + ciphertext_size, mic, BTHOME_MIC_SIZE);
 
-  int ret = mbedtls_ccm_setkey(&ctx, MBEDTLS_CIPHER_ID_AES, this->bindkey_, BTHOME_BINDKEY_SIZE * 8);
-  if (ret) {
-    ESP_LOGVV(TAG, "mbedtls_ccm_setkey() failed.");
-    mbedtls_ccm_free(&ctx);
+  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+  psa_set_key_bits(&attributes, BTHOME_BINDKEY_SIZE * 8);
+  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
+  psa_set_key_algorithm(&attributes, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE));
+
+  mbedtls_svc_key_id_t key_id;
+  if (psa_import_key(&attributes, this->bindkey_, BTHOME_BINDKEY_SIZE, &key_id) != PSA_SUCCESS) {
+    ESP_LOGVV(TAG, "psa_import_key() failed.");
     return false;
   }
 
-  ret = mbedtls_ccm_auth_decrypt(&ctx, ciphertext_size, nonce.data(), nonce.size(), nullptr, 0, ciphertext,
-                                 payload.data(), mic, BTHOME_MIC_SIZE);
-  mbedtls_ccm_free(&ctx);
-  if (ret) {
-    ESP_LOGVV(TAG, "BTHome decryption failed (ret=%d).", ret);
+  size_t plaintext_length;
+  // NOLINTNEXTLINE(readability-suspicious-call-argument) - similarly named size args are not swapped
+  psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE),
+                                         nonce.data(), nonce.size(), nullptr, 0, ct_with_tag, ct_with_tag_size,
+                                         payload.data(), ciphertext_size, &plaintext_length);
+  psa_destroy_key(key_id);
+  if (status != PSA_SUCCESS || plaintext_length != ciphertext_size) {
+    ESP_LOGVV(TAG, "BTHome decryption failed.");
     return false;
   }
+#else
+  // Portable software AES-CCM (ble_device_base) — no SDK mbedtls/PSA dependency.
+  if (!ble_device_base::aes_ccm_auth_decrypt(this->bindkey_, nonce.data(), nonce.size(), nullptr, 0, ciphertext,
+                                             ciphertext_size, payload.data(), mic, BTHOME_MIC_SIZE)) {
+    ESP_LOGVV(TAG, "BTHome decryption failed.");
+    return false;
+  }
+#endif
   return true;
 }
 
-bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceData &service_data,
-                                               const esp32_ble_tracker::ESPBTDevice &device) {
+bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceData &service_data,
+                                               const ble_device_base::ESPBTDevice &device) {
   if (!service_data.uuid.contains(0xD2, 0xFC)) {
     return false;
   }
@@ -397,7 +434,4 @@ bool BTHomeMiThermometer::handle_service_data_(const esp32_ble_tracker::ServiceD
   return reported;
 }
 
-}  // namespace bthome_mithermometer
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::bthome_mithermometer

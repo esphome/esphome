@@ -6,13 +6,14 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_BILLION,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@notjj"]
 DEPENDENCIES = ["i2c"]
 
 sen0321_sensor_ns = cg.esphome_ns.namespace("sen0321_sensor")
 Sen0321Sensor = sen0321_sensor_ns.class_(
-    "Sen0321Sensor", cg.PollingComponent, i2c.I2CDevice
+    "Sen0321Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

@@ -1,13 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import switch
+from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ASSUMED_STATE, CONF_ID
 
 from .. import (
-    MODBUS_REGISTER_TYPE,
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
+    migrate_custom_command,
     modbus_calc_properties,
     modbus_controller_ns,
     validate_modbus_register,
@@ -17,7 +18,6 @@ from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
-    CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
     CONF_WRITE_LAMBDA,
 )
@@ -45,6 +45,8 @@ CONFIG_SCHEMA = cv.All(
     validate_modbus_register,
 )
 
+FINAL_VALIDATE_SCHEMA = migrate_custom_command
+
 
 async def to_code(config):
     byte_offset, _ = modbus_calc_properties(config)
@@ -54,7 +56,6 @@ async def to_code(config):
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],
-        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
     await cg.register_component(var, config)

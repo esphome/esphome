@@ -49,8 +49,6 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg, uint16_t len) { this->hw_serial_->write(msg, len); }
-
 const LogString *Logger::get_uart_selection_() {
   switch (this->uart_) {
     case UART_SELECTION_DEFAULT:

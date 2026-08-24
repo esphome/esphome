@@ -3,8 +3,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace zio_ultrasonic {
+namespace esphome::zio_ultrasonic {
 
 static const char *const TAG = "zio_ultrasonic";
 
@@ -27,5 +26,4 @@ void ZioUltrasonicComponent::update() {
   }
 }
 
-}  // namespace zio_ultrasonic
-}  // namespace esphome
+}  // namespace esphome::zio_ultrasonic

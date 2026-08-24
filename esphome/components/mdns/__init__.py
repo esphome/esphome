@@ -13,6 +13,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import LambdaExpression
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -29,7 +31,7 @@ MDNSTXTRecord = mdns_ns.struct("MDNSTXTRecord")
 MDNSService = mdns_ns.struct("MDNSService")
 
 
-def _remove_id_if_disabled(value):
+def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
     value = value.copy()
     if value[CONF_DISABLED]:
         value.pop(CONF_ID)
@@ -60,6 +62,27 @@ def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+def _require_network_interface(config: ConfigType) -> None:
+    """Require a network interface for mDNS on Arduino/LEAmDNS platforms.
+
+    On ESP8266 and RP2040 the C++ implementation needs at least one IP state
+    listener (WiFi on ESP8266; WiFi or Ethernet on RP2040) to arm its polling
+    window. Reject at config time rather than silently producing a component
+    that never initializes.
+    """
+    if config.get(CONF_DISABLED) or not (CORE.is_esp8266 or CORE.is_rp2):
+        return
+    full_config = fv.full_config.get()
+    has_wifi = "wifi" in full_config
+    has_ethernet = CORE.is_rp2 and "ethernet" in full_config
+    if not (has_wifi or has_ethernet):
+        options = "'wifi'" if CORE.is_esp8266 else "'wifi' or 'ethernet'"
+        raise cv.Invalid(
+            "mdns on this platform requires a network interface — "
+            f"add a {options} component to your configuration."
+        )
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -71,6 +94,9 @@ CONFIG_SCHEMA = cv.All(
     _remove_id_if_disabled,
     _consume_mdns_sockets,
 )
+
+
+FINAL_VALIDATE_SCHEMA = _require_network_interface
 
 
 def mdns_txt_record(key: str, value: str) -> cg.RawExpression:
@@ -91,7 +117,7 @@ def mdns_txt_record(key: str, value: str) -> cg.RawExpression:
 
 
 async def _mdns_txt_record_templated(
-    mdns_comp: cg.Pvariable, key: str, value: Lambda | str
+    mdns_comp: cg.MockObj, key: str, value: Lambda | str
 ) -> cg.RawExpression:
     """Create a mDNS TXT record with support for templated values.
 
@@ -131,6 +157,12 @@ def mdns_service(
     Returns:
         A StructInitializer representing a MDNSService struct
     """
+    # Wrap port in a stateless lambda for TemplatableFn storage.
+    # Can't use cg.templatable() here because this is a sync function.
+    if not isinstance(port, LambdaExpression):
+        port = LambdaExpression(
+            f"return {cg.safe_exp(port)};", [], capture="", return_type=cg.uint16
+        )
     return cg.StructInitializer(
         MDNSService,
         ("service_type", cg.RawExpression(f"MDNS_STR({cg.safe_exp(service)})")),
@@ -140,7 +172,7 @@ def mdns_service(
     )
 
 
-def enable_mdns_storage():
+def enable_mdns_storage() -> None:
     """Enable persistent storage of mDNS services in the MDNSComponent.
 
     Called by external components (like OpenThread) that need access to
@@ -152,18 +184,31 @@ def enable_mdns_storage():
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED] is True:
         return
 
     if CORE.using_arduino:
         if CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
-        elif CORE.is_rp2040:
+        elif CORE.is_rp2:
             cg.add_library("LEAmDNS", None)
 
+        # Subscribe to the network IP state listener(s) so MDNS.update() is only
+        # scheduled during the probe+announce phase. Same on_ip_state() override
+        # serves both WiFi and Ethernet (signatures match).
+        if CORE.is_esp8266 or CORE.is_rp2:
+            if "wifi" in CORE.config:
+                from esphome.components import wifi
+
+                wifi.request_wifi_ip_state_listener()
+            if CORE.is_rp2 and "ethernet" in CORE.config:
+                from esphome.components import ethernet
+
+                ethernet.request_ethernet_ip_state_listener()
+
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.10.0")
+        add_idf_component(name="espressif/mdns", ref="1.11.3")
 
     cg.add_define("USE_MDNS")
 
@@ -228,11 +273,12 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "mdns_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "mdns_host.cpp": {PlatformFramework.HOST_NATIVE},
-        "mdns_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "mdns_rp2.cpp": {PlatformFramework.RP2_ARDUINO},
         "mdns_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
         },
+        "mdns_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )

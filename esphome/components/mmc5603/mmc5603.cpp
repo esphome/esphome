@@ -1,8 +1,9 @@
 #include "mmc5603.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mmc5603 {
+#include <numbers>
+
+namespace esphome::mmc5603 {
 
 static const char *const TAG = "mmc5603";
 static const uint8_t MMC5603_ADDRESS = 0x30;
@@ -126,25 +127,25 @@ void MMC5603Component::update() {
   int32_t raw_x = 0;
   raw_x |= buffer[0] << 12;
   raw_x |= buffer[1] << 4;
-  raw_x |= buffer[2] << 0;
+  raw_x |= buffer[2] & 0x0F;
 
   const float x = 0.00625 * (raw_x - 524288);
 
   int32_t raw_y = 0;
   raw_y |= buffer[3] << 12;
   raw_y |= buffer[4] << 4;
-  raw_y |= buffer[5] << 0;
+  raw_y |= buffer[5] & 0x0F;
 
   const float y = 0.00625 * (raw_y - 524288);
 
   int32_t raw_z = 0;
   raw_z |= buffer[6] << 12;
   raw_z |= buffer[7] << 4;
-  raw_z |= buffer[8] << 0;
+  raw_z |= buffer[8] & 0x0F;
 
   const float z = 0.00625 * (raw_z - 524288);
 
-  const float heading = atan2f(0.0f - x, y) * 180.0f / M_PI;
+  const float heading = atan2f(0.0f - x, y) * 180.0f / std::numbers::pi_v<float>;
   ESP_LOGD(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f°", x, y, z, heading);
 
   if (this->x_sensor_ != nullptr)
@@ -157,5 +158,4 @@ void MMC5603Component::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-}  // namespace mmc5603
-}  // namespace esphome
+}  // namespace esphome::mmc5603

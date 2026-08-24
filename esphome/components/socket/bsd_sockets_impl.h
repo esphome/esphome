@@ -14,7 +14,7 @@
 #endif
 
 #ifdef USE_LWIP_FAST_SELECT
-struct lwip_sock;
+#include "esphome/core/lwip_fast_select.h"
 #endif
 
 namespace esphome::socket {
@@ -56,6 +56,15 @@ class BSDSocketImpl {
     return ::getsockopt(this->fd_, level, optname, optval, optlen);
   }
   int setsockopt(int level, int optname, const void *optval, socklen_t optlen) {
+#if defined(USE_LWIP_FAST_SELECT) && defined(CONFIG_LWIP_TCPIP_CORE_LOCKING)
+    // Fast path for TCP_NODELAY: directly set the pcb flag under the TCPIP core lock,
+    // bypassing lwip_setsockopt overhead (socket lookups, hook, switch cascade, refcounting).
+    if (level == IPPROTO_TCP && optname == TCP_NODELAY && optlen == sizeof(int) && optval != nullptr) {
+      LwIPLock lock;
+      if (esphome_lwip_set_nodelay(this->cached_sock_, *reinterpret_cast<const int *>(optval) != 0))
+        return 0;
+    }
+#endif
     return ::setsockopt(this->fd_, level, optname, optval, optlen);
   }
   int listen(int backlog) { return ::listen(this->fd_, backlog); }
@@ -67,7 +76,7 @@ class BSDSocketImpl {
 #endif
   }
   ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) {
-#if defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR)
     return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
 #else
     return ::lwip_recvfrom(this->fd_, buf, len, 0, addr, addr_len);
@@ -76,6 +85,19 @@ class BSDSocketImpl {
   ssize_t readv(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_readv(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not provide readv(); emulate with a read() loop. Stream sockets only:
+    // on a datagram socket each read() would consume a separate datagram, not scatter one.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t n = ::read(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;
+    }
+    return total;
 #else
     return ::readv(this->fd_, iov, iovcnt);
 #endif
@@ -91,6 +113,19 @@ class BSDSocketImpl {
   ssize_t writev(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not provide writev(); emulate with a write() loop. Stream sockets only:
+    // on a datagram socket each write() would emit a separate datagram, not gather one.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t n = ::write(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;  // partial write: stop so caller resumes from the correct stream offset
+    }
+    return total;
 #else
     return ::writev(this->fd_, iov, iovcnt);
 #endif
@@ -103,17 +138,28 @@ class BSDSocketImpl {
   int setblocking(bool blocking);
   int loop() { return 0; }
 
+  /// Check if the socket has buffered data ready to read.
+  /// See the ready() contract in socket.h — callers must drain or track remaining data.
   bool ready() const;
 
   int get_fd() const { return this->fd_; }
 
  protected:
+  // fd_ < 0 means "not open" — used both pre-open (initial state) and post-close. This
+  // replaces a separate closed_ flag: close() sets fd_ = -1 after ::close(), and the
+  // destructor / double-close path just check fd_ < 0.
   int fd_{-1};
 #ifdef USE_LWIP_FAST_SELECT
-  struct lwip_sock *cached_sock_{nullptr};  // Cached for direct rcvevent read in ready()
-#endif
-  bool closed_{false};
+  // Cached lwip_sock pointer used for direct rcvevent reads in ready() on the
+  // fast-select path. Replaces loop_monitored_: null means this socket is not being
+  // monitored for read events — either monitoring was not requested, the fd was
+  // invalid, or esphome_lwip_get_sock() failed. Non-null means the netconn event
+  // callback was hooked and notifications are flowing. close() nulls this to prevent
+  // use-after-free via a recycled lwip slot.
+  struct lwip_sock *cached_sock_{nullptr};
+#else
   bool loop_monitored_{false};
+#endif
 };
 
 }  // namespace esphome::socket

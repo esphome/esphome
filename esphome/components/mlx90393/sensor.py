@@ -10,12 +10,14 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_MICROTESLA,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["i2c"]
@@ -51,7 +53,7 @@ CONF_DRDY_PIN = "drdy_pin"
 CONF_HALLCONF = "hallconf"
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if config[CONF_TEMPERATURE_COMPENSATION]:
         for axis in [CONF_X_AXIS, CONF_Y_AXIS, CONF_Z_AXIS]:
             if axis not in config:
@@ -73,7 +75,7 @@ def _validate(config):
     return config
 
 
-def mlx90393_axis_schema():
+def mlx90393_axis_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_MICROTESLA,
         accuracy_decimals=0,
@@ -107,6 +109,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 icon=ICON_THERMOMETER,
+                device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 cv.Schema(
@@ -125,14 +128,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_DRDY_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
-        cg.add(var.set_drdy_pin(pin))
     cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_filter(config[CONF_FILTER]))

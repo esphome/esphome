@@ -9,12 +9,14 @@ from esphome.const import (
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
     UNIT_MILLIMETER,
 )
+from esphome.types import ConfigType
 
 from . import HydreonRGxxComponent, RG15Resolution, RGModel
 
@@ -64,7 +66,7 @@ PROTOCOL_NAMES = {
 }
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     for conf, models in SUPPORTED_OPTIONS.items():
         if conf in config and config[CONF_MODEL] not in models:
             raise cv.Invalid(
@@ -117,6 +119,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=0,
                 icon=ICON_THERMOMETER,
+                device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_DISABLE_LED): cv.boolean,
@@ -128,7 +131,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

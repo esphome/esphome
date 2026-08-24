@@ -46,38 +46,18 @@ class ESPColorCorrection {
     uint8_t res = esp_scale8_twice(white, this->max_brightness_.white, this->local_brightness_);
     return this->gamma_correct_(res);
   }
-  inline Color color_uncorrect(Color color) const ESPHOME_ALWAYS_INLINE {
-    // uncorrected = corrected^(1/gamma) / (max_brightness * local_brightness)
-    return Color(this->color_uncorrect_red(color.red), this->color_uncorrect_green(color.green),
-                 this->color_uncorrect_blue(color.blue), this->color_uncorrect_white(color.white));
-  }
+  Color color_uncorrect(Color color) const;
   inline uint8_t color_uncorrect_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
-    if (this->max_brightness_.red == 0 || this->local_brightness_ == 0)
-      return 0;
-    uint16_t uncorrected = this->gamma_uncorrect_(red) * 255UL;
-    uint16_t res = ((uncorrected / this->max_brightness_.red) * 255UL) / this->local_brightness_;
-    return (uint8_t) std::min(res, uint16_t(255));
+    return this->color_uncorrect_channel_(red, this->max_brightness_.red);
   }
   inline uint8_t color_uncorrect_green(uint8_t green) const ESPHOME_ALWAYS_INLINE {
-    if (this->max_brightness_.green == 0 || this->local_brightness_ == 0)
-      return 0;
-    uint16_t uncorrected = this->gamma_uncorrect_(green) * 255UL;
-    uint16_t res = ((uncorrected / this->max_brightness_.green) * 255UL) / this->local_brightness_;
-    return (uint8_t) std::min(res, uint16_t(255));
+    return this->color_uncorrect_channel_(green, this->max_brightness_.green);
   }
   inline uint8_t color_uncorrect_blue(uint8_t blue) const ESPHOME_ALWAYS_INLINE {
-    if (this->max_brightness_.blue == 0 || this->local_brightness_ == 0)
-      return 0;
-    uint16_t uncorrected = this->gamma_uncorrect_(blue) * 255UL;
-    uint16_t res = ((uncorrected / this->max_brightness_.blue) * 255UL) / this->local_brightness_;
-    return (uint8_t) std::min(res, uint16_t(255));
+    return this->color_uncorrect_channel_(blue, this->max_brightness_.blue);
   }
   inline uint8_t color_uncorrect_white(uint8_t white) const ESPHOME_ALWAYS_INLINE {
-    if (this->max_brightness_.white == 0 || this->local_brightness_ == 0)
-      return 0;
-    uint16_t uncorrected = this->gamma_uncorrect_(white) * 255UL;
-    uint16_t res = ((uncorrected / this->max_brightness_.white) * 255UL) / this->local_brightness_;
-    return (uint8_t) std::min(res, uint16_t(255));
+    return this->color_uncorrect_channel_(white, this->max_brightness_.white);
   }
 
  protected:
@@ -85,6 +65,9 @@ class ESPColorCorrection {
   uint8_t gamma_correct_(uint8_t value) const;
   /// Reverse gamma: binary search the forward PROGMEM table
   uint8_t gamma_uncorrect_(uint8_t value) const;
+  /// Shared body of color_uncorrect_{red,green,blue,white}. Kept out-of-line
+  /// to avoid duplicating two 16-bit divides at every call site.
+  uint8_t color_uncorrect_channel_(uint8_t value, uint8_t max_brightness) const;
 
   const uint16_t *gamma_table_{nullptr};
   Color max_brightness_{255, 255, 255, 255};

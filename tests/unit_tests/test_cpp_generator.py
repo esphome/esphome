@@ -669,11 +669,11 @@ async def test_templatable__int_with_std_string() -> None:
 
 @pytest.mark.asyncio
 async def test_templatable__string_with_non_string_output_type() -> None:
-    """Static string with non-std::string output_type returns raw string."""
+    """Static string with non-std::string output_type returns stateless lambda."""
     result = await cg.templatable("hello", [], ct.bool_)
 
-    assert isinstance(result, str)
-    assert result == "hello"
+    assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
 
 
 @pytest.mark.asyncio
@@ -682,6 +682,15 @@ async def test_templatable__with_to_exp_callable() -> None:
     result = await cg.templatable(42, [], None, to_exp=lambda x: x * 2)
 
     assert result == 84
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_callable_and_output_type() -> None:
+    """When to_exp is provided with non-string output_type, result is lambda-wrapped."""
+    result = await cg.templatable(42, [], ct.int_, to_exp=lambda x: x * 2)
+
+    assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
 
 
 @pytest.mark.asyncio

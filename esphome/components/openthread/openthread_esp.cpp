@@ -8,6 +8,7 @@
 #include "esp_openthread_lock.h"
 
 #include "esp_task_wdt.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -34,9 +35,8 @@ void OpenThreadComponent::setup() {
   esp_vfs_eventfd_config_t eventfd_config = {
       .max_fds = 3,
   };
+  // Network interface setup handled by network component
   ESP_ERROR_CHECK(nvs_flash_init());
-  ESP_ERROR_CHECK(esp_event_loop_create_default());
-  ESP_ERROR_CHECK(esp_netif_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
 
   xTaskCreate(
@@ -81,6 +81,9 @@ void OpenThreadComponent::ot_main() {
   // Initialize the OpenThread stack
   // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
   ESP_ERROR_CHECK(esp_openthread_init(&config));
+  // Mark lock as initialized so InstanceLock callers know it's safe to acquire.
+  // Must be set after esp_openthread_init() which creates the internal semaphore.
+  this->lock_initialized_ = true;
   // Fetch OT instance once to avoid repeated call into OT stack
   otInstance *instance = esp_openthread_get_instance();
 
@@ -108,32 +111,7 @@ void OpenThreadComponent::ot_main() {
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 
-  otLinkModeConfig link_mode_config{};
-#if CONFIG_OPENTHREAD_FTD
-  link_mode_config.mRxOnWhenIdle = true;
-  link_mode_config.mDeviceType = true;
-  link_mode_config.mNetworkData = true;
-#elif CONFIG_OPENTHREAD_MTD
-  if (this->poll_period_ > 0) {
-    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set pollperiod");
-    }
-    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
-  }
-  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
-  link_mode_config.mDeviceType = false;
-  link_mode_config.mNetworkData = false;
-#endif
-
-  if (otThreadSetLinkMode(instance, link_mode_config) != OT_ERROR_NONE) {
-    ESP_LOGE(TAG, "Failed to set linkmode");
-  }
-#ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
-  link_mode_config = otThreadGetLinkMode(instance);
-  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
-           TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
-           TRUEFALSE(link_mode_config.mRxOnWhenIdle));
-#endif
+  this->apply_linkmode_(instance);
 
   if (this->output_power_.has_value()) {
     if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
@@ -176,11 +154,15 @@ void OpenThreadComponent::ot_main() {
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
   // Register state change callback to update connected_ reactively instead of polling
-  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+  otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
+  if (ot_err != OT_ERROR_NONE) {
+    ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+  }
 
   esp_openthread_launch_mainloop();
 
-  // Clean up
+  // Clean up - reset lock flag before deinit destroys the semaphore
+  this->lock_initialized_ = false;
   esp_openthread_deinit();
   esp_openthread_netif_glue_deinit();
   esp_netif_destroy(openthread_netif);
@@ -209,23 +191,39 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 // not thread safe, only use in read-only use cases
 otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
-std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
-  if (esp_openthread_lock_acquire(delay)) {
-    return InstanceLock();
+InstanceLock InstanceLock::try_acquire(int delay) {
+  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
+    return InstanceLock(false);
   }
-  return {};
+  return InstanceLock(esp_openthread_lock_acquire(delay));
 }
 
 InstanceLock InstanceLock::acquire() {
+  // Wait for the lock to be created by ot_main() before attempting to acquire it.
+  // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
+  constexpr uint32_t lock_init_timeout_ms = 10000;
+  uint32_t start = millis();
+  while (!global_openthread_component->is_lock_initialized()) {
+    if (millis() - start > lock_init_timeout_ms) {
+      ESP_LOGE(TAG, "OpenThread lock not initialized after %" PRIu32 "ms, aborting", lock_init_timeout_ms);
+      abort();
+    }
+    delay(10);
+    esp_task_wdt_reset();
+  }
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }
-  return InstanceLock();
+  return InstanceLock(true);
 }
 
 otInstance *InstanceLock::get_instance() { return esp_openthread_get_instance(); }
 
-InstanceLock::~InstanceLock() { esp_openthread_lock_release(); }
+InstanceLock::~InstanceLock() {
+  if (this->owns_) {
+    esp_openthread_lock_release();
+  }
+}
 
 }  // namespace esphome::openthread
 #endif

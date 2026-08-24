@@ -5,8 +5,7 @@
 #include <cinttypes>
 #include <utility>
 
-namespace esphome {
-namespace seeed_mr60fda2 {
+namespace esphome::seeed_mr60fda2 {
 
 static const char *const TAG = "seeed_mr60fda2";
 
@@ -393,5 +392,4 @@ void MR60FDA2Component::factory_reset() {
   this->get_radar_parameters();
 }
 
-}  // namespace seeed_mr60fda2
-}  // namespace esphome
+}  // namespace esphome::seeed_mr60fda2

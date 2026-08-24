@@ -1,5 +1,9 @@
 #ifdef USE_ESP8266
 #include "logger.h"
+#include "esphome/core/defines.h"
+#ifdef USE_ESP8266_CRASH_HANDLER
+#include "esphome/components/esp8266/crash_handler.h"
+#endif
 #include "esphome/core/log.h"
 
 namespace esphome::logger {
@@ -26,11 +30,9 @@ void Logger::pre_setup() {
   global_logger = this;
 
   ESP_LOGI(TAG, "Log initialized");
-}
-
-void HOT Logger::write_msg_(const char *msg, uint16_t len) {
-  // Single write with newline already in buffer (added by caller)
-  this->hw_serial_->write(msg, len);
+#ifdef USE_ESP8266_CRASH_HANDLER
+  esp8266::crash_handler_log();
+#endif
 }
 
 const LogString *Logger::get_uart_selection_() {
@@ -47,4 +49,17 @@ const LogString *Logger::get_uart_selection_() {
 }
 
 }  // namespace esphome::logger
+
+#if !defined(USE_ESP8266_LOGGER_SERIAL) && !defined(USE_ESP8266_LOGGER_SERIAL1)
+// With serial logging disabled, ROM ets_putc still writes to the physical UART0
+// at whatever baud rate a uart bus configured there; uart_set_debug(UART_NO)
+// only silences the installable putc1 hook, not ets_putc itself. Blocking
+// writes at a low baud rate (for example 4800 for a power monitoring chip) can
+// starve the soft watchdog. All linked callers (newlib stdout, lwIP
+// diagnostics, postmortem dumps) are redirected here by -Wl,--wrap=ets_putc.
+// IRAM_ATTR because the ROM original is callable with the flash cache
+// disabled (for example from newlib's _write_r, which is placed in IRAM).
+extern "C" void IRAM_ATTR __wrap_ets_putc(char) {}
+#endif
+
 #endif

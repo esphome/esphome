@@ -2,8 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace t6615 {
+namespace esphome::t6615 {
 
 static const char *const TAG = "t6615";
 
@@ -92,5 +91,4 @@ void T6615Component::dump_config() {
   this->check_uart_settings(19200);
 }
 
-}  // namespace t6615
-}  // namespace esphome
+}  // namespace esphome::t6615

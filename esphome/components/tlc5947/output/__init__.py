@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.types import ConfigType
 
 from .. import TLC5947, tlc5947_ns
 
@@ -16,12 +17,12 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_TLC5947_ID): cv.use_id(TLC5947),
         cv.Required(CONF_ID): cv.declare_id(TLC5947Channel),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=65535),
+        cv.Required(CONF_CHANNEL): cv.uint16_t,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await output.register_output(var, config)
     await cg.register_parented(var, config[CONF_TLC5947_ID])

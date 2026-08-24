@@ -1,8 +1,7 @@
 #include "ntc.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ntc {
+namespace esphome::ntc {
 
 static const char *const TAG = "ntc";
 
@@ -26,5 +25,4 @@ void NTC::process_(float value) {
   this->publish_state(temp);
 }
 
-}  // namespace ntc
-}  // namespace esphome
+}  // namespace esphome::ntc

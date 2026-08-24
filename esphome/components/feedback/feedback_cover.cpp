@@ -3,10 +3,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace feedback {
+namespace esphome::feedback {
 
 static const char *const TAG = "feedback.cover";
+
+static constexpr uint32_t DIRECTION_CHANGE_TIMEOUT_ID = 1;
 
 using namespace esphome::cover;
 
@@ -37,7 +38,7 @@ void FeedbackCover::setup() {
   }
 #endif
 
-  this->last_recompute_time_ = this->start_dir_time_ = millis();
+  this->last_recompute_time_ = this->start_dir_time_ = App.get_loop_component_start_time();
 }
 
 CoverTraits FeedbackCover::get_traits() {
@@ -135,7 +136,7 @@ void FeedbackCover::set_close_endstop(binary_sensor::BinarySensor *close_endstop
 #endif
 
 void FeedbackCover::endstop_reached_(bool open_endstop) {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
 
   this->position = open_endstop ? COVER_OPEN : COVER_CLOSED;
 
@@ -174,7 +175,7 @@ void FeedbackCover::set_current_operation_(cover::CoverOperation operation, bool
   if (!is_triggered || (this->open_feedback_ == nullptr || this->close_feedback_ == nullptr))
 #endif
   {
-    auto now = millis();
+    const uint32_t now = App.get_loop_component_start_time();
     this->current_operation = operation;
     this->start_dir_time_ = this->last_recompute_time_ = now;
     this->publish_state();
@@ -306,7 +307,7 @@ void FeedbackCover::control(const CoverCall &call) {
 
 void FeedbackCover::stop_prev_trigger_() {
   if (this->direction_change_waittime_.has_value()) {
-    this->cancel_timeout("direction_change");
+    this->cancel_timeout(DIRECTION_CHANGE_TIMEOUT_ID);
   }
   if (this->prev_command_trigger_ != nullptr) {
     this->prev_command_trigger_->stop_action();
@@ -374,12 +375,10 @@ void FeedbackCover::start_direction_(CoverOperation dir) {
   // check if we have a wait time
   if (this->direction_change_waittime_.has_value() && dir != COVER_OPERATION_IDLE &&
       this->current_operation != COVER_OPERATION_IDLE && dir != this->current_operation) {
+    const uint32_t waittime = *this->direction_change_waittime_;
     ESP_LOGD(TAG, "'%s' - Reversing direction.", this->name_.c_str());
     this->start_direction_(COVER_OPERATION_IDLE);
-
-    this->set_timeout("direction_change", *this->direction_change_waittime_,
-                      [this, dir]() { this->start_direction_(dir); });
-
+    this->set_timeout(DIRECTION_CHANGE_TIMEOUT_ID, waittime, [this, dir]() { this->start_direction_(dir); });
   } else {
     this->set_current_operation_(dir, true);
     this->prev_command_trigger_ = trig;
@@ -395,7 +394,7 @@ void FeedbackCover::recompute_position_() {
   if (this->current_operation == COVER_OPERATION_IDLE)
     return;
 
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   float dir;
   float action_dur;
   float min_pos;
@@ -451,5 +450,4 @@ void FeedbackCover::recompute_position_() {
   this->last_recompute_time_ = now;
 }
 
-}  // namespace feedback
-}  // namespace esphome
+}  // namespace esphome::feedback

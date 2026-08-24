@@ -4,12 +4,11 @@
 
 #include "esphome/core/defines.h"
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 class ArduinoLibreTinyOTABackend final {
  public:
-  OTAResponseTypes begin(size_t image_size);
+  OTAResponseTypes begin(size_t image_size, OTAType ota_type = OTA_TYPE_UPDATE_APP);
   void set_update_md5(const char *md5);
   OTAResponseTypes write(uint8_t *data, size_t len);
   OTAResponseTypes end();
@@ -22,7 +21,5 @@ class ArduinoLibreTinyOTABackend final {
 
 std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend();
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_LIBRETINY

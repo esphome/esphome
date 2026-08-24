@@ -2,7 +2,6 @@
 #ifdef USE_WIREGUARD
 #include <cinttypes>
 #include <ctime>
-#include <functional>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -48,8 +47,8 @@ void Wireguard::setup() {
   if (this->wg_initialized_ == ESP_OK) {
     ESP_LOGI(TAG, "Initialized");
     this->wg_peer_offline_time_ = millis();
-    this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
-    this->defer(std::bind(&Wireguard::start_connection_, this));  // defer to avoid blocking setup
+    this->srctime_->add_on_time_sync_callback([this]() { this->start_connection_(); });
+    this->defer([this]() { this->start_connection_(); });  // defer to avoid blocking setup
 
 #ifdef USE_TEXT_SENSOR
     if (this->address_sensor_ != nullptr) {
@@ -179,25 +178,6 @@ time_t Wireguard::get_latest_handshake() const {
   return result;
 }
 
-void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
-void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
-void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
-
-#ifdef USE_BINARY_SENSOR
-void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
-void Wireguard::set_enabled_sensor(binary_sensor::BinarySensor *sensor) { this->enabled_sensor_ = sensor; }
-#endif
-
-#ifdef USE_SENSOR
-void Wireguard::set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-void Wireguard::set_address_sensor(text_sensor::TextSensor *sensor) { this->address_sensor_ = sensor; }
-#endif
-
-void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
-
 void Wireguard::enable() {
   this->enabled_ = true;
   ESP_LOGI(TAG, "Enabled");
@@ -206,7 +186,7 @@ void Wireguard::enable() {
 
 void Wireguard::disable() {
   this->enabled_ = false;
-  this->defer(std::bind(&Wireguard::stop_connection_, this));  // defer to avoid blocking running loop
+  this->defer([this]() { this->stop_connection_(); });  // defer to avoid blocking running loop
   ESP_LOGI(TAG, "Disabled");
   this->publish_enabled_state();
 }
@@ -218,8 +198,6 @@ void Wireguard::publish_enabled_state() {
   }
 #endif
 }
-
-bool Wireguard::is_enabled() { return this->enabled_; }
 
 void Wireguard::start_connection_() {
   if (!this->enabled_) {

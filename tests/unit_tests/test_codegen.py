@@ -1,6 +1,7 @@
 import pytest
 
 from esphome import codegen as cg
+from esphome.cpp_generator import _extract_component_ns
 
 
 # Test interface remains the same.
@@ -75,3 +76,29 @@ from esphome import codegen as cg
 )
 def test_exists(attr):
     assert hasattr(cg, attr)
+
+
+@pytest.mark.parametrize(
+    ("type_str", "expected"),
+    (
+        ("esphome::dsmr::Dsmr", "dsmr"),
+        ("esphome::logger::Logger", "logger"),
+        ("esphome::web_server::WebServer", "web_server"),
+        ("esphome::deep_sleep::DeepSleep", "deep_sleep"),
+        ("esphome::Component", "esphome"),
+        ("Logger", "esphome"),
+        # Template types with :: in template args must not confuse extraction
+        (
+            "esphome::Automation<std::optional<bool>, std::optional<bool>>",
+            "esphome",
+        ),
+        (
+            "esphome::StatelessLambdaAction<std::optional<bool>, std::optional<bool>>",
+            "esphome",
+        ),
+        # Namespaced template type
+        ("esphome::sensor::Sensor<std::string>", "sensor"),
+    ),
+)
+def test_extract_component_ns(type_str, expected):
+    assert _extract_component_ns(type_str) == expected

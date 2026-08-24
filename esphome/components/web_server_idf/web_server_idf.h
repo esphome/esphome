@@ -117,25 +117,28 @@ class AsyncWebServerRequest {
   /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
   /// URL is decoded (e.g., %20 -> space).
   StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string url() const {
-    char buffer[URL_BUF_SIZE];
-    return std::string(this->url_to(buffer));
-  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 
 #ifdef USE_WEBSERVER_AUTH
   bool authenticate(const char *username, const char *password) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void requestAuthentication(const char *realm = nullptr) const;
+  void requestAuthentication() const;
 #endif
 
   void redirect(const std::string &url);
 
-  void send(AsyncWebServerResponse *response);
-  void send(int code, const char *content_type = nullptr, const char *content = nullptr);
+  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
+    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
+  }
+  inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
+    this->init_response_(nullptr, code, content_type);
+    if (content) {
+      httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
+    } else {
+      httpd_resp_send(*this, nullptr, 0);
+    }
+  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
     auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
@@ -224,6 +227,7 @@ class AsyncWebServer {
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
   static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
+  esp_err_t handle_raw_body_(httpd_req_t *r, const char *content_type);
 #ifdef USE_WEBSERVER_OTA
   esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
 #endif
@@ -282,13 +286,17 @@ class AsyncEventSourceResponse {
   friend class AsyncEventSource;
 
  public:
-  bool try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
   void loop();
 
  protected:
   AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
                            esphome::web_server::WebServer *ws);
+
+  // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
+  void start_session_main_loop_();
 
   void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
   void process_deferred_queue_();
@@ -301,7 +309,7 @@ class AsyncEventSourceResponse {
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
-  std::string event_buffer_{""};
+  std::string event_buffer_;
   size_t event_bytes_sent_;
   uint16_t consecutive_send_failures_{0};
   static constexpr uint16_t MAX_CONSECUTIVE_SEND_FAILURES = 2500;  // ~20 seconds at 125Hz loop rate
@@ -326,24 +334,33 @@ class AsyncEventSource : public AsyncWebHandler {
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
+  // Callback runs on the main loop (not the httpd task) after the session's
+  // initial ping/config/sorting_groups have been sent.
   // NOLINTNEXTLINE(readability-identifier-naming)
   void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
-  void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
-  void loop();
+  /// Returns true if there are sessions remaining (including pending cleanup).
+  bool loop();
   bool empty() { return this->count() == 0; }
 
   size_t count() const { return this->sessions_.size(); }
 
  protected:
+  // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
+  void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
+
   std::string url_;
-  // Use vector instead of set: SSE sessions are typically 1-5 connections (browsers, dashboards).
-  // Linear search is faster than red-black tree overhead for this small dataset.
-  // Only operations needed: add session, remove session, iterate sessions - no need for sorted order.
+  // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
   std::vector<AsyncEventSourceResponse *> sessions_;
+  // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
+  std::vector<AsyncEventSourceResponse *> pending_sessions_;
+  Mutex pending_mutex_;
   connect_handler_t on_connect_{};
   esphome::web_server::WebServer *web_server_;
+  std::atomic<bool> has_pending_sessions_{false};
 };
 #endif  // USE_WEBSERVER
 

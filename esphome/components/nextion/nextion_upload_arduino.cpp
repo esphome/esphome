@@ -1,7 +1,7 @@
 #include "nextion.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifndef USE_ESP32
+#ifdef USE_ESP8266
 
 #include <cinttypes>
 #include "esphome/components/network/util.h"
@@ -11,10 +11,17 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace nextion {
-static const char *const TAG = "nextion.upload.arduino";
+namespace esphome::nextion {
+
+static const char *const TAG = "nextion.upload";
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
+
+// Timeout for display acknowledgment during TFT upload (ms).
+// A single value is used for all chunks; the happy path returns as soon as
+// 0x05/0x08 arrives, so this only bounds failed-detection latency. Field
+// reports showed the previous 500ms steady-state value was too tight for
+// some firmware variants.
+static constexpr uint32_t NEXTION_UPLOAD_ACK_TIMEOUT_MS = 5000;
 
 // Followed guide
 // https://unofficialnextion.com/t/nextion-upload-protocol-v1-2-the-fast-one/1044/2
@@ -22,9 +29,9 @@ static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   uint32_t range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Heap: %" PRIu32, EspClass::getFreeHeap());
-  uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
+  uint32_t range_end = ((this->upload_first_chunk_sent_ || this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
   ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
-  if (range_size <= 0 or range_end <= range_start) {
+  if (range_size <= 0 || range_end <= range_start) {
     ESP_LOGE(TAG, "Invalid range end: %" PRIu32 ", size: %" PRIu32, range_end, range_size);
     return -1;
   }
@@ -34,7 +41,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   ESP_LOGV(TAG, "Range: %s", range_header);
   http_client.addHeader("Range", range_header);
   int code = http_client.GET();
-  if (code != HTTP_CODE_OK and code != HTTP_CODE_PARTIAL_CONTENT) {
+  if (code != HTTP_CODE_OK && code != HTTP_CODE_PARTIAL_CONTENT) {
     ESP_LOGW(TAG, "HTTP failed: %s", HTTPClient::errorToString(code).c_str());
     return -1;
   }
@@ -80,14 +87,41 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
       recv_string.clear();
       this->write_array(buffer, buffer_size);
       App.feed_wdt();
-      this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
+      this->recv_ret_string_(recv_string, NEXTION_UPLOAD_ACK_TIMEOUT_MS, true);
+
+      // Some Nextion firmware variants (notably bootloader/recovery mode on panels
+      // with no installed TFT) emit the 5-byte 0x08+position fast-mode ack with a
+      // multi-second gap between the leading 0x08 byte and the 4 trailing position
+      // bytes. recv_ret_string_ returns after the first byte; manually drain the
+      // trailing bytes from the UART before continuing.
+      if (!recv_string.empty() && recv_string[0] == 0x08 && recv_string.size() < 5) {
+        const uint32_t deadline = millis() + NEXTION_UPLOAD_ACK_TIMEOUT_MS;
+        while (recv_string.size() < 5 && millis() < deadline) {
+          if (this->available()) {
+            uint8_t b = 0;
+            if (this->read_byte(&b)) {
+              recv_string.push_back(static_cast<char>(b));
+            }
+          } else {
+            delay(5);  // NOLINT
+            App.feed_wdt();
+          }
+        }
+        if (recv_string.size() < 5) {
+          ESP_LOGE(TAG, "Truncated 0x08 response: got %zu bytes within %" PRIu32 "ms", recv_string.size(),
+                   NEXTION_UPLOAD_ACK_TIMEOUT_MS);
+          allocator.deallocate(buffer, 4096);
+          buffer = nullptr;
+          return -1;
+        }
+      }
       this->content_length_ -= read_len;
       const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
       ESP_LOGD(TAG, "Upload: %0.2f%% (%" PRIu32 " left, heap: %" PRIu32 ")", upload_percentage, this->content_length_,
                EspClass::getFreeHeap());
-      upload_first_chunk_sent_ = true;
+      this->upload_first_chunk_sent_ = true;
       if (recv_string.empty()) {
-        ESP_LOGW(TAG, "No response from display during upload");
+        ESP_LOGW(TAG, "No response from display after %" PRIu32 "ms", NEXTION_UPLOAD_ACK_TIMEOUT_MS);
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
         return -1;
@@ -112,7 +146,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
         return range_end + 1;
-      } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
+      } else if (recv_string[0] != 0x05 && recv_string[0] != 0x08) {  // 0x05 == "ok"
         char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
         ESP_LOGE(
             TAG, "Invalid response: [%s]",
@@ -175,7 +209,6 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   http_client.setTimeout(this->tft_upload_http_timeout_);
 
   bool begin_status = false;
-#ifdef USE_ESP8266
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
   http_client.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
 #elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0)
@@ -185,7 +218,6 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   http_client.setRedirectLimit(3);
 #endif
   begin_status = http_client.begin(*this->get_wifi_client_(), this->tft_url_.c_str());
-#endif  // USE_ESP8266
   if (!begin_status) {
     this->connection_state_.is_updating_ = false;
     ESP_LOGD(TAG, "Connection failed");
@@ -214,7 +246,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     ++tries;
   }
 
-  if (code != 200 and code != 206) {
+  if (code != 200 && code != 206) {
     ESP_LOGE(TAG, "HTTP request failed with status %d", code);
     return this->upload_end_(false);
   }
@@ -322,9 +354,8 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   return upload_end_(true);
 }
 
-#ifdef USE_ESP8266
 WiFiClient *Nextion::get_wifi_client_() {
-  if (this->tft_url_.compare(0, 6, "https:") == 0) {
+  if (this->tft_url_.starts_with("https:")) {
     if (this->wifi_client_secure_ == nullptr) {
       // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
       this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
@@ -340,10 +371,8 @@ WiFiClient *Nextion::get_wifi_client_() {
   }
   return this->wifi_client_;
 }
+
+}  // namespace esphome::nextion
+
 #endif  // USE_ESP8266
-
-}  // namespace nextion
-}  // namespace esphome
-
-#endif  // NOT USE_ESP32
 #endif  // USE_NEXTION_TFT_UPLOAD

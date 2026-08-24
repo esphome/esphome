@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace m5stack_8angle {
+namespace esphome::m5stack_8angle {
 
 static const char *const TAG = "m5stack_8angle";
 
@@ -69,5 +68,4 @@ int8_t M5Stack8AngleComponent::read_switch() {
   }
 }
 
-}  // namespace m5stack_8angle
-}  // namespace esphome
+}  // namespace esphome::m5stack_8angle

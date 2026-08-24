@@ -5,12 +5,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/components/ble_device_base/ble_device.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace mopeka_pro_check {
+namespace esphome::mopeka_pro_check {
 
 enum SensorType {
   STANDARD_BOTTOM_UP = 0x03,
@@ -28,11 +25,11 @@ enum SensorType {
 // measurement may be inaccurate.
 enum SensorReadQuality { QUALITY_HIGH = 0x3, QUALITY_MED = 0x2, QUALITY_LOW = 0x1, QUALITY_ZERO = 0x0 };
 
-class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaProCheck final : public Component, public ble_device_base::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
   void set_min_signal_quality(SensorReadQuality min) { this->min_signal_quality_ = min; };
 
@@ -65,7 +62,4 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message);
 };
 
-}  // namespace mopeka_pro_check
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::mopeka_pro_check

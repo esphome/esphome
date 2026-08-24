@@ -1,8 +1,7 @@
 #include "mcp23x08_base.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23x08_base {
+namespace esphome::mcp23x08_base {
 
 static const char *const TAG = "mcp23x08_base";
 
@@ -31,6 +30,16 @@ void MCP23X08Base::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->update_reg(pin, true, gppu);
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_reg(pin, false, iodir);
+  }
+  // When interrupt_pin is configured, auto-enable CHANGE interrupt for input pins
+  // so the chip's INT output fires on any input state change
+  if (this->interrupt_pin_ != nullptr && (flags & gpio::FLAG_INPUT)) {
+    this->pin_interrupt_mode(pin, mcp23xxx_base::MCP23XXX_CHANGE);
+  }
+  // Enable polling loop for input pins (not needed for interrupt-driven mode
+  // where the ISR handles re-enabling loop)
+  if (this->interrupt_pin_ == nullptr && (flags & gpio::FLAG_INPUT)) {
+    this->enable_loop();
   }
 }
 
@@ -82,5 +91,4 @@ void MCP23X08Base::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   }
 }
 
-}  // namespace mcp23x08_base
-}  // namespace esphome
+}  // namespace esphome::mcp23x08_base

@@ -4,10 +4,9 @@
 #include "../sdl_esphome.h"
 #include "esphome/components/touchscreen/touchscreen.h"
 
-namespace esphome {
-namespace sdl {
+namespace esphome::sdl {
 
-class SdlTouchscreen : public touchscreen::Touchscreen, public Parented<Sdl> {
+class SdlTouchscreen final : public touchscreen::Touchscreen, public Parented<Sdl> {
  public:
   void setup() override {
     this->x_raw_max_ = this->display_->get_width();
@@ -21,6 +20,5 @@ class SdlTouchscreen : public touchscreen::Touchscreen, public Parented<Sdl> {
   }
 };
 
-}  // namespace sdl
-}  // namespace esphome
+}  // namespace esphome::sdl
 #endif

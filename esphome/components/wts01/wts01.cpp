@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include <cmath>
 
-namespace esphome {
-namespace wts01 {
+namespace esphome::wts01 {
 
 constexpr uint8_t HEADER_1 = 0x55;
 constexpr uint8_t HEADER_2 = 0x01;
@@ -90,5 +89,4 @@ void WTS01Sensor::process_packet_() {
   this->publish_state(temperature);
 }
 
-}  // namespace wts01
-}  // namespace esphome
+}  // namespace esphome::wts01

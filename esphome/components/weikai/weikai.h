@@ -25,8 +25,7 @@
 /// @endcode
 // #define TEST_COMPONENT
 
-namespace esphome {
-namespace weikai {
+namespace esphome::weikai {
 
 /// @brief XFER_MAX_SIZE defines the maximum number of bytes allowed during one transfer.
 #if defined(I2C_BUFFER_LENGTH)
@@ -380,7 +379,16 @@ class WeikaiChannel : public uart::UARTComponent {
   /// @details If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission of outgoing serial data
   /// to complete. (Prior to Arduino 1.0, this the method was removing any buffered incoming serial data.). ** Therefore
   /// we wait until all bytes are gone with a timeout of 100 ms
-  uart::FlushResult flush() override;
+  uart::UARTFlushResult flush() override;
+
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  /// @brief Re-apply the current line settings (baud, parity, etc) to the channel.
+  void load_settings(bool dump_config) override {
+    this->set_line_param_();
+    this->set_baudrate_();
+  }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+#endif
 
  protected:
   friend class WeikaiComponent;
@@ -440,5 +448,4 @@ class WeikaiChannel : public uart::UARTComponent {
   std::string name_;         ///< name of the entity
 };
 
-}  // namespace weikai
-}  // namespace esphome
+}  // namespace esphome::weikai

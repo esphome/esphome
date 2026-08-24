@@ -2,13 +2,16 @@
 
 import argparse
 import os
+from pathlib import Path
 import queue
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+from typing import Any
 
 import click
 import colorama
@@ -28,18 +31,65 @@ from helpers import (
 )
 
 
-def clang_options(idedata):
+def gcc_multilib_directory(idedata: dict[str, Any]) -> str | None:
+    """The toolchain's active multilib subdirectory (e.g. "thumb"), if any.
+
+    PlatformIO's idedata lists the generic toolchain include directories; GCC
+    resolves the active multilib subdirectory internally while searching them.
+    Toolchains without a default multilib (pico-quick-toolchain 5.0.0+) ship
+    the libstdc++ target config (bits/c++config.h) only inside the multilib
+    subdirectories, so clang needs the resolved directory spelled out.
+    """
+    machine_flags = [f for f in idedata["cxx_flags"] if f.startswith("-m")]
+    cmd = [idedata["cxx_path"], *machine_flags, "-print-multi-directory"]
+    try:
+        multilib = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as err:
+        # Without the multilib dir, toolchains lacking a default multilib fail
+        # later with "bits/c++config.h not found"; point at the probe instead.
+        stderr = getattr(err, "stderr", "") or ""
+        print(
+            f"WARNING: multilib probe failed ({shlex.join(cmd)}): {err} {stderr}".strip(),
+            file=sys.stderr,
+        )
+        return None
+    return None if multilib in ("", ".") else multilib
+
+
+def clang_options(idedata, environment):
     cmd = []
 
     # extract target architecture from triplet in g++ filename
-    triplet = os.path.basename(idedata["cxx_path"])[:-4]
+    triplet = Path(idedata["cxx_path"]).name[:-4]
     if triplet.startswith("xtensa-"):
-        # clang doesn't support Xtensa (yet?), so compile in 32-bit mode and pretend we're the Xtensa compiler
+        # clang has an Xtensa frontend, but only a generic core -- the esp32 IDF
+        # toolchain headers (xtruntime, xtensa/config) need the GCC core config
+        # (XCHAL_*) it doesn't ship, so we still compile in 32-bit x86 mode and
+        # just pretend to be Xtensa. Undefine the host x86 arch macros -m32 sets,
+        # so libraries with x86 SIMD paths (FastLED's fl/math/simd, simd_x86.hpp)
+        # fall back to their scalar implementation instead of an incomplete
+        # host-x86 one, and define the xtensa endianness macro newlib's
+        # machine/ieeefp.h then needs in their place.
         cmd.append("-m32")
+        cmd.append("-U__i386__")
+        cmd.append("-U__x86_64__")
         cmd.append("-D__XTENSA__")
+        cmd.append("-D__XTENSA_EL__")
         cmd.append("-D_LIBC")
     else:
+        # RISC-V (and other non-Xtensa targets) have a real clang backend, so
+        # compile for the actual triplet. Espressif's RISC-V GCC -march adds
+        # vendor extensions (xesploop, xespv) upstream clang doesn't know; those
+        # are stripped from the copied cxx_flags below.
         cmd.append(f"--target={triplet}")
+        # The GCC build passes flags (e.g. -fno-plt) that clang accepts for some
+        # targets but not others; don't error on the ones unused for this target.
+        cmd.append("-Qunused-arguments")
 
     omit_flags = (
         "-free",
@@ -51,6 +101,13 @@ def clang_options(idedata):
         "-mfix-esp32-psram-cache-issue",
         "-mfix-esp32-psram-cache-strategy=memw",
         "-fno-tree-switch-conversion",
+        # GCC-only flags emitted by the native ESP-IDF toolchain build
+        "-freorder-blocks",
+        "-fno-jump-tables",
+        "-fno-shrink-wrap",
+        "-mno-target-align",
+        # GCC-only flag emitted by the LibreTiny build
+        "-mthumb-interwork",
     )
 
     if "zephyr" in triplet:
@@ -72,44 +129,122 @@ def clang_options(idedata):
         [
             # disable built-in include directories from the host
             "-nostdinc",
-            # replace pgmspace.h, as it uses GNU extensions clang doesn't support
-            # https://github.com/earlephilhower/newlib-xtensa/pull/18
-            "-D_PGMSPACE_H_",
-            "-Dpgm_read_byte(s)=(*(const uint8_t *)(s))",
-            "-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))",
-            "-Dpgm_read_word(s)=(*(const uint16_t *)(s))",
-            "-Dpgm_read_dword(s)=(*(const uint32_t *)(s))",
-            "-Dpgm_read_ptr(s)=(*(const void *const *)(s))",
-            "-DPROGMEM=",
-            "-DPGM_P=const char *",
-            "-DPSTR(s)=(s)",
-            # this next one is also needed with upstream pgmspace.h
-            # suppress warning about identifier naming in expansion of this macro
-            "-DPSTRN(s, n)=(s)",
-            # suppress warning about attribute cannot be applied to type
-            # https://github.com/esp8266/Arduino/pull/8258
-            "-Ddeprecated(x)=",
             # allow to condition code on the presence of clang-tidy
             "-DCLANG_TIDY",
             # (esp-idf) Fix __once_callable in some libstdc++ headers
             "-D_GLIBCXX_HAVE_TLS",
+            # suppress warning about attribute cannot be applied to type
+            # https://github.com/esp8266/Arduino/pull/8258
+            # also keeps deprecation diagnostics consistent across environments
+            "-Ddeprecated(x)=",
         ]
     )
 
-    # copy compiler flags, except those clang doesn't understand.
-    cmd.extend(flag for flag in idedata["cxx_flags"] if flag not in omit_flags)
+    if environment.startswith("rp2"):
+        # clang's ARM backend doesn't know GCC's long_call attribute (IRAM_ATTR)
+        cmd.append("-Wno-unknown-attributes")
+    elif environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        cmd.extend(
+            [
+                # GCC on arm-none-eabi types (u)int32_t as (unsigned) long; clang
+                # types it as (unsigned) int, clashing with LibreTiny's lwip
+                # port typedefs. Match the GCC type model.
+                "-U__UINT32_TYPE__",
+                "-D__UINT32_TYPE__=long unsigned int",
+                "-U__INT32_TYPE__",
+                "-D__INT32_TYPE__=long int",
+                # newlib's machine/endian.h macroizes __bswap16 into
+                # __builtin_bswap16; the beken BDK then defines __bswap16 as a
+                # function, which GCC tolerates as a builtin redeclaration but
+                # clang rejects
+                "-D__MACHINE_ENDIAN_H__",
+            ]
+        )
+    else:
+        # replace pgmspace.h, as it uses GNU extensions clang doesn't support
+        # https://github.com/earlephilhower/newlib-xtensa/pull/18
+        # arduino-pico ships clang-parseable pgmspace inline functions, so the
+        # replacements are skipped there (they clash with those definitions).
+        cmd.extend(
+            [
+                "-D_PGMSPACE_H_",
+                "-Dpgm_read_byte(s)=(*(const uint8_t *)(s))",
+                "-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))",
+                "-Dpgm_read_word(s)=(*(const uint16_t *)(s))",
+                "-Dpgm_read_dword(s)=(*(const uint32_t *)(s))",
+                "-Dpgm_read_ptr(s)=(*(const void *const *)(s))",
+                "-DPROGMEM=",
+                "-DPGM_P=const char *",
+                "-DPSTR(s)=(s)",
+                # this next one is also needed with upstream pgmspace.h
+                # suppress warning about identifier naming in expansion of this macro
+                "-DPSTRN(s, n)=(s)",
+            ]
+        )
 
-    # defines
-    cmd.extend(f"-D{define}" for define in idedata["defines"])
+    # Copy compiler flags, dropping: ones clang doesn't understand; -Werror*
+    # (clang-tidy enforces .clang-tidy's WarningsAsErrors, and a build -Werror
+    # would bypass the -clang-diagnostic-* suppressions); and -std= (the native
+    # ESP-IDF build defaults to gnu++2b, but ESPHome compiles with gnu++20 per
+    # platformio.ini -- analyzing as C++23 flags code that doesn't build under
+    # gnu++20). Force gnu++20 to match the real build.
+    # Strip Espressif's non-standard RISC-V -march extensions (e.g. xesploop,
+    # xespv); clang rejects the whole arch string otherwise.
+    def strip_esp_march(flag):
+        if flag.startswith("-march=") and triplet.startswith("riscv"):
+            return re.sub(r"_xesp\w+", "", flag)
+        return flag
 
-    # add toolchain include directories using -isystem to suppress their errors
+    cmd.extend(
+        strip_esp_march(flag)
+        for flag in idedata["cxx_flags"]
+        if flag not in omit_flags
+        and not flag.startswith("-Werror")
+        and not flag.startswith("-std=")
+        and not flag.startswith("-mtune=esp")
+    )
+    cmd.append("-std=gnu++20")
+
+    if environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
+        # LibreTiny leaves function-like macro values unparenthesized
+        # (bugprone-macro-parentheses); its SDK-internal FAL_PART_TABLE macro trips the same
+        # check. Assumes define values are always expressions (never type- or char-literal),
+        # which holds for the current LibreTiny idedata.
+        def sanitize_define(define):
+            name, sep, value = define.partition("=")
+            if (
+                sep
+                and value
+                and not value.startswith(("(", '"'))
+                and ("(" in name or not re.fullmatch(r"[\w.]+", value))
+            ):
+                value = f"({value})"
+            return f"-D{name}{sep}{value}"
+
+        # FAL_PART_TABLE and the delay() remap are library-scope LibreTiny flags that the real
+        # build never applies to esphome sources. Strip LibreTiny's shell quoting from define
+        # names first so the skip list matches regardless of which names it happens to quote.
+        for define in idedata["defines"]:
+            define = define.replace("'", "")
+            if define.startswith(("FAL_PART_TABLE", "delay(")):
+                continue
+            cmd.append(sanitize_define(define))
+    else:
+        cmd.extend(f"-D{define}" for define in idedata["defines"])
+
+    # toolchain include directories, using -isystem to suppress their errors
     # idedata contains include directories for all toolchains of this platform, only use those from the one in use
     toolchain_dir = os.path.normpath(f"{idedata['cxx_path']}/../../")
+    multilib = gcc_multilib_directory(idedata)
+    toolchain_includes = []
     for directory in idedata["includes"]["toolchain"]:
         if directory.startswith(toolchain_dir) and "picolibc" not in directory:
-            cmd.extend(["-isystem", directory])
+            if multilib and (multilib_dir := Path(directory) / multilib).is_dir():
+                toolchain_includes.extend(["-isystem", str(multilib_dir)])
+            toolchain_includes.extend(["-isystem", directory])
 
-    # add library include directories using -isystem to suppress their errors
+    # library include directories, using -isystem to suppress their errors
+    build_includes = []
     for directory in list(idedata["includes"]["build"]):
         # skip our own directories, we add those later
         if (
@@ -123,7 +258,16 @@ def clang_options(idedata):
             )
             or (directory.startswith(f"{root_path}") and "/.pio/" in directory)
         ):
-            cmd.extend(["-isystem", directory])
+            build_includes.extend(["-isystem", directory])
+
+    if "zephyr" in triplet:
+        # Zephyr's POSIX layer shadows libc headers (sys/select.h, ...) with
+        # coherently-guarded versions; the real build searches the Zephyr
+        # include dirs before the toolchain's, and the shadowed headers clash
+        # (e.g. newlib's sigset_t vs Zephyr's) in the opposite order.
+        cmd.extend(build_includes + toolchain_includes)
+    else:
+        cmd.extend(toolchain_includes + build_includes)
 
     # add the esphome include directory using -I
     cmd.extend(["-I", root_path])
@@ -153,8 +297,18 @@ def run_tidy(executable, args, options, tmpdir, path_queue, lock, failed_files):
         if sys.stdout.isatty():
             invocation.append("--use-color")
 
-        invocation.append(f"--header-filter={os.path.abspath(basepath)}/.*")
-        invocation.append(os.path.abspath(path))
+        if args.environment.startswith(("rp2", "bk72xx", "ln882h", "rtl87xx")):
+            # MMIO peripheral access on these bare-metal platforms is all
+            # fixed-address.
+            # bugprone-pointer-arithmetic-on-polymorphic-object (and its
+            # cert-ctr56-cpp alias) crashes clang-tidy 22 with infinite matcher
+            # recursion on lvgl_esphome.h under the RP2 defines.
+            invocation.append(
+                "--checks=-clang-analyzer-core.FixedAddressDereference,"
+                "-bugprone-pointer-arithmetic-on-polymorphic-object,-cert-ctr56-cpp"
+            )
+        invocation.append(f"--header-filter={Path(basepath).resolve()}/.*")
+        invocation.append(str(Path(path).resolve()))
         invocation.append("--")
         invocation.extend(options)
 
@@ -217,6 +371,12 @@ def main():
         help="only run on files containing value",
     )
     parser.add_argument(
+        "-x",
+        "--exclude-grep",
+        action="append",
+        help="skip files containing value",
+    )
+    parser.add_argument(
         "--split-num", type=int, help="split the files into X jobs.", default=None
     )
     parser.add_argument(
@@ -229,8 +389,11 @@ def main():
     )
     args = parser.parse_args()
 
-    cwd = os.getcwd()
+    cwd = Path.cwd()
     files = [os.path.relpath(path, cwd) for path in git_ls_files(["*.cpp"])]
+    # Exclude benchmark files — they require google benchmark headers not
+    # available in the ESP32 toolchain and use different naming conventions.
+    files = [f for f in files if not f.startswith("tests/benchmarks/")]
 
     # Print initial file count if it's large
     if len(files) > 50:
@@ -246,6 +409,10 @@ def main():
 
     if args.grep:
         files = filter_grep(files, args.grep)
+
+    if args.exclude_grep:
+        excluded = set(filter_grep(files, args.exclude_grep))
+        files = [f for f in files if f not in excluded]
 
     files.sort()
 
@@ -284,7 +451,7 @@ def main():
 
     # Load idedata and options only if we have files to check
     idedata = load_idedata(args.environment)
-    options = clang_options(idedata)
+    options = clang_options(idedata, args.environment)
 
     tmpdir = None
     if args.fix:
@@ -292,7 +459,7 @@ def main():
 
     failed_files = []
     try:
-        executable = get_binary("clang-tidy", 18)
+        executable = get_binary("clang-tidy", 22)
         task_queue = queue.Queue(args.jobs)
         lock = threading.Lock()
         for _ in range(args.jobs):
@@ -338,20 +505,22 @@ def main():
         try:
             try:
                 subprocess.call(
-                    ["clang-apply-replacements-18", tmpdir], close_fds=False
+                    ["clang-apply-replacements-22", tmpdir], close_fds=False
                 )
             except FileNotFoundError:
                 subprocess.call(["clang-apply-replacements", tmpdir], close_fds=False)
         except FileNotFoundError:
             print(
-                "Error please install clang-apply-replacements-18 or clang-apply-replacements.\n",
+                "Error please install clang-apply-replacements-22 or clang-apply-replacements.\n",
                 file=sys.stderr,
             )
         except:
             print("Error applying fixes.\n", file=sys.stderr)
             raise
 
-    return len(failed_files)
+    # Cap at 255: shells truncate exit codes to one byte, so 256 failures
+    # would otherwise report success
+    return min(len(failed_files), 255)
 
 
 if __name__ == "__main__":

@@ -10,8 +10,8 @@
 
 // Registers
 // Reference: https://focuslcds.com/content/FT6236.pdf
-namespace esphome {
-namespace ft63x6 {
+
+namespace esphome::ft63x6 {
 static const uint8_t FT6X36_ADDR_DEVICE_MODE = 0x00;
 
 static const uint8_t FT63X6_ADDR_TD_STATUS = 0x02;
@@ -133,5 +133,4 @@ uint8_t FT63X6Touchscreen::read_byte_(uint8_t addr) {
   return byte;
 }
 
-}  // namespace ft63x6
-}  // namespace esphome
+}  // namespace esphome::ft63x6

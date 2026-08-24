@@ -4,18 +4,16 @@
 #include "esphome/components/safe_mode/safe_mode.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace safe_mode {
+namespace esphome::safe_mode {
 
-class SafeModeButton : public button::Button, public Component {
+class SafeModeButton final : public button::Button, public Component {
  public:
   void dump_config() override;
-  void set_safe_mode(SafeModeComponent *safe_mode_component);
+  void set_safe_mode(SafeModeComponent *safe_mode_component) { this->safe_mode_component_ = safe_mode_component; }
 
  protected:
   SafeModeComponent *safe_mode_component_;
   void press_action() override;
 };
 
-}  // namespace safe_mode
-}  // namespace esphome
+}  // namespace esphome::safe_mode

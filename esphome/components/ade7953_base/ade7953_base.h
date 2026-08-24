@@ -6,34 +6,37 @@
 
 #include <vector>
 
-namespace esphome {
-namespace ade7953_base {
+namespace esphome::ade7953_base {
 
-static const uint8_t PGA_V_8 =
+static constexpr uint8_t PGA_V_8 =
     0x007;  // PGA_V,  (R/W) Default: 0x00, Unsigned, Voltage channel gain configuration (Bits[2:0])
-static const uint8_t PGA_IA_8 =
+static constexpr uint8_t PGA_IA_8 =
     0x008;  // PGA_IA, (R/W) Default: 0x00, Unsigned, Current Channel A gain configuration (Bits[2:0])
-static const uint8_t PGA_IB_8 =
+static constexpr uint8_t PGA_IB_8 =
     0x009;  // PGA_IB, (R/W) Default: 0x00, Unsigned, Current Channel B gain configuration (Bits[2:0])
 
-static const uint32_t AIGAIN_32 =
+static constexpr uint16_t CONFIG_16 = 0x102;  // CONFIG, (R/W) Default: 0x8004, Unsigned, Configuration register
+
+static constexpr uint16_t AIGAIN_32 =
     0x380;  // AIGAIN, (R/W)   Default: 0x400000, Unsigned,Current channel gain (Current Channel A)(32 bit)
-static const uint32_t AVGAIN_32 = 0x381;  // AVGAIN, (R/W)   Default: 0x400000, Unsigned,Voltage channel gain(32 bit)
-static const uint32_t AWGAIN_32 =
+static constexpr uint16_t AVGAIN_32 =
+    0x381;  // AVGAIN, (R/W)   Default: 0x400000, Unsigned,Voltage channel gain(32 bit)
+static constexpr uint16_t AWGAIN_32 =
     0x382;  // AWGAIN, (R/W)   Default: 0x400000, Unsigned,Active power gain (Current Channel A)(32 bit)
-static const uint32_t AVARGAIN_32 =
+static constexpr uint16_t AVARGAIN_32 =
     0x383;  // AVARGAIN, (R/W) Default: 0x400000, Unsigned, Reactive power gain (Current Channel A)(32 bit)
-static const uint32_t AVAGAIN_32 =
+static constexpr uint16_t AVAGAIN_32 =
     0x384;  // AVAGAIN, (R/W)  Default: 0x400000, Unsigned,Apparent power gain (Current Channel A)(32 bit)
 
-static const uint32_t BIGAIN_32 =
+static constexpr uint16_t BIGAIN_32 =
     0x38C;  // BIGAIN, (R/W)   Default: 0x400000, Unsigned,Current channel gain (Current Channel B)(32 bit)
-static const uint32_t BVGAIN_32 = 0x38D;  // BVGAIN, (R/W)   Default: 0x400000, Unsigned,Voltage channel gain(32 bit)
-static const uint32_t BWGAIN_32 =
+static constexpr uint16_t BVGAIN_32 =
+    0x38D;  // BVGAIN, (R/W)   Default: 0x400000, Unsigned,Voltage channel gain(32 bit)
+static constexpr uint16_t BWGAIN_32 =
     0x38E;  // BWGAIN, (R/W)   Default: 0x400000, Unsigned,Active power gain (Current Channel B)(32 bit)
-static const uint32_t BVARGAIN_32 =
+static constexpr uint16_t BVARGAIN_32 =
     0x38F;  // BVARGAIN, (R/W) Default: 0x400000, Unsigned, Reactive power gain (Current Channel B)(32 bit)
-static const uint32_t BVAGAIN_32 =
+static constexpr uint16_t BVAGAIN_32 =
     0x390;  // BVAGAIN, (R/W)  Default: 0x400000, Unsigned,Apparent power gain (Current Channel B)(32 bit)
 
 class ADE7953 : public PollingComponent, public sensor::Sensor {
@@ -127,5 +130,4 @@ class ADE7953 : public PollingComponent, public sensor::Sensor {
   virtual bool ade_read_32(uint16_t reg, uint32_t *value) = 0;
 };
 
-}  // namespace ade7953_base
-}  // namespace esphome
+}  // namespace esphome::ade7953_base

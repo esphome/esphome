@@ -2,23 +2,22 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max44009 {
+namespace esphome::max44009 {
 
 static const char *const TAG = "max44009.sensor";
 
 // REGISTERS
-static const uint8_t MAX44009_REGISTER_CONFIGURATION = 0x02;
-static const uint8_t MAX44009_LUX_READING_HIGH = 0x03;
-static const uint8_t MAX44009_LUX_READING_LOW = 0x04;
+static constexpr uint8_t MAX44009_REGISTER_CONFIGURATION = 0x02;
+static constexpr uint8_t MAX44009_LUX_READING_HIGH = 0x03;
+static constexpr uint8_t MAX44009_LUX_READING_LOW = 0x04;
 // CONFIGURATION MASKS
-static const uint8_t MAX44009_CFG_CONTINUOUS = 0x80;
+static constexpr uint8_t MAX44009_CFG_CONTINUOUS = 0x80;
 // ERROR CODES
-static const uint8_t MAX44009_OK = 0;
-static const uint8_t MAX44009_ERROR_WIRE_REQUEST = -10;
-static const uint8_t MAX44009_ERROR_OVERFLOW = -20;
-static const uint8_t MAX44009_ERROR_HIGH_BYTE = -30;
-static const uint8_t MAX44009_ERROR_LOW_BYTE = -31;
+static constexpr int8_t MAX44009_OK = 0;
+static constexpr int8_t MAX44009_ERROR_WIRE_REQUEST = -10;
+static constexpr int8_t MAX44009_ERROR_OVERFLOW = -20;
+static constexpr int8_t MAX44009_ERROR_HIGH_BYTE = -30;
+static constexpr int8_t MAX44009_ERROR_LOW_BYTE = -31;
 
 void MAX44009Sensor::setup() {
   bool state_ok = false;
@@ -137,5 +136,4 @@ void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
 
 void MAX44009Sensor::set_mode(MAX44009Mode mode) { this->mode_ = mode; }
 
-}  // namespace max44009
-}  // namespace esphome
+}  // namespace esphome::max44009

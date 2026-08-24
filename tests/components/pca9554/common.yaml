@@ -3,6 +3,11 @@ pca9554:
     i2c_id: i2c_bus
     pin_count: 8
     address: 0x3F
+  - id: pca9554_hub_int
+    i2c_id: i2c_bus
+    pin_count: 8
+    address: 0x3E
+    interrupt_pin: ${interrupt_pin}
 
 binary_sensor:
   - platform: gpio

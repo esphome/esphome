@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
@@ -7,7 +9,8 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_ON_TOUCH,
-    CONF_TRIGGER_ID,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
 )
 from esphome.core import CORE, TimePeriod
 
@@ -26,6 +29,10 @@ from .base_component import (
     CONF_MAX_QUEUE_AGE,
     CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
+    CONF_ON_CUSTOM_BINARY_SENSOR,
+    CONF_ON_CUSTOM_SENSOR,
+    CONF_ON_CUSTOM_SWITCH,
+    CONF_ON_CUSTOM_TEXT_SENSOR,
     CONF_ON_PAGE,
     CONF_ON_SETUP,
     CONF_ON_SLEEP,
@@ -41,6 +48,8 @@ from .base_component import (
     CONF_WAKE_UP_PAGE,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
 DEPENDENCIES = ["uart"]
 
@@ -55,14 +64,15 @@ def AUTO_LOAD() -> list[str]:
 NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
 )
-SetupTrigger = nextion_ns.class_("SetupTrigger", automation.Trigger.template())
-SleepTrigger = nextion_ns.class_("SleepTrigger", automation.Trigger.template())
-WakeTrigger = nextion_ns.class_("WakeTrigger", automation.Trigger.template())
-PageTrigger = nextion_ns.class_("PageTrigger", automation.Trigger.template())
-TouchTrigger = nextion_ns.class_("TouchTrigger", automation.Trigger.template())
-BufferOverflowTrigger = nextion_ns.class_(
-    "BufferOverflowTrigger", automation.Trigger.template()
-)
+
+
+def _deprecated_dump_device_info(value):
+    _LOGGER.warning(
+        "'dump_device_info' is deprecated and will be removed in ESPHome 2026.11.0. "
+        "Device info is now always logged at connection time. "
+        "Please remove this option from your configuration."
+    )
+    return value
 
 
 def _validate_tft_upload(config):
@@ -91,7 +101,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=TimePeriod(milliseconds=255)),
             ),
-            cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
+            # Deprecated — device info is now always logged. Remove before 2026.11.0.
+            cv.Optional(CONF_DUMP_DEVICE_INFO): cv.All(
+                cv.boolean, _deprecated_dump_device_info
+            ),
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
             cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -101,38 +114,18 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
-            cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        BufferOverflowTrigger
-                    ),
-                }
+            cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation(
+                {}
             ),
-            cv.Optional(CONF_ON_PAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PageTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_SETUP): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SetupTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_SLEEP): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SleepTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TOUCH): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TouchTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_WAKE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(WakeTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_CUSTOM_SENSOR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_SWITCH): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_TEXT_SENSOR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PAGE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_SETUP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_SLEEP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_TOUCH): automation.validate_automation({}),
+            cv.Optional(CONF_ON_WAKE): automation.validate_automation({}),
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
             cv.Optional(CONF_STARTUP_OVERRIDE_MS, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -149,7 +142,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_TFT_URL): cv.url,
+            # TFT upload needs an HTTP client and runtime UART reconfiguration,
+            # neither of which is implemented for the RP2 or host platforms.
+            cv.Optional(CONF_TFT_URL): cv.All(
+                cv.url,
+                cv.only_on(
+                    [
+                        PLATFORM_ESP32,
+                        PLATFORM_ESP8266,
+                    ]
+                ),
+            ),
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
                 0, cv.int_range(min=3, max=65535)
             ),
@@ -172,15 +175,66 @@ CONFIG_SCHEMA = cv.All(
         },
         key=CONF_BRIGHTNESS,
     ),
+    synchronous=True,
 )
 async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.float_)
     cg.add(var.set_brightness(template_))
 
     return var
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_SETUP, "add_setup_state_callback"),
+    automation.CallbackAutomation(CONF_ON_SLEEP, "add_sleep_state_callback"),
+    automation.CallbackAutomation(CONF_ON_WAKE, "add_wake_state_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_PAGE, "add_new_page_callback", [(cg.uint8, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TOUCH,
+        "add_touch_event_callback",
+        [
+            (cg.uint8, "page_id"),
+            (cg.uint8, "component_id"),
+            (cg.bool_, "touch_event"),
+        ],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_BUFFER_OVERFLOW, "add_buffer_overflow_event_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_BINARY_SENSOR,
+        "add_custom_binary_sensor_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SENSOR,
+        "add_custom_sensor_callback",
+        [(cg.StringRef, "key"), (cg.int32, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SWITCH,
+        "add_custom_switch_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_TEXT_SENSOR,
+        "add_custom_text_sensor_callback",
+        [(cg.StringRef, "key"), (cg.StringRef, "value")],
+    ),
+)
+
+# Map custom trigger config keys to their conditional defines
+_CUSTOM_TRIGGER_DEFINES = {
+    CONF_ON_CUSTOM_BINARY_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR",
+    CONF_ON_CUSTOM_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_SENSOR",
+    CONF_ON_CUSTOM_SWITCH: "USE_NEXTION_TRIGGER_CUSTOM_SWITCH",
+    CONF_ON_CUSTOM_TEXT_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
+}
 
 
 async def to_code(config):
@@ -236,7 +290,9 @@ async def to_code(config):
 
         if CORE.is_esp32:
             # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+            # and esp-tls, whose sdkconfig options below need the component present
             esp32.include_builtin_idf_component("esp_http_client")
+            esp32.include_builtin_idf_component("esp-tls")
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
@@ -256,9 +312,6 @@ async def to_code(config):
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))
 
-    if config[CONF_DUMP_DEVICE_INFO]:
-        cg.add_define("USE_NEXTION_CONFIG_DUMP_DEVICE_INFO")
-
     if config[CONF_EXIT_REPARSE_ON_START]:
         cg.add_define("USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START")
 
@@ -270,35 +323,8 @@ async def to_code(config):
         cg.add(var.set_max_commands_per_loop(max_commands_per_loop))
 
     await display.register_display(var, config)
+    for conf_key, define_name in _CUSTOM_TRIGGER_DEFINES.items():
+        if config.get(conf_key):
+            cg.add_define(define_name)
 
-    for conf in config.get(CONF_ON_SETUP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SLEEP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_WAKE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_PAGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
-
-    for conf in config.get(CONF_ON_TOUCH, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
-            [
-                (cg.uint8, "page_id"),
-                (cg.uint8, "component_id"),
-                (cg.bool_, "touch_event"),
-            ],
-            conf,
-        )
-
-    for conf in config.get(CONF_ON_BUFFER_OVERFLOW, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

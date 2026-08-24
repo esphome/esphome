@@ -23,10 +23,10 @@
 #if defined(USE_ESP8266)
 #include <HardwareSerial.h>
 #endif  // USE_ESP8266
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include <HardwareSerial.h>
 #include <SerialUSB.h>
-#endif  // USE_RP2040
+#endif  // USE_RP2
 #endif  // USE_ARDUINO
 
 #ifdef USE_ESP32
@@ -96,7 +96,7 @@ struct CStrCompare {
 // macOS allows up to 64 bytes, Linux up to 16
 static constexpr size_t THREAD_NAME_BUF_SIZE = 64;
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 /** Enum for logging UART selection
  *
  * Advanced configuration (pin selection, etc) is not supported.
@@ -122,7 +122,7 @@ enum UARTSelection : uint8_t {
   UART_SELECTION_UART0_SWAP,
 #endif  // USE_ESP8266
 };
-#endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY || USE_ZEPHYR
+#endif  // USE_ESP32 || USE_ESP8266 || USE_RP2 || USE_LIBRETINY || USE_ZEPHYR
 
 /**
  * @brief Logger component for all ESPHome logging.
@@ -144,14 +144,11 @@ enum UARTSelection : uint8_t {
 class Logger final : public Component {
  public:
   explicit Logger(uint32_t baud_rate);
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  void init_log_buffer(size_t total_buffer_size);
-#endif
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
-  void set_baud_rate(uint32_t baud_rate);
+  void set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return baud_rate_; }
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *get_hw_serial() const { return hw_serial_; }
@@ -163,10 +160,10 @@ class Logger final : public Component {
 #ifdef USE_HOST
   void create_pthread_key() { pthread_key_create(&log_recursion_key_, nullptr); }
 #endif
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
-  UARTSelection get_uart() const;
+  UARTSelection get_uart() const { return this->uart_; }
 #endif
 
   /// Set the default log level for this logger.
@@ -200,7 +197,7 @@ class Logger final : public Component {
   void add_level_listener(LoggerLevelListener *listener) { this->level_listeners_.push_back(listener); }
 #endif
 
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::BUS + 500.0f; }
 
   void log_vprintf_(uint8_t level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #ifdef USE_STORE_LOG_STR_IN_FLASH
@@ -233,7 +230,11 @@ class Logger final : public Component {
   void cdc_loop_();
 #endif
   void process_messages_();
+#if defined(USE_HOST) || defined(USE_ZEPHYR)
   void write_msg_(const char *msg, uint16_t len);
+#else
+  inline void write_msg_(const char *msg, uint16_t len);  // Defined in platform-specific logger_*.h
+#endif
 
   // Format a log message with printf-style arguments and write it to a buffer with header, footer, and null terminator
   // thread_name: name of the calling thread/task, or nullptr for main task (callers already know which task they're on)
@@ -348,13 +349,9 @@ class Logger final : public Component {
 #ifdef USE_LOGGER_LEVEL_LISTENERS
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
-#endif
-
   // Group smaller types together at the end
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};
 #endif
 #ifdef USE_LIBRETINY
@@ -366,11 +363,14 @@ class Logger final : public Component {
   bool non_main_task_recursion_guard_{false};  // Shared guard for all non-main tasks on LibreTiny
 #endif
 #else
-  bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
+  bool global_recursion_guard_{false};                    // Simple global recursion guard for single-task platforms
 #endif
 
-  // Large buffer placed last to keep frequently-accessed member offsets small
+  // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  logger::TaskLogBuffer log_buffer_;  // Embedded in Logger (no separate heap allocation)
+#endif
 
   // --- get_thread_name_ overloads (per-platform) ---
 
@@ -498,3 +498,15 @@ class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const c
 };
 
 }  // namespace esphome::logger
+
+// Platform-specific inline implementations of write_msg_()
+// Must be included after the Logger class definition is complete
+#if defined(USE_ESP32)
+#include "logger_esp32.h"
+#elif defined(USE_ESP8266)
+#include "logger_esp8266.h"
+#elif defined(USE_RP2)
+#include "logger_rp2.h"
+#elif defined(USE_LIBRETINY)
+#include "logger_libretiny.h"
+#endif

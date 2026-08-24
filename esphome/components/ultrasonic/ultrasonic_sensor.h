@@ -11,15 +11,14 @@ namespace esphome::ultrasonic {
 struct UltrasonicSensorStore {
   static void gpio_intr(UltrasonicSensorStore *arg);
 
-  ISRInternalGPIOPin echo_pin_isr;
-  volatile uint32_t wait_start_us{0};
+  volatile uint32_t measurement_start_us{0};
   volatile uint32_t echo_start_us{0};
   volatile uint32_t echo_end_us{0};
   volatile bool echo_start{false};
   volatile bool echo_end{false};
 };
 
-class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent {
+class UltrasonicSensorComponent final : public sensor::Sensor, public PollingComponent {
  public:
   void set_trigger_pin(InternalGPIOPin *trigger_pin) { this->trigger_pin_ = trigger_pin; }
   void set_echo_pin(InternalGPIOPin *echo_pin) { this->echo_pin_ = echo_pin; }
