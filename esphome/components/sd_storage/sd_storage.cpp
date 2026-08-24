@@ -15,6 +15,9 @@
 #include "diskio_impl.h"
 #endif
 #include "sdmmc_cmd.h"
+// SD_OCR_SDHC_CAP lives here; sdmmc_cmd.h only pulls in sd_protocol_types.h, so relying on it
+// reaching us through another header is what broke once the include chain changed.
+#include "sd_protocol_defs.h"
 #include "driver/sdmmc_host.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
