@@ -234,25 +234,38 @@ storage::StorageError SdMmc::mount() {
   slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
 
   const esp_vfs_fat_mount_config_t mount_config = {
-      .format_if_mount_failed = false,
+      // On this path the filesystem is not chosen by the user, so letting the IDF create a
+      // FAT volume is exactly what format_on_mismatch promises. The manual path below
+      // cannot use this flag: it has to create the REQUESTED family, which f_mkfs() in
+      // ensure_requested_filesystem() does, while this flag always produces FAT.
+      .format_if_mount_failed = this->format_on_mismatch_,
       .max_files = 16,
       .allocation_unit_size = 256 * 1024,
   };
 
   esp_err_t ret = ESP_FAIL;
+  bool manual = false;
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  (void) mount_config;
-  ret = this->mount_manual_(host, slot_config);
-#else
-  for (int attempt = 1; attempt <= 3; attempt++) {
-    ESP_LOGD(TAG, "Mounting SD card slot %d to '%s' (attempt %d/3)", this->slot_, this->mount_path_, attempt);
-    ret = esp_vfs_fat_sdmmc_mount(this->mount_path_, &host, &slot_config, &mount_config, &this->card_);
-    if (ret == ESP_OK)
-      break;
-    ESP_LOGW(TAG, "Mount attempt %d failed: %s", attempt, esp_err_to_name(ret));
-    vTaskDelay(pdMS_TO_TICKS(100));
-  }
+  // Only an explicit fat32/exfat request needs the hand-rolled mirror, which exists solely
+  // to open a probe/reformat window before f_mount(). USE_STORAGE_FILE_SYSTEM_SELECT is
+  // build-wide, so without this check one exFAT device in the config would drag every
+  // other device onto that path -- including an 'auto' one, where
+  // ensure_requested_filesystem() returns true without touching the medium and the only
+  // effect is losing allocation_unit_size, max_files and format_if_mount_failed.
+  manual = this->requested_file_system_ != storage::FS_SELECT_AUTO;
+  if (manual)
+    ret = this->mount_manual_(host, slot_config);
 #endif
+  if (!manual) {
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      ESP_LOGD(TAG, "Mounting SD card slot %d to '%s' (attempt %d/3)", this->slot_, this->mount_path_, attempt);
+      ret = esp_vfs_fat_sdmmc_mount(this->mount_path_, &host, &slot_config, &mount_config, &this->card_);
+      if (ret == ESP_OK)
+        break;
+      ESP_LOGW(TAG, "Mount attempt %d failed: %s", attempt, esp_err_to_name(ret));
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
+  }
 
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to mount SD card: %s", esp_err_to_name(ret));
@@ -323,15 +336,19 @@ storage::StorageError SdMmc::unmount() {
   else
     ESP_LOGW(TAG, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
 
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  storage::StorageError unmount_err = this->unmount_manual_();
-#else
   storage::StorageError unmount_err = storage::StorageError::STORAGE_ERROR_OK;
-  if (esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_) != ESP_OK) {
+  bool manual = false;
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  // requested_file_system_ is fixed at codegen time, so this is the same decision mount()
+  // made -- the teardown has to match the path that brought the volume up.
+  manual = this->requested_file_system_ != storage::FS_SELECT_AUTO;
+  if (manual)
+    unmount_err = this->unmount_manual_();
+#endif
+  if (!manual && esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_) != ESP_OK) {
     ESP_LOGW(TAG, "esp_vfs_fat_sdcard_unmount failed");
     unmount_err = storage::StorageError::STORAGE_ERROR_NOT_READY;
   }
-#endif
   this->card_ = nullptr;
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED

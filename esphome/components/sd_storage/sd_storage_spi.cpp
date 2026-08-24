@@ -233,7 +233,10 @@ StorageError SdSpi::mount() {
   ESP_LOGD(TAG_SPI, "Mounting SD card via SPI");
 
   esp_vfs_fat_sdmmc_mount_config_t mount_config = VFS_FAT_MOUNT_DEFAULT_CONFIG();
-  mount_config.format_if_mount_failed = false;
+  // See the SDMMC driver: on the wrapper path the user did not pick a filesystem, so
+  // creating a FAT volume is what format_on_mismatch promises. The manual path cannot use
+  // this flag because it always produces FAT, never the requested family.
+  mount_config.format_if_mount_failed = this->format_on_mismatch_;
   mount_config.max_files = 16;
   mount_config.allocation_unit_size = 256 * 1024;
 
@@ -259,29 +262,44 @@ StorageError SdSpi::mount() {
     max_freq_khz = SDMMC_FREQ_PROBING;
 
   esp_err_t mount_error = ESP_OK;
+  bool manual = false;
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  (void) mount_config;
-  mount_error = this->mount_manual_(host, slot_config, max_freq_khz);
-#else
-  for (const uint32_t freq_khz : {max_freq_khz, static_cast<uint32_t>(SDMMC_FREQ_PROBING)}) {
-    host.max_freq_khz = static_cast<int>(freq_khz);
-    ESP_LOGD(TAG_SPI, "Mounting at %" PRIu32 " kHz", freq_khz);
-    mount_error = esp_vfs_fat_sdspi_mount(this->mount_path_, &host, &slot_config, &mount_config, &this->card_);
-    if (mount_error == ESP_OK || freq_khz == static_cast<uint32_t>(SDMMC_FREQ_PROBING))
-      break;
-    // Only bus signalling failures are worth a slower retry: a card that times out, answers
-    // garbage or fails CRC at speed frequently enumerates fine at the 400 kHz probing clock
-    // (long traces, a bus shared with other devices, weak pull-ups). Anything else (no card,
-    // no memory, bad arguments) will not improve by clocking slower.
-    if (mount_error != ESP_ERR_TIMEOUT && mount_error != ESP_ERR_INVALID_RESPONSE && mount_error != ESP_ERR_INVALID_CRC)
-      break;
-    ESP_LOGW(TAG_SPI, "Mount at %" PRIu32 " kHz failed (%s), retrying at %d kHz", freq_khz,
-             esp_err_to_name(mount_error), SDMMC_FREQ_PROBING);
-  }
+  // Only an explicit fat32/exfat request needs the hand-rolled mirror; an 'auto' device
+  // keeps the IDF wrapper and with it allocation_unit_size, max_files and
+  // format_if_mount_failed. See the SDMMC driver for the full reasoning.
+  manual = this->requested_file_system_ != storage::FS_SELECT_AUTO;
+  if (manual)
+    mount_error = this->mount_manual_(host, slot_config, max_freq_khz);
 #endif
+  if (!manual) {
+    for (const uint32_t freq_khz : {max_freq_khz, static_cast<uint32_t>(SDMMC_FREQ_PROBING)}) {
+      host.max_freq_khz = static_cast<int>(freq_khz);
+      ESP_LOGD(TAG_SPI, "Mounting at %" PRIu32 " kHz", freq_khz);
+      mount_error = esp_vfs_fat_sdspi_mount(this->mount_path_, &host, &slot_config, &mount_config, &this->card_);
+      if (mount_error == ESP_OK || freq_khz == static_cast<uint32_t>(SDMMC_FREQ_PROBING))
+        break;
+      // Only bus signalling failures are worth a slower retry: a card that times out,
+      // answers garbage or fails CRC at speed frequently enumerates fine at the 400 kHz
+      // probing clock (long traces, a bus shared with other devices, weak pull-ups).
+      // Anything else (no card, no memory, bad arguments) will not improve by clocking
+      // slower.
+      if (mount_error != ESP_ERR_TIMEOUT && mount_error != ESP_ERR_INVALID_RESPONSE &&
+          mount_error != ESP_ERR_INVALID_CRC)
+        break;
+      ESP_LOGW(TAG_SPI, "Mount at %" PRIu32 " kHz failed (%s), retrying at %d kHz", freq_khz,
+               esp_err_to_name(mount_error), SDMMC_FREQ_PROBING);
+    }
+  }
 
   if (mount_error != ESP_OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount FAT fs: %s", esp_err_to_name(mount_error));
+    // sdspi_host_init() above is otherwise only undone in unmount(), which early-returns
+    // while is_mounted_ is false -- so without this the driver stays initialised and every
+    // card-detect retry re-enters mount() on top of it. Idempotent: sdspi_host_deinit()
+    // walks its slot table and returns ESP_OK when the wrapper already tore the host down
+    // on its own failure path.
+    if (sdspi_host_deinit() != ESP_OK)
+      ESP_LOGW(TAG_SPI, "sdspi_host_deinit() after failed mount failed");
     this->init_error_ = (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERROR_CODE_MOUNT
                                                                                         : ErrorCode::ERROR_CODE_NO_CARD;
     return StorageError::STORAGE_ERROR_NOT_READY;
@@ -352,15 +370,19 @@ StorageError SdSpi::unmount() {
   else
     ESP_LOGW(TAG_SPI, "Flush before unmount failed: %s", storage::error_to_string(flush_err));
 
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  StorageError unmount_err = this->unmount_manual_();
-#else
   StorageError unmount_err = StorageError::STORAGE_ERROR_OK;
-  if (esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_) != ESP_OK) {
+  bool manual = false;
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  // requested_file_system_ is fixed at codegen time, so this is the same decision mount()
+  // made -- the teardown has to match the path that brought the volume up.
+  manual = this->requested_file_system_ != storage::FS_SELECT_AUTO;
+  if (manual)
+    unmount_err = this->unmount_manual_();
+#endif
+  if (!manual && esp_vfs_fat_sdcard_unmount(this->mount_path_, this->card_) != ESP_OK) {
     ESP_LOGW(TAG_SPI, "esp_vfs_fat_sdcard_unmount failed");
     unmount_err = StorageError::STORAGE_ERROR_NOT_READY;
   }
-#endif
   this->card_ = nullptr;
   this->is_mounted_ = false;
 #ifdef USE_STORAGE_CHANGE_FEED
