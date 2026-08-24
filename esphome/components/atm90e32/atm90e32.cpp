@@ -823,18 +823,15 @@ void ATM90E32Component::run_offset_calibrations() {
 
   ESP_LOGI(TAG, "[CALIBRATION][%s] ==================================================================\n", cs);
 
-  const auto persistence = attempt_calibration_persistence(
-      this->verify_offset_writes_(), [this] { return this->save_offset_calibration_to_memory_(); });
-  if (!persistence.succeeded) {
-    const bool rollback_verified = attempt_calibration_rollback(
-        [this, &previous_offsets] {
-          for (uint8_t phase = 0; phase < 3; phase++) {
-            this->write_offsets_to_registers_(phase, previous_offsets[phase].voltage_offset_,
-                                              previous_offsets[phase].current_offset_);
-          }
-        },
-        [this] { return this->verify_offset_writes_(); });
-    if (persistence.attempted) {
+  const bool writes_verified = this->verify_offset_writes_();
+  const bool persistence_succeeded = writes_verified && this->save_offset_calibration_to_memory_();
+  if (!persistence_succeeded) {
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      this->write_offsets_to_registers_(phase, previous_offsets[phase].voltage_offset_,
+                                        previous_offsets[phase].current_offset_);
+    }
+    const bool rollback_verified = this->verify_offset_writes_();
+    if (writes_verified) {
       const bool rollback_saved = this->offset_pref_.save(&previous_offsets);
       const bool rollback_synced = global_preferences->sync();
       if (!calibration_persistence_succeeded(rollback_saved, rollback_synced))
@@ -884,18 +881,15 @@ void ATM90E32Component::run_power_offset_calibrations() {
   }
   ESP_LOGI(TAG, "[CALIBRATION][%s] =====================================================================\n", cs);
 
-  const auto persistence = attempt_calibration_persistence(
-      this->verify_power_offset_writes_(), [this] { return this->save_power_offset_calibration_to_memory_(); });
-  if (!persistence.succeeded) {
-    const bool rollback_verified = attempt_calibration_rollback(
-        [this, &previous_offsets] {
-          for (uint8_t phase = 0; phase < 3; phase++) {
-            this->write_power_offsets_to_registers_(phase, previous_offsets[phase].active_power_offset,
-                                                    previous_offsets[phase].reactive_power_offset);
-          }
-        },
-        [this] { return this->verify_power_offset_writes_(); });
-    if (persistence.attempted) {
+  const bool writes_verified = this->verify_power_offset_writes_();
+  const bool persistence_succeeded = writes_verified && this->save_power_offset_calibration_to_memory_();
+  if (!persistence_succeeded) {
+    for (uint8_t phase = 0; phase < 3; phase++) {
+      this->write_power_offsets_to_registers_(phase, previous_offsets[phase].active_power_offset,
+                                              previous_offsets[phase].reactive_power_offset);
+    }
+    const bool rollback_verified = this->verify_power_offset_writes_();
+    if (writes_verified) {
       const bool rollback_saved = this->power_offset_pref_.save(&previous_offsets);
       const bool rollback_synced = global_preferences->sync();
       if (!calibration_persistence_succeeded(rollback_saved, rollback_synced))
