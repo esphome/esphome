@@ -746,7 +746,14 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
   this->send_cmd_from_array(cmd_frame);
 }
 
-void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]); }
+void LD2420Component::handle_cmd_error(uint16_t error) {
+  if (error < std::size(ERR_MESSAGE)) {
+    ESP_LOGE(TAG, "Command failed: %s", ERR_MESSAGE[error]);
+  } else {
+    // The error word comes from the device reply frame; unknown codes must not index ERR_MESSAGE
+    ESP_LOGE(TAG, "Command failed: error 0x%04X", error);
+  }
+}
 
 int LD2420Component::get_gate_threshold_(uint8_t gate) {
   uint8_t error;

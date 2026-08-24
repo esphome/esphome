@@ -26,6 +26,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
 from . import gpio  # noqa: F401
@@ -181,6 +182,9 @@ def get_download_types(storage_json: StorageJSON = None):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = [
         {
             "title": "UF2 package (recommended)",
@@ -460,6 +464,8 @@ async def component_to_code(config):
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETINY")
+    # FlashDB finds stored preferences by key, so preference key migration is possible
+    cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID].upper()}")
     cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
@@ -506,6 +512,7 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
@@ -580,8 +587,13 @@ async def component_to_code(config):
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
 
-    # Apply chip-specific SDK options to save RAM/Flash
-    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
+    # Apply chip-specific SDK options to save RAM/Flash.
+    # Skipped when bk72xx_ble is configured: add_platformio_option APPENDS list
+    # values (it never replaces), so emitting the disable here as well would put
+    # both CFG_SUPPORT_BLE=0 and =1 into the generated sys_config.h and rely on
+    # last-wins emission order. Skipping keeps it a single unambiguous define.
+    ble_requested = "bk72xx_ble" in CORE.config
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238) and not ble_requested:
         cg.add_platformio_option(
             "custom_options.sys_config#h", _BLE5_BK_SYS_CONFIG_OPTIONS
         )
@@ -605,3 +617,4 @@ def copy_files() -> None:
         patch_linker_file,
         CORE.relative_build_path("patch_linker.py"),
     )
+    copy_ccache_script()

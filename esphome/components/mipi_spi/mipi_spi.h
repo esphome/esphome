@@ -385,10 +385,10 @@ class MipiSpi : public display::Display,
    * @param ptr The pointer to the pixel data
    * @param w Width of each line in bytes
    * @param h Height of the buffer in rows
-   * @param pad Padding in bytes after each line
+   * @param stride Total length of each line in bytes, including any padding
    */
-  void write_display_data_(const uint8_t *ptr, size_t w, size_t h, size_t pad) {
-    if (pad == 0) {
+  void write_display_data_(const uint8_t *ptr, size_t w, size_t h, size_t stride) {
+    if (stride == w) {
       if constexpr (BUS_TYPE == BUS_TYPE_SINGLE || BUS_TYPE == BUS_TYPE_SINGLE_16) {
         this->write_array(ptr, w * h);
       } else if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
@@ -405,7 +405,7 @@ class MipiSpi : public display::Display,
         } else if constexpr (BUS_TYPE == BUS_TYPE_OCTAL) {
           this->write_cmd_addr_data(0, 0, 0, 0, ptr, w, 8);
         }
-        ptr += w + pad;
+        ptr += stride;
       }
     }
   }
@@ -423,7 +423,7 @@ class MipiSpi : public display::Display,
     ptr += y_offset * (x_offset + w + x_pad) + x_offset;
     if constexpr (BUFFERPIXEL == DISPLAYPIXEL) {
       this->write_display_data_(reinterpret_cast<const uint8_t *>(ptr), w * sizeof(BUFFERTYPE), h,
-                                x_pad * sizeof(BUFFERTYPE));
+                                (x_offset + w + x_pad) * sizeof(BUFFERTYPE));
     } else {
       // type conversion required, do it in chunks
       uint8_t dbuffer[DISPLAYPIXEL * 48];
@@ -459,14 +459,14 @@ class MipiSpi : public display::Display,
           }
           // buffer full? Flush.
           if (dptr == dbuffer + sizeof(dbuffer)) {
-            this->write_display_data_(dbuffer, sizeof(dbuffer), 1, 0);
+            this->write_display_data_(dbuffer, sizeof(dbuffer), 1, sizeof(dbuffer));
             dptr = dbuffer;
           }
         }
       }
       // flush any remaining data
       if (dptr != dbuffer) {
-        this->write_display_data_(dbuffer, dptr - dbuffer, 1, 0);
+        this->write_display_data_(dbuffer, dptr - dbuffer, 1, dptr - dbuffer);
       }
     }
     this->disable();

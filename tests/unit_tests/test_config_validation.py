@@ -1,5 +1,8 @@
+import json
+import logging
 from pathlib import Path
 import string
+from unittest.mock import patch
 
 from hypothesis import example, given, settings
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
@@ -929,7 +932,7 @@ def test_string_no_slash__slash_replaced_with_warning(
     actual = cv.string_no_slash(value)
     assert actual == expected
     assert "reserved as a URL path separator" in caplog.text
-    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+    assert "will become an error in ESPHome 2027.7.0" in caplog.text
 
 
 def test_string_no_slash__long_string_allowed() -> None:
@@ -2426,6 +2429,58 @@ def test_one_of_string_and_space() -> None:
     assert cv.one_of("a_b", string=True, space="_")("a b") == "a_b"
 
 
+def test_one_of_string_and_underscore() -> None:
+    assert cv.one_of("a-b", string=True, underscore="-")("a_b") == "a-b"
+    assert cv.one_of("a-b", string=True, underscore="-")("a-b") == "a-b"
+
+
+def test_one_of_string_lower_space_and_underscore() -> None:
+    validator = cv.one_of("output-mode", lower=True, space="-", underscore="-")
+    assert validator("output_mode") == "output-mode"
+    assert validator("OUTPUT_MODE") == "output-mode"
+    assert validator("output mode") == "output-mode"
+    assert validator("output-mode") == "output-mode"
+
+
+def test_one_of_string_underscore_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True, underscore="-")("c_d")
+
+
+def test_one_of_string_underscore_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a-b", string=True)("a_b")
+
+
+def test_one_of_string_and_hyphen() -> None:
+    assert cv.one_of("a_b", string=True, hyphen="_")("a-b") == "a_b"
+    assert cv.one_of("a_b", string=True, hyphen="_")("a_b") == "a_b"
+
+
+def test_one_of_string_lower_space_and_hyphen() -> None:
+    validator = cv.one_of("output_mode", lower=True, space="_", hyphen="_")
+    assert validator("output-mode") == "output_mode"
+    assert validator("OUTPUT-MODE") == "output_mode"
+    assert validator("output mode") == "output_mode"
+    assert validator("output_mode") == "output_mode"
+
+
+def test_one_of_string_hyphen_unknown() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True, hyphen="_")("c-d")
+
+
+def test_one_of_string_hyphen_default_unchanged() -> None:
+    with pytest.raises(Invalid):
+        cv.one_of("a_b", string=True)("a-b")
+
+
+def test_one_of_string_underscore_hyphen_swap_no_cascade() -> None:
+    validator = cv.one_of("a-b", "a_b", string=True, underscore="-", hyphen="_")
+    assert validator("a_b") == "a-b"
+    assert validator("a-b") == "a_b"
+
+
 def test_one_of_int() -> None:
     assert cv.one_of(1, 2, int=True)("2") == 2
 
@@ -2462,6 +2517,20 @@ def test_enum_valid() -> None:
     result = cv.enum(mapping)("a")
     assert result == "a"
     assert result.enum_value == 10
+
+
+def test_enum_valid_with_underscore() -> None:
+    mapping = {"a-b": 1}
+    result = cv.enum(mapping, string=True, underscore="-")("a_b")
+    assert result == "a-b"
+    assert result.enum_value == 1
+
+
+def test_enum_valid_with_hyphen() -> None:
+    mapping = {"a_b": 1}
+    result = cv.enum(mapping, string=True, hyphen="_")("a-b")
+    assert result == "a_b"
+    assert result.enum_value == 1
 
 
 # ---------------------------------------------------------------------------
@@ -2858,9 +2927,61 @@ def test_require_esphome_version_ok() -> None:
     assert cv.require_esphome_version(1, 0, 0)("test") == "test"
 
 
+def test_require_esphome_version_accepts_version_object() -> None:
+    """The Version form matches require_framework_version's style."""
+    assert cv.require_esphome_version(cv.Version(1, 0, 0))("test") == "test"
+    with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
+        cv.require_esphome_version(cv.Version(9999, 0, 0))("test")
+
+
+def test_require_esphome_version_partial_ints_fail_at_call_site() -> None:
+    """Missing ints raise immediately instead of a TypeError inside the validator."""
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026, 8)
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026)
+
+
 def test_require_esphome_version_too_old() -> None:
     with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
         cv.require_esphome_version(9999, 0, 0)("test")
+
+
+@pytest.mark.parametrize("current", ["2026.8.0", "2026.8.0b1", "2026.8.0-dev20260801"])
+def test_require_esphome_version_prerelease_of_required_passes(current: str) -> None:
+    """A dev or beta build of the required version satisfies it.
+
+    Pins the behavior of the old tuple comparison that dropped the
+    suffix, now expressed through Version ordering where the extra field
+    only breaks ties upward.
+    """
+    with patch.object(cv, "ESPHOME_VERSION", current):
+        assert cv.require_esphome_version(2026, 8, 0)("test") == "test"
+
+
+def test_require_esphome_version_older_prerelease_fails() -> None:
+    with (
+        patch.object(cv, "ESPHOME_VERSION", "2026.7.0-dev20260701"),
+        pytest.raises(Invalid, match="at least ESPHome version 2026.8.0"),
+    ):
+        cv.require_esphome_version(2026, 8, 0)("test")
+
+
+def test_parse_esphome_version_deprecated_shim(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removed helper still works for external components and warns."""
+    from esphome import const, util
+
+    with (
+        patch.object(const, "__version__", "2026.9.0-dev"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert cv.parse_esphome_version() == (2026, 9, 0)
+        assert cv.parse_esphome_version() < (9999, 0, 0)
+    assert "parse_esphome_version() is deprecated" in caplog.text
+    # Both historical import paths resolve to the same function
+    assert cv.parse_esphome_version is util.parse_esphome_version
 
 
 # ---------------------------------------------------------------------------
@@ -2912,3 +3033,135 @@ def test_rename_key_present() -> None:
 
 def test_rename_key_absent() -> None:
     assert cv.rename_key("old", "new")({"other": 5}) == {"other": 5}
+
+
+def test_rename_key_no_removed_in_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        assert cv.rename_key("old", "new")({"old": 5}) == {"new": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_renames_and_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5})
+    assert result == {"new": 5}
+    assert "'old' is deprecated, use 'new'. Will be removed in 2026.8.0" in caplog.text
+
+
+def test_rename_key_removed_in_absent_key_no_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key("old", "new", removed_in="2026.8.0")({"other": 5})
+    assert result == {"other": 5}
+    assert not caplog.records
+
+
+def test_rename_key_removed_in_with_component_prefixes_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="esphome.config_validation"):
+        result = cv.rename_key(
+            "old", "new", removed_in="2026.8.0", component="my_component"
+        )({"old": 5})
+    assert result == {"new": 5}
+    assert (
+        "[my_component] 'old' is deprecated, use 'new'. Will be removed in 2026.8.0"
+        in caplog.text
+    )
+
+
+def test_rename_key_both_keys_rejected() -> None:
+    with pytest.raises(Invalid, match="Cannot specify more than one of"):
+        cv.rename_key("old", "new")({"old": 5, "new": 6})
+
+
+def test_rename_key_both_keys_rejected_with_removed_in(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with (
+        caplog.at_level(logging.WARNING, logger="esphome.config_validation"),
+        pytest.raises(Invalid, match="Cannot specify more than one of"),
+    ):
+        cv.rename_key("old", "new", removed_in="2026.8.0")({"old": 5, "new": 6})
+    assert not caplog.records
+
+
+def test_file__existing_relative_path(setup_core: Path) -> None:
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    assert cv.file_("partitions.csv") == setup_core / "partitions.csv"
+
+
+def test_file__missing_raises(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_("partitions.csv")
+
+
+def test_file__remaps_bundle_absolute_path(setup_core: Path) -> None:
+    """A stale absolute path in an extracted bundle resolves to the bundled copy."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    assert cv.file_("/original/config/partitions.csv") == setup_core / "partitions.csv"
+
+
+def test_file__missing_absolute_path_without_bundle(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find file"):
+        cv.file_("/original/config/partitions.csv")
+
+
+def test_file__remaps_windows_bundle_absolute_path(setup_core: Path) -> None:
+    """A bundle created on Windows resolves on a host with another layout."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "C:\\Users\\nick\\esphome",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "partitions.csv").write_text("csv\n")
+
+    result = cv.file_("C:\\Users\\nick\\esphome\\partitions.csv")
+
+    assert result == setup_core / "partitions.csv"
+
+
+def test_directory_remaps_bundle_absolute_path(setup_core: Path) -> None:
+    """A stale absolute directory in an extracted bundle resolves to the bundled copy."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "headers").mkdir()
+
+    assert cv.directory("/original/config/headers") == setup_core / "headers"
+
+
+def test_directory_missing_raises(setup_core: Path) -> None:
+    with pytest.raises(Invalid, match="Could not find directory"):
+        cv.directory("/original/config/headers")
+
+
+def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
+    """A remapped path that is a directory still fails file validation."""
+    manifest = {
+        "manifest_version": 1,
+        "config_filename": "test.yaml",
+        "config_dir": "/original/config",
+    }
+    (setup_core / "manifest.json").write_text(json.dumps(manifest))
+    (setup_core / "headers").mkdir()
+
+    with pytest.raises(Invalid, match="is not a file"):
+        cv.file_("/original/config/headers")

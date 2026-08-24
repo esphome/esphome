@@ -114,6 +114,7 @@ bool OpenTherm::get_protocol_error(OpenThermError &error) {
 void OpenTherm::stop() {
   this->stop_timer_();
   this->mode_ = OperationMode::IDLE;
+  this->out_pin_->digital_write(true);
 }
 
 void IRAM_ATTR OpenTherm::read_() {

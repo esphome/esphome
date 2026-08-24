@@ -107,7 +107,7 @@ def run_extra_script(
     script shouldn't block the build.
     """
     env = _FakeSConsEnv(board_mcu=idf_target, pio_env=f"esphome_{idf_target}")
-    code = compile(script_path.read_text(), str(script_path), "exec")
+    code = compile(script_path.read_text(encoding="utf-8"), str(script_path), "exec")
     old_cwd = Path.cwd()
     try:
         os.chdir(library_dir)

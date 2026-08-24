@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome::modbus_server {
-using modbus::ModbusExceptionCode;
+using modbus::ExceptionCode;
 using modbus::helpers::registers_to_number;
 
 static const char *const TAG = "modbus_server";
@@ -33,6 +33,12 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
            "Received read holding/input registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%X.",
            this->address_, start_address, number_of_registers);
 
+  // No registers configured (e.g. a bits-only server) and no courtesy default: this device does not implement
+  // the register-read function, so answer ILLEGAL_FUNCTION. A populated map with a wrong address answers
+  // ILLEGAL_DATA_ADDRESS below.
+  if (this->server_registers_.empty() && !this->server_courtesy_response_.enabled)
+    return ExceptionCode::ILLEGAL_FUNCTION;
+
   const uint32_t end_address = static_cast<uint32_t>(start_address) + number_of_registers;
   uint32_t current_address = start_address;
   while (current_address < end_address) {
@@ -50,13 +56,13 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
       }
       ESP_LOGW(TAG, "No register at 0x%04X and courtesy default not allowed. Sending exception response.",
                static_cast<uint16_t>(current_address));
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
     if (!server_register->read_lambda) {
       // Registered but not readable (write-only); don't mask it with the courtesy default.
       ESP_LOGW(TAG, "Register at 0x%04X is not readable. Sending exception response.", server_register->address);
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
     // A multi-register value is normally atomic: the request must start at its first register and cover all of
@@ -72,10 +78,16 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
                "Read clips the multi-register value at 0x%04X, which does not allow partial reads. "
                "Sending exception response.",
                server_register->address);
-      return ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
     }
 
-    int64_t value = server_register->read_lambda();
+    const optional<int64_t> read_value = server_register->read_lambda();
+    if (!read_value.has_value()) {
+      ESP_LOGW(TAG, "Register read at 0x%04X declined to produce a value. Sending exception response.",
+               server_register->address);
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+    const int64_t value = *read_value;
     char value_buf[ServerRegister::FORMAT_VALUE_BUF_SIZE];
     ESP_LOGV(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
              server_register->address, static_cast<size_t>(server_register->value_type),
@@ -89,7 +101,7 @@ modbus::ResponseStatus ModbusServer::on_read_registers(uint16_t start_address, u
       // The value encoded to fewer words than its register span (e.g. a RAW register); treat as a device fault.
       ESP_LOGE(TAG, "Register at 0x%04X did not encode to %u registers", server_register->address,
                server_register->register_count);
-      return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
     }
     for (uint16_t i = 0; i < take; i++) {
       registers.push_back(value_words[value_offset + i]);
@@ -105,6 +117,11 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
   // registers holds the values to write in host byte order; its size is the register count.
   ESP_LOGV(TAG, "Received write registers for device 0x%X. Start address: 0x%X. Number of registers: 0x%zX.",
            this->address_, start_address, registers.size());
+
+  // No registers configured (e.g. a bits-only server): this device does not implement the register-write
+  // function, so answer ILLEGAL_FUNCTION rather than ILLEGAL_DATA_ADDRESS.
+  if (this->server_registers_.empty())
+    return ExceptionCode::ILLEGAL_FUNCTION;
 
   auto for_each_register =
       [this, start_address,
@@ -132,7 +149,7 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
   // so we never apply a partial write before discovering a problem. The commit pass below re-runs
   // registers_to_number rather than caching the decoded values: using the same function for the check and
   // the write keeps a single source of truth for the decode bound, independent of how register_count was set.
-  ModbusExceptionCode precheck = ModbusExceptionCode::ILLEGAL_DATA_ADDRESS;  // unmatched or unwritable register
+  ExceptionCode precheck = ExceptionCode::ILLEGAL_DATA_ADDRESS;  // unmatched or unwritable register
   if (!for_each_register([&precheck, &registers](ServerRegister *server_register, uint16_t register_offset) -> bool {
         if (server_register->write_lambda == nullptr) {
           return false;  // unwritable -> ILLEGAL_DATA_ADDRESS
@@ -140,12 +157,14 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         if (!registers_to_number(registers.data() + register_offset, registers.size() - register_offset,
                                  server_register->value_type)
                  .has_value()) {
-          precheck = ModbusExceptionCode::ILLEGAL_DATA_VALUE;  // request doesn't supply the full value
+          precheck = ExceptionCode::ILLEGAL_DATA_VALUE;  // request doesn't supply the full value
           return false;
         }
         return true;
       })) {
-    ESP_LOGW(TAG, "Write request rejected before applying any register. Sending exception response.");
+    // Only VERBOSE: one handler serves both addressed and broadcast writes, and rejecting a broadcast for
+    // registers this device does not map is routine. The hub logs the outcome with the context it has.
+    ESP_LOGV(TAG, "Write request rejected before applying any register.");
     return precheck;
   }
 
@@ -158,10 +177,87 @@ modbus::ResponseStatus ModbusServer::on_write_registers(uint16_t start_address,
         return server_register->write_lambda(number);
       })) {
     ESP_LOGW(TAG, "A register write callback failed mid-sequence; earlier writes were already applied.");
-    return ModbusExceptionCode::SERVICE_DEVICE_FAILURE;
+    return ExceptionCode::SERVICE_DEVICE_FAILURE;
   }
 
   // Success: the caller builds the write response (an echo of the request header).
+  return {};
+}
+
+ServerBit *ModbusServer::find_bit_(uint16_t address) const {
+  for (auto *server_bit : this->server_bits_) {
+    if (server_bit->address == address) {
+      return server_bit;
+    }
+  }
+  return nullptr;
+}
+
+modbus::ResponseStatus ModbusServer::on_read_bits(uint16_t start_address, modbus::MutablePackedBits bits) {
+  ESP_LOGV(TAG, "Received read coils/discrete inputs for device 0x%X. Start address: 0x%X. Count: 0x%X.",
+           this->address_, start_address, bits.size());
+
+  // No bits configured: this device does not implement the coil/discrete-input function, so answer
+  // ILLEGAL_FUNCTION. A populated table with a wrong address answers ILLEGAL_DATA_ADDRESS below.
+  if (this->server_bits_.empty())
+    return ExceptionCode::ILLEGAL_FUNCTION;
+
+  for (uint16_t i = 0; i < bits.size(); i++) {
+    const uint16_t address = static_cast<uint16_t>(start_address + i);  // range pre-checked by the hub
+    ServerBit *server_bit = this->find_bit_(address);
+    if (server_bit == nullptr || !server_bit->read_lambda) {
+      ESP_LOGW(TAG, "No readable bit at 0x%04X. Sending exception response.", address);
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
+    }
+    const optional<bool> value = server_bit->read_lambda(address);
+    if (!value.has_value()) {
+      ESP_LOGW(TAG, "Bit read at 0x%04X declined to produce a value. Sending exception response.", address);
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+    bits.set(i, *value);
+  }
+  return {};
+}
+
+modbus::ResponseStatus ModbusServer::on_write_coils(uint16_t start_address, modbus::PackedBits bits) {
+  ESP_LOGV(TAG, "Received write coils for device 0x%X. Start address: 0x%X. Count: 0x%X.", this->address_,
+           start_address, bits.size());
+
+  // No bits configured: this device does not implement the coil function, so answer ILLEGAL_FUNCTION rather
+  // than ILLEGAL_DATA_ADDRESS.
+  if (this->server_bits_.empty())
+    return ExceptionCode::ILLEGAL_FUNCTION;
+
+  // Pre-flight: every targeted bit must exist and be writable, so we never apply a partial write
+  // before discovering a problem (mirrors the register write's two passes).
+  for (uint16_t i = 0; i < bits.size(); i++) {
+    const uint16_t address = static_cast<uint16_t>(start_address + i);
+    ServerBit *server_bit = this->find_bit_(address);
+    if (server_bit == nullptr || !server_bit->write_lambda) {
+      // Only VERBOSE: one handler serves both addressed and broadcast writes, and rejecting a broadcast for
+      // bits this device does not map is routine. The hub logs the outcome with the context it has.
+      ESP_LOGV(TAG, "No writable bit at 0x%04X; write request rejected before applying any bit.", address);
+      return ExceptionCode::ILLEGAL_DATA_ADDRESS;
+    }
+  }
+
+  // Commit: the pre-flight above proved every address resolves to a writable bit. Re-resolve here rather
+  // than caching up to MAX_NUM_OF_COILS_TO_WRITE pointers (a per-request heap allocation), matching the
+  // register write's two-pass shape -- but guard the pointer anyway, so a future change to the pre-flight
+  // can never turn this into a silent null dereference. The only expected failure is a write callback
+  // rejecting the value at runtime, which cannot be rolled back.
+  for (uint16_t i = 0; i < bits.size(); i++) {
+    const uint16_t address = static_cast<uint16_t>(start_address + i);
+    ServerBit *server_bit = this->find_bit_(address);
+    if (server_bit == nullptr || !server_bit->write_lambda) {
+      ESP_LOGE(TAG, "Bit at 0x%04X unresolved between pre-flight and commit; aborting write.", address);
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+    if (!server_bit->write_lambda(address, bits[i])) {
+      ESP_LOGW(TAG, "Bit write callback failed at 0x%04X mid-sequence; earlier writes were already applied.", address);
+      return ExceptionCode::SERVICE_DEVICE_FAILURE;
+    }
+  }
   return {};
 }
 
@@ -181,6 +277,11 @@ void ModbusServer::dump_config() {
   for (auto &r : this->server_registers_) {
     ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%u register_count=%u", r->address,
                   static_cast<uint8_t>(r->value_type), r->register_count);
+  }
+  ESP_LOGCONFIG(TAG, "server bits");
+  for (auto &b : this->server_bits_) {
+    ESP_LOGCONFIG(TAG, "  Address=0x%04X readable=%s writable=%s", b->address, b->read_lambda ? "true" : "false",
+                  b->write_lambda ? "true" : "false");
   }
 #endif
 }

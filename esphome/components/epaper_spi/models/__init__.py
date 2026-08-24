@@ -15,7 +15,7 @@ class EpaperModel:
         self,
         name: str,
         class_name: str,
-        initsequence=None,
+        initsequence=(),
         **defaults,
     ):
         name = name.upper()

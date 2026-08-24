@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
-from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import (
     AddressValueError,
@@ -88,6 +87,7 @@ from esphome.core import (
     TimePeriodMinutes,
     TimePeriodNanoseconds,
     TimePeriodSeconds,
+    Version,
 )
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
@@ -99,7 +99,10 @@ from esphome.schema_extractors import (
     schema_extractor_registry,
     schema_extractor_typed,
 )
-from esphome.util import parse_esphome_version
+
+# Deprecated re-export for external components; remove before 2027.2.0
+# pylint: disable-next=unused-import
+from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
 
@@ -406,42 +409,6 @@ class Required(vol.Required):
 
 class FinalExternalInvalid(Invalid):
     """Represents an invalid value in the final validation phase where the path should not be prepended."""
-
-
-@dataclass(frozen=True, order=True)
-class Version:
-    major: int
-    minor: int
-    patch: int
-    extra: str = ""
-
-    def __str__(self):
-        if self.extra:
-            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    @classmethod
-    def parse(cls, value: str) -> Version:
-        # The patch component is optional and defaults to 0, so "6.0" and
-        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
-        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
-        if match is None:
-            raise ValueError(f"Not a valid version number {value}")
-        major = int(match[1])
-        minor = int(match[2])
-        patch = int(match[3] or 0)
-        extra = match[4] or ""
-        return Version(major=major, minor=minor, patch=patch, extra=extra)
-
-    @property
-    def is_beta(self) -> bool:
-        """Check if this version is a beta version."""
-        return self.extra.startswith("b")
-
-    @property
-    def is_dev(self) -> bool:
-        """Check if this version is a development version."""
-        return self.extra.startswith("dev")
 
 
 def check_not_templatable(value):
@@ -1815,6 +1782,8 @@ def one_of(*values, **kwargs):
       - *int* (``bool``, default=False): Whether to convert the incoming values to integers.
       - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
       - *space* (``str``, default=' '): What to convert spaces in the input string to.
+      - *underscore* (``str``, default='_'): What to convert underscores in the input string to.
+      - *hyphen* (``str``, default='-'): What to convert hyphens in the input string to.
     """
     options = ", ".join(f"'{x}'" for x in values)
     lower = kwargs.pop("lower", False)
@@ -1823,8 +1792,11 @@ def one_of(*values, **kwargs):
     to_int = kwargs.pop("int", False)
     to_float = kwargs.pop("float", False)
     space = kwargs.pop("space", " ")
+    underscore = kwargs.pop("underscore", "_")
+    hyphen = kwargs.pop("hyphen", "-")
     if kwargs:
         raise ValueError
+    separators = str.maketrans({" ": space, "_": underscore, "-": hyphen})
 
     @schema_extractor("one_of")
     def validator(value):
@@ -1833,7 +1805,7 @@ def one_of(*values, **kwargs):
 
         if string_:
             value = string(value)
-            value = value.replace(" ", space)
+            value = value.translate(separators)
         if to_int:
             value = int_(value)
         if to_float:
@@ -1938,14 +1910,29 @@ def dimensions(value):
     return dimensions([match.group(1), match.group(2)])
 
 
+def _remap_bundle_path(value: str) -> Path | None:
+    """Resolve a path from the machine an extracted bundle was created on.
+
+    An absolute path in a config compiled from an extracted bundle may point
+    at the machine the bundle was created on; the bundle ships the file at
+    its config-relative location instead.
+    """
+    from esphome.bundle import remap_bundle_path
+
+    return remap_bundle_path(value)
+
+
 def directory(value: object) -> Path:
     value = string(value)
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        raise Invalid(
-            f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
-        )
+        remapped = _remap_bundle_path(value)
+        if remapped is None:
+            raise Invalid(
+                f"Could not find directory '{path}'. Please make sure it exists (full path: {path.resolve()})."
+            )
+        path = remapped
     if not path.is_dir():
         raise Invalid(
             f"Path '{path}' is not a directory (full path: {path.resolve()})."
@@ -1958,9 +1945,12 @@ def file_(value: object) -> Path:
     path = CORE.relative_config_path(value)
 
     if not path.exists():
-        raise Invalid(
-            f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
-        )
+        remapped = _remap_bundle_path(value)
+        if remapped is None:
+            raise Invalid(
+                f"Could not find file '{path}'. Please make sure it exists (full path: {path.resolve()})."
+            )
+        path = remapped
     if not path.is_file():
         raise Invalid(f"Path '{path}' is not a file (full path: {path.resolve()}).")
     return path
@@ -2345,13 +2335,13 @@ def _validate_no_slash(value):
     the visually similar Unicode FRACTION SLASH (U+2044) character.
     """
     if "/" in value:
-        # Remove before 2026.7.0
+        # Remove before 2027.7.0
         new_value = value.replace("/", FRACTION_SLASH)
         _LOGGER.warning(
             "'%s' contains '/' which is reserved as a URL path separator. "
             "Automatically replacing with '%s' (Unicode FRACTION SLASH). "
             "Please update your configuration. "
-            "This will become an error in ESPHome 2026.7.0.",
+            "This will become an error in ESPHome 2027.7.0.",
             value,
             new_value,
         )
@@ -2492,11 +2482,16 @@ def git_ref(value):
     return value
 
 
+# What `refresh: never` validates to; also used to recognize a disabled
+# refresh when logging (see esphome/git.py)
+SOURCE_REFRESH_NEVER = "365250d"
+
+
 def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("365250d")
+        return source_refresh(SOURCE_REFRESH_NEVER)
     return positive_time_period_seconds(value)
 
 
@@ -2620,13 +2615,30 @@ def require_framework_version(
     return validator
 
 
-def require_esphome_version(year, month, patch):
+def require_esphome_version(
+    year: Version | int, month: int | None = None, patch: int | None = None
+):
+    """Validator requiring at least the given ESPHome version.
+
+    Accepts a single ``Version`` like the sibling
+    ``require_framework_version``, or the legacy ``(year, month, patch)``
+    ints external components already pass.
+    """
+    if isinstance(year, Version):
+        required = year
+    elif month is None or patch is None:
+        raise ValueError(
+            "require_esphome_version needs a Version or (year, month, patch)"
+        )
+    else:
+        required = Version(year, month, patch)
+
     def validator(value):
-        esphome_version = parse_esphome_version()
-        if esphome_version < (year, month, patch):
-            requires_version = f"{year}.{month}.{patch}"
+        # A dev or beta build of the required version still satisfies it,
+        # matching the old tuple comparison that dropped the suffix.
+        if Version.parse(ESPHOME_VERSION) < required:
             raise Invalid(
-                f"This component requires at least ESPHome version {requires_version}"
+                f"This component requires at least ESPHome version {required}"
             )
         return value
 
@@ -2700,10 +2712,32 @@ SOURCE_SCHEMA = Any(
 )
 
 
-def rename_key(old_key, new_key):
+def rename_key(
+    old_key, new_key, *, removed_in: str | None = None, component: str | None = None
+):
+    """Rename a config key from ``old_key`` to ``new_key``.
+
+    Specifying both keys is an error; otherwise only one of the two would
+    survive the rename and the other would be dropped silently.
+
+    When ``removed_in`` is set, a deprecation warning is logged if the old key is
+    present. Pass ``component`` (the platform/component name) alongside
+    ``removed_in`` so the warning identifies where it originates.
+    """
+
     def validator(config: dict) -> dict:
         config = config.copy()
         if old_key in config:
+            has_at_most_one_key(old_key, new_key)(config)
+            if removed_in is not None:
+                prefix = f"[{component}] " if component else ""
+                _LOGGER.warning(
+                    "%s'%s' is deprecated, use '%s'. Will be removed in %s",
+                    prefix,
+                    old_key,
+                    new_key,
+                    removed_in,
+                )
             config[new_key] = config.pop(old_key)
         return config
 

@@ -27,16 +27,17 @@ void ModbusSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ 
 
 bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
 
-void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusSwitch::parse_and_publish(std::span<const uint8_t> data) {
   bool value = false;
+  // For coils/discrete inputs this is the bit index; for registers it is the byte offset.
+  const size_t offset = this->offset;
   switch (this->register_type) {
-    case ModbusRegisterType::DISCRETE_INPUT:
-    case ModbusRegisterType::COIL:
-      // offset for coil is the actual number of the coil not the byte offset
-      value = modbus::helpers::bit_from_packed(this->offset, data);
+    case modbus::EntityType::DISCRETE_INPUT:
+    case modbus::EntityType::COIL:
+      value = modbus::helpers::bit_from_packed(offset, data);
       break;
     default:
-      value = modbus::helpers::get_data<uint16_t>(data, this->offset) & this->bitmask;
+      value = modbus::helpers::get_data<uint16_t>(data.data(), offset) & this->bitmask;
       break;
   }
 
@@ -51,14 +52,14 @@ void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
     }
   }
 
-  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
-           ONOFF(value), (int) this->register_type, this->start_address, this->offset);
+  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %zx", this->get_name().c_str(),
+           ONOFF(value), (int) this->register_type, this->start_address, offset);
   this->publish_state(value);
 }
 
 void ModbusSwitch::write_state(bool state) {
   // This will be called every time the user requests a state change.
-  ModbusCommandItem cmd;
+  optional<ModbusCommandItem> cmd;
   std::vector<uint8_t> data;
   // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
@@ -80,35 +81,34 @@ void ModbusSwitch::write_state(bool state) {
 #endif
     ESP_LOGV(TAG, "Modbus Switch write raw: %s",
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    cmd = ModbusCommandItem::create_custom_command(
+    cmd.emplace(ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-          this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
-        });
+        [this](modbus::EntityType register_type, uint16_t start_address, std::span<const uint8_t> data) {
+          this->parent_->on_write_register_response(register_type, this->start_address, data);
+        }));
   } else {
     ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
              ONOFF(state), (int) this->register_type, this->start_address, this->offset);
-    if (this->register_type == ModbusRegisterType::COIL) {
+    if (this->register_type == modbus::EntityType::COIL) {
       // offset for coil and discrete inputs is the coil/register number not bytes
       if (this->use_write_multiple_) {
         std::vector<bool> states{state};
-        cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
+        cmd.emplace(ModbusCommandItem::create_write_multiple_coils(this->parent_, this->write_address(), states));
       } else {
-        cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
+        cmd.emplace(ModbusCommandItem::create_write_single_coil(this->parent_, this->write_address(), state));
       }
     } else {
-      // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
       if (this->use_write_multiple_) {
         std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
-        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset / 2, 1,
-                                                               bool_states);
+        cmd.emplace(
+            ModbusCommandItem::create_write_multiple_command(this->parent_, this->write_address(), 1, bool_states));
       } else {
-        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
-                                                             state ? 0xFFFF & this->bitmask : 0u);
+        cmd.emplace(ModbusCommandItem::create_write_single_command(this->parent_, this->write_address(),
+                                                                   state ? 0xFFFF & this->bitmask : 0u));
       }
     }
   }
-  this->parent_->queue_command(cmd);
+  this->parent_->queue_command(std::move(*cmd));
   this->publish_state(state);
 }
 // ModbusSwitch end

@@ -4,12 +4,12 @@ import hashlib
 import logging
 
 import esphome.codegen as cg
-from esphome.components.api import CONF_ENCRYPTION
 from esphome.components.binary_sensor import BinarySensor
 from esphome.components.sensor import Sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BINARY_SENSORS,
+    CONF_ENCRYPTION,
     CONF_ID,
     CONF_INTERNAL,
     CONF_KEY,

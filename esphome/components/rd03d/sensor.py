@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_TARGET_COUNT
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ANGLE,
@@ -18,8 +19,6 @@ from esphome.const import (
 from . import CONF_RD03D_ID, RD03DComponent
 
 DEPENDENCIES = ["rd03d"]
-
-CONF_TARGET_COUNT = "target_count"
 
 MAX_TARGETS = 3
 

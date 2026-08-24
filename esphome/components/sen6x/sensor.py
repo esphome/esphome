@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
+from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
@@ -41,7 +42,10 @@ SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
 
-CONFIG_SCHEMA = (
+
+CONFIG_SCHEMA = cv.All(
+    cv.rename_key(CONF_VOC, CONF_VOC_INDEX, removed_in="2027.2.0", component="sen6x"),
+    cv.rename_key(CONF_NOX, CONF_NOX_INDEX, removed_in="2027.2.0", component="sen6x"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SEN6XComponent),
@@ -89,12 +93,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_VOC): sensor.sensor_schema(
+            cv.Optional(CONF_VOC_INDEX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_NOX): sensor.sensor_schema(
+            cv.Optional(CONF_NOX_INDEX): sensor.sensor_schema(
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -115,7 +119,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x6B))
+    .extend(i2c.i2c_device_schema(0x6B)),
 )
 
 SENSOR_MAP = {
@@ -125,8 +129,8 @@ SENSOR_MAP = {
     CONF_PM_10_0: "set_pm_10_0_sensor",
     CONF_TEMPERATURE: "set_temperature_sensor",
     CONF_HUMIDITY: "set_humidity_sensor",
-    CONF_VOC: "set_voc_sensor",
-    CONF_NOX: "set_nox_sensor",
+    CONF_VOC_INDEX: "set_voc_sensor",
+    CONF_NOX_INDEX: "set_nox_sensor",
     CONF_CO2: "set_co2_sensor",
     CONF_FORMALDEHYDE: "set_hcho_sensor",
 }

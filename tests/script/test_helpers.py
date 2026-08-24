@@ -79,6 +79,22 @@ def test_get_pr_number_from_github_env_event_file(
     assert result == "5678"
 
 
+def test_get_github_event_data_decodes_utf8_regardless_of_locale(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """The event payload is UTF-8; parsing must not depend on the platform
+    default encoding. On Windows the default is cp1252, which raised
+    UnicodeDecodeError as soon as a commit title carried non ASCII text."""
+    event_file = tmp_path / "event.json"
+    event_data = {"head_commit": {"message": "Answer UNPAIR with Response… é"}}
+    event_file.write_bytes(json.dumps(event_data, ensure_ascii=False).encode("utf-8"))
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_file))
+
+    result = helpers._get_github_event_data()
+
+    assert result == event_data
+
+
 def test_get_pr_number_from_github_env_no_pr(
     monkeypatch: MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1835,3 +1851,24 @@ def test_get_component_test_files_component_without_tests(
 )
 def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
     assert helpers.is_validate_only_file(tmp_path / filename) is expected
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        (["esphome/config.py"], True),
+        (["esphome/yaml_util.py"], True),
+        (["esphome/__main__.py"], True),
+        (["esphome/const.pyi"], True),
+        (["README.md", "esphome/helpers.py"], True),
+        (["esphome/core/config.py"], False),
+        (["esphome/components/sensor/__init__.py"], False),
+        (["esphome/dashboard/web_server.py"], False),
+        (["esphome/idf_component.yml"], False),
+        (["tests/unit_tests/test_config.py"], False),
+        ([], False),
+    ],
+)
+def test_base_python_changed(files: list[str], expected: bool) -> None:
+    """Only Python modules directly in esphome/ count as base Python changes."""
+    assert helpers.base_python_changed(files) is expected

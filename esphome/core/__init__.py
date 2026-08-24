@@ -1,5 +1,6 @@
 from collections import defaultdict
 from contextlib import contextmanager
+from dataclasses import dataclass
 import logging
 import math
 import os
@@ -279,19 +280,59 @@ class TimePeriodMinutes(TimePeriod):
     pass
 
 
+@dataclass(frozen=True, order=True)
+class Version:
+    major: int
+    minor: int
+    patch: int
+    extra: str = ""
+
+    def __str__(self):
+        if self.extra:
+            return f"{self.major}.{self.minor}.{self.patch}-{self.extra}"
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    @classmethod
+    def parse(cls, value: str) -> "Version":
+        # The patch component is optional and defaults to 0, so "6.0" and
+        # "6.0-rc1" parse as 6.0.0 and 6.0.0-rc1.
+        match = re.match(r"^(\d+)\.(\d+)(?:\.(\d+))?[-.]?(\w*)$", value)
+        if match is None:
+            raise ValueError(f"Not a valid version number {value}")
+        major = int(match[1])
+        minor = int(match[2])
+        patch = int(match[3] or 0)
+        extra = match[4] or ""
+        return Version(major=major, minor=minor, patch=patch, extra=extra)
+
+    @property
+    def is_beta(self) -> bool:
+        """Check if this version is a beta version."""
+        return self.extra.startswith("b")
+
+    @property
+    def is_dev(self) -> bool:
+        """Check if this version is a development version."""
+        return self.extra.startswith("dev")
+
+
 LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 
 class Lambda:
     def __init__(self, value):
-        from esphome.cpp_generator import Expression, statement
-
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
-        elif isinstance(value, Expression):
-            self._value = str(statement(value))
+        elif isinstance(value, str):
+            # The validated-config cache revives Lambdas from strings on the
+            # upload/logs fast path; keep codegen off that path.
+            self._value = value
         else:
+            from esphome.cpp_generator import Expression, statement
+
+            if isinstance(value, Expression):
+                value = str(statement(value))
             self._value = value
         self._parts = None
         self._requires_ids = None
@@ -621,8 +662,8 @@ class EsphomeCore:
         # Key: platform name (e.g. "sensor", "binary_sensor"), Value: count
         self.platform_counts: defaultdict[str, int] = defaultdict(int)
         # Track entity unique IDs to handle duplicates
-        # Dict mapping (device_id, platform, sanitized_name) -> entity metadata
-        self.unique_ids: dict[tuple[str, str, str], EntityMetadata] = {}
+        # Dict mapping (device_id, platform, name_hash) -> entity metadata
+        self.unique_ids: dict[tuple[str, str, int], EntityMetadata] = {}
         # Whether ESPHome was started in verbose mode
         self.verbose = False
         # Whether ESPHome was started in quiet mode
@@ -843,6 +884,11 @@ class EsphomeCore:
         if self.using_toolchain_esp_idf:
             return self.relative_build_path("build", "bootloader", "bootloader.bin")
         return self.relative_pioenvs_path(self.name, "bootloader.bin")
+
+    @property
+    def is_configured(self) -> bool:
+        """Whether anything has set this CORE up for a target."""
+        return KEY_CORE in self.data
 
     @property
     def target_platform(self):

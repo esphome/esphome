@@ -201,6 +201,24 @@ class TestCheckAndInstall:
         assert mock_nrf52_ops.download_from_mirrors.call_count == 2
         assert mock_nrf52_ops.archive_extract_all.call_count == 2
 
+    def test_framework_clone_is_shallow(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """Both the manifest repository and every project are fetched at depth 1."""
+        _mark_venv_ready(nrf52_dirs.python_env)
+
+        check_and_install()
+
+        init_cmd, update_cmd = (
+            call.args[0] for call in mock_nrf52_ops.run_command_ok.call_args_list[:2]
+        )
+        assert "init" in init_cmd
+        assert "-o=--depth=1" in init_cmd
+        assert "update" in update_cmd
+        assert "--fetch-opt=--depth=1" in update_cmd
+
     def test_requirements_install_failure_raises(
         self,
         nrf52_dirs: SimpleNamespace,

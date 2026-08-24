@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import patch
 
 from hypothesis import given
@@ -212,6 +214,31 @@ class TestLambda:
         target = core.Lambda(value)
 
         assert str(target) is value.value
+
+    def test_init__expression_initializer(self):
+        from esphome.cpp_generator import RawExpression
+
+        target = core.Lambda(RawExpression("foo()"))
+
+        assert target.value == "foo();"
+
+    def test_init__other_initializer(self):
+        target = core.Lambda(123)
+
+        assert target.value == 123
+
+    def test_init_from_str_does_not_import_codegen(self):
+        """The validated-config cache revives Lambdas on the upload fast path."""
+        # sys.exit rather than assert so ambient PYTHONOPTIMIZE can't strip it.
+        check = (
+            "import sys; from esphome.core import Lambda; "
+            "Lambda('return 1;'); "
+            "sys.exit('codegen leaked' if 'esphome.cpp_generator' in sys.modules else 0)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", check], capture_output=True, text=True, check=False
+        )
+        assert result.returncode == 0, result.stderr
 
     def test_parts(self):
         target = core.Lambda(SAMPLE_LAMBDA.strip())

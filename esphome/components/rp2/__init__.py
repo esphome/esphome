@@ -33,6 +33,7 @@ from esphome.core import (
 )
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
 from esphome.types import ConfigType
 
 from . import boards
@@ -155,6 +156,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "UF2 factory format",
@@ -172,14 +176,9 @@ def get_download_types(storage_json):
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    # The most recent releases have not been uploaded to platformio so grabbing them directly from
-    # the GitHub release is one path forward for now.
+    # The framework-arduinopico package is no longer published to the PlatformIO
+    # registry, so install the framework straight from the GitHub release
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
-
-    # format the given arduino (https://github.com/earlephilhower/arduino-pico/releases) version to
-    # a PIO earlephilhower/framework-arduinopico value
-    # List of package versions: https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-    # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
 def _parse_platform_version(value):
@@ -197,19 +196,20 @@ def _parse_platform_version(value):
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
-#  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 6, 1)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
-RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.4.0-gcc14-arduinopico460"
+# develop-branch commit carrying the arduino-pico 6.0.0 / pico-quick-toolchain
+# 5.0.0 (GCC 16.1) update; replace with a release tag when one is cut
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0"
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 6, 1), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(5, 6, 1), None),
+        "dev": (cv.Version(6, 0, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(6, 0, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -338,7 +338,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py", "post:post_build.py"])
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -353,6 +353,11 @@ async def to_code(config):
             f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
         ],
     )
+
+    # newlib-nano is the default libc for the arduino-pico toolchain and its
+    # printf silently drops %f unless _printf_float is force-linked. Components
+    # use %f widely in logging, so pull it in.
+    cg.add_build_flag("-Wl,-u,_printf_float")
 
     # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
     # (~9.2 KB). See printf_stubs.cpp for implementation.
@@ -386,6 +391,74 @@ async def to_code(config):
     _configure_lwip()
 
 
+# --- lwIP sizing. See _configure_lwip() for the platform comparison table. ---
+
+# TCP_SND_BUF: 4×MSS=5,840 matches ESP32. Down from arduino-pico's 8×MSS.
+# ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per response chunk.
+LWIP_TCP_SND_BUF = "(4*TCP_MSS)"
+
+# TCP_WND: receive window. 4×MSS matches ESP32. Down from arduino-pico's 8×MSS.
+LWIP_TCP_WND = "(4*TCP_MSS)"
+
+# TCP_SND_QUEUELEN: max pbufs queued per PCB for the send buffer
+# ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
+# With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
+LWIP_TCP_SND_QUEUELEN = 17
+
+# MEMP_NUM_TCP_SEG: pool shared by every PCB, so it must not be the per-PCB
+# queue length — lwIP's sanity check only demands >=, the floor for a single
+# connection. 2× lets two PCBs fill up before the rest see ERR_MEM. Measured
+# at 20 bytes per entry, so under 700 bytes total.
+LWIP_MEMP_NUM_TCP_SEG = 2 * LWIP_TCP_SND_QUEUELEN
+
+# PBUF_POOL_SIZE: RP2040 has 264KB RAM, more generous than LibreTiny.
+# 16 matches ESP32 (vs arduino-pico's 24). Receive side only; the send path
+# copies into PBUF_RAM out of MEM_SIZE.
+LWIP_PBUF_POOL_SIZE = 16
+
+# MEM_SIZE: lwIP heap backing PBUF_RAM, where tcp_write() copies outgoing
+# data. TCP_OVERSIZE defaults to TCP_MSS, so each queued segment takes a full
+# MSS block whatever was written (pbuf 16 + PBUF_TRANSPORT 54 + MSS 1460 +
+# block header ≈ 1.5KB); a PCB at a full TCP_SND_BUF holds four, ~6KB.
+#
+# Two of those is ~12KB of arduino-pico's 16KB heap and already fails: mem.c
+# is first-fit, so a *contiguous* 1.5KB block must be free, and at 75%
+# occupancy interleaved with ARP/DHCP/DNS/mDNS the largest run collapses well
+# before the total does — hence the intermittent failures. With rp2's
+# max_connections of 4, a third sender has nothing left.
+#
+# 32KB is arduino-pico's own next tier (__LWIP_MEMMULT=2 boards).
+# Must stay under 64000 or lwIP widens mem_size_t to u32_t.
+LWIP_MEM_SIZE = 32768
+
+
+def build_lwip_defines(
+    tcp_sockets: int, udp_sockets: int, listening_tcp: int
+) -> dict[str, str]:
+    """Render the lwIP override values for the Jinja2 template.
+
+    The template uses #include_next to chain to the framework's original
+    lwipopts.h, then #undef/#define only these. Split out from
+    _configure_lwip() so the values that actually reach the generated header
+    can be checked without standing up CORE.
+
+    Both malloc flags stay 0 (framework defaults); see _configure_lwip(). The
+    static pools are the only IRQ-safe allocator on this platform, so the fix
+    is to size them correctly rather than to make them dynamic.
+    """
+    return {
+        "TCP_SND_BUF": LWIP_TCP_SND_BUF,
+        "TCP_WND": LWIP_TCP_WND,
+        "TCP_SND_QUEUELEN": str(LWIP_TCP_SND_QUEUELEN),
+        "MEM_SIZE": str(LWIP_MEM_SIZE),
+        "MEMP_NUM_TCP_SEG": str(LWIP_MEMP_NUM_TCP_SEG),
+        "PBUF_POOL_SIZE": str(LWIP_PBUF_POOL_SIZE),
+        "MEMP_NUM_TCP_PCB": str(tcp_sockets),
+        "MEMP_NUM_TCP_PCB_LISTEN": str(listening_tcp),
+        "MEMP_NUM_UDP_PCB": str(udp_sockets),
+    }
+
+
 def _configure_lwip() -> None:
     """Configure lwIP options for RP2040 by generating a custom lwipopts.h.
 
@@ -405,25 +478,36 @@ def _configure_lwip() -> None:
     ────────────────────────────────────────────────────────────────
     TCP_SND_BUF               2×MSS   4×MSS  8×MSS         4×MSS
     TCP_WND                   4×MSS   4×MSS  8×MSS         4×MSS
+    TCP_SND_QUEUELEN          ~8      17     32            17
     MEM_LIBC_MALLOC           1       1      0             0*
     MEMP_MEM_MALLOC           1       1      0             0**
-    MEM_SIZE                  N/A***  N/A*** 16KB          16KB
+    MEM_SIZE                  N/A***  N/A*** 16KB          32KB
     PBUF_POOL_SIZE            10      16     24            16
-    MEMP_NUM_TCP_SEG          10      16     32            17
+    MEMP_NUM_TCP_SEG          10      16     32            34****
     MEMP_NUM_TCP_PCB          5       16     5             dynamic
-    MEMP_NUM_TCP_PCB_LISTEN   4       16     8****         dynamic
+    MEMP_NUM_TCP_PCB_LISTEN   4       16     8*****        dynamic
     MEMP_NUM_UDP_PCB          4       16     7             dynamic
-    TCP_SND_QUEUELEN          ~8      17     32            17
 
     * MEM_LIBC_MALLOC must stay 0: arduino-pico uses
       PICO_CYW43_ARCH_THREADSAFE_BACKGROUND which runs lwIP callbacks from
       a low-priority pendsv IRQ. The pico-sdk explicitly blocks
       MEM_LIBC_MALLOC=1 because libc malloc uses mutexes (unsafe in IRQ).
-    ** MEMP_MEM_MALLOC must stay 0: the dedicated lwIP heap (MEM_SIZE=16KB)
-      is too small to hold all pools dynamically. The PBUF_POOL alone needs
-      ~24KB (16 × 1524 bytes). Increasing MEM_SIZE would negate BSS savings.
-    *** ESP8266/ESP32 use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
-    **** opt.h default; arduino-pico doesn't override MEMP_NUM_TCP_PCB_LISTEN.
+    ** MEMP_MEM_MALLOC must stay 0 for IRQ safety, not size. memp_malloc()
+      pops the pool free list inside SYS_ARCH_PROTECT, but lwIP's heap takes
+      its protection from LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT (default 0),
+      so under NO_SYS=1 mem_malloc()/mem_free() are unprotected — and memp.c
+      calls mem_malloc() outside the guard anyway. RX pbufs would then be
+      allocated from the pendsv IRQ on the same unguarded free list the main
+      loop uses for tcp_write(). Tried on hardware: faults within seconds on
+      CYW43. Ethernet survives only because it polls from the main loop.
+    *** ESP8266/ESP32 ship MEMP_MEM_MALLOC=1, so their pool entries come from
+      the heap on demand and MEMP_NUM_*/PBUF_POOL_SIZE are labels, not caps
+      (MEM_LIBC_MALLOC=1 points that heap at the system heap). Both flags are
+      0 here, so ours are hard limits; don't copy their numbers.
+    **** MEMP_NUM_TCP_SEG is *global* while TCP_SND_QUEUELEN is *per-PCB*, so
+      sizing it to the per-PCB value lets one busy connection drain it for
+      every other. 2× covers two PCBs; MEM_SIZE is the real limit past that.
+    ***** opt.h default; arduino-pico doesn't override MEMP_NUM_TCP_PCB_LISTEN.
     "dynamic" = auto-calculated from component socket registrations via
     socket.get_socket_counts() with minimums of 8 TCP / 6 UDP / 2 TCP_LISTEN.
     """
@@ -442,48 +526,7 @@ def _configure_lwip() -> None:
     # UDP PCBs (2) are absorbed by the generous minimum of 6.
     listening_tcp = max(MIN_TCP_LISTEN_SOCKETS, sc.tcp_listen)
 
-    # TCP_SND_BUF: 4×MSS=5,840 matches ESP32. Down from arduino-pico's 8×MSS.
-    # ESPAsyncWebServer allocates malloc(tcp_sndbuf()) per response chunk.
-    tcp_snd_buf = "(4*TCP_MSS)"
-
-    # TCP_WND: receive window. 4×MSS matches ESP32. Down from arduino-pico's 8×MSS.
-    tcp_wnd = "(4*TCP_MSS)"
-
-    # TCP_SND_QUEUELEN: max pbufs queued for send buffer
-    # ESP-IDF formula: (4 * TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS
-    # With 4×MSS: (4*5840 + 1459) / 1460 = 17 — match ESP32
-    tcp_snd_queuelen = 17
-    # MEMP_NUM_TCP_SEG: segment pool, must be >= TCP_SND_QUEUELEN (lwIP sanity check)
-    memp_num_tcp_seg = tcp_snd_queuelen
-
-    # PBUF_POOL_SIZE: RP2040 has 264KB RAM, more generous than LibreTiny.
-    # 16 matches ESP32 (vs arduino-pico's 24). With MEMP_MEM_MALLOC=1,
-    # this is a max count (allocated on demand from heap).
-    pbuf_pool_size = 16
-
-    # Build the lwIP override defines for the Jinja2 template.
-    # The template uses #include_next to chain to the framework's original
-    # lwipopts.h, then #undef/#define only the values we need to change.
-    #
-    # Note: MEMP_MEM_MALLOC stays 0 (framework default). While the memp
-    # allocations use the dedicated lwIP heap (IRQ-safe), the 16KB MEM_SIZE
-    # is too small to hold all pools dynamically under stress. The PBUF_POOL
-    # alone needs ~24KB (16 × 1524 bytes). Increasing MEM_SIZE would negate
-    # the BSS savings.
-    #
-    # MEM_LIBC_MALLOC stays 0 (framework default): arduino-pico uses
-    # PICO_CYW43_ARCH_THREADSAFE_BACKGROUND which runs lwIP callbacks from
-    # a low-priority pendsv IRQ where libc malloc (mutex-based) is unsafe.
-    lwip_defines: dict[str, str] = {
-        "TCP_SND_BUF": tcp_snd_buf,
-        "TCP_WND": tcp_wnd,
-        "TCP_SND_QUEUELEN": str(tcp_snd_queuelen),
-        "MEMP_NUM_TCP_SEG": str(memp_num_tcp_seg),
-        "PBUF_POOL_SIZE": str(pbuf_pool_size),
-        "MEMP_NUM_TCP_PCB": str(tcp_sockets),
-        "MEMP_NUM_TCP_PCB_LISTEN": str(listening_tcp),
-        "MEMP_NUM_UDP_PCB": str(udp_sockets),
-    }
+    lwip_defines = build_lwip_defines(tcp_sockets, udp_sockets, listening_tcp)
 
     # Store for copy_files() to generate the header
     CORE.data[KEY_RP2][KEY_LWIP_OPTS] = lwip_defines
@@ -498,7 +541,8 @@ def _configure_lwip() -> None:
     udp_min = " (min)" if udp_sockets > sc.udp else ""
     listen_min = " (min)" if listening_tcp > sc.tcp_listen else ""
     _LOGGER.info(
-        "Configuring lwIP: TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
+        "Configuring lwIP: %d byte heap; TCP=%d%s [%s], UDP=%d%s [%s], TCP_LISTEN=%d%s [%s]",
+        LWIP_MEM_SIZE,
         tcp_sockets,
         tcp_min,
         sc.tcp_details,
@@ -519,7 +563,7 @@ def _generate_lwipopts_h() -> None:
     in the build directory, and a pre-build script injects this directory
     into the compiler include path before the framework's own include dir.
     """
-    from jinja2 import Environment
+    from jinja2 import Environment, StrictUndefined
 
     lwip_defines = CORE.data[KEY_RP2].get(KEY_LWIP_OPTS)
     if not lwip_defines:
@@ -532,7 +576,10 @@ def _generate_lwipopts_h() -> None:
     template_text = (Path(__file__).parent / "lwipopts.h.jinja").read_text(
         encoding="utf-8"
     )
-    jinja_env = Environment(keep_trailing_newline=True)
+    # StrictUndefined: a placeholder with no value would otherwise render
+    # empty, emitting a bare #define that compiles and silently means
+    # something else in lwIP's config.
+    jinja_env = Environment(keep_trailing_newline=True, undefined=StrictUndefined)
     template = jinja_env.from_string(template_text)
     content = template.render(**lwip_defines)
 
@@ -594,6 +641,7 @@ def copy_files():
         inject_lwip_file,
         CORE.relative_build_path("inject_lwip_include.py"),
     )
+    copy_ccache_script()
     _generate_lwipopts_h()
     if generate_pio_files():
         path = CORE.relative_src_path("esphome.h")

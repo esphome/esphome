@@ -23,10 +23,11 @@ from esphome.bundle import (
     _default_target_dir,
     _find_used_secret_keys,
     add_bundle_file,
+    add_secret_scan_dir,
     extract_bundle,
-    is_bundle_path,
     prepare_bundle_for_compile,
     read_bundle_manifest,
+    remap_bundle_path,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_util import force_load_include_files
@@ -95,26 +96,6 @@ def _setup_config_dir(
 
     CORE.config_path = config_dir / "test.yaml"
     return config_dir
-
-
-# ---------------------------------------------------------------------------
-# is_bundle_path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("filename", "expected"),
-    [
-        (f"my_device{BUNDLE_EXTENSION}", True),
-        (f"MY_DEVICE{BUNDLE_EXTENSION.upper()}", True),
-        ("my_device.yaml", False),
-        ("my_device.tar.gz", False),
-        ("my_device.zip", False),
-        ("", False),
-    ],
-)
-def test_is_bundle_path(filename: str, expected: bool) -> None:
-    assert is_bundle_path(Path(filename)) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -478,7 +459,10 @@ def test_read_bundle_manifest_corrupted_tar(tmp_path: Path) -> None:
 def test_read_bundle_manifest(tmp_path: Path) -> None:
     bundle_path = _make_bundle(
         tmp_path,
-        manifest_overrides={ManifestKey.HAS_SECRETS: True},
+        manifest_overrides={
+            ManifestKey.HAS_SECRETS: True,
+            ManifestKey.CONFIG_DIR: "/original/config",
+        },
         extra_files={"secrets.yaml": b"wifi: test\n"},
     )
 
@@ -489,6 +473,7 @@ def test_read_bundle_manifest(tmp_path: Path) -> None:
     assert manifest.esphome_version == "2026.2.0-test"
     assert manifest.config_filename == "test.yaml"
     assert manifest.has_secrets is True
+    assert manifest.config_dir == "/original/config"
 
 
 def test_read_bundle_manifest_minimal(tmp_path: Path) -> None:
@@ -508,6 +493,266 @@ def test_read_bundle_manifest_minimal(tmp_path: Path) -> None:
     assert result.esphome_version == "unknown"
     assert not result.files
     assert result.has_secrets is False
+    assert result.config_dir is None
+
+
+def test_read_bundle_manifest_non_string_config_dir(tmp_path: Path) -> None:
+    """A malformed config_dir value is dropped rather than propagated."""
+    bundle_path = _make_bundle(
+        tmp_path, manifest_overrides={ManifestKey.CONFIG_DIR: 42}
+    )
+
+    assert read_bundle_manifest(bundle_path).config_dir is None
+
+
+# ---------------------------------------------------------------------------
+# remap_bundle_path
+# ---------------------------------------------------------------------------
+
+
+ORIGINAL_CONFIG_DIR = "/original/config"
+
+
+def _bundle_manifest_dict(**overrides: Any) -> dict[str, Any]:
+    """Manifest content an extracted bundle would contain."""
+    manifest: dict[str, Any] = {
+        ManifestKey.MANIFEST_VERSION: CURRENT_MANIFEST_VERSION,
+        ManifestKey.CONFIG_FILENAME: "test.yaml",
+        ManifestKey.CONFIG_DIR: ORIGINAL_CONFIG_DIR,
+    }
+    manifest.update(overrides)
+    return manifest
+
+
+def _setup_extracted_dir(
+    tmp_path: Path,
+    manifest: dict[str, Any] | str | None,
+    files: dict[str, str] | None = None,
+) -> Path:
+    """Create a directory shaped like an extracted bundle and point CORE at it."""
+    extract_dir = _setup_config_dir(tmp_path, files)
+    if manifest is not None:
+        content = manifest if isinstance(manifest, str) else json.dumps(manifest)
+        (extract_dir / MANIFEST_FILENAME).write_text(content)
+    return extract_dir
+
+
+def test_remap_bundle_path_success(tmp_path: Path) -> None:
+    """A stale absolute path resolves to the bundled copy next to the config."""
+    extract_dir = _setup_extracted_dir(
+        tmp_path, _bundle_manifest_dict(), files={"boards/partitions.csv": "csv\n"}
+    )
+
+    remapped = remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/boards/partitions.csv")
+
+    assert remapped == extract_dir / "boards" / "partitions.csv"
+    assert remapped.is_file()
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param(r"C:\Users\nick\esphome\boards\partitions.csv", id="backslashes"),
+        pytest.param("C:/Users/nick/esphome/boards/partitions.csv", id="forward"),
+        pytest.param(r"c:\users\NICK\esphome\boards\partitions.csv", id="case"),
+    ],
+)
+def test_remap_bundle_path_windows_bundle_on_posix(tmp_path: Path, value: str) -> None:
+    """A bundle created on Windows remaps on a build server with another layout."""
+    extract_dir = _setup_extracted_dir(
+        tmp_path,
+        _bundle_manifest_dict(**{ManifestKey.CONFIG_DIR: r"C:\Users\nick\esphome"}),
+        files={"boards/partitions.csv": "csv\n"},
+    )
+
+    remapped = remap_bundle_path(value)
+
+    assert remapped == extract_dir / "boards" / "partitions.csv"
+    assert remapped.is_file()
+
+
+def test_remap_bundle_path_windows_bundle_path_not_under_config_dir(
+    tmp_path: Path,
+) -> None:
+    """A Windows path outside the original config dir is left alone."""
+    _setup_extracted_dir(
+        tmp_path,
+        _bundle_manifest_dict(**{ManifestKey.CONFIG_DIR: r"C:\Users\nick\esphome"}),
+        files={"partitions.csv": "csv\n"},
+    )
+
+    assert remap_bundle_path(r"D:\other\partitions.csv") is None
+
+
+def test_remap_bundle_path_windows_profile_with_spaces(tmp_path: Path) -> None:
+    r"""A Windows profile like C:\Users\First Last remaps like any other dir."""
+    extract_dir = _setup_extracted_dir(
+        tmp_path,
+        _bundle_manifest_dict(
+            **{ManifestKey.CONFIG_DIR: r"C:\Users\First Last\esphome"}
+        ),
+        files={"boards/my partitions.csv": "csv\n"},
+    )
+
+    remapped = remap_bundle_path(
+        r"C:\Users\First Last\esphome\boards\my partitions.csv"
+    )
+
+    assert remapped == extract_dir / "boards" / "my partitions.csv"
+    assert remapped.is_file()
+
+
+def test_remap_bundle_path_unc_config_dir(tmp_path: Path) -> None:
+    """A bundle created from a UNC share remaps like any other Windows path."""
+    extract_dir = _setup_extracted_dir(
+        tmp_path,
+        _bundle_manifest_dict(**{ManifestKey.CONFIG_DIR: r"\\server\share\esphome"}),
+        files={"partitions.csv": "csv\n"},
+    )
+
+    remapped = remap_bundle_path(r"\\server\share\esphome\partitions.csv")
+
+    assert remapped == extract_dir / "partitions.csv"
+
+
+def test_remap_bundle_path_flavor_mismatch(tmp_path: Path) -> None:
+    """A POSIX style value cannot come from a Windows config dir; no remap."""
+    _setup_extracted_dir(
+        tmp_path,
+        _bundle_manifest_dict(**{ManifestKey.CONFIG_DIR: r"C:\Users\nick\esphome"}),
+        files={"partitions.csv": "csv\n"},
+    )
+
+    assert remap_bundle_path("/original/config/partitions.csv") is None
+
+
+def test_remap_bundle_path_rejects_traversal(tmp_path: Path) -> None:
+    """A remap may never escape the extracted config tree."""
+    extract_dir = _setup_extracted_dir(tmp_path, _bundle_manifest_dict())
+    (tmp_path / "outside.csv").write_text("csv\n")
+    assert (extract_dir / ".." / "outside.csv").resolve().is_file()
+
+    assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/../outside.csv") is None
+
+
+def test_remap_bundle_path_relative_value(tmp_path: Path) -> None:
+    """Relative references resolve normally and are never remapped."""
+    _setup_extracted_dir(tmp_path, _bundle_manifest_dict())
+
+    assert remap_bundle_path("missing.csv") is None
+
+
+def test_remap_bundle_path_no_manifest(tmp_path: Path) -> None:
+    """A config dir without a manifest is not an extracted bundle."""
+    _setup_extracted_dir(tmp_path, None, files={"partitions.csv": "csv\n"})
+
+    assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv") is None
+
+
+@pytest.mark.parametrize(
+    "manifest",
+    [
+        pytest.param("{not json", id="malformed_json"),
+        pytest.param("[]", id="not_a_dict"),
+        pytest.param(
+            _bundle_manifest_dict(**{ManifestKey.MANIFEST_VERSION: "x"}),
+            id="version_not_int",
+        ),
+        pytest.param(
+            _bundle_manifest_dict(**{ManifestKey.MANIFEST_VERSION: 0}),
+            id="version_zero",
+        ),
+        pytest.param(
+            _bundle_manifest_dict(**{ManifestKey.CONFIG_FILENAME: "other.yaml"}),
+            id="config_filename_mismatch",
+        ),
+        pytest.param(
+            {
+                ManifestKey.MANIFEST_VERSION: CURRENT_MANIFEST_VERSION,
+                ManifestKey.CONFIG_FILENAME: "test.yaml",
+            },
+            id="config_dir_missing",
+        ),
+        pytest.param(
+            _bundle_manifest_dict(**{ManifestKey.CONFIG_DIR: ""}),
+            id="config_dir_empty",
+        ),
+    ],
+)
+def test_remap_bundle_path_untrusted_manifest(
+    tmp_path: Path, manifest: dict[str, Any] | str
+) -> None:
+    """Manifests that do not look like this bundle's manifest are ignored."""
+    _setup_extracted_dir(tmp_path, manifest, files={"partitions.csv": "csv\n"})
+
+    assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv") is None
+
+
+def test_remap_bundle_path_unreadable_manifest_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A present but broken manifest is reported, not silently ignored."""
+    _setup_extracted_dir(tmp_path, "{not json", files={"partitions.csv": "csv\n"})
+
+    assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv") is None
+    assert "ignoring unreadable" in caplog.text
+
+
+def test_remap_bundle_path_outside_original_config_dir(tmp_path: Path) -> None:
+    """Paths that were not under the original config dir are left alone."""
+    _setup_extracted_dir(tmp_path, _bundle_manifest_dict())
+
+    assert remap_bundle_path("/elsewhere/partitions.csv") is None
+
+
+def test_remap_bundle_path_bundled_copy_missing(tmp_path: Path) -> None:
+    """No remap when the bundle does not contain the file."""
+    _setup_extracted_dir(tmp_path, _bundle_manifest_dict())
+
+    assert remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv") is None
+
+
+def test_remap_bundle_path_manifest_read_once(tmp_path: Path) -> None:
+    """The manifest lookup result is cached for the rest of the run."""
+    extract_dir = _setup_extracted_dir(
+        tmp_path, _bundle_manifest_dict(), files={"partitions.csv": "csv\n"}
+    )
+
+    first = remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv")
+    assert first == extract_dir / "partitions.csv"
+
+    (extract_dir / MANIFEST_FILENAME).unlink()
+    second = remap_bundle_path(f"{ORIGINAL_CONFIG_DIR}/partitions.csv")
+    assert second == first
+
+
+def test_remap_bundle_path_round_trip(tmp_path: Path) -> None:
+    """A file referenced by absolute path survives bundle create and extract.
+
+    Reproduces https://github.com/esphome/esphome/issues/17755: the config
+    names its partitions csv by absolute path, the bundle is extracted on a
+    machine where that path does not exist, and the reference must resolve
+    to the bundled copy.
+    """
+    config_dir = _setup_config_dir(tmp_path, files={"partitions.csv": "nvs,data\n"})
+    abs_path = (config_dir / "partitions.csv").resolve()
+
+    creator = ConfigBundleCreator({"esp32": {"partitions": abs_path}})
+    result = creator.create_bundle()
+
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(result.data)
+    target = tmp_path / "build_server"
+    config_path = extract_bundle(bundle_path, target)
+
+    # Simulate the build server: fresh run, original config dir gone
+    CORE.reset()
+    CORE.config_path = config_path
+    shutil.rmtree(config_dir)
+
+    remapped = remap_bundle_path(str(abs_path))
+    assert remapped == target.resolve() / "partitions.csv"
+    assert remapped.is_file()
 
 
 # ---------------------------------------------------------------------------
@@ -983,7 +1228,8 @@ def test_discover_files_deeply_nested_include(tmp_path: Path) -> None:
 def test_discover_files_nested_include_unresolved_substitution(
     tmp_path: Path,
 ) -> None:
-    """!include with substitution vars in path cannot be resolved; skipped gracefully."""
+    """!include with substitution vars in path but no candidate files on disk
+    (the glob's only match is the config itself) is skipped gracefully."""
     config_dir = _setup_config_dir(tmp_path)
     (config_dir / "test.yaml").write_text(
         "esphome:\n  name: test\nwifi: !include ${platform}.yaml\n"
@@ -995,6 +1241,62 @@ def test_discover_files_nested_include_unresolved_substitution(
 
     paths = [f.path for f in files]
     assert "test.yaml" in paths
+
+
+def test_discover_files_bundles_all_include_candidates(tmp_path: Path) -> None:
+    """The issue-17650 layout: templated package includes chain through a glob
+    candidate into a Jinja conditional whose ``../`` branch is bundled."""
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={
+            "includes/esp-basics.yaml": (
+                "packages:\n"
+                "  - !include boards/${board}.yaml\n"
+                "  - !include keys/${system_name}.yaml\n"
+            ),
+            "includes/boards/wemos-d1-mini.yaml": (
+                'packages:\n  - !include ${ "NO BT.yaml" if bt else "../empty.yaml" }\n'
+            ),
+            "includes/keys/device-a.yaml": "api:\n",
+            "includes/keys/device-b.yaml": "api:\n",
+            "includes/empty.yaml": "{}\n",
+        },
+    )
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\npackages:\n  - !include includes/esp-basics.yaml\n"
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert "includes/esp-basics.yaml" in paths
+    assert "includes/boards/wemos-d1-mini.yaml" in paths
+    assert "includes/keys/device-a.yaml" in paths
+    assert "includes/keys/device-b.yaml" in paths
+    assert "includes/empty.yaml" in paths
+
+
+def test_discover_files_candidate_outside_config_dir_skipped(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A candidate branch resolving above the config dir is not bundled."""
+    config_dir = _setup_config_dir(tmp_path)
+    (tmp_path / "outside.yaml").write_text("api:\n")
+    (config_dir / "test.yaml").write_text(
+        "esphome:\n  name: test\n"
+        'wifi: !include ${ "a.yaml" if x else "../outside.yaml" }\n'
+    )
+
+    creator = ConfigBundleCreator({})
+    files = creator.discover_files()
+
+    paths = [f.path for f in files]
+    assert not any("outside" in p for p in paths)
+    assert any(
+        "outside config directory" in r.message and "outside.yaml" in r.message
+        for r in caplog.records
+    )
 
 
 def test_discover_files_nested_include_load_failure(
@@ -1261,7 +1563,7 @@ def test_create_bundle_produces_valid_archive(tmp_path: Path) -> None:
 
 
 def test_create_bundle_manifest_content(tmp_path: Path) -> None:
-    _setup_config_dir(tmp_path)
+    config_dir = _setup_config_dir(tmp_path)
 
     creator = ConfigBundleCreator({})
     result = creator.create_bundle()
@@ -1269,6 +1571,7 @@ def test_create_bundle_manifest_content(tmp_path: Path) -> None:
     manifest = result.manifest
     assert manifest[ManifestKey.MANIFEST_VERSION] == CURRENT_MANIFEST_VERSION
     assert manifest[ManifestKey.CONFIG_FILENAME] == "test.yaml"
+    assert manifest[ManifestKey.CONFIG_DIR] == str(config_dir.resolve())
     assert "test.yaml" in manifest[ManifestKey.FILES]
 
 
@@ -1326,6 +1629,44 @@ def test_create_bundle_filters_secrets_quoted(tmp_path: Path) -> None:
     assert "ota_password" in secrets_data
     assert "hunter2" in secrets_data
     assert "unused" not in secrets_data
+
+
+def test_create_bundle_scans_remote_package_files_for_secrets(tmp_path: Path) -> None:
+    """Secrets referenced only by git-fetched package files must be shipped
+    in the filtered secrets.yaml (regression test for issue 18023)."""
+    config_dir = _setup_config_dir(tmp_path)
+
+    secrets = config_dir / "secrets.yaml"
+    secrets.write_text("ota_password: hunter2\nunused: should_not_appear\n")
+
+    # Simulate a git-fetched package checkout referencing a secret
+    repo_dir = config_dir / ".esphome" / "packages" / "6bcd6aa8"
+    package_dir = repo_dir / "packages"
+    package_dir.mkdir(parents=True)
+    (package_dir / "base.yml").write_text(
+        "ota:\n  - platform: esphome\n    password: !secret ota_password\n"
+    )
+    # References inside hidden directories such as .git must not be scanned
+    hidden_dir = repo_dir / ".git"
+    hidden_dir.mkdir()
+    (hidden_dir / "leak.yaml").write_text("password: !secret unused\n")
+    add_secret_scan_dir(repo_dir)
+
+    creator = ConfigBundleCreator({})
+    result = creator.create_bundle()
+
+    assert result.manifest[ManifestKey.HAS_SECRETS] is True
+
+    buf = io.BytesIO(result.data)
+    with tarfile.open(fileobj=buf, mode="r:gz") as tar:
+        secrets_data = tar.extractfile("secrets.yaml").read().decode()
+        names = tar.getnames()
+
+    assert "ota_password" in secrets_data
+    assert "hunter2" in secrets_data
+    assert "unused" not in secrets_data
+    # The package checkout itself must not be bundled
+    assert not any("base.yml" in name for name in names)
 
 
 def test_create_bundle_no_secrets(tmp_path: Path) -> None:

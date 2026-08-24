@@ -34,6 +34,11 @@ class BLEClientNode {
   // This should be transitioned to Established once the node no longer needs
   // the services/descriptors/characteristics of the parent client. This will
   // allow some memory to be freed.
+  // The parent frees the peer's GATT cache once every node reports Established.
+  // Never report Established while an operation that reads that cache is outstanding.
+  // - esp_ble_gattc_register_for_notify() completes asynchronously.
+  // - Register from ESP_GATTC_SEARCH_CMPL_EVT, then set this from ESP_GATTC_REG_FOR_NOTIFY_EVT.
+  // - BLEClientBase::register_for_notify() holds the release until the registration completes.
   espbt::ClientState node_state;
 
   BLEClient *parent() { return this->parent_; }

@@ -121,8 +121,47 @@ class RuntimeImage : public image::Image {
 
   /**
    * @brief Release the image buffer and free memory.
+   *
+   * An external buffer is let go of rather than freed.
    */
   void release();
+
+  /**
+   * @brief Decode into a buffer the caller owns, instead of one allocated here.
+   *
+   * The image never frees an external buffer and never resizes it: a decode that needs other
+   * dimensions fails as if the allocation had failed, and the buffer is let go of so a decoder
+   * that ignores that failure cannot publish a picture it did not paint. The caller keeps the
+   * buffer alive for as long as anything can draw the image, and calls release() (or hands over
+   * another buffer) before reusing it.
+   *
+   * Hand a buffer over before every decode. The image lets go of one whenever a decode fails and
+   * whenever release() is called, and it does not remember that it ever had one: a decode that
+   * starts without a buffer allocates its own, which is the runtime allocation this method exists
+   * to avoid.
+   *
+   * The buffer is decoded into as it is handed over, so the caller owns its initial contents.
+   * Zero it first if anything can draw the image before a decode has painted every pixel.
+   *
+   * Do not hand a buffer over while is_decoding() is true. A running decoder keeps scaling values
+   * for the buffer it started with.
+   *
+   * A null buffer or dimensions the image cannot decode at are refused, leaving the image with
+   * no buffer at all.
+   *
+   * @param buffer Memory for a picture of the given size, at least get_buffer_size() bytes.
+   * @param width Width of the buffer in pixels.
+   * @param height Height of the buffer in pixels.
+   * @return true if the image took the buffer, false if it was refused.
+   */
+  bool set_external_buffer(uint8_t *buffer, int width, int height);
+
+  /**
+   * @brief Get the buffer size in bytes needed for a picture of the given dimensions.
+   *
+   * Returns 0 for dimensions the image cannot decode at.
+   */
+  size_t get_buffer_size(int width, int height) const;
 
   /**
    * @brief Set whether to allow progressive display during decode.
@@ -148,11 +187,6 @@ class RuntimeImage : public image::Image {
    * This is safe to call from within the decoder (e.g., during resize).
    */
   void release_buffer_();
-
-  /**
-   * @brief Get the buffer size in bytes for given dimensions.
-   */
-  size_t get_buffer_size_(int width, int height) const;
 
   /**
    * @brief Get the position in the buffer for a pixel.
@@ -208,6 +242,8 @@ class RuntimeImage : public image::Image {
    * This is used to determine how to store 16 bit colors in the buffer.
    */
   bool is_big_endian_{false};
+  /** Whether buffer_ belongs to the caller, so it must not be freed or resized here. */
+  bool external_buffer_{false};
 };
 
 }  // namespace esphome::runtime_image
