@@ -6,8 +6,6 @@ namespace esphome::mistral_ir {
 
 static const char *const TAG = "mistral_ir.climate";
 
-constexpr uint16_t MISTRAL_ADDRESS = 0x322C;
-
 constexpr uint8_t MISTRAL_MODE_COOL = 0xC0;
 constexpr uint8_t MISTRAL_MODE_DRY = 0x40;
 constexpr uint8_t MISTRAL_MODE_FAN_ONLY = 0x80;
@@ -48,11 +46,19 @@ static uint8_t temperature_to_byte(uint8_t temp_celsius) {
 
 static uint8_t byte_to_temperature(uint8_t byte5) { return static_cast<uint8_t>(0x9F - bit_reverse(byte5)); }
 
-static uint8_t compute_checksum(const std::array<uint8_t, 12> &frame) {
+static uint8_t compute_checksum(const std::vector<uint8_t> &frame) {
   uint8_t sum = 0;
   for (uint8_t idx : {1, 3, 4, 5, 6, 8})
     sum += bit_reverse(frame[idx]);
   return bit_reverse(sum);
+}
+
+// Validates the fixed bytes and checksum of a received frame, to reject corrupted or unrelated
+// AEHA frames that happen to share the Mistral address and length before acting on their contents.
+static bool is_valid_frame(const std::vector<uint8_t> &frame) {
+  return frame[0] == MISTRAL_HEADER && frame[2] == MISTRAL_BYTE2 && frame[7] == MISTRAL_BYTE7 &&
+         frame[8] == MISTRAL_BYTE8 && frame[9] == MISTRAL_BYTE9 && frame[10] == MISTRAL_BYTE10 &&
+         frame[11] == compute_checksum(frame);
 }
 
 void MistralIR::transmit_state() {
@@ -99,14 +105,22 @@ void MistralIR::transmit_state() {
   const uint8_t power_byte = this->mode == climate::CLIMATE_MODE_OFF ? MISTRAL_POWER_OFF : MISTRAL_POWER_ON;
   const uint8_t temp = static_cast<uint8_t>(clamp<float>(this->target_temperature, MISTRAL_TEMP_MIN, MISTRAL_TEMP_MAX));
 
-  std::array<uint8_t, 12> frame = {
-      MISTRAL_HEADER, fan_byte1,     MISTRAL_BYTE2, power_byte,    mode_byte,      temperature_to_byte(temp),
-      fan_byte6,      MISTRAL_BYTE7, MISTRAL_BYTE8, MISTRAL_BYTE9, MISTRAL_BYTE10, 0x00};
+  std::vector<uint8_t> &frame = this->frame_.data;
+  frame[0] = MISTRAL_HEADER;
+  frame[1] = fan_byte1;
+  frame[2] = MISTRAL_BYTE2;
+  frame[3] = power_byte;
+  frame[4] = mode_byte;
+  frame[5] = temperature_to_byte(temp);
+  frame[6] = fan_byte6;
+  frame[7] = MISTRAL_BYTE7;
+  frame[8] = MISTRAL_BYTE8;
+  frame[9] = MISTRAL_BYTE9;
+  frame[10] = MISTRAL_BYTE10;
   frame[11] = compute_checksum(frame);
 
   auto transmit = this->transmitter_->transmit();
-  remote_base::AEHAProtocol().encode(transmit.get_data(),
-                                     {MISTRAL_ADDRESS, std::vector<uint8_t>(frame.begin(), frame.end())});
+  remote_base::AEHAProtocol().encode(transmit.get_data(), this->frame_);
   transmit.perform();
 }
 
@@ -116,6 +130,9 @@ bool MistralIR::on_receive(remote_base::RemoteReceiveData data) {
     return false;
 
   const std::vector<uint8_t> &frame = aeha->data;
+  if (!is_valid_frame(frame))
+    return false;
+
   if (frame[3] == MISTRAL_POWER_OFF) {
     this->mode = climate::CLIMATE_MODE_OFF;
     this->publish_state();
@@ -135,12 +152,14 @@ bool MistralIR::on_receive(remote_base::RemoteReceiveData data) {
     case MISTRAL_MODE_HEAT:
       this->mode = climate::CLIMATE_MODE_HEAT;
       break;
-    default:
+    case MISTRAL_MODE_AUTO:
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
       break;
+    default:
+      return false;
   }
 
-  this->target_temperature = byte_to_temperature(frame[5]);
+  this->target_temperature = clamp<float>(byte_to_temperature(frame[5]), MISTRAL_TEMP_MIN, MISTRAL_TEMP_MAX);
 
   switch (frame[6]) {
     case MISTRAL_FAN_LOW_B6:
@@ -152,9 +171,11 @@ bool MistralIR::on_receive(remote_base::RemoteReceiveData data) {
     case MISTRAL_FAN_HIGH_B6:
       this->fan_mode = climate::CLIMATE_FAN_HIGH;
       break;
-    default:
+    case MISTRAL_FAN_AUTO_B6:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      return false;
   }
 
   ESP_LOGV(TAG, "Received Mistral frame: mode=%d temp=%.0f fan=%d", static_cast<int>(this->mode),
