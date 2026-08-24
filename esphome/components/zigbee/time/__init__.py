@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -48,10 +48,14 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ZigbeeTime),
             cv.GenerateID(CONF_ZIGBEE_ID): cv.use_id(ZigbeeComponent),
+            cv.SplitDefault(
+                CONF_UPDATE_INTERVAL,
+                nrf52="1s",
+                esp32="15min",
+                visibility=cv.Visibility.ADVANCED,
+            ): cv.update_interval,  # override default from TIME_SCHEMA. Remove once nrf52 implementation is aligned.
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(cv.polling_component_schema("1s") if CORE.is_nrf52 else {}),
+    ).extend(cv.COMPONENT_SCHEMA),
     _validate_zigbee_time,
 )
 
