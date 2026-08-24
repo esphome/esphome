@@ -334,6 +334,43 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
     assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
 
 
+def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
+    setup_core: Path,
+) -> None:
+    """The discovered component list must be applied by an explicit
+    reconfigure after the full CMakeLists write; relying on ninja's mtime
+    check misses the rewrite on coarse-mtime filesystems (#18682). A failure
+    there stops the build instead of compiling with an empty REQUIRES."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+    calls: list[tuple] = []
+
+    def record_write(minimal: bool = False) -> None:
+        calls.append(("write_project", minimal))
+
+    def record_reconfigure() -> int:
+        calls.append(("run_reconfigure",))
+        return 1 if len(calls) == 4 else 0
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch("esphome.build_gen.espidf.write_project", side_effect=record_write),
+        patch.object(toolchain, "run_reconfigure", side_effect=record_reconfigure),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_build,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert not CORE.testing_mode
+        assert toolchain.run_compile(config, verbose=False) == 1
+
+    assert calls == [
+        ("write_project", True),
+        ("run_reconfigure",),
+        ("write_project", False),
+        ("run_reconfigure",),
+    ]
+    mock_build.assert_not_called()
+
+
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
     """compile_process_limit is forwarded to run_idf_py as the job limit."""
     _setup_build(setup_core)
