@@ -10,7 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_all_dependencies, root_path as _root_path
+from helpers import get_all_dependencies, has_cpp_unit_tests, root_path as _root_path
 import yaml
 
 # Ensure the repo root is on sys.path so that ``tests.testing_helpers`` and
@@ -131,14 +131,11 @@ def filter_components_with_files(components: list[str], tests_dir: Path) -> list
     """
     filtered_components: list[str] = []
     for component in components:
-        test_dir = tests_dir / component
-        if test_dir.is_dir() and (
-            any(test_dir.glob("*.cpp")) or any(test_dir.glob("*.h"))
-        ):
+        if has_cpp_unit_tests(component, tests_dir):
             filtered_components.append(component)
         else:
             print(
-                f"WARNING: No files found for component '{component}' in {test_dir}, skipping.",
+                f"WARNING: No files found for component '{component}' in {tests_dir / component}, skipping.",
                 file=sys.stderr,
             )
     return filtered_components
