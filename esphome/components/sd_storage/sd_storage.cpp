@@ -95,16 +95,14 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
     delete card;                                        // NOLINT(cppcoreguidelines-owning-memory)
     return err;
   }
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  // Pre-6 builds initialised the slot before mount() already (see setup above).
+  // Unconditional: this path does not go through esp_vfs_fat_sdmmc_mount(), so nothing
+  // else initialises the slot. sdmmc_card_init() below drives the bus and needs the slot's
+  // pins and width configured first.
   err = sdmmc_host_init_slot(host.slot, &slot_config);
   if (err != ESP_OK) {
     delete card;  // NOLINT(cppcoreguidelines-owning-memory)
     return err;
   }
-#else
-  (void) slot_config;
-#endif
   err = ESP_FAIL;
   for (int attempt = 1; attempt <= 3; attempt++) {
     ESP_LOGD(TAG, "Initialising SD card slot %d (attempt %d/3)", this->slot_, attempt);
