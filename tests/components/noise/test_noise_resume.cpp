@@ -160,7 +160,7 @@ TEST(NoiseResumeCache, BadMacOrMalformedOfferLeavesTicketIntact) {
 
 TEST(NoiseResumeCache, IssueRotatesSlotsAndClearForgetsAll) {
   ResumeTicketCache cache;
-  ResumeTicket tickets[5];
+  ResumeTicket tickets[ResumeTicketCache::SLOTS + 1];
   for (auto &ticket : tickets) {
     ASSERT_TRUE(cache.issue(ticket));
   }
@@ -168,12 +168,12 @@ TEST(NoiseResumeCache, IssueRotatesSlotsAndClearForgetsAll) {
   uint8_t prologue[1] = {0};
   uint8_t ext[RESUME_ACCEPT_SIZE];
 
-  // Slot 0 was evicted by the fifth issue
+  // The oldest ticket was evicted by the one-past-capacity issue
   build_offer_for_ticket(offer, tickets[0], KAT_CLIENT_NONCE);
   NoiseCipherState *send = nullptr, *recv = nullptr;
   EXPECT_FALSE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
-  // Tickets 1..4 remain redeemable
-  for (int i = 1; i < 5; i++) {
+  // The rest remain redeemable
+  for (int i = 1; i <= ResumeTicketCache::SLOTS; i++) {
     build_offer_for_ticket(offer, tickets[i], KAT_CLIENT_NONCE);
     EXPECT_TRUE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
     noise_cipherstate_free(send);

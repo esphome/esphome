@@ -63,10 +63,13 @@ class ResumeTicketCache {
   /// Forget every ticket (PSK change).
   void clear();
 
+  // Realistically one or two controllers hold a ticket at a time; a third
+  // just evicts the oldest and that client does one full handshake.
+  static constexpr uint8_t SLOTS = 2;
+
  protected:
   bool take_verified_(const uint8_t *offer, uint8_t *secret_out);
 
-  static constexpr uint8_t SLOTS = 4;
   ResumeTicket slots_[SLOTS];
   bool used_[SLOTS]{};
   uint8_t next_{0};
