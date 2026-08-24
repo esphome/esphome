@@ -1,14 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import (
-    CONF_ID,
-    CONF_LIGHT,
-    CONF_TIMEOUT,
-    DEVICE_CLASS_LIGHT,
-    DEVICE_CLASS_OPENING,
-)
-from esphome.core import TimePeriod
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_LIGHT, DEVICE_CLASS_LIGHT, DEVICE_CLASS_OPENING
 
 from . import XiaomiMCCGQ02HL
 
@@ -24,7 +17,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_OPEN): binary_sensor.binary_sensor_schema(
             device_class=DEVICE_CLASS_OPENING
-        )
+        ),
     }
 )
 
