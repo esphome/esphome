@@ -1136,21 +1136,15 @@ class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
 class NoiseResumeTicket final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 152;
-  static constexpr uint8_t ESTIMATED_SIZE = 38;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("noise_resume_ticket"); }
 #endif
-  const uint8_t *session_id_ptr_{nullptr};
-  size_t session_id_len_{0};
-  void set_session_id(const uint8_t *data, size_t len) {
-    this->session_id_ptr_ = data;
-    this->session_id_len_ = len;
-  }
-  const uint8_t *secret_ptr_{nullptr};
-  size_t secret_len_{0};
-  void set_secret(const uint8_t *data, size_t len) {
-    this->secret_ptr_ = data;
-    this->secret_len_ = len;
+  const uint8_t *ticket_ptr_{nullptr};
+  size_t ticket_len_{0};
+  void set_ticket(const uint8_t *data, size_t len) {
+    this->ticket_ptr_ = data;
+    this->ticket_len_ = len;
   }
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;

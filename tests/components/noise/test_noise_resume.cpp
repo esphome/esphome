@@ -49,7 +49,7 @@ struct TestCache : ResumeTicketCache {
   void plant(const uint8_t *session_id, const uint8_t *secret) {
     std::memcpy(this->slots_[0].session_id, session_id, RESUME_SESSION_ID_SIZE);
     std::memcpy(this->slots_[0].secret, secret, RESUME_SECRET_SIZE);
-    this->used_[0] = true;
+    this->used_mask_ |= 1u;
   }
 };
 

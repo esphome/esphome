@@ -283,7 +283,6 @@ class APIFrameHelper {
     CLOSED = 6,
     FAILED = 7,
     EXPLICIT_REJECT = 8,  // Noise only
-    RESUME_DISCARD = 9,   // Noise only: session resumed, discard the in-flight handshake msg 1
   };
 
   // Fast inline state check for read_packet/write_protobuf_messages hot path.

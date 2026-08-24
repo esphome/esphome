@@ -252,8 +252,6 @@ APIError APINoiseFrameHelper::state_action_() {
       return this->state_action_server_hello_();
     case State::HANDSHAKE:
       return this->state_action_handshake_();
-    case State::RESUME_DISCARD:
-      return this->state_action_resume_discard_();
     case State::CLOSED:
     case State::FAILED:
       return APIError::BAD_STATE;
@@ -323,18 +321,20 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
     return aerr;
 
   if (resume) {
-    this->prologue_.release();
+    // A resuming client waits for this hello instead of pipelining
+    // handshake message 1, so the transport is ready now
     this->frame_footer_size_ = noise_cipherstate_get_mac_length(this->send_cipher_);
-    state_ = State::RESUME_DISCARD;
-    return APIError::OK;
+    HELPER_LOG("Session resumed!");
+    state_ = State::DATA;
+  } else {
+    aerr = init_handshake_();
+    if (aerr != APIError::OK)
+      return aerr;
+    state_ = State::HANDSHAKE;
   }
-
-  // start handshake
-  aerr = init_handshake_();
-  if (aerr != APIError::OK)
-    return aerr;
-
-  state_ = State::HANDSHAKE;
+  // init_handshake_ copied the prologue into the handshake state; the resume
+  // path is done with it too
+  this->prologue_.release();
   return APIError::OK;
 }
 APIError APINoiseFrameHelper::state_action_handshake_() {
@@ -349,40 +349,19 @@ APIError APINoiseFrameHelper::state_action_handshake_() {
   HELPER_LOG("Bad action for handshake: %d", (int) action);
   return APIError::HANDSHAKESTATE_BAD_STATE;
 }
-/// Read one handshake frame into rx_buf_ and validate its status byte.
-APIError APINoiseFrameHelper::read_handshake_frame_() {
+APIError APINoiseFrameHelper::state_action_handshake_read_() {
   APIError aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {
     return this->handle_handshake_frame_error_(aerr);
   }
+
   if (this->rx_buf_.empty()) {
     this->send_explicit_handshake_reject_(LOG_STR("Empty handshake message"));
     return APIError::BAD_HANDSHAKE_ERROR_BYTE;
-  }
-  if (this->rx_buf_[0] != noise::HANDSHAKE_STATUS_OK) {
+  } else if (this->rx_buf_[0] != noise::HANDSHAKE_STATUS_OK) {
     HELPER_LOG("Bad handshake error byte: %u", this->rx_buf_[0]);
     this->send_explicit_handshake_reject_(LOG_STR("Bad handshake error byte"));
     return APIError::BAD_HANDSHAKE_ERROR_BYTE;
-  }
-  return APIError::OK;
-}
-
-/// Resumed session: discard the client's already-in-flight handshake
-/// message 1, then enter DATA.
-APIError APINoiseFrameHelper::state_action_resume_discard_() {
-  APIError aerr = this->read_handshake_frame_();
-  if (aerr != APIError::OK) {
-    return aerr;
-  }
-  HELPER_LOG("Session resumed!");
-  state_ = State::DATA;
-  return APIError::OK;
-}
-
-APIError APINoiseFrameHelper::state_action_handshake_read_() {
-  APIError aerr = this->read_handshake_frame_();
-  if (aerr != APIError::OK) {
-    return aerr;
   }
 
   int err = this->handshake_.read_message(this->rx_buf_.data() + 1, this->rx_buf_.size() - 1);
@@ -583,8 +562,6 @@ APIError APINoiseFrameHelper::init_handshake_() {
   APIError aerr = handle_noise_error_(err, LOG_STR("noise_handshake_init"), APIError::HANDSHAKESTATE_SETUP_FAILED);
   if (aerr != APIError::OK)
     return aerr;
-  // init copies the prologue into the handshakestate, so we can get rid of it now
-  prologue_.release();
   return APIError::OK;
 }
 

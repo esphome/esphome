@@ -902,8 +902,7 @@ message NoiseResumeTicket {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_API_NOISE";
 
-  bytes session_id = 1;  // 8 bytes
-  bytes secret = 2;      // 32 bytes
+  bytes ticket = 1;  // session_id(8) || secret(32)
 }
 
 // ==================== HOMEASSISTANT.SERVICE ====================

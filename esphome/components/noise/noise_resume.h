@@ -46,6 +46,8 @@ struct ResumeTicket {
   uint8_t session_id[RESUME_SESSION_ID_SIZE];
   uint8_t secret[RESUME_SECRET_SIZE];
 };
+// Sent on the wire as one blob: session_id || secret
+static_assert(sizeof(ResumeTicket) == RESUME_SESSION_ID_SIZE + RESUME_SECRET_SIZE, "ticket must be packed");
 
 /// Fixed-slot RAM cache of single-use resume tickets. Lost on reboot by
 /// design: clients fall back to a full handshake.
@@ -69,7 +71,7 @@ class ResumeTicketCache {
 
  protected:
   ResumeTicket slots_[SLOTS];
-  bool used_[SLOTS]{};
+  uint8_t used_mask_{0};
   uint8_t next_{0};
 };
 
