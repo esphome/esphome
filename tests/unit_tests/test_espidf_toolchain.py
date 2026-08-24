@@ -344,13 +344,16 @@ def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
     _setup_build(setup_core)
     config = {CONF_ESPHOME: {}}
     calls: list[tuple] = []
+    reconfigures = 0
 
     def record_write(minimal: bool = False) -> None:
         calls.append(("write_project", minimal))
 
     def record_reconfigure() -> int:
+        nonlocal reconfigures
+        reconfigures += 1
         calls.append(("run_reconfigure",))
-        return 1 if len(calls) == 4 else 0
+        return 1 if reconfigures == 2 else 0
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=True),
