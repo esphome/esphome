@@ -970,13 +970,14 @@ int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child) {
     if (lv_obj_get_parent(obj) == list)
       return lv_obj_get_index(obj);
   }
+  ESP_LOGW(TAG, "lvgl.list: entry is not inside the list it was added to");
   return -1;
 }
 
 lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index) {
-  lv_obj_t *child = lv_obj_get_child(list, index);
+  lv_obj_t *child = index < 0 ? nullptr : lv_obj_get_child(list, index);
   if (child == nullptr) {
-    ESP_LOGV(TAG, "lvgl.list.remove: index %d is out of range, ignoring", index);
+    ESP_LOGW(TAG, "lvgl.list.remove: index %d is out of range, ignoring", index);
   }
   return child;
 }

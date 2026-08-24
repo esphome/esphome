@@ -285,9 +285,12 @@ class LvConditional:
     def __init__(self, condition):
         # Condition is embedded directly into a raw `if (...)` statement below, rather than
         # going through the argument-list machinery (ExpressionList) that would otherwise
-        # convert a native Python value (e.g. a plain bool) to a proper Expression -- so do
-        # that conversion explicitly here instead. `None` means "no condition" and is left
-        # alone.
+        # convert a native Python value (e.g. a plain bool) to a proper Expression.
+        if isinstance(condition, str):
+            raise ValueError(
+                "LvConditional condition must not be a raw str; wrap it in literal() "
+                "if a string literal condition is really intended"
+            )
         self.condition = cg.safe_exp(condition) if condition is not None else None
 
     def __enter__(self):

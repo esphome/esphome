@@ -147,12 +147,15 @@ class TestListAddSchema:
             ("on_swipe_up", [{"logger.log": "swiped"}]),
             ("on_swipe_down", [{"logger.log": "swiped"}]),
             ("on_boot", [{"logger.log": "booted"}]),
+            ("align_to", {"id": "some_other_widget", "align": "OUT_LEFT_TOP"}),
         ],
     )
     def test_unsupported_trigger_rejected(self, key: str, conf: list) -> None:
         """_wire_dynamic_triggers only wires LV_EVENT_TRIGGERS/on_value/on_update --
         on_swipe_*/on_boot would otherwise validate fine and then silently generate
-        nothing at all for a widget added via lvgl.list.add.
+        nothing at all for a widget added via lvgl.list.add. align_to is in the same
+        bucket: it's only ever consumed by generate_triggers() reading
+        get_widget_map(), which a widget built via lvgl.list.add never enters.
         """
         with pytest.raises(cv.Invalid, match="is not supported"):
             list_add_schema({"id": "my_list", "obj": {key: conf}})

@@ -180,7 +180,7 @@ async def add_trigger(
     if str(events[0]) in DISPLAY_TRIGGERS:
         assert len(events) == 1
         lv.display_add_event_cb(
-            lv_expr.obj_get_display(attach_obj), callback, event_literals[0], nullptr
+            lv_expr.obj_get_display(attach_obj), callback, event_literals[0], user_data
         )
     else:
         lv_add(

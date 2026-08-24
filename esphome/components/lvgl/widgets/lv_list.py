@@ -14,11 +14,13 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
+from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 
 from ..automation import action_to_code
 from ..defines import (
+    CONF_ALIGN_TO,
     CONF_MAIN,
     CONF_PAD_ROW,
     CONF_SCROLLBAR,
@@ -101,6 +103,33 @@ def _get_pending_list_triggers(list_id) -> ListTriggers:
     return pending_by_list.setdefault(list_id, ListTriggers())
 
 
+def _list_triggers_completed_flag() -> list[bool]:
+    return CORE.data.setdefault(DOMAIN + "_completed", [False])
+
+
+def _list_triggers_completed_generator():
+    while True:
+        if _list_triggers_completed_flag()[0]:
+            return
+        yield
+
+
+async def _wait_list_triggers_completed() -> None:
+    """
+    Waits until finish_list_triggers() has built every list's on_add/on_remove
+    automations. A `lvgl.list.add`/`add_text`/`remove`/`clear` action referenced
+    outside the `lvgl:` block is codegen'd on its own, independent coroutine, and can
+    resume - once its own `await get_widgets(...)` resolves, which only requires the
+    target list to have been *created* - before finish_list_triggers() has run.
+    Without this wait, a fire site reading `_get_list_triggers()` at that point would
+    see an empty, not-yet-built `ListTriggers` and silently skip firing on_add/
+    on_remove for that call, even though the list has triggers configured.
+    """
+    if _list_triggers_completed_flag()[0]:
+        return
+    await FakeAwaitable(_list_triggers_completed_generator())
+
+
 async def finish_list_triggers() -> None:
     """
     Builds every list's on_add/on_remove automations, stashed by ListType.to_code()
@@ -121,6 +150,7 @@ async def finish_list_triggers() -> None:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
             await automation.build_automation(trigger, [(cg.int_, "list_index")], conf)
             triggers.on_remove.append(trigger)
+    _list_triggers_completed_flag()[0] = True
 
 
 def _fire_index_triggers(triggers: list, index) -> None:
@@ -128,7 +158,8 @@ def _fire_index_triggers(triggers: list, index) -> None:
         lv_add(trigger.trigger(index))
 
 
-def _fire_on_add(list_id, list_obj, entry_obj) -> None:
+async def _fire_on_add(list_id, list_obj, entry_obj) -> None:
+    await _wait_list_triggers_completed()
     triggers = _get_list_triggers(list_id).on_add
     if not triggers:
         return
@@ -136,7 +167,8 @@ def _fire_on_add(list_id, list_obj, entry_obj) -> None:
     _fire_index_triggers(triggers, index)
 
 
-def _fire_on_remove(list_id, index) -> None:
+async def _fire_on_remove(list_id, index) -> None:
+    await _wait_list_triggers_completed()
     _fire_index_triggers(_get_list_triggers(list_id).on_remove, index)
 
 
@@ -231,7 +263,7 @@ async def list_add_text_to_code(config, action_id, template_arg, args):
         ) as entry:
             if (idx := config.get(CONF_INDEX)) is not None:
                 lv.obj_move_to_index(entry, await lv_int.process(idx))
-            _fire_on_add(config[CONF_ID], w.obj, entry)
+            await _fire_on_add(config[CONF_ID], w.obj, entry)
 
     return await action_to_code(
         widgets, do_add_text, action_id, template_arg, args, config
@@ -282,7 +314,7 @@ def _check_dynamic_widget_supported(w_type_name: str, w_conf: dict) -> None:
         _check_dynamic_widget_supported(child_type, child_conf)
 
 
-_UNSUPPORTED_DYNAMIC_TRIGGERS = SWIPE_TRIGGERS + (CONF_ON_BOOT,)
+_UNSUPPORTED_DYNAMIC_KEYS = SWIPE_TRIGGERS + (CONF_ON_BOOT, CONF_ALIGN_TO)
 
 
 def _check_no_unsupported_triggers(w_type_name: str, w_conf: dict) -> None:
@@ -293,8 +325,11 @@ def _check_no_unsupported_triggers(w_type_name: str, w_conf: dict) -> None:
     # body. Reject them instead, the same as _check_no_explicit_widget_id does for an
     # explicit id: - swipe could in principle be wired the same way generate_triggers()
     # does for static widgets, but on_boot has no coherent meaning for a widget that by
-    # definition doesn't exist yet at boot.
-    for key in _UNSUPPORTED_DYNAMIC_TRIGGERS:
+    # definition doesn't exist yet at boot. align_to: is in the same bucket: it's only
+    # ever consumed by generate_triggers() reading get_widget_map(), which a widget
+    # built via lvgl.list.add never enters, so it would validate and silently do
+    # nothing too.
+    for key in _UNSUPPORTED_DYNAMIC_KEYS:
         if key in w_conf:
             raise cv.Invalid(
                 f"'{key}' is not supported on a widget added via lvgl.list.add - it "
@@ -474,7 +509,7 @@ async def _build_dynamic_widget(
         if top_level:
             if index is not None:
                 lv.obj_move_to_index(w.obj, index)
-            _fire_on_add(list_id, list_obj, w.obj)
+            await _fire_on_add(list_id, list_obj, w.obj)
 
     if widget_type.is_compound():
         with LocalVariable(
@@ -604,7 +639,7 @@ async def list_remove_to_code(config, action_id, template_arg, args):
             ) as child,
             LvConditional(child),
         ):
-            _fire_on_remove(config[CONF_ID], idx)
+            await _fire_on_remove(config[CONF_ID], idx)
             lv.obj_del(child)
 
     return await action_to_code(
@@ -622,6 +657,7 @@ async def list_clear_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config)
 
     async def do_clear(w: Widget):
+        await _wait_list_triggers_completed()
         triggers = _get_list_triggers(config[CONF_ID]).on_remove
         if triggers:
             # Fire on_remove for every entry, newest to oldest, before wiping them all out,
