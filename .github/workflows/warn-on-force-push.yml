@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check for force-push and comment if this is the first one
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
@@ -48,6 +48,19 @@ jobs:
                 }));
               } catch (err) {
                 if (err.status === 404) {
+                  // compareCommits 404s if either `before` or `after` can't be
+                  // resolved. Only call it a rewrite if `after` resolves and
+                  // `before` doesn't.
+                  try {
+                    await github.rest.repos.getCommit({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      ref: after,
+                    });
+                  } catch {
+                    core.info(`Could not resolve ${after} — skipping.`);
+                    return false;
+                  }
                   core.info(`Previous tip ${before} is no longer reachable — history was rewritten.`);
                   return true;
                 }
@@ -84,31 +97,34 @@ jobs:
               pull_number: prNumber,
             });
             const hasHumanReviewComment = reviewComments.some(
-              c => c.user?.type !== "Bot" &&
-              !c.user?.login?.endsWith("[bot]" &&
-              !c.user?.login?.endsWith("bot")
+              c => c.user?.type !== "Bot" && !c.user?.login?.endsWith("bot")
             );
             if (!hasHumanReviewComment) {
               core.info("No existing human review comments — skipping warning.");
               return;
             }
 
+            // Git ref names allow backticks, @, and other characters that could
+            // break markdown formatting or ping an uninvolved user.
+            const safeBranch = branch.replace(/`/g, "").replace(/@/g, "@​");
+
             const body = [
               marker,
               "### ⚠️ This branch's history was rewritten",
               "",
-              `A force-push to \`${branch}\` replaced earlier commits — the previous tip is no longer an ancestor of the current tip (\`${after.slice(0, 7)}\`).`,
+              `A force-push to \`${safeBranch}\` replaced earlier commits — the previous tip is no longer an ancestor of the current tip (\`${after.slice(0, 7)}\`).`,
               "",
               "Rewriting history mid-review makes it harder to track what changed since the last look, and can detach existing review comments from their code. Please avoid `git push --force` on PR branches — push new commits on top instead, or check with reviewers first if a rebase is really needed.",
               "",
               "**To restore the previous state, if this wasn't intentional:**",
               "",
-              "If the old commits still exist in a local clone, find them with `git reflog`, then push that tip back:",
+              "Push the previous tip back onto the branch:",
               "```",
-              `git push --force origin <old-tip-sha>:${branch}`,
+              `git push --force origin ${before}:${safeBranch}`,
               "```",
+              `Or view it first at https://github.com/${context.repo.owner}/${context.repo.repo}/commit/${before}.`,
               "",
-              "If the old commits only ever existed on GitHub — for example, they were pushed from another machine whose clone is gone — they can't be fetched back: GitHub stops serving commits that aren't reachable from any branch or tag. Ask anyone with a local copy to push them back.",
+              "That commit may no longer be fetchable with `git fetch` once no branch or tag references it, but it's often still viewable at the link above for a while.",
             ].join("\n");
 
             await github.rest.issues.createComment({
