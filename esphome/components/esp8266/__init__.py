@@ -1,7 +1,9 @@
 import logging
 from pathlib import Path
+import platform
 import re
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -20,9 +22,17 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    Lambda,
+    coroutine_with_priority,
+)
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import IS_MACOS, copy_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
@@ -80,7 +90,7 @@ def lambdas_use_scanf_float(config: ConfigType) -> bool:
     return False
 
 
-def set_core_data(config):
+def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_ESP8266] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
@@ -94,7 +104,7 @@ def set_core_data(config):
     return config
 
 
-def get_download_types(storage_json):
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Binary-download entries for a built ESP8266 firmware.
 
     Used by device-builder (esphome/device-builder), via
@@ -105,6 +115,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Standard format",
@@ -146,7 +159,7 @@ ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 ARDUINO_4_PLATFORM_VERSION = cv.Version(4, 2, 1)
 
 
-def _arduino_check_versions(value):
+def _arduino_check_versions(value: ConfigType) -> ConfigType:
     value = value.copy()
     lookups = {
         "dev": (cv.Version(3, 1, 2), "https://github.com/esp8266/Arduino.git"),
@@ -189,7 +202,7 @@ def _arduino_check_versions(value):
     return value
 
 
-def _parse_platform_version(value):
+def _parse_platform_version(value: Any) -> str:
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
@@ -237,8 +250,34 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def check_rosetta() -> None:
+    """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
+
+    There is no native arm64 build of the xtensa-lx106 toolchain; on Apple
+    Silicon it runs under Rosetta 2, which macOS updates can remove.
+    """
+    if not IS_MACOS or platform.machine() != "arm64":
+        return
+    try:
+        result = subprocess.run(
+            ["/usr/bin/arch", "-x86_64", "/usr/bin/true"],
+            capture_output=True,
+            close_fds=False,
+            check=False,
+        )
+    except OSError:
+        return  # arch(1) unavailable; let the build proceed
+    if result.returncode != 0:
+        raise EsphomeError(
+            "ESP8266 builds on Apple Silicon Macs use an Intel (x86_64) "
+            "compiler that requires Rosetta 2, which is not installed on "
+            "this system. Install it with:\n"
+            "  softwareupdate --install-rosetta --agree-to-license"
+        )
+
+
 @coroutine_with_priority(CoroPriority.PLATFORM)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add(esp8266_ns.setup_preferences())
 
     cg.add_platformio_option("lib_ldf_mode", "off")
@@ -261,9 +300,11 @@ async def to_code(config):
         )
 
     extra_scripts = [
+        "pre:ccache.py",
         "pre:testing_mode.py",
         "pre:exclude_updater.py",
         "pre:exclude_waveform.py",
+        "pre:relocate_ratetable.py",
     ]
     if not enable_scanf_float:
         extra_scripts.append("pre:remove_float_scanf.py")
@@ -410,31 +451,19 @@ async def finalize_serial_config() -> None:
 # Called by writer.py
 def copy_files() -> None:
     dir = Path(__file__).parent
-    post_build_file = dir / "post_build.py.script"
-    copy_file_if_changed(
-        post_build_file,
-        CORE.relative_build_path("post_build.py"),
-    )
-    testing_mode_file = dir / "testing_mode.py.script"
-    copy_file_if_changed(
-        testing_mode_file,
-        CORE.relative_build_path("testing_mode.py"),
-    )
-    exclude_updater_file = dir / "exclude_updater.py.script"
-    copy_file_if_changed(
-        exclude_updater_file,
-        CORE.relative_build_path("exclude_updater.py"),
-    )
-    exclude_waveform_file = dir / "exclude_waveform.py.script"
-    copy_file_if_changed(
-        exclude_waveform_file,
-        CORE.relative_build_path("exclude_waveform.py"),
-    )
-    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
-    copy_file_if_changed(
-        remove_float_scanf_file,
-        CORE.relative_build_path("remove_float_scanf.py"),
-    )
+    for script in (
+        "post_build",
+        "testing_mode",
+        "exclude_updater",
+        "exclude_waveform",
+        "remove_float_scanf",
+        "relocate_ratetable",
+    ):
+        copy_file_if_changed(
+            dir / f"{script}.py.script",
+            CORE.relative_build_path(f"{script}.py"),
+        )
+    copy_ccache_script()
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
@@ -477,7 +506,7 @@ ESP8266_EXCEPTION_CODES = {
 }
 
 
-def _decode_pc(config, addr):
+def _decode_pc(config: ConfigType, addr: str) -> None:
     from esphome.platformio import toolchain
 
     idedata = toolchain.get_idedata(config)
@@ -498,7 +527,7 @@ def _decode_pc(config, addr):
     _LOGGER.warning("Decoded %s", translation)
 
 
-def _parse_register(config, regex, line):
+def _parse_register(config: ConfigType, regex: re.Pattern[str], line: str) -> None:
     match = regex.match(line)
     if match is not None:
         _decode_pc(config, match.group(1))
@@ -522,7 +551,7 @@ STACKTRACE_BAD_ALLOC_RE = re.compile(
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
-def process_stacktrace(config, line, backtrace_state):
+def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     line = line.strip()
     # ESP8266 Exception type
     match = re.match(STACKTRACE_ESP8266_EXCEPTION_TYPE_RE, line)

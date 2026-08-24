@@ -10,12 +10,14 @@ from esphome.const import (
     CONF_STORAGE,
     KEY_PAST_SAFE_MODE,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import RawExpression
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj, RawExpression, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@paulmonigatti", "@jsuanet", "@kbx81"]
 
 CONF_BOOT_IS_GOOD_AFTER = "boot_is_good_after"
+CONF_BOOT_IS_GOOD_ON_SHUTDOWN = "boot_is_good_on_shutdown"
 CONF_ON_SAFE_MODE = "on_safe_mode"
 
 safe_mode_ns = cg.esphome_ns.namespace("safe_mode")
@@ -23,7 +25,7 @@ SafeModeComponent = safe_mode_ns.class_("SafeModeComponent", cg.Component)
 MarkSuccessfulAction = safe_mode_ns.class_("MarkSuccessfulAction", automation.Action)
 
 
-def _remove_id_if_disabled(value):
+def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
     value = value.copy()
     if value[CONF_DISABLED]:
         value.pop(CONF_ID)
@@ -37,6 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_BOOT_IS_GOOD_AFTER, default="1min"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_BOOT_IS_GOOD_ON_SHUTDOWN, default=True): cv.boolean,
             cv.Optional(CONF_DISABLED, default=False): cv.boolean,
             cv.Optional(CONF_NUM_ATTEMPTS, default="10"): cv.positive_not_null_int,
             cv.Optional(
@@ -60,7 +63,12 @@ CONFIG_SCHEMA = cv.All(
     ),
     synchronous=True,
 )
-async def safe_mode_mark_successful_to_code(config, action_id, template_arg, args):
+async def safe_mode_mark_successful_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg)
     cg.add(var.set_parent(parent))
@@ -73,10 +81,13 @@ _CALLBACK_AUTOMATIONS = (
 
 
 @coroutine_with_priority(CoroPriority.APPLICATION)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if not config[CONF_DISABLED]:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
+
+        if config[CONF_BOOT_IS_GOOD_ON_SHUTDOWN]:
+            cg.add_define("USE_SAFE_MODE_BOOT_IS_GOOD_ON_SHUTDOWN")
 
         if on_safe_mode := config.get(CONF_ON_SAFE_MODE):
             cg.add_define("USE_SAFE_MODE_CALLBACK")

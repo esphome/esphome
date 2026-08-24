@@ -23,6 +23,15 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
+#ifdef USE_API_NOISE
+  // After try_read_frame_ returned PROTOCOL_SWITCH_TO_NOISE: copy out the
+  // header bytes already consumed from the socket (at most 3, the size of the
+  // Noise fixed header) so the replacement Noise helper can be seeded with them.
+  uint8_t get_consumed_header(uint8_t out[3]) const {
+    memcpy(out, this->rx_header_buf_, this->rx_header_buf_pos_);
+    return this->rx_header_buf_pos_;
+  }
+#endif
 
  protected:
   APIError try_read_frame_();

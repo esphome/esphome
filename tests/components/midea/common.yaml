@@ -1,7 +1,3 @@
-wifi:
-  ssid: MySSID
-  password: password1
-
 climate:
   - platform: midea
     id: midea_unit

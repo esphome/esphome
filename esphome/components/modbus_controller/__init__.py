@@ -6,7 +6,7 @@ from esphome.components import modbus
 from esphome.components.modbus.helpers import (
     MODBUS_REGISTER_TYPE,
     TYPE_REGISTER_MAP,
-    ModbusRegisterType,
+    EntityType,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
@@ -42,22 +42,38 @@ AUTO_LOAD = ["modbus"]
 MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
-ModbusController = modbus_controller_ns.class_(
-    "ModbusController", cg.PollingComponent, modbus.ModbusClientDevice
-)
+ModbusController = modbus_controller_ns.class_("ModbusController", cg.PollingComponent)
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
 
 _LOGGER = logging.getLogger(__name__)
 
+# Remove before 2027.2.0
+_REMOVED_OPTIONS = {
+    CONF_COMMAND_THROTTLE: "Command spacing is handled by the 'modbus' component - use 'turnaround_time' there instead.",
+    CONF_ALLOW_DUPLICATE_COMMANDS: "Polling commands are deduplicated by the modbus hub; one-shot commands (writes) are always transmitted.",
+}
+
+
+def _warn_removed_options(config: ConfigType) -> ConfigType:
+    """Warn about options that no longer do anything, but let the config compile."""
+    for option, replacement in _REMOVED_OPTIONS.items():
+        if option in config:
+            _LOGGER.warning(
+                "[modbus_controller] '%s' no longer has any effect and will be removed in 2027.2.0. %s",
+                option,
+                replacement,
+            )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ModbusController),
-            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS, default=False): cv.boolean,
-            cv.Optional(
-                CONF_COMMAND_THROTTLE, default="0ms"
-            ): cv.positive_time_period_milliseconds,
+            # Removed options: accepted (and ignored) until 2027.2.0 so existing configs keep building.
+            cv.Optional(CONF_ALLOW_DUPLICATE_COMMANDS): cv.boolean,
+            cv.Optional(CONF_COMMAND_THROTTLE): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SERVER_COURTESY_RESPONSE): cv.invalid(
                 "This option has been removed. Use modbus_server component instead: https://esphome.io/components/modbus_server/"
             ),
@@ -74,7 +90,8 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(modbus.modbus_device_schema(0x01))
+    .extend(modbus.modbus_device_schema(0x01)),
+    _warn_removed_options,
 )
 
 ModbusItemBaseSchema = cv.Schema(
@@ -118,10 +135,8 @@ def validate_modbus_register(config):
     return config
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("modbus_controller", role="client")(
-        config
-    )
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("modbus_controller", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -170,10 +185,7 @@ async def add_modbus_base_properties(
             [
                 (sensor_type.operator("ptr"), "item"),
                 (lambda_param_type, "x"),
-                (
-                    cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
-                    "data",
-                ),
+                (cg.std_span.template(cg.uint8.operator("const")), "data"),
             ],
             return_type=cg.optional.template(lambda_return_type),
         )
@@ -201,8 +213,6 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_allow_duplicate_commands(config[CONF_ALLOW_DUPLICATE_COMMANDS]))
-    cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     await register_modbus_device(var, config)
@@ -217,13 +227,13 @@ async def register_modbus_device(var, config):
 
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
-        "read_coils": ModbusRegisterType.COIL,
-        "read_discrete_inputs": ModbusRegisterType.DISCRETE_INPUT,
-        "read_holding_registers": ModbusRegisterType.HOLDING,
-        "read_input_registers": ModbusRegisterType.INPUT_REGISTER,
-        "write_single_coil": ModbusRegisterType.COIL,
-        "write_single_register": ModbusRegisterType.HOLDING,
-        "write_multiple_coils": ModbusRegisterType.COIL,
-        "write_multiple_registers": ModbusRegisterType.HOLDING,
+        "read_coils": EntityType.COIL,
+        "read_discrete_inputs": EntityType.DISCRETE_INPUT,
+        "read_holding_registers": EntityType.HOLDING,
+        "read_input_registers": EntityType.INPUT_REGISTER,
+        "write_single_coil": EntityType.COIL,
+        "write_single_register": EntityType.HOLDING,
+        "write_multiple_coils": EntityType.COIL,
+        "write_multiple_registers": EntityType.HOLDING,
     }
     return FUNCTION_CODE_TYPE_MAP[function_code]

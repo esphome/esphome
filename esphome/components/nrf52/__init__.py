@@ -69,7 +69,12 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install, get_build_env, get_build_paths
+from .framework import (
+    check_and_install,
+    get_build_env,
+    get_build_paths,
+    setup_platformio_python_env,
+)
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
@@ -278,6 +283,13 @@ def _validate_mcumgr(config):
 
 def _final_validate(config):
 
+    # Remove before 2027.2.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
+            "Please use 'toolchain: sdk-nrf' instead."
+        )
+
     if CONF_DFU in config:
         _validate_mcumgr(config)
     if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
@@ -461,6 +473,9 @@ def copy_files() -> None:
 
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Get the download types for the firmware."""
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
@@ -514,6 +529,7 @@ def _upload_using_platformio(
 ) -> int | str:
     from esphome.platformio import toolchain
 
+    setup_platformio_python_env()
     if port is not None:
         upload_args += ["--upload-port", port]
     return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -709,11 +725,17 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
     return ""
 
 
+# The PC bound matches the gate in platform_hooks.STACKTRACE_GATES;
+# the logger prints both registers with %08x, so a real PC is always
+# 8 digits. tests/unit_tests/test_stacktrace.py guards against drift.
+STACKTRACE_NRF52_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]+)")
+
+
 def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     if "Last crash:" in line:
         return True
     if backtrace_state:
-        match = re.search(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)", line)
+        match = STACKTRACE_NRF52_PC_LR_RE.search(line)
         if match:
             pc = match.group(1)
             lr = match.group(2)
@@ -809,6 +831,10 @@ def _copy_if_exists(src: Path, dst: Path) -> None:
 
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
+        # The actual build is done by PlatformIO (the caller falls through to
+        # it when this returns False); prepare the Python environment its
+        # Zephyr build script expects first.
+        setup_platformio_python_env()
         return False
     if not CORE.using_toolchain_sdk_nrf:
         raise EsphomeError(
@@ -860,6 +886,21 @@ def run_compile(args, config: ConfigType) -> bool:
 
     zephyr_dir = build_dir / "zephyr"
     framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    bootloader = zephyr_data()[KEY_BOOTLOADER]
+
+    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
+    _GENPKG_PARAMS = {
+        BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
+    }
+    # UF2 family IDs — nRF52832 vs nRF52840 per SoftDevice variant
+    _UF2_FAMILY_IDS = {
+        BOOTLOADER_ADAFRUIT_NRF52_SD132: "0x7EAED30A",
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: "0xADA52840",
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: "0xADA52840",
+    }
+
     # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
     # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
     # copy files to match get_download_types layout.
@@ -871,20 +912,43 @@ def run_compile(args, config: ConfigType) -> bool:
         _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
         _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
 
-    # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
-    _GENPKG_PARAMS = {
-        BOOTLOADER_ADAFRUIT_NRF52_SD132: ("0x0051", "0x009D"),
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
-        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
-    }
-    bootloader = zephyr_data()[KEY_BOOTLOADER]
+    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
+    # whose records carry the correct flash addresses. The build's own
+    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
+    merged_hex = zephyr_dir / "merged.hex"
+    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
+        # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
+        app_uf2 = west_out / "zephyr.uf2"
+        if app_uf2.is_file():
+            app_uf2.unlink()
+        uf2conv = (
+            paths["framework_path"] / "zephyr" / "scripts" / "build" / "uf2conv.py"
+        )
+        if not run_command_ok(
+            [
+                str(paths["python_executable"]),
+                str(uf2conv),
+                "-f",
+                _UF2_FAMILY_IDS[bootloader],
+                "-c",
+                "-o",
+                str(zephyr_dir / "zephyr.uf2"),
+                str(merged_hex),
+            ],
+            env=env,
+            stream_output=True,
+        ):
+            raise EsphomeError("Failed to generate UF2 from merged hex")
+
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
         BOOTLOADER_ADAFRUIT_NRF52_SD132,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        hex_file = west_out / "zephyr.hex"
+        # no fallback is needed for adafruit case. merged merged.hex is always generated.
+        # get_download_types needs fallback for mcuboot (non adafruit)
+        hex_file = zephyr_dir / "merged.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),

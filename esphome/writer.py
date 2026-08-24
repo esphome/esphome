@@ -337,12 +337,29 @@ def copy_src_tree():
     else:
         try:
             existing = json.loads(build_info_json_path.read_text(encoding="utf-8"))
-            if (
+            if not isinstance(existing, dict) or (
                 existing.get("config_hash") != config_hash
                 or existing.get("esphome_version") != __version__
             ):
+                # Non-object JSON is stale like every other damage case
                 sources_changed = True
-        except (json.JSONDecodeError, KeyError, OSError):
+        except FileNotFoundError:
+            # An absent build_info.json is stale, not damaged; rebuild quietly
+            sources_changed = True
+        except (ValueError, OSError) as err:
+            # ValueError covers both JSONDecodeError and UnicodeDecodeError;
+            # unlink so the regenerating write never re-reads the bad copy.
+            # "Unreadable" not "damaged": EACCES/EISDIR land here too
+            _LOGGER.warning("Regenerating unreadable build_info.json: %s", err)
+            try:
+                # missing_ok: a concurrent clean may have removed it already
+                build_info_json_path.unlink(missing_ok=True)
+            except OSError as unlink_err:
+                # The later write re-reads the file, so a kept unreadable copy
+                # fails again with a misattributed error; name the real cause
+                _LOGGER.warning(
+                    "Could not remove unreadable build_info.json: %s", unlink_err
+                )
             sources_changed = True
 
     # Write build_info header and JSON metadata
@@ -670,18 +687,9 @@ def clean_all(configuration: list[str]):
             rmtree(install_path)
 
     # Clean PlatformIO project files
-    try:
-        from platformio.project.config import ProjectConfig
-    except ImportError:
-        # PlatformIO is not available, skip cleaning
-        pass
-    else:
-        config = ProjectConfig.get_instance()
-        for pio_dir in ["cache_dir", "packages_dir", "platforms_dir", "core_dir"]:
-            path = Path(config.get("platformio", pio_dir))
-            if path.is_dir():
-                _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                rmtree(path)
+    from esphome.platformio.toolchain import clean_platformio_cache
+
+    clean_platformio_cache()
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

@@ -80,24 +80,6 @@ const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX
 #endif
 }
 
-#ifndef USE_ESP8266
-// Deprecated device class accessors — not available on ESP8266 (rodata is RAM)
-StringRef EntityBase::get_device_class_ref() const {
-#ifdef USE_ENTITY_DEVICE_CLASS
-  return StringRef(entity_device_class_lookup(this->device_class_idx_));
-#else
-  return StringRef(entity_device_class_lookup(0));
-#endif
-}
-std::string EntityBase::get_device_class() const {
-#ifdef USE_ENTITY_DEVICE_CLASS
-  return std::string(entity_device_class_lookup(this->device_class_idx_));
-#else
-  return std::string(entity_device_class_lookup(0));
-#endif
-}
-#endif  // !USE_ESP8266
-
 // Entity unit of measurement (from index)
 StringRef EntityBase::get_unit_of_measurement_ref() const {
 #ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
@@ -106,10 +88,6 @@ StringRef EntityBase::get_unit_of_measurement_ref() const {
   return StringRef(entity_uom_lookup(0));
 #endif
 }
-std::string EntityBase::get_unit_of_measurement() const {
-  return std::string(this->get_unit_of_measurement_ref().c_str());
-}
-
 // Entity icon — buffer-based API for PROGMEM safety on ESP8266
 const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LENGTH> buffer) const {
 #ifdef USE_ENTITY_ICON
@@ -128,24 +106,6 @@ const char *EntityBase::get_icon_to([[maybe_unused]] std::span<char, MAX_ICON_LE
   return entity_icon_lookup(idx);
 #endif
 }
-
-#ifndef USE_ESP8266
-// Deprecated icon accessors — not available on ESP8266 (rodata is RAM)
-StringRef EntityBase::get_icon_ref() const {
-#ifdef USE_ENTITY_ICON
-  return StringRef(entity_icon_lookup(this->icon_idx_));
-#else
-  return StringRef(entity_icon_lookup(0));
-#endif
-}
-std::string EntityBase::get_icon() const {
-#ifdef USE_ENTITY_ICON
-  return std::string(entity_icon_lookup(this->icon_idx_));
-#else
-  return std::string(entity_icon_lookup(0));
-#endif
-}
-#endif  // !USE_ESP8266
 
 // Calculate Object ID Hash directly from name using snake_case + sanitize
 void EntityBase::calc_object_id_() {
@@ -166,41 +126,12 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-// Migrate preference data from old_key to new_key if they differ.
-// This helper is exposed so callers with custom key computation (like TextPrefs)
-// can use it for manual migration. See: https://github.com/esphome/backlog/issues/85
-//
-// FUTURE IMPLEMENTATION:
-// This will require raw load/save methods on ESPPreferenceObject that take uint8_t* and size.
-//   void EntityBase::migrate_entity_preference_(size_t size, uint32_t old_key, uint32_t new_key) {
-//     if (old_key == new_key)
-//       return;
-//     auto old_pref = global_preferences->make_preference(size, old_key);
-//     auto new_pref = global_preferences->make_preference(size, new_key);
-//     SmallBufferWithHeapFallback<64> buffer(size);
-//     if (old_pref.load(buffer.data(), size)) {
-//       new_pref.save(buffer.data(), size);
-//     }
-//   }
-
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
-  // This helper centralizes preference creation to enable fixing hash collisions.
-  // See: https://github.com/esphome/backlog/issues/85
-  //
-  // COLLISION PROBLEM: get_preference_hash() uses fnv1_hash on sanitized object_id.
-  // Multiple entity names can sanitize to the same object_id:
-  //   - "Living Room" and "living_room" both become "living_room"
-  //   - UTF-8 names like "温度" and "湿度" both become "__" (underscores)
-  // This causes entities to overwrite each other's stored preferences.
-  //
-  // FUTURE MIGRATION: When implementing get_preference_hash_v2() that hashes
-  // the original entity name (not sanitized object_id):
-  //
-  //   uint32_t old_key = this->get_preference_hash() ^ version;
-  //   uint32_t new_key = this->get_preference_hash_v2() ^ version;
-  //   this->migrate_entity_preference_(size, old_key, new_key);
-  //   return global_preferences->make_preference(size, new_key);
-  //
+  // The key hashes the sanitized object_id, so multiple entity names can collide on one
+  // key and overwrite each other's stored preferences ("Living Room" and "living_room",
+  // or two UTF-8 names that both sanitize to underscores). Keys hashed from the raw name
+  // fix this, but they change the entity key API clients track, which the Home Assistant
+  // esphome integration cannot handle yet. See: https://github.com/esphome/backlog/issues/85
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   uint32_t key = this->get_preference_hash() ^ version;

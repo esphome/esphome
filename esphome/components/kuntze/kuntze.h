@@ -4,6 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
+#include <span>
+
 namespace esphome::kuntze {
 
 class Kuntze final : public PollingComponent, public modbus::ModbusClientDevice {
@@ -19,7 +21,7 @@ class Kuntze final : public PollingComponent, public modbus::ModbusClientDevice 
   void loop() override;
   void update() override;
 
-  void on_modbus_data(const std::vector<uint8_t> &data) override;
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
   void dump_config() override;
 
