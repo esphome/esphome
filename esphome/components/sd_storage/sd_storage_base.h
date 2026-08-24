@@ -46,6 +46,11 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   void set_id(const char *id) { this->storage_id_ = id; }
   void set_cd_pin(GPIOPin *pin) { this->cd_pin_ = pin; }
   void set_format_on_mismatch(bool format_on_mismatch) { this->format_on_mismatch_ = format_on_mismatch; }
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  // file_system option (only exists with esp32 enable_exfat): 0 auto, 1 fat32, 2 exfat.
+  // Lives here rather than in the drivers because format() needs it too.
+  void set_requested_file_system(uint8_t fs) { this->requested_file_system_ = fs; }
+#endif
   bool is_mounted() const { return this->is_mounted_; }
   // No-RTTI downcast hook -- see PathStorage::as_mountable().
   storage::MountableStorage *as_mountable() override { return this; }
@@ -166,6 +171,9 @@ class SdStorageBase : public storage::FilesystemStorage, public storage::Mountab
   const char *storage_id_{nullptr};
   GPIOPin *cd_pin_{nullptr};
   bool format_on_mismatch_{false};
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  uint8_t requested_file_system_{0};
+#endif
   char fatfs_drive_[5]{};  // "N:" -- set via set_fatfs_drive_() after a successful mount
 
   LazyCallbackManager<void(const char *)> on_mounted_;

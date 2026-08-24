@@ -17,9 +17,6 @@ namespace esphome::sd_storage {
 
 class SdMmc : public SdStorageBase {
  public:
-#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  void set_requested_file_system(uint8_t fs) { this->requested_file_system_ = fs; }
-#endif
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -67,8 +64,6 @@ class SdMmc : public SdStorageBase {
   uint32_t block_size_{512};
   sdmmc_card_t *card_{nullptr};
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
-  // file_system option (only exists with esp32 enable_exfat): 0 auto, 1 fat32, 2 exfat.
-  uint8_t requested_file_system_{0};
   // Manual mirror of esp_vfs_fat_sdmmc_mount: same public-API steps, but with a probe
   // window between diskio registration and f_mount so a requested filesystem can be
   // enforced BEFORE the one mount that happens. Wrapper-based builds are untouched.

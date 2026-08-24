@@ -5,6 +5,8 @@
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
+#include <memory>
+#include "esphome/components/storage/fatfs_select.h"
 #include "esphome/components/storage/storage.h"
 
 // FATFS_MAX_LFN is "depends on !FATFS_LFN_NONE" in the IDF's fatfs Kconfig, so with
@@ -111,8 +113,36 @@ storage::StorageError SdStorageBase::get_info(storage::StorageInfo *info) {
 }
 
 storage::StorageError SdStorageBase::format() {
-  ESP_LOGW(TAG_BASE, "Format not implemented for SD cards");
-  return storage::StorageError::STORAGE_ERROR_NOT_SUPPORTED;
+  if (this->fatfs_drive_[0] == '\0') {
+    ESP_LOGE(TAG_BASE, "Cannot format: card not mounted (no FATFS drive)");
+    return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
+  }
+  // Detach the mounted FATFS volume but keep the diskio drive registered so f_mkfs can reach the
+  // medium; then re-register the VFS via mount() to expose the fresh, empty filesystem.
+  bool want_exfat = false;
+#ifdef USE_STORAGE_FILE_SYSTEM_SELECT
+  // Honour the configured file_system: formatting to FAT here would immediately contradict an
+  // explicit 'file_system: exfat', and the next mount() would find a mismatch it just created.
+  // 'auto' keeps the FAT family, which is what the card gets on a plain build too.
+  want_exfat = this->requested_file_system_ == storage::FS_SELECT_EXFAT;
+#endif
+  f_mount(nullptr, this->fatfs_drive_, 0);
+  auto work = std::make_unique<uint8_t[]>(FF_MAX_SS);
+  MKFS_PARM parm{};
+  // FAT side deliberately FM_FAT | FM_FAT32: FatFs picks the width the medium allows (forcing
+  // FAT32 on tiny media fails).
+  parm.fmt = want_exfat ? FM_EXFAT : (FM_FAT | FM_FAT32);
+  ESP_LOGI(TAG_BASE, "Formatting '%s' as %s...", this->fatfs_drive_, want_exfat ? "exFAT" : "FAT");
+  FRESULT res = f_mkfs(this->fatfs_drive_, &parm, work.get(), FF_MAX_SS);
+  if (res != FR_OK) {
+    ESP_LOGE(TAG_BASE, "f_mkfs failed (%d)", static_cast<int>(res));
+    this->unmount();
+    this->mount();
+    return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
+  }
+  this->unmount();
+  this->mount();
+  return storage::StorageError::STORAGE_ERROR_OK;
 }
 
 void SdStorageBase::loop_cd_() {
