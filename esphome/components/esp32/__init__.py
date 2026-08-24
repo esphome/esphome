@@ -644,9 +644,7 @@ class RawSdkconfigValue:
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
-def sdkconfig_option_is_true(
-    opts: dict[str, SdkconfigValueType], name: str
-) -> bool:
+def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> bool:
     """Whether an sdkconfig option is set to a Kconfig-true value.
 
     User-supplied `sdkconfig_options` reach the registry as RawSdkconfigValue, a plain
