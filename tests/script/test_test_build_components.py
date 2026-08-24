@@ -251,6 +251,28 @@ def test_components_empty_match_fails_with_flag(
     assert "No zz-none tests found" in capsys.readouterr().out
 
 
+def test_components_component_with_no_base_file_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A component whose fixture matches the platform but whose platform has
+    no base file builds nothing; under the flag that silent zero fails by
+    component name instead of hiding behind other components."""
+    monkeypatch.setattr(tbc, "get_platform_base_files", lambda base_dir: {})
+    rc = tbc.test_components(
+        ["logger"],
+        "esp8266-ard",
+        "compile",
+        False,
+        enable_grouping=False,
+        fail_on_no_tests=True,
+    )
+    assert rc == 1
+    assert "No tests ran for requested component(s): logger" in (
+        capsys.readouterr().out
+    )
+
+
 def test_components_empty_match_tolerated_without_flag() -> None:
     """The esp32-ard smoke leg deliberately builds only the subset with a
     matching fixture; without the flag an empty match stays green."""

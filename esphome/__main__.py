@@ -2001,9 +2001,10 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     native_toolchain = _native_toolchain_module()
     if native_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
-            "analyze-memory is not supported with the '%s' toolchain; it "
-            "requires a PlatformIO, ESP-IDF, or native Arduino build",
+            "analyze-memory is not supported with the '%s' toolchain on %s; "
+            "it requires a PlatformIO, ESP-IDF, or native Arduino build",
             CORE.toolchain.value if CORE.toolchain else "unresolved",
+            CORE.target_platform,
         )
         return 1
 

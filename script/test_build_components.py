@@ -1202,12 +1202,21 @@ def test_components(
                         toolchain=toolchain,
                     )
 
-    if fail_on_no_tests and not test_results:
-        # A green run that compiled nothing (renamed/removed test fixture,
-        # bad platform filter) must not pass CI. Opt-in: some legs (the
-        # esp32-ard smoke subset) legitimately match nothing.
-        print("No tests matched the requested components/platform")
-        return 1
+    if fail_on_no_tests:
+        # A green run that built nothing for a requested component (renamed
+        # fixture, missing base file, version-suffix mismatch) must not pass
+        # CI. Per component: an all-or-nothing check would let one silent
+        # component hide behind the others. Opt-in: some legs (the esp32-ard
+        # smoke subset) legitimately match nothing.
+        built = {c for r in test_results for c in r.components}
+        if silent := [
+            p for p in component_patterns if p and "*" not in p and p not in built
+        ]:
+            print(f"No tests ran for requested component(s): {', '.join(silent)}")
+            return 1
+        if not test_results:
+            print("No tests matched the requested components/platform")
+            return 1
 
     # Separate results into passed and failed
     passed_results = [r for r in test_results if r.success]

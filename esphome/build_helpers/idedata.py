@@ -48,7 +48,13 @@ def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
             "memory-analysis data will be unavailable for this build)",
             err,
         )
-        _LOGGER.debug("Idedata failure detail", exc_info=True)
+        if isinstance(err, (EsphomeError, OSError)):
+            # Routine environmental failures keep the detail at debug
+            _LOGGER.debug("Idedata failure detail", exc_info=True)
+        else:
+            # LookupError/ValueError/RuntimeError smell like a parsing bug;
+            # a permanently masked traceback would hide it on every build
+            _LOGGER.warning("Idedata failure detail", exc_info=True)
 
 
 _LOGGER = logging.getLogger(__name__)
