@@ -25,7 +25,7 @@ namespace esphome::usb_host {
 // - Lock-free queues for USB task -> main loop events (SPSC pattern)
 // - Lock-free TransferRequest pool using atomic bitmask (MCMP pattern)
 //
-// Transfer submission engine (USBHost) is stateless w.r.t. client memory — the
+// Transfer submission engine (USBHost) is stateless w.r.t. client memory -- the
 // Linux URB model: client owns the pool, fills a slot, hands it to USBHost.
 
 static const char *const TAG = "usb_host";
@@ -70,7 +70,7 @@ struct TransferStatus {
 
 using transfer_cb_t = std::function<void(const TransferStatus &)>;
 
-// TransferRequest — our URB equivalent.
+// TransferRequest -- our URB equivalent.
 // Client owns the pool, fills a slot, passes it to USBHost::submit_*().
 // USBHost never allocates or frees these.
 struct TransferRequest {
@@ -108,7 +108,7 @@ enum ClientState {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Isochronous stream types — compiled only when USE_USB_ISOC_TRANSFERS is set.
+// Isochronous stream types -- compiled only when USE_USB_ISOC_TRANSFERS is set.
 // ─────────────────────────────────────────────────────────────────────────────
 #ifdef USE_USB_ISOC_TRANSFERS
 
@@ -133,7 +133,7 @@ struct IsocStream {
 #endif  // USE_USB_ISOC_TRANSFERS
 
 // ─────────────────────────────────────────────────────────────────────────────
-// USBClient — device state machine + thin forwarding layer to USBHost.
+// USBClient -- device state machine + thin forwarding layer to USBHost.
 // ─────────────────────────────────────────────────────────────────────────────
 class USBClient : public Component {
   friend class USBHost;
@@ -154,7 +154,7 @@ class USBClient : public Component {
     this->required_interface_class_ = cls;
   }
 
-  // Lock-free event queue and pool — public for static callbacks
+  // Lock-free event queue and pool -- public for static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
@@ -189,7 +189,7 @@ class USBClient : public Component {
   void stream_close(IsocStream &stream);
 
   // Override in subclass to process one isochronous packet.
-  // Called from USB-task context — must be fast and non-blocking.
+  // Called from USB-task context -- must be fast and non-blocking.
   virtual void on_isoc_packet(uint8_t ep_addr, const uint8_t *data, size_t len, bool error) {}
 #endif
 
@@ -223,11 +223,11 @@ class USBClient : public Component {
   const usb_config_desc_t *get_config_desc_() const { return this->config_desc_; }
 };
 // ─────────────────────────────────────────────────────────────────────────────
-// USBHost — USB host stack + stateless transfer submission engine.
+// USBHost -- USB host stack + stateless transfer submission engine.
 //
 // Acts as the Linux host controller driver: owns usb_host_install(), the lib
 // event loop, and all ESP-IDF transfer submission calls.  Never touches client
-// memory — clients own their TransferRequest pools and hand filled slots here.
+// memory -- clients own their TransferRequest pools and hand filled slots here.
 // ─────────────────────────────────────────────────────────────────────────────
 class USBHost final : public Component {
  public:
@@ -237,17 +237,17 @@ class USBHost final : public Component {
 
   // ── Submission engine (called by USBClient thin forwarders) ────────────────
 
-  // Bulk / interrupt IN and OUT — always compiled if any client uses them
+  // Bulk / interrupt IN and OUT -- always compiled if any client uses them
   bool submit_transfer(TransferRequest *trq);
 
-  // Control transfer submission — guarded
+  // Control transfer submission -- guarded
 #ifdef USE_USB_CONTROL_TRANSFERS
   bool submit_control(usb_host_client_handle_t client_handle, TransferRequest *trq);
   bool do_set_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
                         uint8_t interface_num, uint8_t alt_setting);
 #endif
 
-  // Interface claim / release — always needed
+  // Interface claim / release -- always needed
   bool do_claim_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
                           uint8_t interface_num, uint8_t alt_setting);
   bool do_release_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,

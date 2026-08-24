@@ -7,12 +7,14 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
+    get_esp32_variant,
     idf_version,
     only_on_variant,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DEVICES, CONF_ID
 from esphome.core import CORE
+from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
 
@@ -30,7 +32,9 @@ CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
 
 
-def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Schema:
+def usb_device_schema(
+    cls=USBClient, vid: int | None = None, pid: int | None = None
+) -> cv.Schema:
     schema = cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(cls),
@@ -48,6 +52,12 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: int = None) -> cv.Sch
 
 
 def _set_max_packet_size(config: dict) -> dict:
+    # Resolve the variant-dependent default here rather than as a schema-level default: the
+    # language-schema builder evaluates every Optional's default() with no esp32 config context,
+    # so get_esp32_variant() would raise. This validator only runs for a real config, where the
+    # variant is known.
+    if CONF_MAX_PACKET_SIZE not in config:
+        config[CONF_MAX_PACKET_SIZE] = _default_max_packet_size()
     CORE.data.setdefault(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = config[
         CONF_MAX_PACKET_SIZE
     ]
@@ -58,6 +68,17 @@ def get_max_packet_size() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
 
+def _default_max_packet_size() -> int:
+    """Largest bulk/interrupt packet the controller in this variant moves at once.
+
+    USB_HOST_MAX_PACKET_SIZE sizes every allocated transfer and rounds transfer lengths up to a
+    multiple of itself (see usb_host_client.cpp). A high-speed controller -- the ESP32-P4's --
+    uses 512 byte bulk packets, so a flat 64 leaves mass storage transfers too small and
+    misaligned. Full-speed variants stay at 64.
+    """
+    return 512 if get_esp32_variant() == VARIANT_ESP32P4 else 64
+
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -66,7 +87,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
-            cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
+            cv.Optional(CONF_MAX_PACKET_SIZE): cv.one_of(
                 64, 128, 256, 512, 1024, int=True
             ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
@@ -85,7 +106,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def register_usb_client(config):
+async def register_usb_client(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
     return var

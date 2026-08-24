@@ -221,7 +221,7 @@ void USBClient::setup() {
     this->mark_failed();
     return;
   }
-  // Pre-allocate transfer buffers for all pool slots at setup — no runtime allocation
+  // Pre-allocate transfer buffers for all pool slots at setup -- no runtime allocation
   for (auto &request : this->requests_) {
     usb_host_transfer_alloc(USB_MAX_PACKET_SIZE, 0, &request.transfer);
     request.client = this;
@@ -403,7 +403,7 @@ void USBClient::release_trq(TransferRequest *trq) {
   this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
-// ── Thin forwarders — allocate trq, fill fields, delegate to USBHost ──────────
+// ── Thin forwarders -- allocate trq, fill fields, delegate to USBHost ──────────
 
 #ifdef USE_USB_BULK_TRANSFERS
 
