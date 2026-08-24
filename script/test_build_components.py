@@ -1083,6 +1083,13 @@ def test_components(
         print("No components requested (blank component list)")
         return 1
 
+    if fail_on_no_tests and not all_tests:
+        # Nothing matched at all: fail before the synthetic baseline build,
+        # which would spend a compile reporting success on nothing. Partial
+        # matches defer to the per-pattern accounting after the summary.
+        print(f"No components found matching: {component_patterns}")
+        return 1
+
     if not all_tests:
         print(f"No components found matching: {component_patterns}")
         print(

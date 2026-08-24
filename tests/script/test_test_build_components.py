@@ -302,9 +302,7 @@ def test_components_wildcard_no_match_fails_with_flag(
         fail_on_no_tests=True,
     )
     assert rc == 1
-    assert "No tests ran for requested pattern(s): zz_no_such*" in (
-        capsys.readouterr().out
-    )
+    assert "No components found matching" in capsys.readouterr().out
 
 
 def test_components_empty_match_tolerated_without_flag() -> None:
@@ -332,6 +330,4 @@ def test_components_unknown_component_fails_with_flag(
         fail_on_no_tests=True,
     )
     assert rc == 1
-    assert "No tests ran for requested pattern(s): no_such_component_xyz" in (
-        capsys.readouterr().out
-    )
+    assert "No components found matching" in capsys.readouterr().out
