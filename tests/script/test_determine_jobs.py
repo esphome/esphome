@@ -1197,6 +1197,41 @@ def test_count_changed_cpp_files_with_branch() -> None:
         mock_changed.assert_called_once_with("release")
 
 
+@pytest.mark.parametrize(
+    ("changed_files", "expected"),
+    [
+        # Core C++ change runs everything
+        (["esphome/core/helpers.cpp"], (True, [])),
+        # Core Python change runs everything too
+        (["esphome/core/config.py"], (True, [])),
+        # Component C++ change: component plus dependents
+        (["esphome/components/time/posix_tz.cpp"], (False, ["homeassistant", "time"])),
+        # Component Python change shapes the host build (defines, source
+        # filters), so it must trigger the same tests as a C++ change
+        (["esphome/components/time/__init__.py"], (False, ["homeassistant", "time"])),
+        # Test manifest override changes only that component
+        (["tests/components/time/__init__.py"], (False, ["time"])),
+        # Test source change only that component
+        (["tests/components/time/posix_tz.cpp"], (False, ["time"])),
+        # YAML build tests do not affect the C++ unit test binary
+        (["tests/components/time/test.esp32-idf.yaml"], (False, [])),
+        (["README.md", "script/helpers.py"], (False, [])),
+        ([], (False, [])),
+    ],
+)
+def test_determine_cpp_unit_tests(
+    changed_files: list[str], expected: tuple[bool, list[str]]
+) -> None:
+    """Test which C++ unit tests a set of changed files selects."""
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch.object(
+            helpers, "create_components_graph", return_value={"time": ["homeassistant"]}
+        ),
+    ):
+        assert determine_jobs.determine_cpp_unit_tests() == expected
+
+
 def test_main_filters_components_without_tests(
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,

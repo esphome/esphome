@@ -2031,3 +2031,46 @@ def test_get_changed_files_from_command_gh_failure_keeps_stderr() -> None:
         pytest.raises(Exception, match="maximum number of changed files"),
     ):
         _get_changed_files_from_command(["gh", "pr", "diff", "123", "--name-only"])
+
+
+@pytest.mark.parametrize(
+    ("file_path", "expected"),
+    [
+        ("esphome/components/time/posix_tz.cpp", True),
+        ("esphome/components/time/posix_tz.h", True),
+        ("esphome/components/time/__init__.py", True),
+        ("tests/components/time/posix_tz.cpp", True),
+        ("tests/components/time/__init__.py", True),
+        ("tests/components/time/test.esp32-idf.yaml", False),
+        ("esphome/core/time.cpp", False),
+        ("esphome/config.py", False),
+        ("script/helpers.py", False),
+        ("README.md", False),
+    ],
+)
+def test_filter_cpp_unit_test_files(file_path: str, expected: bool) -> None:
+    """Test which changed files can affect a component's C++ unit test build."""
+    assert helpers.filter_cpp_unit_test_files(file_path) is expected
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        (["esphome/components/time/posix_tz.cpp"], ["homeassistant", "time"]),
+        (["esphome/components/time/__init__.py"], ["homeassistant", "time"]),
+        (["tests/components/time/posix_tz.cpp"], ["time"]),
+        (["tests/components/time/__init__.py"], ["time"]),
+        (["tests/components/time/test.esp32-idf.yaml"], []),
+        (
+            ["esphome/components/time/__init__.py", "tests/components/api/api.cpp"],
+            ["api", "homeassistant", "time"],
+        ),
+        ([], []),
+    ],
+)
+def test_get_cpp_changed_components(files: list[str], expected: list[str]) -> None:
+    """Test that C++ and Python component changes select the right unit tests."""
+    with patch.object(
+        helpers, "create_components_graph", return_value={"time": ["homeassistant"]}
+    ):
+        assert helpers.get_cpp_changed_components(files) == expected

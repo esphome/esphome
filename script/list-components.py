@@ -3,8 +3,8 @@ import argparse
 
 from helpers import (
     changed_files,
-    filter_component_and_test_cpp_files,
     filter_component_and_test_files,
+    filter_cpp_unit_test_files,
     get_all_component_files,
     get_components_with_dependencies,
     get_cpp_changed_components,
@@ -38,7 +38,7 @@ def main():
     parser.add_argument(
         "--cpp-changed",
         action="store_true",
-        help="List components with changed C++ files",
+        help="List components whose C++ unit tests are affected by changed files",
     )
     args = parser.parse_args()
 
@@ -78,9 +78,9 @@ def main():
         #   Returns: Components with code changes + their dependencies (not infrastructure)
         #   Reason: CI needs to test changed components and their dependents
         #
-        # - --cpp-changed: Used by CI to determine if any C++ files changed (script/determine-jobs.py)
-        #   Returns: Only components with changed C++ files
-        #   Reason: Only components with C++ changes need C++ testing
+        # - --cpp-changed: Mirrors the C++ unit test selection in script/determine-jobs.py
+        #   Returns: Components with changed C++ or Python files (plus dependents)
+        #   Reason: Python decides which sources and defines go into the host test build
 
         base_test_changed = any(
             "tests/test_build_components" in file for file in changed
@@ -115,8 +115,7 @@ def main():
         for c in get_components_with_dependencies(files, False):
             print(c)
     elif args.cpp_changed:
-        # Only look at changed cpp files
-        files = list(filter(filter_component_and_test_cpp_files, changed))
+        files = list(filter(filter_cpp_unit_test_files, changed))
         for c in get_cpp_changed_components(files):
             print(c)
     else:

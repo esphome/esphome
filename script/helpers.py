@@ -1150,16 +1150,20 @@ def filter_component_and_test_files(file_path: str) -> bool:
     )
 
 
-def filter_component_and_test_cpp_files(file_path: str) -> bool:
-    """Check if a file is a C++ source file in component or test directories.
+def filter_cpp_unit_test_files(file_path: str) -> bool:
+    """Check if a file can affect a component's C++ unit test build.
+
+    Besides C++ sources, a component's Python code (defines, source file
+    filters, libraries) and the ``tests/components/<component>/__init__.py``
+    manifest override decide what the host test binary compiles and links.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is a C++ source/header file in component or test directories
+        True if the file is a C++ or Python file in component or test directories
     """
-    return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
+    return file_path.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS) and file_path.startswith(
         COMPONENT_AND_TESTS_PATHS
     )
 
@@ -1486,22 +1490,25 @@ def base_python_changed(files: list[str]) -> bool:
 
 
 def get_cpp_changed_components(files: list[str]) -> list[str]:
-    """Get components that have changed C++ files or tests.
+    """Get components whose C++ unit tests are affected by changed files.
 
     This function analyzes a list of changed files and determines which components
     are affected. It handles two scenarios:
 
-    1. Test files changed (tests/components/<component>/*.cpp):
+    1. Test files changed (tests/components/<component>/*.cpp or __init__.py):
        - Adds the component to the affected list
        - Only that component needs to be tested
 
-    2. Component C++ files changed (esphome/components/<component>/*):
+    2. Component files changed (esphome/components/<component>/*.cpp or *.py):
        - Adds the component to the affected list
        - Also adds all components that depend on this component (recursively)
        - This ensures that changes propagate to dependent components
 
+    Python files count because a component's Python code decides which
+    sources and defines end up in the host test build.
+
     Args:
-        files: List of file paths to analyze (should be C++ files)
+        files: List of file paths to analyze (C++ and Python files)
 
     Returns:
         Sorted list of component names that need C++ unit tests run
@@ -1509,7 +1516,7 @@ def get_cpp_changed_components(files: list[str]) -> list[str]:
     components_graph = create_components_graph()
     affected: set[str] = set()
     for file in files:
-        if not file.endswith(CPP_FILE_EXTENSIONS):
+        if not file.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS):
             continue
         if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
             parts = file.split("/")
