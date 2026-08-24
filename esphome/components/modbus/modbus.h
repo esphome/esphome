@@ -311,8 +311,7 @@ class ModbusClientHub : public Modbus {
   ESPDEPRECATED("Use queue_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
   // Clear an address's commands; each un-run request resolves via on_not_sent(), but a frame on the
-  // wire still runs to its usual terminal. clear_tx_queue_for_device() instead discards silently,
-  // except a frame still READY (accepted but never transmitted), which is logged as superseded.
+  // wire still runs to its usual terminal. clear_tx_queue_for_device() instead discards silently.
   void clear_tx_queue_for_address(uint8_t address);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -442,8 +441,7 @@ class ModbusServerHub : public Modbus {
 /// all from a quiescent hub; only on_not_sent() is delivered by the sweep. Sending or clearing from
 /// inside a callback is safe (picked up by the next sweep). Exceptions to "exactly one terminal":
 /// a broadcast is fire-and-forget (on_sent, no terminal); clear_tx_queue_for_device() drops the caller's
-/// own frames silently, except a frame still READY (accepted but never sent) is logged as superseded;
-/// a continuous poll's cycles are its own accounting (a one-shot duplicate
+/// own frames silently; a continuous poll's cycles are its own accounting (a one-shot duplicate
 /// downgrades the poll to a one-shot; a continuous duplicate merges into it).
 ///
 /// Invariants:

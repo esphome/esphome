@@ -452,7 +452,7 @@ class ModbusController final : public PollingComponent {
 
   /// Empty command on this controller's hub/address: own it, call a write helper / queue_pdu(), keep it alive
   /// until the reply. Re-using one slot supersedes: emplacing a new command destroys the previous item, and
-  /// any frame it still had queued is dropped with a warning - last write wins. Writes that must all reach
+  /// any frame it still had queued is dropped silently - last write wins. Writes that must all reach
   /// the wire each need their own live item.
   ModbusCommandItem create_command() { return ModbusCommandItem(*this, this->hub_, this->address_); }
 
