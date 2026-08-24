@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 import logging
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from esphome.happy_eyeballs import ensure_happy_eyeballs
 
@@ -121,7 +121,7 @@ def fetch_with_retry[T](url: str, fetch: Callable[[], T], what: str = "Download"
 
 
 def http_request(
-    method: str,
+    method: Literal["GET", "HEAD"],
     url: str,
     *,
     timeout: float | tuple[float, float],
