@@ -1086,8 +1086,11 @@ def test_components(
     # check is per platform: a component whose fixture exists only for other
     # platforms contributes nothing to this leg.
     def _has_platform_test(component: str) -> bool:
+        # "all" fixtures build on every platform (mirrors the run loop)
         return any(
-            not platform_filter or test.stem.split(".")[-1].startswith(platform_filter)
+            not platform_filter
+            or (suffix := test.stem.split(".")[-1]) == "all"
+            or suffix.startswith(platform_filter)
             for test in all_tests.get(component, [])
         )
 
@@ -1214,19 +1217,21 @@ def test_components(
                         toolchain=toolchain,
                     )
 
+    silent: list[str] = []
     if fail_on_no_tests:
         # A green run that built nothing for a requested component (renamed
         # fixture, missing base file, version-suffix mismatch) must not pass
         # CI. Per component: an all-or-nothing check would let one silent
         # component hide behind the others. Opt-in: some legs (the esp32-ard
-        # smoke subset) legitimately match nothing.
+        # smoke subset) legitimately match nothing. Failing is deferred past
+        # the summary so a real failure's reproduce commands still print.
         built = {c for r in test_results for c in r.components}
-        if silent := [
+        silent = [
             p for p in component_patterns if p and "*" not in p and p not in built
-        ]:
+        ]
+        if silent:
             print(f"No tests ran for requested component(s): {', '.join(silent)}")
-            return 1
-        if not test_results:
+        elif not test_results:
             print("No tests matched the requested components/platform")
             return 1
 
@@ -1261,7 +1266,7 @@ def test_components(
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         write_github_summary(test_results, toolchain=toolchain)
 
-    if failed_results:
+    if failed_results or silent:
         return 1
 
     return 0

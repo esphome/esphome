@@ -692,6 +692,9 @@ def _esp8266_native_path_or_file_trigger(files: list[str]) -> bool:
     # base_python_changed covers the top-level esphome/*.py modules the
     # native backend imports directly (framework_helpers, helpers, writer,
     # __main__); without it a change there would silently skip this job.
+    # base_python_changed is deliberately broad (any top-level esphome/*.py)
+    # as belt-and-braces while the backend is new; narrow it to the modules
+    # the backend imports once the toolchain has soaked a few releases
     return base_python_changed(files) or _path_or_file_trigger(
         files, ESP8266_NATIVE_TRIGGER_FILES, ESP8266_NATIVE_TRIGGER_PATH_PREFIXES
     )

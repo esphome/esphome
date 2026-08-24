@@ -97,13 +97,19 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     # (an interrupted previous run may have rewritten the manifest without
     # regenerating the DB).
     compdb = build_dir / "compile_commands.json"
+    compdb_stamp = build_dir / ".compile_commands.stamp"
     ninja_file = build_dir / "build.ninja"
+    # Freshness rides a stamp: the DB itself is written through
+    # write_file_if_changed (its mtime feeds get_idedata's cache), so a
+    # regeneration with identical content would stay "stale" forever
     if (
         ninja_changed
         or not compdb.is_file()
-        or compdb.stat().st_mtime < ninja_file.stat().st_mtime
+        or not compdb_stamp.is_file()
+        or compdb_stamp.stat().st_mtime < ninja_file.stat().st_mtime
     ):
         _write_compile_commands(paths.ninja, build_dir, env)
+        compdb_stamp.touch()
 
     cmd = [str(paths.ninja)]
     if verbose:

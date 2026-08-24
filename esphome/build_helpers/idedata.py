@@ -22,6 +22,8 @@ import subprocess
 from esphome.core import EsphomeError
 from esphome.helpers import write_file
 
+_LOGGER = logging.getLogger(__name__)
+
 # Everything idedata generation may raise after a successful link; idedata
 # is a bonus artifact, so consumers warn instead of failing the build
 IDEDATA_BEST_EFFORT_ERRORS = (
@@ -56,8 +58,6 @@ def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
             # a permanently masked traceback would hide it on every build
             _LOGGER.warning("Idedata failure detail", exc_info=True)
 
-
-_LOGGER = logging.getLogger(__name__)
 
 # C++ translation-unit suffixes used to identify ESPHome source files.
 _CXX_SUFFIXES = (".cpp", ".cc")

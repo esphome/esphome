@@ -7125,7 +7125,8 @@ def test_upload_using_esptool_arduino_toolchain(
     mock_run_external_command_main: Mock,
 ) -> None:
     """The native ESP8266 Arduino toolchain flashes its factory image at
-    0x0, dispatched through the platform's native_toolchain_module hook."""
+    0x0, resolved from the toolchain-keyed backend table (deliberately not
+    the platform hook: that import would break the upload fast path)."""
     setup_core(platform=PLATFORM_ESP8266, tmp_path=tmp_path, name="test")
     CORE.toolchain = Toolchain.ARDUINO
     from esphome.arduino8266 import toolchain as native

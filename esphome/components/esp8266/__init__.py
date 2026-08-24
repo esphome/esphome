@@ -627,15 +627,17 @@ ESP8266_EXCEPTION_CODES = {
 _DECODE_WARNED_AT: dict[str, float] = {}
 
 
-def _warn_decode_problem(key: str, message: str, *args) -> None:
+def _warn_decode_problem(key: str, message: str, *args) -> bool:
     """Warn, deduplicated briefly so a burst of stack-dump addresses warns
-    once but a later dump warns again."""
+    once but a later dump warns again; returns whether it warned so the
+    caller can mark suppressed addresses individually."""
     now = time.monotonic()
     last = _DECODE_WARNED_AT.get(key)
     if last is not None and now - last < 30:
-        return
+        return False
     _DECODE_WARNED_AT[key] = now
     _LOGGER.warning(message, *args)
+    return True
 
 
 def _decode_pc(config: ConfigType, addr: str) -> None:
@@ -647,6 +649,8 @@ def _decode_pc(config: ConfigType, addr: str) -> None:
                 _warn_decode_problem(
                     str(path), "Cannot decode crash addresses: %s missing", path
                 )
+                # The detailed warning names no address, so mark each one
+                _LOGGER.warning("Not decoded %s (toolchain file missing)", addr)
                 return
         addr2line, elf = str(addr2line), str(elf)
     else:
@@ -658,6 +662,7 @@ def _decode_pc(config: ConfigType, addr: str) -> None:
                 "no-addr2line",
                 "Cannot decode crash addresses: no addr2line or ELF in idedata",
             )
+            _LOGGER.warning("Not decoded %s (no addr2line or ELF)", addr)
             return
         addr2line, elf = idedata.addr2line_path, idedata.firmware_elf_path
     command = [addr2line, "-pfiaC", "-e", elf, addr]
@@ -667,10 +672,12 @@ def _decode_pc(config: ConfigType, addr: str) -> None:
         # Warn, not debug: a failing addr2line must be visible. The warning
         # is rate-limited across a dump, so mark every undecoded address
         # inline or the rest read as merely unmappable
-        _warn_decode_problem(
+        if not _warn_decode_problem(
             "addr2line-failed", "Could not decode crash address %s (%s)", addr, err
-        )
-        _LOGGER.warning("Not decoded %s (addr2line failed)", addr)
+        ):
+            # The detailed warning already named this address; mark only
+            # the addresses whose warning was rate-limited away
+            _LOGGER.warning("Not decoded %s (addr2line failed)", addr)
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
