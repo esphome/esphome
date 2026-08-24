@@ -299,10 +299,13 @@ def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> No
     _setup_build(setup_core)
     config = {CONF_ESPHOME: {}}
     cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    build_ninja = CORE.relative_build_path("build/build.ninja")
     cmakecache.parent.mkdir(parents=True, exist_ok=True)
     cmakecache.write_text("")
+    build_ninja.write_text("")
     old = cmakecache.stat().st_mtime - 100
     os.utime(cmakecache, (old, old))
+    os.utime(build_ninja, (old, old))
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=True),
@@ -314,6 +317,8 @@ def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> No
         assert toolchain.run_compile(config, verbose=False) == 0
 
     assert cmakecache.stat().st_mtime > old
+    # build.ninja must not be older than the cache or ninja re-runs cmake
+    assert build_ninja.stat().st_mtime >= cmakecache.stat().st_mtime
 
 
 def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
@@ -332,6 +337,50 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
         assert toolchain.run_compile(config, verbose=False) == 0
 
     assert not CORE.relative_build_path("build/CMakeCache.txt").exists()
+
+
+def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
+    setup_core: Path,
+) -> None:
+    """The full CMakeLists write is followed by a reconfigure (#18682); a
+    failure there stops the build and leaves the cache unstamped."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+    cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    cmakecache.parent.mkdir(parents=True, exist_ok=True)
+    cmakecache.write_text("")
+    old = cmakecache.stat().st_mtime - 100
+    os.utime(cmakecache, (old, old))
+    calls: list[tuple] = []
+    reconfigures = 0
+
+    def record_write(minimal: bool = False) -> None:
+        calls.append(("write_project", minimal))
+
+    def record_reconfigure() -> int:
+        nonlocal reconfigures
+        reconfigures += 1
+        calls.append(("run_reconfigure",))
+        return 1 if reconfigures == 2 else 0
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch("esphome.build_gen.espidf.write_project", side_effect=record_write),
+        patch.object(toolchain, "run_reconfigure", side_effect=record_reconfigure),
+        patch.object(toolchain, "run_idf_py", return_value=0) as mock_build,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert not CORE.testing_mode
+        assert toolchain.run_compile(config, verbose=False) == 1
+
+    assert calls == [
+        ("write_project", True),
+        ("run_reconfigure",),
+        ("write_project", False),
+        ("run_reconfigure",),
+    ]
+    mock_build.assert_not_called()
+    assert cmakecache.stat().st_mtime == old
 
 
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
