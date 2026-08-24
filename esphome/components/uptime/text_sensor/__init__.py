@@ -10,6 +10,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_TIMER,
 )
+from esphome.types import ConfigType
 
 uptime_ns = cg.esphome_ns.namespace("uptime")
 UptimeTextSensor = uptime_ns.class_(
@@ -44,7 +45,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     format = config[CONF_FORMAT]
     var = cg.new_Pvariable(
         config[CONF_ID],
