@@ -211,6 +211,9 @@ class EntityBase {
   bool disabled_by_default_ : 1 {false};
   bool has_state_ : 1 {false};
   uint8_t entity_category_ : 2 {0};  // Supports up to 4 categories
+  // reserved_ keeps the whole byte owned by members so constructors zero it with a plain
+  // store instead of a read-modify-write that preserves unowned padding bits
+  uint8_t reserved_ : 2 {0};
   // String table indices — packed into the 3 padding bytes after the flag byte
 #ifdef USE_ENTITY_DEVICE_CLASS
   uint8_t device_class_idx_{};
