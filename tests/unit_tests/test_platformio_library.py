@@ -635,6 +635,7 @@ def test_normalize_dependencies_forms(caplog) -> None:
         {"name": "A", "build": {"srcDir": 123}},
         {"name": "A", "build": {"includeDir": ["inc"]}},
         {"name": "A", "build": {"srcFilter": {"+": "src"}}},
+        {"name": "A", "ESPHOME": {"LINK_FLAGS": "-Wl,-x"}},
     ],
 )
 def test_convert_libraries_malformed_manifest_raises(
@@ -645,6 +646,29 @@ def test_convert_libraries_malformed_manifest_raises(
     _patch_download_with_manifests(monkeypatch, tmp_path, {"esphome/A": manifest})
     with pytest.raises(EsphomeError, match="has a malformed manifest"):
         convert_libraries([Library("esphome/A", None, None)], _backend())
+
+
+def test_convert_libraries_malformed_transitive_dep_skips(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed manifest on a dependency the user never asked for warns
+    and skips; only a top-level library fails the build."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "B", "owner": "esphome", "version": "1.0"}],
+            },
+            "esphome/B": {"name": "B", "build": {"srcDir": 123}},
+        },
+    )
+    components = convert_libraries([Library("esphome/A", None, None)], _backend())
+    names = [c.name for c in components]
+    assert "esphome/A" in names
+    assert "esphome/B" not in names
+    assert "Skipping dependency esphome/B: malformed manifest" in caplog.text
 
 
 def test_walk_warns_for_properties_only_depends(
