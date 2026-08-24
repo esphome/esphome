@@ -17,11 +17,6 @@
 #include "esp_vfs_eventfd.h"
 #include "nvs_flash.h"
 
-// need to add espressif/esp_ot_cli_extension component registry
-#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-#include "esp_ot_cli_extension.h"
-#endif
-
 static const char *const TAG = "openthread";
 
 namespace esphome::openthread {
@@ -66,14 +61,6 @@ void OpenThreadComponent::setup() {
   this->lock_initialized_ = true;
   // Fetch OT instance once to avoid repeated call into OT stack
   otInstance *instance = esp_openthread_get_instance();
-
-#if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
-  esp_cli_custom_command_init();
-#endif
-#if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
-  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
-#endif
-
   {
     InstanceLock lock = InstanceLock::acquire();
 
