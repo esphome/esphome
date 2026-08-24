@@ -15,7 +15,7 @@ static const char *const TAG = "i2c";
 static constexpr size_t I2C_MAX_LOG_BYTES = 32;
 
 void ArduinoI2CBus::setup() {
-  recover_();
+  this->recover_();
 
 #if defined(USE_ESP8266)
   wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
@@ -25,9 +25,9 @@ void ArduinoI2CBus::setup() {
   // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
   // RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
   if ((this->sda_pin_ / 2) % 2 == 0) {
-    wire_ = &Wire;
+    this->wire_ = &Wire;
   } else {
-    wire_ = &Wire1;
+    this->wire_ = &Wire1;
   }
 #endif
 
@@ -42,22 +42,22 @@ void ArduinoI2CBus::setup() {
 
 void ArduinoI2CBus::set_pins_and_clock_() {
 #ifdef USE_RP2
-  wire_->setSDA(this->sda_pin_);
-  wire_->setSCL(this->scl_pin_);
-  wire_->begin();
+  this->wire_->setSDA(this->sda_pin_);
+  this->wire_->setSCL(this->scl_pin_);
+  this->wire_->begin();
 #else
-  wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
+  this->wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
 #endif
   if (timeout_ > 0) {  // if timeout specified in yaml
 #if defined(USE_ESP8266)
     // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
-    wire_->setClockStretchLimit(timeout_);  // unit: us
+    this->wire_->setClockStretchLimit(timeout_);  // unit: us
 #elif defined(USE_RP2)
     // https://github.com/earlephilhower/ArduinoCore-API/blob/e37df85425e0ac020bfad226d927f9b00d2e0fb7/api/Stream.h
-    wire_->setTimeout(timeout_ / 1000);  // unit: ms
+    this->wire_->setTimeout(timeout_ / 1000);  // unit: ms
 #endif
   }
-  wire_->setClock(frequency_);
+  this->wire_->setClock(this->frequency_);
 }
 
 void ArduinoI2CBus::dump_config() {
@@ -67,7 +67,7 @@ void ArduinoI2CBus::dump_config() {
                 "  SCL Pin: GPIO%u\n"
                 "  Frequency: %u Hz",
                 this->sda_pin_, this->scl_pin_, this->frequency_);
-  if (timeout_ > 0) {
+  if (this->timeout_ > 0) {
 #if defined(USE_ESP8266)
     ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
 #elif defined(USE_RP2)
@@ -87,10 +87,10 @@ void ArduinoI2CBus::dump_config() {
   }
   if (this->scan_) {
     ESP_LOGI(TAG, "Results from bus scan:");
-    if (scan_results_.empty()) {
+    if (this->scan_results_.empty()) {
       ESP_LOGI(TAG, "Found no devices");
     } else {
-      for (const auto &s : scan_results_) {
+      for (const auto &s : this->scan_results_) {
         if (s.second) {
           ESP_LOGI(TAG, "Found device at address 0x%02X", s.first);
         } else {
@@ -106,7 +106,7 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
 #if defined(USE_ESP8266)
   this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
 #endif
-  if (!initialized_) {
+  if (!this->initialized_) {
     ESP_LOGD(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
@@ -118,22 +118,22 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
 
   uint8_t status = 0;
   if (write_count != 0 || read_count == 0) {
-    wire_->beginTransmission(address);
-    size_t ret = wire_->write(write_buffer, write_count);
+    this->wire_->beginTransmission(address);
+    size_t ret = this->wire_->write(write_buffer, write_count);
     if (ret != write_count) {
       ESP_LOGV(TAG, "TX failed");
       return ERROR_UNKNOWN;
     }
-    status = wire_->endTransmission(read_count == 0);
+    status = this->wire_->endTransmission(read_count == 0);
   }
   if (status == 0 && read_count != 0) {
-    size_t ret2 = wire_->requestFrom(address, read_count, true);
+    size_t ret2 = this->wire_->requestFrom(address, read_count, true);
     if (ret2 != read_count) {
       ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", read_count, address, ret2);
       return ERROR_TIMEOUT;
     }
     for (size_t j = 0; j != read_count; j++)
-      read_buffer[j] = wire_->read();
+      read_buffer[j] = this->wire_->read();
   }
   // Avoid switch to prevent compiler-generated lookup table in RAM on ESP8266
   if (status == 0)
@@ -154,6 +154,17 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
   return ERROR_UNKNOWN;
 }
 
+ErrorCode ArduinoI2CBus::set_frequency(uint32_t frequency) {
+  if (this->frequency_ == frequency) {
+    return ERROR_OK;
+  }
+  this->frequency_ = frequency;
+  if (this->initialized_) {
+    this->wire_->setClock(this->frequency_);
+  }
+  return ERROR_OK;
+}
+
 /// Perform I2C bus recovery, see:
 /// https://www.nxp.com/docs/en/user-guide/UM10204.pdf
 /// https://www.analog.com/media/en/technical-documentation/application-notes/54305147357414AN686_0.pdf
@@ -167,15 +178,15 @@ void ArduinoI2CBus::recover_() {
   const auto half_period_usec = 1000000 / 100000 / 2;
 
   // Activate input and pull up resistor for the SCL pin.
-  pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
+  pinMode(this->scl_pin_, INPUT_PULLUP);  // NOLINT
 
   // This should make the signal on the line HIGH. If SCL is pulled low
   // on the I2C bus however, then some device is interfering with the SCL
   // line. In that case, the I2C bus cannot be recovered.
   delayMicroseconds(half_period_usec);
-  if (digitalRead(scl_pin_) == LOW) {  // NOLINT
+  if (digitalRead(this->scl_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SCL is held LOW on the bus");
-    recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
     return;
   }
 
@@ -189,18 +200,18 @@ void ArduinoI2CBus::recover_() {
 
   // Make sure that switching to output mode will make SCL low, just in
   // case other code has setup the pin for a HIGH signal.
-  digitalWrite(scl_pin_, LOW);  // NOLINT
+  digitalWrite(this->scl_pin_, LOW);  // NOLINT
 
   delayMicroseconds(half_period_usec);
   for (auto i = 0; i < 9; i++) {
     // Release pull up resistor and switch to output to make the signal LOW.
-    pinMode(scl_pin_, INPUT);   // NOLINT
-    pinMode(scl_pin_, OUTPUT);  // NOLINT
+    pinMode(this->scl_pin_, INPUT);   // NOLINT
+    pinMode(this->scl_pin_, OUTPUT);  // NOLINT
     delayMicroseconds(half_period_usec);
 
     // Release output and activate pull up resistor to make the signal HIGH.
-    pinMode(scl_pin_, INPUT);         // NOLINT
-    pinMode(scl_pin_, INPUT_PULLUP);  // NOLINT
+    pinMode(this->scl_pin_, INPUT);         // NOLINT
+    pinMode(this->scl_pin_, INPUT_PULLUP);  // NOLINT
     delayMicroseconds(half_period_usec);
 
     // When SCL is kept LOW at this point, we might be looking at a device
@@ -211,28 +222,28 @@ void ArduinoI2CBus::recover_() {
     // should recover in a few ms or less else not likely to recovery at
     // all.
     auto wait = 250;
-    while (wait-- && digitalRead(scl_pin_) == LOW) {  // NOLINT
+    while (wait-- && digitalRead(this->scl_pin_) == LOW) {  // NOLINT
       App.feed_wdt();
       delayMicroseconds(half_period_usec * 2);
     }
-    if (digitalRead(scl_pin_) == LOW) {  // NOLINT
+    if (digitalRead(this->scl_pin_) == LOW) {  // NOLINT
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
-      recovery_result_ = RECOVERY_FAILED_SCL_LOW;
+      this->recovery_result_ = RECOVERY_FAILED_SCL_LOW;
       return;
     }
   }
 
   // Activate input and pull resistor for the SDA pin, so we can verify
   // that SDA is pulled HIGH in the following step.
-  pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
-  digitalWrite(sda_pin_, LOW);      // NOLINT
+  pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
+  digitalWrite(this->sda_pin_, LOW);      // NOLINT
 
   // By now, any stuck device ought to have sent all remaining bits of its
   // transaction, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
-  if (digitalRead(sda_pin_) == LOW) {  // NOLINT
+  if (digitalRead(this->sda_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
-    recovery_result_ = RECOVERY_FAILED_SDA_LOW;
+    this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
     return;
   }
 
@@ -248,8 +259,8 @@ void ArduinoI2CBus::recover_() {
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
   delayMicroseconds(half_period_usec);
-  pinMode(sda_pin_, INPUT);   // NOLINT
-  pinMode(sda_pin_, OUTPUT);  // NOLINT
+  pinMode(this->sda_pin_, INPUT);   // NOLINT
+  pinMode(this->sda_pin_, OUTPUT);  // NOLINT
 
   // From the specification:
   // "A START condition immediately followed by a STOP condition (void
@@ -258,10 +269,10 @@ void ArduinoI2CBus::recover_() {
   // Finally, we'll bring the I2C bus into a starting state by generating
   // a STOP condition.
   delayMicroseconds(half_period_usec);
-  pinMode(sda_pin_, INPUT);         // NOLINT
-  pinMode(sda_pin_, INPUT_PULLUP);  // NOLINT
+  pinMode(this->sda_pin_, INPUT);         // NOLINT
+  pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
 
-  recovery_result_ = RECOVERY_COMPLETED;
+  this->recovery_result_ = RECOVERY_COMPLETED;
 }
 }  // namespace esphome::i2c
 

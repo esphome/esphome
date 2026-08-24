@@ -10,14 +10,18 @@ static const uint8_t TCA9548A_DISABLE_CHANNELS_COMMAND = 0x00;
 class TCA9548AComponent;
 class TCA9548AChannel final : public i2c::I2CBus {
  public:
-  void set_channel(uint8_t channel) { channel_ = channel; }
-  void set_parent(TCA9548AComponent *parent) { parent_ = parent; }
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void set_parent(TCA9548AComponent *parent) { this->parent_ = parent; }
 
   i2c::ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
                              size_t read_count) override;
 
+  i2c::ErrorCode set_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
+
  protected:
   uint8_t channel_;
+  uint32_t frequency_;
   TCA9548AComponent *parent_;
 };
 

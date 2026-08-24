@@ -22,13 +22,14 @@ class ArduinoI2CBus final : public InternalI2CBus, public Component {
                         size_t read_count) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
-  void set_scan(bool scan) { scan_ = scan; }
-  void set_sda_pin(uint8_t sda_pin) { sda_pin_ = sda_pin; }
-  void set_scl_pin(uint8_t scl_pin) { scl_pin_ = scl_pin; }
-  void set_frequency(uint32_t frequency) { frequency_ = frequency; }
-  void set_timeout(uint32_t timeout) { timeout_ = timeout; }
+  void set_scan(bool scan) { this->scan_ = scan; }
+  void set_sda_pin(uint8_t sda_pin) { this->sda_pin_ = sda_pin; }
+  void set_scl_pin(uint8_t scl_pin) { this->scl_pin_ = scl_pin; }
+  void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 
   int get_port() const override { return 0; }
+  ErrorCode set_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
 
  private:
   void recover_();

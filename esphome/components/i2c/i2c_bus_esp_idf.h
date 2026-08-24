@@ -27,16 +27,18 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
   void set_sda_pullup_enabled(bool sda_pullup_enabled) { this->sda_pullup_enabled_ = sda_pullup_enabled; }
   void set_scl_pin(uint8_t scl_pin) { this->scl_pin_ = scl_pin; }
   void set_scl_pullup_enabled(bool scl_pullup_enabled) { this->scl_pullup_enabled_ = scl_pullup_enabled; }
-  void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_timeout(uint32_t timeout) { this->timeout_ = timeout; }
 #if SOC_LP_I2C_SUPPORTED
   void set_lp_mode(bool lp_mode) { this->lp_mode_ = lp_mode; }
 #endif
 
   int get_port() const override { return this->port_; }
+  ErrorCode set_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
 
  private:
   void recover_();
+  ErrorCode configure_device_();
   RecoveryCode recovery_result_{};
 
  protected:

@@ -53,6 +53,14 @@ class I2CBus {
     return this->write_readv(address, buffer, len, nullptr, 0);
   }
 
+  /// @brief Set the I2C bus frequency.
+  /// @return an i2c::ErrorCode
+  virtual ErrorCode set_frequency(uint32_t frequency) = 0;
+
+  /// @brief Returns the I2C bus frequency.
+  /// @return the current frequency of the I2C bus
+  virtual uint32_t get_frequency() const = 0;
+
  protected:
   /// @brief Scans the I2C bus for devices. Devices presence is kept in an array of std::pair
   /// that contains the address and the corresponding bool presence flag.
