@@ -21,7 +21,7 @@ from esphome.const import (
     PlatformFramework,
     __version__,
 )
-from esphome.core import CORE, ID, Lambda
+from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
@@ -94,6 +94,26 @@ def validate_ssl_verification(config: ConfigType) -> ConfigType:
     return config
 
 
+# Number of blocking socket operations (DNS, connect, TLS handshake, read) that
+# can each take up to `timeout` inside one watchdog guarded region on ESP-IDF.
+WATCHDOG_TIMEOUT_MULTIPLIER = 3
+
+
+def default_watchdog_timeout(config: ConfigType) -> ConfigType:
+    """Arm the request watchdog on ESP32 when the user did not set it.
+
+    ESP-IDF applies `timeout` to every socket operation, so a single request
+    can block the loop task for several multiples of it. Without a watchdog
+    timeout the task watchdog fires after CONFIG_ESP_TASK_WDT_TIMEOUT_S.
+    """
+    if CORE.is_esp32 and CONF_WATCHDOG_TIMEOUT not in config:
+        config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
+            milliseconds=config[CONF_TIMEOUT].total_milliseconds
+            * WATCHDOG_TIMEOUT_MULTIPLIER
+        )
+    return config
+
+
 def _declare_request_class(value: Any) -> ID:
     if CORE.is_host:
         return cv.declare_id(HttpRequestHost)(value)
@@ -151,6 +171,7 @@ CONFIG_SCHEMA = cv.All(
         host=cv.Version(0, 0, 0),
     ),
     validate_ssl_verification,
+    default_watchdog_timeout,
 )
 
 
