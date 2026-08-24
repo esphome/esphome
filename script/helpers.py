@@ -1154,17 +1154,32 @@ def filter_cpp_unit_test_files(file_path: str) -> bool:
     """Check if a file can affect a component's C++ unit test build.
 
     Besides C++ sources, a component's Python code (defines, source file
-    filters, libraries) and the ``tests/components/<component>/__init__.py``
-    manifest override decide what the host test binary compiles and links.
+    filters, libraries) and the ``__init__.py`` manifest overrides under
+    ``tests/components/<component>/`` decide what the host test binary
+    compiles and links. Other Python files under ``tests/components/``
+    (pytest conftest.py, fixtures) do not.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is a C++ or Python file in component or test directories
+        True if the file is a C++ or Python file in a component directory, or
+        a C++ file or ``__init__.py`` in a component test directory
     """
-    return file_path.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS) and file_path.startswith(
-        COMPONENT_AND_TESTS_PATHS
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH):
+        return file_path.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+    if file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+        return file_path.endswith(CPP_FILE_EXTENSIONS) or file_path.endswith(
+            "/__init__.py"
+        )
+    return False
+
+
+def has_cpp_unit_tests(component: str, tests_dir: Path) -> bool:
+    """Check if a component has C++ unit test sources in ``tests_dir``."""
+    component_dir = tests_dir / component
+    return component_dir.is_dir() and (
+        any(component_dir.glob("*.cpp")) or any(component_dir.glob("*.h"))
     )
 
 
@@ -1505,7 +1520,8 @@ def get_cpp_changed_components(files: list[str]) -> list[str]:
        - This ensures that changes propagate to dependent components
 
     Python files count because a component's Python code decides which
-    sources and defines end up in the host test build.
+    sources and defines end up in the host test build. Components without
+    C++ test sources are dropped so CI does not schedule the job for nothing.
 
     Args:
         files: List of file paths to analyze (C++ and Python files)
@@ -1514,20 +1530,16 @@ def get_cpp_changed_components(files: list[str]) -> list[str]:
         Sorted list of component names that need C++ unit tests run
     """
     components_graph = create_components_graph()
+    tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
     affected: set[str] = set()
     for file in files:
-        if not file.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS):
+        if not filter_cpp_unit_test_files(file):
             continue
-        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
-                if component_dir.is_dir():
-                    affected.add(parts[2])
-        elif file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component = parts[2]
-                affected.update(find_children_of_component(components_graph, component))
-                affected.add(component)
-    return sorted(affected)
+        parts = file.split("/")
+        if len(parts) < 4:
+            continue
+        component = parts[2]
+        affected.add(component)
+        if file.startswith(ESPHOME_COMPONENTS_PATH):
+            affected.update(find_children_of_component(components_graph, component))
+    return sorted(c for c in affected if has_cpp_unit_tests(c, tests_dir))

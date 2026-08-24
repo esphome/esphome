@@ -620,7 +620,7 @@ def determine_cpp_unit_tests(
 
     C++ unit tests will run when any of the following conditions are met:
 
-    1. Any C++ core source files changed (esphome/core/*), in which case
+    1. Any core C++ or Python files changed (esphome/core/*), in which case
        all cpp unit tests run.
     2. A test file for a component changed, which triggers tests for that
        component.
@@ -628,6 +628,9 @@ def determine_cpp_unit_tests(
        component and all components that depend on it. Python files count
        too: a component's Python decides which sources and defines go into
        the host test build, so a Python-only change can break the link.
+
+    Components without C++ test sources are dropped from the list, so the
+    job is only scheduled when there is something to build.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -641,8 +644,8 @@ def determine_cpp_unit_tests(
     if core_changed(files):
         return (True, [])
 
-    test_files = list(filter(filter_cpp_unit_test_files, files))
-    return (False, get_cpp_changed_components(test_files))
+    relevant_files = list(filter(filter_cpp_unit_test_files, files))
+    return (False, get_cpp_changed_components(relevant_files))
 
 
 # Paths within tests/benchmarks/ that contain component benchmark files
