@@ -1124,6 +1124,7 @@ def test_should_run_esp32_platformio_with_branch() -> None:
         (["esphome/build_helpers/idedata.py"], True),
         (["esphome/platformio/library.py"], True),
         (["esphome/framework_helpers.py"], True),
+        (["esphome/platformio/extra_script.py"], True),
         # PlatformIO build gen, its toolchain, and the esp32 component are
         # NOT IDF-infra triggers
         (["esphome/platformio/toolchain.py"], False),
