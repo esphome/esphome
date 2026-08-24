@@ -76,19 +76,39 @@ class ResumeTicketCache {
   uint8_t next_{0};
 };
 
+/// HKDF labels, PROGMEM on ESP8266.
+extern const char RESUME_LABEL_OFFER[6];
+extern const char RESUME_LABEL_CONFIRM[8];
+extern const char RESUME_LABEL_KEYS[5];
+
+/// Noise-construction HKDF-SHA256 keyed with the ticket secret over
+/// label || a || b [|| SHA256(hash_in)]. out2 == nullptr means MAC only.
+bool resume_kdf(const uint8_t *secret, const char *label, size_t label_len, const uint8_t *a, size_t a_len,
+                const uint8_t *b, size_t b_len, const uint8_t *hash_in, size_t hash_in_len, uint8_t *out1,
+                size_t out1_len, uint8_t *out2);
+
 /// offer_mac for the ClientHello resume offer (what a client computes and
 /// try_accept checks).
-bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
-                              uint8_t *out_mac);
+inline bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
+                                     uint8_t *out_mac) {
+  return resume_kdf(secret, RESUME_LABEL_OFFER, sizeof(RESUME_LABEL_OFFER) - 1, session_id, RESUME_SESSION_ID_SIZE,
+                    client_nonce, RESUME_NONCE_SIZE, nullptr, 0, out_mac, RESUME_MAC_SIZE, nullptr);
+}
 
 /// confirm_mac for the ServerHello extension.
-bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
-                                uint8_t *out_mac);
+inline bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
+                                       uint8_t *out_mac) {
+  return resume_kdf(secret, RESUME_LABEL_CONFIRM, sizeof(RESUME_LABEL_CONFIRM) - 1, client_nonce, RESUME_NONCE_SIZE,
+                    server_nonce, RESUME_NONCE_SIZE, nullptr, 0, out_mac, RESUME_MAC_SIZE, nullptr);
+}
 
 /// Derive the transport keys. k_c2d encrypts client-to-device traffic,
 /// k_d2c device-to-client.
-bool resume_derive_keys(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
-                        const uint8_t *prologue, size_t prologue_len, uint8_t *k_c2d, uint8_t *k_d2c);
+inline bool resume_derive_keys(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
+                               const uint8_t *prologue, size_t prologue_len, uint8_t *k_c2d, uint8_t *k_d2c) {
+  return resume_kdf(secret, RESUME_LABEL_KEYS, sizeof(RESUME_LABEL_KEYS) - 1, client_nonce, RESUME_NONCE_SIZE,
+                    server_nonce, RESUME_NONCE_SIZE, prologue, prologue_len, k_c2d, 32, k_d2c);
+}
 
 /// Build a ChaChaPoly cipher state keyed with key (32 bytes); nullptr on
 /// failure. Nonce counter starts at 0, exactly like a post-split cipher.

@@ -9,19 +9,18 @@
 
 namespace esphome::noise {
 
-static const char LABEL_OFFER[] PROGMEM = "offer";
-static const char LABEL_CONFIRM[] PROGMEM = "confirm";
-static const char LABEL_KEYS[] PROGMEM = "keys";
+const char RESUME_LABEL_OFFER[6] PROGMEM = "offer";
+const char RESUME_LABEL_CONFIRM[8] PROGMEM = "confirm";
+const char RESUME_LABEL_KEYS[5] PROGMEM = "keys";
 // Largest KDF input: "keys" || client_nonce || server_nonce || SHA256(prologue)
-static constexpr size_t RESUME_KDF_MAX_DATA = sizeof(LABEL_KEYS) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32;
-static_assert(sizeof(LABEL_CONFIRM) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE <= RESUME_KDF_MAX_DATA,
+static constexpr size_t RESUME_KDF_MAX_DATA =
+    sizeof(RESUME_LABEL_KEYS) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32;
+static_assert(sizeof(RESUME_LABEL_CONFIRM) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE <= RESUME_KDF_MAX_DATA,
               "MAC input must fit the KDF buffer");
 
-/// Noise-construction HKDF-SHA256 keyed with the ticket secret over
-/// label || a || b [|| SHA256(hash_in)]. out2 == nullptr means MAC only.
-static bool resume_kdf(const uint8_t *secret, const char *label, size_t label_len, const uint8_t *a, size_t a_len,
-                       const uint8_t *b, size_t b_len, const uint8_t *hash_in, size_t hash_in_len, uint8_t *out1,
-                       size_t out1_len, uint8_t *out2) {
+bool resume_kdf(const uint8_t *secret, const char *label, size_t label_len, const uint8_t *a, size_t a_len,
+                const uint8_t *b, size_t b_len, const uint8_t *hash_in, size_t hash_in_len, uint8_t *out1,
+                size_t out1_len, uint8_t *out2) {
   uint8_t data[RESUME_KDF_MAX_DATA];
   uint8_t scratch[32];
   size_t len = label_len + a_len + b_len;
@@ -116,24 +115,6 @@ size_t ResumeTicketCache::try_accept(const uint8_t *offer, size_t offer_len, con
 void ResumeTicketCache::clear() {
   noise_clean(this->slots_, sizeof(this->slots_));
   this->used_mask_ = 0;
-}
-
-bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
-                              uint8_t *out_mac) {
-  return resume_kdf(secret, LABEL_OFFER, sizeof(LABEL_OFFER) - 1, session_id, RESUME_SESSION_ID_SIZE, client_nonce,
-                    RESUME_NONCE_SIZE, nullptr, 0, out_mac, RESUME_MAC_SIZE, nullptr);
-}
-
-bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
-                                uint8_t *out_mac) {
-  return resume_kdf(secret, LABEL_CONFIRM, sizeof(LABEL_CONFIRM) - 1, client_nonce, RESUME_NONCE_SIZE, server_nonce,
-                    RESUME_NONCE_SIZE, nullptr, 0, out_mac, RESUME_MAC_SIZE, nullptr);
-}
-
-bool resume_derive_keys(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
-                        const uint8_t *prologue, size_t prologue_len, uint8_t *k_c2d, uint8_t *k_d2c) {
-  return resume_kdf(secret, LABEL_KEYS, sizeof(LABEL_KEYS) - 1, client_nonce, RESUME_NONCE_SIZE, server_nonce,
-                    RESUME_NONCE_SIZE, prologue, prologue_len, k_c2d, 32, k_d2c);
 }
 
 NoiseCipherState *resume_make_cipher(const uint8_t *key) {
