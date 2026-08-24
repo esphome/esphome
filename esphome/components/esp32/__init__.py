@@ -3057,7 +3057,10 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
             "copied from the esp-idf install, which is the only framework tree that actually "
             "builds the project. Use 'framework: type: esp-idf', or unset enable_exfat."
         )
-    if marker.is_file() and marker.read_text(encoding="utf-8", errors="replace") == stamp:
+    if (
+        marker.is_file()
+        and marker.read_text(encoding="utf-8", errors="replace") == stamp
+    ):
         return  # current copy is up to date
     src = _get_idf_path(idf_ver) / "components" / "fatfs"
     if not src.is_dir():
@@ -3365,7 +3368,9 @@ def _write_idf_component_yml():
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
-                stub_cmake.write_text("idf_component_register()\n", encoding="utf-8", errors="replace")
+                stub_cmake.write_text(
+                    "idf_component_register()\n", encoding="utf-8", errors="replace"
+                )
             dependencies[_idf_component_dep_name(component_name)] = {
                 "version": "*",
                 "override_path": str(stub_path),
@@ -3386,7 +3391,7 @@ def _write_idf_component_yml():
                 "target_link_libraries(${COMPONENT_LIB} "
                 f"INTERFACE idf::{ARDUINO_FRAMEWORK_NAME})\n",
                 encoding="utf-8",
-                errors="replace"
+                errors="replace",
             )
             dependencies[ARDUINO_ESP32_COMPONENT_NAME] = {
                 "version": "*",
