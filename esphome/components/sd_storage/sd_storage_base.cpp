@@ -14,7 +14,7 @@
 // With long filenames off FatFs hands back 8.3 names (12 chars), which is also where
 // Kconfig's own range for this symbol starts.
 #ifndef CONFIG_FATFS_MAX_LFN
-#define CONFIG_FATFS_MAX_LFN 12
+static constexpr uint8_t CONFIG_FATFS_MAX_LFN = 12;
 #endif
 
 namespace esphome::sd_storage {
