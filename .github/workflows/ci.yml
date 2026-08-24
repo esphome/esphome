@@ -112,6 +112,12 @@ jobs:
       component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
       validate-only-components: ${{ steps.determine.outputs.validate-only-components }}
       benchmarks: ${{ steps.determine.outputs.benchmarks }}
+      # "true" when this run is a pull request into one of the release
+      # branches. Those pull requests are batches of changes already tested on
+      # their original dev pull requests, so several jobs below trade coverage
+      # for turnaround time on them. Matched exactly, not by prefix, so an
+      # ordinary branch named e.g. "release-notes" is not caught by it.
+      release-pr: ${{ github.base_ref == 'beta' || github.base_ref == 'release' }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -230,7 +236,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - determine-jobs
-    if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release') && needs.determine-jobs.outputs.core-ci == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.release-pr == 'false' && needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -449,10 +455,21 @@ jobs:
     if: >-
       github.repository == 'esphome/esphome' && (
         (github.event_name == 'push' && github.ref_name == 'dev') ||
-        (github.event_name == 'pull_request' && needs.determine-jobs.outputs.benchmarks == 'true')
+        (
+          github.event_name == 'pull_request' &&
+          needs.determine-jobs.outputs.release-pr == 'false' &&
+          needs.determine-jobs.outputs.benchmarks == 'true'
+        )
       )
     # CodSpeed benchmarks require a CodSpeed account linked to the repository to run
     # (https://codspeed.io) -- disabled on forks that aren't esphome/esphome itself.
+    #
+    # Pull requests into beta and release are skipped as well. CodSpeed compares a
+    # pull request against the newest commit of its base branch that has a benchmark
+    # run of its own, and only dev is benchmarked. A release pull request therefore
+    # falls back to dev's latest run, so every speed-up merged into dev since the
+    # release branched is reported as a regression in the release. The changes there
+    # have already been benchmarked on their original dev pull requests.
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -929,7 +946,7 @@ jobs:
       ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 32 || 16 }}
+      max-parallel: ${{ needs.determine-jobs.outputs.release-pr == 'true' && 32 || 16 }}
       matrix:
         batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
@@ -1016,7 +1033,7 @@ jobs:
           # - This catches pin conflicts and other issues in directly changed code
           # - Grouped tests use --testing-mode to allow config merging (disables some checks)
           # - Dependencies are safe to group since they weren't modified in this PR
-          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
+          if [[ "${{ needs.determine-jobs.outputs.release-pr }}" == "true" ]]; then
             directly_changed_csv=""
             echo "Testing components: $components_csv"
             echo "Target branch: ${{ github.base_ref }} - grouping all components"
