@@ -114,6 +114,7 @@ const char *SdSpi::error_code_to_str(ErrorCode code) {
 }
 
 StorageError SdSpi::mount() {
+  if (this->is_mounted_) return StorageError::STORAGE_ERROR_OK;
   ESP_LOGD(TAG_SPI, "Mounting SD card via SPI");
 
   esp_vfs_fat_sdmmc_mount_config_t mount_config = VFS_FAT_MOUNT_DEFAULT_CONFIG();
