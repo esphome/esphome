@@ -257,24 +257,18 @@ class WidgetType:
 
 
 def apply_theme_styles(w: "Widget") -> None:
-    """Apply the current theme's part/state styles for this widget's type, if any.
-
-    Shared between `WidgetType.create_to_code` (widgets built once at boot) and
-    `lv_list.py`'s dynamic-widget path (widgets built at runtime via
-    `lvgl.list.add`), which would otherwise render unthemed.
-    """
-    if theme := get_theme_widget_map().get(w.type.name):
-        for part, states in theme.items():
-            part = "LV_PART_" + part.upper()
-            for state, style in states.items():
-                state = "LV_STATE_" + state.upper()
-                if state == "LV_STATE_DEFAULT":
-                    lv_state = literal(part)
-                elif part == "LV_PART_MAIN":
-                    lv_state = literal(state)
-                else:
-                    lv_state = join_enums((state, part))
-                w.add_style(style, lv_state)
+    """Apply the current theme's styles for this widget's type"""
+    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
+        part = "LV_PART_" + part.upper()
+        for state, style in states.items():
+            state = "LV_STATE_" + state.upper()
+            if state == "LV_STATE_DEFAULT":
+                lv_state = literal(part)
+            elif part == "LV_PART_MAIN":
+                lv_state = literal(state)
+            else:
+                lv_state = join_enums((state, part))
+            w.add_style(style, lv_state)
 
 
 class Widget:
