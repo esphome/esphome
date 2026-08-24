@@ -1214,6 +1214,56 @@ def test_count_changed_cpp_files_with_branch() -> None:
         mock_changed.assert_called_once_with("release")
 
 
+@pytest.mark.parametrize(
+    ("changed_files", "expected"),
+    [
+        # Core C++ change runs everything
+        (["esphome/core/helpers.cpp"], (True, [])),
+        # Core Python change runs everything too
+        (["esphome/core/config.py"], (True, [])),
+        # Component C++ change: component plus dependents with C++ tests
+        (["esphome/components/time/posix_tz.cpp"], (False, ["sntp", "time"])),
+        # Component Python change shapes the host build (defines, source
+        # filters), so it must trigger the same tests as a C++ change
+        (["esphome/components/time/__init__.py"], (False, ["sntp", "time"])),
+        # Nothing to build when no selected component has C++ tests
+        (["esphome/components/homeassistant/__init__.py"], (False, [])),
+        # Test manifest override changes only that component
+        (["tests/components/time/__init__.py"], (False, ["time"])),
+        # Test source change only that component
+        (["tests/components/time/posix_tz.cpp"], (False, ["time"])),
+        # pytest files and YAML build tests do not affect the test binary
+        (["tests/components/socket/conftest.py"], (False, [])),
+        (["tests/components/time/test.esp32-idf.yaml"], (False, [])),
+        (["README.md", "script/helpers.py"], (False, [])),
+        ([], (False, [])),
+    ],
+)
+def test_determine_cpp_unit_tests(
+    changed_files: list[str],
+    expected: tuple[bool, list[str]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test which C++ unit tests a set of changed files selects."""
+    tests_dir = tmp_path / "tests" / "components"
+    for component in ("time", "sntp"):
+        (tests_dir / component).mkdir(parents=True)
+        (tests_dir / component / f"{component}.cpp").write_text("")
+    (tests_dir / "homeassistant").mkdir()
+    (tests_dir / "socket").mkdir()
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch.object(
+            helpers,
+            "create_components_graph",
+            return_value={"time": ["homeassistant", "sntp"]},
+        ),
+    ):
+        assert determine_jobs.determine_cpp_unit_tests() == expected
+
+
 def test_main_filters_components_without_tests(
     mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
