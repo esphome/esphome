@@ -59,30 +59,32 @@ def _set_flags(*flags: str) -> None:
     CORE.build_flags = set(flags)
 
 
-def _resolve(*flags: str):
+def _resolve(*flags: str) -> arduino8266._BuildConfig:
     """Set the build flags and resolve the knob config in one step."""
     _set_flags(*flags)
     return _resolve_current()
 
 
-def _defines():
+def _defines() -> dict[str, str]:
     """The -D map for the current build flags."""
     return _flag_defines(set(), arduino8266._lexed_build_flags())
 
 
-def _resolve_current():
+def _resolve_current() -> arduino8266._BuildConfig:
     """Resolve whatever flags are already set (must not clear them)."""
     return _resolve_build_config(_defines())
 
 
-def _split_flags():
+def _split_flags() -> tuple[list[str], list[str], list[Path], list[str]]:
     """Classify the current build flags the way write_project does."""
     return arduino8266._project_flags(
         arduino8266._unflag_tokens(), arduino8266._lexed_build_flags()
     )
 
 
-def _ok_result(stdout=None, stderr=""):
+def _ok_result(
+    stdout: str | bytes | None = None, stderr: str | bytes = ""
+) -> MagicMock:
     """A successful preprocessor spawn (defaults to the common ld output).
 
     Streams are bytes, as the un-decoded subprocess.run delivers them.
