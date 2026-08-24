@@ -1,0 +1,9 @@
+esphome:
+  name: host-noise-resume
+host:
+api:
+  encryption:
+    key: N4Yle5YirwZhPiHHsdZLdOA73ndj/84veVaLhTvxCuU=
+# VERY_VERBOSE so the frame helper logs "Session resumed!"
+logger:
+  level: VERY_VERBOSE
