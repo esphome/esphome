@@ -1551,6 +1551,53 @@ lvgl:
               - label:
                   text: "2,2"
 
+        - menu:
+            id: settings_menu
+            header_mode: top_fixed
+            root_back_btn: enabled
+            root_page: settings_main_page
+            sidebar_page: settings_nav_page
+            header_style:
+              bg_color: 0x202020
+            sidebar_style:
+              bg_color: 0x101010
+            on_root_back_button_click:
+              - logger.log: "settings menu closed at root"
+            pages:
+              - id: settings_main_page
+                title: "Settings"
+                sections:
+                  - id: wifi_section
+                    widgets:
+                      - label:
+                          text: "Wifi"
+                      - switch:
+                          id: wifi_switch
+                widgets:
+                  - button:
+                      id: open_advanced_button
+                      text: "Advanced"
+                      on_click:
+                        - lvgl.menu.set_page:
+                            id: settings_menu
+                            page: settings_advanced_page
+              - id: settings_advanced_page
+                title: "Advanced"
+                widgets:
+                  - label:
+                      text: "Debug options"
+              - id: settings_nav_page
+                title: "Navigate"
+                widgets:
+                  - button:
+                      id: nav_to_main_button
+                      text: "Go to Settings"
+                      on_click:
+                        - lvgl.menu.set_page:
+                            id: settings_menu
+                            page: settings_main_page
+                            sidebar: true
+
 font:
   - file: "gfonts://Roboto"
     id: space16

@@ -1,0 +1,57 @@
+esphome:
+  name: lvgl-menu-validate
+
+host:
+
+logger:
+
+display:
+  - platform: sdl
+    id: sdl0
+    dimensions:
+      width: 320
+      height: 240
+
+lvgl:
+  displays: sdl0
+  widgets:
+    # A menu with no sidebar_page (optional), no page titles (optional) and a
+    # single empty page (no sections, no widgets) as its root.
+    - menu:
+        id: menu_a
+        root_page: menu_a_empty_page
+        pages:
+          - id: menu_a_empty_page
+    # A second, independent menu -- exercises sidebar_page, multiple
+    # sections, and a page with both sections and ungrouped widgets.
+    - menu:
+        id: menu_b
+        header_mode: bottom_fixed
+        root_back_btn: enabled
+        root_page: menu_b_page
+        sidebar_page: menu_b_nav_page
+        pages:
+          - id: menu_b_page
+            title: "Settings"
+            sections:
+              - id: menu_b_section_1
+                widgets:
+                  - label: {text: "Wifi"}
+              - id: menu_b_section_2
+                widgets:
+                  - label: {text: "Bluetooth"}
+                  - switch: {}
+            widgets:
+              - button:
+                  text: "Advanced"
+                  on_click:
+                    - lvgl.menu.set_page: {id: menu_b, page: menu_b_page}
+          - id: menu_b_nav_page
+            widgets:
+              - button:
+                  text: "Nav"
+                  on_click:
+                    - lvgl.menu.set_page:
+                        id: menu_b
+                        page: menu_b_page
+                        sidebar: true

@@ -102,6 +102,12 @@ async def generate_triggers():
 
             await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
+    # Local import to avoid a circular import at module load time -- widgets/menu.py
+    # imports several names from this package's __init__.py.
+    from .widgets.menu import add_root_back_button_triggers
+
+    await add_root_back_button_triggers()
+
 
 async def generate_align_tos(config: dict):
     """
