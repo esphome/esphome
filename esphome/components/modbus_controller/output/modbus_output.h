@@ -17,7 +17,6 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
     this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
     this->sensor_value_type = value_type;
-    this->skip_updates = 0;
     this->set_address(this->start_address + offset);
     this->set_offset_from_start_address(0);
   }
@@ -48,7 +47,6 @@ class ModbusBinaryOutput final : public output::BinaryOutput, public Component, 
     this->set_address(start_address);
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
-    this->skip_updates = 0;
     this->register_count = 1;
     this->set_address(this->start_address + offset);
     this->set_offset_from_start_address(0);

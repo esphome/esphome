@@ -1,9 +1,11 @@
 #include "online_image.h"
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 
 static const char *const TAG = "online_image";
+static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 static const char *const ETAG_HEADER_NAME = "etag";
 static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
 static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
@@ -62,7 +64,8 @@ void OnlineImage::update() {
 
   // Add Accept header based on image format
   const char *accept_mime_type;
-  switch (this->get_format()) {
+  runtime_image::ImageFormat format = this->get_format();
+  switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case runtime_image::BMP:
       accept_mime_type = "image/bmp,*/*;q=0.8";
@@ -89,8 +92,8 @@ void OnlineImage::update() {
     headers.push_back(http_request::Header{header.first, header.second.value()});
   }
 
-  this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME});
-
+  this->downloader_ =
+      this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME, CONTENT_TYPE_HEADER_NAME});
   if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
     this->end_connection_();
@@ -115,17 +118,54 @@ void OnlineImage::update() {
 
   ESP_LOGD(TAG, "Starting download");
   size_t total_size = this->downloader_->content_length;
+  ESP_LOGV(TAG, "Content-Length: %zu", total_size);
+
+  if (format == runtime_image::AUTO) {
+    // Try to auto-detect format from Content-Type header
+    auto content_type_header = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
+    const char *content_type = content_type_header.c_str();
+    ESP_LOGV(TAG, "Content-Type: %s", content_type);
+    // Includes aliases seen from real servers (older IIS, CDNs, S3)
+    if (str_contains_ignore_case(content_type, "image/bmp") ||
+        str_contains_ignore_case(content_type, "image/x-ms-bmp") ||
+        str_contains_ignore_case(content_type, "image/x-bmp")) {
+      format = runtime_image::BMP;
+    } else if (str_contains_ignore_case(content_type, "image/jpeg") ||
+               str_contains_ignore_case(content_type, "image/jpg")) {
+      format = runtime_image::JPEG;
+    } else if (str_contains_ignore_case(content_type, "image/png") ||
+               str_contains_ignore_case(content_type, "image/x-png")) {
+      format = runtime_image::PNG;
+    } else if (str_contains_ignore_case(content_type, "image/")) {
+      ESP_LOGW(TAG, "Unsupported image type: '%s'", content_type);
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
+    } else {
+      // TODO: implement auto-detection in runtime_image by sniffing the first few bytes of the image data
+      if (content_type_header.empty()) {
+        ESP_LOGW(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      } else {
+        ESP_LOGE(TAG, "Could not determine image format from Content-Type: '%s'. Set `format:` explicitly",
+                 content_type);
+      }
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
+    }
+  }
+  ESP_LOGD(TAG, "Using image format: %d", format);
 
   // Initialize decoder with the known format
-  if (!this->begin_decode(total_size)) {
-    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", this->get_format());
+  if (!this->begin_decode(total_size, format)) {
+    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", format);
     this->end_connection_();
     this->download_error_callback_.call();
     return;
   }
 
   // JPEG requires the complete image in the download buffer before decoding
-  if (this->get_format() == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
+  if (format == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
     this->download_buffer_.resize(total_size);
   }
 
@@ -216,7 +256,7 @@ void OnlineImage::loop() {
 }
 
 void OnlineImage::end_connection_() {
-  // Abort any in-progress decode to free decoder resources.
+  // Abort any in-progress decode; the decoder object is kept warm for the next decode.
   // Use RuntimeImage::release() directly to avoid recursion with OnlineImage::release().
   if (this->is_decoding()) {
     RuntimeImage::release();

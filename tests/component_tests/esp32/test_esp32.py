@@ -10,11 +10,16 @@ from typing import Any
 import pytest
 
 from esphome.components.esp32 import (
+    KEY_FATFS_REQUIRED,
+    KEY_VFS_DIR_REQUIRED,
+    KEY_VFS_SELECT_REQUIRED,
+    KEY_VFS_TERMIOS_REQUIRED,
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
     _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
+    _reconcile_vfs_fatfs_sdkconfig,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
@@ -229,6 +234,62 @@ def test_esp32_configuration_errors(
 
     with pytest.raises(cv.Invalid, match=error_match):
         FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+
+
+@pytest.mark.parametrize(
+    ("config_file", "reincluded"),
+    [
+        pytest.param(
+            "exclusion_reincludes.yaml",
+            ("esp_driver_i2c", "esp_driver_ledc", "esp_driver_gptimer"),
+            id="i2c_ledc_ac_dimmer",
+        ),
+        # esp-tls has three owners; a per-owner config makes a dropped
+        # re-include from any single one fail the test.
+        pytest.param(
+            "exclusion_reincludes_http_request.yaml",
+            ("esp-tls", "esp_http_client"),
+            id="http_request",
+        ),
+        pytest.param(
+            # "mqtt" itself is deliberately not asserted: on IDF >= 6.0 it
+            # is a managed component and never leaves the exclusion set.
+            "exclusion_reincludes_mqtt.yaml",
+            ("esp-tls",),
+            id="mqtt",
+        ),
+        pytest.param(
+            "exclusion_reincludes_web_server.yaml",
+            ("esp-tls",),
+            id="web_server_idf",
+        ),
+        pytest.param(
+            "exclusion_reincludes_nextion.yaml",
+            ("esp-tls", "esp_http_client"),
+            id="nextion",
+        ),
+    ],
+)
+def test_default_exclusions_reincluded_by_owning_components(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    reincluded: tuple[str, ...],
+) -> None:
+    """Components whose IDF driver is excluded by default must re-include it
+    during codegen; a dropped include_builtin_idf_component() call would only
+    surface as a missing-header failure in a full compile job."""
+    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
+
+    generate_main(component_config_path(config_file))
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+    for name in reincluded:
+        assert name not in excluded, f"{name} should have been re-included"
+
+    # Components no part of this config touches stay excluded.
+    assert "unity" in excluded
+    assert "fatfs" in excluded
 
 
 def test_execute_from_psram_s3_sdkconfig(
@@ -610,6 +671,160 @@ def test_reconcile_network_sdkconfig(
     }
 
     asyncio.run(_reconcile_network_sdkconfig())
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+@pytest.mark.parametrize(
+    ("requires", "fatfs_required", "disables", "preset", "expected"),
+    [
+        # Nothing required and every disable_* flag off (NOT the shipped defaults, which
+        # disable everything): VFS enabled, FATFS left untouched entirely.
+        pytest.param(
+            {},
+            False,
+            (False, False, False, False),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+            },
+            id="nothing_disabled_nothing_required",
+        ),
+        # The shipped out-of-the-box path: every disable_* flag defaults to True and nothing
+        # is required -- VFS off, FATFS at the smallest footprint (8.3 names, one volume).
+        pytest.param(
+            {},
+            False,
+            (True, True, True, True),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": False,
+                "CONFIG_VFS_SUPPORT_SELECT": False,
+                "CONFIG_VFS_SUPPORT_DIR": False,
+                "CONFIG_FATFS_LFN_NONE": True,
+                "CONFIG_FATFS_VOLUME_COUNT": 1,
+            },
+            id="all_disabled_fatfs_fallback",
+        ),
+        # A component's require_* beats the user's disable_* flag for every VFS feature.
+        pytest.param(
+            {
+                KEY_VFS_TERMIOS_REQUIRED: True,
+                KEY_VFS_SELECT_REQUIRED: True,
+                KEY_VFS_DIR_REQUIRED: True,
+            },
+            False,
+            (True, True, True, False),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+            },
+            id="require_beats_disable",
+        ),
+        # A user sdkconfig_options preset wins over a require (the set_opt guard).
+        pytest.param(
+            {KEY_VFS_SELECT_REQUIRED: True},
+            False,
+            (False, False, False, False),
+            {"CONFIG_VFS_SUPPORT_SELECT": False},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": False,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+            },
+            id="user_preset_wins_over_require",
+        ),
+        # require_fatfs() with no user preset: long filenames on the heap, 255 chars,
+        # four volumes.
+        pytest.param(
+            {},
+            True,
+            (False, False, False, False),
+            {},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_NONE": False,
+                "CONFIG_FATFS_LFN_HEAP": True,
+                "CONFIG_FATFS_MAX_LFN": 255,
+                "CONFIG_FATFS_VOLUME_COUNT": 4,
+            },
+            id="fatfs_required_defaults",
+        ),
+        # CONFIG_FATFS_LONG_FILENAMES is a Kconfig choice: a user picking any member
+        # (here LFN_STACK) leaves the whole group untouched -- no second =y in the choice.
+        pytest.param(
+            {},
+            True,
+            (False, False, False, False),
+            {"CONFIG_FATFS_LFN_STACK": "y"},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_STACK": "y",
+                "CONFIG_FATFS_VOLUME_COUNT": 4,
+            },
+            id="fatfs_user_lfn_stack_untouched",
+        ),
+        # disable_fatfs (the shipped default) with a user LFN pick: the choice group is the
+        # user's -- no LFN_NONE=y written next to their member, only the volume fallback.
+        pytest.param(
+            {},
+            False,
+            (False, False, False, True),
+            {"CONFIG_FATFS_LFN_HEAP": "y"},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_HEAP": "y",
+                "CONFIG_FATFS_VOLUME_COUNT": 1,
+            },
+            id="disable_fatfs_user_lfn_untouched",
+        ),
+        # Same for an explicit LFN_NONE preset: the group is the user's, only the volume
+        # count default is added.
+        pytest.param(
+            {},
+            True,
+            (False, False, False, False),
+            {"CONFIG_FATFS_LFN_NONE": "y"},
+            {
+                "CONFIG_VFS_SUPPORT_TERMIOS": True,
+                "CONFIG_VFS_SUPPORT_SELECT": True,
+                "CONFIG_VFS_SUPPORT_DIR": True,
+                "CONFIG_FATFS_LFN_NONE": "y",
+                "CONFIG_FATFS_VOLUME_COUNT": 4,
+            },
+            id="fatfs_user_lfn_none_untouched",
+        ),
+    ],
+)
+def test_reconcile_vfs_fatfs_sdkconfig(
+    set_core_config: SetCoreConfigCallable,
+    requires: dict[str, bool],
+    fatfs_required: bool,
+    disables: tuple[bool, bool, bool, bool],
+    preset: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    """The FINAL-priority reconciler resolves the VFS feature flags and the FATFS
+    defaults from the recorded require_* calls, with user sdkconfig_options winning
+    and the LFN Kconfig choice treated as one group."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: dict(preset)}
+    if fatfs_required:
+        CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
+    for key, value in requires.items():
+        CORE.data[key] = value
+
+    asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables))
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
 

@@ -12,6 +12,7 @@ from esphome.const import (
     UNIT_BEATS_PER_MINUTE,
     UNIT_CENTIMETER,
 )
+from esphome.types import ConfigType
 
 from . import CONF_MR60BHA2_ID, MR60BHA2Component
 
@@ -49,7 +50,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr60bha2_component = await cg.get_variable(config[CONF_MR60BHA2_ID])
     if breath_rate_config := config.get(CONF_BREATH_RATE):
         sens = await sensor.new_sensor(breath_rate_config)

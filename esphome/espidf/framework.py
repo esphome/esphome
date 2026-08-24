@@ -458,11 +458,16 @@ def _clone_idf_with_submodules(
 
     key = f"{git_url}@{ref}" if ref else git_url
     _LOGGER.info("Cloning ESP-IDF from %s", key)
-    run_git_command(["git", "clone", "--depth=1", "--", git_url, str(framework_path)])
+    run_git_command(
+        ["git", "clone", "--depth=1", "--", git_url, str(framework_path)],
+        network=True,
+        retry_cleanup=framework_path,
+    )
     if ref:
         run_git_command(
             ["git", "fetch", "--depth=1", "--", "origin", ref],
             git_dir=framework_path,
+            network=True,
         )
         run_git_command(
             ["git", "reset", "--hard", "FETCH_HEAD"],

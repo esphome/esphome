@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
@@ -5,6 +7,8 @@ from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
 from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 MULTI_CONF = True
 CODEOWNERS = ["@swoboda1337"]
@@ -136,7 +140,7 @@ SetModeStandbyAction = sx127x_ns.class_(
 )
 
 
-def validate_raw_data(value):
+def validate_raw_data(value: Any) -> bytes | list[int]:
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, list):
@@ -146,7 +150,7 @@ def validate_raw_data(value):
     )
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_MODULATION] == "LORA":
         bws = [
             "7_8kHz",
@@ -230,7 +234,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
@@ -312,7 +316,12 @@ NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
     NO_ARGS_ACTION_SCHEMA,
     synchronous=True,
 )
-async def no_args_action_to_code(config, action_id, template_arg, args):
+async def no_args_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -333,7 +342,12 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
     SEND_PACKET_ACTION_SCHEMA,
     synchronous=True,
 )
-async def send_packet_action_to_code(config, action_id, template_arg, args):
+async def send_packet_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]

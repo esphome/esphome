@@ -12,6 +12,7 @@ Scan modes:
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ota, rp2040_ble
 from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.rp2040_ble import CONF_RP2040_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTIVE,
@@ -21,8 +22,6 @@ from esphome.const import (
     CONF_INTERVAL,
 )
 from esphome.types import ConfigType
-
-CONF_RP2040_BLE_ID = "rp2040_ble_id"
 
 DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
@@ -42,9 +41,7 @@ RP2BLETracker = rp2_ble_tracker_ns.class_(
 # to_code(). `active` defaults on for esp32_ble_tracker parity; it adds scan
 # request TX and roughly doubles the reports through the queue, so
 # `active: false` is the lighter choice when scan response data is not needed.
-SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "100ms", supports_active=True
-)
+SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema("100ms")
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -56,6 +53,12 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Selects the BLEHub alias arm in ble_device_base/ble_hub_impl.h.
+    cg.add_define("USE_RP2_BLE_TRACKER")
+    # Compiles the shared adv + scan-response merge (BTstack delivers the pair
+    # as separate reports).
+    cg.add_define("USE_BLE_SCAN_RESPONSE_MERGER")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
