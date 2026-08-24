@@ -106,25 +106,47 @@ storage::StorageError SdStorageBase::format() {
     ESP_LOGE(TAG_BASE, "Cannot format: card not mounted (no FATFS drive)");
     return storage::StorageError::STORAGE_ERROR_NOT_FOUND;
   }
+  // Close user handles while the volume is still attached: unmount() below would otherwise try
+  // to flush them after f_mount(nullptr) has detached it, which can only produce errors. Logged
+  // rather than propagated -- everything on the card is about to be erased anyway.
+  storage::StorageError flush_err = this->flush_open_handles_();
+  if (flush_err != storage::StorageError::STORAGE_ERROR_OK)
+    ESP_LOGW(TAG_BASE, "Flush before format failed: %s", storage::error_to_string(flush_err));
+
   // Detach the mounted FATFS volume but keep the diskio drive registered so f_mkfs can reach the
   // medium; then re-register the VFS via mount() to expose the fresh, empty filesystem. The FAT
   // family is used (FatFs picks the width the medium allows); exFAT selection lives with the
   // subclass config and can be threaded through later.
-  f_mount(nullptr, this->fatfs_drive_, 0);
+  FRESULT det = f_mount(nullptr, this->fatfs_drive_, 0);
+  if (det != FR_OK) {
+    // Bail out before f_mkfs: the volume is still attached, so formatting under it would
+    // corrupt whatever FatFs still has cached for that drive.
+    ESP_LOGE(TAG_BASE, "Cannot format: detaching volume '%s' failed (FRESULT %d)", this->fatfs_drive_,
+             static_cast<int>(det));
+    return storage::StorageError::STORAGE_ERROR_NOT_READY;
+  }
+
   auto work = std::make_unique<uint8_t[]>(FF_MAX_SS);
   MKFS_PARM parm{};
   parm.fmt = FM_FAT | FM_FAT32;
   ESP_LOGI(TAG_BASE, "Formatting '%s' as FAT...", this->fatfs_drive_);
   FRESULT res = f_mkfs(this->fatfs_drive_, &parm, work.get(), FF_MAX_SS);
-  if (res != FR_OK) {
+  if (res != FR_OK)
     ESP_LOGE(TAG_BASE, "f_mkfs failed (%d)", static_cast<int>(res));
-    this->unmount();
-    this->mount();
+
+  // Re-attach either way: after the f_mount(nullptr) above the card is unusable until it is,
+  // so this must also run when f_mkfs failed.
+  storage::StorageError unmount_err = this->unmount();
+  if (unmount_err != storage::StorageError::STORAGE_ERROR_OK)
+    ESP_LOGW(TAG_BASE, "Unmount after format failed: %s", storage::error_to_string(unmount_err));
+  storage::StorageError mount_err = this->mount();
+  if (mount_err != storage::StorageError::STORAGE_ERROR_OK)
+    ESP_LOGE(TAG_BASE, "Remount after format failed: %s", storage::error_to_string(mount_err));
+
+  if (res != FR_OK)
     return storage::StorageError::STORAGE_ERROR_WRITE_ERROR;
-  }
-  this->unmount();
-  this->mount();
-  return storage::StorageError::STORAGE_ERROR_OK;
+  // A filesystem that cannot be mounted afterwards is not a successful format.
+  return mount_err;
 }
 
 void SdStorageBase::loop_cd_() {
