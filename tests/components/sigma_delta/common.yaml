@@ -1,0 +1,36 @@
+# Common sigma_delta speaker — minimal platform + automations
+speaker:
+  - platform: sigma_delta
+    id: sigma_delta_speaker_id
+    pin: ${sigma_delta_pin}
+    sample_rate: 44100
+    bits_per_sample: 16
+    num_channels: 2
+
+esphome:
+  on_boot:
+    then:
+      - speaker.mute_on:
+          id: sigma_delta_speaker_id
+      - speaker.mute_off:
+          id: sigma_delta_speaker_id
+      - if:
+          condition:
+            speaker.is_stopped:
+              id: sigma_delta_speaker_id
+          then:
+            - speaker.play:
+                id: sigma_delta_speaker_id
+                data: [0, 1, 2, 3]
+      - speaker.volume_set:
+          id: sigma_delta_speaker_id
+          volume: 0.9
+      - if:
+          condition:
+            speaker.is_playing:
+              id: sigma_delta_speaker_id
+          then:
+            - speaker.finish:
+                id: sigma_delta_speaker_id
+      - speaker.stop:
+          id: sigma_delta_speaker_id

@@ -1,0 +1,59 @@
+substitutions:
+  component_dir: /var/home/ashton/sandbox/esphome/tests/components/sigma_delta
+  sigma_delta_pin: GPIO1
+
+packages:
+  sigma_delta_common: !include common.yaml
+
+wifi:
+  ap:
+
+
+sendspin:
+  id: sendspin_hub_id
+
+# Mixer wraps the sigma_delta speaker; speaker_source drives the mixer
+speaker:
+  - platform: mixer
+    id: sigma_delta_mixer_id
+    output_speaker: sigma_delta_speaker_id
+    source_speakers:
+      - id: announcement_mixer_speaker_id
+      - id: media_mixer_speaker_id
+
+audio_file:
+  - id: sigma_delta_test_audio
+    file:
+      type: local
+      path: $component_dir/test.wav
+
+media_source:
+  - platform: audio_file
+    id: announcement_audio_file_source
+  - platform: audio_file
+    id: media_audio_file_source
+  - platform: sendspin
+    id: sendspin_source
+    buffer_size: 40000
+
+media_player:
+  - platform: speaker_source
+    id: media_player_id
+    name: Media Player
+    volume_increment: 0.02
+    volume_initial: 0.75
+    volume_max: 0.95
+    volume_min: 0.0
+    announcement_pipeline:
+      speaker: announcement_mixer_speaker_id
+      format: FLAC
+      num_channels: 1
+      sources:
+        - announcement_audio_file_source
+    media_pipeline:
+      speaker: media_mixer_speaker_id
+      format: FLAC
+      num_channels: 1
+      sources:
+        - media_audio_file_source
+        - sendspin_source
