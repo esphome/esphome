@@ -12,12 +12,12 @@
 namespace esphome::runtime_image {
 
 /**
- * @brief Image decoder specialization for BMP images.
+ * @brief Image decoder specialization for QOI images.
  */
 class QoiDecoder : public ImageDecoder {
  public:
   /**
-   * @brief Construct a new BMP Decoder object.
+   * @brief Construct a new QOI decoder object.
    *
    * @param image The RuntimeImage to decode the stream into.
    */

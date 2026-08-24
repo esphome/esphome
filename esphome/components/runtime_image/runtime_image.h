@@ -7,6 +7,7 @@
 #include "image_format.h"
 
 namespace esphome::runtime_image {
+
 /**
  * @brief A dynamic image that can be loaded and decoded at runtime.
  *
