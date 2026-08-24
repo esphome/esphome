@@ -29,10 +29,6 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(spi.spi_device_schema(False, "1MHz"))
 
-FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
-    "spi_device", require_mosi=False, require_miso=False
-)
-
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])

@@ -157,6 +157,7 @@ def _validate_psram_dma(value: Any) -> bool:
             msg_prefix="PSRAM DMA",
         ),
         cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
+        cv.requires_component("psram"),
     )(value)
 
 
@@ -526,14 +527,14 @@ def final_validate_device_schema(
     )
 
 
-def _walk_config(value: Any):
+def _walk_config(value: Any, path: tuple[Any, ...] = ()):
     if isinstance(value, dict):
-        yield value
-        for child in value.values():
-            yield from _walk_config(child)
+        yield value, path
+        for key, child in value.items():
+            yield from _walk_config(child, (*path, key))
     elif isinstance(value, list):
-        for child in value:
-            yield from _walk_config(child)
+        for index, child in enumerate(value):
+            yield from _walk_config(child, (*path, index))
 
 
 def _final_validate(config: Any) -> Any:
@@ -543,12 +544,13 @@ def _final_validate(config: Any) -> Any:
     }
     if not software_bus_ids:
         return config
-    for candidate in _walk_config(fv.full_config.get()):
+    for candidate, path in _walk_config(fv.full_config.get()):
         if (
             candidate.get(CONF_PSRAM_DMA)
             and candidate.get(CONF_SPI_ID) in software_bus_ids
         ):
-            raise cv.Invalid("psram_dma requires a hardware SPI interface")
+            with cv.prepend_path([cv.ROOT_CONFIG_PATH, *path, CONF_PSRAM_DMA]):
+                raise cv.Invalid("psram_dma requires a hardware SPI interface")
     return config
 
 
