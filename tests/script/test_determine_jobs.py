@@ -1120,7 +1120,14 @@ def test_should_run_esp32_platformio_with_branch() -> None:
         (["esphome/espidf/runner.py"], True),
         (["esphome/espidf/framework.py"], True),
         (["esphome/build_gen/espidf.py"], True),
-        # PlatformIO build gen and esp32 component are NOT IDF-infra triggers
+        # Shared native-build modules the IDF build imports -> trigger
+        (["esphome/build_helpers/idedata.py"], True),
+        (["esphome/platformio/library.py"], True),
+        (["esphome/framework_helpers.py"], True),
+        (["esphome/platformio/extra_script.py"], True),
+        # PlatformIO build gen, its toolchain, and the esp32 component are
+        # NOT IDF-infra triggers
+        (["esphome/platformio/toolchain.py"], False),
         (["esphome/build_gen/platformio.py"], False),
         (["esphome/components/esp32/__init__.py"], False),
         (["README.md"], False),
@@ -1130,6 +1137,16 @@ def test_should_run_esp32_platformio_with_branch() -> None:
 def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
     """ESP-IDF build/runner infra paths are detected; other paths are not."""
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
+
+
+def test_esp_idf_infra_trigger_paths_exist() -> None:
+    """A renamed or moved trigger module must fail here, not silently stop
+    forcing the esp32 IDF compile."""
+    repo_root = Path(__file__).resolve().parents[2]
+    for file in determine_jobs.ESP_IDF_INFRA_TRIGGER_FILES:
+        assert (repo_root / file).is_file(), f"trigger file {file} moved or renamed"
+    for prefix in determine_jobs.ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES:
+        assert (repo_root / prefix).is_dir(), f"trigger dir {prefix} moved or renamed"
 
 
 @pytest.mark.parametrize(
