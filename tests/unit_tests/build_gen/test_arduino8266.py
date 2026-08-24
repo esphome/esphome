@@ -83,11 +83,15 @@ def _split_flags():
 
 
 def _ok_result(stdout=None, stderr=""):
-    """A successful preprocessor spawn (defaults to the common ld output)."""
+    """A successful preprocessor spawn (defaults to the common ld output).
+
+    Streams are bytes, as the un-decoded subprocess.run delivers them.
+    """
+    stdout = _COMMON_LD_H_OUTPUT if stdout is None else stdout
     return MagicMock(
         returncode=0,
-        stdout=_COMMON_LD_H_OUTPUT if stdout is None else stdout,
-        stderr=stderr,
+        stdout=stdout.encode() if isinstance(stdout, str) else stdout,
+        stderr=stderr.encode() if isinstance(stderr, str) else stderr,
     )
 
 
@@ -383,7 +387,7 @@ def test_generate_ld_scripts_corrupt_cache_regenerates(tmp_path: Path) -> None:
 def test_generate_ld_scripts_failure(tmp_path: Path) -> None:
 
     paths = _make_framework(tmp_path)
-    result = MagicMock(returncode=1, stderr="nope")
+    result = MagicMock(returncode=1, stderr=b"nope")
     with (
         patch.object(arduino8266.subprocess, "run", return_value=result),
         pytest.raises(EsphomeError, match="linker script failed"),
@@ -644,16 +648,14 @@ def test_generate_ld_scripts_surfaces_preprocessor_warnings(
     """Preprocessor stderr on a zero exit reaches the user; degenerate output is refused."""
     paths = _make_framework(tmp_path)
     _set_flags()
-    result = MagicMock(
-        returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: something"
-    )
+    result = _ok_result(stderr="warning: something")
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         _run_generate_ld_scripts(paths)
     assert "Linker-script preprocessor: warning: something" in caplog.text
 
     # New flags invalidate the stamp so the degenerate run regenerates
     _set_flags("-DVTABLES_IN_DRAM")
-    result = MagicMock(returncode=0, stdout="", stderr="")
+    result = _ok_result(stdout="")
     with (
         patch.object(arduino8266.subprocess, "run", return_value=result),
         pytest.raises(EsphomeError, match="SECTIONS"),
@@ -668,9 +670,7 @@ def test_generate_ld_scripts_lost_warn_note_vetoes_the_stamp(
     re-runs -E and re-derives the diagnostic instead of losing it."""
     paths = _make_framework(tmp_path)
     _set_flags()
-    result = MagicMock(
-        returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: something"
-    )
+    result = _ok_result(stderr="warning: something")
     real_write_text = Path.write_text
 
     def fail_note_writes(self: Path, text: str, encoding: str = "utf-8") -> int:
@@ -700,8 +700,8 @@ def test_generate_ld_scripts_unremovable_stale_note_vetoes_the_stamp(
     obsolete diagnostic is not re-emitted on cache hits forever."""
     paths = _make_framework(tmp_path)
     _set_flags()
-    warn = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: old")
-    clean = MagicMock(returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="")
+    warn = _ok_result(stderr="warning: old")
+    clean = _ok_result()
     with patch.object(arduino8266.subprocess, "run", return_value=warn):
         _run_generate_ld_scripts(paths)
 
@@ -881,18 +881,26 @@ def test_generate_ld_scripts_corrupt_output_is_overwritten(tmp_path: Path) -> No
     assert "SECTIONS" in output.read_text(encoding="utf-8")
 
 
-def test_generate_ld_scripts_unreadable_note_still_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize("damage", ["corrupt", "remove"])
+def test_generate_ld_scripts_damaged_note_invalidates_cache(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, damage: str
 ) -> None:
-    """A cached diagnostic that cannot be read must not vanish silently."""
+    """A corrupted or externally removed diagnostic note is a cache miss:
+    -E re-runs and re-derives the warning instead of dropping it silently."""
     paths = _make_framework(tmp_path)
     result = _ok_result(stderr="warn!")
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         ld_dir = _run_generate_ld_scripts(paths)
-    (ld_dir / ".local.eagle.app.v6.common.ld.stderr").write_bytes(b"\xff\xfe")
-    with patch.object(arduino8266.subprocess, "run", return_value=result):
+    note = ld_dir / ".local.eagle.app.v6.common.ld.stderr"
+    if damage == "corrupt":
+        note.write_bytes(b"\xff\xfe")
+    else:
+        note.unlink()
+    caplog.clear()
+    with patch.object(arduino8266.subprocess, "run", return_value=result) as mock_run:
         _run_generate_ld_scripts(paths)
-    assert "could not be read" in caplog.text
+    assert mock_run.called
+    assert "Linker-script preprocessor: warn!" in caplog.text
 
 
 @pytest.mark.parametrize("value", ["0x8000", "0xC000ul", "0x10UL"])
@@ -1017,7 +1025,7 @@ def test_generate_ld_scripts_surgery_failure_is_named(tmp_path: Path) -> None:
     """A moved rate-table anchor surfaces as a build error, not a traceback
     or a silently unrelocated table."""
     paths = _make_framework(tmp_path)
-    result = MagicMock(returncode=0, stdout="SECTIONS { no anchor here }", stderr="")
+    result = _ok_result(stdout="SECTIONS { no anchor here }")
     with (
         patch.object(arduino8266.subprocess, "run", return_value=result),
         pytest.raises(EsphomeError, match="anchor not found"),
@@ -1085,9 +1093,7 @@ def test_generate_ld_scripts_reemits_cached_preprocessor_warning(
     """A preprocessor diagnostic survives cache hits instead of appearing
     once and vanishing for the life of the build dir."""
     paths = _make_framework(tmp_path)
-    result = MagicMock(
-        returncode=0, stdout=_COMMON_LD_H_OUTPUT, stderr="warning: something odd"
-    )
+    result = _ok_result(stderr="warning: something odd")
     with patch.object(arduino8266.subprocess, "run", return_value=result):
         _run_generate_ld_scripts(paths)
     assert caplog.text.count("warning: something odd") == 1

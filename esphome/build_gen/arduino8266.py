@@ -522,10 +522,9 @@ def _project_flags(
     return compile_flags, link_flags, lib_dirs, libs
 
 
-# Plain-form linker flags rejected by _project_flags: inert on a -c compile
-# line, so the firmware would silently lack the requested link behavior
-# Best-effort, not exhaustive: an unlisted link-only spelling still falls
-# through to the compile line, with a warning from the shape check
+# Recognized compile-flag shapes: the allow-list feeding the fall-through
+# warning in _project_flags (an unlisted link-only spelling still reaches
+# the compile line, but not silently)
 _COMPILE_FLAG_PREFIXES = (
     "-D",
     "-I",
@@ -538,6 +537,9 @@ _COMPILE_FLAG_PREFIXES = (
     "-std=",
     "-include",
 )
+# Plain-form linker flags rejected by _project_flags: inert on a -c compile
+# line, so the firmware would silently lack the requested link behavior.
+# Best-effort, not exhaustive; see _COMPILE_FLAG_PREFIXES above.
 _PLAIN_LINKER_FLAGS = (
     "-u",
     "-e",
@@ -632,6 +634,16 @@ def generate_ld_scripts(
         + f" {build_surgery.surgery_fingerprint()}"
     )
 
+    stderr_note = ld_dir / f".{_COMMON_LD_NAME}.stderr"
+
+    def _note_digest() -> str:
+        # The note is an output like the script itself; folding its state
+        # into the stamp makes an externally removed or edited note a cache
+        # miss that re-runs -E and re-derives the diagnostic
+        if not stderr_note.is_file():
+            return "none"
+        return hashlib.sha256(stderr_note.read_bytes()).hexdigest()
+
     def _cached_ld_is_valid() -> bool:
         # Any damaged cache regenerates; never abort the build over it. The
         # stamp records the sha256 of the content written, so an externally
@@ -639,41 +651,43 @@ def generate_ld_scripts(
         try:
             if not (output.is_file() and stamp.is_file()):
                 return False
-            inputs, sep, digest = stamp.read_text(encoding="utf-8").rpartition(
+            rest, sep, digest = stamp.read_text(encoding="utf-8").rpartition(
                 " content="
             )
+            inputs, note_sep, note_digest = rest.rpartition(" note=")
             return (
                 bool(sep)
+                and bool(note_sep)
                 and inputs == stamp_content
+                and note_digest == _note_digest()
                 and hashlib.sha256(output.read_bytes()).hexdigest() == digest
             )
         except (OSError, UnicodeDecodeError):
             return False
 
-    stderr_note = ld_dir / f".{_COMMON_LD_NAME}.stderr"
     if not _cached_ld_is_valid():
         try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
-                # Localized gcc diagnostics on a non-UTF-8 console must
-                # degrade, not UnicodeDecodeError the build
-                encoding="utf-8",
-                errors="replace",
                 check=False,
                 close_fds=False,
             )
         except OSError as err:
             # A half-extracted or half-deleted toolchain cache reaches here
             raise EsphomeError(f"Could not run {gcc}: {err}; {_CLEAN_HINT}") from err
+        # Localized gcc diagnostics on a non-UTF-8 console must degrade,
+        # not UnicodeDecodeError the build; the script itself (below) is
+        # decoded strictly instead, so a mangled byte can never be cached
+        stderr_text = result.stderr.decode("utf-8", errors="replace")
         if result.returncode != 0:
-            raise EsphomeError(f"Generating the linker script failed:\n{result.stderr}")
+            raise EsphomeError(f"Generating the linker script failed:\n{stderr_text}")
         note_persisted = True
-        if result.stderr.strip():
+        if stderr_text.strip():
             # Preprocessor warnings on the success path must reach the user
             # on this and every later cached build (see the re-emit below)
-            _LOGGER.warning("Linker-script preprocessor: %s", result.stderr.strip())
-            note_persisted = _write_note(stderr_note, result.stderr.strip(), warn=True)
+            _LOGGER.warning("Linker-script preprocessor: %s", stderr_text.strip())
+            note_persisted = _write_note(stderr_note, stderr_text.strip(), warn=True)
         else:
             try:
                 stderr_note.unlink(missing_ok=True)
@@ -688,12 +702,21 @@ def generate_ld_scripts(
                     _CLEAN_HINT,
                 )
                 note_persisted = False
-        if "SECTIONS" not in result.stdout:
+        try:
+            stdout_text = result.stdout.decode("utf-8")
+        except UnicodeDecodeError as err:
+            # -CC keeps header comments verbatim; a non-UTF-8 byte replaced
+            # with U+FFFD would be cached as valid for the build dir's life
+            raise EsphomeError(
+                f"Preprocessed linker script from {header} is not UTF-8: "
+                f"{err}; {_CLEAN_HINT}"
+            ) from err
+        if "SECTIONS" not in stdout_text:
             # A degenerate zero-exit run must not be stamped as a good cache
             raise EsphomeError(
                 f"Generated linker script is missing its SECTIONS block; {_CLEAN_HINT}"
             )
-        content = _apply_surgery(build_surgery.relocate_ratetable, result.stdout)
+        content = _apply_surgery(build_surgery.relocate_ratetable, stdout_text)
         if CORE.testing_mode:
             content = _apply_surgery(
                 build_surgery.apply_testing_memory_patches, content, ("iram1_0_seg",)
@@ -704,7 +727,8 @@ def generate_ld_scripts(
             # diagnostic the lost note would have re-emitted
             _write_note(
                 stamp,
-                f"{stamp_content} content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
+                f"{stamp_content} note={_note_digest()} "
+                f"content={hashlib.sha256(content.encode('utf-8')).hexdigest()}",
             )
     elif stderr_note.is_file():
         # Re-emit cached preprocessor warnings on cache hits
