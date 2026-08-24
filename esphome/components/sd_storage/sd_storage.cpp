@@ -177,6 +177,10 @@ storage::StorageError SdMmc::unmount_manual_() {
   }
   if (esp_vfs_fat_unregister_path(this->mount_path_) != ESP_OK && err == storage::StorageError::STORAGE_ERROR_OK)
     err = storage::StorageError::STORAGE_ERROR_NOT_READY;
+  // Last step of esp_vfs_fat_sdcard_unmount(), which this mirrors: without it the SDMMC
+  // peripheral stays initialised and the slot clocked after every unmount.
+  if (sdmmc_host_deinit() != ESP_OK && err == storage::StorageError::STORAGE_ERROR_OK)
+    err = storage::StorageError::STORAGE_ERROR_NOT_READY;
   delete this->card_;  // NOLINT(cppcoreguidelines-owning-memory)
   return err;
 }
