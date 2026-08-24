@@ -41,7 +41,7 @@ static TestableMS8607Component::CalibrationValues create_calibration_values(uint
   return values;
 }
 
-TEST(MS8607Test, Category1_TemperatureCriticalBoundaries) {
+TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   auto calibration_values = create_calibration_values();
   uint32_t const reference_temperature = calibration_values.reference_temperature << 8;
 
@@ -116,7 +116,7 @@ float test_pressure_helper(const uint32_t d1, const uint32_t d2,
   return TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
 }
 
-TEST(MS8607Test, Category2_PressureCompensationMath) {
+TEST(MS8607Test, Category2PressureCompensationMath) {
   auto calibration_values = create_calibration_values();
 
   // Standard Mid-Scale Barometric Pressure (~1013 mbar @ 20°C)
@@ -195,7 +195,7 @@ TEST(MS8607Test, Category2_PressureCompensationMath) {
   }
 }
 
-TEST(MS8607Test, Category3_HumidityTemperatureCompensation) {
+TEST(MS8607Test, Category3HumidityTemperatureCompensation) {
   // Datasheet example: 0x7C80 (i.e. 31872) @ 20°C is 54.80%
   {
     float const humidity = TestableMS8607Component::compensated_humidity(0x7C80, 20.0f);
@@ -252,7 +252,7 @@ TEST(MS8607Test, Category3_HumidityTemperatureCompensation) {
   }
 }
 
-TEST(MS8607Test, Category4_MathematicalEdgeCases) {
+TEST(MS8607Test, Category4MathematicalEdgeCases) {
   auto calibration_values = create_calibration_values();
 
   // Minimum value accepted by read_* methods
