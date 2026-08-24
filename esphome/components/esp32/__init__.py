@@ -3041,8 +3041,6 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     """Patch a project-local copy of FatFs so exFAT is compiled in."""
     import shutil
 
-    from esphome.espidf.framework import _get_framework_path
-
     dest = Path(CORE.build_path) / "components" / "fatfs"
     marker = dest / _EXFAT_MARKER
     stamp = f"v4:{idf_ver}:" + ",".join(f"{k}={v}" for k, v in _EXFAT_PATCHES)
