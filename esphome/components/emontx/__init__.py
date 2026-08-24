@@ -11,7 +11,8 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_UART_ID,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -143,8 +144,11 @@ EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
     synchronous=True,
 )
 async def emontx_send_command_action_to_code(
-    config: ConfigType, action_id, template_arg, args
-) -> None:
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
