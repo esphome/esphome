@@ -78,14 +78,16 @@ jobs:
               return;
             }
 
-            const { data: reviewComments } = await github.rest.pulls.listReviewComments({
+            const reviewComments = await github.paginate(github.rest.pulls.listReviewComments, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: prNumber,
-              per_page: 1,
             });
-            if (reviewComments.length === 0) {
-              core.info("No existing review comments — skipping warning.");
+            const hasHumanReviewComment = reviewComments.some(
+              c => c.user?.type !== "Bot" && !c.user?.login?.endsWith("[bot]")
+            );
+            if (!hasHumanReviewComment) {
+              core.info("No existing human review comments — skipping warning.");
               return;
             }
 
