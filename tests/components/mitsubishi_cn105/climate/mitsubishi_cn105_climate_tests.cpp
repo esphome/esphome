@@ -15,11 +15,10 @@ struct MitsubishiCN105ClimateTestContext {
 
 TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingAndTraitsMatchExpectedValues) {
   MitsubishiCN105ClimateTestContext context;
-  const auto mapping = TemperatureMapping();
 
   for (int temperature = 16; temperature <= 31; ++temperature) {
-    EXPECT_EQ(mapping.to_mitsubishi(temperature), temperature);
-    EXPECT_EQ(mapping.from_mitsubishi(temperature), temperature);
+    EXPECT_EQ(context.component.get_temperature_mapping().to_mitsubishi(temperature), temperature);
+    EXPECT_EQ(context.component.get_temperature_mapping().from_mitsubishi(temperature), temperature);
   }
 
   const auto traits = context.sut.traits();
@@ -32,8 +31,6 @@ TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingAndTraitsMatchExpecte
 
 TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpectedValues) {
   MitsubishiCN105ClimateTestContext context;
-  auto mapping = TemperatureMapping();
-  mapping.set_use_fahrenheit(true);
   context.component.set_use_fahrenheit(true);
 
   const std::array cases{
@@ -46,8 +43,8 @@ TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingAndTraitsMatchExpe
   };
 
   for (const auto &[fahrenheit, mitsubishi_celsius] : cases) {
-    EXPECT_FLOAT_EQ(mapping.to_mitsubishi(fahrenheit), mitsubishi_celsius);
-    EXPECT_FLOAT_EQ(mapping.from_mitsubishi(mitsubishi_celsius), fahrenheit);
+    EXPECT_FLOAT_EQ(context.component.get_temperature_mapping().to_mitsubishi(fahrenheit), mitsubishi_celsius);
+    EXPECT_FLOAT_EQ(context.component.get_temperature_mapping().from_mitsubishi(mitsubishi_celsius), fahrenheit);
   }
   const auto traits = context.sut.traits();
   EXPECT_EQ(traits.get_temperature_unit(), TemperatureUnit::FAHRENHEIT);
