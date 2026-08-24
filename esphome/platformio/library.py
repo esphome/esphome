@@ -682,6 +682,10 @@ def normalize_dependencies(
     list, and a plain (possibly comma-separated) string; normalize them all
     so callers see a uniform list. ``manifest_name`` names the manifest in the
     warning for entries that cannot be normalized.
+
+    Bare-name spellings carry no version; the dependency walk later drops
+    version-less entries at DEBUG, since they are usually names of bundled
+    framework libraries (Wire, SPI) that need no registry install.
     """
     if dependencies is None:
         return []
@@ -1009,15 +1013,24 @@ def convert_libraries(
         malformed = not isinstance(component.data, dict)
         if not malformed:
             build = component.data.get("build", {})
+            esphome_data = component.data.get(ESPHOME_DATA_KEY, {})
             malformed = (
                 not isinstance(build, dict)
-                or not isinstance(component.data.get(ESPHOME_DATA_KEY, {}), dict)
+                or not isinstance(esphome_data, dict)
+                or not isinstance(
+                    esphome_data.get(ESPHOME_DATA_LINK_FLAGS_KEY, []), list
+                )
                 or not isinstance(build.get("srcDir", ""), str)
                 or not isinstance(build.get("includeDir", ""), str)
                 or not isinstance(build.get("srcFilter", ""), (str, list))
             )
         if malformed:
-            raise EsphomeError(f"Library {key} has a malformed manifest")
+            # Fail fast only for a library the user asked for; a defect in
+            # an unrequested corner of the graph must not block the build
+            if key in top_level_keys:
+                raise EsphomeError(f"Library {key} has a malformed manifest")
+            _LOGGER.warning("Skipping dependency %s: malformed manifest", key)
+            continue
         warn_properties_depends(component.name, component.data)
 
         try:
