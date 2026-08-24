@@ -285,6 +285,18 @@ def test_components_blank_list_fails_with_flag(
     assert "blank component list" in capsys.readouterr().out
 
 
+def test_components_wildcard_no_match_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A wildcard matching nothing must not degrade to the synthetic
+    baseline build and exit green under the flag."""
+    rc = tbc.test_components(
+        ["zz_no_such*"], "esp8266-ard", "compile", False, fail_on_no_tests=True
+    )
+    assert rc == 1
+    assert "No components found matching" in capsys.readouterr().out
+
+
 def test_components_empty_match_tolerated_without_flag() -> None:
     """The esp32-ard smoke leg deliberately builds only the subset with a
     matching fixture; without the flag an empty match stays green."""

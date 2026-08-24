@@ -1106,6 +1106,11 @@ def test_components(
 
     # If no components found, build a reference configuration for baseline comparison
     # Create a synthetic "empty" component test that will build just the base config
+    if fail_on_no_tests and not all_tests:
+        # The synthetic baseline would report success having built nothing
+        # the caller asked for (e.g. a wildcard that matched no component)
+        print(f"No components found matching: {component_patterns}")
+        return 1
     if not all_tests:
         print(f"No components found matching: {component_patterns}")
         print(

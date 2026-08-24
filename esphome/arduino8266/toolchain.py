@@ -151,9 +151,19 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         get_factory_firmware_path(),
         build_dir / "firmware.ota.bin",
     )
+    ninja_mtime = ninja_file.stat().st_mtime
     for artifact in build_dir_artifacts:
         if not artifact.is_file():
             _LOGGER.error("Build produced no %s", artifact)
+            return 1
+        if artifact.stat().st_mtime < ninja_mtime:
+            # A leftover from an older manifest must not pass as this
+            # build's output (a defective manifest with no default targets
+            # reports "no work to do" while building nothing)
+            _LOGGER.error(
+                "%s is older than build.ninja; run 'esphome clean-all' and retry",
+                artifact,
+            )
             return 1
 
     if not _print_size_summary(build_dir, paths):
@@ -214,7 +224,9 @@ def _parse_app_size(build_dir: Path, paths: framework.InstalledPaths) -> int | N
     ld_path = get_flash_ld_path(build_dir, paths)
     try:
         ld_text = ld_path.read_text(encoding="utf-8")
-    except OSError as err:
+    except (OSError, UnicodeDecodeError) as err:
+        # UnicodeDecodeError: a truncated/corrupt script must degrade to
+        # the same warning, never abort an already-linked build
         _LOGGER.warning("Cannot read linker script for the Flash summary: %s", err)
         return None
     app_size = segment_length(ld_text, "irom0_0_seg")

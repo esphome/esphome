@@ -664,10 +664,13 @@ def _decode_pc(config: ConfigType, addr: str) -> None:
     try:
         translation = subprocess.check_output(command, close_fds=False).decode().strip()
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        # Warn, not debug: a failing addr2line must be visible
+        # Warn, not debug: a failing addr2line must be visible. The warning
+        # is rate-limited across a dump, so mark every undecoded address
+        # inline or the rest read as merely unmappable
         _warn_decode_problem(
             "addr2line-failed", "Could not decode crash address %s (%s)", addr, err
         )
+        _LOGGER.warning("Not decoded %s (addr2line failed)", addr)
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 

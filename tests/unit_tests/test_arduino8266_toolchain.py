@@ -39,9 +39,11 @@ def _setup_core(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
     CORE.data[KEY_CORE] = {KEY_FRAMEWORK_VERSION: cv.Version(3, 1, 2)}
     # run_compile verifies the produced artifacts; give every test a build
-    # that "produced" them (tests for the guard delete them again)
+    # that "produced" them (tests for the guard delete them again). The
+    # manifest comes first: artifacts must not be older than build.ninja.
     build_dir = CORE.relative_pioenvs_path("test8266")
     build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "build.ninja").write_text("# manifest")
     for artifact in (
         "firmware.elf",
         "firmware.bin",
@@ -49,6 +51,18 @@ def _setup_core(tmp_path: Path) -> None:
         "firmware.ota.bin",
     ):
         (build_dir / artifact).write_bytes(b"")
+
+
+def _touch_artifacts(build_dir: Path) -> None:
+    """Re-date the fixture artifacts after a test rewrites build.ninja, so
+    the freshness guard sees them as this manifest's outputs."""
+    for artifact in (
+        "firmware.elf",
+        "firmware.bin",
+        "firmware.factory.bin",
+        "firmware.ota.bin",
+    ):
+        (build_dir / artifact).touch()
 
 
 def _paths(tmp_path: Path) -> framework.InstalledPaths:
@@ -150,6 +164,7 @@ def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
     build_dir = toolchain.get_build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
     (build_dir / "build.ninja").write_text("")
+    _touch_artifacts(build_dir)
     compdb = build_dir / "compile_commands.json"
     compdb.write_text("[]")
     os.utime(compdb, ((build_dir / "build.ninja").stat().st_mtime - 5,) * 2)
@@ -422,6 +437,7 @@ def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
     build_dir.mkdir(parents=True, exist_ok=True)
     # write_project (stubbed below) always leaves a build.ninja behind
     (build_dir / "build.ninja").write_text("# manifest")
+    _touch_artifacts(build_dir)
 
     def run(regenerate_expected: bool) -> None:
         with (
@@ -569,6 +585,44 @@ def test_run_compile_skipped_size_summary_names_consequence(
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     assert "Firmware size summary unavailable for this build" in caplog.text
+
+
+def test_run_compile_stale_artifact_fails(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An artifact older than build.ninja is a leftover, not this build's
+    output; a defective manifest with no default targets must not pass on
+    it."""
+    build_dir = toolchain.get_build_dir()
+    os.utime(build_dir / "firmware.bin", (0, 0))
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
+        patch.object(
+            toolchain.subprocess,
+            "run",
+            return_value=MagicMock(returncode=0, stdout="", stderr=""),
+        ),
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary", return_value=True),
+        patch.object(toolchain, "get_idedata", return_value={}),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 1
+    assert "older than build.ninja" in caplog.text
+
+
+def test_parse_app_size_non_utf8_ld_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A corrupt (non-UTF-8) linker script degrades to the same warning as
+    an unreadable one, never a traceback after a successful link."""
+    paths = _paths(tmp_path)
+    ld = tmp_path / "corrupt.ld"
+    ld.write_bytes(b"\xff\xfe not utf8")
+    with patch("esphome.build_gen.arduino8266.get_flash_ld_path", return_value=ld):
+        assert toolchain._parse_app_size(tmp_path, paths) is None
+    assert "Cannot read linker script" in caplog.text
 
 
 def test_get_idedata_accepts_preresolved_ccache() -> None:
