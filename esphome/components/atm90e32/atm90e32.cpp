@@ -782,9 +782,10 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
   if (writes_verified)
     ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save %s calibration to memory!", cs, name);
 
-  for (uint8_t phase = 0; phase < 3; phase++)
+  for (uint8_t phase = 0; phase < 3; phase++) {
     this->write_offsets_to_registers_(phase, previous[phase].first_offset, previous[phase].second_offset,
                                       power_offsets);
+  }
   const bool rollback_verified = this->verify_offset_writes_(power_offsets);
 
   if (writes_verified) {
@@ -1005,9 +1006,10 @@ void ATM90E32Component::restore_offset_calibrations_(bool power_offsets) {
     ESP_LOGW(TAG, "[CALIBRATION][%s] No stored %s calibrations found. Using default values.", cs, name);
   }
 
-  for (uint8_t phase = 0; phase < 3; phase++)
+  for (uint8_t phase = 0; phase < 3; phase++) {
     this->write_offsets_to_registers_(phase, (*offsets)[phase].first_offset, (*offsets)[phase].second_offset,
                                       power_offsets);
+  }
   if (this->verify_offset_writes_(power_offsets)) {
     ESP_LOGI(TAG, "[CALIBRATION][%s] %s calibration restore verified.", cs, name);
     return;
