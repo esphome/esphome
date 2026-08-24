@@ -446,6 +446,27 @@ def split_list_by_condition(
     return matched, non_matched
 
 
+def _valid_manifest_shape(data: Any) -> bool:
+    """Whether the manifest has the dict shapes every backend dereferences.
+
+    A bare json.load imposes no shape; validating once here means a
+    malformed third-party manifest fails by library name instead of a raw
+    TypeError/AttributeError in a backend.
+    """
+    if not isinstance(data, dict):
+        return False
+    build = data.get("build", {})
+    esphome_data = data.get(ESPHOME_DATA_KEY, {})
+    return (
+        isinstance(build, dict)
+        and isinstance(esphome_data, dict)
+        and isinstance(esphome_data.get(ESPHOME_DATA_LINK_FLAGS_KEY, []), list)
+        and isinstance(build.get("srcDir", ""), str)
+        and isinstance(build.get("includeDir", ""), str)
+        and isinstance(build.get("srcFilter", ""), (str, list))
+    )
+
+
 def check_library_data(data: dict, platform: str | None, framework: str):
     """
     Check whether a library manifest is compatible with the target toolchain.
@@ -1132,23 +1153,7 @@ def convert_libraries(
                     f"library.properties in {source_dir}"
                 )
 
-            # A bare json.load imposes no shape; every backend dereferences
-            # these fields, so validate once here and name the library
-            malformed = not isinstance(component.data, dict)
-            if not malformed:
-                build = component.data.get("build", {})
-                esphome_data = component.data.get(ESPHOME_DATA_KEY, {})
-                malformed = (
-                    not isinstance(build, dict)
-                    or not isinstance(esphome_data, dict)
-                    or not isinstance(
-                        esphome_data.get(ESPHOME_DATA_LINK_FLAGS_KEY, []), list
-                    )
-                    or not isinstance(build.get("srcDir", ""), str)
-                    or not isinstance(build.get("includeDir", ""), str)
-                    or not isinstance(build.get("srcFilter", ""), (str, list))
-                )
-            if malformed:
+            if not _valid_manifest_shape(component.data):
                 # Fail fast only for a library the user asked for; a defect
                 # in an unrequested corner of the graph must not block the
                 # build

@@ -783,7 +783,7 @@ def _prefetch_idf_tool_archives(
             # failure_reason: a message-less exception must not log blank
             _LOGGER.warning("Could not prefetch %s: %s", name, failure_reason(e))
             _LOGGER.debug("Prefetch failure detail", exc_info=e)
-        if failures and len(failures) == len(entries):
+        if len(failures) == len(entries):
             # A systematic fault, not one flaky mirror: the resume
             # workaround (#17703) is off for this whole install
             _LOGGER.error(

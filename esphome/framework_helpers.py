@@ -800,16 +800,14 @@ def run_batch_downloads(
         try:
             fetch(checked)
         except (_BatchDownloadCancelled, Exception) as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            # A cancelled job reports like a failure: an abandoned download
-            # must never read as completed if a caller sees the list after
-            # Ctrl-C
-            failure = (name, err)
-        else:
-            return None
-        # A bar-frame write failure must not displace the download error
-        with suppress(Exception):
-            tracker(0)
-        return failure
+            # The cancelled arm exists for the tracker rollback below; the
+            # batch re-raises the interrupt, so the list is never returned
+            # after Ctrl-C. A bar-frame write failure must not displace the
+            # download error.
+            with suppress(Exception):
+                tracker(0)
+            return (name, err)
+        return None
 
     ex = ThreadPoolExecutor(max_workers=max_workers)
     try:
@@ -1340,11 +1338,13 @@ def download_from_mirrors(
             )
             # Tick with the bytes already on disk so a combined bar holds
             # steady during the backoff instead of rewinding to zero
-            if f is not None:
-                done = f.tell()
-            else:
-                part = _part_path(path_target)
-                done = part.stat().st_size if part.is_file() else 0
+            done = 0
+            if progress is not None:
+                if f is not None:
+                    done = f.tell()
+                else:
+                    part = _part_path(path_target)
+                    done = part.stat().st_size if part.is_file() else 0
             _cancellable_sleep(delay, progress, done)
 
     # 4. Report every attempted URL if all mirrors failed. failures spans
