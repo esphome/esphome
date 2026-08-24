@@ -30,12 +30,15 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
   LOG_PIN("  CS Pin: ", cs);
   LOG_PIN("  Reset Pin: ", reset);
   LOG_PIN("  DC Pin: ", dc);
-  if (offset_width != 0)
+  if (offset_width != 0) {
     ESP_LOGCONFIG(TAG, "  Offset width: %d", offset_width);
-  if (offset_height != 0)
+  }
+  if (offset_height != 0) {
     ESP_LOGCONFIG(TAG, "  Offset height: %d", offset_height);
-  if (brightness.has_value())
+  }
+  if (brightness.has_value()) {
     ESP_LOGCONFIG(TAG, "  Brightness: %u", brightness.value());
+  }
 }
 
 }  // namespace esphome::mipi_spi

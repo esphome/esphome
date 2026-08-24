@@ -317,6 +317,30 @@ def lint_no_long_delays(fname, match):
     )
 
 
+# An if/else/for/while whose body is a single ESP_LOG*() call, without braces. When the build's
+# compile-time log level drops that macro, the body expands to nothing and the compiler warns
+# (-Wempty-body). clang-tidy's brace check does not catch these (ShortStatementLines allows short
+# unbraced bodies), so this fills that gap.
+ESP_LOG_NEEDS_BRACES_RE = (
+    r"(?:\b(?:if|for|while)\s*\([^{};]*\)|\belse\b)[ \t]*\n?[ \t]*ESP_LOG[A-Z]*\s*\("
+)
+
+
+@lint_re_check(ESP_LOG_NEEDS_BRACES_RE, include=cpp_include)
+def lint_esp_log_needs_braces(fname, match):
+    # Skip preprocessor conditionals (#if/#else/#elif): they are not C++ control statements.
+    content = match.string
+    line_start = content.rfind("\n", 0, match.start()) + 1
+    if content[line_start : match.start()].lstrip().startswith("#"):
+        return None
+    return (
+        f"{highlight(match.group(0).replace(chr(10), ' ').strip())} - an if/else/for/while body that "
+        "is a single ESP_LOG*() call must be wrapped in braces. When the log level compiles the macro "
+        "out, the body becomes empty and the compiler warns (-Wempty-body). Add { } around the log "
+        "call (or a '// NOLINT' comment if this is genuinely intended)."
+    )
+
+
 @lint_content_check(
     include=[
         "esphome/const.py",
