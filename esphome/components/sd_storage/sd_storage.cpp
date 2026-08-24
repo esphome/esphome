@@ -98,17 +98,36 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
   // Step for step what esp_vfs_fat_sdmmc_mount does (all public IDF API), with the probe
   // window inserted between diskio registration and f_mount.
   auto *card = new sdmmc_card_t{};  // NOLINT(cppcoreguidelines-owning-memory) - freed in unmount_manual_
+  // Undo state in reverse order of acquisition on every failure. esp_vfs_fat_sdmmc_mount()
+  // does the same via call_host_deinit(): without the sdmmc_host_deinit() the peripheral
+  // stays initialised and the slot clocked, and unmount() cannot recover it because it
+  // early-returns while is_mounted_ is false -- so a card that is absent or unreadable at
+  // boot would keep the host powered for the rest of the process.
+  bool host_up = false;
+  bool vfs_registered = false;
+  BYTE pdrv = 0xFF;
+  auto cleanup = [&]() {
+    if (vfs_registered)
+      esp_vfs_fat_unregister_path(this->mount_path_);
+    if (pdrv != 0xFF)
+      ff_diskio_register(pdrv, nullptr);
+    if (host_up)
+      sdmmc_host_deinit();
+    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+  };
+
   esp_err_t err = host.init != nullptr ? host.init() : ESP_OK;
   if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {  // INVALID_STATE: host already up
-    delete card;                                        // NOLINT(cppcoreguidelines-owning-memory)
+    cleanup();
     return err;
   }
+  host_up = true;
   // Unconditional: this path does not go through esp_vfs_fat_sdmmc_mount(), so nothing
   // else initialises the slot. sdmmc_card_init() below drives the bus and needs the slot's
   // pins and width configured first.
   err = sdmmc_host_init_slot(host.slot, &slot_config);
   if (err != ESP_OK) {
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    cleanup();
     return err;
   }
   err = ESP_FAIL;
@@ -121,13 +140,13 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
     vTaskDelay(pdMS_TO_TICKS(100));
   }
   if (err != ESP_OK) {
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    cleanup();
     return err;
   }
 
-  BYTE pdrv = 0xFF;
   if (ff_diskio_get_drive(&pdrv) != ESP_OK || pdrv == 0xFF) {
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    pdrv = 0xFF;  // nothing to unregister
+    cleanup();
     return ESP_ERR_NO_MEM;
   }
   ff_diskio_register_sdmmc(pdrv, card);
@@ -135,8 +154,7 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
 
   // The point of this path: the requested filesystem is enforced BEFORE the mount.
   if (!storage::ensure_requested_filesystem(TAG, pdrv, drv, this->requested_file_system_, this->format_on_mismatch_)) {
-    ff_diskio_register(pdrv, nullptr);
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    cleanup();
     return ESP_FAIL;
   }
 
@@ -152,16 +170,14 @@ esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_con
   err = esp_vfs_fat_register(this->mount_path_, drv, 16, &fs);
 #endif
   if (err != ESP_OK) {
-    ff_diskio_register(pdrv, nullptr);
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    cleanup();
     return err;
   }
+  vfs_registered = true;
   FRESULT res = f_mount(fs, drv, 1);
   if (res != FR_OK) {
     ESP_LOGE(TAG, "f_mount failed: %d", res);
-    esp_vfs_fat_unregister_path(this->mount_path_);
-    ff_diskio_register(pdrv, nullptr);
-    delete card;  // NOLINT(cppcoreguidelines-owning-memory)
+    cleanup();
     return ESP_FAIL;
   }
   this->card_ = card;
