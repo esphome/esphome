@@ -156,7 +156,11 @@ inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const cha
     fatfs_log_unreadable(tag);
     return false;
   }
-  if ((found == FatfsDetected::EXFAT) == want_exfat)
+  // Must be a positive detection of the requested family, not just "not the other one":
+  // comparing (found == EXFAT) against want_exfat makes NONE indistinguishable from FAT for
+  // a fat32 request, which would accept a blank medium and skip the reformat below.
+  const bool matches = want_exfat ? (found == FatfsDetected::EXFAT) : (found == FatfsDetected::FAT);
+  if (matches)
     return true;
   if (found == FatfsDetected::NONE) {
     if (format_on_mismatch) {
