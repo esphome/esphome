@@ -1002,8 +1002,12 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2;
-  ParsedTimezone parsed_timezone = 3;
+  // Deprecated in 2026.9.0: clients still send this string for older firmware,
+  // but new firmware only reads parsed_timezone. Clients older than Home
+  // Assistant 2026.3.0 that send only the string leave the device on its
+  // codegen-configured timezone (or UTC).
+  string timezone = 2 [deprecated = true];
+  ParsedTimezone parsed_timezone = 3 [(track_presence) = true];
 }
 
 // ==================== USER-DEFINES SERVICES ====================

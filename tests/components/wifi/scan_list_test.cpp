@@ -4,13 +4,13 @@
 #include <string>
 #include <vector>
 
-#include "esphome/components/captive_portal/scan_list.h"
+#include "esphome/components/wifi/scan_list.h"
 
-namespace esphome::captive_portal::testing {
+namespace esphome::wifi::testing {
 
 namespace {
 
-// Stand-in for wifi::WiFiScanResult, which does not compile on the host.
+// Stand-in for WiFiScanResult, which does not compile on the host.
 struct Entry {
   std::string ssid;
   int8_t rssi;
@@ -24,7 +24,7 @@ struct Entry {
   bool get_is_hidden() const { return this->is_hidden; }
 };
 
-// One row as the portal would emit it.
+// One network as a consumer would emit it.
 struct Row {
   std::string ssid;
   int8_t rssi;
@@ -33,7 +33,7 @@ struct Row {
   bool operator==(const Row &rhs) const { return ssid == rhs.ssid && rssi == rhs.rssi && lock == rhs.lock; }
 };
 
-// Walk the results the way handle_config does and collect the rows that survive.
+// Walk the results the way the consumers do and collect the rows that survive.
 std::vector<Row> rows(const std::vector<Entry> &results) {
   std::vector<Row> out;
   for (size_t i = 0; i < results.size(); i++) {
@@ -127,4 +127,4 @@ TEST(ScanList, EmptyListShowsNothing) {
   EXPECT_TRUE(rows(results).empty());
 }
 
-}  // namespace esphome::captive_portal::testing
+}  // namespace esphome::wifi::testing

@@ -131,7 +131,7 @@ SCAN_WIRINGS = {
 }
 
 
-def _validate_scan_wiring(value):
+def _validate_scan_wiring(value: Any) -> str:
     """Validate scan_wiring against the allowed names."""
     value = cv.string(value).upper().replace(" ", "_")
 
@@ -477,7 +477,7 @@ def _build_pins_struct(
 ) -> cg.StructInitializer:
     """Build Hub75Pins struct from pin expressions."""
 
-    def pin_cast(pin):
+    def pin_cast(pin: Any) -> cg.RawExpression:
         return cg.RawExpression(f"static_cast<int8_t>({pin.get_pin()})")
 
     return cg.StructInitializer(
