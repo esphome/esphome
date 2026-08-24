@@ -18,9 +18,9 @@ from .. import (
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
-    migrate_custom_command,
     modbus_calc_properties,
     modbus_controller_ns,
+    validate_custom_pdu_item,
 )
 from ..const import (
     CONF_BITMASK,
@@ -86,7 +86,7 @@ CONFIG_SCHEMA = cv.All(
     validate_modbus_number,
 )
 
-FINAL_VALIDATE_SCHEMA = migrate_custom_command
+FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
 
 
 async def to_code(config):
