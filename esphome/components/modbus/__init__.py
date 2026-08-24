@@ -82,6 +82,19 @@ def _command_options(direction: str) -> list[_CommandOption]:
         raise ValueError(f"unknown command-options direction {direction!r}") from None
 
 
+# The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
+# (read/write multiple) is included: it mutates, so the hub treats it as a write despite its read half.
+_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16, 0x17})
+
+
+def is_function_code_write(function_code: int) -> bool:
+    """True if the Modbus function code writes (mutates). The exception bit (0x80) is masked off first,
+    so an exception-flagged code still classifies by its base code - stricter than the runtime hub,
+    whose classify() treats an exception-flagged code as a read. Keep in sync with
+    is_function_code_write()."""
+    return function_code & 0x7F in _WRITE_FUNCTION_CODES
+
+
 def command_options_schema(
     *, direction: Literal["read", "write"], templatable: bool = False
 ) -> dict[cv.Optional, Any]:
@@ -109,11 +122,9 @@ def command_options_expression(
     return cg.StructInitializer(
         CommandOptions,
         *(
-            (field, config[conf_key])
-            for conf_key, field, _validator, _cpp_type, _default in _command_options(
-                direction
-            )
-            if conf_key in config
+            (option.field, config[option.conf_key])
+            for option in _command_options(direction)
+            if option.conf_key in config
         ),
     )
 

@@ -11,7 +11,14 @@ from esphome.components.modbus.helpers import (
     EntityType,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_NAME,
+    CONF_OFFSET,
+)
 from esphome.core import CORE
 from esphome.cpp_helpers import logging
 import esphome.final_validate as fv
@@ -233,6 +240,35 @@ def migrate_custom_command(config: ConfigType) -> None:
     )
     config[CONF_CUSTOM_PDU] = list(frame[1:])
     del config[CONF_CUSTOM_COMMAND]
+
+
+def _reject_continuous_write_custom_pdu(config: ConfigType) -> None:
+    """Final-validate: a custom_pdu whose function code writes (e.g. 0x17 read/write-multiple) cannot be
+    polled continuously - the hub ignores continuous for mutating codes and would warn on every update
+    while that range silently does not stream. Reject the combination instead. Runs after
+    migrate_custom_command, so it sees custom_pdu whether written directly or migrated from
+    custom_command."""
+    pdu = config.get(CONF_CUSTOM_PDU)
+    if pdu is None or not modbus.is_function_code_write(pdu[0]):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if controller.get(CONF_CONTINUOUS) is True:
+        raise cv.Invalid(
+            f"a '{CONF_CUSTOM_PDU}' with a write function code (0x{pdu[0] & 0x7F:02X}) can't be polled "
+            f"continuously: the hub ignores 'continuous' for mutating codes. Remove 'continuous: true' "
+            f"from the '{controller[CONF_ID]}' modbus_controller, or use a read function code.",
+            [CONF_CUSTOM_PDU],
+        )
+
+
+def validate_custom_pdu_item(config: ConfigType) -> None:
+    """Final-validate for the read platforms that accept custom_pdu (sensor, binary_sensor,
+    text_sensor): migrate the deprecated custom_command, then reject a write-coded custom_pdu under a
+    continuously-polling controller."""
+    migrate_custom_command(config)
+    _reject_continuous_write_custom_pdu(config)
 
 
 def _final_validate(config: ConfigType) -> None:

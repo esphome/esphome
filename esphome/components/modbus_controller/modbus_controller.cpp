@@ -220,6 +220,7 @@ void ModbusController::update() {
   if (this->can_send()) {
     for (auto &cmd : this->polling_command_items_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
+      // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
       if (!cmd.send(this->read_options_))
         ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
