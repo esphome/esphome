@@ -91,7 +91,7 @@ def is_function_code_write(function_code: int) -> bool:
     """True if the Modbus function code writes (mutates). The exception bit (0x80) is masked off first,
     so an exception-flagged code still classifies by its base code - stricter than the runtime hub,
     whose classify() treats an exception-flagged code as a read. Keep in sync with
-    is_function_code_write()."""
+    modbus::helpers::is_function_code_write()."""
     return function_code & 0x7F in _WRITE_FUNCTION_CODES
 
 
@@ -122,7 +122,9 @@ def command_options_expression(
     return cg.StructInitializer(
         CommandOptions,
         *(
-            (option.field, config[option.conf_key])
+            # Construct the value as its declared cpp_type, so a future non-bool option (enum,
+            # uint16_t, ...) is emitted with the right type instead of whatever safe_exp() infers.
+            (option.field, option.cpp_type(config[option.conf_key]))
             for option in _command_options(direction)
             if option.conf_key in config
         ),
