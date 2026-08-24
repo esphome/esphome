@@ -1,5 +1,5 @@
 esphome:
-  name: uart-mock-modbus-custom-command
+  name: uart-mock-modbus-custom-pdu
 
 host:
 api:
@@ -69,13 +69,14 @@ sensor:
     address: 0x01
     register_type: holding
     value_type: U_WORD
-  # Custom command: a raw frame {device address, function code, address hi, address lo,
-  # count hi, count lo}; the CRC is appended by the hub. Reads holding register 0x0001,
-  # count 1; the lambda parses the response payload (the register value, big-endian).
+  # Custom PDU: read holding register 0x0001, count 1. The PDU is
+  # {function code, address hi, address lo, count hi, count lo}; the device
+  # address and CRC are added by the hub. The lambda parses the response payload
+  # (the register value, big-endian).
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "custom_read"
-    custom_command: [0x01, 0x03, 0x00, 0x01, 0x00, 0x01]
+    custom_pdu: [0x03, 0x00, 0x01, 0x00, 0x01]
     lambda: |-
       if (data.size() < 2) return {};
       return (float) ((data[0] << 8) | data[1]);
