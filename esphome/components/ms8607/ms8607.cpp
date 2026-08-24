@@ -27,7 +27,7 @@ static constexpr uint8_t MS8607_CMD_H_RESET = 0xFE;
 /// Read relative humidity, without holding i2c master
 static constexpr uint8_t MS8607_CMD_H_MEASURE_NO_HOLD = 0xF5;
 /// Temperature correction coefficient for Relative Humidity from datasheet
-static constexpr float MS8607_H_TEMP_COEFFICIENT = -0.18;
+static constexpr float MS8607_H_TEMP_COEFFICIENT = -0.18f;
 
 /// Read the converted analog value, either D1 (pressure) or D2 (temperature)
 static constexpr uint8_t MS8607_CMD_ADC_READ = 0x00;
@@ -487,7 +487,7 @@ float MS8607Component::compensated_humidity(float humidity_float, float temperat
   // Datasheet is inconsistent on upper max value (118 vs 119), but example value,
   // calculation equation, and max value in table all indicate it should be 119%
   float const humidity_partial = humidity_float / (1 << 16);
-  float const humidity_percentage = std::lerp(-6.0, 119.0, humidity_partial);
+  float const humidity_percentage = std::lerp(-6.0f, 119.0f, humidity_partial);
   return humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
 }
 
