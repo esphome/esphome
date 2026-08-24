@@ -1241,8 +1241,6 @@ def test_logging_guard_ends_the_bar_row_before_a_record() -> None:
 
 def test_logging_guard_without_a_bar_is_a_no_op() -> None:
     """An unknown total draws no bar; the guard passes records through."""
-    from esphome.framework_helpers import _BatchDownloadProgress
-
     progress = _BatchDownloadProgress("Downloading", 0)
     with progress.logging_guard():
         logging.getLogger("esphome.test").warning("plain record")
@@ -1701,6 +1699,28 @@ class TestDownloadFromMirrors:
         assert data == b"data"
         assert mock_get.call_count == 2
         mock_sleep.assert_called_once_with(2)
+
+    def test_backoff_tick_reports_filelike_bytes(self) -> None:
+        """For a file-like target the backoff tick carries f.tell(), so the
+        combined bar holds steady through the sweep retry."""
+        target = io.BytesIO()
+        ticks: list[int] = []
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("down"),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers._cancellable_sleep") as mock_sleep,
+        ):
+            download_from_mirrors(
+                ["https://mirror1.com/f"], {}, target, progress=ticks.append
+            )
+        # No bytes had streamed at backoff time, so the tick carries 0
+        assert mock_sleep.call_args == call(2, ticks.append, 0)
+        assert target.getvalue() == b"data"
 
     def test_backoff_tick_reports_partial_bytes(self, tmp_path: Path) -> None:
         """The backoff tick carries the bytes already in the part file, so a
