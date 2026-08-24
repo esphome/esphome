@@ -12,7 +12,7 @@ class ZigbeeComponent;
 
 class ZigbeeTime final : public time::RealTimeClock {
  public:
-  ZigbeeTime(ZigbeeComponent *parent, uint8_t ep) : endpoint_(ep), parent_(parent) {}
+  ZigbeeTime(ZigbeeComponent *parent, uint8_t ep) : parent_(parent), endpoint_(ep) {}
   void setup() override;
   void update() override;
   void dump_config() override;
