@@ -3388,8 +3388,6 @@ def _write_idf_component_yml():
                 "idf_component_register()\n"
                 "target_link_libraries(${COMPONENT_LIB} "
                 f"INTERFACE idf::{ARDUINO_FRAMEWORK_NAME})\n",
-                encoding="utf-8",
-                errors="replace",
             )
             dependencies[ARDUINO_ESP32_COMPONENT_NAME] = {
                 "version": "*",
