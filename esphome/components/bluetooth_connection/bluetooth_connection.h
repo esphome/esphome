@@ -16,12 +16,14 @@
 #include <esp_err.h>
 #endif
 
-// A GATT connection backend exists in this build: esp32 (Bluedroid) or a hub
-// platform with the neutral GATT client compiled in. Single-sourced here so
-// the proxy and this component cannot drift.
-#if defined(USE_ESP32) || defined(USE_BLE_GATT_CLIENT)
-#define BLUETOOTH_CONNECTION_HAS_GATT
-#endif
+// USE_BLUETOOTH_PROXY_CONNECTIONS is the single spelling of "this build has
+// proxy connection slots": codegen emits it per configured slot, and each
+// slot brings a GATT backend, so it also implies USE_BLE_GATT_CLIENT (not
+// the converse: a backend can exist without proxy slots). The hub
+// wrapper, the proxy's connection surface and the API's connection messages
+// all gate on it. The address-scoped maintenance functions below are only
+// reached from that gated surface; the #else stubs just keep this header
+// parsing on arms without a backend.
 
 namespace esphome::api {
 class BluetoothGATTGetServicesResponse;
@@ -63,12 +65,12 @@ static constexpr bool SUPPORTS_CACHE_CLEARING = false;
 #endif
 
 // Address-scoped (not connection-scoped) maintenance requests.
-#if defined(USE_ESP32) || (defined(USE_RP2040_BLE) && defined(USE_BLE_GATT_CLIENT))
+#if (defined(USE_ESP32) || defined(USE_RP2040_BLE)) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t unpair_device(uint64_t address);
 #else
 inline conn_err_t unpair_device(uint64_t) { return GATT_NOT_CONNECTED; }
 #endif
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_BLE_GATT_CLIENT)
 conn_err_t clear_gatt_cache(uint64_t address);
 #else
 inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
@@ -77,6 +79,20 @@ inline conn_err_t clear_gatt_cache(uint64_t) { return GATT_NOT_CONNECTED; }
 // send_service_ cursor states; >= 0 is the next service index to stream.
 static constexpr int DONE_SENDING_SERVICES = -2;
 static constexpr int INIT_SENDING_SERVICES = -3;
+static constexpr int SERVICES_DONE_PENDING = -4;  // all batches delivered, done-message still owed
+// Every sentinel must stay below the >= 0 streaming gate and clear of
+// GATT_NOT_CONNECTED (-1) so cursor and error values can never be confused.
+static_assert(DONE_SENDING_SERVICES < 0 && INIT_SENDING_SERVICES < 0 && SERVICES_DONE_PENDING < 0);
+static_assert(DONE_SENDING_SERVICES != GATT_NOT_CONNECTED && INIT_SENDING_SERVICES != GATT_NOT_CONNECTED &&
+              SERVICES_DONE_PENDING != GATT_NOT_CONNECTED);
+// Owed-done retries stop here (~3 s at the 100 ms drain cadence): a done
+// delivered near the client's 30 s timeout could land on a fresh request's
+// empty accumulator and cache as an empty database.
+static constexpr uint8_t SERVICES_DONE_RETRY_LIMIT = 30;
+// Owed-ack retries stop after ~25 s of subscribed drain time from the first
+// refusal, keeping most of the client's 30 s GATT window for congestion to
+// clear while still bounding how stale a delivered reply can be.
+static constexpr uint16_t PENDING_ACK_RETRY_LIMIT = 250;
 
 // ---- Service-streaming size budget, shared by every platform's streamer ----
 
@@ -136,7 +152,7 @@ inline void fill_gatt_uuid(std::array<uint64_t, 2> &uuid_128, uint32_t &short_uu
   }
 }
 
-#ifdef BLUETOOTH_CONNECTION_HAS_GATT
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 /// Result of close_service_batch: keep filling the batch or send it now.
 /// An oversized service is packed alone; a failed (backpressured) send is
 /// retried from the batch start, so no service is silently skipped.
@@ -148,6 +164,6 @@ enum class BatchClose : uint8_t { CONTINUE, SEND };
 /// cannot drift.
 BatchClose close_service_batch(api::BluetoothGATTGetServicesResponse &resp, size_t &current_size, int16_t &send_service,
                                uint8_t connection_index, const char *address_str);
-#endif  // BLUETOOTH_CONNECTION_HAS_GATT
+#endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
 }  // namespace esphome::bluetooth_connection

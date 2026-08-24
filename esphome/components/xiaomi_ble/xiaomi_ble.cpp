@@ -293,7 +293,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     return false;
   }
 
-  uint8_t mac_reverse[6] = {0};
+  uint8_t mac_reverse[MAC_ADDRESS_SIZE] = {0};
   mac_reverse[5] = (uint8_t) (address >> 40);
   mac_reverse[4] = (uint8_t) (address >> 32);
   mac_reverse[3] = (uint8_t) (address >> 24);
@@ -358,7 +358,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
 #endif
 
   if (!decrypt_ok) {
-    uint8_t mac_address[6] = {0};
+    uint8_t mac_address[MAC_ADDRESS_SIZE] = {0};
     memcpy(mac_address, mac_reverse + 5, 1);
     memcpy(mac_address + 1, mac_reverse + 4, 1);
     memcpy(mac_address + 2, mac_reverse + 3, 1);

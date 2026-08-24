@@ -15,6 +15,7 @@ bk72xx:
 bk72xx_ble_tracker:
   scan_parameters:
     continuous: false
+    active: false
   on_ble_advertise:
     - mac_address:
         - AC:37:43:77:5F:4C

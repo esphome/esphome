@@ -109,6 +109,8 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
     env_cache = _cache().env
     if version not in env_cache:
         env_cache[version] = os.environ.copy()
+        # Do not leak PYTHONPATH into child env
+        env_cache[version].pop("PYTHONPATH", None)
 
         # Use provided IDF framework if available
         if "IDF_PATH" not in os.environ:
@@ -271,6 +273,11 @@ def has_outdated_files():
       happen without any sdkconfig impact, and ``_write_idf_component_yml``
       already deletes ``dependencies.lock`` on a change but that signal
       gets lost as soon as the lock is missing.
+    - ``exclude_components.esphomeinternal`` -- the resolved
+      EXCLUDE_COMPONENTS set. Excluded components never register in
+      ``project_description.json``, so re-including one needs a fresh
+      discovery pass before it can appear in the builtin-components
+      property that ``src`` REQUIRES.
 
     We deliberately don't watch:
     - The top-level/src ``CMakeLists.txt`` -- ESPHome owns those, and
@@ -289,6 +296,9 @@ def has_outdated_files():
         f"sdkconfig.{CORE.name}.esphomeinternal"
     )
     idf_component_yml_path = CORE.relative_build_path("src/idf_component.yml")
+    exclude_components_path = CORE.relative_build_path(
+        "exclude_components.esphomeinternal"
+    )
     dependency_lock_path = CORE.relative_build_path("dependencies.lock")
     build_ninja_path = CORE.relative_build_path("build/build.ninja")
 
@@ -307,7 +317,11 @@ def has_outdated_files():
     cmakecache_txt_mtime = cmakecache_txt_path.stat().st_mtime
     return any(
         f.stat().st_mtime > cmakecache_txt_mtime
-        for f in [sdkconfig_internal_path, idf_component_yml_path]
+        for f in [
+            sdkconfig_internal_path,
+            idf_component_yml_path,
+            exclude_components_path,
+        ]
         if f.exists()
     )
 
@@ -384,6 +398,16 @@ def run_compile(config, verbose: bool) -> int:
             return rc
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
+        # Restamp the reference file has_outdated_files() compares against.
+        # A reconfigure that only changes properties or plain variables
+        # (sdkconfig options, the exclusion set) does not rewrite
+        # CMakeCache.txt, so without this the watched inputs stay newer
+        # forever and every subsequent build repeats the discovery pass.
+        # Done after the full write so an interrupt cannot leave a minimal
+        # CMakeLists behind that is already marked fresh.
+        cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+        if cmakecache.is_file():
+            os.utime(cmakecache)
         if CORE.testing_mode:
             # Reconfigure again so cmake is up to date with the full
             # component list before the build's idf.py invocation runs --
@@ -502,32 +526,15 @@ def get_idedata() -> dict | None:
     idedata fields IDE integrations and clang-tidy expect, cached alongside the
     PlatformIO idedata path. Returns None if the compile DB doesn't exist yet.
     """
-    from esphome.espidf.idedata import idedata_from_build
+    from esphome.build_helpers.idedata import load_or_build_idedata
 
-    compile_commands = CORE.relative_build_path("build", "compile_commands.json")
-    if not compile_commands.is_file():
-        _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
-        return None
-
-    cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
-    if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
-        try:
-            cached = json.loads(cache.read_text(encoding="utf-8"))
-        except ValueError:
-            pass
-        else:
-            # Caches written before cc_path was emitted stay newer than
-            # compile_commands.json forever, so rebuild them on the field rather
-            # than on the timestamp. Check the type too: a corrupted cache can
-            # still be valid JSON, and "in" would match a substring of a string.
-            if isinstance(cached, dict) and "cc_path" in cached:
-                return cached
-
-    data = idedata_from_build(compile_commands)
-    data["prog_path"] = str(get_elf_path())
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    return data
+    # No launcher: CMake excludes CMAKE_<LANG>_COMPILER_LAUNCHER (ccache)
+    # from the exported compile database, unlike ninja's compdb dump.
+    return load_or_build_idedata(
+        CORE.relative_build_path("build", "compile_commands.json"),
+        get_elf_path(),
+        CORE.relative_internal_path("idedata", f"{CORE.name}.json"),
+    )
 
 
 def create_factory_bin() -> bool:

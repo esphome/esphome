@@ -248,7 +248,13 @@ void VoiceAssistant::stream_api_audio_() {
       msg.data2_len = available2;
     }
 
-    this->api_client_->send_message(msg);
+    if (!this->api_client_->send_message(msg)) {
+      // Keep the chunk exposed and retry next pass, the same shape as
+      // APIConnection::try_send_camera_image_(): the slice is only lost if
+      // the ring buffer overflows before the TCP buffer clears, instead of
+      // on every refusal. The api layer already reports the refusal at V.
+      return;
+    }
 
     this->audio_source_->consume(available);
     if (this->audio_source2_ != nullptr) {
@@ -477,7 +483,9 @@ void VoiceAssistant::loop() {
 
           api::VoiceAssistantAnnounceFinished msg;
           msg.success = true;
-          this->api_client_->send_message(msg);
+          if (!this->api_client_->send_message(msg)) {
+            API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+          }
           break;
         }
       }
@@ -741,7 +749,9 @@ void VoiceAssistant::signal_stop_() {
   ESP_LOGD(TAG, "Signaling stop");
   api::VoiceAssistantRequest msg;
   msg.start = false;
-  this->api_client_->send_message(msg);
+  if (!this->api_client_->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Stop request");
+  }
 }
 
 void VoiceAssistant::start_playback_timeout_() {
@@ -753,7 +763,9 @@ void VoiceAssistant::start_playback_timeout_() {
       return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
-    this->api_client_->send_message(msg);
+    if (!this->api_client_->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+    }
   });
 }
 

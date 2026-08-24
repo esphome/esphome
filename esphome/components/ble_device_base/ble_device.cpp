@@ -137,7 +137,7 @@ void ESPBTDevice::parse_scan_rst(const esp32_ble::BLEScanResult &scan_result) {
   // BLEScanResult's bda is most-significant octet first; the neutral ingest
   // takes the BLE controller (LSB-first) order, so reverse — address_uint64()/
   // address_str_to() then produce exactly the historical esp32 values.
-  uint8_t mac_lsb_first[6];
+  uint8_t mac_lsb_first[MAC_ADDRESS_SIZE];
   for (uint8_t i = 0; i < 6; i++)
     mac_lsb_first[i] = scan_result.bda[5 - i];
   this->from_scan_result(mac_lsb_first, scan_result.rssi, scan_result.ble_addr_type, scan_result.ble_adv,
