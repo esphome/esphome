@@ -8,7 +8,11 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/camera/camera.h"
+// i2c_id: is optional -- a USB camera is not on a bus -- so a UVC-only build
+// does not have the I2C component in it at all, and must not reach for it.
+#ifdef USE_I2C
 #include "esphome/components/i2c/i2c.h"
+#endif  // USE_I2C
 
 #include "driver/gpio.h"
 
@@ -18,6 +22,11 @@
 #include <vector>
 
 namespace esphome::esp_video_camera {
+
+/// esp_video_init()'s arguments and result, shared with the core-0 task that
+/// runs it. Defined in the .cpp, which is the only place that has the V4L2
+/// headers its members are built from.
+struct VideoInitContext;
 
 /// An owned JPEG frame, copied out of the mapped V4L2 buffer so that buffer can
 /// be re-queued immediately while the API streams this copy out.
@@ -62,7 +71,9 @@ class ESPVideoCamera : public camera::Camera {
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   // Pipeline configuration -----------------------------------------------------
+#ifdef USE_I2C
   void set_i2c_bus(i2c::InternalI2CBus *bus) { this->i2c_bus_ = bus; }
+#endif  // USE_I2C
   void set_xclk_pin(gpio_num_t pin) { this->xclk_pin_ = pin; }
   void set_xclk_freq(uint32_t freq) { this->xclk_freq_ = freq; }
   void set_enable_xclk_init(bool enable) { this->enable_xclk_init_ = enable; }
@@ -90,10 +101,19 @@ class ESPVideoCamera : public camera::Camera {
   /// /dev/video4N paths they resolve to. Those need no I2C bus and appear only
   /// once the device has enumerated, so both paths treat them differently.
   bool is_uvc_device_() const;
+  /// Hand esp_video_init() to a task on core 0. True only means the attempt is
+  /// under way.
+  bool start_pipeline_init_();
+  /// Wait up to `wait_ms` for that attempt. 1 = the pipeline is up, 0 = it
+  /// failed, -1 = still running, ask again later. A running attempt is never
+  /// abandoned: esp_video_init() can hold the USB stack for tens of seconds
+  /// waiting for a camera, and a second one over the top of it would stack
+  /// tasks on hardware the first is still using.
+  int poll_pipeline_init_(uint32_t wait_ms);
+  /// Both of the above, waiting as long as the attempt is allowed to take.
   bool init_pipeline_();
   bool start_capture_();
   void stop_capture_();
-  void update_capture_state_();
 
   // Copy a finished JPEG frame into PSRAM and hand it to the listeners.
   void deliver_frame_(const uint8_t *data, size_t length);
@@ -115,7 +135,9 @@ class ESPVideoCamera : public camera::Camera {
   void loop_direct_capture_();
 
   // Pipeline
+#ifdef USE_I2C
   i2c::InternalI2CBus *i2c_bus_{nullptr};
+#endif  // USE_I2C
   gpio_num_t xclk_pin_{GPIO_NUM_36};
   uint32_t xclk_freq_{24000000};
   bool enable_xclk_init_{false};
@@ -125,6 +147,14 @@ class ESPVideoCamera : public camera::Camera {
   // boards; a bit mask names a specific controller for those it is not.
   unsigned usb_peripheral_map_{0};
   bool pipeline_ready_{false};
+  // The init attempt in flight, or null when none is. Non-null is also what
+  // stops a second one being started over it.
+  VideoInitContext *init_ctx_{nullptr};
+  uint32_t init_deadline_ms_{0};
+  bool init_overrun_logged_{false};
+  // The host port's 5 V rail settles once, and the USB Host Library installs
+  // once. Retries must not pay for either again.
+  bool usb_host_started_{false};
 
   // Camera platform
   std::string device_{"jpeg"};

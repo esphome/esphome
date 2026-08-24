@@ -28,6 +28,8 @@ extern "C" {
 #include "esp_video_ioctl.h"
 #include "linux/videodev2.h"
 #include "driver/ledc.h"
+#include "soc/soc_caps.h"       // SOC_LEDC_CHANNEL_NUM
+#include "driver/i2c_master.h"  // i2c_master_bus_handle_t, which the CSI config carries with or without USE_I2C
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
@@ -79,10 +81,10 @@ static constexpr uint32_t STATS_INTERVAL_MS = 10000;
 // ===========================================================================
 // Pipeline init helpers (run esp_video_init on core 0, optional LEDC XCLK)
 // ===========================================================================
-namespace {
-
-// Owns the configs esp_video_init() reads, on the heap so they outlive a
-// timed-out init_pipeline_(). Last party to let go destroys it.
+// Owns the configs esp_video_init() reads, on the heap so they outlive an
+// attempt the component has stopped waiting on. Last party to let go destroys
+// it. Declared in the header, which is why this is not in the anonymous
+// namespace below.
 struct VideoInitContext {
   esp_video_init_csi_config_t csi_config{};
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
@@ -101,6 +103,8 @@ struct VideoInitContext {
     }
   }
 };
+
+namespace {
 
 // ESP32-P4 camera hardware must be initialised on core 0; run esp_video_init
 // there regardless of which core ESPHome runs on.
@@ -138,13 +142,22 @@ int count_usb_devices() {
 int count_usb_devices() { return -1; }
 #endif
 
+// Which LEDC timer and channel the sensor clock runs on: the top of the range.
+// ESPHome's `ledc` output component hands out channels from the bottom up and
+// derives its timer from the channel, so claiming channel 0 took the one it
+// gives the first light in the configuration. The two components share no
+// allocator and are not worth coupling over a clock pin, so start at the far
+// end, where a clash needs a board using every channel LEDC has.
+constexpr ledc_timer_t XCLK_LEDC_TIMER = (ledc_timer_t) (LEDC_TIMER_MAX - 1);
+constexpr ledc_channel_t XCLK_LEDC_CHANNEL = (ledc_channel_t) (SOC_LEDC_CHANNEL_NUM - 1);
+
 // Generate the sensor XCLK with LEDC. For MIPI-CSI sensors esp_video_init() does
 // not start XCLK, so non-M5Stack boards must do it before init or the sensor
 // stays silent on I2C.
 esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
   ledc_timer_config_t timer_conf = {};
   timer_conf.speed_mode = LEDC_LOW_SPEED_MODE;
-  timer_conf.timer_num = LEDC_TIMER_0;
+  timer_conf.timer_num = XCLK_LEDC_TIMER;
   timer_conf.duty_resolution = LEDC_TIMER_1_BIT;
   timer_conf.freq_hz = freq_hz;
   timer_conf.clk_cfg = LEDC_AUTO_CLK;
@@ -154,8 +167,8 @@ esp_err_t init_xclk_ledc(gpio_num_t gpio_num, uint32_t freq_hz) {
 
   ledc_channel_config_t ch_conf = {};
   ch_conf.speed_mode = LEDC_LOW_SPEED_MODE;
-  ch_conf.channel = LEDC_CHANNEL_0;
-  ch_conf.timer_sel = LEDC_TIMER_0;
+  ch_conf.channel = XCLK_LEDC_CHANNEL;
+  ch_conf.timer_sel = XCLK_LEDC_TIMER;
   ch_conf.intr_type = LEDC_INTR_DISABLE;
   ch_conf.gpio_num = gpio_num;
   ch_conf.duty = 1;  // 50 % duty cycle
@@ -304,6 +317,13 @@ void ESPVideoCamera::setup() {
       this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
       return;
     }
+    // Failing the component stops loop(), so nothing will ever poll an attempt
+    // that is still running. Let go of it here; the task frees the context when
+    // esp_video_init() eventually returns.
+    if (this->init_ctx_ != nullptr) {
+      this->init_ctx_->release();
+      this->init_ctx_ = nullptr;
+    }
     this->mark_failed();
     return;
   }
@@ -355,11 +375,14 @@ bool ESPVideoCamera::is_uvc_device_() const {
   return this->device_.starts_with("uvc") || this->resolved_device_.starts_with(ESP_VIDEO_USB_UVC_NAME_PREFIX);
 }
 
-bool ESPVideoCamera::init_pipeline_() {
+bool ESPVideoCamera::start_pipeline_init_() {
+  if (this->init_ctx_ != nullptr)
+    return true;  // one is already under way
   // A USB camera is not on any I2C bus, so only the MIPI-CSI path needs one.
   const bool uvc_only = this->is_uvc_device_();
   i2c_master_bus_handle_t i2c_handle = nullptr;
   if (!uvc_only) {
+#ifdef USE_I2C
     if (this->i2c_bus_ == nullptr) {
       ESP_LOGE(TAG, "No I2C bus set");
       return false;
@@ -369,6 +392,11 @@ bool ESPVideoCamera::init_pipeline_() {
       ESP_LOGE(TAG, "Could not obtain the ESP-IDF I2C bus handle");
       return false;
     }
+#else
+    // Unreachable in practice: the i2c_id: check rules this out at config time.
+    ESP_LOGE(TAG, "A MIPI-CSI sensor is probed over I2C, and this firmware was built without I2C");
+    return false;
+#endif  // USE_I2C
   }
 
   // esp_video_init() only probes for a MIPI sensor when config->csi is set, so
@@ -420,7 +448,9 @@ bool ESPVideoCamera::init_pipeline_() {
     // boot is reset while its own supply is still ramping and never enumerates.
     // Espressif's board support code and the M5Stack Tab5 USB host example both
     // wait here for the same reason.
-    delay(VBUS_SETTLE_MS);
+    // Once: a retry runs with the rail already up, and has nothing to wait for.
+    if (!this->usb_host_started_)
+      delay(VBUS_SETTLE_MS);
 
     // The USB Host Library installs once per system, so own it here rather than
     // letting esp_video abort when another component already installed it.
@@ -434,24 +464,30 @@ bool ESPVideoCamera::init_pipeline_() {
     // Full-Speed controller enumerates nothing until this names it instead.
     host_config.peripheral_map = this->usb_peripheral_map_;
 #endif
-    esp_err_t host_ret = usb_host_install(&host_config);
-    if (host_ret == ESP_OK) {
-      // Priority 10, the same as Espressif's own board support code: nothing
-      // enumerates unless this task keeps draining the library's events, so it
-      // has to outrank the work it is feeding.
-      xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY);
-      ESP_LOGI(TAG, "USB Host installed (peripheral map 0x%X)", (unsigned) this->usb_peripheral_map_);
-    } else if (host_ret == ESP_ERR_INVALID_STATE) {
-      // Whoever installed it owns the event pump too. If they are not draining
-      // it, nothing will ever enumerate and this line is the only clue.
-      ESP_LOGW(TAG, "USB Host already installed by another component; sharing it for UVC");
-    } else {
-      // Without the USB Host library the UVC device can never enumerate, so
-      // there is nothing to gain from continuing into esp_video_init().
-      ESP_LOGE(TAG, "usb_host_install() failed: %s", esp_err_to_name(host_ret));
-      ctx->refs.store(1);  // no task was started
-      ctx->release();
-      return false;
+    // Only on the first attempt: a retry already has the library and the daemon
+    // task this component started, and asking again would earn a warning about
+    // "another component" that would in fact be this one.
+    if (!this->usb_host_started_) {
+      esp_err_t host_ret = usb_host_install(&host_config);
+      if (host_ret == ESP_OK) {
+        // Priority 10, the same as Espressif's own board support code: nothing
+        // enumerates unless this task keeps draining the library's events, so it
+        // has to outrank the work it is feeding.
+        xTaskCreatePinnedToCore(usb_host_lib_daemon_task, "usb_lib", 4096, nullptr, 10, nullptr, tskNO_AFFINITY);
+        ESP_LOGI(TAG, "USB Host installed (peripheral map 0x%X)", (unsigned) this->usb_peripheral_map_);
+      } else if (host_ret == ESP_ERR_INVALID_STATE) {
+        // Whoever installed it owns the event pump too. If they are not draining
+        // it, nothing will ever enumerate and this line is the only clue.
+        ESP_LOGW(TAG, "USB Host already installed by another component; sharing it for UVC");
+      } else {
+        // Without the USB Host library the UVC device can never enumerate, so
+        // there is nothing to gain from continuing into esp_video_init().
+        ESP_LOGE(TAG, "usb_host_install() failed: %s", esp_err_to_name(host_ret));
+        ctx->refs.store(1);  // no task was started
+        ctx->release();
+        return false;
+      }
+      this->usb_host_started_ = true;
     }
     uvc_config.usb.init_usb_host_lib = false;  // we manage the USB host library (see above)
     uvc_config.usb.task_stack = 4096;
@@ -471,28 +507,52 @@ bool ESPVideoCamera::init_pipeline_() {
 
   // With UVC enabled, esp_video_init() spends up to CONFIG_USB_UVC_INIT_TIMEOUT_MS
   // (10 s by default) waiting for the USB camera to enumerate before it returns.
-  // Waiting only INIT_TIMEOUT_MS here would expire in the same instant and fail
-  // the component for a camera that was about to come up.
+  // Allowing only INIT_TIMEOUT_MS would expire in the same instant and fail the
+  // component for a camera that was about to come up.
   uint32_t init_timeout_ms = INIT_TIMEOUT_MS;
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
   if (this->enable_uvc_)
     init_timeout_ms += CONFIG_USB_UVC_INIT_TIMEOUT_MS;
 #endif
+  this->init_ctx_ = ctx;
+  this->init_deadline_ms_ = millis() + init_timeout_ms;
+  this->init_overrun_logged_ = false;
+  return true;
+}
 
-  bool ok = false;
-  if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(init_timeout_ms)) != pdTRUE) {
-    // The task keeps running and keeps its reference to ctx; it frees the
-    // context itself once esp_video_init() eventually returns.
-    ESP_LOGE(TAG, "esp_video_init() timed out");
-  } else if (ctx->result != ESP_OK) {
-    ESP_LOGE(TAG, "esp_video_init() failed: %s", esp_err_to_name(ctx->result));
-  } else {
-    ok = true;
+int ESPVideoCamera::poll_pipeline_init_(uint32_t wait_ms) {
+  auto *ctx = this->init_ctx_;
+  if (ctx == nullptr)
+    return this->pipeline_ready_ ? 1 : 0;
+
+  if (xSemaphoreTake(ctx->done, pdMS_TO_TICKS(wait_ms)) == pdTRUE) {
+    const bool ok = ctx->result == ESP_OK;
+    if (!ok)
+      ESP_LOGE(TAG, "esp_video_init() failed: %s", esp_err_to_name(ctx->result));
+    ctx->release();
+    this->init_ctx_ = nullptr;
+    this->pipeline_ready_ = ok;
+    return ok ? 1 : 0;
   }
-  ctx->release();
 
-  this->pipeline_ready_ = ok;
-  return ok;
+  // Overrunning the deadline is worth saying, but not worth acting on: the task
+  // still holds the USB stack, and the only thing that could be done about it --
+  // starting another -- would be worse than waiting. It is still running.
+  if (!this->init_overrun_logged_ && (int32_t) (millis() - this->init_deadline_ms_) >= 0) {
+    this->init_overrun_logged_ = true;
+    ESP_LOGE(TAG, "esp_video_init() has not returned yet; still waiting for it");
+  }
+  return -1;
+}
+
+bool ESPVideoCamera::init_pipeline_() {
+  if (!this->start_pipeline_init_())
+    return false;
+  // Wait out the whole allowance in one go. This is setup(), where blocking is
+  // what everything else does too; loop() polls instead.
+  const uint32_t now = millis();
+  const int32_t remaining = (int32_t) (this->init_deadline_ms_ - now);
+  return this->poll_pipeline_init_(remaining > 0 ? (uint32_t) remaining : 0) > 0;
 }
 
 // ===========================================================================
@@ -502,14 +562,25 @@ void ESPVideoCamera::loop() {
   const bool wanted = (this->stream_requesters_ != 0) || (this->single_requesters_ != 0);
 
   // Only reachable with UVC: setup() fails the component outright otherwise.
-  // Retried on demand and on a long timer because esp_video_init() blocks the
-  // main task while it waits for the USB camera to enumerate.
+  // Retried on demand and on a long timer, and never waited for here:
+  // esp_video_init() runs on its own task and spends tens of seconds inside the
+  // USB stack when no camera is plugged in, which is not time the main loop has
+  // to give.
   if (!this->pipeline_ready_) {
+    if (this->init_ctx_ != nullptr) {
+      if (this->poll_pipeline_init_(0) < 0)
+        return;  // still going; look again next iteration
+      if (this->pipeline_ready_) {
+        ESP_LOGI(TAG, "Camera ready on %s (source: %s)", this->resolved_device_.c_str(), this->device_.c_str());
+      } else {
+        this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
+      }
+      return;
+    }
     if (!wanted || (int32_t) (millis() - this->pipeline_retry_at_ms_) < 0)
       return;
     this->pipeline_retry_at_ms_ = millis() + PIPELINE_RETRY_INTERVAL_MS;
-    if (this->init_pipeline_())
-      ESP_LOGI(TAG, "Camera ready on %s (source: %s)", this->resolved_device_.c_str(), this->device_.c_str());
+    this->start_pipeline_init_();
     return;
   }
 
@@ -539,8 +610,14 @@ void ESPVideoCamera::loop() {
   // yet" one poll at a time, so a source that never delivers is otherwise
   // completely silent -- the only symptom is a consumer timing out somewhere
   // else entirely.
-  if (!this->warned_no_frames_ && this->stats_frames_ == 0 &&
-      (millis() - this->stats_since_ms_) >= NO_FRAME_WARNING_MS) {
+  //
+  // Only while someone is watching: deliver_frame_() counts nothing during the
+  // idle grace period, so this warned about a perfectly healthy camera every
+  // time the last viewer went away.
+  if (!wanted) {
+    this->stats_since_ms_ = millis();
+  } else if (!this->warned_no_frames_ && this->stats_frames_ == 0 &&
+             (millis() - this->stats_since_ms_) >= NO_FRAME_WARNING_MS) {
     this->warned_no_frames_ = true;
     ESP_LOGW(TAG, "Streaming from %s for %us without a single frame; the source accepted the format but sends nothing",
              this->resolved_device_.c_str(), (unsigned) (NO_FRAME_WARNING_MS / 1000));
@@ -760,29 +837,22 @@ bool ESPVideoCamera::reset_jpeg_encoder_() {
 
 camera::CameraImageReader *ESPVideoCamera::create_image_reader() { return new ESPVideoCameraImageReader(); }
 
-void ESPVideoCamera::request_image(camera::CameraRequester requester) {
-  this->single_requesters_ |= (1U << requester);
-  this->update_capture_state_();
-}
+// The three below deliberately do not touch the pipeline: they run in the
+// caller's task while loop() owns the fds, the mapped buffers and the stream
+// state. All they share with it is the requester masks, which are atomic, and
+// loop() picks the change up on its next iteration.
+void ESPVideoCamera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
 
 void ESPVideoCamera::start_stream(camera::CameraRequester requester) {
   for (auto *listener : this->listeners_)
     listener->on_stream_start();
   this->stream_requesters_ |= (1U << requester);
-  this->update_capture_state_();
 }
 
 void ESPVideoCamera::stop_stream(camera::CameraRequester requester) {
   for (auto *listener : this->listeners_)
     listener->on_stream_stop();
   this->stream_requesters_ &= ~(1U << requester);
-  this->update_capture_state_();
-}
-
-void ESPVideoCamera::update_capture_state_() {
-  // Deliberately does not touch the pipeline: these run in the caller's task
-  // while loop() owns the fds, the mapped buffers and the stream state. Only the
-  // requester masks are shared, and they are atomic.
 }
 
 bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
@@ -793,7 +863,11 @@ bool ESPVideoCamera::configure_capture_format_(uint32_t pixelformat) {
   // rejects any size but the sensor's current one, and ENUM_FRAMESIZES reports
   // only that one. The size is a build-time Kconfig choice driven by
   // `resolution:` (see __init__.py). USB-UVC devices do resize at runtime.
-  const bool device_can_resize = this->resolved_device_ != ESP_VIDEO_MIPI_CSI_DEVICE_NAME;
+  //
+  // This asks about capture_fd_, and on the hardware-JPEG path that is the
+  // MIPI-CSI node while resolved_device_ names the encoder -- so the name alone
+  // said a sensor could be resized.
+  const bool device_can_resize = !this->is_hw_jpeg_ && this->resolved_device_ != ESP_VIDEO_MIPI_CSI_DEVICE_NAME;
 
   struct v4l2_format fmt;
   memset(&fmt, 0, sizeof(fmt));

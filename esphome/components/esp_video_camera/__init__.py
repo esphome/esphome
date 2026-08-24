@@ -347,6 +347,10 @@ async def to_code(config):
     # Pin the dynamic-link detection mode: auto-detection needs every detect
     # function kept in the esp_cam_sensor_detect_fn section for esp_video_init() to
     # walk. It is the upstream default, but this component depends on it.
+    #
+    # "MOTOR" is not a typo and this is not a focus-motor setting: the one choice
+    # upstream covers "camera sensor and motor detection" together, and
+    # CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK is the whole symbol's name.
     add_idf_sdkconfig_option(
         "CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK", True
     )
