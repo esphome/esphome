@@ -4,6 +4,7 @@ from esphome.components.esp32 import (
 )
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@dentra"]
 
@@ -13,7 +14,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Increase the maximum supported size of headers section in HTTP request packet to be processed by the server
     add_idf_sdkconfig_option("CONFIG_HTTPD_MAX_REQ_HDR_LEN", 1024)
     # Re-enable esp-tls (excluded by default to save compile time);
