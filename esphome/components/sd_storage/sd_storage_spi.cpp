@@ -54,13 +54,20 @@ void SdSpi::setup() {
   // show up in the registry even if the initial mount fails, instead of only existing once a
   // card happens to be present. No mark_failed() here: a failed mount is not a broken
   // component, and this lets sd_storage.mount retry later without a reboot.
-  if (storage::global_storage_registry != nullptr)
+  if (storage::global_storage_registry != nullptr) {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG_SPI, "Storage registration failed");
       this->mark_failed();
     }
+  } else {
+    // Same contract as StorageWorker::setup(): the registry (BUS priority) is guaranteed to
+    // exist by the time this runs. Without it the device is invisible to resolve_path(), so
+    // every storage.* action would report "no storage mounted" with no diagnostic at all.
+    ESP_LOGE(TAG_SPI, "storage registry unavailable -- device cannot be registered");
+    this->mark_failed();
+  }
 
   if (this->cd_pin_ != nullptr) {
     // With a CD pin configured, only mount if a card is actually seen at boot -- otherwise wait
@@ -303,13 +310,20 @@ StorageError SdSpi::mount() {
   ESP_LOGI(TAG_SPI, "SD card mounted at %s (max %" PRIu32 " kHz, real %" PRIu32 " kHz)", this->mount_path_,
            static_cast<uint32_t>(this->card_->max_freq_khz), static_cast<uint32_t>(this->card_->real_freq_khz));
 
-  if (storage::global_storage_registry != nullptr)
+  if (storage::global_storage_registry != nullptr) {
     if (storage::global_storage_registry->register_storage(this) != storage::StorageError::STORAGE_ERROR_OK) {
       // Registry full = codegen/runtime device-count mismatch: the device would be invisible
       // to resolve_path()/consumers. Fatal -- do not run with a silently missing device.
       ESP_LOGE(TAG_SPI, "Storage registration failed");
       this->mark_failed();
     }
+  } else {
+    // Same contract as StorageWorker::setup(): the registry (BUS priority) is guaranteed to
+    // exist by the time this runs. Without it the device is invisible to resolve_path(), so
+    // every storage.* action would report "no storage mounted" with no diagnostic at all.
+    ESP_LOGE(TAG_SPI, "storage registry unavailable -- device cannot be registered");
+    this->mark_failed();
+  }
 
   this->on_mounted_.call(this->mount_path_);
 
