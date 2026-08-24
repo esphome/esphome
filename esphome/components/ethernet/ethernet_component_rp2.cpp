@@ -249,11 +249,6 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   }
 }
 
-std::string EthernetComponent::get_eth_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
-}
-
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
     std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) {
   uint8_t mac[MAC_ADDRESS_SIZE];
@@ -354,13 +349,6 @@ void EthernetComponent::dump_connect_params_() {
                 network::IPAddress(&dns1_addr).str_to(dns1_buf), network::IPAddress(&dns2_addr).str_to(dns2_buf),
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf));
 }
-
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_miso_pin(uint8_t miso_pin) { this->miso_pin_ = miso_pin; }
-void EthernetComponent::set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_pin; }
-void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
-void EthernetComponent::set_interrupt_pin(int8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
-void EthernetComponent::set_reset_pin(int8_t reset_pin) { this->reset_pin_ = reset_pin; }
 
 void EthernetComponent::enable() {
   // RP2040 uses arduino-pico's LwipIntfDev which manages link state internally;
