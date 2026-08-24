@@ -172,6 +172,7 @@
 #define USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 #define USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 #define USE_NEXTION_WAVEFORM
+#define USE_NOISE
 #define USE_NUMBER
 #define USE_OTA
 #define USE_OTA_PASSWORD
@@ -228,7 +229,6 @@
 #define USE_AUDIO_OPUS_SUPPORT
 #define USE_AUDIO_WAV_SUPPORT
 #define USE_MD5
-#define USE_NOISE
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
