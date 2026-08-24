@@ -55,8 +55,9 @@ DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
 # Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES);
-# "asm" merges SCons's AS and ASPP sets. Per CXXSUFFIXES .C/.C++ are C++
-# here, even where SCons demotes .C on case-insensitive filesystems.
+# "aspp" is SCons's preprocessed-assembly set, "asm" its plain-assembler
+# set (no preprocessor, defines, or includes). Per CXXSUFFIXES .C/.C++ are
+# C++ here, even where SCons demotes .C on case-insensitive filesystems.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
@@ -65,10 +66,10 @@ SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c++": "cxx",
     ".C": "cxx",
     ".C++": "cxx",
-    ".S": "asm",
-    ".spp": "asm",
-    ".SPP": "asm",
-    ".sx": "asm",
+    ".S": "aspp",
+    ".spp": "aspp",
+    ".SPP": "aspp",
+    ".sx": "aspp",
     ".s": "asm",
     ".asm": "asm",
     ".ASM": "asm",
