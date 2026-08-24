@@ -4,13 +4,14 @@
 
 #include <noise/protocol.h>
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::noise {
 
-static constexpr char LABEL_OFFER[] = "offer";
-static constexpr char LABEL_CONFIRM[] = "confirm";
-static constexpr char LABEL_KEYS[] = "keys";
+static const char LABEL_OFFER[] PROGMEM = "offer";
+static const char LABEL_CONFIRM[] PROGMEM = "confirm";
+static const char LABEL_KEYS[] PROGMEM = "keys";
 // Largest KDF input: "keys" || client_nonce || server_nonce || SHA256(prologue)
 static constexpr size_t RESUME_KDF_MAX_DATA = sizeof(LABEL_KEYS) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32;
 static_assert(sizeof(LABEL_CONFIRM) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE <= RESUME_KDF_MAX_DATA,
@@ -24,7 +25,7 @@ static bool resume_kdf(const uint8_t *secret, const char *label, size_t label_le
   uint8_t data[RESUME_KDF_MAX_DATA];
   uint8_t scratch[32];
   size_t len = label_len + a_len + b_len;
-  std::memcpy(data, label, label_len);  // NOLINT(bugprone-not-null-terminated-result)
+  progmem_memcpy(data, label, label_len);
   std::memcpy(data + label_len, a, a_len);
   std::memcpy(data + label_len + a_len, b, b_len);
   NoiseHashState *hash = nullptr;
