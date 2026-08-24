@@ -1,12 +1,15 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/components/remote_base/aeha_protocol.h"
 
 namespace esphome::mistral_ir {
 
 // Temperature range, Celsius
 constexpr uint8_t MISTRAL_TEMP_MIN = 16;
 constexpr uint8_t MISTRAL_TEMP_MAX = 30;
+
+constexpr uint16_t MISTRAL_ADDRESS = 0x322C;
 
 /* Reverse-engineered protocol for a "Mistral" (Belgian brand, model MHFE1126A / MR112C) split AC unit
    from the 2000-2010 era, likely a rebadged OEM design. It is carried over AEHA IR timing (address
@@ -30,6 +33,10 @@ class MistralIR : public climate_ir::ClimateIR {
  protected:
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
+
+  // Reused across transmit_state() calls to avoid a heap allocation on every send; the address and the
+  // 12-byte data buffer size never change, only the byte contents are overwritten in place.
+  remote_base::AEHAData frame_{MISTRAL_ADDRESS, std::vector<uint8_t>(12)};
 };
 
 }  // namespace esphome::mistral_ir
