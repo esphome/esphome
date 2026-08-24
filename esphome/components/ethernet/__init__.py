@@ -10,7 +10,10 @@ from esphome.components.network import (
     get_priority_interfaces_from_full_config,
     ip_address_literal,
 )
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -48,10 +51,12 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
+    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -276,7 +281,7 @@ def _validate_spi_interface(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_USE_ADDRESS not in config:
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
@@ -441,7 +446,7 @@ GENERIC_SCHEMA = cv.All(
 )
 
 
-def _spi_schema(default_clock: str = "26.67MHz", max_clock: int = int(80e6)):
+def _spi_schema(default_clock: str = "26.67MHz", max_clock: int = int(80e6)) -> cv.All:
     return cv.All(
         BASE_SCHEMA.extend(
             cv.Schema(
@@ -517,7 +522,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate_spi(config):
+def _final_validate_spi(config: ConfigType) -> None:
     if not CORE.is_esp32:
         return  # SPI interface validation is ESP32-only
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
@@ -537,7 +542,7 @@ def _final_validate_spi(config):
                     )
 
 
-def manual_ip(config):
+def manual_ip(config: ConfigType) -> cg.StructInitializer:
     return cg.StructInitializer(
         ManualIP,
         ("static_ip", ip_address_literal(config[CONF_STATIC_IP])),
@@ -548,7 +553,7 @@ def manual_ip(config):
     )
 
 
-def phy_register(address: int, value: int, page: int):
+def phy_register(address: int, value: int, page: int) -> cg.StructInitializer:
     return cg.StructInitializer(
         PHYRegister,
         ("address", address),
@@ -558,7 +563,7 @@ def phy_register(address: int, value: int, page: int):
 
 
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     # Apply network priority before register_component (which emits the user's
@@ -610,7 +615,7 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
+async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     from esphome.components.esp32 import (
         add_idf_component,
         add_idf_sdkconfig_option,
@@ -698,7 +703,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         add_idf_component(name=component.name, ref=component.version)
 
 
-async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
+async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
     cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
     cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
     cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
@@ -793,7 +798,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def final_step():
+async def final_step() -> None:
     """Final code generation step to configure optional Ethernet features."""
     if ip_state_count := CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0):
         cg.add_define("USE_ETHERNET_IP_STATE_LISTENERS")
@@ -819,8 +824,15 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 
+# The custom W5500 SPI driver is fully #ifdef'd on USE_ESP32 and
+# USE_ETHERNET_W5500 (the platform filter map above handles non-ESP32).
+_define_filter = filter_source_files_from_defines(
+    {"w5500_custom_spi.cpp": "USE_ETHERNET_W5500"}
+)
+
+
 def _filter_source_files() -> list[str]:
-    excluded = _platform_filter()
+    excluded = _platform_filter() + _define_filter()
     eth_data = CORE.data.get(KEY_ETHERNET, {})
     eth_type = eth_data.get(ETHERNET_TYPE_KEY)
     # Only compile the custom JL1101 driver when JL1101 is configured
@@ -834,18 +846,19 @@ def _filter_source_files() -> list[str]:
         # to avoid shadowing. Native IDF builds always need the custom driver.
         if cv.Version(5, 4, 2) <= idf_version() < cv.Version(6, 0, 0):
             excluded.append("esp_eth_phy_jl1101.c")
-    # The custom W5500 SPI driver is fully #ifdef'd on USE_ESP32 and
-    # USE_ETHERNET_W5500 (the platform filter map above handles non-ESP32);
-    # skip it entirely for the other ethernet types.
-    if eth_type != "W5500":
-        excluded.append("w5500_custom_spi.cpp")
-    return excluded
+    # The platform and define filters can both name the same file
+    return list(dict.fromkeys(excluded))
 
 
 FILTER_SOURCE_FILES = _filter_source_files
 
 
-async def _new_pvariable_to_code(config, id_, template_arg, args):
+async def _new_pvariable_to_code(
+    config: ConfigType,
+    id_: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     return cg.new_Pvariable(id_, template_arg)
 
 

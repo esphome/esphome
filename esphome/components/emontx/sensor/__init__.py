@@ -68,6 +68,7 @@ PATTERN_CONFIGS = {
     "PULSE": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_PULSES,
         CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
+        CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
         CONF_ACCURACY_DECIMALS: 0,
     },
     "PF": {
@@ -78,12 +79,13 @@ PATTERN_CONFIGS = {
     },
 }
 
-# Create a base schema that's flexible for any tag
-BASE_SCHEMA = sensor.sensor_schema(
-    EmonTxSensor,
-    state_class=STATE_CLASS_MEASUREMENT,
-    accuracy_decimals=0,
-).extend(
+# BASE_SCHEMA intentionally omits state_class and accuracy_decimals defaults.
+# Passing them to sensor_schema() would register them via cv.Optional(key, default=...),
+# making them always present in the validated config dict and preventing
+# apply_tag_defaults from overriding them with the correct per-prefix values.
+# They are injected by apply_tag_defaults below, after running through
+# sensor.validate_state_class() so the value is code-generation-ready.
+BASE_SCHEMA = sensor.sensor_schema(EmonTxSensor).extend(
     {
         cv.GenerateID(CONF_EMONTX_ID): cv.use_id(EmonTx),
         cv.Required(CONF_TAG_NAME): cv.string,
@@ -91,34 +93,43 @@ BASE_SCHEMA = sensor.sensor_schema(
 )
 
 
+def _apply_defaults(config: ConfigType, defaults: dict) -> None:
+    """Inject defaults into config, skipping keys already set by the user.
+    state_class values are run through validate_state_class so they are
+    code-generation-ready, matching what sensor_schema() would normally do."""
+    for key, value in defaults.items():
+        if key not in config:
+            if key == CONF_STATE_CLASS:
+                value = sensor.validate_state_class(value)
+            config[key] = value
+
+
 def apply_tag_defaults(config: ConfigType) -> ConfigType:
     """Apply defaults based on tag prefix if applicable, but don't restrict any tags."""
     tag = config[CONF_TAG_NAME]
 
-    # Skip if tag is too short
-    if len(tag) < 2:
-        return config
+    if len(tag) >= 2:
+        tag_upper = tag.upper()
 
-    # Check if this tag starts with a known prefix
-    tag_upper = tag.upper()
+        for pattern, pattern_config in PATTERN_CONFIGS.items():
+            if tag_upper.startswith(pattern):
+                _apply_defaults(config, pattern_config)
+                return config
 
-    for pattern, pattern_config in PATTERN_CONFIGS.items():
-        if tag_upper.startswith(pattern):
-            # Apply pattern defaults if not overridden by user
-            for key, value in pattern_config.items():
-                if key not in config:
-                    config[key] = value
+        # Only apply defaults for known prefixes with numeric indices (e.g. E1, V2, T3)
+        prefix = tag_upper[0]
+        if prefix in SENSOR_CONFIGS and tag[1:].isdigit():
+            _apply_defaults(config, SENSOR_CONFIGS[prefix])
             return config
 
-    # Only apply defaults for known prefixes with numeric indices
-    prefix = tag_upper[0]
-    if prefix in SENSOR_CONFIGS and len(tag) > 1 and tag[1:].isdigit():
-        # Apply defaults for known tag types, but only if not overridden by user
-        defaults = SENSOR_CONFIGS[prefix]
-        for key, value in defaults.items():
-            if key not in config:
-                config[key] = value
-
+    # Fall back to generic defaults for tags with no known prefix
+    _apply_defaults(
+        config,
+        {
+            CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+            CONF_ACCURACY_DECIMALS: 0,
+        },
+    )
     return config
 
 

@@ -618,8 +618,6 @@ static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
 }
 #endif
 
-float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
-
 void WiFiComponent::setup() {
   this->wifi_pre_setup_();
 
@@ -931,10 +929,6 @@ void WiFiComponent::loop() {
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
-#ifdef USE_WIFI_11KV_SUPPORT
-void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
-void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
-#endif
 network::IPAddresses WiFiComponent::get_ip_addresses() {
   if (this->has_sta())
     return this->wifi_sta_ip_addresses();
@@ -1326,8 +1320,6 @@ void WiFiComponent::disable() {
   this->wifi_disconnect_();
   this->wifi_mode_(false, false);
 }
-
-bool WiFiComponent::is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
 
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
@@ -2196,15 +2188,12 @@ void WiFiComponent::retry_connect() {
   }
 }
 
-void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   this->configured_power_save_ = power_save;
 #endif
 }
-
-void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
 bool WiFiComponent::is_captive_portal_active_() {
 #ifdef USE_CAPTIVE_PORTAL
@@ -2324,33 +2313,6 @@ void WiFiComponent::save_fast_connect_settings_(const bssid_t &bssid, uint8_t ch
 }
 #endif
 
-void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
-void WiFiAP::set_ssid(const char *ssid) { this->ssid_ = CompactString(ssid, strlen(ssid)); }
-void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
-void WiFiAP::clear_bssid() { this->bssid_ = {}; }
-void WiFiAP::set_password(const std::string &password) {
-  this->password_ = CompactString(password.c_str(), password.size());
-}
-void WiFiAP::set_password(const char *password) { this->password_ = CompactString(password, strlen(password)); }
-#ifdef USE_WIFI_WPA2_EAP
-void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
-#endif
-void WiFiAP::set_channel(uint8_t channel) { this->channel_ = channel; }
-void WiFiAP::clear_channel() { this->channel_ = 0; }
-#ifdef USE_WIFI_MANUAL_IP
-void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
-#endif
-void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
-const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
-bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
-#ifdef USE_WIFI_WPA2_EAP
-const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
-#endif
-#ifdef USE_WIFI_MANUAL_IP
-const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
-#endif
-bool WiFiAP::get_hidden() const { return this->hidden_; }
-
 WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi,
                                bool with_auth, bool is_hidden)
     : bssid_(bssid),
@@ -2396,14 +2358,6 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
   }
   return true;
 }
-bool WiFiScanResult::get_matches() const { return this->matches_; }
-void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
-const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
-int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
-bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
-bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
-
 bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
 void WiFiComponent::clear_roaming_state_() {
