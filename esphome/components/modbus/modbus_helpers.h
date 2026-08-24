@@ -60,12 +60,6 @@ inline bool is_function_code_custom(uint8_t function_code) {
 /// in step with those switches). Deliberately wider than is_function_code_custom(): the user-defined
 /// ranges are unknown to the parser too, but so are the assigned-but-unimplemented codes
 /// (READ_EXCEPTION_STATUS, DIAGNOSTICS, GET_COMM_EVENT_*, REPORT_SERVER_ID) and every unassigned value.
-/// The 0x80 exception flag is masked off first, so a frame with it set classifies by its base code -
-/// even though a spec exception reply has a known 2-byte PDU. That is deliberate, matching what
-/// is_function_code_custom() has always done: some vendors use codes with the 0x80 bit set as ordinary
-/// codes with longer payloads, so the response parser CRC-scans these rather than assuming the spec
-/// length. For an intact spec exception the scan matches at its first candidate, so only a corrupt one
-/// pays (recovery by timeout instead of an immediate CRC failure).
 inline bool is_function_code_unknown_length(uint8_t function_code) {
   switch (static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK)) {
     case FunctionCode::READ_COILS:
@@ -205,7 +199,7 @@ enum class SensorValueType : uint8_t {
   S_DWORD = 0x4,  // 2 Registers signed
   BIT = 0x5,
   U_DWORD_R = 0x6,  // 2 Registers unsigned
-  S_DWORD_R = 0x7,  // 2 Registers unsigned
+  S_DWORD_R = 0x7,  // 2 Registers signed
   U_QWORD = 0x8,
   S_QWORD = 0x9,
   U_QWORD_R = 0xA,
@@ -260,7 +254,7 @@ inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10
  *  byte_from_hex_str("1122", 1) returns uint_8 value 0x22 == 34
  *  byte_from_hex_str("1122", 0) returns 0x11
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
+ * @param pos  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
  * the hex string is byte_pos * 2
  * @return byte value
  */
@@ -272,8 +266,7 @@ inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
 
 /** Get a word from a hex string
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
- * the hex string is byte_pos * 2
+ * @param pos offset in bytes (see byte_from_hex_str)
  * @return word value
  */
 inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
@@ -282,8 +275,7 @@ inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
 
 /** Get a dword from a hex string
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
- * the hex string is byte_pos * 2
+ * @param pos offset in bytes (see byte_from_hex_str)
  * @return dword value
  */
 inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
@@ -292,8 +284,7 @@ inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
 
 /** Get a qword from a hex string
  * @param value string containing hex encoding
- * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
- * the hex string is byte_pos * 2
+ * @param pos offset in bytes (see byte_from_hex_str)
  * @return qword value
  */
 inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
@@ -308,9 +299,9 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_
  * Responses for coil are packed into bytes .
  * coil 3 is bit 3 of the first response byte
  * coil 9 is bit 2 of the second response byte
- * @param coil number of the cil
+ * @param bit index of the bit to extract
  * @param data modbus response buffer (uint8_t)
- * @return content of coil register
+ * @return value of the requested bit
  */
 inline bool bit_from_packed(int bit, std::span<const uint8_t> data) {
   auto data_byte = bit / 8;

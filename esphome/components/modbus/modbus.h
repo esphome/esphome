@@ -16,26 +16,23 @@
 
 namespace esphome::modbus {
 
-// Tx queue backstop. Duplicate frames dedup into one entry, so reads can never approach this in a
-// sane config - it exists to stop a runaway generator of distinct frames (e.g. a loop writing a
-// changing value) from growing the heap unboundedly. The deque grows on demand; this reserves nothing.
-// Worst case the cap permits: 128 distinct max-size frames = ~32 kB of spilled frame data plus
-// ~3 kB of deque node storage (typical 8-byte frames stay inline; large PDUs spill to one
-// allocation each) - pathological configs only, but the numbers matter when tuning for ESP8266.
+// Tx queue backstop against a runaway generator of distinct frames (e.g. a loop writing a changing
+// value) growing the heap unboundedly. Duplicate frames dedup into one entry, so a sane config never
+// approaches this.
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
 // Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
-// (address + 5-byte PDU + 2-byte CRC) and fit inline with no heap allocation.
+// (address + 5-byte PDU + 2-byte CRC).
 static constexpr uint16_t MODBUS_FRAME_INLINE_SIZE = 8;
 
 struct ModbusFrame {
   // Frame held in a small-buffer-optimized buffer. Typical frames fit inline; only larger
   // multi-register or custom frames spill to a single heap allocation. This keeps the common,
   // high-frequency tx traffic off the heap entirely, avoiding per-frame alloc/free churn.
-  // The buffer tracks its own length, so no separate size field is needed.
-  SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> data;  // Modbus RTU max is 256 bytes
+  SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> data;
 
+  // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
   ModbusFrame(uint8_t address, const uint8_t *pdu, uint16_t pdu_len) {
     uint8_t *buf = this->data.init(pdu_len + 3);
     buf[0] = address;
@@ -46,12 +43,9 @@ struct ModbusFrame {
   }
 
   uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }
-
-  // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
   uint8_t address() const { return this->data.data()[0]; }
-  /// The PDU: function code + data, without address or CRC. Only valid while the frame is alive.
-  /// Requires a complete frame (size() >= MIN_FRAME_SIZE, guaranteed by the constructors) - the
-  /// subtraction would wrap on anything shorter.
+  /// A PDU is [function code][data...] without address or CRC. Only valid while the frame is alive.
+  /// Requires a complete frame (size() >= MIN_FRAME_SIZE, guaranteed by the constructors)
   std::span<const uint8_t> pdu() const { return std::span<const uint8_t>(this->data.data() + 1, this->size() - 3u); }
 };
 
@@ -73,7 +67,6 @@ class Modbus : public uart::UARTDevice, public Component {
   virtual int32_t tx_delay_remaining();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
-  // pdu is the whole PDU (function code + payload, no address/CRC); pdu[0] is the (standard or custom) function code.
   virtual void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) = 0;
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
   // Transmit a frame. Callers gate on tx_blocked() first, but the pre-send delay can span several ms,
@@ -124,8 +117,7 @@ enum class FrameState : uint8_t {
 //      stripped for mutating codes),
 //   2. a merge rule for when a duplicate send absorbs into a live entry (continuous
 //      upgrades/downgrades via make_continuous(); a new field needs its own answer),
-//   3. teardown: retire() resets the whole struct; silent_retire() leaves it, relying on the sweep
-//      to erase the entry.
+//   3. teardown: retire() and silent_retire() need to reset it to a safe value before deletion.
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
   bool continuous{false};
@@ -154,15 +146,11 @@ struct ModbusDeviceCommand {
                       CommandOptions options = {}, uint16_t seq = 0)
       : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())), seq(seq), options(options) {}
 
-  // Transmit ordering class, derived (never stored): a continuous poll ranks below every one-shot.
+  // Transmit ordering class: a continuous poll ranks below every one-shot.
   CommandPriority priority() const {
-    return this->options.continuous ? CommandPriority::CONTINUOUS : classify(this->frame.pdu()[0]);
-  }
-  // Wire-derived class: mutating codes rank WRITE; exception-flagged codes are excluded.
-  static CommandPriority classify(uint8_t function_code) {
-    if (helpers::is_function_code_exception(function_code))
-      return CommandPriority::READ;
-    if (helpers::is_function_code_write(function_code)) {
+    if (this->options.continuous)
+      return CommandPriority::CONTINUOUS;
+    if (helpers::is_function_code_write(this->frame.pdu()[0])) {
       return CommandPriority::WRITE;
     }
     return CommandPriority::READ;
@@ -171,8 +159,7 @@ struct ModbusDeviceCommand {
   // Requests this entry can serve: a standard read twice (run plus one re-run), everything else once.
   uint8_t max_pending() const {
     const uint8_t fc = this->frame.pdu()[0];
-    const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read_only(fc);
-    return (requeueable && !this->options.continuous) ? 2 : 1;
+    return (helpers::is_function_code_read_only(fc) && !this->options.continuous) ? 2 : 1;
   }
   // Device-scoped clear: detach with no callback (device-less, pending 0). An entry still waiting for
   // a response keeps its state as a reply-ignoring shell that resolves silently; any other goes RETIRED.
@@ -197,14 +184,7 @@ struct ModbusDeviceCommand {
     this->seq = seq;
   }
   // Re-task a frame that lives on: upgrade a one-shot to a continuous poll, or downgrade a poll back to
-  // a one-shot. Either way the entry keeps running and owes a request, so this is not a plain setter -
-  // to tear an entry down instead, use retire()/silent_retire(), which leave pending as the count owed.
-  // On: the entry becomes a continuous poll, superseding any absorbed requests (pending resets to the
-  // single subscription). Off: a one-shot duplicate has cancelled the poll, but the entry must still run
-  // once to serve that request - so restore one first. While the flag is still set max_pending() is 1,
-  // so the restore lifts a terminated poll (pending 0, after an error/timeout) back to 1 and is a no-op
-  // on a live poll already at 1; the flag drops afterwards, when a read's cap can widen to 2 without
-  // retroactively inflating that no-op.
+  // a one-shot.
   void make_continuous(bool continuous) {
     if (continuous) {
       this->options.continuous = true;
@@ -214,13 +194,11 @@ struct ModbusDeviceCommand {
       this->options.continuous = false;
     }
   }
-  // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
+  // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-delivered
   // request. An entry still waiting for a response keeps its in-flight request (whose usual terminal is
   // still coming) and drains only its duplicates: WAITING -> WAITING_RETIRED, and INTERRUPTED ->
   // INTERRUPTED_RETIRED which keeps distrusting late frames (they were already interrupted). Any other
-  // state -> RETIRED, draining everything. A cleared frame that then times out still honors a retry:
-  // the clear is address-scoped (any device may call it) while the retry is the owning device's call
-  // via on_no_response - the bus obeys the owner.
+  // state -> RETIRED, draining everything.
   void retire() {
     if (this->state == FrameState::WAITING) {
       this->state = FrameState::WAITING_RETIRED;
@@ -229,10 +207,10 @@ struct ModbusDeviceCommand {
     } else if (!this->waiting_state()) {  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
     }
-    this->options = {};  // reset every option so a future field is torn down without editing here
+    this->options = {};  // reset every option
   }
 
-  // True while the entry is still waiting for a response; the erase pass exempts these even at pending 0.
+  // True while the entry is still waiting for a response
   bool waiting_state() const {
     return this->state == FrameState::WAITING || this->state == FrameState::INTERRUPTED ||
            this->state == FrameState::WAITING_RETIRED || this->state == FrameState::INTERRUPTED_RETIRED;
@@ -245,7 +223,7 @@ struct ModbusDeviceCommand {
     }
     return false;
   }
-  // Add one request, honouring the cap; false = already at cap (absorb a duplicate, restore a retry).
+
   bool increment_pending() {
     if (this->pending < this->max_pending()) {
       this->pending++;
@@ -264,9 +242,6 @@ struct ModbusDeviceCommand {
   bool notify_retired();
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
-  /// Cancellation matches the exact frame, not the action instance: a continuous poll whose
-  /// start_address (or other field) is templated produces one poll per distinct frame, and a later
-  /// cancel built from different argument values will not reach the polls it does not byte-match.
   bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
     const auto own_pdu = this->frame.pdu();
     return own_pdu.size() == pdu.size() && this->frame.address() == address &&
@@ -291,12 +266,11 @@ class ModbusClientHub : public Modbus {
                                                payload_len),
                     device);
   };
-  /// Queue a request. The name says queue, not send: the frame is appended to the transmit queue and
-  /// goes out later from loop(), so a true return means accepted into the machine (it will resolve in
-  /// exactly one terminal callback - except a broadcast (address 0), which is never answered and so gets
-  /// only on_sent()), NOT that anything reached the wire - that is on_sent(). False means
-  /// it never entered the machine at all (empty or oversize PDU, full queue, anonymous or over-cap
-  /// duplicate) and no callback of any kind will follow; the false return is the whole story.
+  /// Queue a request. The frame is appended to the tx queue and goes out later from loop(), so a true return
+  /// means accepted into the machine (it will resolve in exactly one terminal callback - except a broadcast
+  /// (address 0), which is never answered and so gets only on_sent()), NOT that anything reached the wire -
+  /// that is on_sent(). False means it never entered the machine at all (various rejection reasons) and no
+  /// callback of any kind will follow.
   bool queue_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
                  CommandOptions options = {});
   // Remove before 2027.2.0. Deliberately the signature 2026.7.4 shipped - void, and no CommandOptions:
@@ -310,7 +284,7 @@ class ModbusClientHub : public Modbus {
   }
   ESPDEPRECATED("Use queue_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
-  // Clear an address's commands; each un-run request resolves via on_not_sent(), but a frame on the
+  // Clear an address's commands; each unsent request resolves via on_not_sent(), but a frame on the
   // wire still runs to its usual terminal. clear_tx_queue_for_device() instead discards silently.
   void clear_tx_queue_for_address(uint8_t address);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
@@ -322,8 +296,7 @@ class ModbusClientHub : public Modbus {
   void send_next_frame_();
   // Deliver owed callbacks from a quiescent hub and apply lifecycle bookkeeping; see FrameState.
   void sweep_();
-  // The selection function: best READY entry (WRITE class first, then one-shot reads, then the
-  // least-recently-served continuous; FIFO by seq within each group), or nullptr.
+  // The selection function: best READY entry (ordered by priority; FIFO by seq within each group), or nullptr.
   ModbusDeviceCommand *select_next_ready_();
   // Locate the single entry waiting for a response (WAITING/INTERRUPTED/WAITING_RETIRED/INTERRUPTED_RETIRED).
   ModbusDeviceCommand *find_waiting_();
@@ -349,10 +322,9 @@ class ModbusClientHub : public Modbus {
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
 
-/// True when a transaction carried no exception. The optional holds the exception, so has_value() means
-/// the request FAILED - the inverse of how "status" usually reads. Prefer this at the call site; the
-/// bare !status.has_value() has already been mistaken for a failure check more than once. Where the code
-/// is going to unwrap the exception anyway, status.has_value() followed by status.value() stays clearer.
+/// True when a transaction carried no exception. The optional holds the exception, so has_value() means the
+/// request FAILED. Prefer this at the call site unless the code is going to unwrap the exception anyway
+/// (where status.has_value() followed by status.value() stays clearer).
 inline bool succeeded(ResponseStatus status) { return !status.has_value(); }
 
 // Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol

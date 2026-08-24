@@ -10,12 +10,10 @@ namespace esphome::modbus {
 
 static const char *const TAG = "modbus";
 
-// Maximum bytes to log for Modbus frames (truncated if larger)
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
 // Approximate bits per character on the wire (depends on parity/stop bit config)
 static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
-// Milliseconds per second
 static constexpr uint32_t MS_PER_SEC = 1000;
 
 // Shortest gap between two "no device accepted broadcast" warnings
@@ -43,10 +41,7 @@ void Modbus::setup() {
 }
 
 void Modbus::loop() {
-  // Receive any available bytes from UART
   this->receive_bytes_();
-
-  // Parse bytes into frames and process them
   this->parse_modbus_frames();
 }
 
@@ -55,7 +50,7 @@ void ModbusClientHub::loop() {
   // never times out an entry whose pending count has not been drained. No-op when nothing is owed.
   this->sweep_();
 
-  this->Modbus::loop();  // receive bytes and parse frames
+  this->Modbus::loop();
 
   // Send-wait watchdog: only the cheap time check runs at loop rate; expire_waiting_() looks the
   // entry up and holds off if the response has started arriving.
@@ -135,7 +130,7 @@ bool Modbus::tx_blocked() {
 }
 
 bool ModbusClientHub::tx_blocked() {
-  // We block transmission in any of these case:
+  // We block transmission in any of these cases:
   // 1. We're waiting for a response (a waiting entry: WAITING/INTERRUPTED/WAITING_RETIRED/INTERRUPTED_RETIRED)
   // 2. Any of the base class tx_blocked conditions
   return this->waiting_for_response_ || this->Modbus::tx_blocked();
@@ -783,8 +778,6 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     delay(tx_delay_remaining);
   }
 
-  // The delay above can span several ms; a byte arriving in that window blocks transmission after the
-  // caller's gate already passed. Don't collide with the incoming frame - leave the entry to retry.
   if (this->tx_blocked()) {
     return false;
   }
@@ -831,7 +824,7 @@ void ModbusClientHub::send_next_frame_() {
     // reports the transmission, and the entry then retires with no terminal callback instead of
     // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
     // spaces the next frame; the following sweep erases the entry.
-    ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected (fire-and-forget)");
+    ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected");
     cmd->complete_broadcast();
     this->sweep_needed_ = true;
     return;
@@ -983,6 +976,8 @@ bool ModbusDeviceCommand::timed_out() {
   this->decrement_pending();            // resolve this request (WAITING-origin, so pending >= 1)
   if (this->device == nullptr)
     return false;  // resolved, no one to tell
+  // A cleared frame that timed out still honors a retry: the clear is address-scoped (any device may
+  // call it) while the retry is the owning device's call via on_no_response - the bus obeys the owner.
   if (this->device->on_no_response(this->frame.pdu()))
     this->increment_pending();  // granted retry = re-request (capped)
   return true;
@@ -1054,18 +1049,17 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     ESP_LOGE(TAG, "Frame too large, refused: %" PRIu8 ":%zu bytes", address, pdu.size());
     return false;
   }
-  // classify() drives both the broadcast guard and the continuous check below; compute it once.
-  const CommandPriority priority = ModbusDeviceCommand::classify(pdu[0]);
 
-  // A broadcast (address 0) is never answered (Modbus 4.1), so it is only meaningful for a command that
-  // changes state. Refuse a broadcast that expects a reply - anything but a write or a custom/vendor code -
-  // as it could never deliver a result, so the caller learns via the false return (and on_not_sent).
-  // 0x17 (read/write multiple) is a knowing inclusion: classify() treats it as a write, so its write half
-  // lands on every server and its unanswerable read half is simply discarded. An exception-flagged custom
-  // code (0x80 bit set) is refused: is_function_code_custom() masks that bit away, so exclude it explicitly
-  // here to match classify()'s exception-first handling of the write side.
-  if (address == BROADCAST_ADDRESS && priority != CommandPriority::WRITE &&
-      (!helpers::is_function_code_custom(pdu[0]) || helpers::is_function_code_exception(pdu[0]))) {
+  if (helpers::is_function_code_exception(pdu[0])) {
+    ESP_LOGW(TAG, "Exception PDU refused for address %" PRIu8 ": function code 0x%X has the exception bit set", address,
+             pdu[0]);
+    return false;
+  }
+
+  // A broadcast (address 0) is never answered (Modbus 4.1)
+  // Any function code known to read (including read-write) is rejected
+  // All other function codes (write, custom, unknown) are accepted, and the hub delivers them to all devices.
+  if (address == BROADCAST_ADDRESS && helpers::is_function_code_read(pdu[0])) {
     ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
     return false;
   }
@@ -1073,7 +1067,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
   // Normalize the caller's options in place (the param is a by-value copy) so everything stored or
   // merged below carries effective options, never the raw request.
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
-  if (options.continuous && priority == CommandPriority::WRITE) {
+  if (options.continuous && helpers::is_function_code_write(pdu[0])) {
     ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
     options.continuous = false;
   }
@@ -1089,9 +1083,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       continue;
     if (device == nullptr) {
       // A dropped read is routine (DEBUG); a dropped write/custom warns (unobservable without a device).
-      const bool requeueable =
-          !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read_only(pdu[0]);
-      if (requeueable) {
+      if (helpers::is_function_code_read_only(pdu[0])) {
         ESP_LOGD(TAG, "Anonymous duplicate of active frame for %" PRIu8 " (function 0x%X), dropped", address, pdu[0]);
       } else {
         ESP_LOGW(TAG,
@@ -1364,7 +1356,6 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
   }
 }
 
-// Default on_custom_response handler to warn when responses unexpectedly trigger on_custom_response
 void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                                             ResponseStatus status) {
   // The dispatcher never calls this with an empty request, but this is a public virtual - stay safe.
