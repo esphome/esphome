@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-YAML_DIR = Path(__file__).parent
+from esphome.config import read_config
+from esphome.const import CONF_WATCHDOG_TIMEOUT
+from esphome.core import CORE, TimePeriodMilliseconds
 
 
 @pytest.mark.parametrize(
@@ -20,14 +22,18 @@ YAML_DIR = Path(__file__).parent
     ],
 )
 def test_esp32_watchdog_timeout(
-    generate_main: Callable[[str | Path], str], yaml_file: str, expected_ms: int
+    component_config_path: Callable[[str], Path], yaml_file: str, expected_ms: int
 ) -> None:
-    main_cpp = generate_main(YAML_DIR / yaml_file)
-    assert f"set_watchdog_timeout({expected_ms})" in main_cpp
+    CORE.config_path = component_config_path(yaml_file)
+    config = read_config({})
+    assert config["http_request"][CONF_WATCHDOG_TIMEOUT] == TimePeriodMilliseconds(
+        milliseconds=expected_ms
+    )
 
 
 def test_esp8266_leaves_watchdog_unset(
-    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
 ) -> None:
-    main_cpp = generate_main(YAML_DIR / "test_esp8266.yaml")
-    assert "set_watchdog_timeout" not in main_cpp
+    CORE.config_path = component_config_path("test_esp8266.yaml")
+    config = read_config({})
+    assert CONF_WATCHDOG_TIMEOUT not in config["http_request"]
