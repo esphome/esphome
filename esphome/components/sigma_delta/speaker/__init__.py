@@ -70,6 +70,9 @@ CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_variant, _set_stream_limits)
 
 
 async def to_code(config):
+    # Re-enable the ESP-IDF sigma-delta driver (excluded by default)
+    esp32.include_builtin_idf_component("esp_driver_sdm")
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await speaker.register_speaker(var, config)
