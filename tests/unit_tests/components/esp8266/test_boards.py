@@ -1,6 +1,11 @@
 """Tests for the per-board linker-script rule."""
 
+import pytest
+
+from esphome.components.esp8266 import _choose_ld_script
 from esphome.components.esp8266.boards import BOARDS, board_ld_script
+import esphome.config_validation as cv
+from esphome.core import EsphomeError
 
 
 def test_d1_wroom_02_keeps_its_shipped_layout() -> None:
@@ -19,12 +24,6 @@ def test_choose_ld_script_paths() -> None:
     """Old cores get the size default, overriding boards hard-error there
     (a substituted layout would wipe flash-backed state), modern cores
     honor the override."""
-    import pytest
-
-    from esphome.components.esp8266 import _choose_ld_script
-    import esphome.config_validation as cv
-    from esphome.core import EsphomeError
-
     assert _choose_ld_script("nodemcuv2", cv.Version(2, 3, 0)) is None
     assert _choose_ld_script("nodemcuv2", cv.Version(2, 4, 2)) == "eagle.flash.4m.ld"
     assert _choose_ld_script("d1_wroom_02", cv.Version(2, 7, 4)) == (
