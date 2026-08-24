@@ -398,26 +398,17 @@ def run_compile(config, verbose: bool) -> int:
             return rc
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
-        # Reconfigure again so the full component list is applied before
-        # the build. Leaving it to ninja's own CMakeLists.txt dependency is
-        # not reliable: it only re-runs cmake when CMakeLists.txt is strictly
-        # newer than build.ninja, and on filesystems with coarse mtimes the
-        # rewrite above lands in the same tick as the discovery configure,
-        # so src is compiled with an empty REQUIRES list (#18682). In
-        # testing mode this also keeps idf.py from regenerating memory.ld
-        # after the DRAM/IRAM patches applied below.
+        # Explicit reconfigure: ninja only re-runs cmake when CMakeLists.txt
+        # is strictly newer than build.ninja, which fails on coarse-mtime
+        # filesystems (#18682). Also keeps idf.py from regenerating memory.ld
+        # in testing mode.
         rc = run_reconfigure()
         if rc != 0:
             _LOGGER.error("Reconfigure with discovered components failed")
             return rc
-        # Restamp the reference file has_outdated_files() compares against.
-        # A reconfigure that only changes properties or plain variables
-        # (sdkconfig options, the exclusion set) does not rewrite
-        # CMakeCache.txt, so without this the watched inputs stay newer
-        # forever and every subsequent build repeats the discovery pass.
-        # Done only after the full write and its reconfigure succeeded so a
-        # failure or interrupt cannot leave a build marked fresh that still
-        # has the discovery-time CMakeLists applied.
+        # cmake does not rewrite CMakeCache.txt when only properties change,
+        # so restamp it or every build repeats discovery. Only after success,
+        # or a failed reconfigure would be marked fresh.
         cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
         if cmakecache.is_file():
             os.utime(cmakecache)

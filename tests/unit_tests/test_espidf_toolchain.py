@@ -337,10 +337,8 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
 def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
     setup_core: Path,
 ) -> None:
-    """The discovered component list must be applied by an explicit
-    reconfigure after the full CMakeLists write; relying on ninja's mtime
-    check misses the rewrite on coarse-mtime filesystems (#18682). A failure
-    there stops the build instead of compiling with an empty REQUIRES."""
+    """The full CMakeLists write is followed by a reconfigure (#18682); a
+    failure there stops the build and leaves the cache unstamped."""
     _setup_build(setup_core)
     config = {CONF_ESPHOME: {}}
     cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
@@ -377,8 +375,6 @@ def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
         ("run_reconfigure",),
     ]
     mock_build.assert_not_called()
-    # Not restamped, so the next run repeats discovery instead of building
-    # with the discovery-time CMakeLists.
     assert cmakecache.stat().st_mtime == old
 
 
