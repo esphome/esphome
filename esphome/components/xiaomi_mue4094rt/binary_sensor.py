@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor, ble_device_base
 import esphome.config_validation as cv
 from esphome.const import CONF_MAC_ADDRESS, CONF_TIMEOUT, DEVICE_CLASS_MOTION
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
