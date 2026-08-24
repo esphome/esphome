@@ -4,9 +4,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/components/wifi/scan_list.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "captive_index.h"
-#include "scan_list.h"
 
 namespace esphome::captive_portal {
 
@@ -37,7 +37,7 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
     const auto &results = wifi::global_wifi_component->get_scan_result();
     for (const auto &scan : results) {
       bool with_auth = false;
-      if (!should_show_scan_entry(results, scan, with_auth))
+      if (!wifi::should_show_scan_entry(results, scan, with_auth))
         continue;
 
       json_escape_into_buffer(escaped_ssid, scan.get_ssid());
