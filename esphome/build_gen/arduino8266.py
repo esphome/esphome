@@ -21,6 +21,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 from typing import TYPE_CHECKING, NamedTuple
@@ -722,7 +723,9 @@ def generate_ld_scripts(
     # and the surgery fingerprint (a build_surgery edit invalidates old
     # build dirs)
     stamp_content = (
-        " ".join(cmd)
+        # shlex.join: a spaced path stays one quoted element, so two
+        # different cmd lists can never collide to the same stamp string
+        shlex.join(cmd)
         + f" testing={CORE.testing_mode}"
         + f" header={_stat_sig(header)}"
         + f" gcc={_stat_sig(gcc)}"
