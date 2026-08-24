@@ -203,16 +203,6 @@ storage::StorageError SdMmc::mount() {
 #endif
   slot_config.flags |= SDMMC_SLOT_FLAG_INTERNAL_PULLUP;
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
-  {
-    esp_err_t pre_ret = sdmmc_host_init_slot(host.slot, &slot_config);
-    if (pre_ret != ESP_OK) {
-      ESP_LOGE(TAG, "Failed to init SDMMC slot %d: %s", this->slot_, esp_err_to_name(pre_ret));
-      return storage::StorageError::STORAGE_ERROR_NOT_READY;
-    }
-  }
-#endif
-
   const esp_vfs_fat_mount_config_t mount_config = {
       .format_if_mount_failed = false,
       .max_files = 16,
