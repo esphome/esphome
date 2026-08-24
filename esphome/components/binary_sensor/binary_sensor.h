@@ -59,7 +59,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
   // (In most use cases you won't need these)
   void send_state_internal(bool new_state) {
     // Fast path: skip virtual dispatch when state hasn't changed
-    if (this->flags_.has_state && this->state == new_state)
+    if (this->has_state_ && this->state == new_state)
       return;
     this->set_new_state(new_state);
   }

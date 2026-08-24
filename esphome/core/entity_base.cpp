@@ -29,11 +29,11 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
         this->name_ = !friendly.empty() ? friendly : App.get_name();
       }
     }
-    this->flags_.has_own_name = false;
+    this->has_own_name_ = false;
     // Dynamic name - must calculate hash at runtime
     this->calc_object_id_();
   } else {
-    this->flags_.has_own_name = true;
+    this->has_own_name_ = true;
     // Static name - use pre-computed hash if provided
     if (object_id_hash != 0) {
       this->object_id_hash_ = object_id_hash;
@@ -51,9 +51,9 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
 #ifdef USE_ENTITY_ICON
   this->icon_idx_ = (entity_fields >> ENTITY_FIELD_ICON_SHIFT) & 0xFF;
 #endif
-  this->flags_.internal = (entity_fields >> ENTITY_FIELD_INTERNAL_SHIFT) & 1;
-  this->flags_.disabled_by_default = (entity_fields >> ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT) & 1;
-  this->flags_.entity_category = (entity_fields >> ENTITY_FIELD_ENTITY_CATEGORY_SHIFT) & 0x3;
+  this->internal_ = (entity_fields >> ENTITY_FIELD_INTERNAL_SHIFT) & 1;
+  this->disabled_by_default_ = (entity_fields >> ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT) & 1;
+  this->entity_category_ = (entity_fields >> ENTITY_FIELD_ENTITY_CATEGORY_SHIFT) & 0x3;
 }
 
 // Weak default lookup functions — overridden by generated code in main.cpp

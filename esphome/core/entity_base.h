@@ -71,7 +71,7 @@ class EntityBase {
   const StringRef &get_name() const { return this->name_; }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
-  bool has_own_name() const { return this->flags_.has_own_name; }
+  bool has_own_name() const { return this->has_own_name_; }
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash() const { return this->object_id_hash_; }
@@ -86,7 +86,7 @@ class EntityBase {
   size_t write_object_id_to(char *buf, size_t buf_size) const;
 
   // Get whether this Entity should be hidden outside ESPHome
-  bool is_internal() const { return this->flags_.internal; }
+  bool is_internal() const { return this->internal_; }
 
   // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
   // are NOT notified of the change, the flag may have already been read during setup, and there
@@ -94,15 +94,15 @@ class EntityBase {
   ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
                 "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
                 "2026.3.0")
-  void set_internal(bool internal) { this->flags_.internal = internal; }
+  void set_internal(bool internal) { this->internal_ = internal; }
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
   // not be added to the default view by default, and a user action is necessary to manually add it.
-  bool is_disabled_by_default() const { return this->flags_.disabled_by_default; }
+  bool is_disabled_by_default() const { return this->disabled_by_default_; }
 
   // Get the entity category.
-  EntityCategory get_entity_category() const { return static_cast<EntityCategory>(this->flags_.entity_category); }
+  EntityCategory get_entity_category() const { return static_cast<EntityCategory>(this->entity_category_); }
 
   // Get this entity's device class into a stack buffer.
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
@@ -130,10 +130,10 @@ class EntityBase {
 #endif
 
   // Check if this entity has state
-  bool has_state() const { return this->flags_.has_state; }
+  bool has_state() const { return this->has_state_; }
 
   // Set has_state - for components that need to manually set this
-  void set_has_state(bool state) { this->flags_.has_state = state; }
+  void set_has_state(bool state) { this->has_state_ = state; }
 
   /**
    * @brief Get a unique hash for storing preferences/settings for this entity.
@@ -206,15 +206,12 @@ class EntityBase {
 #endif
 
   // Bit-packed flags to save memory (1 byte instead of 5)
-  struct EntityFlags {
-    uint8_t has_own_name : 1;
-    uint8_t internal : 1;
-    uint8_t disabled_by_default : 1;
-    uint8_t has_state : 1;
-    uint8_t entity_category : 2;  // Supports up to 4 categories
-    uint8_t reserved : 2;         // Reserved for future use
-  } flags_{};
-  // String table indices — packed into the 3 padding bytes after flags_
+  bool has_own_name_ : 1 {false};
+  bool internal_ : 1 {false};
+  bool disabled_by_default_ : 1 {false};
+  bool has_state_ : 1 {false};
+  uint8_t entity_category_ : 2 {0};  // Supports up to 4 categories
+  // String table indices — packed into the 3 padding bytes after the flag byte
 #ifdef USE_ENTITY_DEVICE_CLASS
   uint8_t device_class_idx_{};
 #endif
@@ -291,8 +288,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    * Subclasses may override to add logging/notifications after calling the base.
    */
   virtual bool set_new_state(const optional<T> &new_state) {
-    // Access flags_ directly to avoid function call overhead in this hot path
-    bool had_state = this->flags_.has_state;
+    // Access has_state_ directly to avoid function call overhead in this hot path
+    bool had_state = this->has_state_;
     // Use pointer to avoid requiring T to be default-constructible
     const T *current = had_state ? &this->get_state() : nullptr;
     if (new_state.has_value()) {
@@ -307,7 +304,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     if (has_full_cbs)
       old_state = current != nullptr ? optional<T>(*current) : nullopt;
     // Update storage before firing callbacks so callback code can inspect current state
-    this->flags_.has_state = new_state.has_value();
+    this->has_state_ = new_state.has_value();
     if (new_state.has_value()) {
       this->set_state_value(new_state.value());
     }
