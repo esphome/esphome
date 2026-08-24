@@ -185,12 +185,14 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "remote_transmitter_rtl87xx.cpp": {
+            PlatformFramework.RTL87XX_ARDUINO,
+        },
         "remote_transmitter.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
             PlatformFramework.RP2_ARDUINO,
         },
