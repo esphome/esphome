@@ -134,7 +134,8 @@ sensor:
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok
 
-  # F - contiguous registers where the second asks for a slower rate.
+  # F - contiguous registers that historically carried differing skip_updates rates and were split by
+  # the rate merge; with per-range rates gone they group like any contiguous pair.
   - platform: modbus_controller
     name: "rate_first"
     address: 0x150
@@ -146,7 +147,6 @@ sensor:
     address: 0x151
     register_type: holding
     value_type: U_WORD
-    skip_updates: 5
     modbus_controller_id: modbus_controller_ok
 
   # B - a wide value and one of its halves share a start address, with a contiguous sensor after them.
