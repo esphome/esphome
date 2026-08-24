@@ -644,6 +644,23 @@ class RawSdkconfigValue:
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
+def sdkconfig_option_is_true(
+    opts: dict[str, SdkconfigValueType], name: str
+) -> bool:
+    """Whether an sdkconfig option is set to a Kconfig-true value.
+
+    User-supplied `sdkconfig_options` reach the registry as RawSdkconfigValue, a plain
+    dataclass with no __bool__/__len__, so every entry -- including the "n" that turns a
+    symbol OFF -- is truthy. Unwrap and read the text instead of testing the object.
+    """
+    raw = opts.get(name)
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    return str(getattr(raw, "value", raw)).strip().lower() in ("y", "true", "1")
+
+
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     """Set an esp-idf sdkconfig value."""
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
@@ -2331,21 +2348,29 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         "CONFIG_FATFS_LFN_STACK",
     )
     user_picked_lfn = any(k in opts for k in lfn_keys)
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+    fatfs_required = CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False)
+    if fatfs_required:
+        if enable_exfat and sdkconfig_option_is_true(opts, "CONFIG_FATFS_LFN_NONE"):
+            raise EsphomeError(
+                f"'{CONF_ENABLE_EXFAT}' needs long filename support, but 'CONFIG_FATFS_LFN_NONE' "
+                "is set in the esp32 framework sdkconfig_options -- exFAT cannot be built with "
+                "FF_USE_LFN == 0. Remove CONFIG_FATFS_LFN_NONE, or unset enable_exfat."
+            )
         if not user_picked_lfn:
             set_opt("CONFIG_FATFS_LFN_NONE", False)
             set_opt("CONFIG_FATFS_LFN_HEAP", True)
             set_opt("CONFIG_FATFS_MAX_LFN", 255)
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
-        # Long filenames are a hard requirement of exFAT and are already set right above;
-        # the FatFs #defines themselves come via a patched project-local component copy.
+    elif enable_exfat:
+        # FATFS is not in the build, so tear down any stale patched copy before failing --
+        # otherwise the error state also leaves the override behind until enable_exfat is
+        # removed too, the exact state the unconditional reconcile below is meant to prevent.
         _sync_exfat_fatfs_override(
-            enable_exfat,
+            False,
             str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
             get_esp32_variant(),
         )
-    elif enable_exfat:
-        raise cv.Invalid(
+        raise EsphomeError(
             f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
@@ -2354,6 +2379,16 @@ async def _reconcile_vfs_fatfs_sdkconfig(
             set_opt("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
         set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
+
+    # Reconcile the project-local FatFs override on every run, not only when FATFS is required,
+    # so a stale patched copy is removed once exFAT is no longer active (e.g. the SD component was
+    # dropped from the YAML). _sync_exfat_fatfs_override() early-returns and cleans up when
+    # disabled, so this both installs and tears down.
+    _sync_exfat_fatfs_override(
+        fatfs_required and enable_exfat,
+        str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
+        get_esp32_variant(),
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
@@ -3007,7 +3042,9 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     """Patch a project-local copy of FatFs so exFAT is compiled in."""
     import shutil
 
+    from esphome.espidf import variant_to_idf_target
     from esphome.espidf.framework import _get_framework_path, check_esp_idf_install
+    from esphome.espidf.toolchain import _get_framework_source_override
 
     dest = Path(CORE.build_path) / "components" / "fatfs"
     marker = dest / _EXFAT_MARKER
@@ -3017,21 +3054,44 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
         if marker.is_file():
             shutil.rmtree(dest)
         return
+    if not CORE.using_toolchain_esp_idf:
+        raise EsphomeError(
+            f"'{CONF_ENABLE_EXFAT}' requires the esp-idf toolchain: the FatFs sources are "
+            "copied from the esp-idf install, which is the only framework tree that actually "
+            "builds the project. Use 'framework: type: esp-idf', or unset enable_exfat."
+        )
     if marker.is_file() and marker.read_text() == stamp:
         return  # current copy is up to date
     src = _get_framework_path(idf_ver) / "components" / "fatfs"
     if not src.is_dir():
         # First-ever build: the toolchain would install the IDF minutes from now anyway --
         # front-load it so the copy source exists.
-        check_esp_idf_install(idf_ver, targets=[variant])
+        # The override has to travel with this call: _get_framework_path() keys the install
+        # dir on the version alone and the extraction marker short-circuits every later
+        # check, so a default-mirror IDF pulled in here would be silently reused by the real
+        # build (recoverable only with `esphome clean-all`).
+        check_esp_idf_install(
+            idf_ver,
+            targets=[variant_to_idf_target(variant)],
+            source_url=_get_framework_source_override(),
+        )
     if not src.is_dir():
-        raise cv.Invalid(
+        raise EsphomeError(
             "enable_exfat: cannot locate the ESP-IDF fatfs component to patch "
             f"(looked in {src})"
         )
     if dest.exists():
+        if not marker.is_file():
+            raise EsphomeError(
+                f"enable_exfat: refusing to overwrite {dest}, which exists but was not "
+                "created by ESPHome (no exFAT marker). Remove it manually if unneeded."
+            )
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
+    # Claim the copy immediately: if the patching below raises, the cleanup path (which only
+    # removes marked copies) can still remove this one instead of leaving it to shadow the IDF
+    # component forever. Overwritten with the real stamp once patching succeeds.
+    marker.write_text("partial")
     ffconf = dest / "src" / "ffconf.h"
     text = ffconf.read_text()
     for key, value in _EXFAT_PATCHES:
@@ -3039,7 +3099,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
             rf"#define[ \t]+{key}[ \t]+\S+", f"#define {key} {value}", text
         )
         if n != 1:
-            raise cv.Invalid(
+            raise EsphomeError(
                 f"enable_exfat: patching {key} in the IDF's ffconf.h failed -- "
                 f"unexpected FatFs layout in IDF {idf_ver}"
             )
@@ -3061,7 +3121,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     guards = "".join(f"#ifndef {sym}\n#define {sym} 0\n#endif\n" for sym in symbols)
     include_line = '#include "sdkconfig.h"\n'
     if include_line not in text:
-        raise cv.Invalid(
+        raise EsphomeError(
             "enable_exfat: unexpected ffconf.h layout -- no sdkconfig.h include to anchor on"
         )
     text = text.replace(
