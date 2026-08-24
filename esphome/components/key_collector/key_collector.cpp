@@ -14,6 +14,7 @@ void KeyCollector::loop() {
 }
 
 void KeyCollector::dump_config() {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
   ESP_LOGCONFIG(TAG, "Key Collector:");
   if (this->min_length_ > 0)
     ESP_LOGCONFIG(TAG, "  min length: %d", this->min_length_);
@@ -35,6 +36,7 @@ void KeyCollector::dump_config() {
     ESP_LOGCONFIG(TAG, "  allowed keys '%s'", this->allowed_keys_.c_str());
   if (this->timeout_ > 0)
     ESP_LOGCONFIG(TAG, "  entry timeout: %0.1f", this->timeout_ / 1000.0);
+#endif
 }
 
 void KeyCollector::add_provider(key_provider::KeyProvider *provider) {
