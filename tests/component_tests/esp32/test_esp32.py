@@ -18,6 +18,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
+    RawSdkconfigValue,
     _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
@@ -38,7 +39,7 @@ from esphome.const import (
     PlatformFramework,
     Toolchain,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -848,6 +849,94 @@ def test_reconcile_vfs_fatfs_sdkconfig(
         asyncio.run(_reconcile_vfs_fatfs_sdkconfig(*disables, enable_exfat))
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+def _run_exfat_reconcile(
+    set_core_config: SetCoreConfigCallable,
+    fatfs_required: bool,
+    preset: dict[str, Any] | None = None,
+):
+    """Run the reconciler with enable_exfat on, returning the stubbed override mock."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: dict(preset or {}),
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+    }
+    if fatfs_required:
+        CORE.data[KEY_ESP32][KEY_FATFS_REQUIRED] = True
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override") as sync_mock:
+        asyncio.run(
+            _reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True)
+        )
+    return sync_mock
+
+
+def test_enable_exfat_without_fatfs_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """enable_exfat with no FAT-mounting component is a config error, and the stale
+    project-local FatFs override is torn down before the error is raised."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: {},
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+    }
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override") as sync_mock:
+        with pytest.raises(EsphomeError, match="has no effect here"):
+            asyncio.run(
+                _reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True)
+            )
+    # Teardown call: first positional argument is the "enabled" flag.
+    assert sync_mock.call_count == 1
+    assert sync_mock.call_args.args[0] is False
+
+
+def test_enable_exfat_with_fatfs_syncs_the_override(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """With FATFS in the build, the override is synced with enabled=True."""
+    sync_mock = _run_exfat_reconcile(set_core_config, fatfs_required=True)
+    assert sync_mock.call_count == 1
+    assert sync_mock.call_args.args[0] is True
+
+
+def test_enable_exfat_rejects_user_lfn_none(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """CONFIG_FATFS_LFN_NONE: "y" is incompatible with exFAT and must be rejected."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_SDKCONFIG_OPTIONS: {"CONFIG_FATFS_LFN_NONE": RawSdkconfigValue("y")},
+        KEY_IDF_VERSION: cv.Version(5, 5, 1),
+        KEY_VARIANT: VARIANT_ESP32,
+        KEY_FATFS_REQUIRED: True,
+    }
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override"):
+        with pytest.raises(EsphomeError, match="CONFIG_FATFS_LFN_NONE"):
+            asyncio.run(
+                _reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True)
+            )
+
+
+def test_enable_exfat_accepts_user_lfn_none_set_to_n(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """CONFIG_FATFS_LFN_NONE: "n" turns the symbol OFF, so it must not be rejected.
+
+    RawSdkconfigValue has no __bool__, so a plain truthiness test on the registry entry
+    would reject this -- the exact opposite of what the user configured.
+    """
+    sync_mock = _run_exfat_reconcile(
+        set_core_config,
+        fatfs_required=True,
+        preset={
+            "CONFIG_FATFS_LFN_NONE": RawSdkconfigValue("n"),
+            "CONFIG_FATFS_LFN_HEAP": RawSdkconfigValue("y"),
+        },
+    )
+    assert sync_mock.call_args.args[0] is True
 
 
 def test_network_wifi_only_reconciles_end_to_end(
