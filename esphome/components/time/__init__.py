@@ -36,6 +36,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.helpers import cpp_string_escape
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -411,17 +412,18 @@ async def setup_time_core_(time_var, config):
         cg.add_define("USE_TIME_TIMEZONE")
 
         if CORE.is_host:
-            # Host platform needs setenv("TZ")/tzset() for libc compatibility
-            cg.add(time_var.set_timezone(timezone))
-        else:
-            # Embedded: pre-parse at codegen time, emit struct directly
-            from aioesphomeapi.posix_tz import parse_posix_tz as parse_posix_tz_python
+            # Host platform also needs setenv("TZ")/tzset() for libc compatibility
+            cg.add(cg.RawExpression(f'setenv("TZ", {cpp_string_escape(timezone)}, 1)'))
+            cg.add(cg.RawExpression("tzset()"))
 
-            try:
-                parsed = parse_posix_tz_python(timezone)
-                _emit_parsed_timezone_fields(parsed)
-            except ValueError as e:
-                raise EsphomeError(f"Invalid timezone: {timezone}") from e
+        # Pre-parse at codegen time, emit struct directly
+        from aioesphomeapi.posix_tz import parse_posix_tz as parse_posix_tz_python
+
+        try:
+            parsed = parse_posix_tz_python(timezone)
+        except ValueError as e:
+            raise EsphomeError(f"Invalid timezone: {timezone}") from e
+        _emit_parsed_timezone_fields(parsed)
 
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
