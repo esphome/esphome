@@ -83,14 +83,13 @@ async def test_create_table_sets_cell_control_flags(setup_core) -> None:
         for s in statements
     )
     assert any(
-        "lv_table_clear_cell_ctrl(table_ctrl->obj, 0, 0, LV_TABLE_CELL_CTRL_TEXT_CROP)"
-        in s
-        for s in statements
-    )
-    assert any(
         "lv_table_set_cell_ctrl(table_ctrl->obj, 0, 1, LV_TABLE_CELL_CTRL_TEXT_CROP)"
         in s
         for s in statements
+    )
+    # text_crop omitted for cell 0: no clear_cell_ctrl() should be emitted.
+    assert not any(
+        "table_ctrl->obj, 0, 0, LV_TABLE_CELL_CTRL_TEXT_CROP" in s for s in statements
     )
 
 
@@ -153,8 +152,7 @@ async def test_selected_cell_omitted_entirely_when_not_configured(
 async def test_cell_update_action_writes_only_the_given_fields(setup_core) -> None:
     await _create_table({"id": "table_update", "rows": [["a", "b"], ["c", "d"]]})
     set_widgets_completed(True)
-    # Only inspect statements emitted by the action below, not by creation
-    # (which already writes clear_cell_ctrl calls for every cell's defaults).
+    # Only inspect statements emitted by the action below, not by creation.
     before = len(_statements())
 
     entry = ACTION_REGISTRY["lvgl.table.cell.update"]

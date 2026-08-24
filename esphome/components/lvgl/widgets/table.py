@@ -3,12 +3,16 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ITEMS, CONF_ROW, CONF_TEXT, CONF_WIDTH
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.schema_extractors import SCHEMA_EXTRACT
+from esphome.types import ConfigType, SafeExpType
 
 from ..automation import action_to_code
-from ..defines import CONF_COLUMN, CONF_MAIN, literal
-from ..lv_validation import lv_bool, lv_int, lv_text, pixels_or_percent
+from ..defines import CONF_COLUMN, CONF_MAIN, LValidator, literal
+from ..lv_validation import lv_int, lv_text, pixels_or_percent
 from ..lvcode import lv, lv_add, lv_expr
-from ..types import LvCompound, LvType, ObjUpdateAction
+from ..types import LvCompound, LvType, ObjUpdateAction, lv_coord_t
 from . import Widget, WidgetType, get_widgets
 from .label import CONF_LABEL
 
@@ -25,8 +29,10 @@ CONF_SELECTED_COLUMN = "selected_column"
 CELL_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TEXT, default=""): lv_text,
-        cv.Optional(CONF_MERGE_RIGHT, default=False): lv_bool,
-        cv.Optional(CONF_TEXT_CROP, default=False): lv_bool,
+        # Not templatable: the value selects between two different LVGL calls
+        # (set/clear cell ctrl), so a runtime lambda can't be mapped to a single call.
+        cv.Optional(CONF_MERGE_RIGHT): cv.boolean,
+        cv.Optional(CONF_TEXT_CROP): cv.boolean,
     }
 )
 
@@ -39,14 +45,32 @@ ROW_SCHEMA = cv.maybe_simple_value(
     key=CONF_CELLS,
 )
 
+
+def _column_width_validator(value):
+    """Like pixels_or_percent, but rejects negative percentages, which would
+    defeat the 100%-total check and wrap around in the generated uint8_t pct."""
+    if value == SCHEMA_EXTRACT:
+        return ["pixels", "..%"]
+    if isinstance(value, str) and value.lower().endswith("px"):
+        return cv.int_(value[:-2])
+    return cv.Any(cv.int_, cv.percentage)(value)
+
+
+column_width = LValidator(
+    _column_width_validator,
+    lv_coord_t,
+    retmapper=pixels_or_percent.retmapper,
+    animatable=True,
+)
+
 COLUMN_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_WIDTH): pixels_or_percent,
+        cv.Optional(CONF_WIDTH): column_width,
     }
 )
 
 
-def _validate_table(config):
+def _validate_table(config: ConfigType) -> ConfigType:
     rows = config.get(CONF_ROWS)
     min_row_count = len(rows) if rows else 0
     min_column_count = max(len(row[CONF_CELLS]) for row in rows) if rows else 0
@@ -105,7 +129,9 @@ lv_table_t = LvType(
 )
 
 
-async def set_cell_ctrl(w: Widget, row, column, cell: dict):
+async def set_cell_ctrl(
+    w: Widget, row: SafeExpType, column: SafeExpType, cell: ConfigType
+) -> None:
     for key, ctrl in (
         (CONF_MERGE_RIGHT, "LV_TABLE_CELL_CTRL_MERGE_RIGHT"),
         (CONF_TEXT_CROP, "LV_TABLE_CELL_CTRL_TEXT_CROP"),
@@ -118,7 +144,7 @@ async def set_cell_ctrl(w: Widget, row, column, cell: dict):
             lv.table_clear_cell_ctrl(w.obj, row, column, literal(ctrl))
 
 
-async def set_selected_cell(w: Widget, config: dict):
+async def set_selected_cell(w: Widget, config: ConfigType) -> None:
     selected_row = config.get(CONF_SELECTED_ROW)
     selected_column = config.get(CONF_SELECTED_COLUMN)
     if selected_row is None and selected_column is None:
@@ -137,6 +163,14 @@ async def set_selected_cell(w: Widget, config: dict):
     lv.table_set_selected_cell(w.obj, row_value, column_value)
 
 
+TABLE_MODIFY_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_SELECTED_ROW): lv_int,
+        cv.Optional(CONF_SELECTED_COLUMN): lv_int,
+    }
+)
+
+
 class TableType(WidgetType):
     def __init__(self):
         super().__init__(
@@ -144,12 +178,13 @@ class TableType(WidgetType):
             lv_table_t,
             (CONF_MAIN, CONF_ITEMS),
             TABLE_SCHEMA,
+            modify_schema=TABLE_MODIFY_SCHEMA,
         )
 
-    def get_uses(self):
+    def get_uses(self) -> tuple:
         return (CONF_LABEL,)
 
-    async def to_code(self, w: Widget, config: dict):
+    async def to_code(self, w: Widget, config: dict) -> None:
         rows = config.get(CONF_ROWS)
         row_count = config.get(CONF_ROW_COUNT)
         column_count = config.get(CONF_COLUMN_COUNT)
@@ -172,13 +207,13 @@ class TableType(WidgetType):
             if (width := column.get(CONF_WIDTH)) is None:
                 continue
             if isinstance(width, float):
-                # A percentage: pixels_or_percent validation leaves it as a 0.0-1.0
+                # A percentage: column_width validation leaves it as a 0.0-1.0
                 # fraction. LVGL's table widget only accepts a literal pixel width, so
                 # the actual width is recomputed at runtime from the table's own size.
                 lv_add(w.var.add_column_width_pct(index, round(width * 100)))
             else:
                 lv.table_set_column_width(
-                    w.obj, index, await pixels_or_percent.process(width)
+                    w.obj, index, await column_width.process(width)
                 )
         for row_index, row in enumerate(rows or ()):
             for column_index, cell in enumerate(row[CONF_CELLS]):
@@ -204,13 +239,18 @@ table_spec = TableType()
             cv.Required(CONF_ROW): lv_int,
             cv.Required(CONF_COLUMN): lv_int,
             cv.Optional(CONF_TEXT): lv_text,
-            cv.Optional(CONF_MERGE_RIGHT): lv_bool,
-            cv.Optional(CONF_TEXT_CROP): lv_bool,
+            cv.Optional(CONF_MERGE_RIGHT): cv.boolean,
+            cv.Optional(CONF_TEXT_CROP): cv.boolean,
         }
     ).add_extra(cv.has_at_least_one_key(CONF_TEXT, CONF_MERGE_RIGHT, CONF_TEXT_CROP)),
     synchronous=True,
 )
-async def table_cell_update_to_code(config, action_id, template_arg, args):
+async def table_cell_update_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     widgets = await get_widgets(config)
 
     async def do_update(w: Widget):

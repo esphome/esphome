@@ -17,13 +17,10 @@ def test_minimal_config_is_valid() -> None:
     assert TABLE_SCHEMA({}) == {}
 
 
-def test_row_shorthand_expands_to_default_cells() -> None:
+def test_row_shorthand_expands_to_plain_cells() -> None:
     config = TABLE_SCHEMA({"rows": [["Name", "Value"]]})
     [row] = config["rows"]
-    assert row["cells"] == [
-        {"text": "Name", "merge_right": False, "text_crop": False},
-        {"text": "Value", "merge_right": False, "text_crop": False},
-    ]
+    assert row["cells"] == [{"text": "Name"}, {"text": "Value"}]
 
 
 def test_row_dict_form_with_cell_overrides() -> None:
@@ -40,11 +37,7 @@ def test_row_dict_form_with_cell_overrides() -> None:
         }
     )
     [row] = config["rows"]
-    assert row["cells"][0] == {
-        "text": "Temp",
-        "merge_right": False,
-        "text_crop": False,
-    }
+    assert row["cells"][0] == {"text": "Temp"}
     assert row["cells"][1] == {
         "text": "22.5",
         "merge_right": True,
