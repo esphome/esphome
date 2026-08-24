@@ -160,7 +160,6 @@
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
-#define USE_PREFERENCES_SYNC_EVERY_LOOP
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
 // managers do not provide load_from_key(), so the PreferencesKeyLookupContract
