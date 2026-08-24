@@ -13,7 +13,7 @@ regardless of which toolchain consumes the result.
 """
 
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 import glob
 import hashlib
@@ -47,25 +47,34 @@ DEFAULT_BUILD_SRC_FILTER = (
 DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
-SRC_FILE_EXTENSIONS = [
-    ".c",
-    ".cpp",
-    ".cc",
-    ".cxx",
-    ".c++",
-    ".S",
-    ".spp",
-    ".SPP",
-    ".sx",
-    ".s",
-    ".asm",
-    ".ASM",
-]
+# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES);
+# "asm" merges SCons's AS and ASPP sets. Per CXXSUFFIXES .C/.C++ are C++
+# here, even where SCons demotes .C on case-insensitive filesystems.
+SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
+    ".c": "c",
+    ".cpp": "cxx",
+    ".cc": "cxx",
+    ".cxx": "cxx",
+    ".c++": "cxx",
+    ".C": "cxx",
+    ".C++": "cxx",
+    ".S": "asm",
+    ".spp": "asm",
+    ".SPP": "asm",
+    ".sx": "asm",
+    ".s": "asm",
+    ".asm": "asm",
+    ".ASM": "asm",
+}
+SRC_FILE_EXTENSIONS = list(SOURCE_KIND_FOR_SUFFIX)
 
 DOMAIN = "pio_components"
 
 ESPHOME_DATA_KEY = "ESPHOME"
 ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
+# Captured extra-script LINKFLAGS; kept apart from build.flags so they reach
+# the link line (target_link_options), not target_compile_options
+ESPHOME_DATA_LINK_FLAGS_KEY = "LINK_FLAGS"
 
 
 class Source:
@@ -201,6 +210,11 @@ class LocalSource(Source):
 
 class InvalidLibrary(Exception):
     pass
+
+
+class IncompatiblePlatform(InvalidLibrary):
+    """The routine cross-platform skip, typed so callers need not match
+    message text."""
 
 
 class ConvertedLibrary:
@@ -427,17 +441,22 @@ def check_library_data(data: dict, platform: str | None, framework: str):
     if isinstance(platforms, str):
         platforms = [a.strip() for a in platforms.split(",")]
     platforms = ensure_list(platforms)
+    if not all(isinstance(pf, str) for pf in platforms):
+        # A real (non-platform) manifest problem; callers warn, not skip
+        raise InvalidLibrary(f"Malformed platforms value: {platforms!r}")
 
     # Check if library supports the target platform
     valid_platforms = platform is None or "*" in platforms or platform in platforms
 
     if not valid_platforms:
-        raise InvalidLibrary(f"Unsupported library platforms: {platforms}")
+        raise IncompatiblePlatform(f"Unsupported library platforms: {platforms}")
 
     frameworks = data.get("frameworks", "*")
     if isinstance(frameworks, str):
         frameworks = [a.strip() for a in frameworks.split(",")]
     frameworks = ensure_list(frameworks)
+    if not all(isinstance(fw, str) for fw in frameworks):
+        raise InvalidLibrary(f"Malformed frameworks value: {frameworks!r}")
 
     # Check if library declares the active framework. PIO library manifests
     # often list only "arduino" even when the library actually compiles fine
@@ -455,7 +474,7 @@ def check_library_data(data: dict, platform: str | None, framework: str):
         )
 
 
-def _parse_library_json(library_json_path: PathType):
+def parse_library_json(library_json_path: PathType):
     """
     Load and parse a JSON file describing a library.
 
@@ -469,7 +488,7 @@ def _parse_library_json(library_json_path: PathType):
         return json.load(fp)
 
 
-def _parse_library_properties(library_properties_path: PathType):
+def parse_library_properties(library_properties_path: PathType):
     """
     Parse a key-value platformio .properties style file into a dictionary.
 
@@ -553,19 +572,131 @@ def _resolve_registry_version(
     return owner, name, best["name"], pkgfile["download_url"]
 
 
-def _normalize_dependencies(dependencies: Any) -> list[dict]:
+def split_flag_entry(entry: Any, owner: str) -> list[str]:
+    """``shlex.split`` with a clean error naming the offending flags entry."""
+    # Late import: shlex is only needed when actually lexing flags
+    import shlex
+
+    try:
+        return shlex.split(entry)
+    except (ValueError, AttributeError, TypeError) as err:
+        # AttributeError/TypeError: a dict or number from a third-party
+        # manifest; name the entry instead of an opaque shlex traceback
+        raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
+
+
+def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
+    """Shell-lex ``build.flags`` entries the way PlatformIO's ParseFlags
+    does; bare -I/-L/-l/-D tokens re-glue to their argument."""
+    # Lex per entry as ParseFlags does: a dangling -I must warn, not absorb
+    # the next entry's first token
+    return [
+        token
+        for entry in ensure_list(entries)
+        for token in join_flag_args(split_flag_entry(entry, owner), owner)
+    ]
+
+
+# Flags whose argument may follow as a separate token; ParseFlags glues them
+BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
+
+
+def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
+    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token, as
+    PlatformIO's ParseFlags does. A trailing or empty argument is warned and
+    dropped: the bare flag would make gcc eat the next flag."""
+    out: list[str] = []
+    it = iter(tokens)
+    for tok in it:
+        if tok in BARE_ARG_FLAGS:
+            arg = next(it, None)
+            if arg is None:
+                _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)
+                break
+            if not arg:
+                _LOGGER.warning(
+                    "Ignoring '%s' with empty argument in %s build flags", tok, owner
+                )
+                continue
+            tok += arg
+        out.append(tok)
+    return out
+
+
+def warn_properties_depends(name: str, data: object) -> None:
+    """Warn for ``depends=``-only manifests; the walk reads only the JSON
+    ``dependencies`` key, so they would otherwise drop silently."""
+    if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
+        # INFO: common and unactionable for transitive libraries; a WARNING
+        # on every build would train users to ignore the stream
+        _LOGGER.info(
+            "Library %s declares dependencies via library.properties "
+            "depends=, which are not resolved automatically; add them with "
+            "add_library() if needed",
+            name,
+        )
+
+
+def dependency_is_usable(
+    dep: dict, platform: str | None, framework: str, requester: str
+) -> bool:
+    """Compatibility filter for a manifest dependency: platform mismatches
+    skip at debug, any other ``InvalidLibrary`` warns naming the requester."""
+    try:
+        check_library_data(dep, platform, framework)
+    except IncompatiblePlatform as e:
+        _LOGGER.debug("Skip dependency %s of %s: %s", dep.get("name"), requester, e)
+        return False
+    except InvalidLibrary as e:
+        _LOGGER.warning(
+            "Skipping dependency %s of %s: %s", dep.get("name"), requester, e
+        )
+        return False
+    return True
+
+
+def _valid_dependency_entry(entry: dict, manifest_name: str) -> bool:
+    """Whether a normalized entry carries a usable name (non-empty string),
+    version (string, if present), and owner (string, if present); invalid
+    entries warn naming the manifest."""
+    name = entry.get("name")
+    owner = entry.get("owner")
+    name_ok = isinstance(name, str) and name
+    version_ok = "version" not in entry or isinstance(entry["version"], str)
+    owner_ok = owner is None or isinstance(owner, str)
+    if name_ok and version_ok and owner_ok:
+        return True
+    _LOGGER.warning(
+        "Ignoring unrecognized dependency entry %r of %s", entry, manifest_name
+    )
+    return False
+
+
+def normalize_dependencies(
+    dependencies: Any, manifest_name: str = "manifest"
+) -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
-    PIO's library.json accepts both the list-of-dicts form and the shorthand
-    dict form (``{"owner/Name": "version_spec"}``); normalize the latter so
-    callers see a uniform list.
+    PIO's library.json accepts the list-of-dicts form, the shorthand dict
+    form (``{"owner/Name": "version_spec"}``), bare name strings inside the
+    list, and a plain (possibly comma-separated) string; normalize them all
+    so callers see a uniform list. ``manifest_name`` names the manifest in the
+    warning for entries that cannot be normalized.
+
+    Bare-name spellings carry no version; the dependency walk later drops
+    version-less entries at DEBUG, since they are usually names of bundled
+    framework libraries (Wire, SPI) that need no registry install.
     """
-    if not dependencies:
+    if dependencies is None:
         return []
+    if isinstance(dependencies, str):
+        # A plain string is one or more comma-separated names; iterating it
+        # as a list would shred it into one-character "libraries"
+        return [{"name": n.strip()} for n in dependencies.split(",") if n.strip()]
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
-            if "/" in raw_name:
+            if isinstance(raw_name, str) and "/" in raw_name:
                 owner, pkgname = raw_name.split("/", 1)
             else:
                 owner, pkgname = None, raw_name
@@ -574,9 +705,31 @@ def _normalize_dependencies(dependencies: Any) -> list[dict]:
                 entry.update(spec)
             else:
                 entry["version"] = spec
-            normalized.append(entry)
+            if _valid_dependency_entry(entry, manifest_name):
+                normalized.append(entry)
         return normalized
-    return [d for d in dependencies if isinstance(d, dict)]
+    if not isinstance(dependencies, (list, tuple)):
+        _LOGGER.warning(
+            "Ignoring unrecognized dependencies %r of %s",
+            dependencies,
+            manifest_name,
+        )
+        return []
+    normalized = []
+    for entry in dependencies:
+        if isinstance(entry, dict):
+            if _valid_dependency_entry(entry, manifest_name):
+                normalized.append(entry)
+        elif isinstance(entry, str) and entry:
+            # PIO also accepts a bare list of names ("dependencies": ["Wire"])
+            normalized.append({"name": entry})
+        else:
+            _LOGGER.warning(
+                "Ignoring unrecognized dependency entry %r of %s",
+                entry,
+                manifest_name,
+            )
+    return normalized
 
 
 @dataclass
@@ -688,6 +841,24 @@ def _node_key(
     return name, "registry", (owner, pkgname)
 
 
+def lib_ignore_set() -> set[str]:
+    """The ``lib_ignore`` names from ``esphome->platformio_options``,
+    normalized to lowercase short names (the part after the ``/``)."""
+    return {
+        name.split("/")[-1].lower()
+        for name in CORE.platformio_options.get("lib_ignore", [])
+    }
+
+
+def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
+    """Whether ``name`` matches the normalized ``lib_ignore`` set."""
+    return (
+        bool(lib_ignore)
+        and name is not None
+        and (name.split("/")[-1].lower() in lib_ignore)
+    )
+
+
 def convert_libraries(
     libraries: list[Library], backend: LibraryBackend
 ) -> list[ConvertedLibrary]:
@@ -713,10 +884,7 @@ def convert_libraries(
     """
     nodes: dict[str, _LibNode] = {}
 
-    lib_ignore = {
-        name.split("/")[-1].lower()
-        for name in CORE.platformio_options.get("lib_ignore", [])
-    }
+    lib_ignore = lib_ignore_set()
 
     # The generated build files inside the shared cache bake in the dependency
     # wiring, which lib_ignore changes; salt the cache path so configs with
@@ -727,11 +895,6 @@ def convert_libraries(
         if lib_ignore
         else ""
     )
-
-    def is_ignored(name: str | None) -> bool:
-        if not lib_ignore or name is None:
-            return False
-        return name.split("/")[-1].lower() in lib_ignore
 
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
         key, kind, locator = _node_key(name, version, repository)
@@ -781,7 +944,7 @@ def convert_libraries(
     top_level = [
         add_spec(library.name, library.version, library.repository)
         for library in libraries
-        if not is_ignored(library.name)
+        if not is_lib_ignored(library.name, lib_ignore)
     ]
 
     # Collect + resolve to a fixpoint: a node is (re)resolved whenever its
@@ -795,10 +958,8 @@ def convert_libraries(
         key = worklist.popleft()
         node = nodes[key]
 
-        # A node is queued once per referring edge; skip the (uncached) registry
-        # lookup + download + dependency walk unless its requirement set grew
-        # since the last resolve. Requirements only ever grow, so this still
-        # converges the fixpoint and terminates dependency cycles.
+        # Re-resolve only when the requirement set grew; requirements
+        # only ever grow, so the fixpoint converges and cycles terminate
         requirements = frozenset(node.requirements)
         if resolved_requirements.get(key) == requirements:
             continue
@@ -823,11 +984,8 @@ def convert_libraries(
         has_json = library_json_path.is_file()
         has_properties = library_properties_path.is_file()
         if not has_json and not has_properties and not node.is_local:
-            # The shared cache can hold a broken copy (e.g. a clone or an
-            # extraction interrupted by a killed process). Force one
-            # re-download so a bad cache entry self-heals instead of failing
-            # every build until the user runs a full clean. A local source is
-            # read in place, so there is nothing to re-download.
+            # An interrupted clone/extraction self-heals with one forced
+            # re-download; a local source has nothing to re-download
             _LOGGER.warning(
                 "Library %s at %s is missing library.json and library.properties; "
                 "re-downloading",
@@ -838,49 +996,85 @@ def convert_libraries(
             has_json = library_json_path.is_file()
             has_properties = library_properties_path.is_file()
         if has_json:
-            component.data = _parse_library_json(library_json_path)
+            component.data = parse_library_json(library_json_path)
         elif has_properties:
-            component.data = _parse_library_properties(library_properties_path)
+            component.data = parse_library_properties(library_properties_path)
         else:
-            # For a local library a missing manifest is user input, so raise
-            # EsphomeError (clean CLI message) like the missing-directory case;
-            # for registry/git a missing manifest means a corrupt cache, which
-            # is not user error, so keep RuntimeError.
+            # Local sources are user input (EsphomeError); a registry/git
+            # miss means a corrupt cache (RuntimeError)
             error_cls = EsphomeError if node.is_local else RuntimeError
             raise error_cls(
                 f"Invalid PIO library {key}: missing library.json and "
                 f"library.properties in {source_dir}"
             )
 
+        # A bare json.load imposes no shape; every backend dereferences
+        # these fields, so validate once here and name the library
+        malformed = not isinstance(component.data, dict)
+        if not malformed:
+            build = component.data.get("build", {})
+            esphome_data = component.data.get(ESPHOME_DATA_KEY, {})
+            malformed = (
+                not isinstance(build, dict)
+                or not isinstance(esphome_data, dict)
+                or not isinstance(
+                    esphome_data.get(ESPHOME_DATA_LINK_FLAGS_KEY, []), list
+                )
+                or not isinstance(build.get("srcDir", ""), str)
+                or not isinstance(build.get("includeDir", ""), str)
+                or not isinstance(build.get("srcFilter", ""), (str, list))
+            )
+        if malformed:
+            # Fail fast only for a library the user asked for; a defect in
+            # an unrequested corner of the graph must not block the build
+            if key in top_level_keys:
+                raise EsphomeError(f"Library {key} has a malformed manifest")
+            _LOGGER.warning("Skipping dependency %s: malformed manifest", key)
+            continue
+        warn_properties_depends(component.name, component.data)
+
         try:
             check_library_data(component.data, backend.platform, backend.framework)
         except InvalidLibrary as e:
-            # Skip an incompatible transitive dependency, but fail fast if a
-            # top-level library the build explicitly requested is incompatible.
+            # An explicitly requested library fails fast; the routine
+            # cross-platform skip stays at debug, other causes warn
             if key in top_level_keys:
-                raise RuntimeError(
-                    f"Requested library {key} is not compatible with "
-                    f"{backend.framework}: {e}"
-                ) from e
-            _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+                reason = (
+                    f"is not compatible with {backend.framework}"
+                    if isinstance(e, IncompatiblePlatform)
+                    else "has a malformed manifest"
+                )
+                raise RuntimeError(f"Requested library {key} {reason}: {e}") from e
+            if isinstance(e, IncompatiblePlatform):
+                _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            else:
+                _LOGGER.warning("Skipping dependency %s: %s", key, str(e))
             continue
         components[key] = component
 
         # Requirements changed (we got past the short-circuit above), so
         # (re)walk this component's dependencies.
         node.edges = set()
-        for dependency in _normalize_dependencies(component.data.get("dependencies")):
-            if "name" not in dependency or "version" not in dependency:
+        for dependency in normalize_dependencies(
+            component.data.get("dependencies"), component.name
+        ):
+            if "version" not in dependency:
+                # Cannot resolve from the registry; common for bundled
+                # names (Wire, SPI) -- unactionable noise above debug
+                _LOGGER.debug(
+                    "Skip version-less dependency %r of %s",
+                    dependency.get("name"),
+                    component.name,
+                )
                 continue
-            try:
-                check_library_data(dependency, backend.platform, backend.framework)
-            except InvalidLibrary as e:
-                _LOGGER.debug("Skip dependency %s: %s", dependency.get("name"), str(e))
+            if not dependency_is_usable(
+                dependency, backend.platform, backend.framework, component.name
+            ):
                 continue
             dep_name = _owner_pkgname_to_name(
                 dependency.get("owner"), dependency.get("name")
             )
-            if is_ignored(dep_name):
+            if is_lib_ignored(dep_name, lib_ignore):
                 _LOGGER.debug("Skip ignored dependency %s", dep_name)
                 continue
             # The version field may actually be a URL (git/archive dependency).

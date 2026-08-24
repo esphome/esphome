@@ -11,24 +11,28 @@ from pathlib import Path
 import re
 import sys
 import time
+from types import SimpleNamespace
 from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from pytest import CaptureFixture
+import serial
 from zeroconf import ServiceStateChange
 
-from esphome import __main__ as main
+from esphome import __main__ as main, yaml_util
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
+    _should_subscribe_states,
     _split_network_devices,
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
+    _wrap_to_code,
     check_permissions,
     choose_upload_log_host,
     command_analyze_memory,
@@ -67,19 +71,21 @@ from esphome.__main__ import (
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
-from esphome.components import esp32, esp8266
+from esphome.components import esp32, esp8266, mqtt
 from esphome.components.esp32 import (
     KEY_ESP32,
     KEY_VARIANT,
     VARIANT_ESP32,
     get_esp32_variant,
 )
+from esphome.config import Config
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
     CONF_ESPHOME,
     CONF_LEVEL,
     CONF_LOG,
@@ -101,6 +107,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -116,6 +123,7 @@ from esphome.espota2 import (
     OTA_TYPE_UPDATE_PARTITION_TABLE,
 )
 from esphome.platformio import toolchain
+from esphome.types import ConfigType
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -564,8 +572,6 @@ def test_command_config__no_defaults_dumps_user_snapshot(
 ) -> None:
     """``--no-defaults`` dumps ``config.user_config`` instead of the
     validated config, so schema defaults don't leak into the output."""
-    from esphome.config import Config
-
     setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
     args = MockArgs()
     args.show_secrets = True
@@ -618,8 +624,6 @@ def test_command_config__no_defaults_skips_strip_default_ids(
 ) -> None:
     """When ``--no-defaults`` is set, ``strip_default_ids`` isn't run --
     the user snapshot is already free of schema-injected IDs."""
-    from esphome.config import Config
-
     setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
     args = MockArgs()
     args.show_secrets = True
@@ -3437,9 +3441,6 @@ def test_get_port_type() -> None:
 
 def test_mqtt_reexports_discover_ip() -> None:
     """The old import path must keep working for external code."""
-    from esphome.components import mqtt
-    from esphome.const import CONF_DISCOVER_IP
-
     assert mqtt.CONF_DISCOVER_IP is CONF_DISCOVER_IP
 
 
@@ -5906,8 +5907,6 @@ class MockSerial:
             chunk = self.chunks[self.chunk_index]
             if chunk is MOCK_SERIAL_END:
                 # Sentinel means we're done - simulate port closed
-                import serial
-
                 raise serial.SerialException("Port closed")
             # Respect the requested size and keep any remaining bytes
             if size <= 0:
@@ -5921,8 +5920,6 @@ class MockSerial:
                 # Entire chunk consumed; advance to the next one
                 self.chunk_index += 1
             return data  # type: ignore[return-value]
-        import serial
-
         raise serial.SerialException("Port closed")
 
 
@@ -6781,8 +6778,6 @@ def test_parse_args_argcomplete_only_runs_when_completing() -> None:
 
 def test_should_subscribe_states_default() -> None:
     """Test that states are shown by default when nothing is set."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "device.yaml"])
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("ESPHOME_LOG_STATES", None)
@@ -6791,8 +6786,6 @@ def test_should_subscribe_states_default() -> None:
 
 def test_should_subscribe_states_env_suppresses() -> None:
     """Test that ESPHOME_LOG_STATES=false suppresses states by default."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
         assert _should_subscribe_states(args) is False
@@ -6800,8 +6793,6 @@ def test_should_subscribe_states_env_suppresses() -> None:
 
 def test_should_subscribe_states_env_enables() -> None:
     """Test that ESPHOME_LOG_STATES=true enables states by default."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
         assert _should_subscribe_states(args) is True
@@ -6809,8 +6800,6 @@ def test_should_subscribe_states_env_enables() -> None:
 
 def test_should_subscribe_states_flag_overrides_env() -> None:
     """Test that --states overrides ESPHOME_LOG_STATES=false."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "--states", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
         assert _should_subscribe_states(args) is True
@@ -6818,8 +6807,6 @@ def test_should_subscribe_states_flag_overrides_env() -> None:
 
 def test_should_subscribe_states_no_flag_overrides_env() -> None:
     """Test that --no-states overrides ESPHOME_LOG_STATES=true."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
         assert _should_subscribe_states(args) is False
@@ -7130,3 +7117,104 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
 
     # Same tree, so the path comparison still finds them equal and stays silent
     assert not caplog.text
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        FileNotFoundError("no such compiler"),
+        RuntimeError("Could not query builtin include dirs"),
+        ValueError("no C++ translation unit found"),
+        KeyError("command"),
+        None,  # replaced with EsphomeError inside
+    ],
+)
+def test_compile_program_espidf_idedata_failure_does_not_fail_build(
+    error: Exception,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A post-compile idedata error is a warning: the firmware already built."""
+    if error is None:
+        error = EsphomeError("compile database is unusable")
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch("esphome.espidf.toolchain.get_idedata", side_effect=error),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "Could not generate idedata" in caplog.text
+
+
+def test_compile_program_espidf_idedata_success_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The healthy path: idedata generated, nothing to warn about."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch("esphome.espidf.toolchain.get_idedata", return_value={"cc_path": "x"}),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "idedata" not in caplog.text
+
+
+def test_compile_program_espidf_idedata_none_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A silent None from the post-compile idedata refresh is made visible."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch("esphome.espidf.toolchain.get_idedata", return_value=None),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "No idedata was generated" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
+    """The config comment dumps with sorted keys: voluptuous fills schema
+    defaults in set-iteration order, so an unsorted dump would churn
+    main.cpp and relink the firmware on every run."""
+    comments: list[str] = []
+
+    async def to_code(conf: ConfigType) -> None:
+        """Accept any config; only the wrapper's comment output matters."""
+
+    comp = SimpleNamespace(to_code=to_code, config_schema=object())
+    wrapped = _wrap_to_code("demo", comp, yaml_util)
+    with patch("esphome.codegen.add", side_effect=lambda st: comments.append(str(st))):
+        # Nested on purpose: the real churn lives in nested action configs,
+        # so sorting must apply at every mapping level
+        await wrapped({"beta": 1, "alpha": {"z": 1, "a": 2}})
+        first = "\n".join(comments)
+        comments.clear()
+        await wrapped({"alpha": {"a": 2, "z": 1}, "beta": 1})
+    second = "\n".join(comments)
+    assert first == second
+    assert second.index("alpha") < second.index("beta")
+    assert second.index("a: 2") < second.index("z: 1")

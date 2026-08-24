@@ -11,6 +11,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@habbie"]
 DEPENDENCIES = ["uart"]
@@ -40,7 +41,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_interval_uart(config):
+def validate_interval_uart(config: ConfigType) -> None:
     interval = config.get(CONF_UPDATE_INTERVAL)
     uart.final_validate_device_schema(
         "pm1006",
@@ -53,7 +54,7 @@ def validate_interval_uart(config):
 FINAL_VALIDATE_SCHEMA = validate_interval_uart
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

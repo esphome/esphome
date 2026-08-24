@@ -118,6 +118,14 @@ enum class FrameState : uint8_t {
 };
 
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
+// The queue entry stores this struct whole, so a new field arrives at the queue with no plumbing -
+// but it arrives inert. Every new field must define three rules before it does anything:
+//   1. normalization in queue_pdu() (is it valid for this function code? e.g. continuous is
+//      stripped for mutating codes),
+//   2. a merge rule for when a duplicate send absorbs into a live entry (continuous
+//      upgrades/downgrades via make_continuous(); a new field needs its own answer),
+//   3. teardown: retire() resets the whole struct; silent_retire() leaves it, relying on the sweep
+//      to erase the entry.
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
   bool continuous{false};
@@ -126,26 +134,29 @@ struct CommandOptions {
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
-  FrameState state{FrameState::READY};
-  // A continuous poll is a subscription: pending fixed at 1, removed only by cancellation or failure.
-  bool continuous{false};
-  // Accepted requests this entry stands for, capped at max_pending(); drains one terminal each.
-  uint8_t pending{1};
   // Place-in-line stamp (hub's free-running counter); selection takes the oldest for round-robin
-  // fairness within a class. Meant to wrap.
+  // fairness within a class. Meant to wrap. Declared ahead of the byte fields so the tail packs
+  // densely and a growing CommandOptions eats trailing padding before enlarging the struct.
   uint16_t seq{0};
+  FrameState state{FrameState::READY};
+  // Accepted requests this entry stands for, capped at max_pending(); drains one terminal each.
+  // A continuous poll is a subscription: pending fixed at 1, removed only by cancellation or failure.
+  uint8_t pending{1};
+  // The entry's LIVE effective options, not a record of the caller's request: queue_pdu() normalizes
+  // before storing, duplicate absorption mutates continuous via make_continuous(), and retire() resets
+  // the struct (silent_retire() leaves it, relying on the sweep to erase the entry). See the
+  // CommandOptions comment for the rules a new field must define.
+  CommandOptions options;
 
-  // Build a command from a PDU span (caller bounds it to MAX_PDU_SIZE); fully initialized here.
+  // Build a command from a PDU span (caller bounds it to MAX_PDU_SIZE) and pre-normalized options;
+  // fully initialized here.
   ModbusDeviceCommand(ModbusClientDevice *device, uint8_t address, std::span<const uint8_t> pdu,
-                      bool continuous = false, uint16_t seq = 0)
-      : device(device),
-        frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())),
-        continuous(continuous),
-        seq(seq) {}
+                      CommandOptions options = {}, uint16_t seq = 0)
+      : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())), seq(seq), options(options) {}
 
   // Transmit ordering class, derived (never stored): a continuous poll ranks below every one-shot.
   CommandPriority priority() const {
-    return this->continuous ? CommandPriority::CONTINUOUS : classify(this->frame.pdu()[0]);
+    return this->options.continuous ? CommandPriority::CONTINUOUS : classify(this->frame.pdu()[0]);
   }
   // Wire-derived class: mutating codes rank WRITE; exception-flagged codes are excluded.
   static CommandPriority classify(uint8_t function_code) {
@@ -161,7 +172,7 @@ struct ModbusDeviceCommand {
   uint8_t max_pending() const {
     const uint8_t fc = this->frame.pdu()[0];
     const bool requeueable = !helpers::is_function_code_exception(fc) && helpers::is_function_code_read_only(fc);
-    return (requeueable && !this->continuous) ? 2 : 1;
+    return (requeueable && !this->options.continuous) ? 2 : 1;
   }
   // Device-scoped clear: detach with no callback (device-less, pending 0). An entry still waiting for
   // a response keeps its state as a reply-ignoring shell that resolves silently; any other goes RETIRED.
@@ -196,11 +207,11 @@ struct ModbusDeviceCommand {
   // retroactively inflating that no-op.
   void make_continuous(bool continuous) {
     if (continuous) {
-      this->continuous = true;
+      this->options.continuous = true;
       this->pending = 1;
     } else {
       this->increment_pending();
-      this->continuous = false;
+      this->options.continuous = false;
     }
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-run
@@ -218,7 +229,7 @@ struct ModbusDeviceCommand {
     } else if (!this->waiting_state()) {  // an already-retired shell stays put; off the wire -> RETIRED
       this->state = FrameState::RETIRED;
     }
-    this->continuous = false;
+    this->options = {};  // reset every option so a future field is torn down without editing here
   }
 
   // True while the entry is still waiting for a response; the erase pass exempts these even at pending 0.
@@ -253,6 +264,9 @@ struct ModbusDeviceCommand {
   bool notify_retired();
 
   /// True if this command carries the same wire frame (address + PDU) as the given one.
+  /// Cancellation matches the exact frame, not the action instance: a continuous poll whose
+  /// start_address (or other field) is templated produces one poll per distinct frame, and a later
+  /// cancel built from different argument values will not reach the polls it does not byte-match.
   bool same_frame(uint8_t address, std::span<const uint8_t> pdu) const {
     const auto own_pdu = this->frame.pdu();
     return own_pdu.size() == pdu.size() && this->frame.address() == address &&
@@ -618,9 +632,6 @@ class ModbusClientDevice {
   inline void clear_tx_queue_for_address() { this->parent_->clear_tx_queue_for_address(this->address_); }
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
-  // If more than one device is connected block sending a new command before a response is received
-  ESPDEPRECATED("Use ready_for_immediate_send() instead. Removed in 2026.9.0", "2026.3.0")
-  bool waiting_for_response() { return !this->ready_for_immediate_send(); }
   bool ready_for_immediate_send() { return this->parent_->tx_buffer_empty() && !this->parent_->tx_blocked(); }
 
  protected:
