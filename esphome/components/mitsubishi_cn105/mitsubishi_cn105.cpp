@@ -131,9 +131,10 @@ bool MitsubishiCN105::should_transition(State from, State to) {
     case State::READ_TIMEOUT:
       return from == State::UPDATING_STATUS || from == State::APPLYING_SETTINGS || from == State::CONNECTING;
 
-    default:
+    case State::NOT_CONNECTED:
       return false;
   }
+  return false;
 }
 
 void MitsubishiCN105::did_transition_(State to) {

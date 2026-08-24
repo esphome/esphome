@@ -491,6 +491,36 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   EXPECT_EQ(ctx.sut.status_update_wait_credit_ms_, 0);
 }
 
+TEST(MitsubishiCN105Tests, PendingSettingsTakePriorityOverDueTelemetry) {
+  MitsubishiCN105TestsContext ctx;
+
+  ctx.sut.status_.target_temperature = 24.0f;
+  ctx.sut.status_.room_temperature = 21.0f;
+  ASSERT_TRUE(ctx.sut.is_status_initialized());
+
+  ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
+  ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
+  ctx.sut.set_current_time(1000);
+  ASSERT_FALSE(ctx.sut.update());
+  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
+  ctx.uart.tx.clear();
+
+  ctx.sut.set_power(true);
+  ctx.uart.push_rx({0xFC, 0x62, 0x01, 0x30, 0x10, 0x02, 0x00, 0x00, 0x00, 0x08, 0x07,
+                    0x00, 0x04, 0x00, 0x00, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x3C});
+
+  ctx.sut.set_current_time(1001);
+  ASSERT_TRUE(ctx.sut.update());
+  EXPECT_TRUE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  ctx.sut.set_current_time(1002);
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x01, 0x01, 0x00, 0x01, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7B));
+}
+
 TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
   MitsubishiCN105TestsContext ctx;
 
