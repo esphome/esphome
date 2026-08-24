@@ -1310,6 +1310,43 @@ def test_generate_ld_scripts_corrupt_output_is_overwritten(tmp_path: Path) -> No
     assert "SECTIONS" in output.read_text(encoding="utf-8")
 
 
+def test_generate_ld_scripts_non_utf8_output_raises(tmp_path: Path) -> None:
+    """A non-UTF-8 byte in the preprocessed script fails by header name; a
+    U+FFFD-mangled script must never be cached as valid."""
+    paths = _make_framework(tmp_path)
+    result = _ok_result(stdout=b"SECTIONS { }\xff\xfe")
+    with (
+        patch.object(arduino8266.subprocess, "run", return_value=result),
+        pytest.raises(EsphomeError, match="is not UTF-8"),
+    ):
+        _run_generate_ld_scripts(paths)
+
+
+def test_generate_ld_scripts_note_read_race_still_warns(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A note that turns unreadable between the digest check and the
+    re-emit read (TOCTOU) warns by path instead of dropping silently."""
+    paths = _make_framework(tmp_path)
+    result = _ok_result(stderr="warn!")
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    orig = Path.read_text
+
+    def flaky(self, *args, **kwargs):
+        if self.name.endswith(".stderr"):
+            raise OSError("EIO")
+        return orig(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", flaky)
+    caplog.clear()
+    with patch.object(arduino8266.subprocess, "run", return_value=result):
+        _run_generate_ld_scripts(paths)
+    assert "could not be read" in caplog.text
+
+
 @pytest.mark.parametrize("damage", ["corrupt", "remove"])
 def test_generate_ld_scripts_damaged_note_invalidates_cache(
     tmp_path: Path, caplog: pytest.LogCaptureFixture, damage: str
