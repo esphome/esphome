@@ -68,6 +68,10 @@ bool SdStorageBase::build_full_path_(const char *rel_path, char *buf, size_t buf
 }
 
 bool SdStorageBase::build_fatfs_path_(const char *rel_path, char *buf, size_t buf_size) const {
+  // No drive string means the pdrv lookup failed at mount time. An empty prefix would not
+  // fail here -- FatFs reads "/dir/file" as the DEFAULT volume, i.e. silently another card.
+  if (this->fatfs_drive_[0] == '\0')
+    return false;
   StringRef drive_ref(this->fatfs_drive_);
   StringRef rel_ref(rel_path);
   bool needs_sep = rel_ref.empty() || rel_ref[0] != '/';
