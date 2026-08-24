@@ -3053,7 +3053,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
         raise EsphomeError(
             f"'{CONF_ENABLE_EXFAT}' requires the esp-idf toolchain: the FatFs sources are "
             "copied from the esp-idf install, which is the only framework tree that actually "
-            "builds the project. Use 'framework: type: esp-idf', or unset enable_exfat."
+            "builds the project. Use 'toolchain: esp-idf', or unset enable_exfat."
         )
     if (
         marker.is_file()
