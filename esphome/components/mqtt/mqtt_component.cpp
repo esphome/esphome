@@ -340,10 +340,6 @@ bool MQTTComponent::send_discovery_() {
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-uint8_t MQTTComponent::get_qos() const { return this->qos_; }
-
-bool MQTTComponent::get_retain() const { return this->retain_; }
-
 bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
 }
