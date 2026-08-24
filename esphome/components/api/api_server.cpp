@@ -174,12 +174,12 @@ void APIServer::loop() {
     auto &client = this->clients_[client_index];
 
     // Common case: process active client
-    if (!client->flags_.remove) {
+    if (!client->remove_) {
       client->loop();
     }
     // Handle disconnection promptly - close socket to free LWIP PCB
     // resources and prevent retransmit crashes on ESP8266.
-    if (client->flags_.remove) {
+    if (client->remove_) {
       // Rare case: handle disconnection (don't increment - swapped element needs processing)
       this->remove_client_(client_index);
     } else {
@@ -292,7 +292,7 @@ void APIServer::handle_disconnect(APIConnection *conn) {}
     if (obj->is_internal()) \
       return; \
     for (auto &c : this->active_clients()) { \
-      if (c->flags_.state_subscription) \
+      if (c->state_subscription_) \
         c->send_##entity_name##_state(obj); \
     } \
   }
@@ -374,7 +374,7 @@ void APIServer::on_event(event::Event *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->active_clients()) {
-    if (c->flags_.state_subscription)
+    if (c->state_subscription_)
       c->send_event(obj);
   }
 }
@@ -386,7 +386,7 @@ void APIServer::on_update(update::UpdateEntity *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->active_clients()) {
-    if (c->flags_.state_subscription)
+    if (c->state_subscription_)
       c->send_update_state(obj);
   }
 }
@@ -639,7 +639,7 @@ bool APIServer::clear_noise_psk(bool make_active) {
 #ifdef USE_HOMEASSISTANT_TIME
 void APIServer::request_time() {
   for (auto &client : this->active_clients()) {
-    if (!client->flags_.remove && client->is_authenticated()) {
+    if (!client->remove_ && client->is_authenticated()) {
       client->send_time_request();
       return;  // Only request from one client to avoid clock conflicts
     }
@@ -649,7 +649,7 @@ void APIServer::request_time() {
 
 bool APIServer::is_connected_with_state_subscription() const {
   for (uint8_t i = 0; i < this->api_connection_count_; i++) {
-    if (this->clients_[i]->flags_.state_subscription) {
+    if (this->clients_[i]->state_subscription_) {
       return true;
     }
   }
@@ -665,7 +665,7 @@ void APIServer::on_log(uint8_t level, const char *tag, const char *message, size
     return;
   }
   for (auto &c : this->active_clients()) {
-    if (!c->flags_.remove && c->get_log_subscription_level() >= level)
+    if (!c->remove_ && c->get_log_subscription_level() >= level)
       c->try_send_log_message(level, tag, message, message_len);
   }
 }
@@ -674,7 +674,7 @@ void APIServer::on_log(uint8_t level, const char *tag, const char *message, size
 #ifdef USE_CAMERA
 void APIServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &image) {
   for (auto &c : this->active_clients()) {
-    if (!c->flags_.remove)
+    if (!c->remove_)
       c->set_camera_state(image);
   }
 }

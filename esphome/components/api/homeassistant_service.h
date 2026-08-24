@@ -106,9 +106,7 @@ template<typename... Ts> using ActionResponseCallback = std::function<void(const
 
 template<typename... Ts> class HomeAssistantServiceCallAction final : public Action<Ts...> {
  public:
-  explicit HomeAssistantServiceCallAction(APIServer *parent, bool is_event) : parent_(parent) {
-    this->flags_.is_event = is_event;
-  }
+  explicit HomeAssistantServiceCallAction(APIServer *parent, bool is_event) : parent_(parent), is_event_(is_event) {}
 
   template<typename T> void set_service(T service) { this->service_ = service; }
 
@@ -148,11 +146,11 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   template<typename T> void set_response_template(T response_template) {
     this->response_template_ = response_template;
-    this->flags_.has_response_template = true;
+    this->has_response_template_ = true;
   }
 
-  void set_wants_status() { this->flags_.wants_status = true; }
-  void set_wants_response() { this->flags_.wants_response = true; }
+  void set_wants_status() { this->wants_status_ = true; }
+  void set_wants_response() { this->wants_response_ = true; }
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
   Trigger<JsonObjectConst, Ts...> *get_success_trigger_with_response() { return &this->success_trigger_with_response_; }
@@ -165,7 +163,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
     HomeassistantActionRequest resp;
     std::string service_value = this->service_.value(x...);
     resp.service = StringRef(service_value);
-    resp.is_event = this->flags_.is_event;
+    resp.is_event = this->is_event_;
 
     // Local storage for lambda-evaluated strings - lives until after send
     FixedVector<std::string> data_storage;
@@ -181,16 +179,16 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
     // IMPORTANT: Declare at outer scope so it lives until send_homeassistant_action returns.
     std::string response_template_value;
 #endif
-    if (this->flags_.wants_status) {
+    if (this->wants_status_) {
       // Generate a unique call ID for this service call
       static uint32_t call_id_counter = 1;
       uint32_t call_id = call_id_counter++;
       resp.call_id = call_id;
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-      if (this->flags_.wants_response) {
+      if (this->wants_response_) {
         resp.wants_response = true;
         // Set response template if provided
-        if (this->flags_.has_response_template) {
+        if (this->has_response_template_) {
           response_template_value = this->response_template_.value(x...);
           resp.response_template = StringRef(response_template_value);
         }
@@ -203,7 +201,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
             [this, &response](auto &&...args) {
               if (response.is_success()) {
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-                if (this->flags_.wants_response) {
+                if (this->wants_response_) {
                   this->success_trigger_with_response_.trigger(response.get_json(), args...);
                 } else
 #endif
@@ -300,13 +298,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
   Trigger<std::string, Ts...> error_trigger_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
-  struct Flags {
-    uint8_t is_event : 1;
-    uint8_t wants_status : 1;
-    uint8_t wants_response : 1;
-    uint8_t has_response_template : 1;
-    uint8_t reserved : 5;
-  } flags_{0};
+  bool is_event_ : 1 {false};
+  bool wants_status_ : 1 {false};
+  bool wants_response_ : 1 {false};
+  bool has_response_template_ : 1 {false};
 };
 
 }  // namespace esphome::api

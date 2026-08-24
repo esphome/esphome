@@ -251,10 +251,10 @@ void APIConnection::begin_iterator_(ActiveIterator type) {
 }
 
 void APIConnection::loop() {
-  if (this->flags_.next_close) {
+  if (this->next_close_) {
     // requested a disconnect - don't close socket here, let APIServer::loop() do it
     // so getpeername() still works for the disconnect trigger
-    this->flags_.remove = true;
+    this->remove_ = true;
     return;
   }
 
@@ -271,8 +271,8 @@ void APIConnection::loop() {
   // messages share a TCP segment, the last message's data stays in LWIP's
   // lastdata cache after rcvevent hits 0, making is_socket_ready() return false
   // even though data remains.
-  if (this->helper_->is_socket_ready() || this->flags_.may_have_remaining_data) {
-    this->flags_.may_have_remaining_data = false;
+  if (this->helper_->is_socket_ready() || this->may_have_remaining_data_) {
+    this->may_have_remaining_data_ = false;
     // Read up to MAX_MESSAGES_PER_LOOP messages per loop to improve throughput
     uint8_t message_count = 0;
     for (; message_count < MAX_MESSAGES_PER_LOOP; message_count++) {
@@ -302,19 +302,19 @@ void APIConnection::loop() {
         }
         // read a packet
         this->read_message_(buffer.data_len, buffer.type, buffer.data);
-        if (this->flags_.remove)
+        if (this->remove_)
           return;
       }
     }
     // If we hit the limit, there may be more data remaining in LWIP's
     // lastdata cache that rcvevent doesn't account for.
     if (message_count == MAX_MESSAGES_PER_LOOP) {
-      this->flags_.may_have_remaining_data = true;
+      this->may_have_remaining_data_ = true;
     }
   }
 
   // Process deferred batch if scheduled and timer has expired
-  if (this->flags_.batch_scheduled && now - this->deferred_batch_.batch_start_time >= this->get_batch_delay_ms_()) {
+  if (this->batch_scheduled_ && now - this->deferred_batch_.batch_start_time >= this->get_batch_delay_ms_()) {
     this->process_batch_();
   }
 
@@ -353,23 +353,23 @@ void APIConnection::loop() {
 
 void APIConnection::check_keepalive_(uint32_t now) {
   // Caller guarantees: now - last_traffic_ > KEEPALIVE_TIMEOUT_MS
-  if (this->flags_.sent_ping) {
+  if (this->sent_ping_) {
     // Disconnect if not responded within 2.5*keepalive
     if (now - this->last_traffic_ > KEEPALIVE_DISCONNECT_TIMEOUT) {
       on_fatal_error();
       this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("is unresponsive; disconnecting"));
     }
-  } else if (!this->flags_.remove) {
+  } else if (!this->remove_) {
     // Only send ping if we're not disconnecting
     ESP_LOGVV(TAG, "Sending keepalive PING");
     PingRequest req;
-    this->flags_.sent_ping = this->send_message(req);
-    if (!this->flags_.sent_ping) {
+    this->sent_ping_ = this->send_message(req);
+    if (!this->sent_ping_) {
       // If we can't send the ping request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       ESP_LOGW(TAG, "Buffer full, ping queued");
       this->schedule_message_front_(nullptr, PingRequest::MESSAGE_TYPE, PingRequest::ESTIMATED_SIZE);
-      this->flags_.sent_ping = true;  // Mark as sent to avoid scheduling multiple pings
+      this->sent_ping_ = true;  // Mark as sent to avoid scheduling multiple pings
     }
   }
 }
@@ -379,7 +379,7 @@ void APIConnection::process_active_iterator_() {
   if (this->active_iterator_ == ActiveIterator::LIST_ENTITIES) {
     if (this->iterator_storage_.list_entities.completed()) {
       this->destroy_active_iterator_();
-      if (this->flags_.state_subscription) {
+      if (this->state_subscription_) {
         this->begin_iterator_(ActiveIterator::INITIAL_STATE);
       } else {
         this->finalize_iterator_sync_();
@@ -405,7 +405,7 @@ void APIConnection::finalize_iterator_sync_() {
     this->process_batch_();
   }
   // Enable immediate sending for future state changes
-  this->flags_.should_try_send_immediately = true;
+  this->should_try_send_immediately_ = true;
   // Release excess memory from buffers that grew during initial sync
   this->deferred_batch_.release_buffer();
   this->helper_->release_buffers();
@@ -430,14 +430,14 @@ bool APIConnection::send_disconnect_response_() {
   // don't close yet, we still need to send the disconnect response
   // close will happen on next loop
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("disconnected"));
-  this->flags_.next_close = true;
+  this->next_close_ = true;
   DisconnectResponse resp;
   return this->send_message(resp);
 }
 void APIConnection::on_disconnect_response() {
   // Don't close socket here, let APIServer::loop() do it
   // so getpeername() still works for the disconnect trigger
-  this->flags_.remove = true;
+  this->remove_ = true;
 }
 
 uint16_t APIConnection::fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
@@ -1163,7 +1163,7 @@ void APIConnection::try_send_camera_image_() {
   }
 }
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
-  if (!this->flags_.state_subscription)
+  if (!this->state_subscription_)
     return;
   if (this->image_reader_ && this->image_reader_->available())
     return;
@@ -1719,11 +1719,11 @@ bool APIConnection::try_send_log_message(int level, const char *tag, const char 
 
 void APIConnection::complete_authentication_() {
   // Early return if already authenticated
-  if (this->flags_.connection_state == static_cast<uint8_t>(ConnectionState::AUTHENTICATED)) {
+  if (this->is_authenticated()) {
     return;
   }
 
-  this->flags_.connection_state = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
+  this->connection_state_ = static_cast<uint8_t>(ConnectionState::AUTHENTICATED);
   // Reset traffic timer so keepalive starts from authentication, not connection start
   this->last_traffic_ = App.get_loop_component_start_time();
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("connected"));
@@ -2082,7 +2082,7 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 bool APIConnection::send_homeassistant_action(const HomeassistantActionRequest &call) {
-  if (!this->flags_.service_call_subscription)
+  if (!this->service_call_subscription_)
     return false;
   if (!this->send_message(call)) {
     API_LOG_MSG_DROPPED(TAG, "Action request");
@@ -2237,7 +2237,7 @@ void APIConnection::on_no_setup_connection() {
 void APIConnection::on_fatal_error() {
   // Don't close socket here - keep it open so getpeername() works for logging
   // Socket will be closed when client is removed from the list in APIServer::loop()
-  this->flags_.remove = true;
+  this->remove_ = true;
 }
 
 bool APIConnection::schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
@@ -2263,8 +2263,8 @@ bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type
 }
 
 bool APIConnection::schedule_batch_() {
-  if (!this->flags_.batch_scheduled) {
-    this->flags_.batch_scheduled = true;
+  if (!this->batch_scheduled_) {
+    this->batch_scheduled_ = true;
     this->deferred_batch_.batch_start_time = App.get_loop_component_start_time();
   }
   return true;
@@ -2272,7 +2272,7 @@ bool APIConnection::schedule_batch_() {
 
 void APIConnection::process_batch_() {
   if (this->deferred_batch_.empty()) {
-    this->flags_.batch_scheduled = false;
+    this->batch_scheduled_ = false;
     return;
   }
 
@@ -2422,7 +2422,7 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
 // Switch assigns function pointer, single call site for smaller code size
 uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size,
                                           bool batch_first) {
-  this->flags_.batch_first_message = batch_first;
+  this->batch_first_message_ = batch_first;
   this->batch_message_type_ = item.message_type;
 #ifdef USE_EVENT
   // Events need aux_data_index to look up event type from entity

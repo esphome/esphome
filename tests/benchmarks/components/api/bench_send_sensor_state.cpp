@@ -12,7 +12,7 @@
 namespace esphome::api {
 
 // Friend functions declared in APIConnection for benchmark access.
-void bench_enable_immediate_send(APIConnection *conn) { conn->flags_.should_try_send_immediately = true; }
+void bench_enable_immediate_send(APIConnection *conn) { conn->should_try_send_immediately_ = true; }
 void bench_clear_batch(APIConnection *conn) { conn->clear_batch_(); }
 void bench_process_batch(APIConnection *conn) { conn->process_batch_(); }
 

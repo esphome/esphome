@@ -259,7 +259,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_disconnect_response();
   void on_ping_response() {
     // we initiated ping
-    this->flags_.sent_ping = false;
+    this->sent_ping_ = false;
   }
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_home_assistant_state_response(const HomeAssistantStateResponse &msg);
@@ -274,7 +274,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_device_capabilities_request();
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
-    this->flags_.state_subscription = true;
+    this->state_subscription_ = true;
     // Start initial state iterator only if no iterator is active
     // If list_entities is running, we'll start initial_state when it completes
     if (this->active_iterator_ == ActiveIterator::NONE) {
@@ -282,7 +282,7 @@ class APIConnection final : public APIServerConnectionBase {
     }
   }
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
-    this->flags_.log_subscription = msg.level;
+    this->log_subscription_ = msg.level;
     if (msg.dump_config)
       App.schedule_dump_config();
 #ifdef USE_ESP32_CRASH_HANDLER
@@ -297,7 +297,7 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-  void on_subscribe_homeassistant_services_request() { this->flags_.service_call_subscription = true; }
+  void on_subscribe_homeassistant_services_request() { this->service_call_subscription_ = true; }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
   void on_subscribe_home_assistant_states_request();
@@ -317,14 +317,14 @@ class APIConnection final : public APIServerConnectionBase {
 #endif
 
   bool is_authenticated() {
-    return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
+    return static_cast<ConnectionState>(this->connection_state_) == ConnectionState::AUTHENTICATED;
   }
   bool is_connection_setup() {
-    return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
+    return static_cast<ConnectionState>(this->connection_state_) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
-  bool is_marked_for_removal() const { return this->flags_.remove; }
-  uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
+  bool is_marked_for_removal() const { return this->remove_; }
+  uint8_t get_log_subscription_level() const { return this->log_subscription_; }
 
   // Get client API version for feature detection
   bool client_supports_api_version(uint16_t major, uint16_t minor) const {
@@ -368,7 +368,7 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   bool try_to_clear_buffer(bool log_out_of_space) {
-    if (this->flags_.remove)
+    if (this->remove_)
       return false;
     if (this->helper_->can_write_without_blocking())
       return true;
@@ -735,36 +735,29 @@ class APIConnection final : public APIServerConnectionBase {
     AUTHENTICATED = 2,
   };
 
-  // Group 5: Pack all small members together to minimize padding
-  // This group starts at a 4-byte boundary after DeferredBatch
-  struct APIFlags {
-    // Connection state only needs 2 bits (3 states)
-    uint8_t connection_state : 2;
-    // Log subscription needs 3 bits (log levels 0-7)
-    uint8_t log_subscription : 3;
-    // Boolean flags (1 bit each)
-    uint8_t remove : 1;
-    uint8_t state_subscription : 1;
-    uint8_t sent_ping : 1;
-
-    uint8_t service_call_subscription : 1;
-    uint8_t next_close : 1;
-    uint8_t batch_scheduled : 1;
-    uint8_t batch_first_message : 1;          // For batch buffer allocation
-    uint8_t should_try_send_immediately : 1;  // True after initial states are sent
-    uint8_t may_have_remaining_data : 1;      // Read loop hit limit, retry without ready check
+  // Group 5: bit-packed small state (2 bytes), followed by the 2-byte and 1-byte members
+  uint8_t connection_state_ : 2 {0};  // ConnectionState, 3 values
+  uint8_t log_subscription_ : 3 {0};  // log levels 0-7
+  bool remove_ : 1 {false};
+  bool state_subscription_ : 1 {false};
+  bool sent_ping_ : 1 {false};
+  bool service_call_subscription_ : 1 {false};
+  bool next_close_ : 1 {false};
+  bool batch_scheduled_ : 1 {false};
+  bool batch_first_message_ : 1 {false};          // For batch buffer allocation
+  bool should_try_send_immediately_ : 1 {false};  // True after initial states are sent
+  bool may_have_remaining_data_ : 1 {false};      // Read loop hit limit, retry without ready check
 #ifdef HAS_PROTO_MESSAGE_DUMP
-    uint8_t log_only_mode : 1;
+  bool log_only_mode_ : 1 {false};
 #endif
-  } flags_{};  // 2 bytes total
 
-  // 2-byte types immediately after flags_ (no padding between them)
+  // 2-byte types immediately after the bit-fields (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
   // 1-byte types to fill remaining space before next 4-byte boundary
   ActiveIterator active_iterator_{ActiveIterator::NONE};
   uint8_t batch_message_type_{0};  // Current message type during batch encoding
-  // Total: 2 (flags) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
+  // Total: 2 (bit-fields) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
 
   // Actual header size used by encode_to_buffer for the current message.
   // Read by process_batch_multi_ to pass into MessageInfo.
@@ -791,7 +784,7 @@ class APIConnection final : public APIServerConnectionBase {
       __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
-    this->flags_.batch_scheduled = false;
+    this->batch_scheduled_ = false;
   }
 
   // Dispatch message encoding based on message_type - replaces function pointer storage
@@ -800,9 +793,9 @@ class APIConnection final : public APIServerConnectionBase {
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void log_batch_item_(const DeferredBatch::BatchItem &item) {
-    this->flags_.log_only_mode = true;
+    this->log_only_mode_ = true;
     this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true);
-    this->flags_.log_only_mode = false;
+    this->log_only_mode_ = false;
   }
 #endif
 
@@ -821,7 +814,7 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_EVENT
         message_type == EventResponse::MESSAGE_TYPE ||
 #endif
-        (this->flags_.should_try_send_immediately && this->get_batch_delay_ms_() == 0));
+        (this->should_try_send_immediately_ && this->get_batch_delay_ms_() == 0));
   }
 
   // Helper method to send a message either immediately or via batching

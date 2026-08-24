@@ -15,7 +15,7 @@ inline uint16_t ESPHOME_ALWAYS_INLINE APIConnection::encode_to_buffer(uint32_t c
                                                                       MessageEncodeFn encode_fn, const void *msg,
                                                                       APIConnection *conn, uint32_t remaining_size) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  if (conn->flags_.log_only_mode) {
+  if (conn->log_only_mode_) {
     auto *proto_msg = static_cast<const ProtoMessage *>(msg);
     DumpBuffer dump_buf;
     conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
@@ -26,8 +26,8 @@ inline uint16_t ESPHOME_ALWAYS_INLINE APIConnection::encode_to_buffer(uint32_t c
 
   // First message uses max padding (already in buffer), subsequent use exact header size
   size_t to_add;
-  if (conn->flags_.batch_first_message) {
-    conn->flags_.batch_first_message = false;
+  if (conn->batch_first_message_) {
+    conn->batch_first_message_ = false;
     conn->batch_header_size_ = conn->helper_->frame_header_padding();
     to_add = calculated_size;
   } else {
