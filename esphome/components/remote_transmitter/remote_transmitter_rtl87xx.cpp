@@ -266,6 +266,9 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->isr_space_duty_ = space_duty;
   // trigger first: the deadline computed in arm_chain_ must not be charged for user code
   this->transmit_trigger_.trigger();
+  // the automation may have started a send on another instance; let it finish before
+  // claiming the shared timer (a same-instance send remains unsupported here)
+  this->wait_until_idle_();
   this->arm_chain_(send_times, send_wait);
   if (this->non_blocking_) {
     this->complete_pending_ = true;
