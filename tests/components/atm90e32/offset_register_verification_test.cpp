@@ -14,9 +14,7 @@ TEST(ATM90E32OffsetRegisterVerification, RejectsMismatchedReadback) {
   EXPECT_FALSE(offset_register_value_matches(0xFF84, -123));
 }
 
-TEST(ATM90E32OffsetPersistence, PreservesStoredLayout) {
-  EXPECT_EQ(sizeof(OffsetCalibration[3]), 12U);
-}
+TEST(ATM90E32OffsetPersistence, PreservesStoredLayout) { EXPECT_EQ(sizeof(OffsetCalibration[3]), 12U); }
 
 TEST(ATM90E32OffsetPersistence, RollsBackStoredValuesOrZeroSentinel) {
   const OffsetCalibration previous[3]{{1, -1}, {2, -2}, {3, -3}};

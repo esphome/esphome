@@ -207,8 +207,7 @@ void ATM90E32Component::setup() {
     bool migrated_power_offset = false;
     if (has_distinct_legacy_namespace) {
       uint32_t legacy_po_hash = pref_hash("_power_offset_calibration_", legacy_cs);
-      auto legacy_power_offset_pref =
-          global_preferences->make_preference<OffsetCalibration[3]>(legacy_po_hash, true);
+      auto legacy_power_offset_pref = global_preferences->make_preference<OffsetCalibration[3]>(legacy_po_hash, true);
       OffsetCalibration power_offset_data[3]{};
       int migration_status =
           migrate_legacy_pref_if_needed(this->power_offset_pref_, legacy_power_offset_pref, &power_offset_data);
@@ -757,7 +756,7 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
                                                    bool previous_using_saved, bool power_offsets) {
   const char *cs = this->get_calibration_id_();
   const char *name = power_offsets ? "Power offset" : "Offset";
-  OffsetCalibration (*offsets)[3] = power_offsets ? &this->power_offset_phase_ : &this->offset_phase_;
+  OffsetCalibration(*offsets)[3] = power_offsets ? &this->power_offset_phase_ : &this->offset_phase_;
   ESPPreferenceObject *preference = power_offsets ? &this->power_offset_pref_ : &this->offset_pref_;
   bool *restored = power_offsets ? &this->restored_power_offset_calibration_ : &this->restored_offset_calibration_;
   bool *mismatches = power_offsets ? this->power_offset_calibration_mismatch_ : this->offset_calibration_mismatch_;
@@ -967,16 +966,14 @@ void ATM90E32Component::restore_gain_calibrations_() {
 void ATM90E32Component::restore_offset_calibrations_(bool power_offsets) {
   const char *cs = this->get_calibration_id_();
   const char *name = power_offsets ? "power offset" : "offset";
-  OffsetCalibration (*offsets)[3] = power_offsets ? &this->power_offset_phase_ : &this->offset_phase_;
-  OffsetCalibration (*config_offsets)[3] =
+  OffsetCalibration(*offsets)[3] = power_offsets ? &this->power_offset_phase_ : &this->offset_phase_;
+  OffsetCalibration(*config_offsets)[3] =
       power_offsets ? &this->config_power_offset_phase_ : &this->config_offset_phase_;
   ESPPreferenceObject *preference = power_offsets ? &this->power_offset_pref_ : &this->offset_pref_;
   bool *restored = power_offsets ? &this->restored_power_offset_calibration_ : &this->restored_offset_calibration_;
   bool *mismatches = power_offsets ? this->power_offset_calibration_mismatch_ : this->offset_calibration_mismatch_;
-  const bool *has_first =
-      power_offsets ? this->has_config_active_power_offset_ : this->has_config_voltage_offset_;
-  const bool *has_second =
-      power_offsets ? this->has_config_reactive_power_offset_ : this->has_config_current_offset_;
+  const bool *has_first = power_offsets ? this->has_config_active_power_offset_ : this->has_config_voltage_offset_;
+  const bool *has_second = power_offsets ? this->has_config_reactive_power_offset_ : this->has_config_current_offset_;
 
   for (uint8_t i = 0; i < 3; ++i)
     (*config_offsets)[i] = (*offsets)[i];
@@ -1141,9 +1138,8 @@ void ATM90E32Component::clear_power_offset_calibrations() {
   for (uint8_t phase = 0; phase < 3; phase++) {
     int16_t active_offset =
         this->has_config_active_power_offset_[phase] ? this->config_power_offset_phase_[phase].first_offset : 0;
-    int16_t reactive_offset = this->has_config_reactive_power_offset_[phase]
-                                  ? this->config_power_offset_phase_[phase].second_offset
-                                  : 0;
+    int16_t reactive_offset =
+        this->has_config_reactive_power_offset_[phase] ? this->config_power_offset_phase_[phase].second_offset : 0;
     this->write_offsets_to_registers_(phase, active_offset, reactive_offset, true);
     ESP_LOGI(TAG, "[CALIBRATION][%s] |   %c   |       %6d        |        %6d        |", cs, 'A' + phase, active_offset,
              reactive_offset);

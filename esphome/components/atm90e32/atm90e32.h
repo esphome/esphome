@@ -193,8 +193,7 @@ class ATM90E32Component final : public PollingComponent,
   void save_gain_calibration_to_memory_();
   void finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
                                   bool previous_using_saved, bool power_offsets);
-  void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
-                                   bool power_offsets);
+  void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset, bool power_offsets);
   void write_gains_to_registers_();
   bool verify_gain_writes_();
   bool verify_offset_writes_(bool power_offsets);
