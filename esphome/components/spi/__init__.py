@@ -126,6 +126,7 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
 CONF_RELEASE_DEVICE = "release_device"
+CONF_PSRAM_DMA = "psram_dma"
 TYPE_SINGLE = "single"
 TYPE_QUAD = "quad"
 TYPE_OCTAL = "octal"
@@ -450,6 +451,21 @@ def spi_device_schema(
                 SPI_MODE_OPTIONS, upper=True
             ),
             cv.Optional(CONF_RELEASE_DEVICE): cv.All(cv.boolean, cv.only_on_esp32),
+            cv.Optional(CONF_PSRAM_DMA): cv.All(
+                cv.boolean,
+                cv.only_on_esp32,
+                cv.only_with_framework("esp-idf"),
+                only_on_variant(
+                    supported=[
+                        VARIANT_ESP32C5,
+                        VARIANT_ESP32C61,
+                        VARIANT_ESP32P4,
+                        VARIANT_ESP32S3,
+                    ],
+                    msg_prefix="PSRAM DMA",
+                ),
+                cv.require_framework_version(esp_idf=cv.Version(5, 5, 3)),
+            ),
             cs_pin_option(CONF_CS_PIN): pins.gpio_output_pin_schema,
         }
     )
@@ -471,6 +487,8 @@ async def register_spi_device(
         cg.add(var.set_mode(spi_mode))
     if release_device := config.get(CONF_RELEASE_DEVICE):
         cg.add(var.set_release_device(release_device))
+    if psram_dma := config.get(CONF_PSRAM_DMA):
+        cg.add(var.set_psram_dma(psram_dma))
 
 
 def final_validate_device_schema(
