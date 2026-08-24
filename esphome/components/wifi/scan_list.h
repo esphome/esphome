@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-namespace esphome::captive_portal {
+namespace esphome::wifi {
 
 // A scan lists every BSSID, so one SSID can appear several times. Returns true for
 // the strongest entry per SSID (earliest on ties), never for hidden entries. scan
@@ -25,4 +25,4 @@ bool should_show_scan_entry(const Results &results, const Entry &scan, bool &wit
   return true;
 }
 
-}  // namespace esphome::captive_portal
+}  // namespace esphome::wifi
