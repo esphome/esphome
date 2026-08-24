@@ -2,6 +2,7 @@ import base64
 from pathlib import Path
 import re
 import secrets
+from typing import Any
 
 import requests
 from ruamel.yaml import YAML
@@ -13,6 +14,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_REF, CONF_WIFI
 import esphome.final_validate as fv
 from esphome.happy_eyeballs import ensure_happy_eyeballs
+from esphome.types import ConfigType
 from esphome.yaml_util import dump
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
@@ -23,14 +25,14 @@ DEPENDENCIES = ["api"]
 CODEOWNERS = ["@esphome/core"]
 
 
-def validate_import_url(value):
+def validate_import_url(value: Any) -> str:
     value = cv.string_strict(value)
     value = cv.Length(max=255)(value)
     validate_source_shorthand(value)
     return value
 
 
-def validate_full_url(config):
+def validate_full_url(config: ConfigType) -> ConfigType:
     if not config[CONF_IMPORT_FULL_CONFIG]:
         return config
     source = validate_source_shorthand(config[CONF_PACKAGE_IMPORT_URL])
@@ -55,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()[CONF_ESPHOME]
     if CONF_PROJECT not in full_config:
         raise cv.Invalid(
@@ -73,7 +75,7 @@ wifi:
 """
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_DASHBOARD_IMPORT")
     url = config[CONF_PACKAGE_IMPORT_URL]
     if config[CONF_IMPORT_FULL_CONFIG]:

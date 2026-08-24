@@ -220,6 +220,39 @@ bool str_endswith_ignore_case(const char *str, size_t str_len, const char *suffi
   return strncasecmp(str + str_len - suffix_len, suffix, suffix_len) == 0;
 }
 
+bool str_contains_ignore_case_fallback(const char *haystack, const char *needle) {
+  const size_t needle_len = strlen(needle);
+  if (needle_len == 0) {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    if (strncasecmp(p, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+#ifdef USE_ESP8266
+// _P mirror of str_contains_ignore_case_fallback above; host tests cover only the fallback,
+// so keep the two bodies in sync.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle) {
+  if (haystack == nullptr || needle == nullptr) {
+    return false;
+  }
+  const size_t needle_len = strlen_P(needle);
+  if (needle_len == 0) {
+    return true;
+  }
+  for (const char *p = haystack; *p != '\0'; p++) {
+    if (strncasecmp_P(p, needle, needle_len) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+#endif  // USE_ESP8266
+
 // str_truncate, str_until, str_lower_case, str_upper_case, str_snake_case moved to alloc_helpers.cpp
 char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
   if (buffer_size == 0) {
@@ -709,23 +742,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 }
 
 // Colors
-
-float gamma_correct(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
-float gamma_uncorrect(float value, float gamma) {
-  if (value <= 0.0f)
-    return 0.0f;
-  if (gamma <= 0.0f)
-    return value;
-
-  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
-}
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
   float max_color_value = std::max({red, green, blue});
