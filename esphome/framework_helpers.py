@@ -782,8 +782,10 @@ def run_batch_downloads(
             # download error.
             with suppress(Exception):
                 tracker(0)
-            return (name, err)
-        return None
+            failure = (name, err)
+        else:
+            failure = None
+        return failure
 
     ex = ThreadPoolExecutor(max_workers=max_workers)
     try:
