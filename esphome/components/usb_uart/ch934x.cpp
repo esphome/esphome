@@ -651,8 +651,7 @@ void USBUartTypeCH934X::handle_command_data_(const uint8_t * /*data*/, size_t le
 }
 
 void USBUartTypeCH934X::start_input(USBUartChannelBase *channel) {
-  auto started = false;
-  if (!channel->input_started_.compare_exchange_strong(started, true))
+  if (!channel->initialised_.load())
     return;
   this->start_rx_reader_();
   this->start_command_reader_();
