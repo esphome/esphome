@@ -104,14 +104,14 @@ WATCHDOG_TIMEOUT_MULTIPLIER = 3
 WATCHDOG_TIMEOUT_MARGIN_MS = 1000
 
 
-def default_watchdog_timeout(config: ConfigType) -> ConfigType:
+def default_watchdog_timeout(config: ConfigType) -> None:
     """Arm the request watchdog on ESP32 when the user did not set it.
 
     The default never goes below the platform task watchdog, so a user who
     widened `esp32.watchdog_timeout` keeps that window during requests.
     """
     if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
-        return config
+        return
     derived_ms = (
         config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
         + WATCHDOG_TIMEOUT_MARGIN_MS
@@ -122,7 +122,6 @@ def default_watchdog_timeout(config: ConfigType) -> ConfigType:
     config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
         milliseconds=max(derived_ms, platform_ms)
     )
-    return config
 
 
 def _declare_request_class(value: Any) -> ID:
