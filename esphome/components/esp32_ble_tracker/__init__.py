@@ -144,9 +144,10 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 IDF_SCAN_WINDOW_FIX_VERSION = cv.Version(5, 5, 5)
 
 # Above this the scanner holds the shared radio long enough that wifi drops
-# packets and connections; old proxy configs with 1100 ms windows are a
-# recurring cause of instability (esphome/esphome#18655). Only wifi shares
-# the radio; long windows are fine on ethernet builds.
+# packets and connections on some access points (others cope fine, which is
+# why this is a warning and not an error); old proxy configs with 1100 ms
+# windows are a recurring cause of instability (esphome/esphome#18655). Only
+# wifi shares the radio; long windows are fine on ethernet builds.
 MAX_RECOMMENDED_WIFI_SCAN_WINDOW = TimePeriod(milliseconds=600)
 
 
@@ -229,9 +230,9 @@ def _warn_long_scan_window_with_wifi(config: ConfigType) -> ConfigType:
     ):
         _LOGGER.warning(
             "BLE scan window of %s with wifi on the same radio starves wifi and "
-            "causes wifi disconnects; keep the window at or below %s "
-            "(for example interval: 320ms, window: 300ms). Long windows are "
-            "only a problem with wifi, they are fine on ethernet",
+            "can cause wifi disconnects depending on the access point; keep the "
+            "window at or below %s (for example interval: 320ms, window: 300ms). "
+            "Long windows are only a problem with wifi, they are fine on ethernet",
             window,
             MAX_RECOMMENDED_WIFI_SCAN_WINDOW,
         )
