@@ -343,6 +343,11 @@ def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
     there stops the build instead of compiling with an empty REQUIRES."""
     _setup_build(setup_core)
     config = {CONF_ESPHOME: {}}
+    cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    cmakecache.parent.mkdir(parents=True, exist_ok=True)
+    cmakecache.write_text("")
+    old = cmakecache.stat().st_mtime - 100
+    os.utime(cmakecache, (old, old))
     calls: list[tuple] = []
     reconfigures = 0
 
@@ -372,6 +377,9 @@ def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
         ("run_reconfigure",),
     ]
     mock_build.assert_not_called()
+    # Not restamped, so the next run repeats discovery instead of building
+    # with the discovery-time CMakeLists.
+    assert cmakecache.stat().st_mtime == old
 
 
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
