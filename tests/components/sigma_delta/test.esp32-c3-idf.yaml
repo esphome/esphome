@@ -1,5 +1,4 @@
 substitutions:
-  component_dir: /var/home/ashton/sandbox/esphome/tests/components/sigma_delta
   sigma_delta_pin: GPIO1
 
 packages:
@@ -7,7 +6,6 @@ packages:
 
 wifi:
   ap:
-
 
 sendspin:
   id: sendspin_hub_id
