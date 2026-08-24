@@ -1176,7 +1176,12 @@ def filter_cpp_unit_test_files(file_path: str) -> bool:
 
 
 def has_cpp_unit_tests(component: str, tests_dir: Path) -> bool:
-    """Check if a component has C++ unit test sources in ``tests_dir``."""
+    """Check if a component has C++ test or benchmark sources in ``tests_dir``.
+
+    Shared by CI job selection and the build itself
+    (``build_helpers.filter_components_with_files``) so both agree on
+    which components have something to build.
+    """
     component_dir = tests_dir / component
     return component_dir.is_dir() and (
         any(component_dir.glob("*.cpp")) or any(component_dir.glob("*.h"))
@@ -1524,7 +1529,7 @@ def get_cpp_changed_components(files: list[str]) -> list[str]:
     C++ test sources are dropped so CI does not schedule the job for nothing.
 
     Args:
-        files: List of file paths to analyze (C++ and Python files)
+        files: List of changed file paths; irrelevant ones are ignored
 
     Returns:
         Sorted list of component names that need C++ unit tests run

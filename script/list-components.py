@@ -4,7 +4,6 @@ import argparse
 from helpers import (
     changed_files,
     filter_component_and_test_files,
-    filter_cpp_unit_test_files,
     get_all_component_files,
     get_components_with_dependencies,
     get_cpp_changed_components,
@@ -115,8 +114,7 @@ def main():
         for c in get_components_with_dependencies(files, False):
             print(c)
     elif args.cpp_changed:
-        files = list(filter(filter_cpp_unit_test_files, changed))
-        for c in get_cpp_changed_components(files):
+        for c in get_cpp_changed_components(changed):
             print(c)
     else:
         # Return all changed components (with dependencies) - default behavior

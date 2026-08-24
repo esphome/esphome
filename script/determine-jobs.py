@@ -67,7 +67,6 @@ from helpers import (
     changed_files,
     core_changed,
     filter_component_and_test_files,
-    filter_cpp_unit_test_files,
     get_changed_components,
     get_component_from_path,
     get_component_test_files,
@@ -644,8 +643,7 @@ def determine_cpp_unit_tests(
     if core_changed(files):
         return (True, [])
 
-    relevant_files = list(filter(filter_cpp_unit_test_files, files))
-    return (False, get_cpp_changed_components(relevant_files))
+    return (False, get_cpp_changed_components(files))
 
 
 # Paths within tests/benchmarks/ that contain component benchmark files
