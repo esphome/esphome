@@ -43,6 +43,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError state_action_handshake_read_();
   APIError state_action_handshake_write_();
   APIError state_action_resume_discard_();
+  APIError read_handshake_frame_();
   APIError try_read_frame_();
   APIError write_frame_(const uint8_t *data, uint16_t len);
   APIError encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint8_t message_type,

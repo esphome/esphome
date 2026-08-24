@@ -1373,9 +1373,7 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 const char *NoiseResumeTicket::dump_to(DumpBuffer &out) const {
-  MessageDumpHelper helper(out, ESPHOME_PSTR("NoiseResumeTicket"));
-  dump_bytes_field(out, ESPHOME_PSTR("session_id"), this->session_id_ptr_, this->session_id_len_);
-  dump_bytes_field(out, ESPHOME_PSTR("secret"), this->secret_ptr_, this->secret_len_);
+  out.append_p(ESPHOME_PSTR("NoiseResumeTicket {}"));
   return out.c_str();
 }
 #endif

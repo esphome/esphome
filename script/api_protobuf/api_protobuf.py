@@ -2799,6 +2799,10 @@ def build_message_type(
         public_content.append(prot)
     # If no fields to calculate size for or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
+    # Sensitive messages (keys, tickets) dump only their name
+    if desc.name in SENSITIVE_MESSAGES:
+        dump = []
+
     # dump_to method declaration in header
     prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     prot += "const char *dump_to(DumpBuffer &out) const override;\n"
@@ -2844,6 +2848,9 @@ def build_message_type(
 
     return out, cpp, dump_cpp
 
+
+# Messages whose contents are secret; dump_to prints only the name
+SENSITIVE_MESSAGES = {"NoiseResumeTicket"}
 
 SOURCE_BOTH = 0
 SOURCE_SERVER = 1

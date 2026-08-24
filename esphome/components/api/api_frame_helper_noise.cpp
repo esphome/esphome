@@ -284,10 +284,6 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
 APIError APINoiseFrameHelper::state_action_server_hello_() {
   // A verified resume offer (still in rx_buf_ from the client hello step)
   // replaces the whole handshake; any failure falls back to the full one.
-  uint8_t resume_ext[noise::RESUME_ACCEPT_SIZE];
-  bool resume = this->ctx_.resume_cache().try_accept(this->rx_buf_.data(), this->rx_buf_.size(), this->prologue_.data(),
-                                                     this->prologue_.size(), resume_ext, send_cipher_, recv_cipher_);
-
   // send server hello
   const auto &name = App.get_name();
   char mac[MAC_ADDRESS_BUFFER_SIZE];
@@ -314,8 +310,11 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   // node mac, terminated by null byte
   std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
+  // The accept extension is written straight after the mac
+  bool resume =
+      this->ctx_.resume_cache().try_accept(this->rx_buf_.data(), this->rx_buf_.size(), this->prologue_.data(),
+                                           this->prologue_.size(), msg + total_size, send_cipher_, recv_cipher_);
   if (resume) {
-    std::memcpy(msg + total_size, resume_ext, noise::RESUME_ACCEPT_SIZE);
     total_size += noise::RESUME_ACCEPT_SIZE;
   }
 
@@ -350,17 +349,30 @@ APIError APINoiseFrameHelper::state_action_handshake_() {
   HELPER_LOG("Bad action for handshake: %d", (int) action);
   return APIError::HANDSHAKESTATE_BAD_STATE;
 }
-/// Resumed session: discard the client's already-in-flight handshake
-/// message 1, then enter DATA.
-APIError APINoiseFrameHelper::state_action_resume_discard_() {
+/// Read one handshake frame into rx_buf_ and validate its status byte.
+APIError APINoiseFrameHelper::read_handshake_frame_() {
   APIError aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {
     return this->handle_handshake_frame_error_(aerr);
   }
-  if (this->rx_buf_.empty() || this->rx_buf_[0] != noise::HANDSHAKE_STATUS_OK) {
-    state_ = State::FAILED;
-    HELPER_LOG("Bad discarded handshake message");
+  if (this->rx_buf_.empty()) {
+    this->send_explicit_handshake_reject_(LOG_STR("Empty handshake message"));
     return APIError::BAD_HANDSHAKE_ERROR_BYTE;
+  }
+  if (this->rx_buf_[0] != noise::HANDSHAKE_STATUS_OK) {
+    HELPER_LOG("Bad handshake error byte: %u", this->rx_buf_[0]);
+    this->send_explicit_handshake_reject_(LOG_STR("Bad handshake error byte"));
+    return APIError::BAD_HANDSHAKE_ERROR_BYTE;
+  }
+  return APIError::OK;
+}
+
+/// Resumed session: discard the client's already-in-flight handshake
+/// message 1, then enter DATA.
+APIError APINoiseFrameHelper::state_action_resume_discard_() {
+  APIError aerr = this->read_handshake_frame_();
+  if (aerr != APIError::OK) {
+    return aerr;
   }
   HELPER_LOG("Session resumed!");
   state_ = State::DATA;
@@ -368,18 +380,9 @@ APIError APINoiseFrameHelper::state_action_resume_discard_() {
 }
 
 APIError APINoiseFrameHelper::state_action_handshake_read_() {
-  APIError aerr = this->try_read_frame_();
+  APIError aerr = this->read_handshake_frame_();
   if (aerr != APIError::OK) {
-    return this->handle_handshake_frame_error_(aerr);
-  }
-
-  if (this->rx_buf_.empty()) {
-    this->send_explicit_handshake_reject_(LOG_STR("Empty handshake message"));
-    return APIError::BAD_HANDSHAKE_ERROR_BYTE;
-  } else if (this->rx_buf_[0] != noise::HANDSHAKE_STATUS_OK) {
-    HELPER_LOG("Bad handshake error byte: %u", this->rx_buf_[0]);
-    this->send_explicit_handshake_reject_(LOG_STR("Bad handshake error byte"));
-    return APIError::BAD_HANDSHAKE_ERROR_BYTE;
+    return aerr;
   }
 
   int err = this->handshake_.read_message(this->rx_buf_.data() + 1, this->rx_buf_.size() - 1);

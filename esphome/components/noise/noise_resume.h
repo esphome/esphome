@@ -68,8 +68,6 @@ class ResumeTicketCache {
   static constexpr uint8_t SLOTS = 2;
 
  protected:
-  bool take_verified_(const uint8_t *offer, uint8_t *secret_out);
-
   ResumeTicket slots_[SLOTS];
   bool used_[SLOTS]{};
   uint8_t next_{0};
