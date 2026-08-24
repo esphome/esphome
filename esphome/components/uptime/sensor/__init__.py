@@ -11,6 +11,7 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_SECOND,
 )
+from esphome.types import ConfigType
 
 uptime_ns = cg.esphome_ns.namespace("uptime")
 UptimeSecondsSensor = uptime_ns.class_(
@@ -54,7 +55,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     if time_id_config := config.get(CONF_TIME_ID):

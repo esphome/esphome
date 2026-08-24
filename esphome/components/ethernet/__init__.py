@@ -10,7 +10,10 @@ from esphome.components.network import (
     get_priority_interfaces_from_full_config,
     ip_address_literal,
 )
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -821,8 +824,15 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 
+# The custom W5500 SPI driver is fully #ifdef'd on USE_ESP32 and
+# USE_ETHERNET_W5500 (the platform filter map above handles non-ESP32).
+_define_filter = filter_source_files_from_defines(
+    {"w5500_custom_spi.cpp": "USE_ETHERNET_W5500"}
+)
+
+
 def _filter_source_files() -> list[str]:
-    excluded = _platform_filter()
+    excluded = _platform_filter() + _define_filter()
     eth_data = CORE.data.get(KEY_ETHERNET, {})
     eth_type = eth_data.get(ETHERNET_TYPE_KEY)
     # Only compile the custom JL1101 driver when JL1101 is configured
@@ -836,12 +846,8 @@ def _filter_source_files() -> list[str]:
         # to avoid shadowing. Native IDF builds always need the custom driver.
         if cv.Version(5, 4, 2) <= idf_version() < cv.Version(6, 0, 0):
             excluded.append("esp_eth_phy_jl1101.c")
-    # The custom W5500 SPI driver is fully #ifdef'd on USE_ESP32 and
-    # USE_ETHERNET_W5500 (the platform filter map above handles non-ESP32);
-    # skip it entirely for the other ethernet types.
-    if eth_type != "W5500":
-        excluded.append("w5500_custom_spi.cpp")
-    return excluded
+    # The platform and define filters can both name the same file
+    return list(dict.fromkeys(excluded))
 
 
 FILTER_SOURCE_FILES = _filter_source_files
