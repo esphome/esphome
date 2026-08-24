@@ -1,62 +1,33 @@
 """Tests for the http_request watchdog timeout default."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 
-from esphome.components.http_request import (
-    WATCHDOG_TIMEOUT_MULTIPLIER,
-    default_watchdog_timeout,
-)
-from esphome.const import CONF_TIMEOUT, CONF_WATCHDOG_TIMEOUT, PlatformFramework
-from esphome.core import TimePeriodMilliseconds
-
-from ..types import SetCoreConfigCallable
+YAML_DIR = Path(__file__).parent
 
 
 @pytest.mark.parametrize(
-    "platform", [PlatformFramework.ESP32_IDF, PlatformFramework.ESP32_ARDUINO]
-)
-def test_esp32_derives_watchdog_timeout(
-    set_core_config: SetCoreConfigCallable, platform: PlatformFramework
-) -> None:
-    """ESP32 arms the watchdog at a multiple of the request timeout."""
-    set_core_config(platform)
-    config = default_watchdog_timeout(
-        {CONF_TIMEOUT: TimePeriodMilliseconds(milliseconds=4500)}
-    )
-    assert config[CONF_WATCHDOG_TIMEOUT] == TimePeriodMilliseconds(
-        milliseconds=4500 * WATCHDOG_TIMEOUT_MULTIPLIER
-    )
-
-
-def test_esp32_keeps_explicit_watchdog_timeout(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """A user supplied watchdog timeout is not overridden."""
-    set_core_config(PlatformFramework.ESP32_IDF)
-    explicit = TimePeriodMilliseconds(milliseconds=20000)
-    config = default_watchdog_timeout(
-        {
-            CONF_TIMEOUT: TimePeriodMilliseconds(milliseconds=10000),
-            CONF_WATCHDOG_TIMEOUT: explicit,
-        }
-    )
-    assert config[CONF_WATCHDOG_TIMEOUT] == explicit
-
-
-@pytest.mark.parametrize(
-    "platform",
+    ("yaml_file", "expected_ms"),
     [
-        PlatformFramework.ESP8266_ARDUINO,
-        PlatformFramework.RP2040_ARDUINO,
-        PlatformFramework.HOST_NATIVE,
+        # 3 x 10s plus 1s margin
+        ("test_esp32_default.yaml", 31000),
+        # esp32.watchdog_timeout: 60s is wider than the derived value and wins
+        ("test_esp32_platform_wider.yaml", 60000),
+        # explicit value is kept as is
+        ("test_esp32_explicit.yaml", 20000),
     ],
 )
-def test_other_platforms_leave_watchdog_unset(
-    set_core_config: SetCoreConfigCallable, platform: PlatformFramework
+def test_esp32_watchdog_timeout(
+    generate_main: Callable[[str | Path], str], yaml_file: str, expected_ms: int
 ) -> None:
-    """No default is injected where the request watchdog is unsupported or capped."""
-    set_core_config(platform)
-    config = default_watchdog_timeout(
-        {CONF_TIMEOUT: TimePeriodMilliseconds(milliseconds=4500)}
-    )
-    assert CONF_WATCHDOG_TIMEOUT not in config
+    main_cpp = generate_main(YAML_DIR / yaml_file)
+    assert f"set_watchdog_timeout({expected_ms})" in main_cpp
+
+
+def test_esp8266_leaves_watchdog_unset(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    main_cpp = generate_main(YAML_DIR / "test_esp8266.yaml")
+    assert "set_watchdog_timeout" not in main_cpp

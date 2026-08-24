@@ -17,12 +17,14 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_URL,
     CONF_WATCHDOG_TIMEOUT,
+    PLATFORM_ESP32,
     PLATFORM_HOST,
     PlatformFramework,
     __version__,
 )
 from esphome.core import CORE, ID, Lambda, TimePeriodMilliseconds
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
@@ -94,23 +96,32 @@ def validate_ssl_verification(config: ConfigType) -> ConfigType:
     return config
 
 
-# Number of blocking socket operations (DNS, connect, TLS handshake, read) that
-# can each take up to `timeout` inside one watchdog guarded region on ESP-IDF.
+# esp_http_client_open() runs DNS, TCP connect and the TLS handshake with no
+# watchdog feed in between; each can take up to `timeout` on ESP-IDF.
 WATCHDOG_TIMEOUT_MULTIPLIER = 3
+# Headroom over the exact worst case so a fully stalled open does not land on
+# the watchdog deadline.
+WATCHDOG_TIMEOUT_MARGIN_MS = 1000
 
 
 def default_watchdog_timeout(config: ConfigType) -> ConfigType:
     """Arm the request watchdog on ESP32 when the user did not set it.
 
-    ESP-IDF applies `timeout` to every socket operation, so a single request
-    can block the loop task for several multiples of it. Without a watchdog
-    timeout the task watchdog fires after CONFIG_ESP_TASK_WDT_TIMEOUT_S.
+    The default never goes below the platform task watchdog, so a user who
+    widened `esp32.watchdog_timeout` keeps that window during requests.
     """
-    if CORE.is_esp32 and CONF_WATCHDOG_TIMEOUT not in config:
-        config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
-            milliseconds=config[CONF_TIMEOUT].total_milliseconds
-            * WATCHDOG_TIMEOUT_MULTIPLIER
-        )
+    if not CORE.is_esp32 or CONF_WATCHDOG_TIMEOUT in config:
+        return config
+    derived_ms = (
+        config[CONF_TIMEOUT].total_milliseconds * WATCHDOG_TIMEOUT_MULTIPLIER
+        + WATCHDOG_TIMEOUT_MARGIN_MS
+    )
+    platform_ms = fv.full_config.get()[PLATFORM_ESP32][
+        CONF_WATCHDOG_TIMEOUT
+    ].total_milliseconds
+    config[CONF_WATCHDOG_TIMEOUT] = TimePeriodMilliseconds(
+        milliseconds=max(derived_ms, platform_ms)
+    )
     return config
 
 
@@ -171,8 +182,9 @@ CONFIG_SCHEMA = cv.All(
         host=cv.Version(0, 0, 0),
     ),
     validate_ssl_verification,
-    default_watchdog_timeout,
 )
+
+FINAL_VALIDATE_SCHEMA = default_watchdog_timeout
 
 
 async def to_code(config: ConfigType) -> None:
