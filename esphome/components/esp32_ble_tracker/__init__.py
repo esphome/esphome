@@ -7,6 +7,7 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, esp32_ble, ota
+from esphome.components.ble_device_base import CONF_CONNECTION_SCAN_WINDOW
 from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
@@ -73,8 +74,9 @@ def _get_required_features() -> set[BLEFeatures]:
 
 # Slot counters sizing the tracker's StaticVector storage; one request per
 # registered listener or client.
+CLIENT_COUNT_DEFINE = "ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT"
 _request_listener_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT")
-_request_client_slot = cg.slot_counter("ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT")
+_request_client_slot = cg.slot_counter(CLIENT_COUNT_DEFINE)
 
 
 def register_ble_features(features: set[BLEFeatures]) -> None:
@@ -147,6 +149,7 @@ class TrackerData:
     """Per-run validation state, namespaced under DOMAIN in CORE.data."""
 
     scan_window_defaulted: bool = False
+    connection_window_injected: bool = False
 
 
 def _get_data() -> TrackerData:
@@ -175,17 +178,34 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
     honors the window strictly (>= 5.5.5); without the arbiter a full-duty
     scan would starve wifi outright, and a user-set window is never touched.
     Raising to the interval cannot invalidate the already-validated
-    parameters, so no re-validation is needed.
+    parameters, so no re-validation is needed. The connection window is
+    checked against the window here, after the raise.
     """
+    params = config[CONF_SCAN_PARAMETERS]
     if (
         _get_data().scan_window_defaulted
         and config.get(CONF_SOFTWARE_COEXISTENCE)
         and idf_version() >= IDF_SCAN_WINDOW_FIX_VERSION
     ):
-        params = config[CONF_SCAN_PARAMETERS]
         # Copy so the config dump shows a plain value instead of a YAML
         # anchor/alias pair pointing at the interval.
         params[CONF_WINDOW] = copy.copy(params[CONF_INTERVAL])
+        # Arm the connection-time fallback unless the user set one. Injected
+        # after validation; safe because it equals the validated window default.
+        if CONF_CONNECTION_SCAN_WINDOW not in params:
+            params[CONF_CONNECTION_SCAN_WINDOW] = cv.positive_time_period(
+                ble_device_base.DEFAULT_SCAN_WINDOW
+            )
+            _get_data().connection_window_injected = True
+    if (
+        connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)
+    ) is not None and connection_window > params[CONF_WINDOW]:
+        # A larger value would widen the scan during connections.
+        raise cv.Invalid(
+            f"{CONF_CONNECTION_SCAN_WINDOW} ({connection_window}) needs to be "
+            f"smaller than the scan window ({params[CONF_WINDOW]})",
+            path=[CONF_SCAN_PARAMETERS, CONF_CONNECTION_SCAN_WINDOW],
+        )
     return config
 
 
@@ -194,7 +214,7 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
 # window/interval pairs that collapse to the same 0.625 ms unit count.
 # The window default is conditional (see _scan_window_default above).
 SCAN_PARAMETERS_SCHEMA = ble_device_base.scan_parameters_schema(
-    "320ms", window_default=_scan_window_default
+    "320ms", window_default=_scan_window_default, connection_window=True
 )
 
 # Codegen helpers are owned by ble_device_base; kept under the historical names
@@ -288,6 +308,25 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_duration(params[CONF_DURATION]))
     cg.add(var.set_scan_interval(ble_device_base.to_ble_units(params[CONF_INTERVAL])))
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(params[CONF_WINDOW])))
+    if (connection_window := params.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
+        # Emitted at FINAL so a scan-only build, where the guarded C++ path
+        # compiles out, skips the call entirely.
+        window_units = ble_device_base.to_ble_units(connection_window)
+
+        @coroutine_with_priority(CoroPriority.FINAL)
+        async def _emit_connection_scan_window() -> None:
+            if cg.get_slot_count(CLIENT_COUNT_DEFINE):
+                cg.add(var.set_connection_scan_window(window_units))
+            elif not _get_data().connection_window_injected:
+                # Warn only for a user-set value; the injected default drops silently.
+                _LOGGER.warning(
+                    "'%s' has no effect because this build has no BLE client "
+                    "components (for example bluetooth_proxy with active "
+                    "connections, or ble_client)",
+                    CONF_CONNECTION_SCAN_WINDOW,
+                )
+
+        CORE.add_job(_emit_connection_scan_window)
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
 
