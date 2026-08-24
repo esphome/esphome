@@ -675,9 +675,7 @@ async def test_uart_mock_modbus_shared_address(
     wide sensor's span keep polling separately, and that the sensor at the span's tail address does not
     anchor a re-use join on a mid-range predecessor (which would make it decode that sensor's bytes).
 
-    A sensor at 0x201 carrying skip_updates sits inside a widened shared-address range at 0x200 but
-    keeps its own range, so polling rates stay independent; folding it in would also make it decode
-    0x201 out of the shared response (2) instead of its own poll (777).
+    A word and a dword sharing 0x200 widen that range to two registers and both decode from the one read.
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
@@ -693,9 +691,8 @@ async def test_uart_mock_modbus_shared_address(
         "wide_qword": 100,
         "inside_wide": 321,
         "tail_of_wide": 421,
-        "rate_word": 321,
-        "rate_dword": pytest.approx(21037058),
-        "own_rate": 777,
+        "widen_word": 321,
+        "widen_dword": pytest.approx(21037058),
     }
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
@@ -710,18 +707,18 @@ async def test_uart_mock_modbus_shared_address(
 
 
 @pytest.mark.asyncio
-async def test_uart_mock_modbus_custom_command(
+async def test_uart_mock_modbus_custom_pdu(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test a custom_command sensor polling a register served by the mock server.
+    """Test a custom_pdu sensor reading a register served by the mock server.
 
-    The custom_command is a raw frame (device address + PDU); the hub appends the CRC and
-    routes the response back to the polling command, whose sensor lambda parses the payload.
-    Guards the custom polling wiring: the command must reference the sensor's custom_data and
-    decode the real function code, or nothing is ever transmitted. A plain read on the same
-    register anchors the bus.
+    The custom_pdu is a raw read-holding PDU (function code + address + count); the
+    controller prepends its own device address and appends the CRC, sends it, and the
+    sensor's lambda parses the response payload. Confirms the custom PDU path decodes
+    the function code and routes the response to the sensor (the gap that hid the
+    step-2 raw-vs-PDU bug). A plain read on the same register anchors the bus.
     """
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
@@ -754,9 +751,8 @@ async def test_uart_mock_modbus_offline(
     publishes. This pins the pooled non-response counter, can_send() gating, the
     offline retry cadence, and recovery - none of which the responding-path tests touch.
 
-    The fixture gives offline_skip_updates and the sensor's skip_updates the same period
-    on purpose: offline probing must follow the offline cadence alone, since requiring
-    both cadences to coincide leaves phase combinations where no probe ever goes out.
+    Offline probing follows the offline cadence alone; regular every-update polling
+    resumes once the device answers again.
     """
 
     tracker = SensorTracker(["link_state", "reg"])
