@@ -7,6 +7,7 @@ import importlib.machinery
 import importlib.util
 import json
 from pathlib import Path
+import re
 import sys
 from unittest.mock import MagicMock
 
@@ -700,3 +701,53 @@ def test_run_codechecker_zephyr_regenerated_failure_does_not_crash(
     result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
 
     assert result == 1
+
+
+def _codechecker_matcher_regex() -> re.Pattern[str]:
+    matcher_path = (
+        Path(__file__).parent
+        / ".."
+        / ".."
+        / ".github"
+        / "workflows"
+        / "matchers"
+        / "clang-tidy-codechecker.json"
+    )
+    pattern = json.loads(matcher_path.read_text())["problemMatcher"][0]["pattern"][0]
+    return re.compile(pattern["regexp"])
+
+
+def test_codechecker_matcher_parses_report_line() -> None:
+    """Shape verified against the installed codechecker_report_converter's
+    plaintext.format_report(): "[{severity}] {file}:{line}:{col}: {message} [{checker}]"."""
+    regex = _codechecker_matcher_regex()
+    line = (
+        "[HIGH] /work/esphome/components/nrf52/nrf52.cpp:42:7: "
+        "use of uninitialized value 'x' [clang-analyzer-core.uninitialized.Assign]"
+    )
+
+    match = regex.match(line)
+
+    assert match is not None
+    assert match.group(1) == "/work/esphome/components/nrf52/nrf52.cpp"
+    assert match.group(2) == "42"
+    assert match.group(3) == "7"
+    assert match.group(4) == "use of uninitialized value 'x'"
+    assert match.group(5) == "clang-analyzer-core.uninitialized.Assign"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Found 1 defect(s) in nrf52.cpp",
+        "Found no defects in nrf52.cpp",
+        "        ^",
+        "    x = uninitialized_thing();",
+    ],
+)
+def test_codechecker_matcher_ignores_non_report_lines(line: str) -> None:
+    """`CodeChecker parse` also prints source excerpts and per-file summaries;
+    the matcher must not misparse those into bogus annotations."""
+    regex = _codechecker_matcher_regex()
+
+    assert regex.match(line) is None

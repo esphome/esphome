@@ -648,7 +648,13 @@ jobs:
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+          if [ "${{ matrix.cache_sdk_nrf }}" = "true" ]; then
+            # nrf52-tidy's diagnostics come from `CodeChecker parse`, whose
+            # plaintext format doesn't match matchers/clang-tidy.json.
+            echo "::add-matcher::.github/workflows/matchers/clang-tidy-codechecker.json"
+          else
+            echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+          fi
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan
