@@ -1,6 +1,6 @@
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "image_format.h"
-#include "image_decoder.h"
 
 namespace esphome::runtime_image {
 
