@@ -881,11 +881,17 @@ def test_enable_exfat_without_fatfs_is_rejected(
         KEY_IDF_VERSION: cv.Version(5, 5, 1),
         KEY_VARIANT: VARIANT_ESP32,
     }
+<<<<<<< HEAD
     with (
         patch("esphome.components.esp32._sync_exfat_fatfs_override") as sync_mock,
         pytest.raises(EsphomeError, match="has no effect here"),
     ):
         asyncio.run(_reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True))
+=======
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override") as sync_mock:
+        with pytest.raises(EsphomeError, match="has no effect here"):
+            asyncio.run(_reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True))
+>>>>>>> 1ded107a3b66ab890f94dd0c0baeabac783c8072
     # Teardown call: first positional argument is the "enabled" flag.
     assert sync_mock.call_count == 1
     assert sync_mock.call_args.args[0] is False
@@ -911,11 +917,17 @@ def test_enable_exfat_rejects_user_lfn_none(
         KEY_VARIANT: VARIANT_ESP32,
         KEY_FATFS_REQUIRED: True,
     }
+<<<<<<< HEAD
     with (
         patch("esphome.components.esp32._sync_exfat_fatfs_override"),
         pytest.raises(EsphomeError, match="CONFIG_FATFS_LFN_NONE"),
     ):
         asyncio.run(_reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True))
+=======
+    with patch("esphome.components.esp32._sync_exfat_fatfs_override"):
+        with pytest.raises(EsphomeError, match="CONFIG_FATFS_LFN_NONE"):
+            asyncio.run(_reconcile_vfs_fatfs_sdkconfig(True, True, True, False, True))
+>>>>>>> 1ded107a3b66ab890f94dd0c0baeabac783c8072
 
 
 def test_enable_exfat_accepts_user_lfn_none_set_to_n(
