@@ -64,6 +64,11 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
     cg.add_library("esphome/noise-c", "0.1.21")
+    # noise-c depends on libsodium, but declaring it here too lets the
+    # library manager see the full set up front instead of discovering
+    # libsodium only after noise-c has downloaded, so the two can download
+    # in parallel. The version must match noise-c's library.json.
+    cg.add_library("esphome/libsodium", "1.10021.4")
     # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
     cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
     cg.add_build_flag("-DHAVE_INLINE_ASM=1")
