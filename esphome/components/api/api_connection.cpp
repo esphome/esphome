@@ -57,6 +57,15 @@
 #ifdef USE_RADIO_FREQUENCY
 #include "esphome/components/radio_frequency/radio_frequency.h"
 #endif
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+#ifdef USE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#endif
+#ifdef USE_OPENTHREAD
+#include "esphome/components/openthread/openthread.h"
+#endif
 
 namespace esphome::api {
 
@@ -1963,6 +1972,22 @@ bool APIConnection::send_device_info_response_() {
     auto &area_info = resp.areas[area_index++];
     area_info.area_id = area->get_area_id();
     area_info.name = StringRef(area->get_name());
+  }
+#endif
+  // Priority order when several network interfaces are compiled in: Wi-Fi, then Ethernet, then Thread.
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component->is_connected() || wifi::global_wifi_component->is_ap_active()) {
+    resp.network_type = enums::NETWORK_TYPE_WIFI;
+  }
+#endif
+#ifdef USE_ETHERNET
+  if (resp.network_type == enums::NETWORK_TYPE_UNKNOWN && ethernet::global_eth_component->is_connected()) {
+    resp.network_type = enums::NETWORK_TYPE_ETHERNET;
+  }
+#endif
+#ifdef USE_OPENTHREAD
+  if (resp.network_type == enums::NETWORK_TYPE_UNKNOWN && openthread::global_openthread_component->is_connected()) {
+    resp.network_type = enums::NETWORK_TYPE_THREAD;
   }
 #endif
 

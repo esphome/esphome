@@ -235,6 +235,14 @@ message SerialProxyInfo {
   uint32 configured_line_states = 3;  // Bitmask of SerialProxyLineStateFlags this instance can drive
 }
 
+// The kind of network interface the device is currently reachable through (preferred interface if multiple are connected).
+enum NetworkType {
+  NETWORK_TYPE_UNKNOWN = 0;
+  NETWORK_TYPE_WIFI = 1;
+  NETWORK_TYPE_ETHERNET = 2;
+  NETWORK_TYPE_THREAD = 3;
+}
+
 // DeviceInfoResponse max_data_length values:
 //   name = 31 (ESPHOME_DEVICE_NAME_MAX_LEN, validated by validate_hostname)
 //   friendly_name = 120 (core/config.FRIENDLY_NAME_MAX_LEN)
@@ -331,6 +339,9 @@ message DeviceInfoResponse {
   // all-zeros PSK, so the api encryption key can be provisioned without being
   // sent in plaintext (protects against passive sniffing, not active MITM)
   bool api_encryption_provisionable = 26 [(field_ifdef) = "USE_API_NOISE"];
+
+  // The kind of network interface the device is currently connected through.
+  NetworkType network_type = 27;
 }
 
 // ==================== DEVICE CAPABILITIES ====================

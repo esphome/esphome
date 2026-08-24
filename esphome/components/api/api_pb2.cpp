@@ -176,6 +176,7 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
 #endif
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 27, static_cast<uint32_t>(this->network_type));
   return pos;
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -241,6 +242,7 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
 #endif
+  size += this->network_type ? 3 : 0;
   return size;
 }
 #ifdef USE_BLUETOOTH_PROXY
