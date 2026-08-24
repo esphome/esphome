@@ -153,13 +153,15 @@ def test_localsource_download_returns_empty_build_dir(setup_core: Path) -> None:
     assert plain != out
 
 
-def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch):
+def test_urlsource_download_extracts_then_reuses_marker(
+    setup_core, monkeypatch, caplog
+):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []
     monkeypatch.setattr(
         lib,
         "download_from_mirrors",
-        lambda urls, headers, f: dl_calls.append(urls),
+        lambda urls, headers, f, progress=None: dl_calls.append(urls),
     )
 
     def fake_extract(fileobj, path):
@@ -177,6 +179,12 @@ def test_urlsource_download_extracts_then_reuses_marker(setup_core, monkeypatch)
     out2 = src.download("mylib")
     assert out2 == out
     assert len(dl_calls) == 1
+
+    # A batch caller passes a tracker and owns the messaging; no per-file INFO
+    caplog.set_level("INFO")
+    src.download("mylib-batch", progress=lambda done: None)
+    assert len(dl_calls) == 2
+    assert "Downloading" not in caplog.text
 
 
 def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
@@ -211,6 +219,7 @@ def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -228,6 +237,38 @@ def _patch_download_with_manifests(monkeypatch, tmp_path, manifests, *, properti
 
     monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
     _patch_registry_resolve(monkeypatch)
+
+
+def test_wave_requirement_growth_defers_the_superseded_download(tmp_path, monkeypatch):
+    """A's manifest constrains B while B sits in the same wave: B's
+    drain-time resolution is superseded, so its download defers to the
+    next wave instead of fetching a version that is immediately replaced."""
+    download_names: list[str] = []
+    manifests = {
+        "esphome/A": {
+            "name": "A",
+            "build": {},
+            "dependencies": {"esphome/B": ">=1.0"},
+        },
+        "esphome/B": {"name": "B", "build": {}},
+    }
+
+    def fake_download(self, force=False, salt="", namespace="", progress=None):
+        download_names.append(self.name)
+        self.path = tmp_path / self.get_require_name()
+        self.path.mkdir(parents=True, exist_ok=True)
+        (self.path / "library.json").write_text(json.dumps(manifests[self.name]))
+
+    monkeypatch.setattr(ConvertedLibrary, "download", fake_download)
+    # Hermetic: the stubbed registry reports no size, so no batch prefetch
+    _patch_registry_resolve(monkeypatch)
+    top = convert_libraries(
+        [Library("esphome/A", "1.0.0", None), Library("esphome/B", None, None)],
+        _backend(),
+    )
+    assert sorted(c.name for c in top) == ["esphome/A", "esphome/B"]
+    # B downloads exactly once, after its requirement set stabilized
+    assert download_names.count("esphome/B") == 1
 
 
 def test_convert_libraries_parses_library_properties(tmp_path, monkeypatch):
@@ -574,12 +615,162 @@ def test_lex_build_flags_dangling_flag_does_not_cross_entries(
     assert "Ignoring trailing '-I'" in caplog.text
 
 
+def test_prefetch_wave_downloads_registry_archives_in_parallel(
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Registry archives in one wave download concurrently, deduped by URL;
+    git/local sources and failures are left to the sequential call."""
+    calls: list[str] = []
+
+    def fake_download(
+        self, dir_suffix, force=False, salt="", namespace="", progress=None
+    ):
+        calls.append(self.url)
+        if progress is not None:
+            progress(0)
+        if "boom" in self.url:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(URLSource, "download", fake_download)
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
+        # Duplicate URL must prefetch once (two threads must never extract
+        # into the same cache directory)
+        ("b2", ConvertedLibrary("b2", "1.0", URLSource("https://x/b.tar.gz", 1))),
+        ("c", ConvertedLibrary("c", "1.0", URLSource("https://x/boom.tar.gz", 1))),
+        ("g", ConvertedLibrary("g", "*", lib.GitSource("https://x/g.git", None))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+    assert sorted(calls) == [
+        "https://x/a.tar.gz",
+        "https://x/b.tar.gz",
+        "https://x/boom.tar.gz",
+    ]
+    # The failure surfaces at default verbosity, after the bar
+    assert "Prefetch of c failed (retrying sequentially)" in caplog.text
+
+
+def test_prefetch_wave_unknown_size_left_to_sequential(
+    setup_core, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Archives without a registry-reported size skip the batch (their
+    sequential per-file bars don't interleave); the known subset still
+    prefetches."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        URLSource,
+        "download",
+        lambda self, dir_suffix, force=False, salt="", namespace="", progress=None: (
+            calls.append(self.url)
+        ),
+    )
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
+        ("u", ConvertedLibrary("u", "1.0", URLSource("https://x/u.tar.gz"))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+    assert sorted(calls) == ["https://x/a.tar.gz", "https://x/b.tar.gz"]
+
+
 def test_join_flag_args_empty_argument_warns_and_drops(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An empty glued argument is dropped: a bare -D would eat the next flag."""
     assert lib.lex_build_flags('-D "" -DFOO', "build_flags") == ["-DFOO"]
     assert "Ignoring '-D' with empty argument in build_flags" in caplog.text
+
+
+def test_prefetch_wave_cache_probe_failure_still_prefetches(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A filesystem probe failure warns (a systematic one re-downloads
+    everything) but still prefetches; a programming error is NOT swallowed
+    here, it reaches the outer blanket guard."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        URLSource,
+        "download",
+        lambda self, dir_suffix, **kw: calls.append(self.url),
+    )
+    monkeypatch.setattr(
+        URLSource,
+        "is_cached",
+        lambda self, *a, **kw: (_ for _ in ()).throw(OSError("cache root denied")),
+    )
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+    assert sorted(calls) == ["https://x/a.tar.gz", "https://x/b.tar.gz"]
+    assert "Cache probe for a failed: cache root denied" in caplog.text
+
+
+def test_prefetch_wave_internal_error_never_fails_the_build(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The blanket guard keeps a prefetch bug from failing the walk."""
+    monkeypatch.setattr(URLSource, "is_cached", lambda self, *a, **kw: False)
+    monkeypatch.setattr(
+        lib,
+        "run_batch_downloads",
+        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("bug")),
+    )
+    wave = [
+        ("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1))),
+        ("b", ConvertedLibrary("b", "1.0", URLSource("https://x/b.tar.gz", 1))),
+    ]
+    lib._prefetch_wave(wave, "", "idf")
+    assert "Library prefetch failed: bug" in caplog.text
+
+
+def test_prefetch_wave_warm_cache_is_silent(
+    setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Already-extracted archives download nothing; a warm build must not
+    print a Downloading line or draw a bar."""
+    monkeypatch.setattr(
+        URLSource,
+        "download",
+        lambda self, dir_suffix, **kw: (_ for _ in ()).throw(
+            AssertionError("downloaded")
+        ),
+    )
+    wave = []
+    for name in ("a", "b", "c"):
+        comp = ConvertedLibrary(name, "1.0", URLSource(f"https://x/{name}.tar.gz", 1))
+        marker_dir = comp.source._cache_dir(comp.get_sanitized_name(), "", "idf")
+        marker_dir.mkdir(parents=True)
+        (marker_dir / ".esphome_extracted").touch()
+        wave.append((name, comp))
+    lib._prefetch_wave(wave, "", "idf")
+    assert "Downloading" not in caplog.text
+
+
+def test_prefetch_wave_single_archive_uses_the_batch(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency chain discovers one archive per wave; it downloads
+    through the same runner so there is one download method and one bar."""
+    caplog.set_level("INFO")
+    calls: list[str] = []
+    monkeypatch.setattr(URLSource, "is_cached", lambda self, *a, **kw: False)
+    monkeypatch.setattr(
+        URLSource,
+        "download",
+        lambda self, dir_suffix, force=False, salt="", namespace="", progress=None: (
+            calls.append(self.url)
+        ),
+    )
+    lib._prefetch_wave(
+        [("a", ConvertedLibrary("a", "1.0", URLSource("https://x/a.tar.gz", 1)))],
+        "",
+        "idf",
+    )
+    assert calls == ["https://x/a.tar.gz"]
+    assert "Downloading 1 library archive(s): a" in caplog.text
 
 
 def test_normalize_dependencies_forms(caplog) -> None:
