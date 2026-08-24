@@ -103,7 +103,12 @@ def apply_testing_memory_patches(content: str, segments: Collection[str]) -> str
 
 
 def segment_length(content: str, segment_name: str) -> int | None:
-    """Read a memory segment's length from linker script content."""
+    """Read a memory segment's length from linker script content.
+
+    Returns None for an absent segment OR an unparsable line; callers must
+    treat None as "no usable budget" and warn (as the Flash summary does),
+    never as "no limit".
+    """
     match = _segment_line_re(segment_name).search(content)
     return int(match.group(2), 16) if match else None
 
