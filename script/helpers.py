@@ -421,7 +421,10 @@ def _get_github_event_data() -> dict | None:
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
     if github_event_path and Path(github_event_path).exists():
-        with Path(github_event_path).open() as f:
+        # The event payload is UTF-8 JSON; without an explicit encoding
+        # Windows decodes it as cp1252 and any non ASCII byte (an ellipsis in
+        # a commit title is enough) raises UnicodeDecodeError.
+        with Path(github_event_path).open(encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -466,6 +469,77 @@ def get_target_branch() -> str | None:
     return None
 
 
+# Substrings (matched case-insensitively against gh's stderr) that identify
+# transient failures worth retrying: server errors (HTTP 5xx) and dropped or
+# failed connections. Permanent failures (bad auth, missing PR, the 300-file
+# diff limit) never match so callers see them immediately. Phrases are
+# anchored so gh's GraphQL "Could not resolve to a PullRequest" (a missing
+# PR) never classifies as a DNS failure.
+_TRANSIENT_GH_ERROR_RE = re.compile(
+    r"http 5\d\d"
+    r"|timed out|timeout"
+    r"|connection (?:reset|refused|closed)"
+    r"|no such host|could not resolve host"
+    # gh intercepts DNS errors and prints its own "error connecting to
+    # <host>" text; the Go phrases above are kept as a hedge in case a
+    # future gh stops swallowing the underlying error
+    r"|error connecting to"
+    r"|failed to verify certificate"
+    # Go reports a server-closed connection as 'Post "<url>": EOF'; the
+    # quote-and-colon anchor keeps a URL or message body containing the
+    # letters from matching
+    r"|unexpected eof"
+    r'|": eof'
+    r"|network is unreachable"
+    r"|temporary failure"
+)
+
+# Same retry policy as git network commands in esphome/git.py: 3 attempts
+# with 2s/4s backoff.
+_GH_MAX_ATTEMPTS = 3
+
+
+def run_gh_command(
+    args: list[str], *, retry: bool = True
+) -> subprocess.CompletedProcess[str]:
+    """Run a gh CLI command, retrying transient network and server failures.
+
+    Args:
+        args: Full command line, including the leading "gh".
+        retry: Pass False for commands that are not idempotent (e.g. posting
+            a comment), where a retry after a dropped response could repeat
+            a write that already succeeded server-side.
+
+    Returns:
+        CompletedProcess with captured text output.
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails with a permanent
+            error, or is still failing after the retries are exhausted.
+    """
+    attempts = _GH_MAX_ATTEMPTS if retry else 1
+    attempt = 0
+    while True:
+        try:
+            return subprocess.run(
+                args, check=True, capture_output=True, text=True, close_fds=False
+            )
+        except subprocess.CalledProcessError as err:
+            attempt += 1
+            stderr = err.stderr or ""
+            if attempt >= attempts or not _TRANSIENT_GH_ERROR_RE.search(stderr.lower()):
+                raise
+            delay = 2**attempt
+            # Only the leading arguments: comment-update calls carry the
+            # whole multi-KB comment body in the argument list
+            print(
+                f"WARNING: {' '.join(args[:3])} failed: {stderr.strip()}; "
+                f"retrying in {delay}s (attempt {attempt}/{attempts})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+
+
 @cache
 def _get_changed_files_github_actions() -> list[str] | None:
     """Get changed files in GitHub Actions environment.
@@ -484,8 +558,9 @@ def _get_changed_files_github_actions() -> list[str] | None:
             try:
                 return _get_changed_files_from_command(cmd)
             except Exception as e:
-                # If it fails due to the 300 file limit, use the API method
-                if "maximum" in str(e) and "files" in str(e):
+                # If it fails due to a diff limit (300 files or 20000 lines),
+                # use the API method which only returns filenames
+                if "diff exceeded the maximum" in str(e):
                     cmd = [
                         "gh",
                         "api",
@@ -539,10 +614,22 @@ def changed_files(branch: str | None = None) -> list[str]:
 
 
 def _get_changed_files_from_command(command: list[str]) -> list[str]:
-    """Run a git command to get changed files and return them as a list."""
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
+    """Run a git or gh command to get changed files and return them as a list."""
+    if command[0] == "gh":
+        try:
+            proc = run_gh_command(command)
+        except subprocess.CalledProcessError as e:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {e.stderr}"
+            ) from e
+    else:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, check=False, close_fds=False
+        )
+        if proc.returncode != 0:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}"
+            )
 
     changed_files = splitlines_no_ends(proc.stdout)
     cwd = Path.cwd()
@@ -1373,6 +1460,27 @@ def core_changed(files: list[str]) -> bool:
     """
     return any(
         f.startswith("esphome/core/") and f.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+        for f in files
+    )
+
+
+def base_python_changed(files: list[str]) -> bool:
+    """Check if any Python file directly in esphome/ has changed.
+
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any top-level esphome Python file has changed
+    """
+    return any(
+        f.startswith("esphome/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and "/" not in f.removeprefix("esphome/")
         for f in files
     )
 

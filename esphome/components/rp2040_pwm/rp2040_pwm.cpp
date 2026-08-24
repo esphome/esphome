@@ -1,4 +1,4 @@
-#ifdef USE_RP2040
+#ifdef USE_RP2
 
 #include "rp2040_pwm.h"
 #include "esphome/core/defines.h"

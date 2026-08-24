@@ -6,7 +6,7 @@
 namespace esphome::sy6970 {
 
 template<uint8_t REG, uint8_t SHIFT, uint8_t MASK, uint8_t TRUE_VALUE>
-class StatusBinarySensor : public SY6970Listener, public binary_sensor::BinarySensor {
+class StatusBinarySensor final : public SY6970Listener, public binary_sensor::BinarySensor {
  public:
   void on_data(const SY6970Data &data) override {
     uint8_t value = (data.registers[REG] >> SHIFT) & MASK;
@@ -24,7 +24,7 @@ class InverseStatusBinarySensor : public SY6970Listener, public binary_sensor::B
 };
 
 // Custom binary sensor for charging (true when pre-charge or fast charge)
-class SY6970ChargingBinarySensor : public SY6970Listener, public binary_sensor::BinarySensor {
+class SY6970ChargingBinarySensor final : public SY6970Listener, public binary_sensor::BinarySensor {
  public:
   void on_data(const SY6970Data &data) override {
     uint8_t chrg_stat = (data.registers[SY6970_REG_STATUS] >> 3) & 0x03;

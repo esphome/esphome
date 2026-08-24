@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
@@ -21,6 +23,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, TimePeriod
+from esphome.types import ConfigType
 
 CONF_FILTER_SYMBOLS = "filter_symbols"
 CONF_RECEIVE_SYMBOLS = "receive_symbols"
@@ -62,7 +65,7 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 )
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
         if variant in esp32_rmt.VARIANTS_NO_RMT:
@@ -78,7 +81,7 @@ def validate_config(config):
     return config
 
 
-def validate_tolerance(value):
+def validate_tolerance(value: Any) -> ConfigType:
     if isinstance(value, dict):
         return TOLERANCE_SCHEMA(value)
 
@@ -118,7 +121,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 bk72xx="1000b",
                 ln882x="1000b",
                 rtl87xx="1000b",
-                rp2040="1000b",
+                rp2="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
@@ -196,7 +199,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
@@ -248,7 +251,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
-            PlatformFramework.RP2040_ARDUINO,
+            PlatformFramework.RP2_ARDUINO,
         },
     }
 )

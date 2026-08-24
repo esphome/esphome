@@ -125,6 +125,16 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 }
 #pragma GCC diagnostic pop
 
+template<> const char *proto_enum_to_string<enums::DisconnectReason>(enums::DisconnectReason value) {
+  switch (value) {
+    case enums::DISCONNECT_REASON_UNSPECIFIED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_UNSPECIFIED");
+    case enums::DISCONNECT_REASON_PROVISIONING_CLOSED:
+      return ESPHOME_PSTR("DISCONNECT_REASON_PROVISIONING_CLOSED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
   switch (value) {
     case enums::SERIAL_PROXY_PORT_TYPE_TTL:
@@ -574,7 +584,7 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerFormatPurpose>(enu
   }
 }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 template<>
 const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
@@ -596,6 +606,8 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 template<> const char *proto_enum_to_string<enums::BluetoothScannerState>(enums::BluetoothScannerState value) {
   switch (value) {
     case enums::BLUETOOTH_SCANNER_STATE_IDLE:
@@ -864,7 +876,8 @@ const char *HelloResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 const char *DisconnectRequest::dump_to(DumpBuffer &out) const {
-  out.append_p(ESPHOME_PSTR("DisconnectRequest {}"));
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DisconnectRequest"));
+  dump_field(out, ESPHOME_PSTR("reason"), static_cast<enums::DisconnectReason>(this->reason));
   return out.c_str();
 }
 const char *DisconnectResponse::dump_to(DumpBuffer &out) const {
@@ -964,6 +977,58 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #endif
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, ESPHOME_PSTR("zwave_home_id"), this->zwave_home_id);
+#endif
+#ifdef USE_SERIAL_PROXY
+  for (const auto &it : this->serial_proxies) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("serial_proxies")).append(": ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#endif
+#ifdef USE_API_NOISE
+  dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
+#endif
+  return out.c_str();
+}
+#ifdef USE_BLUETOOTH_PROXY
+const char *BluetoothProxyCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothProxyCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("mac_address"), this->mac_address);
+  return out.c_str();
+}
+#endif
+#ifdef USE_VOICE_ASSISTANT
+const char *VoiceAssistantCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("VoiceAssistantCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  return out.c_str();
+}
+#endif
+#ifdef USE_ZWAVE_PROXY
+const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyCapabilities"));
+  dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
+  dump_field(out, ESPHOME_PSTR("home_id"), this->home_id);
+  return out.c_str();
+}
+#endif
+const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("DeviceCapabilitiesResponse"));
+#ifdef USE_BLUETOOTH_PROXY
+  out.append(2, ' ').append_p(ESPHOME_PSTR("bluetooth_proxy")).append(": ");
+  this->bluetooth_proxy.dump_to(out);
+  out.append("\n");
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  out.append(2, ' ').append_p(ESPHOME_PSTR("voice_assistant")).append(": ");
+  this->voice_assistant.dump_to(out);
+  out.append("\n");
+#endif
+#ifdef USE_ZWAVE_PROXY
+  out.append(2, ' ').append_p(ESPHOME_PSTR("zwave_proxy")).append(": ");
+  this->zwave_proxy.dump_to(out);
+  out.append("\n");
 #endif
 #ifdef USE_SERIAL_PROXY
   for (const auto &it : this->serial_proxies) {
@@ -1403,7 +1468,7 @@ const char *ParsedTimezone::dump_to(DumpBuffer &out) const {
 const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("GetTimeResponse"));
   dump_field(out, ESPHOME_PSTR("epoch_seconds"), this->epoch_seconds);
-  dump_field(out, ESPHOME_PSTR("timezone"), this->timezone);
+  dump_field(out, ESPHOME_PSTR("has_parsed_timezone"), this->has_parsed_timezone);
   out.append(2, ' ').append_p(ESPHOME_PSTR("parsed_timezone")).append(": ");
   this->parsed_timezone.dump_to(out);
   out.append("\n");
@@ -1939,6 +2004,8 @@ const char *BluetoothLERawAdvertisementsResponse::dump_to(DumpBuffer &out) const
   }
   return out.c_str();
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 const char *BluetoothDeviceRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothDeviceRequest"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);
@@ -2110,6 +2177,8 @@ const char *BluetoothDeviceClearCacheResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("error"), this->error);
   return out.c_str();
 }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 const char *BluetoothScannerStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothScannerStateResponse"));
   dump_field(out, ESPHOME_PSTR("state"), static_cast<enums::BluetoothScannerState>(this->state));
@@ -2701,7 +2770,7 @@ const char *SerialProxyRequestResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 const char *BluetoothSetConnectionParamsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("BluetoothSetConnectionParamsRequest"));
   dump_field(out, ESPHOME_PSTR("address"), this->address);

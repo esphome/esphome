@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef USE_LIBRETINY
@@ -46,7 +47,7 @@ extern "C" {
 #endif
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 extern "C" {
 #include "cyw43.h"
 #include "cyw43_country.h"
@@ -63,6 +64,12 @@ extern "C" {
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#endif
+
+#ifdef USE_ESP32
+// Forward declaration matching esp_netif's own typedef; avoids pulling esp_netif.h
+// into this widely-included header.
+using esp_netif_t = struct esp_netif_obj;
 #endif
 
 namespace esphome::wifi {
@@ -181,10 +188,17 @@ static constexpr size_t WIFI_SCAN_RESULT_FILTERED_RESERVE = 8;
 
 // Use std::vector for RP2040 (callback-based) and ESP32 (destructive scan API)
 // Use FixedVector for ESP8266 and LibreTiny where two-pass exact allocation is possible
-#if defined(USE_RP2040) || defined(USE_ESP32)
+#if defined(USE_RP2) || defined(USE_ESP32)
 template<typename T> using wifi_scan_vector_t = std::vector<T>;
 #else
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
+#endif
+
+// A consumer component (e.g. the captive portal) reads scan results from another
+// task; guard them with a real lock only on platforms that actually run multiple
+// threads. See ScanResultsLock below the WiFiComponent class.
+#if defined(USE_WIFI_SCAN_RESULTS_LOCK) && !defined(ESPHOME_THREAD_SINGLE)
+#define WIFI_SCAN_RESULTS_LOCK_ENABLED
 #endif
 
 /// 20-byte string: 18 chars inline + null, heap for longer. Always null-terminated.
@@ -248,38 +262,38 @@ class WiFiAP {
   friend class WiFiScanResult;
 
  public:
-  void set_ssid(const std::string &ssid);
-  void set_ssid(const char *ssid);
+  void set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
+  void set_ssid(const char *ssid) { this->set_ssid(StringRef(ssid)); }
   void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
-  void set_bssid(const bssid_t &bssid);
-  void clear_bssid();
-  void set_password(const std::string &password);
-  void set_password(const char *password);
+  void set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
+  void clear_bssid() { this->bssid_ = {}; }
+  void set_password(const std::string &password) { this->password_ = CompactString(password.c_str(), password.size()); }
+  void set_password(const char *password) { this->set_password(StringRef(password)); }
   void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
 #ifdef USE_WIFI_WPA2_EAP
-  void set_eap(optional<EAPAuth> eap_auth);
+  void set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif  // USE_WIFI_WPA2_EAP
-  void set_channel(uint8_t channel);
-  void clear_channel();
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void clear_channel() { this->channel_ = 0; }
   void set_priority(int8_t priority) { priority_ = priority; }
 #ifdef USE_WIFI_MANUAL_IP
-  void set_manual_ip(optional<ManualIP> manual_ip);
+  void set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
-  void set_hidden(bool hidden);
+  void set_hidden(bool hidden) { this->hidden_ = hidden; }
   StringRef get_ssid() const { return this->ssid_.ref(); }
   StringRef get_password() const { return this->password_.ref(); }
-  const bssid_t &get_bssid() const;
-  bool has_bssid() const;
+  const bssid_t &get_bssid() const { return this->bssid_; }
+  bool has_bssid() const { return this->bssid_ != bssid_t{}; }
 #ifdef USE_WIFI_WPA2_EAP
-  const optional<EAPAuth> &get_eap() const;
+  const optional<EAPAuth> &get_eap() const { return this->eap_; }
 #endif  // USE_WIFI_WPA2_EAP
   uint8_t get_channel() const { return this->channel_; }
   bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
-  const optional<ManualIP> &get_manual_ip() const;
+  const optional<ManualIP> &get_manual_ip() const { return this->manual_ip_; }
 #endif
-  bool get_hidden() const;
+  bool get_hidden() const { return this->hidden_; }
 
  protected:
   CompactString ssid_;
@@ -306,14 +320,15 @@ class WiFiScanResult {
 
   bool matches(const WiFiAP &config) const;
 
-  bool get_matches() const;
-  void set_matches(bool matches);
-  const bssid_t &get_bssid() const;
+  bool get_matches() const { return this->matches_; }
+  void set_matches(bool matches) { this->matches_ = matches; }
+  const bssid_t &get_bssid() const { return this->bssid_; }
   StringRef get_ssid() const { return this->ssid_.ref(); }
-  uint8_t get_channel() const;
-  int8_t get_rssi() const;
-  bool get_with_auth() const;
-  bool get_is_hidden() const;
+  uint8_t get_channel() const { return this->channel_; }
+  int8_t get_rssi() const { return this->rssi_; }
+  bool get_with_auth() const { return this->with_auth_; }
+  bool get_is_hidden() const { return this->is_hidden_; }
+  bool ssid_equals(const WiFiScanResult &other) const { return this->ssid_ == other.ssid_; }
   int8_t get_priority() const { return priority_; }
   void set_priority(int8_t priority) { priority_ = priority; }
 
@@ -428,6 +443,7 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
+  // init_sta/add_sta kept out of line: inlining them into the generated setup() grows flash
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
   void clear_sta();
@@ -447,7 +463,7 @@ class WiFiComponent final : public Component {
 
   void enable();
   void disable();
-  bool is_disabled();
+  bool is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap);
@@ -458,9 +474,15 @@ class WiFiComponent final : public Component {
 
   void retry_connect();
 
-  void set_reboot_timeout(uint32_t reboot_timeout);
+  void set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 
   bool is_connected() const { return this->connected_; }
+
+#ifdef USE_ESP32
+  /// esp_netif handle of the station interface, used by network for default-route
+  /// arbitration. nullptr until wifi_lazy_init_() has run.
+  esp_netif_t *get_esp_netif_sta();
+#endif
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
@@ -472,7 +494,7 @@ class WiFiComponent final : public Component {
   void set_phy_mode(WiFi8266PhyMode phy_mode) { this->phy_mode_ = phy_mode; }
 #endif
 
-  void set_passive_scan(bool passive);
+  void set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   void save_wifi_sta(const char *ssid, const char *password);
@@ -486,7 +508,7 @@ class WiFiComponent final : public Component {
   void dump_config() override;
   void restart_adapter();
   /// WIFI setup_priority.
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::WIFI; }
   /// Reconnect WiFi if required.
   void loop() override;
 
@@ -495,15 +517,20 @@ class WiFiComponent final : public Component {
   bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
-  void set_btm(bool btm);
-  void set_rrm(bool rrm);
+  void set_btm(bool btm) { this->btm_ = btm; }
+  void set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
+  /// Returns nullptr when no explicit use_address is configured and the address is
+  /// derived at runtime from the device name (see network::get_use_address_to()).
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
+  /// Main-loop callers may read this directly. Callers on any other task must
+  /// hold a ScanResultsLock for the whole iteration and must call
+  /// wifi.request_wifi_scan_results_lock() from their code generation.
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
   network::IPAddress wifi_soft_ap_ip();
@@ -525,9 +552,6 @@ class WiFiComponent final : public Component {
   void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use wifi_ssid_to() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string wifi_ssid();
   /// Write SSID to buffer without heap allocation.
   /// Returns pointer to buffer, or empty string if not connected.
   const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
@@ -769,13 +793,19 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_WIFI_FAST_CONNECT
   bool load_fast_connect_settings_(WiFiAP &params);
-  void save_fast_connect_settings_();
+  void save_fast_connect_settings_(const bssid_t &bssid, uint8_t channel);
 #endif
 
   // Post-connect roaming methods
   void check_roaming_(uint32_t now);
   void process_roaming_scan_();
   void clear_roaming_state_();
+#ifdef USE_ESP32
+  /// Redo post-connect bookkeeping after a driver-initiated roam (e.g. 802.11v BTM)
+  /// @param bssid The new AP's BSSID, taken from the connected event
+  /// @param channel The new AP's channel, taken from the connected event
+  void handle_driver_roam_(const bssid_t &bssid, uint8_t channel);
+#endif
 
   /// Returns true if a component has requested that roaming scans be suppressed (e.g. during audio playback).
   bool roaming_suppressed_() const {
@@ -815,9 +845,11 @@ class WiFiComponent final : public Component {
   friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
-#ifdef USE_RP2040
+  friend class ScanResultsLock;
+
+#ifdef USE_RP2
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
-  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result_(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
 #ifdef USE_LIBRETINY
@@ -829,7 +861,11 @@ class WiFiComponent final : public Component {
   // Large/pointer-aligned members first
   FixedVector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
+  // Guarded by ScanResultsLock (see below this class)
   wifi_scan_vector_t<WiFiScanResult> scan_result_;
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
+  Mutex scan_result_lock_;
+#endif
 #ifdef USE_WIFI_AP
   WiFiAP ap_;
 #endif
@@ -996,10 +1032,30 @@ class WiFiComponent final : public Component {
  private:
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
-  const char *use_address_{""};
+  const char *use_address_{nullptr};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/// Guards WiFiComponent::scan_result_. Invariant: every mutation and every read
+/// from outside the main loop holds this lock, and holders only do bounded work
+/// (never unbounded waits or network sends). On every platform where the lock is
+/// enabled (ESP32, LibreTiny) scan-done events are drained from the event queue
+/// on the main loop, so all writers are main-loop there and main-loop reads take
+/// no lock. Single-threaded platforms write from driver context and the lock is
+/// a no-op. Compiles to nothing unless a cross-task reader is in the build and
+/// the platform is multi-threaded (WIFI_SCAN_RESULTS_LOCK_ENABLED).
+class ScanResultsLock {
+ public:
+#ifdef WIFI_SCAN_RESULTS_LOCK_ENABLED
+  ScanResultsLock(WiFiComponent *parent) : guard_(parent->scan_result_lock_) {}
+
+ private:
+  LockGuard guard_;
+#else
+  ScanResultsLock(WiFiComponent *) {}
+#endif
+};
 
 }  // namespace esphome::wifi
 #endif

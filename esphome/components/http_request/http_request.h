@@ -488,10 +488,10 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       body = this->body_.value(x...);
     }
     if (!this->json_.empty()) {
-      body = json::build_json([this, x...](JsonObject root) { this->encode_json_(x..., root); });
+      body = json::build_json([this, x...](JsonObject root) mutable { this->encode_json_(x..., root); });
     }
     if (this->json_func_ != nullptr) {
-      body = json::build_json([this, x...](JsonObject root) { this->json_func_(x..., root); });
+      body = json::build_json([this, x...](JsonObject root) mutable { this->json_func_(x..., root); });
     }
     std::vector<Header> request_headers;
     request_headers.reserve(this->request_headers_.size());
@@ -510,9 +510,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       return;
     }
 
-    size_t max_length = this->max_response_buffer_size_;
 #ifdef USE_HTTP_REQUEST_RESPONSE
     if (this->capture_response_.value(x...)) {
+      size_t max_length = this->max_response_buffer_size_;
       std::string response_body;
       RAMAllocator<uint8_t> allocator;
       uint8_t *buf = allocator.allocate(max_length);

@@ -58,7 +58,7 @@ from esphome.framework_helpers import (
     get_project_link_flags,
     run_command_ok,
 )
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import rmtree, write_file_if_changed
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -69,7 +69,12 @@ from .const import (
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
     BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
 )
-from .framework import check_and_install, get_build_env, get_build_paths
+from .framework import (
+    check_and_install,
+    get_build_env,
+    get_build_paths,
+    setup_platformio_python_env,
+)
 
 # force import gpio to register pin schema
 from .gpio import nrf52_pin_to_code  # noqa: F401
@@ -78,6 +83,11 @@ CODEOWNERS = ["@tomaszduda23"]
 AUTO_LOAD = ["zephyr", "preferences"]
 IS_TARGET_PLATFORM = True
 _LOGGER = logging.getLogger(__name__)
+
+# Default framework versions per toolchain. The sdk-nrf one also keys the CI
+# sdk-nrf install cache and pins the clang-tidy project's SDK.
+RECOMMENDED_PLATFORMIO_VERSION = "2.6.1-b"
+RECOMMENDED_SDK_NRF_VERSION = "2.9.2"
 
 FAKE_BOARD_MANIFEST = """
 {
@@ -117,13 +127,17 @@ def set_core_data(config: ConfigType) -> ConfigType:
 
 def _resolve_toolchain(config: ConfigType) -> ConfigType:
     if CORE.toolchain is None:
-        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.PLATFORMIO)
+        CORE.toolchain = config.get(CONF_TOOLCHAIN, Toolchain.SDK_NRF)
     return config
 
 
 def set_framework(config: ConfigType) -> ConfigType:
     if CONF_VERSION not in config[CONF_FRAMEWORK]:
-        default_version = "2.6.1-b" if CORE.using_toolchain_platformio else "2.9.2"
+        default_version = (
+            RECOMMENDED_PLATFORMIO_VERSION
+            if CORE.using_toolchain_platformio
+            else RECOMMENDED_SDK_NRF_VERSION
+        )
         config = {
             **config,
             CONF_FRAMEWORK: {**config[CONF_FRAMEWORK], CONF_VERSION: default_version},
@@ -191,6 +205,7 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
+CONF_LIBC_NANO = "libc_nano"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
@@ -223,7 +238,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
             cv.Optional(CONF_DFU): _dfu_schema,
-            cv.Optional(CONF_DCDC, default=True): cv.boolean,
+            cv.Optional(CONF_DCDC): cv.boolean,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
                     cv.Required(CONF_VOLTAGE): cv.All(
@@ -239,7 +254,10 @@ CONFIG_SCHEMA = cv.All(
             ): cv.Schema(
                 {
                     cv.Optional(CONF_VERSION): cv.string_strict,
-                    cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                    cv.Optional(CONF_LIBC_NANO, default=True): cv.boolean,
+                    cv.Optional(
+                        CONF_ADVANCED, default={}, visibility=cv.Visibility.YAML_ONLY
+                    ): cv.Schema(
                         {
                             cv.Optional(
                                 CONF_ENABLE_OTA_ROLLBACK, default=True
@@ -264,6 +282,14 @@ def _validate_mcumgr(config):
 
 
 def _final_validate(config):
+
+    # Remove before 2027.2.0
+    if CORE.using_toolchain_platformio:
+        _LOGGER.warning(
+            "The 'platformio' toolchain for nRF52 is deprecated and will be removed in ESPHome 2027.2.0. "
+            "Please use 'toolchain: sdk-nrf' instead."
+        )
+
     if CONF_DFU in config:
         _validate_mcumgr(config)
     if config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT:
@@ -273,6 +299,13 @@ def _final_validate(config):
     full_config = fv.full_config.get()
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
+
+    if conf[CONF_LIBC_NANO] and "logger" in CORE.loaded_integrations:
+        _LOGGER.warning(
+            "Logger is enabled with newlib-nano (libc_nano: true). Some format specifiers "
+            "such as %%zu are not supported and will print incorrectly. "
+            "Set 'libc_nano: false' under 'framework:' to use the full newlib."
+        )
 
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         # "disabled: false" means safe mode *is* enabled.
@@ -348,16 +381,17 @@ async def to_code(config: ConfigType) -> None:
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if framework_ver < cv.Version(2, 9, 2):
-        zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
-    else:
-        zephyr_add_overlay(
-            f"""
-                &reg1 {{
-                    regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
-                }};
-            """
-        )
+    if CONF_DCDC in config:
+        if framework_ver < cv.Version(2, 9, 2):
+            zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+        else:
+            zephyr_add_overlay(
+                f"""
+                    &reg1 {{
+                        regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                    }};
+                """
+            )
 
     if reg0_config := config.get(CONF_REG0):
         value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
@@ -370,6 +404,9 @@ async def to_code(config: ConfigType) -> None:
     # Enable OTA rollback support
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         cg.add_define("USE_OTA_ROLLBACK")
+    zephyr_add_prj_conf("NEWLIB_LIBC", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC_FLOAT_PRINTF", True)
+    zephyr_add_prj_conf("NEWLIB_LIBC_NANO", conf[CONF_LIBC_NANO])
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)
@@ -411,6 +448,17 @@ async def _dfu_to_code(dfu_config):
 def copy_files() -> None:
     """Copy files to the build directory."""
 
+    # Library conversion to Zephyr modules is wired into the sdk-nrf
+    # CMakeLists only; the PlatformIO toolchain's forked platform package
+    # cannot compile external libraries at all, so the build would fail at
+    # link time anyway. Fail fast with a clear message instead.
+    if CORE.using_toolchain_platformio and CORE.platformio_libraries:
+        raise EsphomeError(
+            f"Libraries ({', '.join(sorted(CORE.platformio_libraries))}) are "
+            "not supported on the nRF52 'platformio' toolchain; use toolchain "
+            "'sdk-nrf' to build them as Zephyr modules."
+        )
+
     if CORE.using_toolchain_platformio and (
         zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT
         or zephyr_data()[KEY_BOARD] == "xiao_ble"
@@ -425,11 +473,14 @@ def copy_files() -> None:
 
 def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Get the download types for the firmware."""
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     types = []
     UF2_PATH = "zephyr/zephyr.uf2"
     DFU_PATH = "firmware.zip"
-    HEX_PATH = "zephyr/zephyr.hex"
-    HEX_MERGED_PATH = "zephyr/merged.hex"
+    HEX_PATH = "zephyr/zephyr.hex"  # SDK 2.6.1, only generated when OTA is disabled
+    HEX_MERGED_PATH = "zephyr/merged.hex"  # SDK 2.9.2, always generated
     APP_IMAGE_PATH = "zephyr/app_update.bin"
     build_dir = Path(storage_json.firmware_bin_path).parent
     if (build_dir / UF2_PATH).is_file():
@@ -478,6 +529,7 @@ def _upload_using_platformio(
 ) -> int | str:
     from esphome.platformio import toolchain
 
+    setup_platformio_python_env()
     if port is not None:
         upload_args += ["--upload-port", port]
     return toolchain.run_platformio_cli_run(config, CORE.verbose, *upload_args)
@@ -673,11 +725,17 @@ def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
     return ""
 
 
+# The PC bound matches the gate in platform_hooks.STACKTRACE_GATES;
+# the logger prints both registers with %08x, so a real PC is always
+# 8 digits. tests/unit_tests/test_stacktrace.py guards against drift.
+STACKTRACE_NRF52_PC_LR_RE = re.compile(r"PC=(0x[0-9a-fA-F]{3,})\s+LR=(0x[0-9a-fA-F]+)")
+
+
 def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     if "Last crash:" in line:
         return True
     if backtrace_state:
-        match = re.search(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)", line)
+        match = STACKTRACE_NRF52_PC_LR_RE.search(line)
         if match:
             pc = match.group(1)
             lr = match.group(2)
@@ -686,10 +744,22 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             addr2line = find_tool("addr2line")
             if addr2line is None:
                 return False
-            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
-            if not elf.exists():
-                _LOGGER.warning("%s does not exists", elf)
+
+            candidates = [
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "zephyr", "zephyr.elf"),
+                CORE.relative_pioenvs_path(CORE.name, "firmware.elf"),
+            ]
+
+            elf = next((path for path in candidates if path.exists()), None)
+
+            if elf is None:
+                _LOGGER.warning(
+                    "None of the expected ELF files exist:\n%s",
+                    "\n".join(str(p) for p in candidates),
+                )
                 return False
+
             _LOGGER.error("=== CRASH ===")
             _LOGGER.error("PC: %s", _addr2line(addr2line, elf, pc))
             _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
@@ -697,15 +767,31 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
     return False
 
 
-def _generate_cmake_lists() -> None:
+def _generate_cmake_lists() -> bool:
+    """Write the project CMakeLists.txt, returning True if it changed."""
     compile_flags = get_project_compile_flags()
     link_flags = get_project_link_flags()
+
+    # Convert any PlatformIO libraries added via cg.add_library() into Zephyr
+    # modules and discover them through EXTRA_ZEPHYR_MODULES (a CMake list, set
+    # before find_package(Zephyr) so the modules are picked up). Only
+    # framework-agnostic libraries actually compile under Zephyr.
+    from esphome.components.zephyr.library import generate_zephyr_modules
+
+    module_dirs = generate_zephyr_modules(list(CORE.platformio_libraries.values()))
 
     lines = [
         "cmake_minimum_required(VERSION 3.20.0)",
         "",
         'set(Zephyr_DIR "$ENV{ZEPHYR_BASE}/share/zephyr-package/cmake/")',
         "",
+    ]
+
+    if module_dirs:
+        modules = ";".join(str(d).replace("\\", "/") for d in module_dirs)
+        lines += [f'set(EXTRA_ZEPHYR_MODULES "{modules}")', ""]
+
+    lines += [
         "find_package(Zephyr REQUIRED)",
         "",
         f"project({CORE.name})",
@@ -732,14 +818,23 @@ def _generate_cmake_lists() -> None:
             ")",
         ]
 
-    write_file_if_changed(
+    return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
         "\n".join(lines) + "\n",
     )
 
 
+def _copy_if_exists(src: Path, dst: Path) -> None:
+    if src.is_file():
+        shutil.copy2(src, dst)
+
+
 def run_compile(args, config: ConfigType) -> bool:
     if CORE.using_toolchain_platformio:
+        # The actual build is done by PlatformIO (the caller falls through to
+        # it when this returns False); prepare the Python environment its
+        # Zephyr build script expects first.
+        setup_platformio_python_env()
         return False
     if not CORE.using_toolchain_sdk_nrf:
         raise EsphomeError(
@@ -751,11 +846,22 @@ def run_compile(args, config: ConfigType) -> bool:
     paths = get_build_paths()
     env = get_build_env()
 
-    _generate_cmake_lists()
+    cmake_lists_changed = _generate_cmake_lists()
 
     board = zephyr_data()[KEY_BOARD]
     build_dir = CORE.relative_pioenvs_path(CORE.name)
     source_dir = CORE.relative_build_path("zephyr")
+
+    # A missing CMake cache (dropped by zephyr's copy_files() on config
+    # change) or a changed CMakeLists.txt requires a pristine build: Zephyr
+    # caches Kconfig/devicetree state that survives a plain cmake re-run.
+    # West can't do the wipe — its pristine modes only recognize a build dir
+    # by reading ZEPHYR_BASE from the very cache that was dropped.
+    if (
+        cmake_lists_changed or not (build_dir / "CMakeCache.txt").is_file()
+    ) and build_dir.is_dir():
+        _LOGGER.info("Build inputs changed, cleaning %s", build_dir)
+        rmtree(build_dir)
 
     west_cmd = [
         str(paths["python_executable"]),
@@ -778,15 +884,9 @@ def run_compile(args, config: ConfigType) -> bool:
     ):
         raise EsphomeError("nRF52 native build failed")
 
-    # Zephyr's cmake places kernel artifacts in build_dir/zephyr/zephyr/ and
-    # merged.hex at build_dir/. Normalize to build_dir/zephyr/ so paths match
-    # get_download_types (which mirrors the platformio build output layout).
     zephyr_dir = build_dir / "zephyr"
-    west_out = zephyr_dir / "zephyr"
-    for filename in ["zephyr.uf2"]:
-        src = west_out / filename
-        if src.is_file():
-            shutil.copy2(src, zephyr_dir / filename)
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    bootloader = zephyr_data()[KEY_BOOTLOADER]
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes
     _GENPKG_PARAMS = {
@@ -794,14 +894,61 @@ def run_compile(args, config: ConfigType) -> bool:
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: ("0x0052", "0x00B6"),
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: ("0x0052", "0x00CA"),
     }
-    bootloader = zephyr_data()[KEY_BOOTLOADER]
+    # UF2 family IDs — nRF52832 vs nRF52840 per SoftDevice variant
+    _UF2_FAMILY_IDS = {
+        BOOTLOADER_ADAFRUIT_NRF52_SD132: "0x7EAED30A",
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: "0xADA52840",
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: "0xADA52840",
+    }
+
+    # SDK < 2.9.2 places artifacts directly in build_dir/zephyr/.
+    # SDK >= 2.9.2 nests them one level deeper (build_dir/zephyr/zephyr/);
+    # copy files to match get_download_types layout.
+    if framework_ver < cv.Version(2, 9, 2):
+        west_out = zephyr_dir
+    else:
+        west_out = zephyr_dir / "zephyr"
+        _copy_if_exists(west_out / "zephyr.uf2", zephyr_dir / "zephyr.uf2")
+        _copy_if_exists(west_out / "zephyr.signed.bin", zephyr_dir / "app_update.bin")
+        _copy_if_exists(build_dir / "merged.hex", zephyr_dir / "merged.hex")
+
+    # For Adafruit bootloader builds, regenerate the UF2 from merged.hex,
+    # whose records carry the correct flash addresses. The build's own
+    # zephyr.uf2 uses the board's default offset, which is wrong in some cases.
+    merged_hex = zephyr_dir / "merged.hex"
+    if bootloader in _UF2_FAMILY_IDS and merged_hex.is_file():
+        # Drop the build's own wrong-offset UF2 so it isn't shipped alongside.
+        app_uf2 = west_out / "zephyr.uf2"
+        if app_uf2.is_file():
+            app_uf2.unlink()
+        uf2conv = (
+            paths["framework_path"] / "zephyr" / "scripts" / "build" / "uf2conv.py"
+        )
+        if not run_command_ok(
+            [
+                str(paths["python_executable"]),
+                str(uf2conv),
+                "-f",
+                _UF2_FAMILY_IDS[bootloader],
+                "-c",
+                "-o",
+                str(zephyr_dir / "zephyr.uf2"),
+                str(merged_hex),
+            ],
+            env=env,
+            stream_output=True,
+        ):
+            raise EsphomeError("Failed to generate UF2 from merged hex")
+
     if bootloader in (
         BOOTLOADER_ADAFRUIT,
         BOOTLOADER_ADAFRUIT_NRF52_SD132,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
         BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
     ):
-        hex_file = west_out / "zephyr.hex"
+        # no fallback is needed for adafruit case. merged merged.hex is always generated.
+        # get_download_types needs fallback for mcuboot (non adafruit)
+        hex_file = zephyr_dir / "merged.hex"
         dfu_package = build_dir / "firmware.zip"
         genpkg_cmd = [
             str(paths["python_executable"]),

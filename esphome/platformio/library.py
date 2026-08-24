@@ -13,7 +13,7 @@ regardless of which toolchain consumes the result.
 """
 
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 import glob
 import hashlib
@@ -21,14 +21,15 @@ import itertools
 import json
 import logging
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import tempfile
 from typing import Any
-from urllib.parse import urlparse, urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit
+from urllib.request import url2pathname
 
 from esphome import git
-from esphome.core import CORE, Library
+from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import archive_extract_all, download_from_mirrors, rmdir
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,38 +47,63 @@ DEFAULT_BUILD_SRC_FILTER = (
 DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
-SRC_FILE_EXTENSIONS = [
-    ".c",
-    ".cpp",
-    ".cc",
-    ".cxx",
-    ".c++",
-    ".S",
-    ".spp",
-    ".SPP",
-    ".sx",
-    ".s",
-    ".asm",
-    ".ASM",
-]
+# Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES);
+# "asm" merges SCons's AS and ASPP sets. Per CXXSUFFIXES .C/.C++ are C++
+# here, even where SCons demotes .C on case-insensitive filesystems.
+SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
+    ".c": "c",
+    ".cpp": "cxx",
+    ".cc": "cxx",
+    ".cxx": "cxx",
+    ".c++": "cxx",
+    ".C": "cxx",
+    ".C++": "cxx",
+    ".S": "asm",
+    ".spp": "asm",
+    ".SPP": "asm",
+    ".sx": "asm",
+    ".s": "asm",
+    ".asm": "asm",
+    ".ASM": "asm",
+}
+SRC_FILE_EXTENSIONS = list(SOURCE_KIND_FOR_SUFFIX)
 
 DOMAIN = "pio_components"
 
 ESPHOME_DATA_KEY = "ESPHOME"
 ESPHOME_DATA_EXTRA_CMAKE_KEY = "EXTRA_CMAKE"
+# Captured extra-script LINKFLAGS; kept apart from build.flags so they reach
+# the link line (target_link_options), not target_compile_options
+ESPHOME_DATA_LINK_FLAGS_KEY = "LINK_FLAGS"
 
 
 class Source:
-    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
         raise NotImplementedError
+
+    def source_root(self, build_path: Path) -> Path:
+        """Directory holding the library's own files (manifest + sources).
+
+        Defaults to the downloaded build directory; a source that references its
+        files in place (:class:`LocalSource`) overrides this to point elsewhere.
+        """
+        return build_path
 
 
 class URLSource(Source):
     def __init__(self, url: str):
         self.url = url
 
-    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        # Namespace the cache per backend (e.g. pio_components/idf, .../zephyr) so
+        # the build files each backend writes into the library dir can't collide.
         base_dir = Path(CORE.data_dir) / DOMAIN
+        if namespace:
+            base_dir = base_dir / namespace
         h = hashlib.new("sha256")
         h.update(self.url.encode())
         if salt:
@@ -113,13 +139,20 @@ class GitSource(Source):
         self.url = url
         self.ref = ref
 
-    def download(self, dir_suffix: str, force: bool = False, salt: str = "") -> Path:
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        domain = DOMAIN
+        if namespace:
+            domain = f"{domain}/{namespace}"
+        if salt:
+            domain = f"{domain}/{salt}"
         path, _ = git.clone_or_update(
             url=self.url,
             ref=self.ref,
             refresh=git.NEVER_REFRESH if not force else None,
-            domain=f"{DOMAIN}/{salt}" if salt else DOMAIN,
-            submodules=[],
+            domain=domain,
+            init_submodules=True,
             subpath=Path(dir_suffix),
         )
         return path
@@ -128,8 +161,60 @@ class GitSource(Source):
         return f"{self.url}#{self.ref}" if self.ref else self.url
 
 
+class LocalSource(Source):
+    """A library that already exists as a directory on the local filesystem.
+
+    Referenced with a ``file://`` URL (PlatformIO's spelling for a local library
+    folder). Nothing is copied: the backend generates its build files into an
+    otherwise empty cache directory and references the library's own sources in
+    place by absolute path (via :meth:`source_root`). So the user's source tree
+    stays untouched and edits are picked up on the next build without syncing.
+    """
+
+    def __init__(self, path: str):
+        self.local_path = path
+
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        src = Path(self.local_path)
+        if not src.is_dir():
+            # EsphomeError (not InvalidLibrary) so the CLI prints a clean message
+            # instead of a traceback -- pointing a file:// at a missing folder is
+            # the most common first mistake with a local library.
+            raise EsphomeError(
+                f"Local library directory does not exist: {self.local_path}"
+            )
+        base_dir = Path(CORE.data_dir) / DOMAIN
+        if namespace:
+            base_dir = base_dir / namespace
+        h = hashlib.new("sha256")
+        h.update(str(src.resolve()).encode())
+        if salt:
+            h.update(salt.encode())
+        # Only the generated build files live here; the library's own sources
+        # are referenced in place from source_root().
+        path = base_dir / h.hexdigest()[:8] / dir_suffix
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def source_root(self, build_path: Path) -> Path:
+        return Path(self.local_path)
+
+    def __str__(self):
+        path = Path(self.local_path)
+        # as_uri() needs an absolute path; _node_key rejects relative file://
+        # URLs, but guard anyway so a diagnostic can't itself raise.
+        return path.as_uri() if path.is_absolute() else f"file://{self.local_path}"
+
+
 class InvalidLibrary(Exception):
     pass
+
+
+class IncompatiblePlatform(InvalidLibrary):
+    """The routine cross-platform skip, typed so callers need not match
+    message text."""
 
 
 class ConvertedLibrary:
@@ -147,6 +232,9 @@ class ConvertedLibrary:
         self.data = {}
         self.dependencies: list[ConvertedLibrary] = []
         self._path: Path | None = None
+        # Where the library's own files live (manifest + sources). Set by
+        # download(); equals path for registry/git, the user's dir for local.
+        self.source_path: Path | None = None
 
     def __str__(self):
         return f"{self.name}@{self.version}={self.source}"
@@ -161,23 +249,34 @@ class ConvertedLibrary:
     def path(self, value: Path) -> None:
         self._path = value
 
+    @property
+    def source_dir(self) -> Path:
+        """Directory the library's own files (manifest + sources) are read from.
+
+        The build dir for a registry/git source; the user's directory for a
+        local library. Backends read sources from here and emit their build
+        files into ``path``.
+        """
+        return self.source_path or self.path
+
     def get_sanitized_name(self):
         return re.sub(r"[^a-zA-Z0-9_.\-/]", "_", self.name)
 
     def get_require_name(self):
         return self.get_sanitized_name().replace("/", "__")
 
-    def download(self, force: bool = False, salt: str = ""):
+    def download(self, force: bool = False, salt: str = "", namespace: str = ""):
         """Fetch the library into the shared cache and record its ``path``.
 
         The cache directory is named after the sanitized library name; backends
         rely on that name to identify the unit they build (e.g. ESP-IDF uses the
         directory name as the component name, replacing ``/`` with ``__`` via
-        ``get_require_name``).
+        ``get_require_name``). ``namespace`` keeps each backend's cache separate.
         """
         self.path = self.source.download(
-            self.get_sanitized_name(), force=force, salt=salt
+            self.get_sanitized_name(), force=force, salt=salt, namespace=namespace
         )
+        self.source_path = self.source.source_root(self.path)
 
 
 @dataclass
@@ -188,11 +287,15 @@ class LibraryBackend:
     ``emit`` writes the toolchain-specific build files into a resolved library's
     ``path`` (e.g. the ESP-IDF ``CMakeLists.txt`` + ``idf_component.yml``, or a
     Zephyr ``module.yml`` + ``CMakeLists.txt``).
+    ``cache_key`` namespaces the download cache (``pio_components/<cache_key>/``)
+    so the differing build files two backends emit into a library dir never
+    collide when the same config dir hosts both an ESP-IDF and a Zephyr build.
     """
 
-    platform: str
+    platform: str | None
     framework: str
     emit: Callable[["ConvertedLibrary"], None]
+    cache_key: str
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -273,6 +376,12 @@ def collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[st
                 for root, _, files in os.walk(item):
                     matched.extend([str(Path(root) / f) for f in files])
 
+        # glob keeps the pattern's literal separators for non-wildcard path
+        # components, so on Windows the same file can surface with different
+        # separators depending on where the wildcards sit; normalize so the
+        # include/exclude set operations below compare equal paths.
+        matched = [os.path.normpath(m) for m in matched]
+
         # FILTER_REGEX only ever captures "+" or "-", so the else is the "-" case.
         if sign == "+":
             selected.update(matched)
@@ -306,7 +415,7 @@ def split_list_by_condition(
     return matched, non_matched
 
 
-def check_library_data(data: dict, platform: str, framework: str):
+def check_library_data(data: dict, platform: str | None, framework: str):
     """
     Check whether a library manifest is compatible with the target toolchain.
 
@@ -319,7 +428,9 @@ def check_library_data(data: dict, platform: str, framework: str):
     Args:
         data: PIO library manifest dict being processed.
         platform: The PlatformIO platform token the build targets (e.g.
-            ``espressif32``).
+            ``espressif32``). ``None`` skips the platform check entirely — useful
+            for targets (e.g. Zephyr) where PIO manifests rarely declare the
+            platform yet portable libraries still build.
         framework: The active framework name (e.g. ``espidf``, ``arduino``,
             ``zephyr``) the manifest is expected to declare.
 
@@ -330,17 +441,22 @@ def check_library_data(data: dict, platform: str, framework: str):
     if isinstance(platforms, str):
         platforms = [a.strip() for a in platforms.split(",")]
     platforms = ensure_list(platforms)
+    if not all(isinstance(pf, str) for pf in platforms):
+        # A real (non-platform) manifest problem; callers warn, not skip
+        raise InvalidLibrary(f"Malformed platforms value: {platforms!r}")
 
     # Check if library supports the target platform
-    valid_platforms = "*" in platforms or platform in platforms
+    valid_platforms = platform is None or "*" in platforms or platform in platforms
 
     if not valid_platforms:
-        raise InvalidLibrary(f"Unsupported library platforms: {platforms}")
+        raise IncompatiblePlatform(f"Unsupported library platforms: {platforms}")
 
     frameworks = data.get("frameworks", "*")
     if isinstance(frameworks, str):
         frameworks = [a.strip() for a in frameworks.split(",")]
     frameworks = ensure_list(frameworks)
+    if not all(isinstance(fw, str) for fw in frameworks):
+        raise InvalidLibrary(f"Malformed frameworks value: {frameworks!r}")
 
     # Check if library declares the active framework. PIO library manifests
     # often list only "arduino" even when the library actually compiles fine
@@ -358,7 +474,7 @@ def check_library_data(data: dict, platform: str, framework: str):
         )
 
 
-def _parse_library_json(library_json_path: PathType):
+def parse_library_json(library_json_path: PathType):
     """
     Load and parse a JSON file describing a library.
 
@@ -372,7 +488,7 @@ def _parse_library_json(library_json_path: PathType):
         return json.load(fp)
 
 
-def _parse_library_properties(library_properties_path: PathType):
+def parse_library_properties(library_properties_path: PathType):
     """
     Parse a key-value platformio .properties style file into a dictionary.
 
@@ -456,19 +572,131 @@ def _resolve_registry_version(
     return owner, name, best["name"], pkgfile["download_url"]
 
 
-def _normalize_dependencies(dependencies: Any) -> list[dict]:
+def split_flag_entry(entry: Any, owner: str) -> list[str]:
+    """``shlex.split`` with a clean error naming the offending flags entry."""
+    # Late import: shlex is only needed when actually lexing flags
+    import shlex
+
+    try:
+        return shlex.split(entry)
+    except (ValueError, AttributeError, TypeError) as err:
+        # AttributeError/TypeError: a dict or number from a third-party
+        # manifest; name the entry instead of an opaque shlex traceback
+        raise EsphomeError(f"Malformed build flag {entry!r} in {owner}: {err}") from err
+
+
+def lex_build_flags(entries: str | list[str], owner: str) -> list[str]:
+    """Shell-lex ``build.flags`` entries the way PlatformIO's ParseFlags
+    does; bare -I/-L/-l/-D tokens re-glue to their argument."""
+    # Lex per entry as ParseFlags does: a dangling -I must warn, not absorb
+    # the next entry's first token
+    return [
+        token
+        for entry in ensure_list(entries)
+        for token in join_flag_args(split_flag_entry(entry, owner), owner)
+    ]
+
+
+# Flags whose argument may follow as a separate token; ParseFlags glues them
+BARE_ARG_FLAGS = frozenset({"-I", "-L", "-l", "-D"})
+
+
+def join_flag_args(tokens: Iterable[str], owner: str) -> list[str]:
+    """Join a bare ``-I``/``-L``/``-l``/``-D`` with its following token, as
+    PlatformIO's ParseFlags does. A trailing or empty argument is warned and
+    dropped: the bare flag would make gcc eat the next flag."""
+    out: list[str] = []
+    it = iter(tokens)
+    for tok in it:
+        if tok in BARE_ARG_FLAGS:
+            arg = next(it, None)
+            if arg is None:
+                _LOGGER.warning("Ignoring trailing '%s' in %s build flags", tok, owner)
+                break
+            if not arg:
+                _LOGGER.warning(
+                    "Ignoring '%s' with empty argument in %s build flags", tok, owner
+                )
+                continue
+            tok += arg
+        out.append(tok)
+    return out
+
+
+def warn_properties_depends(name: str, data: object) -> None:
+    """Warn for ``depends=``-only manifests; the walk reads only the JSON
+    ``dependencies`` key, so they would otherwise drop silently."""
+    if isinstance(data, dict) and not data.get("dependencies") and data.get("depends"):
+        # INFO: common and unactionable for transitive libraries; a WARNING
+        # on every build would train users to ignore the stream
+        _LOGGER.info(
+            "Library %s declares dependencies via library.properties "
+            "depends=, which are not resolved automatically; add them with "
+            "add_library() if needed",
+            name,
+        )
+
+
+def dependency_is_usable(
+    dep: dict, platform: str | None, framework: str, requester: str
+) -> bool:
+    """Compatibility filter for a manifest dependency: platform mismatches
+    skip at debug, any other ``InvalidLibrary`` warns naming the requester."""
+    try:
+        check_library_data(dep, platform, framework)
+    except IncompatiblePlatform as e:
+        _LOGGER.debug("Skip dependency %s of %s: %s", dep.get("name"), requester, e)
+        return False
+    except InvalidLibrary as e:
+        _LOGGER.warning(
+            "Skipping dependency %s of %s: %s", dep.get("name"), requester, e
+        )
+        return False
+    return True
+
+
+def _valid_dependency_entry(entry: dict, manifest_name: str) -> bool:
+    """Whether a normalized entry carries a usable name (non-empty string),
+    version (string, if present), and owner (string, if present); invalid
+    entries warn naming the manifest."""
+    name = entry.get("name")
+    owner = entry.get("owner")
+    name_ok = isinstance(name, str) and name
+    version_ok = "version" not in entry or isinstance(entry["version"], str)
+    owner_ok = owner is None or isinstance(owner, str)
+    if name_ok and version_ok and owner_ok:
+        return True
+    _LOGGER.warning(
+        "Ignoring unrecognized dependency entry %r of %s", entry, manifest_name
+    )
+    return False
+
+
+def normalize_dependencies(
+    dependencies: Any, manifest_name: str = "manifest"
+) -> list[dict]:
     """Normalize a library manifest's ``dependencies`` to a list of dicts.
 
-    PIO's library.json accepts both the list-of-dicts form and the shorthand
-    dict form (``{"owner/Name": "version_spec"}``); normalize the latter so
-    callers see a uniform list.
+    PIO's library.json accepts the list-of-dicts form, the shorthand dict
+    form (``{"owner/Name": "version_spec"}``), bare name strings inside the
+    list, and a plain (possibly comma-separated) string; normalize them all
+    so callers see a uniform list. ``manifest_name`` names the manifest in the
+    warning for entries that cannot be normalized.
+
+    Bare-name spellings carry no version; the dependency walk later drops
+    version-less entries at DEBUG, since they are usually names of bundled
+    framework libraries (Wire, SPI) that need no registry install.
     """
-    if not dependencies:
+    if dependencies is None:
         return []
+    if isinstance(dependencies, str):
+        # A plain string is one or more comma-separated names; iterating it
+        # as a list would shred it into one-character "libraries"
+        return [{"name": n.strip()} for n in dependencies.split(",") if n.strip()]
     if isinstance(dependencies, dict):
         normalized = []
         for raw_name, spec in dependencies.items():
-            if "/" in raw_name:
+            if isinstance(raw_name, str) and "/" in raw_name:
                 owner, pkgname = raw_name.split("/", 1)
             else:
                 owner, pkgname = None, raw_name
@@ -477,9 +705,31 @@ def _normalize_dependencies(dependencies: Any) -> list[dict]:
                 entry.update(spec)
             else:
                 entry["version"] = spec
-            normalized.append(entry)
+            if _valid_dependency_entry(entry, manifest_name):
+                normalized.append(entry)
         return normalized
-    return [d for d in dependencies if isinstance(d, dict)]
+    if not isinstance(dependencies, (list, tuple)):
+        _LOGGER.warning(
+            "Ignoring unrecognized dependencies %r of %s",
+            dependencies,
+            manifest_name,
+        )
+        return []
+    normalized = []
+    for entry in dependencies:
+        if isinstance(entry, dict):
+            if _valid_dependency_entry(entry, manifest_name):
+                normalized.append(entry)
+        elif isinstance(entry, str) and entry:
+            # PIO also accepts a bare list of names ("dependencies": ["Wire"])
+            normalized.append({"name": entry})
+        else:
+            _LOGGER.warning(
+                "Ignoring unrecognized dependency entry %r of %s",
+                entry,
+                manifest_name,
+            )
+    return normalized
 
 
 @dataclass
@@ -488,36 +738,125 @@ class _LibNode:
 
     key: str
     is_git: bool
+    is_local: bool = False
+    is_registry: bool = False
     owner: str | None = None
     pkgname: str | None = None
     requirements: set[str] = field(default_factory=set)
     url: str | None = None
     ref: str | None = None
+    local_path: str | None = None
     edges: set[str] = field(default_factory=set)
+
+
+def _url_or_none(value: Any) -> str | None:
+    """Return ``value`` if it parses as a URL (scheme and host), else None."""
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return None
+    return value if parsed.scheme and parsed.netloc else None
 
 
 def _node_key(
     name: str | None, version: str | None, repository: str | None
-) -> tuple[str, bool, tuple[str | None, str | None]]:
-    """Return ``(key, is_git, locator)`` for a library or dependency spec.
+) -> tuple[str, str, tuple[str | None, str | None]]:
+    """Return ``(key, kind, locator)`` for a library or dependency spec.
 
-    The key is derived from the *input* spec (the registry name as written, or
-    the git URL path), not the resolved canonical name. So a package referenced
-    inconsistently -- bare ``name`` vs ``owner/name``, or git vs registry -- maps
-    to distinct keys and isn't deduplicated; ``convert_libraries`` warns about
-    that after resolution rather than merging the nodes.
+    ``kind`` is one of:
+
+    - ``"registry"`` -- ``locator`` is ``(owner, pkgname)``.
+    - ``"git"`` -- ``locator`` is ``(url, ref)``.
+    - ``"local"`` -- a ``file://`` directory; ``locator`` is ``(path, None)``.
+
+    The key is derived from the *input* spec (the registry name as written, the
+    git URL path, or the custom name / directory name for a local folder), not
+    the resolved canonical name. So a package referenced inconsistently -- bare
+    ``name`` vs ``owner/name``, or git vs registry -- maps to distinct keys and
+    isn't deduplicated; ``convert_libraries`` warns about that after resolution
+    rather than merging the nodes.
+
+    PlatformIO's Library Manager also accepted a URL in the *name* position
+    (``add_library("https://github.com/x/y", None)``), including the ``git+``
+    VCS prefix and the ``CustomName=URL`` form; recognize those here so such
+    specs resolve as git (or local) sources instead of failing a registry
+    lookup. A plain ``file://`` URL is PlatformIO's spelling for a local library
+    folder, so it resolves as a local directory; ``git+file://`` stays a git
+    source.
     """
+    if not repository and name and "://" in name:
+        # Split a ``CustomName=URL`` name, but only when the whole string isn't
+        # itself a valid URL (a bare URL whose query contains ``=`` must stay
+        # intact).
+        custom_name, candidate = None, name
+        if "=" in name and _url_or_none(name) is None:
+            custom_name, candidate = name.split("=", 1)
+        try:
+            scheme = urlsplit(candidate).scheme
+        except ValueError:
+            scheme = ""
+        if scheme == "file" or _url_or_none(candidate):
+            name, repository = custom_name, candidate
+        else:
+            # Anything with ``://`` was meant to be a URL; failing it fast
+            # beats a confusing registry "package not found" error.
+            raise RuntimeError(f"Invalid PIO library URL: {name}")
     if repository:
-        split_result = urlsplit(repository)
+        is_git_prefixed = repository.startswith("git+")
+        split_result = urlsplit(repository.removeprefix("git+"))
+        if split_result.scheme == "file" and not is_git_prefixed:
+            # A plain file:// URL points at a local library directory. A local
+            # file URL is written file:///absolute/path (empty host) or, less
+            # commonly, file://localhost/path. Anything else -- a real host, or
+            # a relative path whose first segment parses as the host -- is
+            # rejected rather than silently resolved to the wrong directory.
+            if split_result.netloc not in ("", "localhost"):
+                raise RuntimeError(
+                    f"Unsupported host in file:// library URL '{repository}'; "
+                    "use an absolute path, e.g. file:///path/to/lib"
+                )
+            # Validate the URL path itself (always POSIX-style, leading slash),
+            # not the OS path: on Windows a "/foo" path is not is_absolute()
+            # without a drive, which would wrongly reject a valid file:/// URL.
+            # Reject a relative path (``file:lib_dev``) or a bare root
+            # (``file:///``, which has no final segment).
+            url_path = split_result.path
+            if not url_path.startswith("/") or not PurePosixPath(url_path).name:
+                raise RuntimeError(
+                    f"file:// library URL '{repository}' must be an absolute "
+                    "directory path, e.g. file:///path/to/lib"
+                )
+            path = url2pathname(url_path)
+            return (name or PurePosixPath(url_path).name), "local", (path, None)
         key = str(split_result.path).strip("/").removesuffix(".git")
         ref = split_result.fragment.strip() or None
         url = urlunsplit(split_result._replace(fragment=""))
-        return key, True, (url, ref)
+        return key, "git", (url, ref)
     if name and "/" in name:
         owner, pkgname = name.split("/", 1)
     else:
         owner, pkgname = None, name
-    return name, False, (owner, pkgname)
+    return name, "registry", (owner, pkgname)
+
+
+def lib_ignore_set() -> set[str]:
+    """The ``lib_ignore`` names from ``esphome->platformio_options``,
+    normalized to lowercase short names (the part after the ``/``)."""
+    return {
+        name.split("/")[-1].lower()
+        for name in CORE.platformio_options.get("lib_ignore", [])
+    }
+
+
+def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
+    """Whether ``name`` matches the normalized ``lib_ignore`` set."""
+    return (
+        bool(lib_ignore)
+        and name is not None
+        and (name.split("/")[-1].lower() in lib_ignore)
+    )
 
 
 def convert_libraries(
@@ -545,10 +884,7 @@ def convert_libraries(
     """
     nodes: dict[str, _LibNode] = {}
 
-    lib_ignore = {
-        name.split("/")[-1].lower()
-        for name in CORE.platformio_options.get("lib_ignore", [])
-    }
+    lib_ignore = lib_ignore_set()
 
     # The generated build files inside the shared cache bake in the dependency
     # wiring, which lib_ignore changes; salt the cache path so configs with
@@ -560,19 +896,46 @@ def convert_libraries(
         else ""
     )
 
-    def is_ignored(name: str | None) -> bool:
-        if not lib_ignore or name is None:
-            return False
-        return name.split("/")[-1].lower() in lib_ignore
-
     def add_spec(name: str | None, version: str | None, repository: str | None) -> str:
-        key, is_git, locator = _node_key(name, version, repository)
-        node = nodes.get(key) or _LibNode(key=key, is_git=is_git)
+        key, kind, locator = _node_key(name, version, repository)
+        node = nodes.get(key) or _LibNode(key=key, is_git=kind == "git")
         nodes[key] = node
-        if is_git:
+        # The same key requested from two different kinds of source (or two
+        # different local paths) is a config mistake: one silently wins. Warn so
+        # it isn't a surprise. (git-vs-registry is reported separately below.)
+        if kind == "git":
+            if node.is_local:
+                _LOGGER.warning(
+                    "Library %s is requested as both a local directory and a git "
+                    "source; using the git source.",
+                    key,
+                )
             node.is_git = True
             node.url, node.ref = locator
+        elif kind == "local":
+            new_path = locator[0]
+            if node.is_git:
+                # git wins (checked first when building the source); leave the
+                # node as a git source.
+                _LOGGER.warning(
+                    "Library %s is requested as both a local directory and a git "
+                    "source; using the git source.",
+                    key,
+                )
+            else:
+                if node.is_local and node.local_path != new_path:
+                    _LOGGER.warning(
+                        "Library %s is requested from two local directories (%s "
+                        "and %s); using %s.",
+                        key,
+                        node.local_path,
+                        new_path,
+                        new_path,
+                    )
+                node.is_local = True
+                node.local_path = new_path
         else:
+            node.is_registry = True
             node.owner, node.pkgname = locator
             if version:
                 node.requirements.add(version)
@@ -581,7 +944,7 @@ def convert_libraries(
     top_level = [
         add_spec(library.name, library.version, library.repository)
         for library in libraries
-        if not is_ignored(library.name)
+        if not is_lib_ignored(library.name, lib_ignore)
     ]
 
     # Collect + resolve to a fixpoint: a node is (re)resolved whenever its
@@ -595,10 +958,8 @@ def convert_libraries(
         key = worklist.popleft()
         node = nodes[key]
 
-        # A node is queued once per referring edge; skip the (uncached) registry
-        # lookup + download + dependency walk unless its requirement set grew
-        # since the last resolve. Requirements only ever grow, so this still
-        # converges the fixpoint and terminates dependency cycles.
+        # Re-resolve only when the requirement set grew; requirements
+        # only ever grow, so the fixpoint converges and cycles terminate
         requirements = frozenset(node.requirements)
         if resolved_requirements.get(key) == requirements:
             continue
@@ -606,6 +967,8 @@ def convert_libraries(
 
         if node.is_git:
             component = ConvertedLibrary(key, "*", GitSource(node.url, node.ref))
+        elif node.is_local:
+            component = ConvertedLibrary(key, "*", LocalSource(node.local_path))
         else:
             owner, name, version, url = _resolve_registry_version(
                 node.owner, node.pkgname, node.requirements
@@ -613,75 +976,136 @@ def convert_libraries(
             component = ConvertedLibrary(
                 _owner_pkgname_to_name(owner, name), version, URLSource(url)
             )
-        component.download(salt=salt)
+        component.download(salt=salt, namespace=backend.cache_key)
 
-        library_json_path = component.path / "library.json"
-        library_properties_path = component.path / "library.properties"
-        if library_json_path.is_file():
-            component.data = _parse_library_json(library_json_path)
-        elif library_properties_path.is_file():
-            component.data = _parse_library_properties(library_properties_path)
-        else:
-            raise RuntimeError(
-                f"Invalid PIO library {key}: missing library.json and "
-                "library.properties"
+        source_dir = component.source_dir
+        library_json_path = source_dir / "library.json"
+        library_properties_path = source_dir / "library.properties"
+        has_json = library_json_path.is_file()
+        has_properties = library_properties_path.is_file()
+        if not has_json and not has_properties and not node.is_local:
+            # An interrupted clone/extraction self-heals with one forced
+            # re-download; a local source has nothing to re-download
+            _LOGGER.warning(
+                "Library %s at %s is missing library.json and library.properties; "
+                "re-downloading",
+                key,
+                source_dir,
             )
+            component.download(force=True, salt=salt, namespace=backend.cache_key)
+            has_json = library_json_path.is_file()
+            has_properties = library_properties_path.is_file()
+        if has_json:
+            component.data = parse_library_json(library_json_path)
+        elif has_properties:
+            component.data = parse_library_properties(library_properties_path)
+        else:
+            # Local sources are user input (EsphomeError); a registry/git
+            # miss means a corrupt cache (RuntimeError)
+            error_cls = EsphomeError if node.is_local else RuntimeError
+            raise error_cls(
+                f"Invalid PIO library {key}: missing library.json and "
+                f"library.properties in {source_dir}"
+            )
+
+        # A bare json.load imposes no shape; every backend dereferences
+        # these fields, so validate once here and name the library
+        malformed = not isinstance(component.data, dict)
+        if not malformed:
+            build = component.data.get("build", {})
+            esphome_data = component.data.get(ESPHOME_DATA_KEY, {})
+            malformed = (
+                not isinstance(build, dict)
+                or not isinstance(esphome_data, dict)
+                or not isinstance(
+                    esphome_data.get(ESPHOME_DATA_LINK_FLAGS_KEY, []), list
+                )
+                or not isinstance(build.get("srcDir", ""), str)
+                or not isinstance(build.get("includeDir", ""), str)
+                or not isinstance(build.get("srcFilter", ""), (str, list))
+            )
+        if malformed:
+            # Fail fast only for a library the user asked for; a defect in
+            # an unrequested corner of the graph must not block the build
+            if key in top_level_keys:
+                raise EsphomeError(f"Library {key} has a malformed manifest")
+            _LOGGER.warning("Skipping dependency %s: malformed manifest", key)
+            continue
+        warn_properties_depends(component.name, component.data)
 
         try:
             check_library_data(component.data, backend.platform, backend.framework)
         except InvalidLibrary as e:
-            # Skip an incompatible transitive dependency, but fail fast if a
-            # top-level library the build explicitly requested is incompatible.
+            # An explicitly requested library fails fast; the routine
+            # cross-platform skip stays at debug, other causes warn
             if key in top_level_keys:
-                raise RuntimeError(
-                    f"Requested library {key} is not compatible with "
-                    f"{backend.framework}: {e}"
-                ) from e
-            _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+                reason = (
+                    f"is not compatible with {backend.framework}"
+                    if isinstance(e, IncompatiblePlatform)
+                    else "has a malformed manifest"
+                )
+                raise RuntimeError(f"Requested library {key} {reason}: {e}") from e
+            if isinstance(e, IncompatiblePlatform):
+                _LOGGER.debug("Skip incompatible dependency %s: %s", key, str(e))
+            else:
+                _LOGGER.warning("Skipping dependency %s: %s", key, str(e))
             continue
         components[key] = component
 
         # Requirements changed (we got past the short-circuit above), so
         # (re)walk this component's dependencies.
         node.edges = set()
-        for dependency in _normalize_dependencies(component.data.get("dependencies")):
-            if "name" not in dependency or "version" not in dependency:
+        for dependency in normalize_dependencies(
+            component.data.get("dependencies"), component.name
+        ):
+            if "version" not in dependency:
+                # Cannot resolve from the registry; common for bundled
+                # names (Wire, SPI) -- unactionable noise above debug
+                _LOGGER.debug(
+                    "Skip version-less dependency %r of %s",
+                    dependency.get("name"),
+                    component.name,
+                )
                 continue
-            try:
-                check_library_data(dependency, backend.platform, backend.framework)
-            except InvalidLibrary as e:
-                _LOGGER.debug("Skip dependency %s: %s", dependency.get("name"), str(e))
+            if not dependency_is_usable(
+                dependency, backend.platform, backend.framework, component.name
+            ):
                 continue
             dep_name = _owner_pkgname_to_name(
                 dependency.get("owner"), dependency.get("name")
             )
-            if is_ignored(dep_name):
+            if is_lib_ignored(dep_name, lib_ignore):
                 _LOGGER.debug("Skip ignored dependency %s", dep_name)
                 continue
             # The version field may actually be a URL (git/archive dependency).
             dep_version = dependency["version"]
-            dep_url = None
-            try:
-                parsed = urlparse(dep_version)
-                if all([parsed.scheme, parsed.netloc]):
-                    dep_url, dep_version = dep_version, None
-            except (TypeError, ValueError):
-                pass
+            dep_url = _url_or_none(dep_version)
+            if dep_url is not None:
+                dep_version = None
             dep_key = add_spec(dep_name, dep_version, dep_url)
             node.edges.add(dep_key)
             worklist.append(dep_key)
 
-    # A git source wins over any registry version requested for the same
-    # component. That's intentional, but warn so a dropped registry pin isn't a
-    # silent surprise.
+    # A git or local source wins over the same component requested from the
+    # registry. That's intentional, but warn so the dropped registry spec isn't
+    # a silent surprise -- including when it carried no version pin (a bare
+    # cg.add_library("Foo"), which is how most components add libraries).
     for node in nodes.values():
-        if node.is_git and node.requirements:
+        if (node.is_git or node.is_local) and (node.is_registry or node.requirements):
+            source = "git" if node.is_git else "local"
+            registry = (
+                f"registry version(s) {sorted(node.requirements)}"
+                if node.requirements
+                else "a registry package"
+            )
             _LOGGER.warning(
-                "Library %s is requested both from a git source (%s) and as "
-                "registry version(s) %s; using the git source.",
+                "Library %s is requested both from a %s source (%s) and as %s; "
+                "using the %s source.",
                 node.key,
-                node.url,
-                sorted(node.requirements),
+                source,
+                node.url if node.is_git else node.local_path,
+                registry,
+                source,
             )
 
     # Two graph nodes that resolve to the same component name (e.g. a package

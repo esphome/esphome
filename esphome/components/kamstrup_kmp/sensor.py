@@ -21,7 +21,9 @@ from esphome.const import (
     UNIT_EMPTY,
     UNIT_KELVIN,
     UNIT_KILOWATT,
+    UNIT_LITRE_PER_HOUR,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@cfeenstra1024"]
 DEPENDENCIES = ["uart"]
@@ -37,7 +39,6 @@ CONF_TEMP2 = "temp2"
 CONF_TEMP_DIFF = "temp_diff"
 
 UNIT_GIGA_JOULE = "GJ"
-UNIT_LITRE_PER_HOUR = "l/h"
 
 # Note: The sensor units are set automatically based un the received data from the meter
 CONFIG_SCHEMA = (
@@ -105,7 +106,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

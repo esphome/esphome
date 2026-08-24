@@ -20,6 +20,7 @@ changed_files = helpers.changed_files
 filter_changed = helpers.filter_changed
 get_changed_components = helpers.get_changed_components
 _get_changed_files_from_command = helpers._get_changed_files_from_command
+run_gh_command = helpers.run_gh_command
 _get_pr_number_from_github_env = helpers._get_pr_number_from_github_env
 _get_changed_files_github_actions = helpers._get_changed_files_github_actions
 _filter_changed_ci = helpers._filter_changed_ci
@@ -77,6 +78,22 @@ def test_get_pr_number_from_github_env_event_file(
     result = _get_pr_number_from_github_env()
 
     assert result == "5678"
+
+
+def test_get_github_event_data_decodes_utf8_regardless_of_locale(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    """The event payload is UTF-8; parsing must not depend on the platform
+    default encoding. On Windows the default is cp1252, which raised
+    UnicodeDecodeError as soon as a commit title carried non ASCII text."""
+    event_file = tmp_path / "event.json"
+    event_data = {"head_commit": {"message": "Answer UNPAIR with Response… é"}}
+    event_file.write_bytes(json.dumps(event_data, ensure_ascii=False).encode("utf-8"))
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_file))
+
+    result = helpers._get_github_event_data()
+
+    assert result == event_data
 
 
 def test_get_pr_number_from_github_env_no_pr(
@@ -219,6 +236,44 @@ def test_get_changed_files_github_actions_pull_request_large_pr(
                 "gh",
                 "api",
                 "repos/esphome/esphome/pulls/10214/files",
+                "--paginate",
+                "--jq",
+                ".[].filename",
+            ]
+        )
+        assert result == expected_files
+
+
+def test_get_changed_files_github_actions_pull_request_large_diff(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Test _get_changed_files_github_actions fallback for PRs with >20000 diff lines."""
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
+
+    expected_files = ["file1.py", "file2.cpp"]
+
+    with (
+        patch("helpers._get_pr_number_from_github_env", return_value="17909"),
+        patch("helpers._get_changed_files_from_command") as mock_get,
+    ):
+        # First call fails with too many diff lines error, second succeeds with API method
+        mock_get.side_effect = [
+            Exception(
+                "could not find pull request diff: HTTP 406: Sorry, "
+                "the diff exceeded the maximum number of lines (20000)"
+            ),
+            expected_files,
+        ]
+
+        result = _get_changed_files_github_actions()
+
+        assert mock_get.call_count == 2
+        mock_get.assert_any_call(["gh", "pr", "diff", "17909", "--name-only"])
+        mock_get.assert_any_call(
+            [
+                "gh",
+                "api",
+                "repos/esphome/esphome/pulls/17909/files",
                 "--paginate",
                 "--jq",
                 ".[].filename",
@@ -1835,3 +1890,144 @@ def test_get_component_test_files_component_without_tests(
 )
 def test_is_validate_only_file(filename: str, expected: bool, tmp_path: Path) -> None:
     assert helpers.is_validate_only_file(tmp_path / filename) is expected
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        (["esphome/config.py"], True),
+        (["esphome/yaml_util.py"], True),
+        (["esphome/__main__.py"], True),
+        (["esphome/const.pyi"], True),
+        (["README.md", "esphome/helpers.py"], True),
+        (["esphome/core/config.py"], False),
+        (["esphome/components/sensor/__init__.py"], False),
+        (["esphome/dashboard/web_server.py"], False),
+        (["esphome/idf_component.yml"], False),
+        (["tests/unit_tests/test_config.py"], False),
+        ([], False),
+    ],
+)
+def test_base_python_changed(files: list[str], expected: bool) -> None:
+    """Only Python modules directly in esphome/ count as base Python changes."""
+    assert helpers.base_python_changed(files) is expected
+
+
+def _gh_error(stderr: str) -> subprocess.CalledProcessError:
+    return subprocess.CalledProcessError(1, ["gh"], output="", stderr=stderr)
+
+
+def _gh_success(stdout: str = "ok\n") -> subprocess.CompletedProcess:
+    return subprocess.CompletedProcess(["gh"], 0, stdout=stdout, stderr="")
+
+
+def test_run_gh_command_success() -> None:
+    """A successful command returns without retrying."""
+    with patch("helpers.subprocess.run", return_value=_gh_success()) as mock_run:
+        result = run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert result.stdout == "ok\n"
+    mock_run.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "second_error",
+    [
+        (
+            'Post "https://api.github.com/graphql": tls: failed to verify'
+            " certificate: x509: certificate is not valid for any names,"
+            " but wanted to match api.github.com"
+        ),
+        'Post "https://api.github.com/graphql": EOF',
+        (
+            "error connecting to api.github.com\n"
+            "check your internet connection or https://githubstatus.com"
+        ),
+    ],
+)
+def test_run_gh_command_retries_transient_error(second_error: str) -> None:
+    """Transient server errors are retried with 2s/4s backoff."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=[
+                _gh_error("HTTP 502: 502 Bad Gateway (https://api.github.com/graphql)"),
+                _gh_error(second_error),
+                _gh_success(),
+            ],
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+    ):
+        result = run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert result.stdout == "ok\n"
+    assert mock_run.call_count == 3
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [2, 4]
+
+
+def test_run_gh_command_gives_up_after_max_attempts() -> None:
+    """A persistent transient error raises after the third attempt."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=_gh_error("HTTP 503: Service Unavailable"),
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    assert mock_run.call_count == 3
+    assert mock_sleep.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "stderr",
+    [
+        "HTTP 404: Not Found (https://api.github.com/repos/x)",
+        "HTTP 401: Bad credentials",
+        "HTTP 403: API rate limit exceeded for installation ID 123.",
+        "diff exceeded the maximum number of changed files (300)",
+        (
+            "GraphQL: Could not resolve to a PullRequest with the number of 999999."
+            " (repository.pullRequest)"
+        ),
+    ],
+)
+def test_run_gh_command_permanent_error_not_retried(stderr: str) -> None:
+    """Permanent failures raise immediately without any retry."""
+    with (
+        patch("helpers.subprocess.run", side_effect=_gh_error(stderr)) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "diff", "123", "--name-only"])
+
+    mock_run.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_run_gh_command_no_retry_for_non_idempotent_commands() -> None:
+    """retry=False fails on the first error even when it looks transient."""
+    with (
+        patch(
+            "helpers.subprocess.run",
+            side_effect=_gh_error("HTTP 502: 502 Bad Gateway"),
+        ) as mock_run,
+        patch("helpers.time.sleep") as mock_sleep,
+        pytest.raises(subprocess.CalledProcessError),
+    ):
+        run_gh_command(["gh", "pr", "comment", "123", "--body", "x"], retry=False)
+
+    mock_run.assert_called_once()
+    mock_sleep.assert_not_called()
+
+
+def test_get_changed_files_from_command_gh_failure_keeps_stderr() -> None:
+    """Failures from gh surface stderr so callers can detect the 300-file limit."""
+    stderr = "diff exceeded the maximum number of changed files (300)"
+    with (
+        patch("helpers.subprocess.run", side_effect=_gh_error(stderr)),
+        pytest.raises(Exception, match="maximum number of changed files"),
+    ):
+        _get_changed_files_from_command(["gh", "pr", "diff", "123", "--name-only"])

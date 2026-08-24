@@ -14,9 +14,9 @@
 namespace esphome::sgp4x {
 
 struct SGP4xBaselines {
-  int32_t state0;
-  int32_t state1;
-} PACKED;  // NOLINT
+  float state0;
+  float state1;
+};
 
 enum SgpType { SGP40, SGP41 };
 
@@ -39,17 +39,19 @@ static const uint16_t SGP4X_CMD_SELF_TEST = 0x280e;
 static const uint16_t SGP40_CMD_MEASURE_RAW = 0x260F;
 static const uint16_t SGP41_CMD_MEASURE_RAW = 0x2619;
 static const uint16_t SGP41_CMD_NOX_CONDITIONING = 0x2612;
-static const uint8_t SGP41_SUBCMD_NOX_CONDITIONING = 0x12;
 
 // Shortest time interval of 3H for storing baseline values.
 // Prevents wear of the flash because of too many write operations
 const uint32_t SHORTEST_BASELINE_STORE_INTERVAL = 10800;
-static const uint16_t SPG40_SELFTEST_TIME = 250;  // 250 ms for self test
-static const uint16_t SPG41_SELFTEST_TIME = 320;  // 320 ms for self test
+static const uint16_t SGP4X_SELF_TEST_TIME = 320;  // maximum self-test duration for both SGP40 and SGP41
 static const uint16_t SGP40_MEASURE_TIME = 30;
 static const uint16_t SGP41_MEASURE_TIME = 55;
-// Store anyway if the baseline difference exceeds the max storage diff value
-const float MAXIMUM_STORAGE_DIFF = 50.0f;
+// Once the store interval has passed, store only if the baseline drifted from the stored copy by more than these
+// state0 is mean of variance estimator, hence can have larger absolute values and a larger diff threshold
+const float MAXIMUM_STORAGE_DIFF_STATE0 = 50.0f;
+// state1 is std of variance estimator, so it typically has smaller absolute values than state0, hence we use a smaller
+// diff threshold
+const float MAXIMUM_STORAGE_DIFF_STATE1 = 5.0f;
 
 class SGP4xComponent;
 
@@ -111,7 +113,6 @@ class SGP4xComponent final : public PollingComponent,
   uint64_t serial_number_;
 
   bool self_test_complete_;
-  uint16_t self_test_time_;
 
   sensor::Sensor *voc_sensor_{nullptr};
   VOCGasIndexAlgorithm voc_algorithm_;

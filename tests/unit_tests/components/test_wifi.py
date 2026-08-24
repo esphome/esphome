@@ -87,8 +87,8 @@ def test_has_native_wifi_esp32_variant_case_insensitive() -> None:
 
 def test_has_native_wifi_dispatches_rp2040_to_board_check() -> None:
     """RP2040 platform routes through ``rp2040.board_id_has_wifi``."""
-    assert has_native_wifi(platform=Platform.RP2040, board="rpipicow") is True
-    assert has_native_wifi(platform=Platform.RP2040, board="rpipico") is False
+    assert has_native_wifi(platform=Platform.RP2, board="rpipicow") is True
+    assert has_native_wifi(platform=Platform.RP2, board="rpipico") is False
 
 
 def test_has_native_wifi_returns_false_for_nrf52() -> None:
@@ -134,7 +134,7 @@ def test_has_native_wifi_esp32_without_variant_assumes_wifi() -> None:
 
 def test_has_native_wifi_rp2040_without_board_assumes_wifi() -> None:
     """RP2040 without a board id falls open to True (custom-board default)."""
-    assert has_native_wifi(platform=Platform.RP2040) is True
+    assert has_native_wifi(platform=Platform.RP2) is True
 
 
 def _wifi_config(
