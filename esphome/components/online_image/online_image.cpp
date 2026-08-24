@@ -112,8 +112,10 @@ void OnlineImage::update() {
     } else {
       if (content_type.empty()) {
         ESP_LOGE(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      } else if (str_contains_ignore_case(content_type.c_str(), "image/")) {
+        ESP_LOGE(TAG, "Image format '%s' not supported.", content_type.c_str());
       } else {
-        ESP_LOGE(TAG, "Image format '%s' not supported. Set `format:` explicitly", content_type.c_str());
+        ESP_LOGE(TAG, "Server did not return an image (Content-Type: '%s')", content_type.c_str());
       }
       this->end_connection_();
       this->download_error_callback_.call();
