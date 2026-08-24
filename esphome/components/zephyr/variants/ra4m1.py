@@ -99,13 +99,12 @@ VARIANT = ZephyrVariant(
     # 5000ms coincides with the schema's own 5s floor, so this variant only supports
     # the minimum requestable value.
     watchdog_max_timeout_ms=5000,
-    # UART0 -> ek_ra4m1's own sci1/uart1 (the default board); UART1 -> the
-    # arduino_nano_r4 board's sci2/uart2 -- same shape as nRF54's own multi-entry
-    # uart_node_labels, here spanning two different boards on this variant rather than
-    # two simultaneously-present peripherals on one board. A board other than the
-    # default must pick whichever UART name maps to its own real console UART via
-    # `logger: hardware_uart:`.
-    uart_node_labels={"UART0": "uart1", "UART1": "uart2"},
+    # Explicitly empty, not the old hardcoded {"UART0": "uart1", "UART1": "uart2"}:
+    # that held only for ek_ra4m1 (console sci1/uart1) -- arduino_uno_r4's console is
+    # sci2/uart2 instead, which would have made UART0 (always the board's console, by
+    # convention) wrong there. Empty tells resolve_uart_node_label() (dts_lookup.py)
+    # to resolve hardware_uart per board.
+    uart_node_labels={},
     adc_ain_map=_ADC_AIN_MAP,
     # Only pwm1 is enabled in ek_ra4m1.dts.
     pwm_node_labels=["pwm1"],
