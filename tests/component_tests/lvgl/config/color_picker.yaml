@@ -1,0 +1,124 @@
+esphome:
+  name: test-color-picker
+
+esp32:
+  board: lolin_c3_mini
+
+logger:
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO3
+
+color:
+  - id: picker_colour
+    hex: "3366CC"
+
+lvgl:
+  style_definitions:
+    - id: picker_style
+      bg_opa: cover
+
+  widgets:
+    # Sized from the text font
+    - color_picker:
+        id: picker_content
+        width: SIZE_CONTENT
+
+    # Fixed width, colour given as a hex literal
+    - color_picker:
+        id: picker_fixed
+        width: 120
+        color: 0xFF8800
+
+    # Styling the sliders the widget is built from
+    - color_picker:
+        id: picker_styled
+        width: 100
+        items:
+          bg_opa: 80%
+          pressed:
+            border_width: 2
+        knob:
+          bg_color: 0x112233
+          radius: 4
+          styles: [picker_style]
+          # One value for six sliders: it must not be generated once per slider. The body
+          # is more than an expression so that it stays a lambda rather than being folded
+          # into a constant.
+          border_width: !lambda |-
+            int width = 3;
+            return width;
+          pressed:
+            styles: [picker_style]
+          # Belongs to the widget as a whole, so it is reported and ignored here
+          ext_click_area: 8
+
+    # Only the red, green and blue sliders, with a margin making them easier to press.
+    # The scrolling options belong to the widget's own object, not to the sliders.
+    - color_picker:
+        id: picker_rgb
+        width: 100
+        sliders: rgb
+        ext_click_area: 12
+        scrollbar_mode: "OFF"
+
+    # Black must not be mistaken for no colour at all
+    - color_picker:
+        id: picker_black
+        width: 100
+        color: 0x000000
+
+    # The knob background arrives through a named style rather than directly
+    - color_picker:
+        id: picker_knob_style
+        width: 100
+        knob:
+          styles: [picker_style]
+
+    # Only the hue, saturation and brightness sliders, styled
+    - color_picker:
+        id: picker_hsv
+        width: 100
+        sliders: [hsv]
+        knob:
+          radius: 2
+
+    # A single slider, for picking a hue with the brightness controlled elsewhere
+    - color_picker:
+        id: picker_hue
+        width: 100
+        sliders: hue
+
+    # Colour given as the id of a colour defined above
+    - color_picker:
+        id: picker_colour_id
+        width: 50%
+        color: picker_colour
+        on_value:
+          - logger.log:
+              format: "picked %d,%d,%d"
+              args: [x.r, x.g, x.b]
+        on_release:
+          - logger.log: released
+        on_update:
+          - logger.log: updated
+
+script:
+  - id: update_picker
+    then:
+      - lvgl.color_picker.update:
+          id: picker_fixed
+          color: 0x00FF00

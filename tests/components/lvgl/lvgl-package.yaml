@@ -1551,6 +1551,58 @@ lvgl:
               - label:
                   text: "2,2"
 
+        # Sized from its text font, with a colour given as an id
+        - color_picker:
+            id: lv_color_picker_1
+            width: SIZE_CONTENT
+            text_font: space16
+            color: light_blue
+            on_value:
+              - logger.log:
+                  format: "color picker is now %d,%d,%d"
+                  args: [x.r, x.g, x.b]
+            on_release:
+              - lvgl.color_picker.update:
+                  id: lv_color_picker_2
+                  color: !lambda return x;
+
+        # Fixed size, with a colour given as a hex literal
+        - color_picker:
+            id: lv_color_picker_2
+            width: 200
+            color: 0x3366CC
+            # Styles for the sliders the widget is built from
+            items:
+              border_color: 0x808080
+              pressed:
+                border_width: 2
+            knob:
+              radius: 4
+              # A named style, added for both a part on its own and a part with a state
+              styles: [style_test]
+              pressed:
+                styles: [style_test]
+            on_update:
+              - logger.log: color picker updated
+
+        # Only the red, green and blue sliders
+        - color_picker:
+            id: lv_color_picker_3
+            width: 150
+            sliders: rgb
+
+        # A hue and saturation pair, as used where brightness is set elsewhere
+        - color_picker:
+            id: lv_color_picker_4
+            width: 150
+            sliders: [hue, saturation]
+            # Widens the area each slider can be pressed on, so the knobs are easier to move
+            ext_click_area: 10
+            # Applies to the widget as a whole, unlike the setting above
+            scrollbar_mode: "OFF"
+            knob:
+              bg_color: 0xFFFFFF
+
 font:
   - file: "gfonts://Roboto"
     id: space16

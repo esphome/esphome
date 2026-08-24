@@ -103,6 +103,7 @@
 #define USE_LVGL_CANVAS
 #define USE_LVGL_CHART
 #define USE_LVGL_CHECKBOX
+#define USE_LVGL_COLOR_PICKER
 #define USE_LVGL_DROPDOWN
 #define USE_LVGL_FONT
 #define USE_LVGL_GRADIENT
@@ -596,3 +597,12 @@
 #define ESPHOME_ENTITY_VALVE_COUNT 1
 #define ESPHOME_ENTITY_WATER_HEATER_COUNT 1
 #define ESPHOME_MAX_USB_CDC_INSTANCES 1
+
+// Keep clang-tidy happy.
+
+// The real value comes from lvgl/gradient.py, which works it out from the configuration. The
+// largest it uses is set here so that static analysis sees every gradient in the component,
+// but only where a generated lv_conf.h has not already given it a value.
+#ifndef LV_GRADIENT_MAX_STOPS
+#define LV_GRADIENT_MAX_STOPS 7
+#endif
