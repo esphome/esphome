@@ -1,7 +1,7 @@
 // Tests for time conversion functions, DST detection, and ESPTime::strptime.
 //
 // These tests cover the permanent timezone functions: epoch_to_local_tm, is_in_dst,
-// calculate_dst_transition, and the internal helper functions they depend on.
+// calculate_dst_transition, and the internal helpers they depend on.
 
 // Enable USE_TIME_TIMEZONE for tests
 #define USE_TIME_TIMEZONE
