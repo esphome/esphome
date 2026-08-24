@@ -280,6 +280,31 @@ def check_rosetta() -> None:
         )
 
 
+def _choose_ld_script(board: str, ver: cv.Version) -> str | None:
+    """The flash ld to pin for this board and core, or None for cores
+    without ld-script support."""
+    board_data = BOARDS[board]
+    ld_scripts = ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]]
+    if ver <= cv.Version(2, 3, 0):
+        # No ld script support
+        return None
+    if ver <= cv.Version(2, 4, 2):
+        # Old ld script path; the modern per-board override names do not
+        # exist in this core's SDK, so the override cannot be honored.
+        # Substituting the size default would move _FS_end and the
+        # preferences sector, wiping flash-backed state on flash.
+        if KEY_LDSCRIPT in board_data:
+            raise EsphomeError(
+                f"Board {board} requires its {board_data[KEY_LDSCRIPT]} "
+                f"flash layout, which Arduino core {ver} cannot honor; "
+                "use a core newer than 2.4.2"
+            )
+        return ld_scripts[0]
+    # A per-board override preserves a layout the board shipped with
+    # (see d1_wroom_02 in boards.py)
+    return board_ld_script(board_data)
+
+
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     cg.add(esp8266_ns.setup_preferences())
@@ -401,28 +426,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     if config[CONF_BOARD] in BOARDS:
-        board_data = BOARDS[config[CONF_BOARD]]
-        ld_scripts = ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]]
-
-        if ver <= cv.Version(2, 3, 0):
-            # No ld script support
-            ld_script = None
-        elif ver <= cv.Version(2, 4, 2):
-            # Old ld script path; the modern per-board override names do
-            # not exist in this core's SDK, so it cannot be honored
-            if KEY_LDSCRIPT in board_data:
-                _LOGGER.warning(
-                    "Board %s pins %s, which Arduino core %s cannot honor; "
-                    "using the default flash layout",
-                    config[CONF_BOARD],
-                    board_data[KEY_LDSCRIPT],
-                    ver,
-                )
-            ld_script = ld_scripts[0]
-        else:
-            # A per-board override preserves a layout the board shipped
-            # with (see d1_wroom_02 in boards.py)
-            ld_script = board_ld_script(board_data)
+        ld_script = _choose_ld_script(config[CONF_BOARD], ver)
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
