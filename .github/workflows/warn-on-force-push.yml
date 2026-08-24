@@ -84,7 +84,9 @@ jobs:
               pull_number: prNumber,
             });
             const hasHumanReviewComment = reviewComments.some(
-              c => c.user?.type !== "Bot" && !c.user?.login?.endsWith("[bot]")
+              c => c.user?.type !== "Bot" &&
+              !c.user?.login?.endsWith("[bot]" &&
+              !c.user?.login?.endsWith("bot")
             );
             if (!hasHumanReviewComment) {
               core.info("No existing human review comments — skipping warning.");
