@@ -279,23 +279,22 @@ void SonoffD1Output::write_state(light::LightState *state) {
   const uint8_t calculated_brightness = (uint8_t) roundf(brightness * 100);
 
   if (calculated_brightness == 0) {
-    // if(binary) { ESP_LOGD(TAG, "current_values_as_binary() returns true for zero brightness");
+    // if(binary) ESP_LOGD(TAG, "current_values_as_binary() returns true for zero brightness");
+    binary = false;
   }
-  binary = false;
-}
 
-// If a new value, write to the dimmer
-if (binary != this->last_binary_ || calculated_brightness != this->last_brightness_) {
-  if (this->control_dimmer_(binary, calculated_brightness)) {
-    this->last_brightness_ = calculated_brightness;
-    this->last_binary_ = binary;
-  } else {
-    // Return to original value if failed to write to the dimmer
-    // TODO: Test me, can be tested if high-voltage part is not connected
-    ESP_LOGW(TAG, "Failed to update the dimmer, publishing the previous state");
-    this->publish_state_(this->last_binary_, this->last_brightness_);
+  // If a new value, write to the dimmer
+  if (binary != this->last_binary_ || calculated_brightness != this->last_brightness_) {
+    if (this->control_dimmer_(binary, calculated_brightness)) {
+      this->last_brightness_ = calculated_brightness;
+      this->last_binary_ = binary;
+    } else {
+      // Return to original value if failed to write to the dimmer
+      // TODO: Test me, can be tested if high-voltage part is not connected
+      ESP_LOGW(TAG, "Failed to update the dimmer, publishing the previous state");
+      this->publish_state_(this->last_binary_, this->last_brightness_);
+    }
   }
-}
 }
 
 void SonoffD1Output::dump_config() {
