@@ -1,6 +1,5 @@
 #include "esphome/core/defines.h"
 #if defined(USE_OPENTHREAD) && defined(USE_ESP32)
-#include <openthread/logging.h>
 #include "openthread.h"
 
 #include "esp_log.h"
@@ -13,10 +12,7 @@
 #include "esphome/core/log.h"
 
 #include "esp_err.h"
-#include "esp_event.h"
 #include "esp_netif.h"
-#include "esp_netif_types.h"
-#include "esp_openthread_cli.h"
 #include "esp_openthread_netif_glue.h"
 #include "esp_vfs_eventfd.h"
 #include "nvs_flash.h"
@@ -41,10 +37,6 @@ void OpenThreadComponent::setup() {
   // Network interface setup handled by network component
   ESP_ERROR_CHECK(nvs_flash_init());
   ESP_ERROR_CHECK(esp_vfs_eventfd_register(&eventfd_config));
-
-#if CONFIG_OPENTHREAD_CLI
-  esp_openthread_cli_init();
-#endif
 
   esp_openthread_config_t config = {.netif_config = ESP_NETIF_DEFAULT_OPENTHREAD(),
                                     .platform_config = {
@@ -82,52 +74,52 @@ void OpenThreadComponent::setup() {
   ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
 #endif
 
-  // lock
-  esp_openthread_lock_acquire(portMAX_DELAY);
-  this->apply_linkmode_(instance);
+  {
+    InstanceLock lock = InstanceLock::acquire();
 
-  if (this->output_power_.has_value()) {
-    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+    this->apply_linkmode_(instance);
+
+    if (this->output_power_.has_value()) {
+      if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
+        ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+      }
     }
-  }
-  ESP_LOGI(TAG, "Activating dataset...");
-  otOperationalDatasetTlvs dataset = {};
+    ESP_LOGI(TAG, "Activating dataset...");
+    otOperationalDatasetTlvs dataset = {};
 
 #ifndef USE_OPENTHREAD_FORCE_DATASET
-  // Check if openthread has a valid dataset from a previous execution
-  otError error = otDatasetGetActiveTlvs(instance, &dataset);
-  if (error != OT_ERROR_NONE) {
-    // Make sure the length is 0 so we fallback to the configuration
-    dataset.mLength = 0;
-  } else {
-    ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
-  }
+    // Check if openthread has a valid dataset from a previous execution
+    otError error = otDatasetGetActiveTlvs(instance, &dataset);
+    if (error != OT_ERROR_NONE) {
+      // Make sure the length is 0 so we fallback to the configuration
+      dataset.mLength = 0;
+    } else {
+      ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
+    }
 #endif
 
 #ifdef USE_OPENTHREAD_TLVS
-  if (dataset.mLength == 0) {
-    // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
-    size_t len = (sizeof(USE_OPENTHREAD_TLVS) - 1) / 2;
-    if (len > sizeof(dataset.mTlvs)) {
-      ESP_LOGW(TAG, "TLV buffer too small, truncating");
-      len = sizeof(dataset.mTlvs);
+    if (dataset.mLength == 0) {
+      // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
+      size_t len = (sizeof(USE_OPENTHREAD_TLVS) - 1) / 2;
+      if (len > sizeof(dataset.mTlvs)) {
+        ESP_LOGW(TAG, "TLV buffer too small, truncating");
+        len = sizeof(dataset.mTlvs);
+      }
+      parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
+      dataset.mLength = len;
     }
-    parse_hex(USE_OPENTHREAD_TLVS, sizeof(USE_OPENTHREAD_TLVS) - 1, dataset.mTlvs, len);
-    dataset.mLength = len;
-  }
 #endif
 
-  // Pass the existing dataset, or NULL which will use the preprocessor definitions
-  ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
+    // Pass the existing dataset, or NULL which will use the preprocessor definitions
+    ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
-  // Register state change callback to update connected_ reactively instead of polling
-  otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
-  if (ot_err != OT_ERROR_NONE) {
-    ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+    // Register state change callback to update connected_ reactively instead of polling
+    otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
+    if (ot_err != OT_ERROR_NONE) {
+      ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
+    }
   }
-
-  esp_openthread_lock_release();
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 }

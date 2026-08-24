@@ -71,7 +71,8 @@ class OpenThreadComponent final : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
-  std::atomic<TeardownStage> teardown_stage_{TeardownStage::NOT_STARTED};
+  // Only ever written from teardown(), on the main task -- no atomic needed.
+  TeardownStage teardown_stage_{TeardownStage::NOT_STARTED};
   bool connected_{false};
 
  private:
