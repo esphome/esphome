@@ -838,6 +838,10 @@ def load_idedata(environment: str) -> dict[str, Any]:
             ["pio", "run", "-t", "idedata", "-e", environment]
         )
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
+        if match is None:
+            raise RuntimeError(
+                f"Could not find idedata JSON in 'pio run -t idedata -e {environment}' output"
+            )
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
     update_cache(temp_hash)
@@ -847,32 +851,23 @@ def load_idedata(environment: str) -> dict[str, Any]:
     return data
 
 
-def get_binary(name: str, version: str, version_args: list[str] | None = None) -> str:
-    # Defaults to LLVM tools' `-version` flag; pass e.g. ["version"] for
-    # CodeChecker's subcommand-style version check.
-    version_args = version_args or ["-version"]
+def get_binary(name: str, version: str) -> str:
     binary_file = f"{name}-{version}"
     try:
-        result = subprocess.check_output([binary_file, *version_args])
+        result = subprocess.check_output([binary_file, "-version"])
         return binary_file
     except FileNotFoundError:
         pass
     binary_file = name
     try:
         result = subprocess.run(
-            [binary_file, *version_args], text=True, capture_output=True, check=False
+            [binary_file, "-version"], text=True, capture_output=True, check=False
         )
-        # Anchored to "version" followed by the exact version number, not just
-        # those digits appearing anywhere (e.g. a build year) in the output.
-        version_re = rf"version[^\d]*\b{re.escape(str(version))}\b"
-        if result.returncode == 0 and re.search(
-            version_re, result.stdout, re.IGNORECASE
-        ):
+        if result.returncode == 0 and (f"version {version}") in result.stdout:
             return binary_file
         raise FileNotFoundError(f"{name} not found")
 
     except FileNotFoundError:
-        version_cmd = " ".join(version_args)
         print(
             f"""
             Oops. It looks like {name} is not installed. It should be available under venv/bin
@@ -880,7 +875,7 @@ def get_binary(name: str, version: str, version_args: list[str] | None = None) -
               script/setup
               source venv/bin/activate.
 
-            Please confirm you can run "{name} {version_cmd}" or "{name}-{version} {version_cmd}"
+            Please confirm you can run "{name} -version" or "{name}-{version} -version"
             in your terminal and install
             {name} (v{version}) if necessary.
 

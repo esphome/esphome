@@ -636,10 +636,25 @@ jobs:
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
 
+      - name: Install CodeChecker
+        # Only the Zephyr/nrf52 leg needs CodeChecker; keep its dependency
+        # union (sqlalchemy, alembic, thrift, ...) out of the shared venv
+        # every other job restores.
+        if: matrix.cache_sdk_nrf
+        run: |
+          . venv/bin/activate
+          pip install -r requirements_codechecker.txt
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+          if [ "${{ matrix.cache_sdk_nrf }}" = "true" ]; then
+            # nrf52-tidy's diagnostics come from `CodeChecker parse`, whose
+            # plaintext format doesn't match matchers/clang-tidy.json.
+            echo "::add-matcher::.github/workflows/matchers/clang-tidy-codechecker.json"
+          else
+            echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
+          fi
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan

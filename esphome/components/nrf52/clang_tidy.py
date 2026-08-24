@@ -34,7 +34,7 @@ root_path = Path(__file__).resolve().parents[3]
 _TIDY_BOARD = "adafruit_itsybitsy_nrf52840"
 
 # Never compiled (the build is configure-only): the file exists only so the
-# app target emits a C++ compile command to harvest flags/includes from.
+# app target emits a C++ compile command for CodeChecker to analyze directly.
 _TIDY_MAIN_CPP = "int main() { return 0; }\n"
 
 # Kconfig superset enabling every subsystem an ESPHome nrf52 component may
@@ -272,5 +272,10 @@ def generate_compile_commands(
         cwd=str(paths["framework_path"]),
     ):
         raise EsphomeError("nRF52 clang-tidy configure failed")
+
+    if not compile_commands_path.is_file():
+        raise EsphomeError(
+            f"west build reported success but {compile_commands_path} was not generated"
+        )
 
     return compile_commands_path

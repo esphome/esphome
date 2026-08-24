@@ -81,3 +81,55 @@ def test_read_file_bytes(tmp_path: Path) -> None:
     result = clang_tidy_hash.read_file_bytes(test_file)
 
     assert result == test_content
+
+
+def test_is_cached_missing_file_returns_false(tmp_path: Path) -> None:
+    """A hash file that doesn't exist is never cached."""
+    assert not clang_tidy_hash.is_cached(tmp_path / "missing.hash")
+
+
+def test_update_cache_then_is_cached_true(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A freshly written cache file is reported as cached."""
+    monkeypatch.setattr(clang_tidy_hash, "calculate_clang_tidy_hash", lambda: "abc123")
+    hash_path = tmp_path / ".compile_commands.hash"
+
+    clang_tidy_hash.update_cache(hash_path)
+
+    assert clang_tidy_hash.is_cached(hash_path)
+
+
+def test_is_cached_false_after_global_hash_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cache written under one hash is stale once the underlying hash changes."""
+    monkeypatch.setattr(clang_tidy_hash, "calculate_clang_tidy_hash", lambda: "abc123")
+    hash_path = tmp_path / ".compile_commands.hash"
+    clang_tidy_hash.update_cache(hash_path)
+
+    monkeypatch.setattr(clang_tidy_hash, "calculate_clang_tidy_hash", lambda: "def456")
+
+    assert not clang_tidy_hash.is_cached(hash_path)
+
+
+def test_is_cached_distinguishes_extra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The nrf52 source-file list (passed as ``extra``) is part of the cache key."""
+    monkeypatch.setattr(clang_tidy_hash, "calculate_clang_tidy_hash", lambda: "abc123")
+    hash_path = tmp_path / ".compile_commands.hash"
+
+    clang_tidy_hash.update_cache(hash_path, extra="file_a.cpp\nfile_b.cpp")
+
+    assert clang_tidy_hash.is_cached(hash_path, extra="file_a.cpp\nfile_b.cpp")
+    assert not clang_tidy_hash.is_cached(hash_path, extra="file_c.cpp")
+
+
+def test_cache_key_empty_extra_equals_bare_hash(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty ``extra`` must produce the same key as calculate_clang_tidy_hash() alone."""
+    monkeypatch.setattr(clang_tidy_hash, "calculate_clang_tidy_hash", lambda: "abc123")
+
+    assert clang_tidy_hash._cache_key("") == clang_tidy_hash.calculate_clang_tidy_hash()
