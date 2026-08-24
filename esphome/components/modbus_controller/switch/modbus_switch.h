@@ -11,13 +11,12 @@ namespace esphome::modbus_controller {
 class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem {
  public:
   ModbusSwitch(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               uint16_t skip_updates, bool force_new_range) {
+               bool force_new_range) {
     this->register_type = register_type;
     this->set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
-    this->skip_updates = skip_updates;
     this->register_count = 1;
     if (register_type == modbus::EntityType::HOLDING || register_type == modbus::EntityType::COIL) {
       this->set_address(this->start_address + offset);
