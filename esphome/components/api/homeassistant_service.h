@@ -298,10 +298,10 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
   Trigger<std::string, Ts...> error_trigger_;
 #endif  // USE_API_HOMEASSISTANT_ACTION_RESPONSES
 
-  bool is_event_ : 1 {false};
-  bool wants_status_ : 1 {false};
-  bool wants_response_ : 1 {false};
-  bool has_response_template_ : 1 {false};
+  uint8_t is_event_ : 1 {0};
+  uint8_t wants_status_ : 1 {0};
+  uint8_t wants_response_ : 1 {0};
+  uint8_t has_response_template_ : 1 {0};
   uint8_t reserved_ : 4 {0};  // keep the byte fully owned, see APIConnection
 };
 

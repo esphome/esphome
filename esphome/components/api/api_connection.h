@@ -736,21 +736,21 @@ class APIConnection final : public APIServerConnectionBase {
   };
 
   // Group 5: bit-packed small state (2 bytes), followed by the 2-byte and 1-byte members
-  uint8_t connection_state_ : 2 {0};  // ConnectionState, 3 values
+  uint8_t connection_state_ : 2 {0};  // ConnectionState
   uint8_t log_subscription_ : 3 {0};  // log levels 0-7
-  bool remove_ : 1 {false};
-  bool state_subscription_ : 1 {false};
-  bool sent_ping_ : 1 {false};
-  bool service_call_subscription_ : 1 {false};
-  bool next_close_ : 1 {false};
-  bool batch_scheduled_ : 1 {false};
-  bool batch_first_message_ : 1 {false};          // For batch buffer allocation
-  bool should_try_send_immediately_ : 1 {false};  // True after initial states are sent
-  bool may_have_remaining_data_ : 1 {false};      // Read loop hit limit, retry without ready check
+  uint8_t remove_ : 1 {0};
+  uint8_t state_subscription_ : 1 {0};
+  uint8_t sent_ping_ : 1 {0};
+  uint8_t service_call_subscription_ : 1 {0};
+  uint8_t next_close_ : 1 {0};
+  uint8_t batch_scheduled_ : 1 {0};
+  uint8_t batch_first_message_ : 1 {0};          // For batch buffer allocation
+  uint8_t should_try_send_immediately_ : 1 {0};  // True after initial states are sent
+  uint8_t may_have_remaining_data_ : 1 {0};      // Read loop hit limit, retry without ready check
   // reserved_ keeps every bit of the flag word owned by a member so constructors zero it with
   // a plain store instead of a read-modify-write that preserves unowned padding bits
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  bool log_only_mode_ : 1 {false};
+  uint8_t log_only_mode_ : 1 {0};
   uint8_t reserved_ : 1 {0};
 #else
   uint8_t reserved_ : 2 {0};
