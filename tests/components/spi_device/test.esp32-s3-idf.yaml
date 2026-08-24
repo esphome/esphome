@@ -1,9 +1,8 @@
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-s3-idf.yaml
-
-<<: !include common.yaml
+  common: !include common.yaml
 spi_device:
-  - id: spi_device_test
+  - id: spi_device_psram_dma_test
     psram_dma: true
     data_rate: 1MHz
     spi_mode: 0

@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     only_on_variant,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -460,6 +461,7 @@ def spi_device_schema(
                         VARIANT_ESP32C5,
                         VARIANT_ESP32C61,
                         VARIANT_ESP32P4,
+                        VARIANT_ESP32S31,
                         VARIANT_ESP32S3,
                     ],
                     msg_prefix="PSRAM DMA",
@@ -488,32 +490,47 @@ async def register_spi_device(
     if release_device := config.get(CONF_RELEASE_DEVICE):
         cg.add(var.set_release_device(release_device))
     if psram_dma := config.get(CONF_PSRAM_DMA):
+        bus_path = CORE.config.get_path_for_id(config[CONF_SPI_ID])[:-1]
+        bus_config = CORE.config.get_config_for_path(bus_path)
+        if CONF_INTERFACE_INDEX not in bus_config:
+            raise cv.Invalid("psram_dma requires a hardware SPI interface")
+        cg.add_define("USE_SPI_PSRAM_DMA")
         cg.add(var.set_psram_dma(psram_dma))
 
 
 def final_validate_device_schema(
     name: str, *, require_mosi: bool, require_miso: bool
 ) -> cv.Schema:
-    hub_schema = {}
-    if require_miso:
-        hub_schema[
-            cv.Required(
-                CONF_MISO_PIN,
-                msg=f"Component {name} requires this spi bus to declare a miso_pin",
-            )
-        ] = cv.valid
-    if require_mosi:
-        hub_schema[
-            cv.Required(
-                CONF_MOSI_PIN,
-                msg=f"Component {name} requires this spi bus to declare a mosi_pin",
-            )
-        ] = cv.valid
+    def validate(config: ConfigType) -> ConfigType:
+        hub_schema = {}
+        if require_miso:
+            hub_schema[
+                cv.Required(
+                    CONF_MISO_PIN,
+                    msg=f"Component {name} requires this spi bus to declare a miso_pin",
+                )
+            ] = cv.valid
+        if require_mosi:
+            hub_schema[
+                cv.Required(
+                    CONF_MOSI_PIN,
+                    msg=f"Component {name} requires this spi bus to declare a mosi_pin",
+                )
+            ] = cv.valid
+        if config.get(CONF_PSRAM_DMA):
+            hub_schema[
+                cv.Required(
+                    CONF_INTERFACE_INDEX,
+                    msg="psram_dma requires a hardware SPI interface",
+                )
+            ] = cv.valid
 
-    return cv.Schema(
-        {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
-        extra=cv.ALLOW_EXTRA,
-    )
+        return cv.Schema(
+            {cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(hub_schema)},
+            extra=cv.ALLOW_EXTRA,
+        )(config)
+
+    return validate
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(

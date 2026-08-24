@@ -1,9 +1,10 @@
 #include "spi.h"
 #include <vector>
 
+#ifdef USE_SPI_PSRAM_DMA
 #include <esp_memory_utils.h>
-#include <esp_idf_version.h>
 #include <soc/soc_caps.h>
+#endif
 
 namespace esphome::spi {
 
@@ -11,13 +12,15 @@ namespace esphome::spi {
 static const char *const TAG = "spi";
 static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 
+#ifdef USE_SPI_PSRAM_DMA
 static uint32_t get_psram_dma_flags(bool enabled, const void *tx_buffer) {
-#if SOC_PSRAM_DMA_CAPABLE && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+#if SOC_PSRAM_DMA_CAPABLE
   if (enabled && tx_buffer != nullptr && esp_ptr_dma_ext_capable(tx_buffer))
     return SPI_TRANS_DMA_USE_PSRAM;
 #endif
   return 0;
 }
+#endif
 
 class SPIDelegateHw : public SPIDelegate {
  public:
@@ -38,7 +41,9 @@ class SPIDelegateHw : public SPIDelegate {
 
   bool is_ready() override { return this->handle_ != nullptr; }
 
+#ifdef USE_SPI_PSRAM_DMA
   void set_psram_dma(bool enable) override { this->psram_dma_ = enable; }
+#endif
 
   void begin_transaction() override {
     if (this->release_device_)
@@ -79,9 +84,11 @@ class SPIDelegateHw : public SPIDelegate {
       return;
     }
     spi_transaction_t desc = {};
+#ifdef USE_SPI_PSRAM_DMA
+    desc.flags = get_psram_dma_flags(this->psram_dma_, txbuf);
+#endif
     while (length != 0) {
       size_t const partial = std::min(length, MAX_TRANSFER_SIZE);
-      desc.flags = get_psram_dma_flags(this->psram_dma_, txbuf);
       desc.length = partial * 8;
       desc.rxlength = this->write_only_ ? 0 : partial * 8;
       desc.tx_buffer = txbuf;
@@ -95,7 +102,7 @@ class SPIDelegateHw : public SPIDelegate {
         ESP_LOGE(TAG, "Transmit failed - err %X", err);
         break;
       }
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+#ifdef USE_SPI_PSRAM_DMA
       if ((desc.flags & SPI_TRANS_DMA_TX_FAIL) != 0) {
         ESP_LOGE(TAG, "PSRAM DMA TX underflow");
         break;
@@ -153,11 +160,12 @@ class SPIDelegateHw : public SPIDelegate {
     desc.base.rxlength = 0;
     desc.base.cmd = cmd;
     desc.base.addr = address;
-    const uint32_t base_flags = desc.base.flags;
+#ifdef USE_SPI_PSRAM_DMA
+    desc.base.flags |= get_psram_dma_flags(this->psram_dma_, data);
+#endif
     do {
       size_t chunk_size = std::min(length, MAX_TRANSFER_SIZE);
       if (data != nullptr && chunk_size != 0) {
-        desc.base.flags = base_flags | get_psram_dma_flags(this->psram_dma_, data);
         desc.base.length = chunk_size * 8;
         desc.base.tx_buffer = data;
         length -= chunk_size;
@@ -174,7 +182,7 @@ class SPIDelegateHw : public SPIDelegate {
         ESP_LOGE(TAG, "Transmit failed - err %X", err);
         return;
       }
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 3)
+#ifdef USE_SPI_PSRAM_DMA
       if ((desc.base.flags & SPI_TRANS_DMA_TX_FAIL) != 0) {
         ESP_LOGE(TAG, "PSRAM DMA TX underflow");
         return;
@@ -242,7 +250,9 @@ class SPIDelegateHw : public SPIDelegate {
   spi_device_handle_t handle_{};
   bool release_device_{false};
   bool write_only_{false};
+#ifdef USE_SPI_PSRAM_DMA
   bool psram_dma_{false};
+#endif
 };
 
 class SPIBusHw : public SPIBus {
