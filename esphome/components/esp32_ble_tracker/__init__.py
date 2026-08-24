@@ -229,7 +229,7 @@ def _warn_long_scan_window_with_wifi(config: ConfigType) -> ConfigType:
     ):
         _LOGGER.warning(
             "BLE scan window of %s with wifi on the same radio starves wifi and "
-            "causes disconnects and crashes; keep the window at or below %s "
+            "causes wifi disconnects; keep the window at or below %s "
             "(for example interval: 320ms, window: 300ms). Long windows are "
             "only a problem with wifi, they are fine on ethernet",
             window,
