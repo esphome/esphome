@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import rc522, spi
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@glmnet"]
 DEPENDENCIES = ["spi"]
@@ -24,7 +25,7 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await rc522.setup_rc522(var, config)
     await spi.register_spi_device(var, config)
