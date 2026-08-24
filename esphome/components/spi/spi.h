@@ -254,7 +254,7 @@ class SPIDelegate {
   virtual bool is_ready();
 
 #ifdef USE_SPI_PSRAM_DMA
-  virtual void set_psram_dma(bool enable) {}
+  void set_psram_dma(bool enable) { this->psram_dma_ = enable; }
 #endif
 
  protected:
@@ -262,6 +262,9 @@ class SPIDelegate {
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::NULL_PIN};
+#ifdef USE_SPI_PSRAM_DMA
+  bool psram_dma_{false};
+#endif
   static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 

@@ -13,7 +13,7 @@ from esphome.components.esp32 import (
 from esphome.components.spi import (
     CONF_INTERFACE_INDEX,
     CONF_PSRAM_DMA,
-    final_validate_device_schema,
+    _final_validate,
     spi_device_schema,
 )
 from esphome.config import Config
@@ -101,6 +101,21 @@ def test_psram_dma_rejects_target_without_capability(
         _schema()({CONF_PSRAM_DMA: True})
 
 
+def test_psram_dma_false_is_portable(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _stage(
+        set_core_config,
+        PlatformFramework.ESP32_ARDUINO,
+        VARIANT_ESP32,
+        cv.Version(5, 5, 2),
+    )
+
+    config = _schema()({CONF_PSRAM_DMA: False})
+
+    assert config[CONF_PSRAM_DMA] is False
+
+
 def test_psram_dma_rejects_older_idf(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -122,6 +137,7 @@ def _full_spi_config(*, hardware: bool) -> tuple[Config, ID]:
         bus[CONF_INTERFACE_INDEX] = 0
     full = Config()
     full["spi"] = [bus]
+    full["spi_device_test"] = {CONF_SPI_ID: ID("spi_bus"), CONF_PSRAM_DMA: True}
     full.declare_ids.append((bus_id, ["spi", 0, CONF_ID]))
     return full, ID("spi_bus", is_declaration=False, type="SPIComponent")
 
@@ -129,13 +145,10 @@ def _full_spi_config(*, hardware: bool) -> tuple[Config, ID]:
 def test_psram_dma_accepts_hardware_spi(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    full_config, bus_id = _full_spi_config(hardware=True)
+    full_config, _ = _full_spi_config(hardware=True)
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
 
-    validator = final_validate_device_schema(
-        "test", require_mosi=False, require_miso=False
-    )
-    validator({CONF_SPI_ID: bus_id, CONF_PSRAM_DMA: True})
+    _final_validate(full_config["spi"])
 
 
 def test_psram_dma_rejects_software_spi(
@@ -144,8 +157,19 @@ def test_psram_dma_rejects_software_spi(
     full_config, bus_id = _full_spi_config(hardware=False)
     set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
 
-    validator = final_validate_device_schema(
-        "test", require_mosi=False, require_miso=False
-    )
     with pytest.raises(cv.Invalid, match="psram_dma requires a hardware SPI"):
-        validator({CONF_SPI_ID: bus_id, CONF_PSRAM_DMA: True})
+        _final_validate(full_config["spi"])
+
+
+def test_spi_bus_rejects_psram_dma_device_without_component_final_validation(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    full_config, bus_id = _full_spi_config(hardware=False)
+    full_config["device_without_final_validation"] = {
+        CONF_SPI_ID: bus_id,
+        CONF_PSRAM_DMA: True,
+    }
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full_config)
+
+    with pytest.raises(cv.Invalid, match="psram_dma requires a hardware SPI"):
+        _final_validate(full_config["spi"])

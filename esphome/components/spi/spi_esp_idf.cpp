@@ -41,10 +41,6 @@ class SPIDelegateHw : public SPIDelegate {
 
   bool is_ready() override { return this->handle_ != nullptr; }
 
-#ifdef USE_SPI_PSRAM_DMA
-  void set_psram_dma(bool enable) override { this->psram_dma_ = enable; }
-#endif
-
   void begin_transaction() override {
     if (this->release_device_)
       this->add_device_();
@@ -85,9 +81,12 @@ class SPIDelegateHw : public SPIDelegate {
     }
     spi_transaction_t desc = {};
 #ifdef USE_SPI_PSRAM_DMA
-    desc.flags = get_psram_dma_flags(this->psram_dma_, txbuf);
+    const uint32_t psram_flags = rxbuf == nullptr ? get_psram_dma_flags(this->psram_dma_, txbuf) : 0;
 #endif
     while (length != 0) {
+#ifdef USE_SPI_PSRAM_DMA
+      desc.flags = psram_flags;
+#endif
       size_t const partial = std::min(length, MAX_TRANSFER_SIZE);
       desc.length = partial * 8;
       desc.rxlength = this->write_only_ ? 0 : partial * 8;
@@ -161,9 +160,12 @@ class SPIDelegateHw : public SPIDelegate {
     desc.base.cmd = cmd;
     desc.base.addr = address;
 #ifdef USE_SPI_PSRAM_DMA
-    desc.base.flags |= get_psram_dma_flags(this->psram_dma_, data);
+    const uint32_t transaction_flags = desc.base.flags | get_psram_dma_flags(this->psram_dma_, data);
 #endif
     do {
+#ifdef USE_SPI_PSRAM_DMA
+      desc.base.flags = transaction_flags;
+#endif
       size_t chunk_size = std::min(length, MAX_TRANSFER_SIZE);
       if (data != nullptr && chunk_size != 0) {
         desc.base.length = chunk_size * 8;
@@ -250,9 +252,6 @@ class SPIDelegateHw : public SPIDelegate {
   spi_device_handle_t handle_{};
   bool release_device_{false};
   bool write_only_{false};
-#ifdef USE_SPI_PSRAM_DMA
-  bool psram_dma_{false};
-#endif
 };
 
 class SPIBusHw : public SPIBus {
