@@ -1,0 +1,30 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:
+
+cover:
+  - platform: template
+    name: "Template Cover"
+    id: template_cover
+    optimistic: true
+    toggle_action:
+      - logger.log: "Cover toggle triggered"
+    open_action:
+      - logger.log: "Cover open triggered"
+    close_action:
+      - logger.log: "Cover close triggered"
+    stop_action:
+      - logger.log: "Cover stop triggered"
+    on_opened:
+      - logger.log: "Cover opened"
+    on_closed:
+      - logger.log: "Cover closed"
+
+esphome:
+  on_boot:
+    - cover.open: template_cover
+    - cover.close: template_cover
+    - cover.stop: template_cover
+    - cover.toggle: template_cover
