@@ -273,6 +273,18 @@ def test_components_component_with_no_base_file_fails_with_flag(
     )
 
 
+def test_components_blank_list_fails_with_flag(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A fully blank component list must not slide into the baseline
+    fallback and exit green under the flag."""
+    rc = tbc.test_components(
+        [""], "esp8266-ard", "compile", False, fail_on_no_tests=True
+    )
+    assert rc == 1
+    assert "blank component list" in capsys.readouterr().out
+
+
 def test_components_empty_match_tolerated_without_flag() -> None:
     """The esp32-ard smoke leg deliberately builds only the subset with a
     matching fixture; without the flag an empty match stays green."""

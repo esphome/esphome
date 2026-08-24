@@ -7390,6 +7390,15 @@ def test_compile_program_espidf_idedata_none_warns(
     assert "No idedata was generated" in caplog.text
 
 
+def test_native_toolchain_table_serves_every_native_toolchain() -> None:
+    """Every member of NATIVE_TOOLCHAINS has a backend entry; a gap would
+    surface as a targeted EsphomeError on the one affected config, and this
+    pin keeps the table from drifting when a toolchain is added."""
+    from esphome.const import NATIVE_TOOLCHAINS
+
+    assert {tc for _, tc in main._NATIVE_TOOLCHAIN_MODULES} == set(NATIVE_TOOLCHAINS)
+
+
 def test_native_toolchain_module_missing_backend_raises(tmp_path: Path) -> None:
     """A native toolchain missing from the backend table is a bug and must
     fail, not silently degrade to the PlatformIO path."""

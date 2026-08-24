@@ -1074,6 +1074,13 @@ def test_components(
             )
         )
 
+    # The flag's contract is "no test matched fails": a fully blank pattern
+    # list would otherwise slide into the reference-baseline fallback and
+    # exit green while building nothing a caller asked for
+    if fail_on_no_tests and not any(component_patterns):
+        print("No components requested (blank component list)")
+        return 1
+
     # Renamed or removed fixtures must shrink coverage loudly, and the
     # reference-baseline fallback below must not mask an empty match. The
     # check is per platform: a component whose fixture exists only for other

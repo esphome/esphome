@@ -48,7 +48,6 @@ from esphome.const import (
     ENV_NOGITIGNORE,
     KEY_ESP32,
     KEY_VARIANT,
-    NATIVE_TOOLCHAINS,
     SECRETS_FILES,
     Toolchain,
 )
@@ -1932,8 +1931,6 @@ _NATIVE_TOOLCHAIN_MODULES = {
     ("esp32", Toolchain.ESP_IDF): "esphome.espidf.toolchain",
     ("esp8266", Toolchain.ARDUINO): "esphome.arduino8266.toolchain",
 }
-# Structure over prose: a native toolchain the table does not serve is a bug
-assert {tc for _, tc in _NATIVE_TOOLCHAIN_MODULES} == set(NATIVE_TOOLCHAINS)
 
 
 def _native_toolchain_module():
@@ -2002,7 +1999,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     if native_toolchain is None and not CORE.using_toolchain_platformio:
         _LOGGER.error(
             "analyze-memory is not supported with the '%s' toolchain on %s; "
-            "it requires a PlatformIO, ESP-IDF, or native Arduino build",
+            "re-run with --toolchain platformio",
             CORE.toolchain.value if CORE.toolchain else "unresolved",
             CORE.target_platform,
         )
