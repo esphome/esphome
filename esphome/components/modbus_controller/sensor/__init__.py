@@ -8,6 +8,7 @@ from .. import (
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
+    migrate_custom_command,
     modbus_calc_properties,
     modbus_controller_ns,
     validate_modbus_register,
@@ -42,6 +43,8 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_modbus_register,
 )
+
+FINAL_VALIDATE_SCHEMA = migrate_custom_command
 
 
 async def to_code(config):

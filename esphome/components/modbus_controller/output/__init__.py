@@ -11,6 +11,7 @@ from .. import (
     modbus_controller_ns,
 )
 from ..const import (
+    CONF_CUSTOM_COMMAND,
     CONF_CUSTOM_PDU,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
@@ -40,6 +41,9 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_CUSTOM_PDU): cv.invalid(
                     "custom_pdu is not supported for outputs; use a write_lambda instead"
                 ),
+                cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
+                    "custom_command is not supported for outputs; use a write_lambda instead"
+                ),
                 cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
                 cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             }
@@ -50,6 +54,9 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Required(CONF_ADDRESS): cv.positive_int,
                 cv.Optional(CONF_CUSTOM_PDU): cv.invalid(
                     "custom_pdu is not supported for outputs; use a write_lambda instead"
+                ),
+                cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
+                    "custom_command is not supported for outputs; use a write_lambda instead"
                 ),
                 cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
                     SENSOR_VALUE_TYPE
