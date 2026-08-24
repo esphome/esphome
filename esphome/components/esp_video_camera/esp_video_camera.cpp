@@ -5,17 +5,23 @@
 #if defined(USE_ESP_IDF) && defined(USE_ESP32_VARIANT_ESP32P4)
 
 #include "i2c_helper.h"
+#include "esphome/core/application.h"  // App.feed_wdt()
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
+// Explicitly, not by luck: every CONFIG_ESP_VIDEO_* test below decides whether
+// a whole block of code exists, and an #if on an undefined macro is false
+// without a word of complaint.
+#include <sdkconfig.h>
+
 #include "esp_heap_caps.h"
 #include "esp_idf_version.h"   // ESP_IDF_VERSION, for usb_host_config_t::peripheral_map
-#include "esp_log.h"           // esp_log_level_set()
 #include "esp_memory_utils.h"  // esp_ptr_external_ram()
 
 #include <atomic>
 #include <cerrno>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
@@ -45,6 +51,10 @@ static const char *const TAG = "esp_video_camera";
 
 // How long setup() waits for esp_video_init() on core 0 before giving up.
 static constexpr uint32_t INIT_TIMEOUT_MS = 10000;
+// How much of that wait may pass between two watchdog feeds. Comfortably under
+// any sane CONFIG_ESP_TASK_WDT_TIMEOUT_S (5 s by default in ESPHome), and long
+// enough that the polling costs nothing next to the init it is waiting on.
+static constexpr uint32_t INIT_POLL_SLICE_MS = 200;
 
 #if CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE
 // Settling time between the host port's 5 V rail coming up and the USB Host
@@ -282,13 +292,10 @@ void ESPVideoCameraImageReader::return_image() {
 // ESPVideoCamera — setup / pipeline init
 // ===========================================================================
 void ESPVideoCamera::setup() {
-  // esp_video's ISP task has a 4 KB stack at priority 11 and runs the whole
-  // IPA pipeline on it. At IDF debug level it also prints a per-frame stats
-  // dump, formatted on that same stack because it comes from a non-main task,
-  // which overflows it into a load access fault. IDF tags cannot be filtered
-  // from YAML -- ESPHome funnels them all through "esp-idf".
-  esp_log_level_set("ISP", ESP_LOG_INFO);
-  esp_log_level_set("esp_video_cam", ESP_LOG_INFO);
+  // Raising esp32 -> framework -> advanced -> log_level to DEBUG overflows
+  // esp_video's 4 KB ISP task stack on its per-frame stats dump. Nothing here
+  // can stop that: ESPHome builds with CONFIG_LOG_TAG_LEVEL_IMPL_NONE, so
+  // esp_log_level_set() is compiled out and every tag follows the one level.
 
   // Resolve the device alias to a concrete /dev/videoN path. This runs before
   // init_pipeline_() because is_uvc_device_() reads the resolved path, and the
@@ -548,11 +555,20 @@ int ESPVideoCamera::poll_pipeline_init_(uint32_t wait_ms) {
 bool ESPVideoCamera::init_pipeline_() {
   if (!this->start_pipeline_init_())
     return false;
-  // Wait out the whole allowance in one go. This is setup(), where blocking is
-  // what everything else does too; loop() polls instead.
-  const uint32_t now = millis();
-  const int32_t remaining = (int32_t) (this->init_deadline_ms_ - now);
-  return this->poll_pipeline_init_(remaining > 0 ? (uint32_t) remaining : 0) > 0;
+  // In slices, feeding the watchdog between them. This runs from setup(), and
+  // the loop task is subscribed to the task watchdog with panic on: nothing
+  // feeds it between one component's setup() and the next. Waiting out the
+  // whole allowance in one call would reboot the device at the watchdog
+  // timeout -- and reboot it on exactly the slow init this code was written to
+  // survive, so the overrun message and the UVC retry below could never run.
+  int state;
+  do {
+    // Before the slice, not after, so the settle delay and the USB host install
+    // that start_pipeline_init_() just did are covered too.
+    App.feed_wdt();
+    state = this->poll_pipeline_init_(INIT_POLL_SLICE_MS);
+  } while (state < 0 && (int32_t) (millis() - this->init_deadline_ms_) < 0);
+  return state > 0;
 }
 
 // ===========================================================================
@@ -813,6 +829,12 @@ void ESPVideoCamera::loop_jpeg_pipeline_() {
   if (encoder_broken && !this->reset_jpeg_encoder_()) {
     ESP_LOGE(TAG, "JPEG encoder is unrecoverable; stopping capture");
     this->stop_capture_();
+    // stop_capture_() clears any pending retry, and loop() would otherwise
+    // start the whole pipeline again on its very next iteration -- two opens,
+    // an S_FMT, a REQBUFS, three mmaps and a STREAMON, torn down again the
+    // moment the encoder wedges on the first frame. Space the attempts out.
+    this->capture_retry_pending_ = true;
+    this->capture_retry_at_ms_ = millis() + this->capture_retry_interval_ms_();
   }
 }
 
@@ -1196,25 +1218,42 @@ void ESPVideoCamera::stop_capture_() {
   this->num_capture_buffers_ = 0;
   this->streaming_ = false;
   this->idle_since_ms_ = 0;
+  // Let go of the last frame. Listeners hold their own shared_ptr, so this
+  // frees nothing early -- but without it the final JPEG of a capture stays in
+  // PSRAM for the life of the device, which at 1080p is a few hundred kilobytes
+  // held for a camera nobody is watching.
+  this->current_image_.reset();
   // Any pending re-open is re-armed by handle_device_gone_() after this call;
   // a clean stop must not leave one behind.
   this->capture_retry_pending_ = false;
 }
 
 void ESPVideoCamera::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP-Video Camera:");
-  ESP_LOGCONFIG(TAG, "  Name: %s", this->get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Source: %s (%s)", this->device_.c_str(), this->resolved_device_.c_str());
-  ESP_LOGCONFIG(TAG, "  Resolution: %s", this->resolution_.c_str());
+  ESP_LOGCONFIG(TAG,
+                "ESP-Video Camera:\n"
+                "  Name: %s\n"
+                "  Source: %s (%s)\n"
+                "  Resolution: %s\n"
+                "  Max framerate: %.1f fps",
+                this->get_name().c_str(), this->device_.c_str(), this->resolved_device_.c_str(),
+                this->resolution_.c_str(), this->max_framerate_);
   if (this->is_hw_jpeg_)
     ESP_LOGCONFIG(TAG, "  JPEG quality: %d", this->jpeg_quality_);
-  ESP_LOGCONFIG(TAG, "  Max framerate: %.1f fps", this->max_framerate_);
 
-  // Which sensor drivers esp_cam_sensor actually built in. esp_video_init()
-  // probes exactly these over SCCB, so when auto-detection comes up empty this
-  // line says whether the sensor you have is even represented in the firmware.
-  // A USB camera is not probed over SCCB, so the list means nothing there.
+  // Neither of the next two means anything for a USB camera: it has no sensor
+  // clock to generate and is not probed over SCCB.
   if (!this->is_uvc_device_()) {
+    // The XCLK settings are board-specific and are the first thing to have got
+    // wrong on a sensor that never answers.
+    char generated[40];
+    const char *xclk = "left to the board";
+    if (this->enable_xclk_init_) {
+      snprintf(generated, sizeof(generated), "GPIO%d at %u Hz", (int) this->xclk_pin_, (unsigned) this->xclk_freq_);
+      xclk = generated;
+    }
+    // Which sensor drivers esp_cam_sensor actually built in. esp_video_init()
+    // probes exactly these over SCCB, so when auto-detection comes up empty
+    // this says whether the sensor you are holding is even in the firmware.
     std::string drivers;
 #ifdef CONFIG_CAMERA_SC202CS
     drivers += " SC202CS(0x36)";
@@ -1225,7 +1264,10 @@ void ESPVideoCamera::dump_config() {
 #ifdef CONFIG_CAMERA_SC2336
     drivers += " SC2336(0x30)";
 #endif
-    ESP_LOGCONFIG(TAG, "  MIPI-CSI drivers:%s", drivers.empty() ? " none" : drivers.c_str());
+    ESP_LOGCONFIG(TAG,
+                  "  XCLK: %s\n"
+                  "  MIPI-CSI drivers:%s",
+                  xclk, drivers.empty() ? " none" : drivers.c_str());
   }
 
   if (this->is_failed())

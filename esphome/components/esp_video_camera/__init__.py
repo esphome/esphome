@@ -319,53 +319,39 @@ async def to_code(config):
         add_idf_sdkconfig_option(opt, True)
     if config[CONF_ENABLE_UVC]:
         add_idf_sdkconfig_option("CONFIG_ESP_VIDEO_ENABLE_USB_UVC_VIDEO_DEVICE", True)
-        # A UVC camera's configuration descriptor carries every format and
-        # frame size it supports and runs to several hundred bytes; the USB
-        # host's enumeration control transfer defaults to 256, which truncates
-        # it. Enumeration then fails with "Configuration descriptor larger than
-        # control transfer max length" and the camera never appears at all.
+        # A UVC configuration descriptor runs to several hundred bytes, and the
+        # 256-byte default truncates it into "Configuration descriptor larger
+        # than control transfer max length" -- the camera never appears.
         add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 2048)
-
-        # How long esp_video waits for the USB camera to enumerate. It waits on
-        # whichever task opened the device, which for this component is the main
-        # loop, so upstream's 10 s stalls the whole device while no camera is
-        # plugged in. The wait only ever costs anything when there is nothing to
-        # find: a camera that is already enumerated is picked up from the USB
-        # host's device list with no wait at all. 500 is the Kconfig minimum.
+        # esp_video waits for enumeration on whichever task opened the device.
+        # Upstream's 10 s is 10 s of stalled main loop whenever no camera is
+        # plugged in; an already-enumerated one costs nothing either way. 500 is
+        # the Kconfig minimum.
         add_idf_sdkconfig_option("CONFIG_USB_UVC_INIT_TIMEOUT_MS", 500)
-
-        # Let the UVC host driver size its transfer blocks from the endpoint it
-        # found. Its header says a size of 0 means four times the endpoint's
-        # maximum packet size; esp_video hardcodes 10240 instead, which is not a
-        # multiple of that packet size for any camera in particular. An
-        # isochronous transfer that does not land on a packet boundary loses the
-        # rest of the microframe, so a camera can enumerate, negotiate a format
-        # and then deliver a torn picture or none at all -- the more so at
-        # 1080p, where the endpoint's packets are largest.
+        # 0 means "four times the endpoint's maximum packet size". esp_video
+        # hardcodes 10240, which is not a multiple of that for any camera in
+        # particular, and an isochronous transfer off a packet boundary loses
+        # the rest of the microframe -- a torn picture, or none at all.
         add_idf_sdkconfig_option("CONFIG_USB_UVC_VIDEO_DEVICE_URB_SIZE", 0)
 
-    # Pin the dynamic-link detection mode: auto-detection needs every detect
-    # function kept in the esp_cam_sensor_detect_fn section for esp_video_init() to
-    # walk. It is the upstream default, but this component depends on it.
-    #
-    # "MOTOR" is not a typo and this is not a focus-motor setting: the one choice
-    # upstream covers "camera sensor and motor detection" together, and
-    # CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK is the whole symbol's name.
+    # Auto-detection walks the esp_cam_sensor_detect_fn section, which only holds
+    # every driver under dynamic linking. Upstream's default, but depended on
+    # here. "MOTOR" is not a typo: the one upstream choice covers sensor and
+    # motor detection together.
     add_idf_sdkconfig_option(
         "CONFIG_CAMERA_SENSOR_MOTOR_DETECT_METHOD_DYNAMIC_LINK", True
     )
 
-    # Every driver is compiled in whatever sensor_model says, so a board that turns
-    # out to carry a different sensor still comes up.
+    # Every driver goes in whatever sensor_model says, so a board that turns out
+    # to carry a different sensor still comes up.
     for sensor in _SENSOR_FORMATS:
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor.upper()}", True)
         add_idf_sdkconfig_option(
             f"CONFIG_CAMERA_{sensor.upper()}_AUTO_DETECT_MIPI_INTERFACE_SENSOR", True
         )
 
-    # A format can only be chosen as the boot default once its own
-    # CAMERA_<SENSOR>_MIPI_* symbol has put it in the driver's format table, so set
-    # both.
+    # A format is only choosable as the boot default once its own
+    # CAMERA_<SENSOR>_MIPI_* symbol has put it in the driver's format table.
     if (fmt := _sensor_format_symbol(config)) is not None:
         sensor = config[CONF_SENSOR_MODEL].upper()
         add_idf_sdkconfig_option(f"CONFIG_CAMERA_{sensor}_MIPI_{fmt}", True)
