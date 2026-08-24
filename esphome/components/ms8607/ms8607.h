@@ -12,7 +12,7 @@ namespace esphome::ms8607 {
  */
 class MS8607HumidityDevice final : public i2c::I2CDevice {
  public:
-  uint8_t get_address() { return address_; }
+  uint8_t get_address() const { return this->address_; }
 };
 
 /**
