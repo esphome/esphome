@@ -167,6 +167,7 @@ void ModbusController::queue_command(ModbusCommandItem command) {
   this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
   // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
   auto &item = this->one_shot_command_items_.back();
+  // We intentionally do not pass read_options_ here, because one-shot commands are usually writes, and are non-polling.
   if (!item->send()) {
     // The caller (e.g. a write entity) has usually already published optimistically - surface the loss.
     ESP_LOGW(TAG, "Command refused by hub: type=0x%X address=0x%X", static_cast<uint8_t>(item->register_type()),
@@ -203,7 +204,9 @@ void ModbusController::update() {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (!cmd.send()) {
+        // Probes carry the read-side options too, so a recovering device resumes streaming on the
+        // probe itself rather than waiting for the next update_interval.
+        if (!cmd.send(this->read_options_)) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
         }
       }
@@ -217,8 +220,9 @@ void ModbusController::update() {
   if (this->can_send()) {
     for (auto &cmd : this->polling_command_items_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
+      // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-      if (!cmd.send()) {
+      if (!cmd.send(this->read_options_)) {
         ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
       }
     }
@@ -496,16 +500,18 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
-bool ModbusCommandItem::send() {
+bool ModbusCommandItem::send(modbus::CommandOptions options) {
+  // Options pass straight through to the hub
   bool accepted;
   if (this->custom_pdu_ != nullptr) {
     // Custom polling command: send the sensor's ready-made PDU (function code + data, no address byte)
     // to this controller's own device address; the hub prepends the address and appends the CRC.
-    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_));
+    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
   } else if (this->function_code_ != FunctionCode::CUSTOM) {
     accepted = this->queue_pdu(modbus::helpers::create_client_pdu(
-        this->function_code_, this->start_address_, this->register_count_,
-        this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()));
+                                   this->function_code_, this->start_address_, this->register_count_,
+                                   this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()),
+                               options);
   } else {
     // Factory custom command: payload holds a complete raw frame (address + PDU). Send the PDU to the
     // frame's own address (which may differ from this controller's); the hub appends the CRC and routes
@@ -515,7 +521,7 @@ bool ModbusCommandItem::send() {
       ESP_LOGW(TAG, "Empty custom command frame, not sent");
       accepted = false;
     } else {
-      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this, options);
     }
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.
