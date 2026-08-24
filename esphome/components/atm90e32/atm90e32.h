@@ -24,6 +24,23 @@ struct OffsetCalibration {
 
 static_assert(sizeof(OffsetCalibration[3]) == 12, "Offset calibration preference layout must remain compatible");
 
+enum class OffsetCalibrationType : uint8_t {
+  OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT,
+  OFFSET_CALIBRATION_TYPE_POWER,
+};
+
+struct OffsetRestoreState {
+  bool restored;
+  bool values_verified;
+};
+
+inline OffsetRestoreState resolve_offset_restore_state(bool has_stored_values, bool initial_values_verified,
+                                                       bool fallback_values_verified) {
+  if (initial_values_verified)
+    return {has_stored_values, true};
+  return {false, fallback_values_verified};
+}
+
 inline void prepare_offset_rollback(const OffsetCalibration (&previous)[3], bool had_stored_values,
                                     OffsetCalibration (&rollback)[3]) {
   for (uint8_t phase = 0; phase < 3; phase++)
@@ -188,15 +205,16 @@ class ATM90E32Component final : public PollingComponent,
   float get_chip_temperature_();
   bool get_publish_interval_flag_() { return publish_interval_flag_; };
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
-  void restore_offset_calibrations_(bool power_offsets);
+  void restore_offset_calibrations_(OffsetCalibrationType type);
   void restore_gain_calibrations_();
   void save_gain_calibration_to_memory_();
   void finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
-                                  bool previous_using_saved, bool power_offsets);
-  void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset, bool power_offsets);
+                                  bool previous_using_saved, OffsetCalibrationType type);
+  void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
+                                   OffsetCalibrationType type);
   void write_gains_to_registers_();
   bool verify_gain_writes_();
-  bool verify_offset_writes_(bool power_offsets);
+  bool verify_offset_writes_(OffsetCalibrationType type);
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
   const char *get_calibration_id_();
@@ -272,6 +290,8 @@ class ATM90E32Component final : public PollingComponent,
   bool enable_offset_calibration_{false};
   bool enable_gain_calibration_{false};
   const char *instance_id_{nullptr};
+  bool has_stored_offset_calibration_{false};
+  bool has_stored_power_offset_calibration_{false};
   bool restored_offset_calibration_{false};
   bool restored_power_offset_calibration_{false};
   bool restored_gain_calibration_{false};

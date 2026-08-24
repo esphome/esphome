@@ -223,8 +223,8 @@ void ATM90E32Component::setup() {
       global_preferences->sync();
     }
 
-    this->restore_offset_calibrations_(false);
-    this->restore_offset_calibrations_(true);
+    this->restore_offset_calibrations_(OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT);
+    this->restore_offset_calibrations_(OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER);
   } else {
     ESP_LOGI(TAG, "[CALIBRATION][%s] Power & Voltage/Current offset calibration is disabled. Using config file values.",
              cs);
@@ -753,15 +753,18 @@ void ATM90E32Component::save_gain_calibration_to_memory_() {
 }
 
 void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
-                                                   bool previous_using_saved, bool power_offsets) {
+                                                   bool previous_using_saved, OffsetCalibrationType type) {
+  const bool power_offsets = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
   const char *cs = this->get_calibration_id_();
   const char *name = power_offsets ? "Power offset" : "Offset";
   OffsetCalibration(*offsets)[3] = power_offsets ? &this->power_offset_phase_ : &this->offset_phase_;
   ESPPreferenceObject *preference = power_offsets ? &this->power_offset_pref_ : &this->offset_pref_;
+  bool *has_stored =
+      power_offsets ? &this->has_stored_power_offset_calibration_ : &this->has_stored_offset_calibration_;
   bool *restored = power_offsets ? &this->restored_power_offset_calibration_ : &this->restored_offset_calibration_;
   bool *mismatches = power_offsets ? this->power_offset_calibration_mismatch_ : this->offset_calibration_mismatch_;
 
-  const bool writes_verified = this->verify_offset_writes_(power_offsets);
+  const bool writes_verified = this->verify_offset_writes_(type);
   bool saved = false;
   bool synced = false;
   if (writes_verified) {
@@ -771,6 +774,7 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
 
   if (writes_verified && saved && synced) {
     this->using_saved_calibrations_ = true;
+    *has_stored = true;
     *restored = true;
     for (uint8_t phase = 0; phase < 3; phase++)
       mismatches[phase] = false;
@@ -783,21 +787,24 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
     ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save %s calibration to memory!", cs, name);
 
   for (uint8_t phase = 0; phase < 3; phase++) {
-    this->write_offsets_to_registers_(phase, previous[phase].first_offset, previous[phase].second_offset,
-                                      power_offsets);
+    this->write_offsets_to_registers_(phase, previous[phase].first_offset, previous[phase].second_offset, type);
   }
-  const bool rollback_verified = this->verify_offset_writes_(power_offsets);
+  const bool rollback_verified = this->verify_offset_writes_(type);
 
+  bool rollback_persisted = false;
   if (writes_verified) {
     OffsetCalibration rollback[3]{};
     prepare_offset_rollback(previous, previous_restored, rollback);
     const bool rollback_saved = preference->save(&rollback);
     const bool rollback_synced = global_preferences->sync();
+    rollback_persisted = rollback_saved && rollback_synced;
     if (!rollback_saved || !rollback_synced)
       ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored %s calibration values!", cs, name);
   }
 
   *restored = previous_restored;
+  if (rollback_persisted)
+    *has_stored = previous_restored;
   this->using_saved_calibrations_ = previous_using_saved;
   if (!rollback_verified) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration failed; rollback readback verification failed.", cs, name);
@@ -829,7 +836,8 @@ void ATM90E32Component::run_offset_calibrations() {
     int16_t voltage_offset = calibrate_offset(phase, true);
     int16_t current_offset = calibrate_offset(phase, false);
 
-    this->write_offsets_to_registers_(phase, voltage_offset, current_offset, false);
+    this->write_offsets_to_registers_(phase, voltage_offset, current_offset,
+                                      OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT);
 
     ESP_LOGI(TAG, "[CALIBRATION][%s] |   %c   |     %6d      |     %6d      |", cs, 'A' + phase, voltage_offset,
              current_offset);
@@ -837,7 +845,8 @@ void ATM90E32Component::run_offset_calibrations() {
 
   ESP_LOGI(TAG, "[CALIBRATION][%s] ==================================================================\n", cs);
 
-  this->finish_offset_calibration_(previous_offsets, previous_restored, previous_using_saved, false);
+  this->finish_offset_calibration_(previous_offsets, previous_restored, previous_using_saved,
+                                   OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT);
 }
 
 void ATM90E32Component::run_power_offset_calibrations() {
@@ -865,14 +874,16 @@ void ATM90E32Component::run_power_offset_calibrations() {
     int16_t active_offset = calibrate_power_offset(phase, false);
     int16_t reactive_offset = calibrate_power_offset(phase, true);
 
-    this->write_offsets_to_registers_(phase, active_offset, reactive_offset, true);
+    this->write_offsets_to_registers_(phase, active_offset, reactive_offset,
+                                      OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER);
 
     ESP_LOGI(TAG, "[CALIBRATION][%s] |   %c   |       %6d        |        %6d        |", cs, 'A' + phase, active_offset,
              reactive_offset);
   }
   ESP_LOGI(TAG, "[CALIBRATION][%s] =====================================================================\n", cs);
 
-  this->finish_offset_calibration_(previous_offsets, previous_restored, previous_using_saved, true);
+  this->finish_offset_calibration_(previous_offsets, previous_restored, previous_using_saved,
+                                   OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER);
 }
 
 void ATM90E32Component::write_gains_to_registers_() {
@@ -887,7 +898,8 @@ void ATM90E32Component::write_gains_to_registers_() {
 }
 
 void ATM90E32Component::write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
-                                                    bool power_offsets) {
+                                                    OffsetCalibrationType type) {
+  const bool power_offsets = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
   OffsetCalibration &offsets = power_offsets ? this->power_offset_phase_[phase] : this->offset_phase_[phase];
   offsets.first_offset = first_offset;
   offsets.second_offset = second_offset;
@@ -964,13 +976,16 @@ void ATM90E32Component::restore_gain_calibrations_() {
   ESP_LOGW(TAG, "[CALIBRATION][%s] No stored gain calibrations found. Using config file values.", cs);
 }
 
-void ATM90E32Component::restore_offset_calibrations_(bool power_offsets) {
+void ATM90E32Component::restore_offset_calibrations_(OffsetCalibrationType type) {
+  const bool power_offsets = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
   const char *cs = this->get_calibration_id_();
   const char *name = power_offsets ? "power offset" : "offset";
   OffsetCalibration(*offsets)[3] = power_offsets ? &this->power_offset_phase_ : &this->offset_phase_;
   OffsetCalibration(*config_offsets)[3] =
       power_offsets ? &this->config_power_offset_phase_ : &this->config_offset_phase_;
   ESPPreferenceObject *preference = power_offsets ? &this->power_offset_pref_ : &this->offset_pref_;
+  bool *has_stored =
+      power_offsets ? &this->has_stored_power_offset_calibration_ : &this->has_stored_offset_calibration_;
   bool *restored = power_offsets ? &this->restored_power_offset_calibration_ : &this->restored_offset_calibration_;
   bool *mismatches = power_offsets ? this->power_offset_calibration_mismatch_ : this->offset_calibration_mismatch_;
   const bool *has_first = power_offsets ? this->has_config_active_power_offset_ : this->has_config_voltage_offset_;
@@ -990,28 +1005,31 @@ void ATM90E32Component::restore_offset_calibrations_(bool power_offsets) {
     }
   }
 
-  *restored = have_data && !all_zero;
+  *has_stored = have_data && !all_zero;
+  *restored = false;
   for (uint8_t phase = 0; phase < 3; phase++) {
     mismatches[phase] = false;
-    if (*restored) {
+    if (*has_stored) {
       mismatches[phase] =
           (has_first[phase] && (*offsets)[phase].first_offset != (*config_offsets)[phase].first_offset) ||
           (has_second[phase] && (*offsets)[phase].second_offset != (*config_offsets)[phase].second_offset);
     }
   }
 
-  if (!*restored) {
+  if (!*has_stored) {
     for (uint8_t phase = 0; phase < 3; phase++)
       (*offsets)[phase] = (*config_offsets)[phase];
     ESP_LOGW(TAG, "[CALIBRATION][%s] No stored %s calibrations found. Using default values.", cs, name);
   }
 
   for (uint8_t phase = 0; phase < 3; phase++) {
-    this->write_offsets_to_registers_(phase, (*offsets)[phase].first_offset, (*offsets)[phase].second_offset,
-                                      power_offsets);
+    this->write_offsets_to_registers_(phase, (*offsets)[phase].first_offset, (*offsets)[phase].second_offset, type);
   }
-  if (this->verify_offset_writes_(power_offsets)) {
-    ESP_LOGI(TAG, "[CALIBRATION][%s] %s calibration restore verified.", cs, name);
+  const bool initial_values_verified = this->verify_offset_writes_(type);
+  if (initial_values_verified) {
+    const auto state = resolve_offset_restore_state(*has_stored, true, false);
+    *restored = state.restored;
+    ESP_LOGI(TAG, "[CALIBRATION][%s] %s calibration values verified.", cs, name);
     return;
   }
 
@@ -1020,10 +1038,15 @@ void ATM90E32Component::restore_offset_calibrations_(bool power_offsets) {
     mismatches[phase] = false;
   for (uint8_t phase = 0; phase < 3; phase++) {
     (*offsets)[phase] = (*config_offsets)[phase];
-    this->write_offsets_to_registers_(phase, (*offsets)[phase].first_offset, (*offsets)[phase].second_offset,
-                                      power_offsets);
+    this->write_offsets_to_registers_(phase, (*offsets)[phase].first_offset, (*offsets)[phase].second_offset, type);
   }
-  ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration restore failed verification; using config values.", cs, name);
+  const auto state = resolve_offset_restore_state(*has_stored, false, this->verify_offset_writes_(type));
+  *restored = state.restored;
+  if (state.values_verified) {
+    ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration restore failed verification; config values verified.", cs, name);
+  } else {
+    ESP_LOGE(TAG, "[CALIBRATION][%s] %s calibration restore and config fallback both failed verification.", cs, name);
+  }
 }
 
 void ATM90E32Component::clear_gain_calibrations() {
@@ -1077,7 +1100,7 @@ void ATM90E32Component::clear_gain_calibrations() {
 
 void ATM90E32Component::clear_offset_calibrations() {
   const char *cs = this->get_calibration_id_();
-  if (!this->restored_offset_calibration_) {
+  if (!this->has_stored_offset_calibration_) {
     ESP_LOGI(TAG, "[CALIBRATION][%s] No stored offset calibrations to clear. Current values:", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] --------------------------------------------------------------", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] | Phase | offset_voltage | offset_current |", cs);
@@ -1100,7 +1123,8 @@ void ATM90E32Component::clear_offset_calibrations() {
         this->has_config_voltage_offset_[phase] ? this->config_offset_phase_[phase].first_offset : 0;
     int16_t current_offset =
         this->has_config_current_offset_[phase] ? this->config_offset_phase_[phase].second_offset : 0;
-    this->write_offsets_to_registers_(phase, voltage_offset, current_offset, false);
+    this->write_offsets_to_registers_(phase, voltage_offset, current_offset,
+                                      OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_VOLTAGE_CURRENT);
     ESP_LOGI(TAG, "[CALIBRATION][%s] |   %c   |     %6d      |     %6d      |", cs, 'A' + phase, voltage_offset,
              current_offset);
   }
@@ -1110,6 +1134,7 @@ void ATM90E32Component::clear_offset_calibrations() {
   this->offset_pref_.save(&zero_offsets);  // Clear stored values in flash
   global_preferences->sync();
 
+  this->has_stored_offset_calibration_ = false;
   this->restored_offset_calibration_ = false;
   for (bool &phase : this->offset_calibration_mismatch_)
     phase = false;
@@ -1119,7 +1144,7 @@ void ATM90E32Component::clear_offset_calibrations() {
 
 void ATM90E32Component::clear_power_offset_calibrations() {
   const char *cs = this->get_calibration_id_();
-  if (!this->restored_power_offset_calibration_) {
+  if (!this->has_stored_power_offset_calibration_) {
     ESP_LOGI(TAG, "[CALIBRATION][%s] No stored power offsets to clear. Current values:", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] ---------------------------------------------------------------------", cs);
     ESP_LOGI(TAG, "[CALIBRATION][%s] | Phase | offset_active_power | offset_reactive_power |", cs);
@@ -1142,7 +1167,8 @@ void ATM90E32Component::clear_power_offset_calibrations() {
         this->has_config_active_power_offset_[phase] ? this->config_power_offset_phase_[phase].first_offset : 0;
     int16_t reactive_offset =
         this->has_config_reactive_power_offset_[phase] ? this->config_power_offset_phase_[phase].second_offset : 0;
-    this->write_offsets_to_registers_(phase, active_offset, reactive_offset, true);
+    this->write_offsets_to_registers_(phase, active_offset, reactive_offset,
+                                      OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER);
     ESP_LOGI(TAG, "[CALIBRATION][%s] |   %c   |       %6d        |        %6d        |", cs, 'A' + phase, active_offset,
              reactive_offset);
   }
@@ -1152,6 +1178,7 @@ void ATM90E32Component::clear_power_offset_calibrations() {
   this->power_offset_pref_.save(&zero_power_offsets);
   global_preferences->sync();
 
+  this->has_stored_power_offset_calibration_ = false;
   this->restored_power_offset_calibration_ = false;
   for (bool &phase : this->power_offset_calibration_mismatch_)
     phase = false;
@@ -1206,7 +1233,8 @@ bool ATM90E32Component::verify_gain_writes_() {
   return success;  // Return true if all writes were successful, false otherwise
 }
 
-bool ATM90E32Component::verify_offset_writes_(bool power_offsets) {
+bool ATM90E32Component::verify_offset_writes_(OffsetCalibrationType type) {
+  const bool power_offsets = type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
   const char *cs = this->get_calibration_id_();
   const char *name = power_offsets ? "Power offset" : "Offset";
   const char *first_name = power_offsets ? "active" : "voltage";

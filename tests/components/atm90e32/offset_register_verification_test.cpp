@@ -14,7 +14,33 @@ TEST(ATM90E32OffsetRegisterVerification, RejectsMismatchedReadback) {
   EXPECT_FALSE(offset_register_value_matches(0xFF84, -123));
 }
 
-TEST(ATM90E32OffsetPersistence, PreservesStoredLayout) { EXPECT_EQ(sizeof(OffsetCalibration[3]), 12U); }
+TEST(ATM90E32OffsetRestoreState, ReportsVerifiedStoredValuesAsRestored) {
+  const auto state = resolve_offset_restore_state(true, true, false);
+
+  EXPECT_TRUE(state.restored);
+  EXPECT_TRUE(state.values_verified);
+}
+
+TEST(ATM90E32OffsetRestoreState, ReportsVerifiedConfigFallbackAsNotRestored) {
+  const auto state = resolve_offset_restore_state(true, false, true);
+
+  EXPECT_FALSE(state.restored);
+  EXPECT_TRUE(state.values_verified);
+}
+
+TEST(ATM90E32OffsetRestoreState, ReportsFailedConfigFallbackAsUnverified) {
+  const auto state = resolve_offset_restore_state(true, false, false);
+
+  EXPECT_FALSE(state.restored);
+  EXPECT_FALSE(state.values_verified);
+}
+
+TEST(ATM90E32OffsetRestoreState, ReportsConfigWithoutStoredValuesAsNotRestored) {
+  const auto state = resolve_offset_restore_state(false, true, false);
+
+  EXPECT_FALSE(state.restored);
+  EXPECT_TRUE(state.values_verified);
+}
 
 TEST(ATM90E32OffsetPersistence, RollsBackStoredValuesOrZeroSentinel) {
   const OffsetCalibration previous[3]{{1, -1}, {2, -2}, {3, -3}};
