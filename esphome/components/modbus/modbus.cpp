@@ -146,7 +146,7 @@ bool ModbusClientHub::tx_buffer_empty() {
   // other states are mid-transaction or owed bookkeeping, not queued sends - and a READY continuous
   // poll does not count either, since it ranks below every one-shot, so a new send goes out first.
   for (const auto &cmd : this->tx_buffer_) {
-    if (cmd.state == FrameState::READY && !cmd.continuous)
+    if (cmd.state == FrameState::READY && !cmd.options.continuous)
       return false;
   }
   return true;
@@ -219,14 +219,25 @@ void ModbusServerHub::parse_modbus_frames() {
     this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
-uint16_t Modbus::find_custom_frame_end_(uint16_t min_length) const {
-  // Custom functions could be any length - we have to rely on the CRC to determine completeness.
+uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
+  // Unknown-length functions (user-defined codes, unimplemented management codes, unassigned values)
+  // could be any length - we have to rely on the CRC to determine completeness.
   // If a CRC match is never found, the buffer will eventually overflow and be cleared.
   const uint8_t *raw = &this->rx_buffer_[0];
   const size_t size = this->rx_buffer_.size();
-  for (uint16_t len = min_length; len <= std::min(size, size_t(MAX_FRAME_SIZE)); len++) {
-    if (crc16(raw, len) == 0)
-      return len;
+  const auto max_len = static_cast<uint16_t>(std::min(size, size_t(MAX_FRAME_SIZE)));
+  if (min_length > max_len)
+    return 0;
+  // The Modbus CRC (poly 0xa001, refin/refout false) keeps its running state in the returned value,
+  // so we seed once over the first min_length bytes and extend one byte at a time instead of
+  // recomputing the whole prefix for every candidate length.
+  uint16_t crc = crc16(raw, min_length);
+  if (crc == 0)
+    return min_length;
+  for (uint16_t len = min_length; len < max_len; len++) {
+    crc = crc16(&raw[len], 1, crc);
+    if (crc == 0)
+      return len + 1;
   }
   return 0;
 }
@@ -241,11 +252,11 @@ bool Modbus::parse_modbus_server_frame_() {
   uint8_t address = this->rx_buffer_[0];
   uint8_t function_code = this->rx_buffer_[1];
 
-  if (helpers::is_function_code_custom(function_code)) {
-    frame_length = this->find_custom_frame_end_(frame_length);
+  if (helpers::is_function_code_unknown_length(function_code)) {
+    frame_length = this->find_frame_end_by_crc_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
-    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
+    ESP_LOGD(TAG, "Unknown-length function %02X found", function_code);
   } else {
     if (crc16(&this->rx_buffer_[0], frame_length) != 0)
       return false;
@@ -272,11 +283,11 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
   uint8_t address = this->rx_buffer_[0];
   uint8_t function_code = this->rx_buffer_[1];
 
-  if (helpers::is_function_code_custom(function_code)) {
-    frame_length = this->find_custom_frame_end_(frame_length);
+  if (helpers::is_function_code_unknown_length(function_code)) {
+    frame_length = this->find_frame_end_by_crc_(frame_length);
     if (frame_length == 0)
       return size < MAX_FRAME_SIZE;  // Continue to parse until we hit max size
-    ESP_LOGD(TAG, "User-defined function %02X found", function_code);
+    ESP_LOGD(TAG, "Unknown-length function %02X found", function_code);
   } else {
     if (crc16(&this->rx_buffer_[0], frame_length) != 0)
       return false;
@@ -935,7 +946,7 @@ bool ModbusDeviceCommand::notify_retired() {
 bool ModbusDeviceCommand::response(std::span<const uint8_t> response_pdu) {
   this->state = this->state == FrameState::WAITING_RETIRED ? FrameState::RETIRED : FrameState::RECEIVED_RESPONSE;
   // A continuous poll is never consumed by its own response; a one-shot consumes one request here.
-  if (!this->continuous)
+  if (!this->options.continuous)
     this->decrement_pending();
   if (this->device == nullptr)
     return false;
@@ -1059,15 +1070,12 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     return false;
   }
 
+  // Normalize the caller's options in place (the param is a by-value copy) so everything stored or
+  // merged below carries effective options, never the raw request.
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
-  const bool mutates = priority == CommandPriority::WRITE;
-  bool continuous = false;
-  if (options.continuous) {
-    if (mutates) {
-      ESP_LOGV(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
-    } else {
-      continuous = true;
-    }
+  if (options.continuous && priority == CommandPriority::WRITE) {
+    ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
+    options.continuous = false;
   }
 
   // A duplicate of a live entry with the same owner is not queued twice; it resolves against that
@@ -1093,10 +1101,10 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       }
       return false;  // dropped: no entry, no callbacks - the refusal is the return value
     }
-    if (continuous) {
+    if (options.continuous) {
       item.make_continuous(true);
       ESP_LOGV(TAG, "Frame already active for %" PRIu8 ", now polled continuously", address);
-    } else if (item.continuous) {
+    } else if (item.options.continuous) {
       // A one-shot duplicate downgrades the poll to a one-shot: it runs one more cycle to serve this
       // request, then stops (mirrors continuous incoming converting a one-shot the other way).
       item.make_continuous(false);
@@ -1129,7 +1137,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
 #endif
   ESP_LOGV(TAG, "Adding frame to tx queue: %" PRIu8 ":%s", address,
            format_hex_pretty_to(hex_buf, pdu.data(), pdu.size()));
-  this->tx_buffer_.emplace_back(device, address, pdu, continuous, this->next_seq_++);
+  this->tx_buffer_.emplace_back(device, address, pdu, options, this->next_seq_++);
   return true;
 }
 
