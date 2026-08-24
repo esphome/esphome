@@ -232,6 +232,7 @@ enum SerialProxyPortType {
 message SerialProxyInfo {
   string name = 1;                    // Human-readable port name
   SerialProxyPortType port_type = 2;  // Port type (RS232, RS485)
+  uint32 configured_line_states = 3;  // Bitmask of SerialProxyLineStateFlags this instance can drive
 }
 
 // DeviceInfoResponse max_data_length values:
@@ -1002,8 +1003,12 @@ message GetTimeResponse {
   option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
-  string timezone = 2;
-  ParsedTimezone parsed_timezone = 3;
+  // Deprecated in 2026.9.0: clients still send this string for older firmware,
+  // but new firmware only reads parsed_timezone. Clients older than Home
+  // Assistant 2026.3.0 that send only the string leave the device on its
+  // codegen-configured timezone (or UTC).
+  string timezone = 2 [deprecated = true];
+  ParsedTimezone parsed_timezone = 3 [(track_presence) = true];
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -2622,6 +2627,22 @@ message ZWaveProxyRequest {
   bytes data = 2;
 }
 
+enum ZWaveProxyStatus {
+  ZWAVE_PROXY_STATUS_OK = 0;             // Request completed successfully
+  ZWAVE_PROXY_STATUS_IN_USE = 1;         // Denied: another client is already subscribed
+  ZWAVE_PROXY_STATUS_NOT_SUPPORTED = 2;  // Request type not supported
+}
+
+// Acknowledges a ZWaveProxyRequest (subscribe/unsubscribe). Sent since API 1.16.
+message ZWaveProxyRequestResponse {
+  option (id) = 151;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_ZWAVE_PROXY";
+
+  ZWaveProxyRequestType type = 1;  // Which request type this responds to
+  ZWaveProxyStatus status = 2;     // Result status
+}
+
 // ==================== INFRARED ====================
 // Note: Feature and capability flag enums are defined in
 // esphome/components/infrared/infrared.h
@@ -2765,12 +2786,18 @@ message SerialProxyGetModemPinsResponse {
 
   uint32 instance = 1;          // Instance index (0-based)
   uint32 line_states = 2;       // Bitmask of SerialProxyLineStateFlags
+  SerialProxyStatus status = 3; // INVALID_ARGUMENT if the instance index is out of range (since API 1.16)
 }
 
 enum SerialProxyRequestType {
   SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;   // Subscribe to receive data from this serial proxy instance
   SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1; // Unsubscribe from this serial proxy instance
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2;       // Flush the serial port (block until all TX data is sent)
+  // Values below are only valid in SerialProxyRequestResponse.type, identifying which
+  // operation is being acknowledged. Sending them in SerialProxyRequest.type is an
+  // error the device answers with INVALID_ARGUMENT.
+  SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3;      // Acknowledges a SerialProxyConfigureRequest
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4; // Acknowledges a SerialProxySetModemPinsRequest
 }
 
 enum SerialProxyStatus {
@@ -2779,6 +2806,8 @@ enum SerialProxyStatus {
   SERIAL_PROXY_STATUS_ERROR = 2;           // Driver or hardware error
   SERIAL_PROXY_STATUS_TIMEOUT = 3;         // Timed out before TX completed
   SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4;   // Request type not supported by this instance
+  SERIAL_PROXY_STATUS_PORT_IN_USE = 5;     // Denied: another client holds the port
+  SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6; // Invalid instance index or parameter value
 }
 
 // Generic request message for simple serial proxy operations
@@ -2791,7 +2820,9 @@ message SerialProxyRequest {
   SerialProxyRequestType type = 2;      // Request type
 }
 
-// Response to a SerialProxyRequest (e.g. flush completion or failure)
+// Acknowledges a serial proxy operation; the type field identifies which
+// operation is being acknowledged. Flush has been acknowledged since the
+// message was introduced; all other acknowledgements are sent since API 1.16.
 message SerialProxyRequestResponse {
   option (id) = 147;
   option (source) = SOURCE_SERVER;

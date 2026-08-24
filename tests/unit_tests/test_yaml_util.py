@@ -701,6 +701,31 @@ def test_include_file_has_unresolved_expressions(
     assert include.has_unresolved_expressions() == expected
 
 
+def test_mapping_include_non_string_file_rejected(tmp_path: Path) -> None:
+    """The mapping !include form rejects a non-string 'file' with a clear error."""
+    entry = tmp_path / "entry.yaml"
+    entry.write_text("wifi: !include\n  file: [not, a, string]\n")
+    with pytest.raises(EsphomeError, match="Include 'file' must be a string"):
+        yaml_util.load_yaml(entry)
+
+
+def test_include_file_templated_filename_stays_raw_string(tmp_path: Path) -> None:
+    """A templated filename keeps its verbatim text (issue #18545)."""
+    parent = tmp_path / "main.yaml"
+    expr = '${ "bluetooth/proxy.yaml" if enable_bluetooth_proxy else "../empty.yaml" }'
+    include = yaml_util.IncludeFile(parent, expr, None, lambda _: {})
+    assert include.file == expr
+    assert include.has_unresolved_expressions()
+    assert repr(include) == f"IncludeFile({expr})"
+
+
+def test_represent_include_file_templated() -> None:
+    """Dumping a templated IncludeFile emits the raw expression unchanged."""
+    expr = '${ "a/b.yaml" if flag else "../c.yaml" }'
+    include = yaml_util.IncludeFile(Path("/fake/main.yaml"), expr, None, lambda _: {})
+    assert yaml_util.dump({"key": include}) == f"key: !include '{expr}'\n"
+
+
 def test_include_in_list_context() -> None:
     """!include of a file returning a list is handled correctly,
     including when that list itself contains a nested IncludeFile."""
@@ -1051,7 +1076,7 @@ class _StubInclude:
     ) -> None:
         # Default parent lives in a nonexistent directory so unresolved
         # stubs never glob real files during candidate expansion.
-        self.file = Path(file)
+        self.file = file
         self.parent_file = parent_file or Path("/nonexistent/parent.yaml")
         self._unresolved = unresolved
         self._load_result = load_result if load_result is not None else {}

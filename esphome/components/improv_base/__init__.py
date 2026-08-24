@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -13,7 +14,7 @@ CONF_NEXT_URL = "next_url"
 VALID_SUBSTITUTIONS = ["esphome_version", "ip_address", "device_name"]
 
 
-def validate_next_url(value):
+def validate_next_url(value: Any) -> str:
     value = cv.url(value)
     test = r"{{(?!" + r"\b|".join(VALID_SUBSTITUTIONS) + r"\b)(\w+)}}"
     result = re.search(test, value)
@@ -31,13 +32,13 @@ IMPROV_SCHEMA = cv.Schema(
 )
 
 
-def _process_next_url(url: str):
+def _process_next_url(url: str) -> str:
     if "{{esphome_version}}" in url:
         url = url.replace("{{esphome_version}}", __version__)
     return url
 
 
-async def setup_improv_core(var: MockObj, config: ConfigType, component: str):
+async def setup_improv_core(var: MockObj, config: ConfigType, component: str) -> None:
     if next_url := config.get(CONF_NEXT_URL):
         cg.add(var.set_next_url(_process_next_url(next_url)))
         cg.add_define(f"USE_{component.upper()}_NEXT_URL")
