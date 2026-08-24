@@ -472,9 +472,12 @@ storage::StorageError SdStorageBase::rmdir(const char *path) {
     has_entries = true;
     break;
   }
-  f_closedir(&fat_dir);
+  // Same as list_dir(): a close failure is a real error, and only the first error is kept.
+  FRESULT cl = f_closedir(&fat_dir);
   if (rd != FR_OK)
     return fresult_to_storage_error(rd, /*for_rmdir=*/true, /*writing=*/false);
+  if (cl != FR_OK)
+    return fresult_to_storage_error(cl, /*for_rmdir=*/true, /*writing=*/false);
   if (has_entries)
     return storage::StorageError::STORAGE_ERROR_NOT_EMPTY;
 
