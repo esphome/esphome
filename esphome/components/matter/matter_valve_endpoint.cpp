@@ -114,26 +114,20 @@ void MatterValveEndpoint::report_state_to_fabric_() {
   ApplyingReportGuard applying_report_guard(this->applying_report_);
 
   ::esp_matter_attr_val_t v_current = ::esp_matter_nullable_enum8(::nullable<uint8_t>(state));
-  esp_err_t err = ::esp_matter::attribute::update(
+  MatterComponent::instance()->defer_attribute_update(
       this->endpoint_id_, chip::app::Clusters::ValveConfigurationAndControl::Id,
-      chip::app::Clusters::ValveConfigurationAndControl::Attributes::CurrentState::Id, &v_current);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update CurrentState endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+      chip::app::Clusters::ValveConfigurationAndControl::Attributes::CurrentState::Id, v_current);
 
   // When the valve settles at a terminal state (kOpen or kClosed), null out
   // TargetState so the fabric UI stops indicating a pending transition. CHIP's
   // UpdateCurrentState helper does this internally but requires the stack
-  // lock; pushing null via esp_matter::attribute::update is equivalent for
-  // our purposes and safer to call from the ESPHome loop context.
+  // lock; the deferred update also runs on the CHIP task with the lock held,
+  // so we get the same guarantee without stalling the ESPHome main loop.
   if (state != 2) {
     ::esp_matter_attr_val_t v_target = ::esp_matter_nullable_enum8(::nullable<uint8_t>());
-    esp_err_t err2 = ::esp_matter::attribute::update(
+    MatterComponent::instance()->defer_attribute_update(
         this->endpoint_id_, chip::app::Clusters::ValveConfigurationAndControl::Id,
-        chip::app::Clusters::ValveConfigurationAndControl::Attributes::TargetState::Id, &v_target);
-    if (err2 != ESP_OK) {
-      ESP_LOGW(TAG, "attribute::update TargetState endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err2));
-    }
+        chip::app::Clusters::ValveConfigurationAndControl::Attributes::TargetState::Id, v_target);
   }
 }
 

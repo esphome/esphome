@@ -15,14 +15,13 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ENABLE_IPV6, CONF_ID, CONF_INTERNAL, CONF_PLATFORM
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 # VARIANT_ESP32 / get_esp32_variant are still imported: the PSRAM-override
 # coroutine below uses them to gate the NimBLE-in-PSRAM tweak, which is
-# variant-specific. The source-patch hook, in contrast, now runs on every
-# variant (see _write_cmake_project_include).
+# variant-specific.
 #
 # esp-matter 1.6.0 upstream supports these five ESP32 variants only. Other
 # variants either lack Wi-Fi/BLE on-chip (P4, S2), are too RAM-constrained
@@ -873,6 +872,19 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_MATTER_VARIANT_SUPPORTED")
     cg.add_build_flag("-DCHIP_HAVE_CONFIG_H")
 
+    # esp_matter's CMakeLists.txt calls
+    # ``idf_component_get_property(main_lib ${EXECUTABLE_COMPONENT_NAME}
+    # COMPONENT_LIB)`` and defaults EXECUTABLE_COMPONENT_NAME to ``main`` when
+    # unset. ESPHome names the app component ``src``, so we surface that value
+    # via two channels that converge on the same setting:
+    #   1) build_gen/espidf.py emits ``set(EXECUTABLE_COMPONENT_NAME src)`` in
+    #      the generated top-level CMakeLists.txt (source of truth for the
+    #      dev checkout and script/test_build_components' direct idf.py path).
+    #   2) _write_cmake_project_include below appends
+    #      ``-DEXECUTABLE_COMPONENT_NAME=src`` to
+    #      ``board_build.cmake_extra_args`` so PlatformIO-driven builds against
+    #      SHIPPED ESPHome — whose bundled espidf.py predates the set() line —
+    #      still work. Same value → no conflict when both paths fire.
     CORE.add_job(_write_cmake_project_include)
 
     if config.get(_CONF_PSRAM_PRESENT, False):
@@ -897,41 +909,39 @@ async def to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
 async def _write_cmake_project_include() -> None:
-    """Append EXECUTABLE_COMPONENT_NAME to cmake_extra_args.
+    """Append ``-DEXECUTABLE_COMPONENT_NAME=src`` to ``board_build.cmake_extra_args``.
 
-    esp_matter's own CMakeLists.txt (managed_components/…/CMakeLists.txt:
-    ~688) calls ``idf_component_get_property(main_lib ${EXECUTABLE_COMPONENT_NAME}
-    COMPONENT_LIB)`` and defaults ``EXECUTABLE_COMPONENT_NAME`` to ``main`` when
-    unset. ESPHome names the app component ``src``, so we must define this
-    BEFORE esp_matter's CMakeLists.txt runs, otherwise configure fails with
-    ``Failed to resolve component 'main'``.
+    Ordering (critical for correctness):
+      * CoroPriority.FINAL = -1000. esp32's ``_write_exclude_components``
+        coroutine also runs at FINAL and writes ``-DEXCLUDE_COMPONENTS=…``
+        to the same option (esphome/components/esp32/__init__.py:1782).
+      * CoroPriority.FINAL - 1 = -1001. ESPHome's docstring is "higher
+        values run first" (esphome/coroutine.py CoroPriority), so a value
+        of -1001 runs strictly AFTER -1000.
+      * We are the only other writer to ``board_build.cmake_extra_args``
+        in the ESPHome tree (confirmed by grep against the full package),
+        so a single read-modify-write against the value esp32 leaves
+        behind is race-free.
 
-    Two channels set it:
-      - ``build_gen/espidf.py`` writes ``set(EXECUTABLE_COMPONENT_NAME src)``
-        at project scope (single source of truth for the dev checkout / CI).
-      - This coroutine also passes ``-DEXECUTABLE_COMPONENT_NAME=src`` via
-        ``cmake_extra_args`` so downstream builds against SHIPPED ESPHome
-        (whose espidf.py template predates the ``set()`` line) still work.
-        Same value → no conflict when both paths fire.
+    This coroutine therefore appends — it does NOT overwrite. Any lint or
+    static-analysis tool that flags this as "silently overwritten" without
+    modelling coroutine priority is producing a false positive.
 
-    Priority FINAL - 1 runs after esp32's FINAL coroutine (which sets
-    EXCLUDE_COMPONENTS on the same option) so our appended value wins
-    the last-write-wins race; add_platformio_option on a str key
-    OVERWRITES, so we read-modify-write.
+    Fallback role: build_gen/espidf.py emits ``set(EXECUTABLE_COMPONENT_NAME
+    src)`` in the top-level CMakeLists.txt of the dev checkout, so this
+    ``-D`` is redundant when building through the dev tree. It's required
+    for PlatformIO users running against a SHIPPED (pip install) ESPHome
+    whose bundled espidf.py predates that set() line — in that case, this
+    is the only path that carries the value to the CMake build.
     """
     existing = CORE.platformio_options.get("board_build.cmake_extra_args", "")
     executable_name_arg = "-DEXECUTABLE_COMPONENT_NAME=src"
-    if not isinstance(existing, str):
-        raise EsphomeError(
-            "matter: board_build.cmake_extra_args has an unexpected shape "
-            f"({type(existing).__name__}); cannot append the Matter CMake "
-            f"flags safely — file an issue with this configuration."
-        )
-    if executable_name_arg not in existing:
-        cg.add_platformio_option(
-            "board_build.cmake_extra_args",
-            f"{existing} {executable_name_arg}".strip(),
-        )
+    if not isinstance(existing, str) or executable_name_arg in existing:
+        return
+    cg.add_platformio_option(
+        "board_build.cmake_extra_args",
+        f"{existing} {executable_name_arg}".strip(),
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 2)
@@ -954,9 +964,9 @@ async def _apply_matter_psram_overrides() -> None:
     to PSRAM once internal is exhausted. Small allocs still prefer internal
     RAM for latency (CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL threshold).
 
-    Priority FINAL - 2 runs AFTER esp32's FINAL and _write_cmake_project_include
-    (FINAL - 1) but crucially AFTER psram: to_code (default component priority),
-    so our overwrites in the sdkconfig dict win the dict-insertion-order race.
+    Priority FINAL - 2 runs AFTER esp32's FINAL but crucially AFTER psram:
+    to_code (default component priority), so our overwrites in the sdkconfig
+    dict win the dict-insertion-order race.
     """
     if not CORE.data.get("matter", {}).get("psram"):
         return

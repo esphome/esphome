@@ -251,11 +251,8 @@ void MatterLightEndpoint::report_state_to_fabric_() {
 
   // OnOff.OnOff
   ::esp_matter_attr_val_t v_on = ::esp_matter_bool(rv.is_on());
-  esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::OnOff::Id,
-                                                  chip::app::Clusters::OnOff::Attributes::OnOff::Id, &v_on);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update OnOff endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  MatterComponent::instance()->defer_attribute_update(this->endpoint_id_, chip::app::Clusters::OnOff::Id,
+                                                      chip::app::Clusters::OnOff::Attributes::OnOff::Id, v_on);
 
   if (this->device_kind_ != DeviceKind::DEVICE_KIND_ON_OFF) {
     // LevelControl.CurrentLevel handling. The Lighting feature (LT) — which
@@ -280,11 +277,9 @@ void MatterLightEndpoint::report_state_to_fabric_() {
       this->last_known_level_ = static_cast<uint8_t>(std::clamp(std::lround(brightness * 254.0f), 1L, 254L));
     }
     ::esp_matter_attr_val_t v_level = ::esp_matter_nullable_uint8(::nullable<uint8_t>(this->last_known_level_));
-    err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::LevelControl::Id,
-                                          chip::app::Clusters::LevelControl::Attributes::CurrentLevel::Id, &v_level);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "attribute::update CurrentLevel endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-    }
+    MatterComponent::instance()->defer_attribute_update(this->endpoint_id_, chip::app::Clusters::LevelControl::Id,
+                                                        chip::app::Clusters::LevelControl::Attributes::CurrentLevel::Id,
+                                                        v_level);
   }
 
   if (this->device_kind_ == DeviceKind::DEVICE_KIND_COLOR_TEMPERATURE ||
@@ -301,13 +296,9 @@ void MatterLightEndpoint::report_state_to_fabric_() {
     }
     uint16_t mireds = static_cast<uint16_t>(std::lround(ct));
     ::esp_matter_attr_val_t v_ct = ::esp_matter_uint16(mireds);
-    err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::ColorControl::Id,
-                                          chip::app::Clusters::ColorControl::Attributes::ColorTemperatureMireds::Id,
-                                          &v_ct);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "attribute::update ColorTemperatureMireds endpoint=%u failed: %s", this->endpoint_id_,
-               esp_err_to_name(err));
-    }
+    MatterComponent::instance()->defer_attribute_update(
+        this->endpoint_id_, chip::app::Clusters::ColorControl::Id,
+        chip::app::Clusters::ColorControl::Attributes::ColorTemperatureMireds::Id, v_ct);
     // Color XY reporting (for extended_color_light) intentionally skipped
     // in this pass — see header comment.
   }

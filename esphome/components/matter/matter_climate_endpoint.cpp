@@ -317,13 +317,9 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
         std::isnan(this->climate_->current_temperature)
             ? ::esp_matter_nullable_int16(::nullable<int16_t>())
             : ::esp_matter_nullable_int16(celsius_to_hundredths(this->climate_->current_temperature));
-    esp_err_t err =
-        ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
-                                        chip::app::Clusters::Thermostat::Attributes::LocalTemperature::Id, &v);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "attribute::update LocalTemperature endpoint=%u failed: %s", this->endpoint_id_,
-               esp_err_to_name(err));
-    }
+    MatterComponent::instance()->defer_attribute_update(
+        this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
+        chip::app::Clusters::Thermostat::Attributes::LocalTemperature::Id, v);
   }
 
   // Setpoints — publish separate heating and cooling values when the climate
@@ -360,23 +356,15 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
 
   if (this->has_heating_setpoint_attr_) {
     ::esp_matter_attr_val_t v = ::esp_matter_int16(celsius_to_hundredths(heat_c));
-    esp_err_t err =
-        ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
-                                        chip::app::Clusters::Thermostat::Attributes::OccupiedHeatingSetpoint::Id, &v);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "attribute::update OccupiedHeatingSetpoint endpoint=%u value=%.2f failed: %s", this->endpoint_id_,
-               heat_c, esp_err_to_name(err));
-    }
+    MatterComponent::instance()->defer_attribute_update(
+        this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
+        chip::app::Clusters::Thermostat::Attributes::OccupiedHeatingSetpoint::Id, v);
   }
   if (this->has_cooling_setpoint_attr_) {
     ::esp_matter_attr_val_t v = ::esp_matter_int16(celsius_to_hundredths(cool_c));
-    esp_err_t err =
-        ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
-                                        chip::app::Clusters::Thermostat::Attributes::OccupiedCoolingSetpoint::Id, &v);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "attribute::update OccupiedCoolingSetpoint endpoint=%u value=%.2f failed: %s", this->endpoint_id_,
-               cool_c, esp_err_to_name(err));
-    }
+    MatterComponent::instance()->defer_attribute_update(
+        this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
+        chip::app::Clusters::Thermostat::Attributes::OccupiedCoolingSetpoint::Id, v);
   }
 
   // SystemMode. The cases are structurally identical (single assignment of
@@ -409,11 +397,9 @@ void MatterClimateEndpoint::report_state_to_fabric_() {
   }
   // NOLINTEND(bugprone-branch-clone)
   ::esp_matter_attr_val_t v_mode = ::esp_matter_enum8(sys);
-  esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
-                                                  chip::app::Clusters::Thermostat::Attributes::SystemMode::Id, &v_mode);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update SystemMode endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  MatterComponent::instance()->defer_attribute_update(this->endpoint_id_, chip::app::Clusters::Thermostat::Id,
+                                                      chip::app::Clusters::Thermostat::Attributes::SystemMode::Id,
+                                                      v_mode);
 }
 
 }  // namespace esphome::matter

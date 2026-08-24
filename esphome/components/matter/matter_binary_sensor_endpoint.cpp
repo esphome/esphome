@@ -121,10 +121,7 @@ void MatterBinarySensorEndpoint::report_state_to_fabric_(bool state) {
                                              : chip::app::Clusters::BooleanState::Attributes::StateValue::Id;
   ::esp_matter_attr_val_t val = is_occupancy ? ::esp_matter_bitmap8(state ? 0x01 : 0x00) : ::esp_matter_bool(state);
   if (is_occupancy) {
-    esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
-    if (err != ESP_OK) {
-      ESP_LOGW(TAG, "attribute::update endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-    }
+    MatterComponent::instance()->defer_attribute_update(this->endpoint_id_, cluster_id, attribute_id, val);
     return;
   }
   // BooleanState.StateValue is ATTRIBUTE_FLAG_MANAGED_INTERNALLY without
@@ -148,24 +145,27 @@ void MatterBinarySensorEndpoint::report_state_to_fabric_(bool state) {
   // 1–3 s, well past the task watchdog. Marshal the SetStateValue call
   // onto the CHIP task via ScheduleWork so it runs after any in-progress
   // report finishes, without stalling the main loop.
-  struct WorkArgs {
-    ::chip::app::Clusters::BooleanStateCluster *cluster;
-    bool state;
-  };
-  auto *args = new WorkArgs{cluster, state};
+  //
+  // ScheduleWork's single intptr_t payload is large enough to carry both
+  // the cluster pointer and the state bit — BooleanStateCluster is
+  // std::max_align_t-aligned, so bit 0 of the pointer is always zero and
+  // is safe to reuse as the state flag. This avoids any heap allocation
+  // per state change; the previous ``new WorkArgs`` pattern violated the
+  // no-alloc-after-setup guideline on every binary_sensor update.
+  static_assert(alignof(::chip::app::Clusters::BooleanStateCluster) >= 2,
+                "BooleanStateCluster alignment must reserve bit 0 for tag-pointer state encoding");
+  const intptr_t packed = reinterpret_cast<intptr_t>(cluster) | (state ? intptr_t{1} : intptr_t{0});
   const CHIP_ERROR err = ::chip::DeviceLayer::PlatformMgr().ScheduleWork(
       [](intptr_t arg) {
-        auto *a = reinterpret_cast<WorkArgs *>(arg);
         // Runs on the CHIP task with the stack lock already held by the
         // scheduler dispatcher, so SetStateValue's MarkDirty is safe here.
-        a->cluster->SetStateValue(a->state);
-        delete a;
+        auto *c = reinterpret_cast<::chip::app::Clusters::BooleanStateCluster *>(arg & ~intptr_t{1});
+        c->SetStateValue((arg & intptr_t{1}) != 0);
       },
-      reinterpret_cast<intptr_t>(args));
+      packed);
   if (err != CHIP_NO_ERROR) {
     ESP_LOGW(TAG, "ScheduleWork(SetStateValue) endpoint=%u failed: %s — dropping this update", this->endpoint_id_,
              err.AsString());
-    delete args;
   }
 }
 

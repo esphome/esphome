@@ -221,11 +221,9 @@ void MatterSelectEndpoint::push_initial_state() {
 void MatterSelectEndpoint::report_state_to_fabric_(uint8_t mode) {
   ::esp_matter_attr_val_t val = ::esp_matter_uint8(mode);
   ApplyingReportGuard applying_report_guard(this->applying_report_);
-  esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::ModeSelect::Id,
-                                                  chip::app::Clusters::ModeSelect::Attributes::CurrentMode::Id, &val);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update CurrentMode endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  MatterComponent::instance()->defer_attribute_update(this->endpoint_id_, chip::app::Clusters::ModeSelect::Id,
+                                                      chip::app::Clusters::ModeSelect::Attributes::CurrentMode::Id,
+                                                      val);
 }
 
 }  // namespace esphome::matter

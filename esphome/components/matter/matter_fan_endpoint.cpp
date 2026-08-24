@@ -198,31 +198,23 @@ void MatterFanEndpoint::report_state_to_fabric_() {
 
   ApplyingReportGuard applying_report_guard(this->applying_report_);
 
+  MatterComponent *matter = MatterComponent::instance();
+
   // PercentCurrent — read-only device→fabric.
   ::esp_matter_attr_val_t v_current = ::esp_matter_uint8(percent);
-  esp_err_t err =
-      ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::FanControl::Id,
-                                      chip::app::Clusters::FanControl::Attributes::PercentCurrent::Id, &v_current);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update PercentCurrent endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  matter->defer_attribute_update(this->endpoint_id_, chip::app::Clusters::FanControl::Id,
+                                 chip::app::Clusters::FanControl::Attributes::PercentCurrent::Id, v_current);
 
   // PercentSetting — mirror the current setting to what the device is
   // actually doing so the fabric UI stays coherent.
   ::esp_matter_attr_val_t v_setting = ::esp_matter_nullable_uint8(percent);
-  err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::FanControl::Id,
-                                        chip::app::Clusters::FanControl::Attributes::PercentSetting::Id, &v_setting);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update PercentSetting endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  matter->defer_attribute_update(this->endpoint_id_, chip::app::Clusters::FanControl::Id,
+                                 chip::app::Clusters::FanControl::Attributes::PercentSetting::Id, v_setting);
 
   // FanMode — keep coherent with the derived mode above.
   ::esp_matter_attr_val_t v_mode = ::esp_matter_enum8(fan_mode);
-  err = ::esp_matter::attribute::update(this->endpoint_id_, chip::app::Clusters::FanControl::Id,
-                                        chip::app::Clusters::FanControl::Attributes::FanMode::Id, &v_mode);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update FanMode endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  matter->defer_attribute_update(this->endpoint_id_, chip::app::Clusters::FanControl::Id,
+                                 chip::app::Clusters::FanControl::Attributes::FanMode::Id, v_mode);
 }
 
 }  // namespace esphome::matter

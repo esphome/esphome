@@ -33,6 +33,14 @@
 #include <unordered_map>
 #include <vector>
 
+// Forward declaration for defer_attribute_update()'s value parameter. The
+// full definition lives in esp_matter/data_model/esp_matter_attribute_utils.h
+// (dragged in transitively by matter_component.cpp). Keeping it out of this
+// header preserves the "matter_component.h stays independent of the esp_matter
+// managed component" invariant that lets clang-tidy strip the whole matter
+// TU cleanly on lint jobs where the SDK isn't fetched.
+struct esp_matter_attr_val;
+
 namespace esphome::matter {
 
 // RAII guard for the per-endpoint applying_report_ flag. Sets the flag on
@@ -220,6 +228,19 @@ class MatterComponent : public Component {
   // wrappers can queue a lambda to run on the very next ESPHome loop tick,
   // on the main thread, without needing friendship or subclass access.
   void defer_on_main_loop(std::function<void()> cb) { this->defer(std::move(cb)); }
+
+  // Marshal an esp_matter::attribute::update() onto the CHIP task via
+  // PlatformMgr().ScheduleWork(). Every entity wrapper that reports device
+  // state to the fabric ultimately calls this — routing the write through
+  // the CHIP task keeps the ESPHome main loop from blocking on the CHIP
+  // stack lock (esp_matter::attribute::update grabs it with portMAX_DELAY),
+  // which can otherwise stall the loop past the task watchdog on a
+  // high-endpoint bridge when the CHIP task is holding the lock to encode
+  // subscription reports. Uses a fixed-size static pool of payloads to
+  // avoid heap allocation after setup(); if the pool is exhausted the
+  // update is dropped with a WARN log rather than blocking or growing.
+  void defer_attribute_update(uint16_t endpoint_id, uint32_t cluster_id, uint32_t attribute_id,
+                              const ::esp_matter_attr_val &val);
 
  protected:
   void log_onboarding_payload_();

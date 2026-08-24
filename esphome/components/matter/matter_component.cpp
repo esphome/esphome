@@ -44,6 +44,7 @@
 #include <esp_event.h>
 #endif
 
+#include <atomic>
 #include <cstdio>
 #include <cstring>
 
@@ -2263,6 +2264,75 @@ void MatterComponent::open_commissioning_window_impl_(uint32_t timeout_seconds) 
   ESP_LOGI(TAG, "    New passcode:         %u", static_cast<unsigned>(passcode));
   ESP_LOGI(TAG, "    New discriminator:    %u", static_cast<unsigned>(discriminator));
   ESP_LOGI(TAG, "═════════════════════════════════════════════");
+}
+
+namespace {
+
+// Static payload pool for defer_attribute_update. Sized to comfortably absorb
+// the worst plausible burst on a large bridge — a few dozen entities changing
+// state in the same ESPHome scheduler tick — while staying well under 1 KB
+// of BSS. Overflow is soft-fail: the caller logs and drops the update rather
+// than blocking the main loop or growing on the heap after setup().
+constexpr size_t ATTRIBUTE_UPDATE_POOL_SIZE = 32;
+
+struct DeferredAttributeUpdateSlot {
+  uint16_t endpoint_id;
+  uint32_t cluster_id;
+  uint32_t attribute_id;
+  ::esp_matter_attr_val_t val;
+  // Owned == true → payload is either queued in ScheduleWork or being executed
+  // on the CHIP task. Released back to the pool by the ScheduleWork lambda
+  // once ::esp_matter::attribute::update returns. Acquire/release ordering
+  // pairs the store-with-payload (writer) against the load-then-read (worker).
+  std::atomic<bool> in_use{false};
+};
+
+// BSS. Payload is written by ESPHome scheduler thread(s), read by the CHIP
+// task; the atomic in_use flag is the only cross-thread synchronization,
+// which is sufficient because the writer completes the payload BEFORE the
+// ScheduleWork call and the worker only touches its slot AFTER dequeue.
+DeferredAttributeUpdateSlot g_attribute_update_pool[ATTRIBUTE_UPDATE_POOL_SIZE];
+
+}  // namespace
+
+void MatterComponent::defer_attribute_update(uint16_t endpoint_id, uint32_t cluster_id, uint32_t attribute_id,
+                                             const ::esp_matter_attr_val &val) {
+  for (size_t i = 0; i < ATTRIBUTE_UPDATE_POOL_SIZE; i++) {
+    bool expected = false;
+    if (!g_attribute_update_pool[i].in_use.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+      continue;
+    }
+    auto &slot = g_attribute_update_pool[i];
+    slot.endpoint_id = endpoint_id;
+    slot.cluster_id = cluster_id;
+    slot.attribute_id = attribute_id;
+    slot.val = val;
+    const CHIP_ERROR err = ::chip::DeviceLayer::PlatformMgr().ScheduleWork(
+        [](intptr_t arg) {
+          auto &s = g_attribute_update_pool[static_cast<size_t>(arg)];
+          // Runs on the CHIP task with the stack lock already held by the
+          // scheduler dispatcher; ::esp_matter::attribute::update's own
+          // ScopedChipStackLock is re-entrant and returns immediately.
+          const esp_err_t rc = ::esp_matter::attribute::update(s.endpoint_id, s.cluster_id, s.attribute_id, &s.val);
+          if (rc != ESP_OK) {
+            ESP_LOGW(TAG, "deferred attribute::update endpoint=%u cluster=0x%08lx attr=0x%08lx failed: %s",
+                     s.endpoint_id, static_cast<unsigned long>(s.cluster_id),
+                     static_cast<unsigned long>(s.attribute_id), esp_err_to_name(rc));
+          }
+          s.in_use.store(false, std::memory_order_release);
+        },
+        static_cast<intptr_t>(i));
+    if (err != CHIP_NO_ERROR) {
+      ESP_LOGW(TAG, "ScheduleWork(attribute::update) endpoint=%u cluster=0x%08lx attr=0x%08lx failed: %s", endpoint_id,
+               static_cast<unsigned long>(cluster_id), static_cast<unsigned long>(attribute_id), err.AsString());
+      slot.in_use.store(false, std::memory_order_release);
+    }
+    return;
+  }
+  ESP_LOGW(TAG,
+           "attribute-update pool exhausted (%u in flight) — dropping update endpoint=%u cluster=0x%08lx attr=0x%08lx",
+           static_cast<unsigned>(ATTRIBUTE_UPDATE_POOL_SIZE), endpoint_id, static_cast<unsigned long>(cluster_id),
+           static_cast<unsigned long>(attribute_id));
 }
 
 }  // namespace esphome::matter

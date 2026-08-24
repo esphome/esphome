@@ -178,29 +178,18 @@ void MatterCoverEndpoint::report_state_to_fabric_() {
   ::esp_matter_attr_val_t current_val = ::esp_matter_nullable_uint16(current_nullable);
 
   ApplyingReportGuard applying_report_guard(this->applying_report_);
-  esp_err_t err = ::esp_matter::attribute::update(
+  MatterComponent::instance()->defer_attribute_update(
       this->endpoint_id_, chip::app::Clusters::WindowCovering::Id,
-      chip::app::Clusters::WindowCovering::Attributes::CurrentPositionLiftPercent100ths::Id, &current_val);
-  if (err != ESP_OK && err != ESP_ERR_NOT_FINISHED) {
-    // ESP_ERR_NOT_FINISHED means the value didn't change since last write —
-    // benign, esp-matter skips the callback loop but the fabric already has
-    // the value. Anything else is worth logging.
-    ESP_LOGW(TAG, "attribute::update CurrentPositionLift endpoint=%u failed: %s", this->endpoint_id_,
-             esp_err_to_name(err));
-  }
+      chip::app::Clusters::WindowCovering::Attributes::CurrentPositionLiftPercent100ths::Id, current_val);
 
   // When the cover reports idle, align Target with Current so the CHIP
   // window-covering-server's PostAttributeChange computes OperationalState =
   // Stall (current==target) and the fabric stops thinking we're moving.
   if (this->cover_->current_operation == cover::COVER_OPERATION_IDLE) {
     ::esp_matter_attr_val_t target_val = ::esp_matter_nullable_uint16(current_nullable);
-    esp_err_t terr = ::esp_matter::attribute::update(
+    MatterComponent::instance()->defer_attribute_update(
         this->endpoint_id_, chip::app::Clusters::WindowCovering::Id,
-        chip::app::Clusters::WindowCovering::Attributes::TargetPositionLiftPercent100ths::Id, &target_val);
-    if (terr != ESP_OK && terr != ESP_ERR_NOT_FINISHED) {
-      ESP_LOGW(TAG, "attribute::update TargetPositionLift endpoint=%u failed: %s", this->endpoint_id_,
-               esp_err_to_name(terr));
-    }
+        chip::app::Clusters::WindowCovering::Attributes::TargetPositionLiftPercent100ths::Id, target_val);
   }
 }
 

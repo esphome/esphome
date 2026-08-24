@@ -227,10 +227,7 @@ void MatterSensorEndpoint::report_state_to_fabric_(float state) {
     case Kind::KIND_UNKNOWN:
       return;
   }
-  esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  MatterComponent::instance()->defer_attribute_update(this->endpoint_id_, cluster_id, attribute_id, val);
 }
 
 void MatterSensorEndpoint::report_null_to_fabric_() {
@@ -272,10 +269,7 @@ void MatterSensorEndpoint::report_null_to_fabric_() {
       return;
   }
   // NOLINTEND(bugprone-branch-clone)
-  esp_err_t err = ::esp_matter::attribute::update(this->endpoint_id_, cluster_id, attribute_id, &val);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "attribute::update null endpoint=%u failed: %s", this->endpoint_id_, esp_err_to_name(err));
-  }
+  MatterComponent::instance()->defer_attribute_update(this->endpoint_id_, cluster_id, attribute_id, val);
 }
 
 }  // namespace esphome::matter
