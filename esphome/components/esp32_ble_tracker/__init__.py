@@ -220,22 +220,38 @@ def _warn_long_scan_window_with_wifi(config: ConfigType) -> ConfigType:
     """Warn when the scan window is long enough to starve wifi.
 
     Runs after _raise_defaulted_scan_window so it sees the final window.
-    software_coexistence only exists when wifi is configured, so ethernet
-    builds never warn: BLE has the radio to itself there.
+    software_coexistence is only present when wifi is configured, so ethernet
+    builds never warn: BLE has the radio to itself there. Presence is what
+    matters, not the value; with the arbiter disabled a long window starves
+    wifi outright.
     """
-    window = config[CONF_SCAN_PARAMETERS][CONF_WINDOW]
-    if (
-        config.get(CONF_SOFTWARE_COEXISTENCE)
-        and window > MAX_RECOMMENDED_WIFI_SCAN_WINDOW
-    ):
+    params = config[CONF_SCAN_PARAMETERS]
+    window = params[CONF_WINDOW]
+    if CONF_SOFTWARE_COEXISTENCE not in config:
+        return config
+    if window <= MAX_RECOMMENDED_WIFI_SCAN_WINDOW:
+        return config
+    if _get_data().scan_window_defaulted:
+        # The window was raised to match the interval, so point at the key the
+        # user actually set.
         _LOGGER.warning(
-            "BLE scan window of %s with wifi on the same radio starves wifi and "
-            "can cause wifi disconnects depending on the access point; keep the "
-            "window at or below %s (for example interval: 320ms, window: 300ms). "
-            "Long windows are only a problem with wifi, they are fine on ethernet",
-            window,
+            "BLE scan interval of %s sets the scan window to the same value, "
+            "which starves wifi on the same radio and can cause wifi disconnects "
+            "depending on the access point; keep the interval at or below %s "
+            "(for example interval: 320ms). Long windows are only a problem with "
+            "wifi, they are fine on ethernet",
+            params[CONF_INTERVAL],
             MAX_RECOMMENDED_WIFI_SCAN_WINDOW,
         )
+        return config
+    _LOGGER.warning(
+        "BLE scan window of %s with wifi on the same radio starves wifi and "
+        "can cause wifi disconnects depending on the access point; keep the "
+        "window at or below %s (for example interval: 320ms, window: 300ms). "
+        "Long windows are only a problem with wifi, they are fine on ethernet",
+        window,
+        MAX_RECOMMENDED_WIFI_SCAN_WINDOW,
+    )
     return config
 
 
