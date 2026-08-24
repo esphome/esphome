@@ -1,7 +1,7 @@
 esphome:
   name: test
 
-rp2040:
+rp2:
   board: rpipicow
 
 wifi:
