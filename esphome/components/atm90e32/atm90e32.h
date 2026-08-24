@@ -17,7 +17,18 @@ inline bool offset_register_value_matches(uint16_t actual, int16_t expected) {
   return actual == static_cast<uint16_t>(expected);
 }
 
-inline bool calibration_persistence_succeeded(bool saved, bool synced) { return saved && synced; }
+struct OffsetCalibration {
+  int16_t first_offset{0};
+  int16_t second_offset{0};
+};
+
+static_assert(sizeof(OffsetCalibration[3]) == 12, "Offset calibration preference layout must remain compatible");
+
+inline void prepare_offset_rollback(const OffsetCalibration (&previous)[3], bool had_stored_values,
+                                    OffsetCalibration (&rollback)[3]) {
+  for (uint8_t phase = 0; phase < 3; phase++)
+    rollback[phase] = had_stored_values ? previous[phase] : OffsetCalibration{};
+}
 
 class ATM90E32Component final : public PollingComponent,
                                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
@@ -77,19 +88,19 @@ class ATM90E32Component final : public PollingComponent,
     this->has_config_current_gain_[phase] = true;
   }
   void set_voltage_offset(uint8_t phase, int16_t offset) {
-    this->offset_phase_[phase].voltage_offset_ = offset;
+    this->offset_phase_[phase].first_offset = offset;
     this->has_config_voltage_offset_[phase] = true;
   }
   void set_current_offset(uint8_t phase, int16_t offset) {
-    this->offset_phase_[phase].current_offset_ = offset;
+    this->offset_phase_[phase].second_offset = offset;
     this->has_config_current_offset_[phase] = true;
   }
   void set_active_power_offset(uint8_t phase, int16_t offset) {
-    this->power_offset_phase_[phase].active_power_offset = offset;
+    this->power_offset_phase_[phase].first_offset = offset;
     this->has_config_active_power_offset_[phase] = true;
   }
   void set_reactive_power_offset(uint8_t phase, int16_t offset) {
-    this->power_offset_phase_[phase].reactive_power_offset = offset;
+    this->power_offset_phase_[phase].second_offset = offset;
     this->has_config_reactive_power_offset_[phase] = true;
   }
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
@@ -177,18 +188,16 @@ class ATM90E32Component final : public PollingComponent,
   float get_chip_temperature_();
   bool get_publish_interval_flag_() { return publish_interval_flag_; };
   void set_publish_interval_flag_(bool flag) { publish_interval_flag_ = flag; };
-  void restore_offset_calibrations_();
-  void restore_power_offset_calibrations_();
+  void restore_offset_calibrations_(bool power_offsets);
   void restore_gain_calibrations_();
-  bool save_offset_calibration_to_memory_();
   void save_gain_calibration_to_memory_();
-  bool save_power_offset_calibration_to_memory_();
-  void write_offsets_to_registers_(uint8_t phase, int16_t voltage_offset, int16_t current_offset);
-  void write_power_offsets_to_registers_(uint8_t phase, int16_t p_offset, int16_t q_offset);
+  void finish_offset_calibration_(const OffsetCalibration (&previous)[3], bool previous_restored,
+                                  bool previous_using_saved, bool power_offsets);
+  void write_offsets_to_registers_(uint8_t phase, int16_t first_offset, int16_t second_offset,
+                                   bool power_offsets);
   void write_gains_to_registers_();
   bool verify_gain_writes_();
-  bool verify_offset_writes_();
-  bool verify_power_offset_writes_();
+  bool verify_offset_writes_(bool power_offsets);
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
   const char *get_calibration_id_();
@@ -227,19 +236,10 @@ class ATM90E32Component final : public PollingComponent,
     uint32_t cumulative_reverse_active_energy_{0};
   } phase_[3];
 
-  struct OffsetCalibration {
-    int16_t voltage_offset_{0};
-    int16_t current_offset_{0};
-  } offset_phase_[3];
-
+  OffsetCalibration offset_phase_[3];
   OffsetCalibration config_offset_phase_[3];
-
-  struct PowerOffsetCalibration {
-    int16_t active_power_offset{0};
-    int16_t reactive_power_offset{0};
-  } power_offset_phase_[3];
-
-  PowerOffsetCalibration config_power_offset_phase_[3];
+  OffsetCalibration power_offset_phase_[3];
+  OffsetCalibration config_power_offset_phase_[3];
 
   struct GainCalibration {
     uint16_t voltage_gain{1};

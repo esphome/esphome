@@ -14,10 +14,25 @@ TEST(ATM90E32OffsetRegisterVerification, RejectsMismatchedReadback) {
   EXPECT_FALSE(offset_register_value_matches(0xFF84, -123));
 }
 
-TEST(ATM90E32CalibrationPersistence, RequiresSaveAndSync) {
-  EXPECT_TRUE(calibration_persistence_succeeded(true, true));
-  EXPECT_FALSE(calibration_persistence_succeeded(true, false));
-  EXPECT_FALSE(calibration_persistence_succeeded(false, true));
+TEST(ATM90E32OffsetPersistence, PreservesStoredLayout) {
+  EXPECT_EQ(sizeof(OffsetCalibration[3]), 12U);
+}
+
+TEST(ATM90E32OffsetPersistence, RollsBackStoredValuesOrZeroSentinel) {
+  const OffsetCalibration previous[3]{{1, -1}, {2, -2}, {3, -3}};
+  OffsetCalibration rollback[3]{};
+
+  prepare_offset_rollback(previous, true, rollback);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    EXPECT_EQ(rollback[phase].first_offset, previous[phase].first_offset);
+    EXPECT_EQ(rollback[phase].second_offset, previous[phase].second_offset);
+  }
+
+  prepare_offset_rollback(previous, false, rollback);
+  for (const auto &phase : rollback) {
+    EXPECT_EQ(phase.first_offset, 0);
+    EXPECT_EQ(phase.second_offset, 0);
+  }
 }
 
 }  // namespace esphome::atm90e32::testing
