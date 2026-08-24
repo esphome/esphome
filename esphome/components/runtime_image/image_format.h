@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 namespace esphome::runtime_image {
 
 /**
@@ -16,5 +18,10 @@ enum ImageFormat {
   /** BMP format. */
   BMP,
 };
+
+/// Canonical MIME type for a format; "image/*" for AUTO/unknown
+const char *get_mime_type_for_format(ImageFormat format);
+/// Case-insensitive substring match of known media types; nullopt if none found
+std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type);
 
 }  // namespace esphome::runtime_image
