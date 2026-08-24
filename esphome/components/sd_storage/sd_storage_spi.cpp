@@ -161,6 +161,13 @@ StorageError SdSpi::mount() {
 
   if (mount_error != ESP_OK) {
     ESP_LOGE(TAG_SPI, "Failed to mount FAT fs: %s", esp_err_to_name(mount_error));
+    // sdspi_host_init() above is otherwise only undone in unmount(), which early-returns
+    // while is_mounted_ is false -- so without this the driver stays initialised and every
+    // card-detect retry re-enters mount() on top of it. Idempotent: sdspi_host_deinit()
+    // walks its slot table and returns ESP_OK when esp_vfs_fat_sdspi_mount() already tore
+    // the host down on its own failure path.
+    if (sdspi_host_deinit() != ESP_OK)
+      ESP_LOGW(TAG_SPI, "sdspi_host_deinit() after failed mount failed");
     this->init_error_ = (mount_error == ESP_FAIL || mount_error == ESP_ERR_INVALID_CRC) ? ErrorCode::ERROR_CODE_MOUNT
                                                                                         : ErrorCode::ERROR_CODE_NO_CARD;
     return StorageError::STORAGE_ERROR_NOT_READY;
