@@ -242,8 +242,13 @@ bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, b
 
   uint8_t buffer[12];
   uint8_t len = 0;
-  for (uint8_t idx = start_idx; this->build_channel_write_(channel, idx, buffer, &len); idx++)
-    this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, len);
+  for (uint8_t idx = start_idx; this->build_channel_write_(channel, idx, buffer, &len); idx++) {
+    if (!this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, len)) {
+      ESP_LOGW(TAG, "Reload write %u for channel %d failed to submit; settings only partially applied", idx,
+               channel->index_);
+      break;
+    }
+  }
 
   return false;
 }
