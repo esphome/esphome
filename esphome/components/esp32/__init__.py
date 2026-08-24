@@ -55,6 +55,7 @@ from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_components
+from esphome.espidf.toolchain import _get_idf_path
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -3040,39 +3041,26 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     """Patch a project-local copy of FatFs so exFAT is compiled in."""
     import shutil
 
-    from esphome.espidf import variant_to_idf_target
-    from esphome.espidf.framework import _get_framework_path, check_esp_idf_install
-    from esphome.espidf.toolchain import _get_framework_source_override
-
     dest = Path(CORE.build_path) / "components" / "fatfs"
     marker = dest / _EXFAT_MARKER
     stamp = f"v4:{idf_ver}:" + ",".join(f"{k}={v}" for k, v in _EXFAT_PATCHES)
     if not enabled:
         # Only remove what is provably ours.
         if marker.is_file():
-            shutil.rmtree(dest)
+            rmtree(dest)
         return
     if not CORE.using_toolchain_esp_idf:
         raise EsphomeError(
             f"'{CONF_ENABLE_EXFAT}' requires the esp-idf toolchain: the FatFs sources are "
             "copied from the esp-idf install, which is the only framework tree that actually "
-            "builds the project. Use 'framework: type: esp-idf', or unset enable_exfat."
+            "builds the project. Use 'toolchain: esp-idf', or unset enable_exfat."
         )
-    if marker.is_file() and marker.read_text() == stamp:
+    if (
+        marker.is_file()
+        and marker.read_text(encoding="utf-8", errors="replace") == stamp
+    ):
         return  # current copy is up to date
-    src = _get_framework_path(idf_ver) / "components" / "fatfs"
-    if not src.is_dir():
-        # First-ever build: the toolchain would install the IDF minutes from now anyway --
-        # front-load it so the copy source exists.
-        # The override has to travel with this call: _get_framework_path() keys the install
-        # dir on the version alone and the extraction marker short-circuits every later
-        # check, so a default-mirror IDF pulled in here would be silently reused by the real
-        # build (recoverable only with `esphome clean-all`).
-        check_esp_idf_install(
-            idf_ver,
-            targets=[variant_to_idf_target(variant)],
-            source_url=_get_framework_source_override(),
-        )
+    src = _get_idf_path(idf_ver) / "components" / "fatfs"
     if not src.is_dir():
         raise EsphomeError(
             "enable_exfat: cannot locate the ESP-IDF fatfs component to patch "
@@ -3084,14 +3072,14 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
                 f"enable_exfat: refusing to overwrite {dest}, which exists but was not "
                 "created by ESPHome (no exFAT marker). Remove it manually if unneeded."
             )
-        shutil.rmtree(dest)
+        rmtree(dest)
     shutil.copytree(src, dest)
     # Claim the copy immediately: if the patching below raises, the cleanup path (which only
     # removes marked copies) can still remove this one instead of leaving it to shadow the IDF
     # component forever. Overwritten with the real stamp once patching succeeds.
-    marker.write_text("partial")
+    marker.write_text("partial", encoding="utf-8", errors="replace")
     ffconf = dest / "src" / "ffconf.h"
-    text = ffconf.read_text()
+    text = ffconf.read_text(encoding="utf-8", errors="replace")
     for key, value in _EXFAT_PATCHES:
         text, n = re.subn(
             rf"#define[ \t]+{key}[ \t]+\S+", f"#define {key} {value}", text
@@ -3112,7 +3100,7 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
             part.name for part in f.parents
         }:
             continue
-        for line in f.read_text(errors="replace").splitlines():
+        for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
             if re.search(r"#\s*if(n?def)?\b", line) or "defined" in line:
                 probed.update(re.findall(r"\bCONFIG_[A-Z0-9_]+\b", line))
     symbols = sorted(set(re.findall(r"\bCONFIG_[A-Z0-9_]+\b", text)) - probed)
@@ -3129,8 +3117,8 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
         + guards,
         1,
     )
-    ffconf.write_text(text)
-    marker.write_text(stamp)
+    ffconf.write_text(text, encoding="utf-8", errors="replace")
+    marker.write_text(stamp, encoding="utf-8", errors="replace")
 
 
 @dataclass
@@ -3378,7 +3366,9 @@ def _write_idf_component_yml():
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
-                stub_cmake.write_text("idf_component_register()\n")
+                stub_cmake.write_text(
+                    "idf_component_register()\n", encoding="utf-8", errors="replace"
+                )
             dependencies[_idf_component_dep_name(component_name)] = {
                 "version": "*",
                 "override_path": str(stub_path),
