@@ -12,6 +12,7 @@ arbiter a full-duty scan would starve wifi, so the 30 ms default is kept.
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 import pytest
@@ -221,3 +222,26 @@ def test_connection_scan_window_codegen(
     assert window_call in main_cpp
     assert ("set_connection_scan_window(48)" in main_cpp) == connection_call
     assert ("'connection_scan_window' has no effect" in caplog.text) == warns
+
+
+@pytest.mark.parametrize(
+    ("wifi", "window", "expect_warning"),
+    [
+        (True, "1100ms", True),
+        (True, "601ms", True),
+        (True, "600ms", False),
+        (False, "1100ms", False),
+    ],
+)
+def test_long_window_with_wifi_warns(
+    stage_esp32: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+    wifi: bool,
+    window: str,
+    expect_warning: bool,
+) -> None:
+    """A scan window above 600 ms warns only when wifi shares the radio."""
+    stage_esp32("5.5.5", wifi=wifi)
+    with caplog.at_level(logging.WARNING):
+        _scan_params({"scan_parameters": {"interval": "1100ms", "window": window}})
+    assert ("starves wifi" in caplog.text) is expect_warning

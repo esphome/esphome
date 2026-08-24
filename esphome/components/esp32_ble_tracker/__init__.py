@@ -143,6 +143,12 @@ def validate_max_connections_deprecated(config: ConfigType) -> ConfigType:
 # BLE uses the airtime wifi does not claim.
 IDF_SCAN_WINDOW_FIX_VERSION = cv.Version(5, 5, 5)
 
+# Above this the scanner holds the shared radio long enough that wifi drops
+# packets and connections; old proxy configs with 1100 ms windows are a
+# recurring cause of instability (esphome/esphome#18655). Only wifi shares
+# the radio; long windows are fine on ethernet builds.
+MAX_RECOMMENDED_WIFI_SCAN_WINDOW = TimePeriod(milliseconds=600)
+
 
 @dataclass
 class TrackerData:
@@ -209,6 +215,29 @@ def _raise_defaulted_scan_window(config: ConfigType) -> ConfigType:
     return config
 
 
+def _warn_long_scan_window_with_wifi(config: ConfigType) -> ConfigType:
+    """Warn when the scan window is long enough to starve wifi.
+
+    Runs after _raise_defaulted_scan_window so it sees the final window.
+    software_coexistence only exists when wifi is configured, so ethernet
+    builds never warn: BLE has the radio to itself there.
+    """
+    window = config[CONF_SCAN_PARAMETERS][CONF_WINDOW]
+    if (
+        config.get(CONF_SOFTWARE_COEXISTENCE)
+        and window > MAX_RECOMMENDED_WIFI_SCAN_WINDOW
+    ):
+        _LOGGER.warning(
+            "BLE scan window of %s with wifi on the same radio starves wifi and "
+            "causes disconnects and crashes; keep the window at or below %s "
+            "(for example interval: 320ms, window: 300ms). Long windows are "
+            "only a problem with wifi, they are fine on ethernet",
+            window,
+            MAX_RECOMMENDED_WIFI_SCAN_WINDOW,
+        )
+    return config
+
+
 # 320 ms is the ESP-IDF reference scan interval; the shared schema also
 # tightens validation to the controller's 2.5 ms .. 10240 ms range and rejects
 # window/interval pairs that collapse to the same 0.625 ms unit count.
@@ -271,6 +300,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     validate_max_connections_deprecated,
     _raise_defaulted_scan_window,
+    _warn_long_scan_window_with_wifi,
 )
 
 
