@@ -206,32 +206,36 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
     interval = config[CONF_INTERVAL]
     window = config[CONF_WINDOW]
 
-    if window > interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) needs to be smaller than scan interval ({interval})"
-        )
+    # Labels are reused in every error below; the optional one names its key.
+    windows = [("Scan window", window)]
+    if (connection_window := config.get(CONF_CONNECTION_SCAN_WINDOW)) is not None:
+        windows.append((CONF_CONNECTION_SCAN_WINDOW, connection_window))
+
+    for name, value in windows:
+        if value > interval:
+            raise cv.Invalid(
+                f"{name} ({value}) needs to be smaller than scan interval ({interval})"
+            )
 
     # BLE scan interval/window are programmed in 0.625 ms units as a 16-bit value; the
     # controller only accepts 2.5 ms .. 10240 ms (0x0004 .. 0x4000). Reject out-of-range
     # values here instead of letting the unit conversion silently overflow.
-    for name, value in (("interval", interval), ("window", window)):
+    for name, value in (("Scan interval", interval), *windows):
         if value.total_microseconds < 2500 or value.total_microseconds > 10_240_000:
-            raise cv.Invalid(
-                f"Scan {name} ({value}) must be between 2.5 ms and 10240 ms"
-            )
+            raise cv.Invalid(f"{name} ({value}) must be between 2.5 ms and 10240 ms")
 
     # Validate what actually reaches the controller: both values are truncated to
     # whole 0.625 ms units, so a window/interval pair that differs by less than one
     # unit collapses to the same value — silently programming a 100 % duty cycle
     # (radio permanently on) from a config that asked for less.
     interval_units = to_ble_units(interval)
-    window_units = to_ble_units(window)
-    if window_units == interval_units and window < interval:
-        raise cv.Invalid(
-            f"Scan window ({window}) and interval ({interval}) both truncate to "
-            f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
-            f"cycle. Separate them by at least 0.625 ms."
-        )
+    for name, value in windows:
+        if to_ble_units(value) == interval_units and value < interval:
+            raise cv.Invalid(
+                f"{name} ({value}) and interval ({interval}) both truncate to "
+                f"{interval_units} x 0.625 ms, which the controller scans at a 100 % duty "
+                f"cycle. Separate them by at least 0.625 ms."
+            )
 
     if interval.total_microseconds * 3 > duration.total_microseconds:
         raise cv.Invalid(
@@ -247,11 +251,14 @@ def validate_scan_parameters(config: ConfigType) -> ConfigType:
 # their own; also the fallback for esp32's conditional default.
 DEFAULT_SCAN_WINDOW = "30ms"
 
+CONF_CONNECTION_SCAN_WINDOW = "connection_scan_window"
+
 
 def scan_parameters_schema(
     interval_default: str,
     *,
     window_default: str | Callable[[], TimePeriod] = DEFAULT_SCAN_WINDOW,
+    connection_window: bool = False,
 ) -> cv.All:
     """Build the scan_parameters value schema shared by all BLE trackers.
 
@@ -263,7 +270,9 @@ def scan_parameters_schema(
     can adjust it once sibling keys are resolved). The `active` option
     (default on) is unconditional: active scanning is part of the tracker
     contract — every current proxy client assumes it, so a passive-only
-    tracker must not share this schema.
+    tracker must not share this schema. connection_window opts in to the
+    `connection_scan_window` option for trackers that can fall back to a
+    smaller window while a GATT connection is active.
     """
     schema = {
         cv.Optional(CONF_DURATION, default="5min"): cv.positive_time_period_seconds,
@@ -272,6 +281,8 @@ def scan_parameters_schema(
         cv.Optional(CONF_CONTINUOUS, default=True): cv.boolean,
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
     }
+    if connection_window:
+        schema[cv.Optional(CONF_CONNECTION_SCAN_WINDOW)] = cv.positive_time_period
     return cv.All(cv.Schema(schema), validate_scan_parameters)
 
 
