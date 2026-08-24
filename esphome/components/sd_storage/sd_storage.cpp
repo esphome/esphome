@@ -90,7 +90,8 @@ void SdMmc::dump_config() {
 }
 
 storage::StorageError SdMmc::mount() {
-  if (this->is_mounted_) return storage::StorageError::STORAGE_ERROR_OK;
+  if (this->is_mounted_)
+    return storage::StorageError::STORAGE_ERROR_OK;
   sdmmc_host_t host = SDMMC_HOST_DEFAULT();
   host.max_freq_khz = static_cast<int>(this->data_rate_khz_);
   host.flags = this->mode_1bit_ ? SDMMC_HOST_FLAG_1BIT : SDMMC_HOST_FLAG_4BIT;
