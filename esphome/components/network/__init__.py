@@ -364,7 +364,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 @coroutine_with_priority(CoroPriority.NETWORK)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
 

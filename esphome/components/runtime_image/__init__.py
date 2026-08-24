@@ -61,7 +61,7 @@ class Format:
 class AUTOFormat(Format):
     """AUTO format - detect from MIME type."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("AUTO", None)
 
     def actions(self) -> None:
@@ -73,7 +73,7 @@ class AUTOFormat(Format):
 class BMPFormat(Format):
     """BMP format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("BMP", BmpDecoder)
 
     def actions(self) -> None:
@@ -83,7 +83,7 @@ class BMPFormat(Format):
 class JPEGFormat(Format):
     """JPEG format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("JPEG", JpegDecoder)
 
     def actions(self) -> None:
@@ -106,7 +106,7 @@ class JPEGFormat(Format):
 class PNGFormat(Format):
     """PNG format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("PNG", PngDecoder)
 
     def actions(self) -> None:

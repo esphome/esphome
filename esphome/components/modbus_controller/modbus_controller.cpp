@@ -163,6 +163,7 @@ void ModbusController::queue_command(ModbusCommandItem command) {
   this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
   // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
   auto &item = this->one_shot_command_items_.back();
+  // We intentionally do not pass read_options_ here, because one-shot commands are usually writes, and are non-polling.
   if (!item->send()) {
     // The caller (e.g. a write entity) has usually already published optimistically - surface the loss.
     ESP_LOGW(TAG, "Command refused by hub: type=0x%X address=0x%X", static_cast<uint8_t>(item->register_type()),
@@ -199,7 +200,9 @@ void ModbusController::update() {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (!cmd.send()) {
+        // Probes carry the read-side options too, so a recovering device resumes streaming on the
+        // probe itself rather than waiting for the next update_interval.
+        if (!cmd.send(this->read_options_)) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
         }
       }
@@ -213,9 +216,11 @@ void ModbusController::update() {
   if (this->can_send()) {
     for (auto &cmd : this->polling_command_items_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
+      // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-      if (!cmd.send())
+      if (!cmd.send(this->read_options_)) {
         ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
+      }
     }
   }
   this->update_counter_++;
@@ -523,23 +528,25 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
-bool ModbusCommandItem::send() {
+bool ModbusCommandItem::send(modbus::CommandOptions options) {
+  // Options pass straight through to the hub
   bool accepted;
   if (this->custom_pdu_ != nullptr) {
     // Custom polling command: the ready-made PDU bytes live in the sensor.
-    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_));
+    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
   } else if (!this->payload.empty()) {
     if (this->payload_is_raw_frame_) {
       // Legacy raw frame staged by create_custom_command(): route the PDU to the frame's own address byte.
       std::span<const uint8_t> frame = this->payload;
-      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this, options);
     } else {
       // Full PDU staged by one of the deprecated create_* factories.
-      accepted = modbus::ModbusClientDevice::queue_pdu(this->payload);
+      accepted = modbus::ModbusClientDevice::queue_pdu(this->payload, options);
     }
   } else if (modbus::helpers::is_function_code_read(static_cast<uint8_t>(this->function_code_))) {
-    // Read command: dispatch by entity type through the base's typed read helper.
-    accepted = this->read_entities(this->register_type_, this->start_address_, this->register_count_);
+    // Read command: dispatch by entity type through the base's typed read helper. Polling reads carry the
+    // controller's read options (e.g. continuous) through to the hub.
+    accepted = this->read_entities(this->register_type_, this->start_address_, this->register_count_, options);
   } else {
     // Nothing staged for a non-read command: a factory rejected its input into an empty payload. Refuse
     // here rather than fall through to the read dispatch, which would put a read for this range on the wire.
