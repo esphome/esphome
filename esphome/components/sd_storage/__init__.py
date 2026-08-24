@@ -261,17 +261,27 @@ def _count_devices_on_spi_bus(fconf, bus_id):
     """
     count = 0
     names = []
-    root = fconf.get_config_for_path([])
-    for domain_conf in root.values():
-        entries = domain_conf if isinstance(domain_conf, list) else [domain_conf]
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            ref = entry.get(spi.CONF_SPI_ID)
-            if ref is not None and str(ref) == str(bus_id):
-                count += 1
-                if (other_id := entry.get(CONF_ID)) is not None:
-                    names.append(str(other_id))
+    wanted = str(bus_id)
+
+    def walk(node):
+        nonlocal count
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if not isinstance(node, dict):
+            return
+        ref = node.get(spi.CONF_SPI_ID)
+        if ref is not None and str(ref) == wanted:
+            count += 1
+            if (other_id := node.get(CONF_ID)) is not None:
+                names.append(str(other_id))
+        # Keep descending even after a hit: a device may nest further sub-configs, and this
+        # check may not pass on an incomplete view of the bus.
+        for value in node.values():
+            walk(value)
+
+    walk(fconf.get_config_for_path([]))
     return count, names
 
 
