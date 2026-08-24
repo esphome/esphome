@@ -12,6 +12,7 @@ from typing import Any
 from esphome import yaml_util
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -233,6 +234,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
+    "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
     "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
@@ -3583,3 +3585,10 @@ def process_stacktrace(config, line, backtrace_state):
             _decode_pc(config, addr.group())
 
     return backtrace_state
+
+
+# gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
+# are instantiated solely by the pin schema codegen (esp32_pin_to_code)
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO"}
+)

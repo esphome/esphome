@@ -526,32 +526,15 @@ def get_idedata() -> dict | None:
     idedata fields IDE integrations and clang-tidy expect, cached alongside the
     PlatformIO idedata path. Returns None if the compile DB doesn't exist yet.
     """
-    from esphome.espidf.idedata import idedata_from_build
+    from esphome.build_helpers.idedata import load_or_build_idedata
 
-    compile_commands = CORE.relative_build_path("build", "compile_commands.json")
-    if not compile_commands.is_file():
-        _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)
-        return None
-
-    cache = CORE.relative_internal_path("idedata", f"{CORE.name}.json")
-    if cache.is_file() and cache.stat().st_mtime >= compile_commands.stat().st_mtime:
-        try:
-            cached = json.loads(cache.read_text(encoding="utf-8"))
-        except ValueError:
-            pass
-        else:
-            # Caches written before cc_path was emitted stay newer than
-            # compile_commands.json forever, so rebuild them on the field rather
-            # than on the timestamp. Check the type too: a corrupted cache can
-            # still be valid JSON, and "in" would match a substring of a string.
-            if isinstance(cached, dict) and "cc_path" in cached:
-                return cached
-
-    data = idedata_from_build(compile_commands)
-    data["prog_path"] = str(get_elf_path())
-    cache.parent.mkdir(parents=True, exist_ok=True)
-    cache.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-    return data
+    # No launcher: CMake excludes CMAKE_<LANG>_COMPILER_LAUNCHER (ccache)
+    # from the exported compile database, unlike ninja's compdb dump.
+    return load_or_build_idedata(
+        CORE.relative_build_path("build", "compile_commands.json"),
+        get_elf_path(),
+        CORE.relative_internal_path("idedata", f"{CORE.name}.json"),
+    )
 
 
 def create_factory_bin() -> bool:
