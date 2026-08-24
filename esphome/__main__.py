@@ -857,7 +857,20 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        toolchain.get_idedata()
+        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+
+        try:
+            if toolchain.get_idedata() is None:
+                _LOGGER.warning("No idedata was generated for this build")
+        except IDEDATA_BEST_EFFORT_ERRORS as err:
+            # The firmware already built; an idedata failure must not fail
+            # a successful build.
+            _LOGGER.warning(
+                "Could not generate idedata: %s (IDE, clang-tidy, and "
+                "memory-analysis data will be unavailable for this build)",
+                err,
+            )
+            _LOGGER.debug("Idedata failure detail", exc_info=True)
     else:
         from esphome.platformio import toolchain
 
