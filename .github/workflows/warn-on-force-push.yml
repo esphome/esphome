@@ -1,10 +1,16 @@
 # .github/workflows/warn-on-force-push.yml
 #
-# Detects force-pushes to a PR branch that actually rewrite history
-# and have change requests, then comments on the PR with an
-# explanation plus restore instructions.
+# Detects a history-rewriting force-push to a PR branch and comments once
+# with an explanation and restore instructions. Purely reactive: never
+# touches the branch itself. Works for fork PRs.
+#
+# Only fires on the FIRST detected rewrite per PR — if a warning comment
+# already exists, it's left alone (not updated, not reposted), even if a
+# later push still looks non-fast-forward relative to the tip right
+# before it (which a legitimate restore always will, since undoing a
+# rewrite is itself a rewrite).
 
-name: Warn on history-rewriting force-push after review start
+name: Warn on history-rewriting force-push
 
 on:
   pull_request_target:
@@ -22,111 +28,90 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Check whether history was actually rewritten
-        id: check
-        env:
-          BEFORE: ${{ github.event.before }}
-          AFTER: ${{ github.event.after }}
-        run: |
-          # These SHAs are fetchable from the base repo even for fork PRs,
-          git fetch origin "$BEFORE" 2>/dev/null || true
-          git fetch origin "$AFTER" 2>/dev/null || true
-
-          if ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            echo "Previous tip $BEFORE not fetchable — skipping check."
-            echo "lost=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if git merge-base --is-ancestor "$BEFORE" "$AFTER"; then
-            echo "Fast-forward update — no history lost."
-            echo "lost=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "History-rewriting force-push detected."
-            echo "lost=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Check whether the PR already has review comments
-        id: reviews
-        if: steps.check.outputs.lost == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            // Inline diff comments left as part of a review — these are
-            // the ones that get orphaned/detached when history is rewritten.
-            const { data: reviewComments } = await github.rest.pulls.listReviewComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-              per_page: 1,
-            });
-            core.setOutput("has_comments", reviewComments.length > 0 ? "true" : "false");
-
-      - name: Comment on the PR (create or update)
-        if: steps.check.outputs.lost == 'true' && steps.reviews.outputs.has_comments == 'true'
+      - name: Check for force-push and comment if this is the first one
         uses: actions/github-script@v7
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
         with:
           script: |
+            const branch = context.payload.pull_request.head.ref;
+            const prNumber = context.payload.pull_request.number;
             const before = process.env.BEFORE;
             const after = process.env.AFTER;
-            const branch = context.payload.pull_request.head.ref;
             const marker = "<!-- force-push-warning -->";
 
-            const body = [
-              marker,
-              `### ⚠️ This branch's history was rewritten`,
-              ``,
-              `A force-push to \`${branch}\` replaced earlier commits — the `,
-              `previous tip (\`${before.slice(0, 7)}\`) is no longer an `,
-              `ancestor of the current tip (\`${after.slice(0, 7)}\`).`,
-              ``,
-              `Rewriting history mid-review makes it harder to track what `,
-              `changed since the last look, and can detach existing review `,
-              `comments from their code. Please avoid \`git push --force\` on `,
-              `PR branches — push new commits on top instead, or check with `,
-              `reviewers first if a rebase is really needed.`,
-              ``,
-              `**To restore the previous state, if this wasn't intentional:**`,
-              ``,
-              `If you still have the old commits locally (check \`git reflog\` `,
-              `on your machine first):`,
-              "```",
-              `git push --force origin HEAD:${branch}`,
-              "```",
-              ``,
-              `Otherwise, the old tip may still be recoverable by SHA:`,
-              "```",
-              `git fetch origin ${before}`,
-              `git push --force origin ${before}:${branch}`,
-              "```",
-              `(This only works if GitHub hasn't garbage-collected the old `,
-              `commit yet — not guaranteed indefinitely.)`,
-              ``,
-              `_Automated check — nothing has been changed on the branch._`,
-            ].join("\n");
+            async function fetchSha(sha) {
+              const res = await exec.getExecOutput("git", ["fetch", "origin", sha], { ignoreReturnCode: true });
+              return res.exitCode === 0;
+            }
+            async function isAncestor(a, b) {
+              const res = await exec.getExecOutput("git", ["merge-base", "--is-ancestor", a, b], { ignoreReturnCode: true });
+              return res.exitCode === 0;
+            }
+
+            await fetchSha(before);
+            await fetchSha(after);
+
+            const haveBefore = await exec.getExecOutput("git", ["cat-file", "-e", `${before}^{commit}`], { ignoreReturnCode: true });
+            if (haveBefore.exitCode !== 0) {
+              core.info(`Previous tip ${before} not fetchable — skipping.`);
+              return;
+            }
+
+            const lost = !(await isAncestor(before, after));
+            if (!lost) {
+              core.info("Fast-forward update — nothing to do.");
+              return;
+            }
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              issue_number: prNumber,
             });
-            const existing = comments.find(c => c.body.includes(marker));
-
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body,
-              });
+            if (comments.some(c => c.body.includes(marker))) {
+              core.info("Warning already posted for this PR — suppressing.");
+              return;
             }
+
+            const { data: reviewComments } = await github.rest.pulls.listReviewComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 1,
+            });
+            if (reviewComments.length === 0) {
+              core.info("No existing review comments — skipping warning.");
+              return;
+            }
+
+            const body = [
+              marker,
+              "### \u26a0\ufe0f This branch's history was rewritten",
+              "",
+              `A force-push to \`${branch}\` replaced earlier commits — the previous tip is no longer an ancestor of the current tip (\`${after.slice(0, 7)}\`).`,
+              "",
+              "Rewriting history mid-review makes it harder to track what changed since the last look, and can detach existing review comments from their code. Please avoid `git push --force` on PR branches — push new commits on top instead, or check with reviewers first if a rebase is really needed.",
+              "",
+              "**To restore the previous state, if this wasn't intentional:**",
+              "",
+              "If you still have the old commits locally (check `git reflog` on your machine first):",
+              "```",
+              `git push --force origin HEAD:${branch}`,
+              "```",
+              "",
+              "Otherwise, the old tip may still be recoverable by SHA:",
+              "```",
+              `git fetch origin ${before}`,
+              `git push --force origin ${before}:${branch}`,
+              "```",
+              "(This only works if GitHub hasn't garbage-collected the old commit yet — not guaranteed indefinitely.)",
+            ].join("\n");
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body,
+            });
