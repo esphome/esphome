@@ -299,10 +299,13 @@ def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> No
     _setup_build(setup_core)
     config = {CONF_ESPHOME: {}}
     cmakecache = CORE.relative_build_path("build/CMakeCache.txt")
+    build_ninja = CORE.relative_build_path("build/build.ninja")
     cmakecache.parent.mkdir(parents=True, exist_ok=True)
     cmakecache.write_text("")
+    build_ninja.write_text("")
     old = cmakecache.stat().st_mtime - 100
     os.utime(cmakecache, (old, old))
+    os.utime(build_ninja, (old, old))
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=True),
@@ -314,6 +317,8 @@ def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> No
         assert toolchain.run_compile(config, verbose=False) == 0
 
     assert cmakecache.stat().st_mtime > old
+    # build.ninja must not be older than the cache or ninja re-runs cmake
+    assert build_ninja.stat().st_mtime >= cmakecache.stat().st_mtime
 
 
 def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
