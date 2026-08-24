@@ -92,7 +92,7 @@ def _esp32_config_schema() -> cv.All:
 
     CONNECTION_SCHEMA = bluetooth_connection.hub_connection_schema(PLATFORM_ESP32)
 
-    def validate_connections(config):
+    def validate_connections(config: ConfigType) -> ConfigType:
         if CONF_CONNECTIONS in config:
             if not config[CONF_ACTIVE]:
                 raise cv.Invalid(
