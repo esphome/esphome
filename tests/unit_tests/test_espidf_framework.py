@@ -371,10 +371,9 @@ def _fake_download_from_mirrors(
 ) -> str:
     """Stand-in for download_from_mirrors that creates path targets, since
     the framework code opens the downloaded tarball afterwards."""
-    if isinstance(target, (str, os.PathLike)):
-        path = Path(target)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch()
+    path = Path(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
     return "https://example.com/idf.tar.xz"
 
 
@@ -386,11 +385,16 @@ def espidf_mocks(setup_core: Path):
     _get_framework_path(_IDF_VERSION).mkdir(parents=True, exist_ok=True)
     with (
         patch("esphome.espidf.framework.rmdir") as rmdir_mock,
+        # The tarball goes through framework_helpers.download_and_extract,
+        # whose internals resolve in framework_helpers; the constraints file
+        # still calls the espidf-bound download_from_mirrors. One mock covers
+        # both so call counts and ordering assertions span the two.
         patch(
-            "esphome.espidf.framework.download_from_mirrors",
+            "esphome.framework_helpers.download_from_mirrors",
             side_effect=_fake_download_from_mirrors,
         ) as download,
-        patch("esphome.espidf.framework.archive_extract_all") as extract,
+        patch("esphome.espidf.framework.download_from_mirrors", download),
+        patch("esphome.framework_helpers.archive_extract_all") as extract,
         patch("esphome.espidf.framework.create_venv") as venv,
         patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
         patch(
