@@ -13,6 +13,8 @@ from esphome.core import CORE, TimePeriodMilliseconds
 @pytest.mark.parametrize(
     ("yaml_file", "expected_ms"),
     [
+        # stock 4.5s timeout: 3 x 4.5s plus 1s margin
+        ("test_esp32_stock.yaml", 14500),
         # 3 x 10s plus 1s margin
         ("test_esp32_default.yaml", 31000),
         # esp32.watchdog_timeout: 60s is wider than the derived value and wins
@@ -31,9 +33,10 @@ def test_esp32_watchdog_timeout(
     )
 
 
-def test_esp8266_leaves_watchdog_unset(
-    component_config_path: Callable[[str], Path],
+@pytest.mark.parametrize("yaml_file", ["test_esp8266.yaml", "test_rp2040.yaml"])
+def test_other_platforms_leave_watchdog_unset(
+    component_config_path: Callable[[str], Path], yaml_file: str
 ) -> None:
-    CORE.config_path = component_config_path("test_esp8266.yaml")
+    CORE.config_path = component_config_path(yaml_file)
     config = read_config({})
     assert CONF_WATCHDOG_TIMEOUT not in config["http_request"]

@@ -148,6 +148,7 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
       }
       write_left -= written;
       write_index += written;
+      container->feed_wdt();
     }
   }
 
