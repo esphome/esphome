@@ -302,6 +302,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction final : public Act
   bool wants_status_ : 1 {false};
   bool wants_response_ : 1 {false};
   bool has_response_template_ : 1 {false};
+  uint8_t reserved_ : 4 {0};  // keep the byte fully owned, see APIConnection
 };
 
 }  // namespace esphome::api

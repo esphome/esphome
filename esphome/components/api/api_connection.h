@@ -747,8 +747,13 @@ class APIConnection final : public APIServerConnectionBase {
   bool batch_first_message_ : 1 {false};          // For batch buffer allocation
   bool should_try_send_immediately_ : 1 {false};  // True after initial states are sent
   bool may_have_remaining_data_ : 1 {false};      // Read loop hit limit, retry without ready check
+  // reserved_ keeps every bit of the flag word owned by a member so constructors zero it with
+  // a plain store instead of a read-modify-write that preserves unowned padding bits
 #ifdef HAS_PROTO_MESSAGE_DUMP
   bool log_only_mode_ : 1 {false};
+  uint8_t reserved_ : 1 {0};
+#else
+  uint8_t reserved_ : 2 {0};
 #endif
 
   // 2-byte types immediately after the bit-fields (no padding between them)
