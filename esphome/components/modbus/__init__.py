@@ -45,6 +45,7 @@ ModbusClient = modbus_ns.class_("ModbusClientHub", Modbus)
 ModbusDevice = modbus_ns.class_("ModbusDevice")
 ModbusClientDevice = modbus_ns.class_("ModbusClientDevice")
 ModbusServerDevice = modbus_ns.class_("ModbusServerDevice")
+CommandOptions = modbus_ns.struct("CommandOptions")
 MULTI_CONF = True
 
 CONF_ROLE = "role"
@@ -81,6 +82,19 @@ def _command_options(direction: str) -> list[_CommandOption]:
         raise ValueError(f"unknown command-options direction {direction!r}") from None
 
 
+# The write (mutating) function codes, matching modbus::helpers::is_function_code_write(). 0x17
+# (read/write multiple) is included: it mutates, so the hub treats it as a write despite its read half.
+_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16, 0x17})
+
+
+def is_function_code_write(function_code: int) -> bool:
+    """True if the Modbus function code writes (mutates). The exception bit (0x80) is masked off first,
+    so an exception-flagged code still classifies by its base code - stricter than the runtime hub,
+    whose classify() treats an exception-flagged code as a read. Keep in sync with
+    modbus::helpers::is_function_code_write()."""
+    return function_code & 0x7F in _WRITE_FUNCTION_CODES
+
+
 def command_options_schema(
     *, direction: Literal["read", "write"], templatable: bool = False
 ) -> dict[cv.Optional, Any]:
@@ -96,6 +110,25 @@ def command_options_schema(
         )
         for option in _command_options(direction)
     }
+
+
+def command_options_expression(
+    config: ConfigType, *, direction: Literal["read", "write"]
+) -> cg.StructInitializer:
+    """Build the modbus::CommandOptions initializer for a config validated with
+    command_options_schema() of the same direction. For static (non-templatable) options only;
+    actions with lambda values use register_templatable_command_options() instead.
+    """
+    return cg.StructInitializer(
+        CommandOptions,
+        *(
+            # Construct the value as its declared cpp_type, so a future non-bool option (enum,
+            # uint16_t, ...) is emitted with the right type instead of whatever safe_exp() infers.
+            (option.field, option.cpp_type(config[option.conf_key]))
+            for option in _command_options(direction)
+            if option.conf_key in config
+        ),
+    )
 
 
 async def register_templatable_command_options(
@@ -175,15 +208,34 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
 
 
+# The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
+# so it cannot identify an individual device or read anything back.
+BROADCAST_ADDRESS = 0
+
+
+def reject_broadcast_address(
+    address: int, usage: str, guidance: str, path: list[str] | None = None
+) -> None:
+    """Raise cv.Invalid if `address` is the Modbus broadcast address (0).
+
+    `usage` names how the address is being used (e.g. "a server device address") and `guidance`
+    is a sentence telling the user what to do instead. Sharing the leading sentence here keeps the
+    call sites (server device, modbus_controller) from drifting apart.
+    """
+    if address == BROADCAST_ADDRESS:
+        raise cv.Invalid(
+            f"Address 0 is the Modbus broadcast address and cannot be used as {usage}. {guidance}",
+            path,
+        )
+
+
 def _validate_server_address(value: Any) -> int:
     address = cv.hex_uint8_t(value)
-    # The broadcast address (0) is delivered to every device and is never answered (Modbus 4.1),
-    # so it cannot identify an individual server device.
-    if address == 0:
-        raise cv.Invalid(
-            "Address 0 is the Modbus broadcast address and cannot be used as a "
-            "server device address. Assign a unique unit address instead."
-        )
+    reject_broadcast_address(
+        address,
+        "a server device address",
+        "Assign a unique unit address instead.",
+    )
     return address
 
 
