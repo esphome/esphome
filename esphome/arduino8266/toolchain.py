@@ -116,6 +116,11 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         cmd.append("-v")
     if jobs := config[CONF_ESPHOME].get(CONF_COMPILE_PROCESS_LIMIT):
         cmd += ["-j", str(jobs)]
+    # Explicit targets, not the default statement: a generator defect that
+    # drops them fails loudly with "unknown target" instead of a green
+    # no-op run that leaves stale artifacts in place
+    targets = ["firmware.factory.bin", "firmware.ota.bin"]
+    cmd += targets
 
     # A dry-run probe keeps a no-op rebuild quiet: ninja would only print
     # "no work to do". A freshly rewritten manifest all but guarantees work,
@@ -124,7 +129,7 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     skip_build = False
     if not ninja_changed:
         probe = subprocess.run(
-            [str(paths.ninja), "-n"],
+            [str(paths.ninja), "-n", *targets],
             cwd=build_dir,
             env=env,
             capture_output=True,
@@ -137,6 +142,10 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
             # flags a generator bug; the skip branch would otherwise
             # swallow it forever
             _LOGGER.warning("ninja: %s", probe.stderr.strip())
+        if probe.returncode != 0:
+            # An unknown target here is the defective-manifest case; fall
+            # through to the real build so the error prints attributably
+            _LOGGER.debug("ninja probe failed; running the full build")
         skip_build = probe.returncode == 0 and "no work to do" in probe.stdout
     if skip_build:
         _LOGGER.debug("ninja: nothing to rebuild")
@@ -148,28 +157,18 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
         if rc != 0:
             return rc
 
-    # A generator defect emitting no default targets must not turn into a
-    # green build with no firmware (size summary and idedata only warn);
-    # the factory/ota copies are what upload and OTA actually consume
+    # ninja already refused a manifest missing the explicit targets above;
+    # existence covers the remaining hole (a rule that ran but wrote
+    # elsewhere). The factory/ota copies are what upload and OTA consume.
     build_dir_artifacts = (
         get_elf_path(),
         build_dir / "firmware.bin",
         get_factory_firmware_path(),
         build_dir / "firmware.ota.bin",
     )
-    ninja_mtime = ninja_file.stat().st_mtime
     for artifact in build_dir_artifacts:
         if not artifact.is_file():
             _LOGGER.error("Build produced no %s", artifact)
-            return 1
-        if artifact.stat().st_mtime < ninja_mtime:
-            # A leftover from an older manifest must not pass as this
-            # build's output (a defective manifest with no default targets
-            # reports "no work to do" while building nothing)
-            _LOGGER.error(
-                "%s is older than build.ninja; run 'esphome clean-all' and retry",
-                artifact,
-            )
             return 1
 
     if not _print_size_summary(build_dir, paths):

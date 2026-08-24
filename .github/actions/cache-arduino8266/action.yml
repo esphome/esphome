@@ -17,9 +17,9 @@ runs:
       id: version
       shell: bash
       run: |
-        # One owner for the install prefix: exporting it here (instead of a
-        # per-job env stanza) makes it impossible for a caller to install
-        # into a path other than the one cached below.
+        # One owner for the install prefix: exported here and referenced by
+        # the cache steps below via env, so the caller's install and the
+        # cached path cannot diverge.
         echo "ESPHOME_ARDUINO8266_PREFIX=$HOME/.esphome-arduino8266" >> "$GITHUB_ENV"
         . venv/bin/activate
         key=$(python -c 'from esphome.components.esp8266 import RECOMMENDED_ARDUINO_FRAMEWORK_VERSION as f; from esphome.arduino8266.framework import TOOLCHAIN_VERSION as t; print(f"{f}-{t}")')
@@ -29,11 +29,11 @@ runs:
       if: github.ref == 'refs/heads/dev'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ~/.esphome-arduino8266
+        path: ${{ env.ESPHOME_ARDUINO8266_PREFIX }}
         key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}
     - name: Restore the native toolchain (off dev)
       if: github.ref != 'refs/heads/dev'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: ~/.esphome-arduino8266
+        path: ${{ env.ESPHOME_ARDUINO8266_PREFIX }}
         key: ${{ runner.os }}-esp8266-native-${{ steps.version.outputs.key }}

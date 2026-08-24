@@ -682,7 +682,9 @@ def _decode_pc(config: ConfigType, addr: str) -> None:
         return
 
     if "?? ??:0" in translation:
-        # Nothing useful
+        # A stale or mismatched ELF: mark it, or the frame silently reads
+        # as merely unmappable
+        _LOGGER.warning("Not decoded %s (address not in %s)", addr, elf)
         return
     translation = translation.replace(" at ??:?", "").replace(":?", "")
     _LOGGER.warning("Decoded %s", translation)

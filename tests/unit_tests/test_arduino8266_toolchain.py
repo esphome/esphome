@@ -53,18 +53,6 @@ def _setup_core(tmp_path: Path) -> None:
         (build_dir / artifact).write_bytes(b"")
 
 
-def _touch_artifacts(build_dir: Path) -> None:
-    """Re-date the fixture artifacts after a test rewrites build.ninja, so
-    the freshness guard sees them as this manifest's outputs."""
-    for artifact in (
-        "firmware.elf",
-        "firmware.bin",
-        "firmware.factory.bin",
-        "firmware.ota.bin",
-    ):
-        (build_dir / artifact).touch()
-
-
 def _paths(tmp_path: Path) -> framework.InstalledPaths:
     return framework.InstalledPaths(
         framework=tmp_path / "framework",
@@ -122,9 +110,11 @@ def test_run_compile_success(tmp_path: Path) -> None:
     assert rc == 0
     # The -n probe runs first, then the real build (cwd, no -C banner)
     ninja_calls = [c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0])]
-    assert ninja_calls[0][0][0][-1] == "-n"
+    assert "-n" in ninja_calls[0][0][0]
+    # Explicit targets: a manifest missing them fails as "unknown target"
+    assert ninja_calls[0][0][0][-1] == "firmware.ota.bin"
     cmd = ninja_calls[1][0][0]
-    assert cmd[-2:] == ["-j", "4"]
+    assert cmd[-4:] == ["-j", "4", "firmware.factory.bin", "firmware.ota.bin"]
     assert "-C" not in cmd
     assert ninja_calls[1][1]["cwd"] is not None
     mock_compdb.assert_called_once()
@@ -155,7 +145,9 @@ def test_run_compile_noop_skips_the_build_spawn(tmp_path: Path) -> None:
     assert rc == 0
     ninja_calls = [c for c in mock_run.call_args_list if "ninja" in str(c[0][0][0])]
     assert len(ninja_calls) == 1
-    assert ninja_calls[0][0][0][-1] == "-n"
+    assert "-n" in ninja_calls[0][0][0]
+    # Explicit targets: a manifest missing them fails as "unknown target"
+    assert ninja_calls[0][0][0][-1] == "firmware.ota.bin"
 
 
 def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
@@ -164,7 +156,6 @@ def test_run_compile_regenerates_stale_compdb(tmp_path: Path) -> None:
     build_dir = toolchain.get_build_dir()
     build_dir.mkdir(parents=True, exist_ok=True)
     (build_dir / "build.ninja").write_text("")
-    _touch_artifacts(build_dir)
     compdb = build_dir / "compile_commands.json"
     compdb.write_text("[]")
     os.utime(compdb, ((build_dir / "build.ninja").stat().st_mtime - 5,) * 2)
@@ -437,7 +428,6 @@ def test_run_compile_skips_compdb_when_ninja_unchanged(tmp_path: Path) -> None:
     build_dir.mkdir(parents=True, exist_ok=True)
     # write_project (stubbed below) always leaves a build.ninja behind
     (build_dir / "build.ninja").write_text("# manifest")
-    _touch_artifacts(build_dir)
 
     def run(regenerate_expected: bool) -> None:
         with (
@@ -585,31 +575,6 @@ def test_run_compile_skipped_size_summary_names_consequence(
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     assert "Firmware size summary unavailable for this build" in caplog.text
-
-
-def test_run_compile_stale_artifact_fails(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """An artifact older than build.ninja is a leftover, not this build's
-    output; a defective manifest with no default targets must not pass on
-    it."""
-    build_dir = toolchain.get_build_dir()
-    os.utime(build_dir / "firmware.bin", (0, 0))
-    with (
-        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
-        patch.object(framework, "get_build_env", return_value={}),
-        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
-        patch.object(
-            toolchain.subprocess,
-            "run",
-            return_value=MagicMock(returncode=0, stdout="", stderr=""),
-        ),
-        patch.object(toolchain, "_write_compile_commands"),
-        patch.object(toolchain, "_print_size_summary", return_value=True),
-        patch.object(toolchain, "get_idedata", return_value={}),
-    ):
-        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 1
-    assert "older than build.ninja" in caplog.text
 
 
 def test_parse_app_size_non_utf8_ld_warns(

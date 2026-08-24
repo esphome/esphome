@@ -1062,17 +1062,19 @@ def test_components(
     # toolchain build.
     include_validate = esphome_command != "compile"
 
-    # Find all component tests
+    # Find all component tests; remember which patterns (wildcards
+    # included) matched anything, for the deferred no-tests accounting
     all_tests = {}
+    pattern_hits: dict[str, bool] = {}
     for pattern in component_patterns:
         # Skip empty patterns (happens when components list is empty string)
         if not pattern:
             continue
-        all_tests.update(
-            find_component_tests(
-                tests_dir, pattern, base_only, include_validate=include_validate
-            )
+        found = find_component_tests(
+            tests_dir, pattern, base_only, include_validate=include_validate
         )
+        pattern_hits[pattern] = bool(found)
+        all_tests.update(found)
 
     # The flag's contract is "no test matched fails": a fully blank pattern
     # list would otherwise slide into the reference-baseline fallback and
@@ -1081,39 +1083,6 @@ def test_components(
         print("No components requested (blank component list)")
         return 1
 
-    # Renamed or removed fixtures must shrink coverage loudly, and the
-    # reference-baseline fallback below must not mask an empty match. The
-    # check is per platform: a component whose fixture exists only for other
-    # platforms contributes nothing to this leg.
-    def _has_platform_test(component: str) -> bool:
-        # "all" fixtures build on every platform (mirrors the run loop)
-        return any(
-            not platform_filter
-            or (suffix := test.stem.split(".")[-1]) == "all"
-            or suffix.startswith(platform_filter)
-            for test in all_tests.get(component, [])
-        )
-
-    if fail_on_no_tests and (
-        unmatched := [
-            p
-            for p in component_patterns
-            if p and "*" not in p and not _has_platform_test(p)
-        ]
-    ):
-        target = f"{platform_filter} " if platform_filter else ""
-        print(
-            f"No {target}tests found for requested component(s): {', '.join(unmatched)}"
-        )
-        return 1
-
-    # If no components found, build a reference configuration for baseline comparison
-    # Create a synthetic "empty" component test that will build just the base config
-    if fail_on_no_tests and not all_tests:
-        # The synthetic baseline would report success having built nothing
-        # the caller asked for (e.g. a wildcard that matched no component)
-        print(f"No components found matching: {component_patterns}")
-        return 1
     if not all_tests:
         print(f"No components found matching: {component_patterns}")
         print(
@@ -1219,21 +1188,21 @@ def test_components(
 
     silent: list[str] = []
     if fail_on_no_tests:
-        # A green run that built nothing for a requested component (renamed
-        # fixture, missing base file, version-suffix mismatch) must not pass
-        # CI. Per component: an all-or-nothing check would let one silent
-        # component hide behind the others. Opt-in: some legs (the esp32-ard
-        # smoke subset) legitimately match nothing. Failing is deferred past
-        # the summary so a real failure's reproduce commands still print.
+        # A green run that built nothing for a requested pattern (renamed
+        # fixture, missing base file, version-suffix mismatch, a wildcard
+        # matching no component) must not pass CI. Per pattern: an
+        # all-or-nothing check would let one silent pattern hide behind the
+        # others. Opt-in: some legs (the esp32-ard smoke subset)
+        # legitimately match nothing. Failing is deferred past the summary
+        # so a real failure's reproduce commands still print.
         built = {c for r in test_results for c in r.components}
         silent = [
-            p for p in component_patterns if p and "*" not in p and p not in built
+            p
+            for p in component_patterns
+            if p and (not pattern_hits.get(p) or ("*" not in p and p not in built))
         ]
         if silent:
-            print(f"No tests ran for requested component(s): {', '.join(silent)}")
-        elif not test_results:
-            print("No tests matched the requested components/platform")
-            return 1
+            print(f"No tests ran for requested pattern(s): {', '.join(silent)}")
 
     # Separate results into passed and failed
     passed_results = [r for r in test_results if r.success]

@@ -612,12 +612,15 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
 
     # The idedata caches are derived from the build but live under the data
     # dir, not the build path, so they must be removed separately in both
-    # modes (the .arduino.json variant is the native esp8266 toolchain's).
-    for cache_name in (f"{CORE.name}.json", f"{CORE.name}.arduino.json"):
-        idedata_cache = CORE.relative_internal_path("idedata", cache_name)
-        if idedata_cache.is_file():
-            _LOGGER.info("Deleting %s", idedata_cache)
-            idedata_cache.unlink()
+    # modes. Globbed (name.json plus name.<backend>.json) so a future
+    # backend suffix cannot silently drift out of clean-all.
+    idedata_dir = CORE.relative_internal_path("idedata")
+    for idedata_cache in (
+        *idedata_dir.glob(f"{CORE.name}.json"),
+        *idedata_dir.glob(f"{CORE.name}.*.json"),
+    ):
+        _LOGGER.info("Deleting %s", idedata_cache)
+        idedata_cache.unlink()
 
     if not clear_pio_cache:
         return

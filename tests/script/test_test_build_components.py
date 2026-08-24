@@ -245,10 +245,15 @@ def test_components_empty_match_fails_with_flag(
     with no matching test file must not pass CI as a green zero-component
     compile."""
     rc = tbc.test_components(
-        ["logger"], "zz-none", "compile", False, fail_on_no_tests=True
+        ["logger"],
+        "zz-none",
+        "compile",
+        False,
+        enable_grouping=False,
+        fail_on_no_tests=True,
     )
     assert rc == 1
-    assert "No zz-none tests found" in capsys.readouterr().out
+    assert "No tests ran for requested pattern(s): logger" in (capsys.readouterr().out)
 
 
 def test_components_component_with_no_base_file_fails_with_flag(
@@ -268,9 +273,7 @@ def test_components_component_with_no_base_file_fails_with_flag(
         fail_on_no_tests=True,
     )
     assert rc == 1
-    assert "No tests ran for requested component(s): logger" in (
-        capsys.readouterr().out
-    )
+    assert "No tests ran for requested pattern(s): logger" in (capsys.readouterr().out)
 
 
 def test_components_blank_list_fails_with_flag(
@@ -291,10 +294,17 @@ def test_components_wildcard_no_match_fails_with_flag(
     """A wildcard matching nothing must not degrade to the synthetic
     baseline build and exit green under the flag."""
     rc = tbc.test_components(
-        ["zz_no_such*"], "esp8266-ard", "compile", False, fail_on_no_tests=True
+        ["zz_no_such*"],
+        "esp8266-ard",
+        "compile",
+        False,
+        enable_grouping=False,
+        fail_on_no_tests=True,
     )
     assert rc == 1
-    assert "No components found matching" in capsys.readouterr().out
+    assert "No tests ran for requested pattern(s): zz_no_such*" in (
+        capsys.readouterr().out
+    )
 
 
 def test_components_empty_match_tolerated_without_flag() -> None:
@@ -318,10 +328,10 @@ def test_components_unknown_component_fails_with_flag(
         "esp8266-ard",
         "compile",
         False,
+        enable_grouping=False,
         fail_on_no_tests=True,
     )
     assert rc == 1
-    assert (
-        "No esp8266-ard tests found for requested component(s)"
-        in capsys.readouterr().out
+    assert "No tests ran for requested pattern(s): no_such_component_xyz" in (
+        capsys.readouterr().out
     )
