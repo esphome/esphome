@@ -94,8 +94,7 @@ void SdMmc::dump_config() {
 
 #ifdef USE_STORAGE_FILE_SYSTEM_SELECT
 esp_err_t SdMmc::mount_manual_(sdmmc_host_t &host, sdmmc_slot_config_t &slot_config) {
-  if (this->is_mounted_)
-    return storage::StorageError::STORAGE_ERROR_OK;
+  if (this->is_mounted_) return ESP_OK;
   // Step for step what esp_vfs_fat_sdmmc_mount does (all public IDF API), with the probe
   // window inserted between diskio registration and f_mount.
   auto *card = new sdmmc_card_t{};  // NOLINT(cppcoreguidelines-owning-memory) - freed in unmount_manual_
