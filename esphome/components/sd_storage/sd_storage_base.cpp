@@ -7,6 +7,16 @@
 #include <cstdio>
 #include "esphome/components/storage/storage.h"
 
+// FATFS_MAX_LFN is "depends on !FATFS_LFN_NONE" in the IDF's fatfs Kconfig, so with
+// CONFIG_FATFS_LFN_NONE=y -- a configuration the storage codegen explicitly supports --
+// the symbol is not written to sdkconfig.h at all. It is used below in array bounds, not
+// in preprocessor conditionals, so its absence is a compile error rather than a silent 0.
+// With long filenames off FatFs hands back 8.3 names (12 chars), which is also where
+// Kconfig's own range for this symbol starts.
+#ifndef CONFIG_FATFS_MAX_LFN
+#define CONFIG_FATFS_MAX_LFN 12
+#endif
+
 namespace esphome::sd_storage {
 
 using storage::FileHandle;
