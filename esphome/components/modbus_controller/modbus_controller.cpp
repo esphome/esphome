@@ -218,8 +218,9 @@ void ModbusController::update() {
     for (auto &cmd : this->polling_command_items_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-      if (!cmd.send())
+      if (!cmd.send()) {
         ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
+      }
     }
   }
   this->update_counter_++;
