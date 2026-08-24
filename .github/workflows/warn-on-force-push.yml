@@ -4,11 +4,7 @@
 # with an explanation and restore instructions. Purely reactive: never
 # touches the branch itself. Works for fork PRs.
 #
-# Only fires on the FIRST detected rewrite per PR — if a warning comment
-# already exists, it's left alone (not updated, not reposted), even if a
-# later push still looks non-fast-forward relative to the tip right
-# before it (which a legitimate restore always will, since undoing a
-# rewrite is itself a rewrite).
+# Only fires on the FIRST detected rewrite per PR
 
 name: Warn on history-rewriting force-push
 
@@ -20,14 +16,14 @@ permissions:
   pull-requests: write
   contents: read
 
+concurrency:
+  group: warn-on-force-push-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   detect:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
       - name: Check for force-push and comment if this is the first one
         uses: actions/github-script@v7
         env:
@@ -41,35 +37,42 @@ jobs:
             const after = process.env.AFTER;
             const marker = "<!-- force-push-warning -->";
 
-            async function fetchSha(sha) {
-              const res = await exec.getExecOutput("git", ["fetch", "origin", sha], { ignoreReturnCode: true });
-              return res.exitCode === 0;
-            }
-            async function isAncestor(a, b) {
-              const res = await exec.getExecOutput("git", ["merge-base", "--is-ancestor", a, b], { ignoreReturnCode: true });
-              return res.exitCode === 0;
+            async function isRewrite() {
+              let comparison;
+              try {
+                ({ data: comparison } = await github.rest.repos.compareCommits({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  base: before,
+                  head: after,
+                }));
+              } catch (err) {
+                if (err.status === 404) {
+                  core.info(`Previous tip ${before} is no longer reachable — history was rewritten.`);
+                  return true;
+                }
+                throw err;
+              }
+              // Fast-forward: `after` descends from `before` (status "ahead",
+              // behind_by 0). Anything else — diverged, or `before` ahead of
+              // `after` — is a rewrite.
+              return comparison.status === "diverged" || comparison.behind_by > 0;
             }
 
-            await fetchSha(before);
-            await fetchSha(after);
-
-            const haveBefore = await exec.getExecOutput("git", ["cat-file", "-e", `${before}^{commit}`], { ignoreReturnCode: true });
-            if (haveBefore.exitCode !== 0) {
-              core.info(`Previous tip ${before} not fetchable — skipping.`);
-              return;
-            }
-
-            const lost = !(await isAncestor(before, after));
-            if (!lost) {
+            if (!(await isRewrite())) {
               core.info("Fast-forward update — nothing to do.");
               return;
             }
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                per_page: 100,
+              },
+            );
             if (comments.some(c => c.body.includes(marker))) {
               core.info("Warning already posted for this PR — suppressing.");
               return;
@@ -88,7 +91,7 @@ jobs:
 
             const body = [
               marker,
-              "### \u26a0\ufe0f This branch's history was rewritten",
+              "### ⚠️ This branch's history was rewritten",
               "",
               `A force-push to \`${branch}\` replaced earlier commits — the previous tip is no longer an ancestor of the current tip (\`${after.slice(0, 7)}\`).`,
               "",
@@ -96,17 +99,12 @@ jobs:
               "",
               "**To restore the previous state, if this wasn't intentional:**",
               "",
-              "If you still have the old commits locally (check `git reflog` on your machine first):",
+              "If the old commits still exist in a local clone, find them with `git reflog`, then push that tip back:",
               "```",
-              `git push --force origin HEAD:${branch}`,
+              `git push --force origin <old-tip-sha>:${branch}`,
               "```",
               "",
-              "Otherwise, the old tip may still be recoverable by SHA:",
-              "```",
-              `git fetch origin ${before}`,
-              `git push --force origin ${before}:${branch}`,
-              "```",
-              "(This only works if GitHub hasn't garbage-collected the old commit yet — not guaranteed indefinitely.)",
+              "If the old commits only ever existed on GitHub — for example, they were pushed from another machine whose clone is gone — they can't be fetched back: GitHub stops serving commits that aren't reachable from any branch or tag. Ask anyone with a local copy to push them back.",
             ].join("\n");
 
             await github.rest.issues.createComment({
