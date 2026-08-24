@@ -225,7 +225,6 @@ void RemoteTransmitterComponent::arm_chain_(uint32_t send_times, uint32_t send_w
     frame_us += uint32_t(item > 0 ? item : -item);
   const uint64_t total_us = frame_us * send_times + uint64_t(send_wait) * (send_times - 1);
   s_expected_end_ms = millis() + uint32_t(total_us / 1000) + STALL_MARGIN_MS;
-  this->transmit_trigger_.trigger();
   this->transmitting_ = true;
   s_active_transmitter = this;
   this->start_isr_item_(0);
@@ -265,6 +264,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   }
   this->isr_mark_duty_ = mark_duty;
   this->isr_space_duty_ = space_duty;
+  // trigger first: the deadline computed in arm_chain_ must not be charged for user code
+  this->transmit_trigger_.trigger();
   this->arm_chain_(send_times, send_wait);
   if (this->non_blocking_) {
     this->complete_pending_ = true;
