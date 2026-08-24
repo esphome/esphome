@@ -2518,6 +2518,11 @@ def calculate_message_max_size(desc: descriptor.DescriptorProto) -> int | None:
     return total_size
 
 
+# Contents must never reach the log: dump_to prints only the name
+SENSITIVE_MESSAGES = {"NoiseResumeTicket"}
+SENSITIVE_MESSAGES_SEEN: set[str] = set()
+
+
 def build_message_type(
     desc: descriptor.DescriptorProto,
     base_class_fields: dict[str, list[descriptor.FieldDescriptorProto]],
@@ -2799,9 +2804,9 @@ def build_message_type(
         public_content.append(prot)
     # If no fields to calculate size for or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
-    # Sensitive messages (keys, tickets) dump only their name
     if desc.name in SENSITIVE_MESSAGES:
         dump = []
+        SENSITIVE_MESSAGES_SEEN.add(desc.name)
 
     # dump_to method declaration in header
     prot = "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
@@ -2848,9 +2853,6 @@ def build_message_type(
 
     return out, cpp, dump_cpp
 
-
-# Messages whose contents are secret; dump_to prints only the name
-SENSITIVE_MESSAGES = {"NoiseResumeTicket"}
 
 SOURCE_BOTH = 0
 SOURCE_SERVER = 1
@@ -3708,6 +3710,11 @@ static const char *const TAG = "api.service";
         exec_clang_format(root / "api_pb2_dump.cpp")
     except ImportError:
         pass
+
+    # A renamed message must fail the build, not silently start dumping secrets
+    missing = SENSITIVE_MESSAGES - SENSITIVE_MESSAGES_SEEN
+    if missing:
+        raise RuntimeError(f"SENSITIVE_MESSAGES not found in api.proto: {missing}")
 
 
 if __name__ == "__main__":

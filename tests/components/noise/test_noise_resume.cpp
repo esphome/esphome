@@ -38,6 +38,15 @@ static void build_offer(uint8_t *offer, const uint8_t *session_id, const uint8_t
   std::memcpy(offer + RESUME_OFFER_MAC_OFFSET, mac, RESUME_MAC_SIZE);
 }
 
+/// "NoiseAPIInit" || be16(len) || offer, exactly as the api frame helper mixes it
+static constexpr size_t KAT_PROLOGUE_SIZE = 12 + 2 + RESUME_OFFER_SIZE;
+static void build_prologue(uint8_t *out, const uint8_t *offer) {
+  std::memcpy(out, "NoiseAPIInit", 12);  // NOLINT(bugprone-not-null-terminated-result)
+  out[12] = 0x00;
+  out[13] = RESUME_OFFER_SIZE;
+  std::memcpy(out + 14, offer, RESUME_OFFER_SIZE);
+}
+
 static void build_offer_for_ticket(uint8_t *offer, const ResumeTicket &ticket, const uint8_t *client_nonce) {
   uint8_t mac[RESUME_MAC_SIZE];
   ASSERT_TRUE(resume_compute_offer_mac(ticket.secret, ticket.session_id, client_nonce, mac));
@@ -68,13 +77,12 @@ TEST(NoiseResumeKat, OfferMacMatchesClientImplementation) {
 TEST(NoiseResumeKat, KeyDerivationMatchesClientImplementation) {
   // Prologue used by the shared vectors: "NoiseAPIInit" + be16(41) + a
   // 41-byte offer whose MAC field is 16 bytes of 0xEE
-  uint8_t prologue[14 + RESUME_OFFER_SIZE];
-  std::memcpy(prologue, "NoiseAPIInit", 12);
-  prologue[12] = 0x00;
-  prologue[13] = RESUME_OFFER_SIZE;
   uint8_t mac_filler[RESUME_MAC_SIZE];
   std::memset(mac_filler, 0xEE, sizeof(mac_filler));
-  build_offer(prologue + 14, KAT_SESSION_ID, KAT_CLIENT_NONCE, mac_filler);
+  uint8_t offer[RESUME_OFFER_SIZE];
+  build_offer(offer, KAT_SESSION_ID, KAT_CLIENT_NONCE, mac_filler);
+  uint8_t prologue[KAT_PROLOGUE_SIZE];
+  build_prologue(prologue, offer);
 
   uint8_t k_c2d[32], k_d2c[32];
   ASSERT_TRUE(
@@ -89,15 +97,13 @@ TEST(NoiseResumeCache, TryAcceptConsumesTicketOnceAndProvesPossession) {
 
   uint8_t offer[RESUME_OFFER_SIZE];
   build_offer(offer, KAT_SESSION_ID, KAT_CLIENT_NONCE, KAT_OFFER_MAC);
-  uint8_t prologue[14 + RESUME_OFFER_SIZE];
-  std::memcpy(prologue, "NoiseAPIInit", 12);
-  prologue[12] = 0x00;
-  prologue[13] = RESUME_OFFER_SIZE;
-  std::memcpy(prologue + 14, offer, RESUME_OFFER_SIZE);
+  uint8_t prologue[KAT_PROLOGUE_SIZE];
+  build_prologue(prologue, offer);
 
   uint8_t ext[RESUME_ACCEPT_SIZE];
   NoiseCipherState *send = nullptr, *recv = nullptr;
-  ASSERT_TRUE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
+  ASSERT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv),
+            RESUME_ACCEPT_SIZE);
   ASSERT_NE(send, nullptr);
   ASSERT_NE(recv, nullptr);
 
@@ -126,7 +132,7 @@ TEST(NoiseResumeCache, TryAcceptConsumesTicketOnceAndProvesPossession) {
 
   // Single use: the same offer must miss the second time
   NoiseCipherState *send2 = nullptr, *recv2 = nullptr;
-  EXPECT_FALSE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send2, recv2));
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send2, recv2), 0u);
   EXPECT_EQ(send2, nullptr);
   EXPECT_EQ(recv2, nullptr);
 }
@@ -145,15 +151,18 @@ TEST(NoiseResumeCache, BadMacOrMalformedOfferLeavesTicketIntact) {
   uint8_t ext[RESUME_ACCEPT_SIZE];
   NoiseCipherState *send = nullptr, *recv = nullptr;
   // A forged offer must not burn the ticket
-  EXPECT_FALSE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv), 0u);
   // Wrong size or version must be recognized as "no offer"
   build_offer(offer, KAT_SESSION_ID, KAT_CLIENT_NONCE, KAT_OFFER_MAC);
-  EXPECT_FALSE(cache.try_accept(offer, sizeof(offer) - 1, prologue, sizeof(prologue), ext, send, recv));
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer) - 1, prologue, sizeof(prologue), ext, sizeof(ext), send, recv), 0u);
   offer[0] = 0x7f;
-  EXPECT_FALSE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv), 0u);
   offer[0] = RESUME_OFFER_VERSION;
+  // No room for the extension must also decline without burning it
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext) - 1, send, recv), 0u);
   // The genuine offer still redeems
-  EXPECT_TRUE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv),
+            RESUME_ACCEPT_SIZE);
   noise_cipherstate_free(send);
   noise_cipherstate_free(recv);
 }
@@ -171,11 +180,12 @@ TEST(NoiseResumeCache, IssueRotatesSlotsAndClearForgetsAll) {
   // The oldest ticket was evicted by the one-past-capacity issue
   build_offer_for_ticket(offer, tickets[0], KAT_CLIENT_NONCE);
   NoiseCipherState *send = nullptr, *recv = nullptr;
-  EXPECT_FALSE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv), 0u);
   // The rest remain redeemable
   for (int i = 1; i <= ResumeTicketCache::SLOTS; i++) {
     build_offer_for_ticket(offer, tickets[i], KAT_CLIENT_NONCE);
-    EXPECT_TRUE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
+    EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv),
+              RESUME_ACCEPT_SIZE);
     noise_cipherstate_free(send);
     noise_cipherstate_free(recv);
     send = recv = nullptr;
@@ -186,7 +196,7 @@ TEST(NoiseResumeCache, IssueRotatesSlotsAndClearForgetsAll) {
   ASSERT_TRUE(cache.issue(ticket));
   cache.clear();
   build_offer_for_ticket(offer, ticket, KAT_CLIENT_NONCE);
-  EXPECT_FALSE(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, send, recv));
+  EXPECT_EQ(cache.try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv), 0u);
 }
 
 }  // namespace esphome::noise::testing

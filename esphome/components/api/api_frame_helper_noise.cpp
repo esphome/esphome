@@ -308,13 +308,12 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   // node mac, terminated by null byte
   std::memcpy(msg + mac_offset, mac, MAC_ADDRESS_BUFFER_SIZE);
 
-  // The accept extension is written straight after the mac
-  bool resume =
-      this->ctx_.resume_cache().try_accept(this->rx_buf_.data(), this->rx_buf_.size(), this->prologue_.data(),
-                                           this->prologue_.size(), msg + total_size, send_cipher_, recv_cipher_);
-  if (resume) {
-    total_size += noise::RESUME_ACCEPT_SIZE;
-  }
+  // The accept extension, if any, is written straight after the mac
+  size_t ext_len = this->ctx_.resume_cache().try_accept(
+      this->rx_buf_.data(), this->rx_buf_.size(), this->prologue_.data(), this->prologue_.size(), msg + total_size,
+      sizeof(msg) - total_size, send_cipher_, recv_cipher_);
+  bool resume = ext_len != 0;
+  total_size += ext_len;
 
   APIError aerr = write_frame_(msg, total_size);
   if (aerr != APIError::OK)

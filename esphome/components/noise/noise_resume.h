@@ -57,12 +57,13 @@ class ResumeTicketCache {
   /// slot. Returns false (and stores nothing) if the RNG fails.
   bool issue(ResumeTicket &out);
   /// Accept a resume offer: verify and consume the ticket (single use; a
-  /// forged MAC never burns one), build both transport ciphers, and fill
-  /// the RESUME_ACCEPT_SIZE ServerHello extension. Returns false with
-  /// nothing allocated on any miss or failure. Secrets are wiped internally.
-  bool try_accept(const uint8_t *offer, size_t offer_len, const uint8_t *prologue, size_t prologue_len,
-                  uint8_t *out_ext, NoiseCipherState *&send_cipher, NoiseCipherState *&recv_cipher);
-  /// Forget every ticket (PSK change).
+  /// forged MAC never burns one), build both transport ciphers, and write
+  /// the ServerHello accept extension into out_ext. Returns the extension
+  /// length, or 0 (nothing allocated) on any miss, failure, or when
+  /// out_capacity is too small. Secrets are wiped internally.
+  size_t try_accept(const uint8_t *offer, size_t offer_len, const uint8_t *prologue, size_t prologue_len,
+                    uint8_t *out_ext, size_t out_capacity, NoiseCipherState *&send_cipher,
+                    NoiseCipherState *&recv_cipher);  /// Forget every ticket (PSK change).
   void clear();
 
   // Realistically one or two controllers hold a ticket at a time; a third
