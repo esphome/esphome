@@ -132,6 +132,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
       this->mark_failed();
       return;
     }
+    // Only mark the driver gone once the delete actually succeeded; a failed
+    // delete leaves the old driver installed and working
+    this->driver_installed_ = false;
   }
   err = uart_driver_install(this->uart_num_,        // UART number
                             this->rx_buffer_size_,  // RX ring buffer size
@@ -146,6 +149,10 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+  this->driver_installed_ = true;
+  // Re-arm the dropped-write warning so a later not-installed episode
+  // (a failed reinstall through load_settings) is loud again
+  this->warned_not_ready_ = false;
 
   // uart_param_config must be called after uart_driver_install and before any
   // other uart_set_*() calls. The driver installation resets the UART peripheral
@@ -279,7 +286,7 @@ void IDFUARTComponent::dump_config() {
 }
 
 void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
-  if (this->is_ready()) {
+  if (this->driver_installed_) {
     esp_err_t err = uart_set_rx_full_threshold(this->uart_num_, rx_full_threshold);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_rx_full_threshold failed: %s", esp_err_to_name(err));
@@ -290,7 +297,7 @@ void IDFUARTComponent::set_rx_full_threshold(size_t rx_full_threshold) {
 }
 
 void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
-  if (this->is_ready()) {
+  if (this->driver_installed_) {
     esp_err_t err = uart_set_rx_timeout(this->uart_num_, rx_timeout);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "uart_set_rx_timeout failed: %s", esp_err_to_name(err));
@@ -301,6 +308,21 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
+  if (!this->driver_installed_) {
+    // Another component used the bus before setup() installed the driver.
+    // Calling the driver would fail and mark this component failed, which
+    // would then skip the driver installation entirely and permanently
+    // disable the bus, so drop the data instead. Warn only once: consumers
+    // writing from loop() can hit this on every iteration of the setup
+    // phase's wait loops, which would flood the log.
+    if (!this->warned_not_ready_) {
+      this->warned_not_ready_ = true;
+      ESP_LOGW(TAG, "write_array called before the driver was installed; dropping %zu bytes", len);
+    } else {
+      ESP_LOGV(TAG, "write_array called before the driver was installed; dropping %zu bytes", len);
+    }
+    return;
+  }
   int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
   if (write_len != (int32_t) len) {
     ESP_LOGW(TAG, "uart_write_bytes failed: %" PRId32 " != %zu", write_len, len);
@@ -314,6 +336,9 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
 }
 
 bool IDFUARTComponent::peek_byte(uint8_t *data) {
+  if (!this->driver_installed_) {
+    return false;
+  }
   if (!this->check_read_timeout_())
     return false;
   if (this->has_peek_) {
@@ -331,7 +356,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 }
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
-  if (len == 0) {
+  if (len == 0 || !this->driver_installed_) {
     return false;
   }
   size_t length_to_read = len;
@@ -357,6 +382,15 @@ size_t IDFUARTComponent::available() {
   size_t available = 0;
   esp_err_t err;
 
+  if (!this->driver_installed_) {
+    // The driver is not installed yet; asking the driver would fail and mark
+    // the whole bus failed, so report no data instead. A stale peeked byte
+    // must not be counted either: the read paths refuse to deliver it while
+    // the driver is missing, so advertising it would make the common
+    // `while (available()) read()` pattern spin forever.
+    return 0;
+  }
+
   err = uart_get_buffered_data_len(this->uart_num_, &available);
 
   if (err != ESP_OK) {
@@ -370,6 +404,10 @@ size_t IDFUARTComponent::available() {
 }
 
 UARTFlushResult IDFUARTComponent::flush() {
+  if (!this->driver_installed_) {
+    // Nothing can be pending before the driver is installed
+    return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
+  }
   ESP_LOGVV(TAG, "    Flushing");
   TickType_t ticks = this->flush_timeout_ms_ == 0 ? portMAX_DELAY : pdMS_TO_TICKS(this->flush_timeout_ms_);
   esp_err_t err = uart_wait_tx_done(this->uart_num_, ticks);
