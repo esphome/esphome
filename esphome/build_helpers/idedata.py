@@ -201,9 +201,17 @@ def parse_entry(
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
         elif tok == "-include":
-            # Resolve like -I so cached idedata works from any cwd (the pch
-            # include is emitted relative to the build dir)
-            cxx_flags.extend(("-include", _include(next(it, ""))))
+            # -include searches the compile cwd first, then the -I chain, so
+            # only re-anchor paths that really live next to the compile (the
+            # pch); a name meant for the -I chain must stay untouched
+            raw = next(it, "")
+            if not raw:
+                _LOGGER.warning("Dropping -include with no argument")
+            else:
+                resolved = _include(raw)
+                cxx_flags.extend(
+                    ("-include", resolved if Path(resolved).is_file() else raw)
+                )
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.

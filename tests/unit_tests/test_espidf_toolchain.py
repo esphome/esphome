@@ -675,6 +675,12 @@ def test_run_compile_invokes_prepare_pch_and_survives_failure(
     """The pch hook runs before the build and a failure never aborts it."""
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
     _setup_build(setup_core)
+    # A stale .gch must be discarded on the failure path, never consumed
+    build = setup_core / "build" / "test" / "build"
+    build.mkdir(parents=True, exist_ok=True)
+    (build / "esphome_pch.h").write_text("")
+    stale_gch = build / "esphome_pch.h.gch"
+    stale_gch.write_bytes(b"stale")
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
@@ -686,3 +692,4 @@ def test_run_compile_invokes_prepare_pch_and_survives_failure(
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     prepare.assert_called_once()
+    assert not stale_gch.exists()
