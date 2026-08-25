@@ -2,6 +2,8 @@
 
 #include <cstring>
 #include <deque>
+#include <string>
+#include <vector>
 
 #include "esphome/components/emontx/emontx.h"
 #include "esphome/components/uart/uart_component.h"
@@ -87,6 +89,32 @@ TEST(EmonTxPause, LoopResumesConsumingBytesAfterUnpause) {
   emontx.loop();
 
   EXPECT_EQ(uart.available(), 0u);
+}
+
+TEST(EmonTxPause, PauseDropsPartialLineSoResumeDoesNotSpliceIt) {
+  FakeUART uart;
+  EmonTx emontx;
+  emontx.set_uart_parent(&uart);
+  emontx.setup();
+
+  std::vector<std::string> lines;
+  emontx.add_on_data_callback([&lines](StringRef line) { lines.push_back(line.str()); });
+
+  // Feed a partial line, then pause/resume mid-line: without dropping the
+  // pending partial on pause, the bytes fed after resume would splice onto
+  // it and form "{\"P1\":456}" — a line that never actually arrived intact.
+  uart.feed("{\"P1\":4");
+  emontx.loop();
+  ASSERT_EQ(lines.size(), 0u);
+
+  emontx.set_paused(true);
+  emontx.set_paused(false);
+
+  uart.feed("56}\n");
+  emontx.loop();
+
+  ASSERT_EQ(lines.size(), 1u);
+  EXPECT_EQ(lines[0], "56}");
 }
 
 }  // namespace esphome::emontx::testing

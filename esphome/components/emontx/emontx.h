@@ -46,9 +46,18 @@ class EmonTx final : public Component, public uart::UARTDevice {
    *
    * When paused, loop() returns immediately without consuming any bytes from
    * the UART buffer. This lets another component (e.g. a firmware updater)
-   * take exclusive ownership of a shared UART bus while it is active.
+   * take exclusive ownership of a shared UART bus while it is active. Must be
+   * called from the main loop task, like any other component-to-component call.
+   *
+   * Pausing drops any partially-received line, since the bytes that would
+   * complete it may be consumed by whichever component takes over the bus.
    */
-  void set_paused(bool paused) { this->paused_ = paused; }
+  void set_paused(bool paused) {
+    if (paused == this->paused_)
+      return;
+    this->buffer_pos_ = 0;
+    this->paused_ = paused;
+  }
 
 #ifdef USE_SENSOR
   void init_sensors(size_t count) { this->sensors_.init(count); }
@@ -58,16 +67,13 @@ class EmonTx final : public Component, public uart::UARTDevice {
  protected:
   void parse_json_(const char *data, size_t len);
 
-  // Set from other components/tasks (e.g. an updater taking over the UART),
-  // so it must stay visible across cores/contexts without a full mutex.
-  volatile bool paused_{false};
-
 #ifdef USE_SENSOR
   FixedVector<std::pair<const char *, sensor::Sensor *>> sensors_{};
 #endif
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
   uint16_t buffer_pos_{0};
+  bool paused_{false};
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
 };
 
