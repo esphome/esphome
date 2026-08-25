@@ -104,11 +104,13 @@ def mock_nrf52_ops():
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
+        # download_and_extract resolves its internals in framework_helpers,
+        # so the download/extract seams are patched there.
         patch(
-            "esphome.components.nrf52.framework.download_from_mirrors",
+            "esphome.framework_helpers.download_from_mirrors",
             return_value="https://example.com/tc.tar.xz",
         ) as mock_download,
-        patch("esphome.components.nrf52.framework.archive_extract_all") as mock_extract,
+        patch("esphome.framework_helpers.archive_extract_all") as mock_extract,
     ):
         yield SimpleNamespace(
             rmdir=mock_rmdir,
