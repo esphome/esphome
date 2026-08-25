@@ -35,7 +35,7 @@ from esphome.core import (
 )
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import IS_MACOS, copy_file_if_changed
-from esphome.platformio.toolchain import copy_ccache_script
+from esphome.platformio.toolchain import copy_ccache_script, copy_pch_script
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -579,7 +579,6 @@ def copy_files() -> None:
     dir = Path(__file__).parent
     for script in (
         "post_build",
-        "pch",
         "testing_mode",
         "exclude_updater",
         "exclude_waveform",
@@ -591,6 +590,7 @@ def copy_files() -> None:
             CORE.relative_build_path(f"{script}.py"),
         )
     copy_ccache_script()
+    copy_pch_script()
 
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder

@@ -10,12 +10,13 @@ import subprocess
 Import("env", "projenv")  # noqa: F821
 
 # Precompile the src force-includes plus defines.h (which pulls in
-# Arduino.h) and force-include the result into C++ src compiles only; those
-# TUs already include this content first, so their preprocessed output is
-# unchanged. Post script: the final src flags exist, nothing compiled yet.
-# Registration is gated host-side (esp8266/__init__.py, pch_enabled()).
-# Keep the header tail, ccache values, include-closure recipe, and the
-# checksum/failed-marker stamp flow in sync with build_helpers/pch.py.
+# Arduino.h on Arduino platforms) and force-include the result into C++ src
+# compiles only; those TUs already include this content first, so their
+# preprocessed output is unchanged. Post script: the final src flags exist,
+# nothing compiled yet. Registration is gated host-side (the platform's
+# __init__.py, pch_enabled()). Keep the header tail, ccache values,
+# include-closure recipe, and the checksum/failed-marker stamp flow in sync
+# with build_helpers/pch.py.
 
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
 _CORE_HEADER = "esphome/core/defines.h"
@@ -46,7 +47,16 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
     return seen
 
 
-def _esp8266_setup_pch() -> None:
+def _shell_arg(element) -> str:
+    """One compiler argv from one SCons element, matching the real spawn:
+    SCons whole-quotes spaced elements, the shell unquotes the rest."""
+    arg = str(element)
+    if " " in arg:
+        return arg.replace('\\"', '"')
+    return shlex.split(arg)[0] if arg else arg
+
+
+def _setup_pch() -> None:
     # Project root, not $BUILD_DIR: SCons compiles run with the project dir
     # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
     # An absolute path would put the per-device build path on every compile
@@ -62,7 +72,10 @@ def _esp8266_setup_pch() -> None:
     # not see them; consumers keep theirs, which the .gch then satisfies.
     flags = []
     include_headers = []
-    flag_it = iter(shlex.split(projenv.subst("$CXXFLAGS $CCFLAGS $_CCCOMCOM")))  # noqa: F821
+    flag_it = iter(
+        _shell_arg(element)
+        for element in projenv.subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]  # noqa: F821
+    )
     for tok in flag_it:
         if tok == "-include":
             include_headers.append(next(flag_it, ""))
@@ -82,10 +95,14 @@ def _esp8266_setup_pch() -> None:
         flags_id = flags_id.replace(basedir, "")
     digest.update(flags_id.encode())
     # GCC never validates a .gch against its source headers, and PlatformIO
-    # package paths carry no version, so a platform bump must invalidate here
+    # package paths carry no version, so a package bump must invalidate here
     platform = env.PioPlatform()  # noqa: F821
-    for package in ("framework-arduinoespressif8266", "toolchain-xtensa"):
-        digest.update(str(platform.get_package_version(package)).encode())
+    for package in sorted(platform.packages):
+        try:
+            version = platform.get_package_version(package)
+        except Exception:  # noqa: BLE001 -- absent optional package
+            version = None
+        digest.update(f"{package}={version}".encode())
         digest.update(b"\0")
     closure = _include_closure(src_dir, [*include_headers, _CORE_HEADER])
     for rel in sorted(closure):
@@ -142,4 +159,4 @@ def _esp8266_setup_pch() -> None:
     print("ESPHome: Compiling with precompiled header")
 
 
-_esp8266_setup_pch()
+_setup_pch()

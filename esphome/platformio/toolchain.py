@@ -289,6 +289,15 @@ def copy_ccache_script() -> None:
     )
 
 
+def copy_pch_script() -> None:
+    """Copy the shared precompiled-header SCons post-script into the build
+    dir; platform components pair it with ``post:pch.py`` in extra_scripts."""
+    copy_file_if_changed(
+        Path(__file__).parent / "pch.py.script",
+        CORE.relative_build_path("pch.py"),
+    )
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     # Re-provision the PlatformIO cache if the interpreter's major.minor changed
     # since it was last built; a stale platform otherwise rejects the new Python
