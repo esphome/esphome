@@ -6,10 +6,18 @@
 // explicit login check too.
 const BOT_LOGINS = new Set(['esphbot', 'bluetoothbot', 'esphomebot']);
 
-const HUMAN_REVIEW_STATES = ['COMMENTED', 'CHANGES_REQUESTED', 'APPROVED'];
+const HUMAN_REVIEW_STATES = ['COMMENTED', 'CHANGES_REQUESTED', 'APPROVED', 'DISMISSED'];
 
 function isBot(user) {
   return user?.type === 'Bot' || BOT_LOGINS.has(user?.login?.toLowerCase());
+}
+
+// GitHub's "suggest a change" comments embed a ```suggestion fenced block.
+// Restricting inline-comment counting to these (rather than any inline
+// comment) means a plain self-note left by the PR author on their own diff
+// doesn't count as review activity.
+function isCodeSuggestion(body) {
+  return typeof body === 'string' && /```suggestion\b/.test(body);
 }
 
 // compareCommits 404s if either `before` or `after` can't be resolved. Only
@@ -44,11 +52,11 @@ async function isRewrite(github, owner, repo, before, after, core) {
   return comparison.status === 'diverged' || comparison.behind_by > 0;
 }
 
-// "Review has started" means either a human left an inline (file-anchored)
-// comment, or submitted a top-level review with a countable state.
+// "Review has started" means either a human left an inline code-change
+// suggestion, or submitted a top-level review with a countable state.
 function hasHumanReview(reviewComments, reviews) {
   return (
-    reviewComments.some(c => !isBot(c.user)) ||
+    reviewComments.some(c => !isBot(c.user) && isCodeSuggestion(c.body)) ||
     reviews.some(r => !isBot(r.user) && HUMAN_REVIEW_STATES.includes(r.state))
   );
 }
@@ -62,7 +70,8 @@ function sanitizeForProse(branch) {
 // `branch` (unsanitized) is used only inside the fenced restore command:
 // GitHub renders neither @-mentions nor inline markdown inside a fenced code
 // block, and the command must stay copy-pasteable as-is.
-function buildWarningBody({ marker, branch, safeBranch, before, after, owner, repo }) {
+function buildWarningBody({ marker, branch, before, after, owner, repo }) {
+  const safeBranch = sanitizeForProse(branch);
   return [
     marker,
     "### ⚠️ This branch's history was rewritten",
@@ -84,7 +93,6 @@ function buildWarningBody({ marker, branch, safeBranch, before, after, owner, re
 }
 
 module.exports = {
-  BOT_LOGINS,
   isBot,
   isRewrite,
   hasHumanReview,

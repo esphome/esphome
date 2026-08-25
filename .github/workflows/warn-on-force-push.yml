@@ -12,8 +12,10 @@ on:
   pull_request_target:
     types: [synchronize]
 
+# All comment/review reads and the warning-comment write are performed with
+# the App token minted below, so the workflow's GITHUB_TOKEN only needs read
+# access for checkout.
 permissions:
-  pull-requests: write
   contents: read
 
 concurrency:
@@ -27,12 +29,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          # Scope the minted App token to the minimum needed by warn-on-force-push/*.js.
+          permission-contents: read       # repos.compareCommits / repos.getCommit
+          permission-pull-requests: read  # pulls.listReviewComments / pulls.listReviews
+          permission-issues: write        # issues.listComments / issues.createComment (PR comments use the issues API)
+
       - name: Check for force-push and comment if this is the first one
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.event.after }}
         with:
+          github-token: ${{ steps.generate-token.outputs.token }}
           script: |
             const script = require('./.github/scripts/warn-on-force-push/index.js');
             await script({ github, context, core });

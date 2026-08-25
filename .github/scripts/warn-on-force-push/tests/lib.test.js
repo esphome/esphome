@@ -119,13 +119,30 @@ describe('hasHumanReview', () => {
     assert.equal(hasHumanReview(comments, []), false);
   });
 
-  it('is true when a human left an inline review comment', () => {
-    const comments = [{ user: { type: 'User', login: 'bdraco' } }];
+  it('is false when a human leaves a plain inline comment with no suggestion', () => {
+    const comments = [{ user: { type: 'User', login: 'bdraco' }, body: 'why is this needed?' }];
+    assert.equal(hasHumanReview(comments, []), false);
+  });
+
+  it('is true when a human left an inline code-change suggestion', () => {
+    const comments = [
+      { user: { type: 'User', login: 'bdraco' }, body: 'use this instead:\n```suggestion\nconst x = 1;\n```' },
+    ];
     assert.equal(hasHumanReview(comments, []), true);
+  });
+
+  it('is false when the PR author leaves a plain self-note on their own diff', () => {
+    const comments = [{ user: { type: 'User', login: 'clydebarrow' }, body: 'this is the part to look at' }];
+    assert.equal(hasHumanReview(comments, []), false);
   });
 
   it('is true for a human top-level review with no inline comments', () => {
     const reviews = [{ user: { type: 'User', login: 'bdraco' }, state: 'APPROVED' }];
+    assert.equal(hasHumanReview([], reviews), true);
+  });
+
+  it('is true for a DISMISSED review', () => {
+    const reviews = [{ user: { type: 'User', login: 'bdraco' }, state: 'DISMISSED' }];
     assert.equal(hasHumanReview([], reviews), true);
   });
 
@@ -158,7 +175,6 @@ describe('buildWarningBody', () => {
   const args = {
     marker: '<!-- force-push-warning -->',
     branch: 'release@2.0',
-    safeBranch: sanitizeForProse('release@2.0'),
     before: 'deadbee',
     after: 'cafebabe1234567',
     owner: 'esphome',

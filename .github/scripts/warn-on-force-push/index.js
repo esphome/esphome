@@ -1,4 +1,4 @@
-const { isRewrite, hasHumanReview, sanitizeForProse, buildWarningBody } = require('./lib');
+const { isRewrite, hasHumanReview, buildWarningBody } = require('./lib');
 
 const MARKER = '<!-- force-push-warning -->';
 
@@ -14,13 +14,19 @@ module.exports = async ({ github, context, core }) => {
     return;
   }
 
-  const comments = await github.paginate(github.rest.issues.listComments, {
+  let alreadyPosted = false;
+  for await (const { data: page } of github.paginate.iterator(github.rest.issues.listComments, {
     owner,
     repo,
     issue_number: prNumber,
     per_page: 100,
-  });
-  if (comments.some(c => c.body.includes(MARKER))) {
+  })) {
+    if (page.some(c => c.body?.includes(MARKER))) {
+      alreadyPosted = true;
+      break;
+    }
+  }
+  if (alreadyPosted) {
     core.info('Warning already posted for this PR — suppressing.');
     return;
   }
@@ -42,8 +48,7 @@ module.exports = async ({ github, context, core }) => {
     return;
   }
 
-  const safeBranch = sanitizeForProse(branch);
-  const body = buildWarningBody({ marker: MARKER, branch, safeBranch, before, after, owner, repo });
+  const body = buildWarningBody({ marker: MARKER, branch, before, after, owner, repo });
 
   await github.rest.issues.createComment({
     owner,
