@@ -97,4 +97,8 @@ def effective_ccache_basedir() -> str:
     wins, else the resolved build path (matching ccache_defaults_env)."""
     from esphome.core import CORE
 
-    return os.environ.get("CCACHE_BASEDIR") or str(Path(CORE.build_path).resolve())
+    raw = os.environ.get("CCACHE_BASEDIR")
+    if raw is not None:
+        # An explicitly empty value disables ccache's rewriting; mirror it
+        return raw
+    return str(Path(CORE.build_path).resolve())

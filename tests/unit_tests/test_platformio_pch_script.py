@@ -56,7 +56,9 @@ class _FakeSConsEnv(dict):
 def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     """A compiler stand-in that records its argv and writes the -o target."""
     cxx = tmp_path / "fake-gxx"
-    body = 'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
+    body = (
+        'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
+    )
     if fail:
         body += "echo boom >&2\nexit 1\n"
     else:
@@ -95,7 +97,7 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
     assert (proj / "esphome_pch.h.gch").is_file()
     assert len((proj / "esphome_pch.h.gch.sum").read_text().strip()) == 64
     # Relative include: an absolute path would poison ccache keys
-    assert scons_env.prepended == ["-include", "esphome_pch.h"]
+    assert scons_env.prepended == ["-Winvalid-pch", "-include", "esphome_pch.h"]
     # ccache settings land on the SCons ENV only, never os.environ
     assert scons_env["ENV"]["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
     assert scons_env["ENV"]["CCACHE_PCH_EXTSUM"] == "true"
