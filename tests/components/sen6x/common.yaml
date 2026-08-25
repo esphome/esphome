@@ -35,3 +35,17 @@ sensor:
     formaldehyde:
       name: Formaldehyde
     address: 0x6B
+
+button:
+  - platform: template
+    name: Fan Cleaning
+    on_press:
+      - sen6x.stop_measurement: sen6x_sensor
+      - delay: 2s
+      - sen6x.start_fan_cleaning: sen6x_sensor
+      - delay: 11s
+      - sen6x.start_measurement: sen6x_sensor
+  - platform: template
+    name: SHT Heater
+    on_press:
+      - sen6x.activate_sht_heater: sen6x_sensor
