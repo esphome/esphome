@@ -37,7 +37,7 @@ esphome = cg.esphome_ns.namespace("esphome")
 ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
 
 
-def ota_esphome_final_validate(config):
+def ota_esphome_final_validate(config: ConfigType) -> None:
     full_conf = fv.full_config.get()
     full_ota_conf = full_conf[CONF_OTA]
     new_ota_conf = []

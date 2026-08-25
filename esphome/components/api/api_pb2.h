@@ -334,6 +334,11 @@ enum ZWaveProxyRequestType : uint32_t {
   ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
   ZWAVE_PROXY_REQUEST_TYPE_HOME_ID_CHANGE = 2,
 };
+enum ZWaveProxyStatus : uint32_t {
+  ZWAVE_PROXY_STATUS_OK = 0,
+  ZWAVE_PROXY_STATUS_IN_USE = 1,
+  ZWAVE_PROXY_STATUS_NOT_SUPPORTED = 2,
+};
 #endif
 #ifdef USE_SERIAL_PROXY
 enum SerialProxyParity : uint32_t {
@@ -345,6 +350,8 @@ enum SerialProxyRequestType : uint32_t {
   SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE = 0,
   SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1,
   SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2,
+  SERIAL_PROXY_REQUEST_TYPE_CONFIGURE = 3,
+  SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS = 4,
 };
 enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_OK = 0,
@@ -352,6 +359,8 @@ enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_ERROR = 2,
   SERIAL_PROXY_STATUS_TIMEOUT = 3,
   SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4,
+  SERIAL_PROXY_STATUS_PORT_IN_USE = 5,
+  SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6,
 };
 #endif
 
@@ -523,6 +532,7 @@ class SerialProxyInfo final : public ProtoMessage {
  public:
   StringRef name{};
   enums::SerialProxyPortType port_type{};
+  uint32_t configured_line_states{0};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1283,13 +1293,13 @@ class ParsedTimezone final : public ProtoDecodableMessage {
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 37;
-  static constexpr uint8_t ESTIMATED_SIZE = 31;
+  static constexpr uint8_t ESTIMATED_SIZE = 22;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("get_time_response"); }
 #endif
   uint32_t epoch_seconds{0};
-  StringRef timezone{};
   ParsedTimezone parsed_timezone{};
+  bool has_parsed_timezone{false};
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
@@ -3130,6 +3140,23 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
+class ZWaveProxyRequestResponse final : public ProtoMessage {
+ public:
+  static constexpr uint8_t MESSAGE_TYPE = 151;
+  static constexpr uint8_t ESTIMATED_SIZE = 4;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("z_wave_proxy_request_response"); }
+#endif
+  enums::ZWaveProxyRequestType type{};
+  enums::ZWaveProxyStatus status{};
+  uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
+  uint32_t calculate_size() const;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+};
 #endif
 #ifdef USE_INFRARED
 class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
@@ -3314,12 +3341,13 @@ class SerialProxyGetModemPinsRequest final : public ProtoDecodableMessage {
 class SerialProxyGetModemPinsResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 143;
-  static constexpr uint8_t ESTIMATED_SIZE = 8;
+  static constexpr uint8_t ESTIMATED_SIZE = 10;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_get_modem_pins_response"); }
 #endif
   uint32_t instance{0};
   uint32_t line_states{0};
+  enums::SerialProxyStatus status{};
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
