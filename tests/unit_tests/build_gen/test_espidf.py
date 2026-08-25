@@ -681,3 +681,35 @@ def test_prepare_pch_disabled_is_noop(
     CORE.build_path = dev
     with patch("esphome.build_gen.espidf.subprocess.run", side_effect=AssertionError):
         prepare_pch()
+
+
+def test_prepare_pch_without_compile_commands(tmp_path: Path) -> None:
+    """Stale checksum but no configured TU yet: no compile, no sidecars."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_n")
+    (dev / "build" / "compile_commands.json").unlink()
+    CORE.build_path = dev
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_write_project_pch_disabled_writes_no_header(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import write_project
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    _write_project_description(tmp_path, {})
+    CORE.build_path = tmp_path
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        write_project()
+    assert not (tmp_path / "build" / "esphome_pch.h").exists()
