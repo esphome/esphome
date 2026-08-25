@@ -48,20 +48,18 @@ CONF_SWAP_METHOD = "swap_method"
 SWAP_METHOD_SCHEMA = {
     cv.SplitDefault(
         CONF_SWAP_METHOD,
-        zephyr="scratch",
-        zephyr_nrf52="offset",
-        zephyr_nrf54l15="move",  # pending offset testing, then move default to "offset"
-        zephyr_nrf54lm20a="move",  # pending offset testing, then move default to "offset"
-        # No scratch partition in this board's flash layout (boot/image-0/
-        # image-1/storage only) -- the generic zephyr="scratch" default above
-        # isn't valid here, matching nrf52/nrf54l15/nrf54lm20a's own reasoning.
-        zephyr_efr32mg24="move",
-        zephyr_rp2040="offset",
-        zephyr_rp2350="offset",
-        zephyr_stm32l4="move",  # pending offset testing on real hardware
-        # No override: nucleo_f401re's stock scratch_partition makes the generic
-        # zephyr="scratch" default above valid here, unlike stm32l4.
-        zephyr_ra4m1="offset",
+        zephyr="offset",
+        # esp32-family zephyr variants only support scratch/move, not offset --
+        # explicit here to keep today's behavior (they had no override before,
+        # so they picked up the old generic zephyr="scratch" default).
+        zephyr_esp32="scratch",
+        zephyr_esp32h2="scratch",
+        zephyr_esp32c6="scratch",
+        zephyr_esp32c5="scratch",
+        zephyr_esp32c3="scratch",
+        zephyr_nrf52="move",
+        zephyr_nrf54l15="move",
+        zephyr_nrf54lm20a="move",
     ): cv.one_of("scratch", "move", "offset", lower=True),
 }
 
