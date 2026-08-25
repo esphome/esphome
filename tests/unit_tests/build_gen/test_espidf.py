@@ -492,6 +492,12 @@ def test_get_component_cmakelists_no_compile_features() -> None:
     assert "target_compile_features" not in content
 
 
+@pytest.fixture(autouse=True)
+def _pch_default_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the knob so a developer's ESPHOME_PCH_ENABLE=0 cannot fail these."""
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+
+
 def _make_pch_device(tmp_path: Path, name: str) -> Path:
     """A device dir with the pch source headers and a stub compile_commands."""
     from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
@@ -634,7 +640,8 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
         )
     )
     # Launcher stripped; -include/-o/-c and depfile flags removed
-    assert pch_compile_command(build, header, gch) == [
+    cmd, cmd_dir = pch_compile_command(build, header, gch)
+    assert cmd == [
         "g++",
         "-DX=1",
         "-x",
@@ -644,6 +651,8 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
         "-o",
         str(gch),
     ]
+    # The compile must run where the flags were resolved
+    assert cmd_dir == build
 
 
 def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
@@ -947,6 +956,6 @@ def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
             ]
         )
     )
-    cmd = pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
+    cmd, _ = pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
     assert "user.h" in cmd
     assert "esphome_pch.h" not in " ".join(cmd[:-3])
