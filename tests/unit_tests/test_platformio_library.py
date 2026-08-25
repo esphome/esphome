@@ -929,11 +929,11 @@ def test_split_flag_entry_non_string_is_clean() -> None:
 
 
 def test_source_kind_map_shape() -> None:
-    """The kind values the native compile rules key on, and the deliberate
-    AS/ASPP merge (.s and .S both map to asm)."""
+    """The kind values the native compile rules key on; the AS/ASPP split
+    matches SCons (.S preprocessed, .s plain assembler)."""
 
-    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm"}
+    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm", "aspp"}
     assert SOURCE_KIND_FOR_SUFFIX[".s"] == "asm"
-    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
+    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "aspp"
     assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
     assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
