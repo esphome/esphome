@@ -499,6 +499,19 @@ def test_run_compile_discovery_failure_stops_before_full_write(
     assert calls == [("write_project", True, None), ("run_reconfigure",)]
 
 
+@pytest.mark.parametrize("discovered", [None, []], ids=["no_manifest", "empty"])
+def test_run_compile_fails_when_discovery_finds_nothing(
+    setup_core: Path,
+    caplog: pytest.LogCaptureFixture,
+    discovered: list[str] | None,
+) -> None:
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(None, saved=discovered)
+    assert rc == 1
+    assert calls == [("write_project", True, None), ("run_reconfigure",)]
+    assert "found no built-in ESP-IDF components" in caplog.text
+
+
 def test_run_compile_does_not_cache_a_list_that_failed_to_configure(
     setup_core: Path,
 ) -> None:
@@ -507,16 +520,6 @@ def test_run_compile_does_not_cache_a_list_that_failed_to_configure(
     assert rc == 3
     assert ("save", ["lwip"]) not in calls
     assert ("build",) not in calls
-
-
-def test_run_compile_fails_when_discovery_leaves_no_manifest(
-    setup_core: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    _setup_build(setup_core)
-    rc, calls = _record_compile_calls(None, saved=None)
-    assert rc == 1
-    assert calls == [("write_project", True, None), ("run_reconfigure",)]
-    assert "produced no project_description.json" in caplog.text
 
 
 def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:
@@ -577,8 +580,11 @@ def test_component_cache_misses_on_key_change_or_missing_component(
             assert toolchain.load_cached_builtin_components() is None
     with _cache_env(tmp_path, "fatfs;unity"):
         assert toolchain.load_cached_builtin_components() is None
-    with _cache_env(tmp_path, "fatfs"):
+    with _cache_env(tmp_path, "fatfs") as idf_path:
         path.write_text(json.dumps(["lwip", "gone"]))
+        assert toolchain.load_cached_builtin_components() is None
+        # A plain file with the right name is not a component directory.
+        (idf_path / "components" / "gone").write_text("not a directory")
         assert toolchain.load_cached_builtin_components() is None
 
 

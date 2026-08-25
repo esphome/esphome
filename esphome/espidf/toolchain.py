@@ -287,7 +287,11 @@ def load_cached_builtin_components() -> list[str] | None:
         return None
     try:
         components = json.loads(path.read_text(encoding="utf-8"))
-        present = {entry.name for entry in (path.parents[1] / "components").iterdir()}
+        present = {
+            entry.name
+            for entry in (path.parents[1] / "components").iterdir()
+            if entry.is_dir()
+        }
     except (OSError, ValueError):
         return None
     if (
@@ -343,8 +347,8 @@ def _configure_project() -> int:
         _LOGGER.error("Component discovery failed")
         return rc
     discovered = get_available_components()
-    if discovered is None:
-        _LOGGER.error("Component discovery produced no project_description.json")
+    if not discovered:
+        _LOGGER.error("Component discovery found no built-in ESP-IDF components")
         return 1
     if (rc := _write_project_and_reconfigure(discovered)) != 0:
         _LOGGER.error("Reconfigure with discovered components failed")
