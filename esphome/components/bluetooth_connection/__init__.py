@@ -194,6 +194,7 @@ SOURCE_FILE_FRAMEWORKS: dict[str, set[PlatformFramework]] = {
         PlatformFramework.RP2_ARDUINO,
         PlatformFramework.LN882X_ARDUINO,
         PlatformFramework.BK72XX_ARDUINO,
+        PlatformFramework.RTL87XX_ARDUINO,
         PlatformFramework.ESP32_ARDUINO,
         PlatformFramework.ESP32_IDF,
     },
