@@ -165,7 +165,7 @@ static void expect_pixels_rgba(TestableRuntimeImage &img, const uint8_t (&expect
     for (size_t x = 0; x < W; x++) {
       SCOPED_TRACE(::testing::Message() << "pixel (" << x << "," << y << ")");
       Color color = img.get_pixel(x, y);
-      EXPECT_THAT((std::array<uint8_t, 4>{color.r, color.g, color.b, color.a}),
+      EXPECT_THAT((std::array<uint8_t, 4>{color.r, color.g, color.b, color.w}),
                   ::testing::ElementsAreArray(expected[y][x]));
     }
   }
