@@ -110,50 +110,66 @@ describe('isRewrite', () => {
 });
 
 describe('hasHumanReview', () => {
+  const AUTHOR = 'clydebarrow';
+
   it('is false with no comments or reviews', () => {
-    assert.equal(hasHumanReview([], []), false);
+    assert.equal(hasHumanReview([], [], AUTHOR), false);
   });
 
   it('is false when only bots left inline review comments', () => {
     const comments = [{ user: { type: 'Bot', login: 'copilot-pull-request-reviewer[bot]' } }];
-    assert.equal(hasHumanReview(comments, []), false);
+    assert.equal(hasHumanReview(comments, [], AUTHOR), false);
   });
 
   it('is false when a human leaves a plain inline comment with no suggestion', () => {
     const comments = [{ user: { type: 'User', login: 'bdraco' }, body: 'why is this needed?' }];
-    assert.equal(hasHumanReview(comments, []), false);
+    assert.equal(hasHumanReview(comments, [], AUTHOR), false);
   });
 
-  it('is true when a human left an inline code-change suggestion', () => {
+  it('is true when a human (not the author) left an inline code-change suggestion', () => {
     const comments = [
       { user: { type: 'User', login: 'bdraco' }, body: 'use this instead:\n```suggestion\nconst x = 1;\n```' },
     ];
-    assert.equal(hasHumanReview(comments, []), true);
+    assert.equal(hasHumanReview(comments, [], AUTHOR), true);
   });
 
-  it('is false when the PR author leaves a plain self-note on their own diff', () => {
-    const comments = [{ user: { type: 'User', login: 'clydebarrow' }, body: 'this is the part to look at' }];
-    assert.equal(hasHumanReview(comments, []), false);
+  it('is false when the PR author leaves an inline code-change suggestion on their own diff', () => {
+    const comments = [
+      { user: { type: 'User', login: AUTHOR }, body: 'or maybe:\n```suggestion\nconst x = 2;\n```' },
+    ];
+    assert.equal(hasHumanReview(comments, [], AUTHOR), false);
+  });
+
+  it('matches the PR author login case-insensitively', () => {
+    const comments = [
+      { user: { type: 'User', login: 'ClydeBarrow' }, body: '```suggestion\nconst x = 3;\n```' },
+    ];
+    assert.equal(hasHumanReview(comments, [], AUTHOR), false);
   });
 
   it('is true for a human top-level review with no inline comments', () => {
     const reviews = [{ user: { type: 'User', login: 'bdraco' }, state: 'APPROVED' }];
-    assert.equal(hasHumanReview([], reviews), true);
+    assert.equal(hasHumanReview([], reviews, AUTHOR), true);
   });
 
   it('is true for a DISMISSED review', () => {
     const reviews = [{ user: { type: 'User', login: 'bdraco' }, state: 'DISMISSED' }];
-    assert.equal(hasHumanReview([], reviews), true);
+    assert.equal(hasHumanReview([], reviews, AUTHOR), true);
+  });
+
+  it('is false when the PR author submits a COMMENTED self-review (GitHub allows this)', () => {
+    const reviews = [{ user: { type: 'User', login: AUTHOR }, state: 'COMMENTED' }];
+    assert.equal(hasHumanReview([], reviews, AUTHOR), false);
   });
 
   it('ignores a PENDING (not yet submitted) review', () => {
     const reviews = [{ user: { type: 'User', login: 'bdraco' }, state: 'PENDING' }];
-    assert.equal(hasHumanReview([], reviews), false);
+    assert.equal(hasHumanReview([], reviews, AUTHOR), false);
   });
 
   it('ignores a review from a PAT-backed bot even with a countable state', () => {
     const reviews = [{ user: { type: 'User', login: 'esphbot' }, state: 'APPROVED' }];
-    assert.equal(hasHumanReview([], reviews), false);
+    assert.equal(hasHumanReview([], reviews, AUTHOR), false);
   });
 });
 
@@ -162,8 +178,8 @@ describe('sanitizeForProse', () => {
     assert.equal(sanitizeForProse('feat/`inject`'), 'feat/inject');
   });
 
-  it('neutralizes @ with a zero-width space so it cannot mention a user', () => {
-    assert.equal(sanitizeForProse('fix-@someone'), 'fix-@​someone');
+  it('leaves @ untouched -- GitHub does not parse mentions inside a code span', () => {
+    assert.equal(sanitizeForProse('fix-@someone'), 'fix-@someone');
   });
 
   it('leaves an ordinary branch name untouched', () => {
@@ -185,9 +201,14 @@ describe('buildWarningBody', () => {
     assert.match(buildWarningBody(args), /<!-- force-push-warning -->/);
   });
 
-  it('uses the sanitized branch name in prose', () => {
+  it('uses the sanitized (backtick-stripped) branch name in prose', () => {
     const body = buildWarningBody(args);
-    assert.match(body, /A force-push to `release@​2\.0`/);
+    assert.match(body, /A force-push to `release@2\.0`/);
+  });
+
+  it('never leaves an invisible character next to @ in the branch name', () => {
+    const body = buildWarningBody(args);
+    assert.doesNotMatch(body, /@​/);
   });
 
   it('uses the raw branch name in the copy-pasteable restore command', () => {

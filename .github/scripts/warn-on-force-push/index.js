@@ -5,6 +5,7 @@ const MARKER = '<!-- force-push-warning -->';
 module.exports = async ({ github, context, core }) => {
   const branch = context.payload.pull_request.head.ref;
   const prNumber = context.payload.pull_request.number;
+  const prAuthorLogin = context.payload.pull_request.user.login;
   const { owner, repo } = context.repo;
   const before = process.env.BEFORE;
   const after = process.env.AFTER;
@@ -43,7 +44,7 @@ module.exports = async ({ github, context, core }) => {
     pull_number: prNumber,
     per_page: 100,
   });
-  if (!hasHumanReview(reviewComments, reviews)) {
+  if (!hasHumanReview(reviewComments, reviews, prAuthorLogin)) {
     core.info('No existing human review activity — skipping warning.');
     return;
   }

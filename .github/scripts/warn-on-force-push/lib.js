@@ -12,10 +12,13 @@ function isBot(user) {
   return user?.type === 'Bot' || BOT_LOGINS.has(user?.login?.toLowerCase());
 }
 
-// GitHub's "suggest a change" comments embed a ```suggestion fenced block.
-// Restricting inline-comment counting to these (rather than any inline
-// comment) means a plain self-note left by the PR author on their own diff
-// doesn't count as review activity.
+// GitHub logins are case-insensitive, so compare case-folded.
+function isAuthor(user, prAuthorLogin) {
+  return typeof user?.login === 'string' && user.login.toLowerCase() === prAuthorLogin.toLowerCase();
+}
+
+// GitHub's "suggest a change" comments embed a ```suggestion fenced block --
+// the only inline-comment shape counted as review engagement.
 function isCodeSuggestion(body) {
   return typeof body === 'string' && /```suggestion\b/.test(body);
 }
@@ -52,24 +55,24 @@ async function isRewrite(github, owner, repo, before, after, core) {
   return comparison.status === 'diverged' || comparison.behind_by > 0;
 }
 
-// "Review has started" means either a human left an inline code-change
-// suggestion, or submitted a top-level review with a countable state.
-function hasHumanReview(reviewComments, reviews) {
+// GitHub allows the PR author to submit a COMMENTED self-review, so the
+// author is excluded from both the inline-comment and review checks below.
+function hasHumanReview(reviewComments, reviews, prAuthorLogin) {
+  const countsFor = user => !isBot(user) && !isAuthor(user, prAuthorLogin);
   return (
-    reviewComments.some(c => !isBot(c.user) && isCodeSuggestion(c.body)) ||
-    reviews.some(r => !isBot(r.user) && HUMAN_REVIEW_STATES.includes(r.state))
+    reviewComments.some(c => countsFor(c.user) && isCodeSuggestion(c.body)) ||
+    reviews.some(r => countsFor(r.user) && HUMAN_REVIEW_STATES.includes(r.state))
   );
 }
 
-// Git ref names allow backticks, @, and other characters that could break
-// markdown formatting or ping an uninvolved user when embedded in prose.
+// Git ref names allow backticks, which would break out of the inline code
+// span this is always used inside.
 function sanitizeForProse(branch) {
-  return branch.replace(/`/g, '').replace(/@/g, '@​');
+  return branch.replace(/`/g, '');
 }
 
-// `branch` (unsanitized) is used only inside the fenced restore command:
-// GitHub renders neither @-mentions nor inline markdown inside a fenced code
-// block, and the command must stay copy-pasteable as-is.
+// `branch` (unsanitized) is used only inside the fenced restore command,
+// which must stay copy-pasteable as-is.
 function buildWarningBody({ marker, branch, before, after, owner, repo }) {
   const safeBranch = sanitizeForProse(branch);
   return [

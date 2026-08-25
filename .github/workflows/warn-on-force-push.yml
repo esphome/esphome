@@ -36,9 +36,10 @@ jobs:
           client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
           private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
           # Scope the minted App token to the minimum needed by warn-on-force-push/*.js.
-          permission-contents: read       # repos.compareCommits / repos.getCommit
-          permission-pull-requests: read  # pulls.listReviewComments / pulls.listReviews
-          permission-issues: write        # issues.listComments / issues.createComment (PR comments use the issues API)
+          # For PR resources, issues.*Comment requires the pull-requests scope (see
+          # external-component-bot.yml).
+          permission-contents: read        # repos.compareCommits / repos.getCommit
+          permission-pull-requests: write  # pulls.listReviewComments / pulls.listReviews / issues.listComments / issues.createComment
 
       - name: Check for force-push and comment if this is the first one
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
