@@ -33,6 +33,7 @@ from esphome.framework_helpers import (
     run_command,
     run_command_ok,
     str_to_lst_of_str,
+    tool_version_runs,
 )
 from esphome.helpers import write_file_if_changed
 
@@ -1210,22 +1211,23 @@ def _ccache_env() -> dict[str, str]:
         return {"IDF_CCACHE_ENABLE": "0"}
     if idf_knob is True:
         # Forced on ignores the runnability verdict, but the outcome is
-        # worth saying out loud. Only the truly-missing case means idf.py
-        # compiles without ccache; a present-but-rejected binary (probe
-        # failure or shared opt-out) is still used, since idf.py does its
-        # own PATH lookup.
-        if resolve_ccache_path() is None:
-            if shutil.which("ccache") is None:
-                _LOGGER.warning(
-                    "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
-                    "idf.py will compile without ccache"
-                )
-            else:
-                _LOGGER.warning(
-                    "IDF_CCACHE_ENABLE=1 forces ccache on even though it "
-                    "was rejected here (probe failure or "
-                    "ESPHOME_CCACHE_ENABLE=0); idf.py will use it anyway"
-                )
+        # worth saying out loud. Probed directly (not via the resolver,
+        # whose failure message says "compiling without ccache" -- exactly
+        # what forced-on does NOT do): only the truly-missing case means
+        # idf.py compiles without ccache; a broken binary is still used,
+        # since idf.py does its own PATH lookup.
+        if (ccache := shutil.which("ccache")) is None:
+            _LOGGER.warning(
+                "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
+                "idf.py will compile without ccache"
+            )
+        else:
+            # The probe warns with this message iff the binary fails
+            tool_version_runs(
+                ccache,
+                "IDF_CCACHE_ENABLE=1 forces on the ccache at %s even though "
+                "it failed to run; idf.py will use it anyway",
+            )
     elif resolve_ccache_path() is None:
         # ESP-IDF silently skips ccache without the binary; export the
         # canonical off spelling so an unparsable inherited value (or a
