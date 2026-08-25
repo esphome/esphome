@@ -56,6 +56,15 @@ for section in config.sections():
             tools.append(tool)
 
 
+def spec_key(spec: str) -> str:
+    """The destination identity of a spec: PlatformIO installs by package
+    name, so two specs sharing a name share a directory."""
+    base = spec.split("@", 1)[0].strip()
+    if base.startswith(("http://", "https://", "file://")):
+        return spec.strip()
+    return base.split("/")[-1].lower()
+
+
 def parallel_install(manager_cls, specs: list[str]) -> None:
     """Best-effort parallel top-level install, one extraction worker per core.
 
@@ -69,7 +78,13 @@ def parallel_install(manager_cls, specs: list[str]) -> None:
     state.
     """
     manager = manager_cls(None)
-    pending = [spec for spec in specs if not manager.get_package(spec)]
+    # One spec per destination: platformio.ini repeats specs across env
+    # sections, and two threads must not extract into the same directory.
+    # A second spec for the same name is left to the pkg install pass.
+    unique: dict[str, str] = {}
+    for spec in specs:
+        unique.setdefault(spec_key(spec), spec)
+    pending = [spec for spec in unique.values() if not manager.get_package(spec)]
     if not pending:
         return
     local = threading.local()
