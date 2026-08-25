@@ -5,7 +5,9 @@ Downloads the archives concurrently into PlatformIO's own download cache
 them already cached. Runs in a subprocess like all PlatformIO execution:
 loading a platform executes its code (pioarduino's penv setup rewrites
 ``sys.path``). A sentinel in the build dir lets warm builds skip the
-spawn. Best-effort: any failure logs and PlatformIO downloads as before.
+spawn. Best-effort: any failure logs and PlatformIO downloads as before;
+concurrent esphome processes sharing a core dir may race a ``.part`` file,
+which the sha256 check catches at the cost of one wasted download.
 """
 
 from __future__ import annotations
@@ -33,6 +35,12 @@ _LOGGER = logging.getLogger(__name__)
 
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
+
+# A hung child must not block the build; downloads resume on the next run
+_PREFETCH_TIMEOUT = 20 * 60
+
+# Resolution errored (vs a clean skip); suppresses the warm sentinel
+_RESOLVE_FAILED = object()
 
 # Child records a no-work run; the parent skips the next spawn while valid
 _SENTINEL_NAME = ".esphome_prefetch.json"
@@ -63,7 +71,10 @@ def _prefetch_is_warm(build_dir: Path) -> bool:
             and bool(dirs)
             and all(Path(d).is_dir() for d in dirs)
         )
+    except FileNotFoundError:
+        return False
     except (OSError, ValueError, KeyError, AttributeError, TypeError):
+        _LOGGER.debug("Ignoring invalid prefetch sentinel", exc_info=True)
         return False
 
 
@@ -81,9 +92,9 @@ def prefetch_platformio_packages() -> None:
     build_dir = Path(CORE.build_path)
     if _prefetch_is_warm(build_dir):
         return
+    # The child is esphome itself: PYTHONPATH stays so it imports this
+    # tree's esphome (tests/integration pins the source tree through it)
     env = dict(os.environ)
-    # Same hygiene as run_command: do not leak PYTHONPATH
-    env.pop("PYTHONPATH", None)
     # Must match run_platformio_cli's default or warm builds re-resolve
     # every library
     env.setdefault("PLATFORMIO_LIBDEPS_DIR", default_libdeps_dir())
@@ -95,7 +106,10 @@ def prefetch_platformio_packages() -> None:
         CORE.name,
     ]
     try:
-        proc = subprocess.run(cmd, env=env, check=False)
+        proc = subprocess.run(cmd, env=env, check=False, timeout=_PREFETCH_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        _LOGGER.warning("PlatformIO package prefetch timed out; continuing without it")
+        return
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The prefetch must never become a new way for the build to fail
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
@@ -119,39 +133,47 @@ def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
     return config.get(f"env:{env}", "platform", None), config
 
 
-def _registry_jobs(manager, specs, seen: set[str]) -> list[tuple[str, int, Any]]:
+def _registry_jobs(
+    manager, specs, seen: set[str]
+) -> tuple[list[tuple[str, int, Any]], int]:
     """Resolve registry specs to ``(name, size, fetch)`` batch jobs.
 
     Mirrors PlatformIO's install path: best version, systype file, first
-    mirror, and the same sha1(url + checksum) download-cache key.
+    mirror, and the same sha1(url + checksum) download-cache key. Also
+    returns how many resolutions errored (a clean skip is not an error).
     """
     from platformio.registry.mirror import RegistryFileMirrorIterator
 
     local = threading.local()
 
-    def _resolve(spec) -> tuple[str, int, str, Path, str] | None:
+    def _resolve(spec) -> tuple[str, int, str, Path, str] | object | None:
         # One manager (and registry HTTP session) per worker thread;
         # installed-state was already checked on the shared manager
         if (mgr := getattr(local, "mgr", None)) is None:
             mgr = local.mgr = manager.__class__()
-        packages = mgr.search_registry_packages(spec)
-        if not packages:
-            return None  # unknown to the registry; let PlatformIO report it
-        package, version = mgr.find_best_registry_version(packages, spec)
-        if not package or not version:
-            return None
-        pkgfile = mgr.pick_compatible_pkg_file(version["files"])
-        if not pkgfile:
-            return None
-        url, checksum = next(RegistryFileMirrorIterator(pkgfile["download_url"]))
-        checksum = checksum or pkgfile["checksum"]["sha256"]
-        dl_path = Path(mgr.compute_download_path(url, checksum))
-        if dl_path.is_file():
-            return None  # cached from an earlier run
-        size = pkgfile.get("size")
-        if not size:
-            return None  # no size, no bar share; PlatformIO fetches it
-        return f"{package['name']}@{version['name']}", size, url, dl_path, checksum
+        try:
+            packages = mgr.search_registry_packages(spec)
+            if not packages:
+                return None  # unknown to the registry; let PlatformIO report it
+            package, version = mgr.find_best_registry_version(packages, spec)
+            if not package or not version:
+                return None
+            pkgfile = mgr.pick_compatible_pkg_file(version["files"])
+            if not pkgfile:
+                return None
+            url, checksum = next(RegistryFileMirrorIterator(pkgfile["download_url"]))
+            checksum = checksum or pkgfile["checksum"]["sha256"]
+            dl_path = Path(mgr.compute_download_path(url, checksum))
+            if dl_path.is_file():
+                return None  # cached from an earlier run
+            size = pkgfile.get("size")
+            if not size:
+                return None  # no size, no bar share; PlatformIO fetches it
+            return f"{package['name']}@{version['name']}", size, url, dl_path, checksum
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # One flaky spec must not discard the rest of the batch
+            _LOGGER.debug("Could not resolve %s", spec, exc_info=True)
+            return _RESOLVE_FAILED
 
     # Serial disk lookups on the shared manager: a fully warm build
     # resolves nothing, and duplicate specs resolve once
@@ -161,13 +183,17 @@ def _registry_jobs(manager, specs, seen: set[str]) -> list[tuple[str, int, Any]]
             unique.setdefault((s.name, str(getattr(s, "requirements", None))), s)
     pending = list(unique.values())
     if not pending:
-        return []
+        return [], 0
     # Serial resolutions (registry GET + mirror HEAD each) dominate
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(pending))) as ex:
         results = list(ex.map(_resolve, pending))
     jobs: list[tuple[str, int, Any]] = []
+    failed = 0
     for res in results:
         if res is None:
+            continue
+        if res is _RESOLVE_FAILED:
+            failed += 1
             continue
         name, size, url, dl_path, checksum = res
         if str(dl_path) in seen:
@@ -176,18 +202,24 @@ def _registry_jobs(manager, specs, seen: set[str]) -> list[tuple[str, int, Any]]
         jobs.append(
             (name, size, resume_fetch_job(url, dl_path, sha256=checksum, size=size))
         )
-    return jobs
+    return jobs, failed
 
 
-def _uri_jobs(manager, specs, seen: set[str]) -> list[tuple[str, int, Any]]:
-    """Jobs for direct-URL specs; a HEAD sizes each for the combined bar."""
+def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]], int]:
+    """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
+
+    Also returns how many HEAD probes errored (an absent length is not an
+    error).
+    """
     from esphome.net_retry import fetch_with_retry, http_request
 
     candidates: list[tuple[str, str, Path]] = []
     for spec in specs:
         url = spec.uri
         if not url or not url.startswith(("http://", "https://")):
-            continue  # git/file specs are cloned/copied, not downloaded
+            continue  # git+/file specs are cloned/copied, not downloaded
+        if url.split("#", 1)[0].endswith(".git"):
+            continue  # bare-URL VCS spec; PlatformIO clones it
         if manager.get_package(spec):
             continue
         # PlatformIO downloads URL specs with no checksum
@@ -199,21 +231,25 @@ def _uri_jobs(manager, specs, seen: set[str]) -> list[tuple[str, int, Any]]:
 
     def _head_size(url: str) -> int:
         try:
-            return content_length(
-                fetch_with_retry(url, lambda: http_request("HEAD", url, timeout=30))
-            )
+            resp = fetch_with_retry(url, lambda: http_request("HEAD", url, timeout=30))
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            return 0
+            _LOGGER.debug("HEAD %s failed", url, exc_info=True)
+            return -1
+        # An error page's Content-Length is not a download size
+        return content_length(resp) if resp.ok else 0
 
     if not candidates:
-        return []
+        return [], 0
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(candidates))) as ex:
         sizes = list(ex.map(_head_size, [url for _, url, _ in candidates]))
-    return [
-        (name, size, resume_fetch_job(url, dl_path, size=size))
-        for (name, url, dl_path), size in zip(candidates, sizes, strict=True)
-        if size
-    ]
+    jobs: list[tuple[str, int, Any]] = []
+    failed = 0
+    for (name, url, dl_path), size in zip(candidates, sizes, strict=True):
+        if size < 0:
+            failed += 1
+        elif size:
+            jobs.append((name, size, resume_fetch_job(url, dl_path, size=size)))
+    return jobs, failed
 
 
 def _prefetch(build_dir: Path, env: str) -> None:
@@ -254,9 +290,6 @@ def _prefetch(build_dir: Path, env: str) -> None:
                 requirements=get_core_dependencies()["tool-scons"],
             )
         )
-    seen: set[str] = set()
-    jobs = _registry_jobs(p.pm, specs, seen) + _uri_jobs(p.pm, specs, seen)
-
     lib_deps = config.get(f"env:{env}", "lib_deps", [])
     # pio run's storage dir for this env: installed libraries skip by
     # disk lookup
@@ -265,17 +298,29 @@ def _prefetch(build_dir: Path, env: str) -> None:
     lib_specs = [
         PackageSpec(dep) for dep in lib_deps if dep and not dep.startswith("$")
     ]
-    jobs += _registry_jobs(lm, lib_specs, seen) + _uri_jobs(lm, lib_specs, seen)
+
+    seen: set[str] = set()
+    jobs: list[tuple[str, int, Any]] = []
+    unresolved = 0
+    for mgr, batch in ((p.pm, specs), (lm, lib_specs)):
+        for build_jobs in (_registry_jobs, _uri_jobs):
+            batch_jobs, failed = build_jobs(mgr, batch, seen)
+            jobs += batch_jobs
+            unresolved += failed
 
     sentinel = build_dir / _SENTINEL_NAME
     if not jobs:
-        # Record the no-work run so the parent skips the next spawn
-        dirs = [config.get("platformio", "packages_dir")]
-        if lib_specs:
-            dirs.append(str(libdeps_dir))
-        sentinel.write_text(
-            json.dumps({**_sentinel_state(build_dir), "dirs": dirs}), encoding="utf-8"
-        )
+        if not unresolved:
+            # Record the no-work run so the parent skips the next spawn.
+            # A failed resolution is not "no work": a registry outage must
+            # not be cached as warm.
+            dirs = [config.get("platformio", "packages_dir")]
+            if lib_specs:
+                dirs.append(str(libdeps_dir))
+            sentinel.write_text(
+                json.dumps({**_sentinel_state(build_dir), "dirs": dirs}),
+                encoding="utf-8",
+            )
         return
     sentinel.unlink(missing_ok=True)
     _LOGGER.info(
@@ -290,8 +335,12 @@ def _prefetch(build_dir: Path, env: str) -> None:
 def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    if len(argv) != 2:
+        # A wiring bug, not a network failure; make it distinguishable
+        _LOGGER.warning("prefetch usage: <build_dir> <env_name>")
+        return 2
+    build_dir, env = argv
     try:
-        build_dir, env = argv
         _prefetch(Path(build_dir), env)
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Exit 0: the parent must not treat a failed prefetch as a failed build

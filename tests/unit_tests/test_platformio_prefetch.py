@@ -66,9 +66,10 @@ def test_registry_jobs_resolves_like_platformio(tmp_path: Path) -> None:
     """A registry spec resolves to a job keyed by mirror URL and checksum."""
     m = _fake_manager(tmp_path)
     with _mirror_patch():
-        jobs = pf._registry_jobs(
+        jobs, failed = pf._registry_jobs(
             m, [_FakeSpec(uri=None, name="toolchain-xtensa")], set()
         )
+    assert failed == 0
     assert len(jobs) == 1
     name, size, fetch = jobs[0]
     assert name == "toolchain-xtensa@2.0.0"
@@ -93,8 +94,7 @@ def test_registry_jobs_skips(tmp_path: Path, method, attr, value) -> None:
     m = _fake_manager(tmp_path)
     setattr(getattr(m, method), attr, value)
     with _mirror_patch():
-        jobs = pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set())
-    assert jobs == []
+        assert pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set()) == ([], 0)
 
 
 def test_registry_jobs_skips_cached_and_sizeless(tmp_path: Path) -> None:
@@ -104,11 +104,11 @@ def test_registry_jobs_skips_cached_and_sizeless(tmp_path: Path) -> None:
     dl.parent.mkdir(parents=True, exist_ok=True)
     dl.touch()
     with _mirror_patch():
-        assert pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set()) == []
+        assert pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set()) == ([], 0)
     dl.unlink()
     m.find_best_registry_version.return_value[1]["files"][0]["size"] = 0
     with _mirror_patch():
-        assert pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set()) == []
+        assert pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set()) == ([], 0)
 
 
 def test_registry_jobs_dedupes_download_paths(tmp_path: Path) -> None:
@@ -119,8 +119,9 @@ def test_registry_jobs_dedupes_download_paths(tmp_path: Path) -> None:
     specs = [_FakeSpec(uri=None, name="dup"), _FakeSpec(uri=None, name="dup")]
     specs += [_FakeSpec(uri=None, name=f"n{i}") for i in range(8)]
     with _mirror_patch():
-        jobs = pf._registry_jobs(m, specs, set())
+        jobs, failed = pf._registry_jobs(m, specs, set())
     # the fake resolves every spec to the same mirror URL and checksum
+    assert failed == 0
     assert len(jobs) == 1
     assert m.search_registry_packages.call_count == 9  # dup resolved once
 
@@ -128,10 +129,27 @@ def test_registry_jobs_dedupes_download_paths(tmp_path: Path) -> None:
 def test_registry_jobs_uri_specs_excluded(tmp_path: Path) -> None:
     """URL specs never reach the registry resolution."""
     m = _fake_manager(tmp_path)
-    assert (
-        pf._registry_jobs(m, [_FakeSpec(uri="https://x/y.zip", name="y")], set()) == []
-    )
+    assert pf._registry_jobs(
+        m, [_FakeSpec(uri="https://x/y.zip", name="y")], set()
+    ) == ([], 0)
     m.search_registry_packages.assert_not_called()
+
+
+def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
+    """A flaky resolution counts as failed without discarding the batch."""
+    m = _fake_manager(tmp_path)
+    calls = iter([RuntimeError("registry 500"), [{"any": 1}]])
+    m.search_registry_packages.side_effect = lambda spec: (
+        (_ for _ in ()).throw(v) if isinstance(v := next(calls), Exception) else v
+    )
+    with _mirror_patch():
+        jobs, failed = pf._registry_jobs(
+            m,
+            [_FakeSpec(uri=None, name="flaky"), _FakeSpec(uri=None, name="good")],
+            set(),
+        )
+    assert failed == 1
+    assert len(jobs) == 1
 
 
 def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
@@ -140,23 +158,34 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
     resp = MagicMock()
     resp.headers = {"content-length": "2222"}
     with patch("esphome.net_retry.http_request", return_value=resp):
-        jobs = pf._uri_jobs(
+        jobs, failed = pf._uri_jobs(
             m,
             [
                 _FakeSpec(uri="https://x/big.zip", name="big"),
                 _FakeSpec(uri="git+https://x/repo.git", name="repo"),
+                _FakeSpec(uri="https://x/repo.git#v1", name="barevcs"),
                 _FakeSpec(uri=None, name="registry"),
             ],
             set(),
         )
+    assert failed == 0
     assert [(n, s) for n, s, _ in jobs] == [("big", 2222)]
 
 
-def test_uri_jobs_head_failure_skips(tmp_path: Path) -> None:
+def test_uri_jobs_head_failure_counts_as_unresolved(tmp_path: Path) -> None:
+    """A HEAD error is not a clean skip; an error response's length is."""
     m = _fake_manager(tmp_path)
     with patch("esphome.net_retry.http_request", side_effect=OSError("no route")):
-        assert (
-            pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == []
+        assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == (
+            [],
+            1,
+        )
+    resp = MagicMock(ok=False)
+    resp.headers = {"content-length": "999"}
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == (
+            [],
+            0,
         )
 
 
@@ -166,7 +195,7 @@ def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
     resp = MagicMock()
     resp.headers = {"content-length": "5"}
     with patch("esphome.net_retry.http_request", return_value=resp) as mock_head:
-        jobs = pf._uri_jobs(
+        jobs, failed = pf._uri_jobs(
             m,
             [
                 _FakeSpec(uri="https://x/a.zip", name="a"),
@@ -174,6 +203,7 @@ def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
             ],
             set(),
         )
+    assert failed == 0
     assert len(jobs) == 1
     mock_head.assert_called_once()
 
@@ -181,17 +211,16 @@ def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
 def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
     m = _fake_manager(tmp_path)
     m.get_package.return_value = object()
-    assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == []
+    spec = [_FakeSpec(uri="https://x/a.zip", name="a")]
+    assert pf._uri_jobs(m, spec, set()) == ([], 0)
     m.get_package.return_value = None
     dl = Path(m.compute_download_path("https://x/a.zip", ""))
     dl.parent.mkdir(parents=True, exist_ok=True)
     dl.touch()
-    assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == []
+    assert pf._uri_jobs(m, spec, set()) == ([], 0)
     dl.unlink()
     # a registry job already claimed this download path
-    assert (
-        pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], {str(dl)}) == []
-    )
+    assert pf._uri_jobs(m, spec, {str(dl)}) == ([], 0)
 
 
 def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
@@ -221,7 +250,28 @@ def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     assert kwargs["env"]["PLATFORMIO_LIBDEPS_DIR"] == str(
         CORE.relative_piolibdeps_path().absolute()
     )
-    assert "PYTHONPATH" not in kwargs["env"]
+    # The child is esphome itself; PYTHONPATH must survive so it imports
+    # the same tree (tests/integration pins the source tree through it)
+    assert kwargs["env"]["PYTHONPATH"] == "/leak"
+    assert kwargs["timeout"] == pf._PREFETCH_TIMEOUT
+
+
+def test_prefetch_timeout_warns_and_continues(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A hung child is killed and the build continues."""
+    import subprocess
+
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(
+            pf.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT),
+        ),
+    ):
+        pf.prefetch_platformio_packages()
+    assert "prefetch timed out" in caplog.text
 
 
 def test_prefetch_nonzero_exit_warns(caplog: pytest.LogCaptureFixture) -> None:
@@ -257,6 +307,16 @@ def test_main_runs_prefetch(tmp_path: Path) -> None:
     with patch.object(pf, "_prefetch") as mock_prefetch:
         assert pf.main([str(tmp_path), "testenv"]) == 0
     mock_prefetch.assert_called_once_with(tmp_path, "testenv")
+
+
+def test_main_bad_argv_is_a_distinct_exit(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A parent/child wiring bug must not look like a network failure."""
+    with patch.object(pf, "_prefetch") as mock_prefetch:
+        assert pf.main(["only-one"]) == 2
+    mock_prefetch.assert_not_called()
+    assert "prefetch usage" in caplog.text
 
 
 def _write_ini(tmp_path: Path, body: str) -> None:
@@ -337,13 +397,32 @@ def test_prefetch_all_cached_is_quiet_and_writes_sentinel(tmp_path: Path) -> Non
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
     with (
         patch.dict("sys.modules", modules),
-        patch.object(pf, "_registry_jobs", return_value=[]),
-        patch.object(pf, "_uri_jobs", return_value=[]),
+        patch.object(pf, "_registry_jobs", return_value=([], 0)),
+        patch.object(pf, "_uri_jobs", return_value=([], 0)),
         patch.object(pf, "run_batch_downloads") as mock_batch,
     ):
         pf._prefetch(tmp_path, "testenv")
     mock_batch.assert_not_called()
     assert pf._prefetch_is_warm(tmp_path)
+
+
+def test_prefetch_failed_resolution_is_not_cached_as_warm(tmp_path: Path) -> None:
+    """A registry outage must not write the sentinel."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    (tmp_path / "packages").mkdir()
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(pf, "_registry_jobs", return_value=([], 1)),
+        patch.object(pf, "_uri_jobs", return_value=([], 0)),
+        patch.object(pf, "run_batch_downloads") as mock_batch,
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    mock_batch.assert_not_called()
+    assert not (tmp_path / pf._SENTINEL_NAME).exists()
 
 
 def test_sentinel_invalidation(tmp_path: Path) -> None:
@@ -423,12 +502,12 @@ def test_prefetch_end_to_end_wiring(
 
     def fake_registry_jobs(manager, specs, seen):
         captured.setdefault("spec_batches", []).append([s.name for s in specs])
-        return [("toolchain-x@1", 10, lambda t: None)]
+        return [("toolchain-x@1", 10, lambda t: None)], 0
 
     with (
         patch.dict("sys.modules", modules),
         patch.object(pf, "_registry_jobs", side_effect=fake_registry_jobs),
-        patch.object(pf, "_uri_jobs", return_value=[]),
+        patch.object(pf, "_uri_jobs", return_value=([], 0)),
         patch.object(
             pf,
             "run_batch_downloads",
@@ -465,10 +544,10 @@ def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:
             pf,
             "_registry_jobs",
             side_effect=lambda mgr, specs, seen: (
-                batches.append([s.name for s in specs]) or []
+                batches.append([s.name for s in specs]) or ([], 0)
             ),
         ),
-        patch.object(pf, "_uri_jobs", return_value=[]),
+        patch.object(pf, "_uri_jobs", return_value=([], 0)),
     ):
         pf._prefetch(tmp_path, "testenv")
     assert batches[0] == ["tool-scons"]

@@ -968,9 +968,13 @@ def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> Non
     config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}
     mock_run_platformio_cli_run.return_value = 0
 
-    with patch("esphome.platformio.prefetch.prefetch_platformio_packages"):
+    with patch(
+        "esphome.platformio.prefetch.prefetch_platformio_packages"
+    ) as mock_prefetch:
         toolchain.run_compile(config, verbose=True)
 
+    # The only wiring of the prefetch into a build lives here
+    mock_prefetch.assert_called_once_with()
     mock_run_platformio_cli_run.assert_called_once_with(config, True, "-j4")
 
 
