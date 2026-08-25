@@ -247,6 +247,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_SCANF_FLOAT): cv.boolean,
         }
     ),
+    # Until the native toolchain lands, PlatformIO is the only backend;
+    # reject a --toolchain this platform cannot serve yet.
+    cv.require_platformio_toolchain("ESP8266"),
     set_core_data,
 )
 
