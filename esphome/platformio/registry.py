@@ -249,7 +249,7 @@ def prefetch_packages(
         else:
             # Anything else is a programming error that would otherwise
             # become a permanent silent no-op
-            _LOGGER.warning("Prefetch of %s failed: %r", name, err)
+            _LOGGER.warning("Prefetch of %s failed: %r", name, err, exc_info=err)
 
 
 def install_package(
