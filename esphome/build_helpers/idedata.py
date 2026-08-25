@@ -76,7 +76,7 @@ def _is_esphome_src(file: str) -> bool:
     )
 
 
-def _split_command(command: str) -> list[str]:
+def split_command(command: str) -> list[str]:
     r"""Tokenize a compile_commands.json / response-file command string.
 
     On Windows, tokenize per Windows ``argv`` rules via ``CommandLineToArgvW``.
@@ -128,7 +128,7 @@ def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
             try:
                 out.extend(
                     _expand_response_files(
-                        _split_command(rf.read_text(encoding="utf-8")), directory
+                        split_command(rf.read_text(encoding="utf-8")), directory
                     )
                 )
                 continue
@@ -157,7 +157,7 @@ def _pick_entry(entries: list[dict]) -> dict:
 _LAUNCHER_STEMS = frozenset({"ccache", "sccache", "distcc", "icecc", "buildcache"})
 
 
-def _is_launcher(token: str) -> bool:
+def is_launcher(token: str) -> bool:
     return Path(token).stem.lower() in _LAUNCHER_STEMS
 
 
@@ -166,7 +166,7 @@ def parse_entry(
 ) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
-    tokens = _expand_response_files(_split_command(entry["command"]), directory)
+    tokens = _expand_response_files(split_command(entry["command"]), directory)
 
     def _include(raw: str) -> str:
         # Resolve against the entry's ``directory`` so cached idedata works
@@ -182,7 +182,7 @@ def parse_entry(
     if not tokens:
         # An empty command, or one that was only the launcher; fail by name
         raise ValueError(f"empty compile command for {entry.get('file')}")
-    if _is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
+    if is_launcher(tokens[0]) and len(tokens) > 1 and not tokens[1].startswith("-"):
         # Stale DB built with a launcher this run no longer configures; the
         # real compiler is the next token
         _LOGGER.warning("Stripping unconfigured launcher %s", tokens[0])
@@ -282,7 +282,7 @@ def _cache_usable(cached: object) -> bool:
     if not isinstance(cached, dict) or "cc_path" not in cached:
         return False
     cxx_path = cached.get("cxx_path")
-    if not isinstance(cxx_path, str) or _is_launcher(cxx_path):
+    if not isinstance(cxx_path, str) or is_launcher(cxx_path):
         return False
     includes = cached.get("includes")
     return isinstance(includes, dict) and isinstance(includes.get("build"), list)
@@ -330,7 +330,7 @@ def load_or_build_idedata(
 def reject_launcher_compiler(cxx_path: str) -> None:
     """Reject a compile DB naming a launcher (ccache) as the compiler; it
     must never be probed, cached, or consumed."""
-    if _is_launcher(cxx_path):
+    if is_launcher(cxx_path):
         raise EsphomeError(
             f"compile_commands.json names the launcher {cxx_path} as the "
             "compiler; the compile database is unusable"

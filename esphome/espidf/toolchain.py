@@ -528,6 +528,11 @@ def run_compile(config, verbose: bool) -> int:
             return result.returncode
         _patch_memory_segments()
 
+    # After every reconfigure so compile_commands and sdkconfig are settled
+    from esphome.build_gen.espidf import prepare_pch
+
+    prepare_pch()
+
     # Build
     args = []
 
