@@ -2,7 +2,9 @@
 
 Safe by construction when the prefix header mirrors what the TUs already
 include first (ESP8266); a backend may instead inject a curated set of
-self-contained core headers (ESP-IDF).
+self-contained core headers (ESP-IDF). User sources from ``esphome:
+includes:`` also receive the prefix, so they now see defines.h (and
+Arduino.h on Arduino platforms) even when they did not include it.
 """
 
 from __future__ import annotations
@@ -21,6 +23,14 @@ _LOGGER = logging.getLogger(__name__)
 
 # The header and its .gch/.sum sidecars live in the build directory.
 PCH_HEADER_NAME = "esphome_pch.h"
+
+# Every artifact the pch machinery can leave behind, for cleanup.
+PCH_ARTIFACT_NAMES = (
+    PCH_HEADER_NAME,
+    f"{PCH_HEADER_NAME}.gch",
+    f"{PCH_HEADER_NAME}.gch.sum",
+    f"{PCH_HEADER_NAME}.gch.failed",
+)
 
 # The core defines header every backend anchors its prefix on.
 PCH_CORE_HEADER = "esphome/core/defines.h"
