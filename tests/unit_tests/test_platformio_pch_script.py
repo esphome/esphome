@@ -26,10 +26,23 @@ class _FakePlatform:
             raise KeyError(name)
         return "1.2.3"
 
+    def get_package(self, name: str) -> object | None:
+        return None
+
 
 class _BrokenPlatform(_FakePlatform):
     def get_package_version(self, name: str) -> str:
         raise RuntimeError("manifest parse error")
+
+
+class _UnresolvedPlatform(_FakePlatform):
+    """KeyError from a package that IS installed: unresolved identity."""
+
+    def get_package_version(self, name: str) -> str:
+        raise KeyError(name)
+
+    def get_package(self, name: str) -> object:
+        return object()
 
 
 class _FakeSConsEnv(dict):
@@ -66,11 +79,17 @@ class _FakeSConsEnv(dict):
         self.prepended = CXXFLAGS
 
 
-def _fake_cxx(tmp_path: Path, fail: bool = False, reject_pch: bool = False) -> Path:
+def _fake_cxx(
+    tmp_path: Path,
+    fail: bool = False,
+    reject_pch: bool = False,
+    probe_exit: int = 0,
+) -> Path:
     """A compiler stand-in that records its argv and writes the -o target.
 
     With reject_pch it builds the .gch fine but, like GCC 10 on macOS arm64,
-    warns on any consuming compile that the .gch cannot be loaded.
+    warns on any consuming compile that the .gch cannot be loaded; probe_exit
+    sets the exit code of non-header compiles (the load probe).
     """
     cxx = tmp_path / "fake-gxx"
     body = (
@@ -84,7 +103,7 @@ def _fake_cxx(tmp_path: Path, fail: bool = False, reject_pch: bool = False) -> P
         body += '[ -n "$out" ] && echo gch > "$out"\n'
         if reject_pch:
             body += 'case " $* " in *c++-header*) ;; *) echo "warning: esphome_pch.h.gch: had text segment at different address" >&2;; esac\n'
-        body += "exit 0\n"
+        body += f'case " $* " in *c++-header*) exit 0;; *) exit {probe_exit};; esac\n'
     cxx.write_text("#!/bin/sh\n" + body)
     cxx.chmod(cxx.stat().st_mode | stat.S_IEXEC)
     return cxx
@@ -95,6 +114,7 @@ def _run_script(
     flags: list[str] | None = None,
     fail: bool = False,
     reject_pch: bool = False,
+    probe_exit: int = 0,
     env_vars: dict[str, str] | None = None,
     name: str = "dev",
     platform_cls: type[_FakePlatform] = _FakePlatform,
@@ -103,7 +123,7 @@ def _run_script(
     src = proj / "src"
     (src / "esphome" / "core").mkdir(parents=True, exist_ok=True)
     (src / "esphome" / "core" / "defines.h").write_text("#define USE_X\n")
-    cxx = _fake_cxx(tmp_path, fail=fail, reject_pch=reject_pch)
+    cxx = _fake_cxx(tmp_path, fail=fail, reject_pch=reject_pch, probe_exit=probe_exit)
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
     # Distinct objects: the script must scope ccache/flags to projenv only
     global_env = _FakeSConsEnv(*args)
@@ -199,6 +219,22 @@ def test_pch_script_probe_rejection_falls_back(
     assert "toolchain cannot load the pch" in capsys.readouterr().out
 
 
+def test_pch_script_probe_nonzero_exit_falls_back(tmp_path: Path) -> None:
+    """A probe failure whose stderr never mentions .gch must still count."""
+    scons_env = _run_script(tmp_path, probe_exit=1)
+    proj = tmp_path / "dev"
+    assert not (proj / "esphome_pch.h.gch").exists()
+    assert (proj / "esphome_pch.h.gch.failed").is_file()
+    assert scons_env.prepended == []
+
+
+def test_pch_script_unresolved_package_version_skips_pch(tmp_path: Path) -> None:
+    """A KeyError for an installed package is unresolved identity, not absence."""
+    scons_env = _run_script(tmp_path, platform_cls=_UnresolvedPlatform)
+    assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
+    assert scons_env.prepended == []
+
+
 def test_pch_script_package_version_error_skips_pch(tmp_path: Path) -> None:
     """Without trustworthy package identity a stale .gch could survive an
     upgrade, so the script must not build one at all."""
@@ -235,6 +271,27 @@ def test_pch_script_hashes_project_local_include_dirs(tmp_path: Path) -> None:
     _run_script(tmp_path, flags=flags)
     first = (proj / "esphome_pch.h.gch.sum").read_text()
     (override / "lwipopts.h").write_text("#define TCP_MSS 536\n")
+    (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
+    _run_script(tmp_path, flags=flags)
+    assert (proj / "esphome_pch.h.gch.sum").read_text() != first
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file modes")
+def test_pch_script_unreadable_local_header_warns_and_varies(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An unreadable generated header still shifts the digest via mtime/size."""
+    proj = tmp_path / "dev"
+    override = proj / "lwip_override"
+    override.mkdir(parents=True)
+    secret = override / "lwipopts.h"
+    secret.write_text("#define TCP_MSS 1460\n")
+    secret.chmod(0)
+    flags = ["-DX=1", "-I", str(override)]
+    _run_script(tmp_path, flags=flags)
+    first = (proj / "esphome_pch.h.gch.sum").read_text()
+    assert "could not read" in capsys.readouterr().out
+    os.utime(secret, (1, 1))
     (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
     _run_script(tmp_path, flags=flags)
     assert (proj / "esphome_pch.h.gch.sum").read_text() != first
