@@ -534,6 +534,22 @@ def test_prefetch_packages_downloads_pending_in_parallel(tmp_path: Path) -> None
         assert callable(call[1]["progress"])
 
 
+def test_prefetch_packages_skips_freshly_installed_dest(tmp_path: Path) -> None:
+    """A dest whose marker appeared while the worker waited on the lock is
+    already installed; re-downloading would orphan an archive copy."""
+    dest = tmp_path / "a"
+    dest.mkdir()
+    (dest / ".esphome_extracted").touch()
+    with (
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(
+            registry, "registry_download", side_effect=_resolve_for({"a": 10})
+        ),
+    ):
+        registry.prefetch_packages([("a", "1.0", dest, [])], tmp_path / "dl")
+    mock_download.assert_not_called()
+
+
 def test_prefetch_packages_dedupes_duplicate_entries(tmp_path: Path) -> None:
     """Duplicate (name, version) entries would race each other between two
     workers; only one survives (and one is too few to parallelize)."""
