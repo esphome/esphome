@@ -586,3 +586,98 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
     assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in content
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     assert "-include" not in get_component_cmakelists()
+
+
+def test_pch_compile_command_variants(tmp_path: Path) -> None:
+    """Missing DB, no matching entry, and launcher-prefixed commands."""
+    from esphome.build_gen.espidf import _pch_compile_command
+
+    build = tmp_path / "build"
+    build.mkdir()
+    header = build / "esphome_pch.h"
+    gch = build / "esphome_pch.h.gch"
+    assert _pch_compile_command(build, header, gch) is None
+
+    (build / "compile_commands.json").write_text(
+        json.dumps(
+            [
+                {"command": "gcc -c other.c", "file": "other.c"},
+            ]
+        )
+    )
+    assert _pch_compile_command(build, header, gch) is None
+
+    (build / "compile_commands.json").write_text(
+        json.dumps(
+            [
+                {
+                    "command": (
+                        "/usr/bin/ccache g++ -DX=1 -include esphome_pch.h "
+                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj -c a.cpp"
+                    ),
+                    "file": "/dev/src/esphome/a.cpp",
+                },
+            ]
+        )
+    )
+    # Launcher stripped, -include/-o/-c pairs removed, header targeted
+    assert _pch_compile_command(build, header, gch) == [
+        "g++",
+        "-DX=1",
+        "-x",
+        "c++-header",
+        "-c",
+        str(header),
+        "-o",
+        str(gch),
+    ]
+
+
+def test_prepare_pch_failure_writes_marker_and_skips_retry(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_f")
+    CORE.build_path = dev
+    calls = []
+
+    def failing_compile(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 1, "", "boom")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=failing_compile),
+    ):
+        prepare_pch()
+        prepare_pch()
+    assert len(calls) == 1
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_prepare_pch_spawn_oserror_degrades(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_o")
+    CORE.build_path = dev
+    with (
+        patch.object(CORE, "name", "test"),
+        patch(
+            "esphome.build_gen.espidf.subprocess.run",
+            side_effect=OSError("no such compiler"),
+        ),
+    ):
+        prepare_pch()
+    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_prepare_pch_disabled_is_noop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    dev = _make_pch_device(tmp_path, "dev_d")
+    CORE.build_path = dev
+    with patch("esphome.build_gen.espidf.subprocess.run", side_effect=AssertionError):
+        prepare_pch()
