@@ -16,6 +16,7 @@ from esphome.const import CONF_FILE, CONF_TYPE, CONF_URL, __version__
 from esphome.core import CORE, EsphomeError, TimePeriodSeconds
 from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import write_file
+from esphome.net_retry import fetch_with_retry
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -157,8 +158,17 @@ def has_remote_file_changed(
             }
             if etag := _read_etag(local_file_path):
                 headers[IF_NONE_MATCH] = etag
-            response = requests.head(
-                url, headers=headers, timeout=timeout, allow_redirects=True
+            # Retried so allow_stale=False consumers don't hard-fail on a
+            # healed flake. Only connection-level failures retry: HEAD
+            # never raises on HTTP status (servers rejecting HEAD with
+            # 405/501 must fall through to the GET), so 5xx is handled by
+            # the GET's own retry.
+            response = fetch_with_retry(
+                url,
+                lambda: requests.head(
+                    url, headers=headers, timeout=timeout, allow_redirects=True
+                ),
+                what="Revalidation",
             )
 
             _LOGGER.debug(
@@ -293,7 +303,7 @@ def download_content(
     _LOGGER.info("Downloading %s", url)
     _LOGGER.debug("Saving to %s", path)
 
-    try:
+    def _fetch() -> tuple[requests.Response, bytes]:
         req = requests.get(
             url,
             timeout=timeout,
@@ -304,7 +314,10 @@ def download_content(
         # and mid-stream connection errors all surface here as
         # RequestException subclasses, so this needs the same fall-back
         # treatment as the request itself.
-        data = req.content
+        return req, req.content
+
+    try:
+        req, data = fetch_with_retry(url, _fetch)
     except requests.exceptions.RequestException as e:
         if path.exists():
             # Memoized so a flaky host warns once per run, not per consumer.
