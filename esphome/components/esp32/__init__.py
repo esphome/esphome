@@ -646,10 +646,11 @@ SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
 def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
-    """Set an sdkconfig option unless the user already set it in sdkconfig_options.
+    """Set an sdkconfig option unless it is already set.
 
-    For the FINAL priority reconcile jobs, which run after the user options
-    were applied in to_code and must not override them.
+    For the FINAL priority reconcile jobs: they run after every to_code,
+    including the user's sdkconfig_options, and must not override an
+    existing value.
     """
     if name not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
         add_idf_sdkconfig_option(name, value)
@@ -799,6 +800,9 @@ def _enable_arduino_library(name: str) -> None:
     # Also enable any required IDF components
     for idf_component in ARDUINO_LIBRARY_IDF_COMPONENTS.get(name, ()):
         include_builtin_idf_component(idf_component)
+    # ssl_client.cpp references esp_crt_bundle_attach without a guard
+    if name == "NetworkClientSecure":
+        require_certificate_bundle()
 
 
 def add_extra_script(stage: str, filename: str, path: Path):

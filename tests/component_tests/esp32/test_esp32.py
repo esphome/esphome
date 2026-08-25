@@ -317,6 +317,11 @@ _BUNDLE_OPTIONS = (
         pytest.param(
             "certificate_bundle_full.yaml", (True, None, True), id="full_option"
         ),
+        pytest.param(
+            "certificate_bundle_arduino_tls.yaml",
+            (True, True, False),
+            id="arduino_network_client_secure",
+        ),
     ],
 )
 def test_certificate_bundle_sdkconfig(
