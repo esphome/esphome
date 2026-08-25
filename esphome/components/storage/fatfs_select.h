@@ -28,6 +28,8 @@ static constexpr uint8_t FS_SELECT_EXFAT = 2;
 // signatures name no FatFs type, so storage.cpp needs no FatFs include.
 void fatfs_log_probe_read_failed(const char *tag);
 void fatfs_log_reformat_no_filesystem(const char *tag, bool want_exfat);
+void fatfs_log_unreadable(const char *tag);
+void fatfs_log_no_reformat(const char *tag);
 void fatfs_log_reformat_mismatch(const char *tag, bool found_exfat, bool want_exfat);
 void fatfs_log_format_failed(const char *tag, bool want_exfat, int result);
 void fatfs_log_format_done(const char *tag, bool want_exfat);
@@ -55,8 +57,10 @@ inline FatfsDetected fatfs_classify_boot_sector(const uint8_t *sec) {
 }
 
 // Probe the medium BEFORE any mount: sector 0 directly, and -- when sector 0 is a partition
-// table instead of a boot sector -- one level of indirection: the first MBR partition, or
-// for a protective MBR (0xEE) the first GPT entry. Exactly the volumes FatFs would mount.
+// table instead of a boot sector -- one level of indirection into the partitions. All four
+// MBR primary entries (or, for a protective MBR, the first GPT entries) are scanned so a
+// FAT/exFAT volume that does not sit in slot 0 is still found rather than misreported as a
+// blank medium. Returns the first recognised volume; NONE only when nothing recognised.
 inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
   auto sec = std::make_unique<uint8_t[]>(FF_MAX_SS);
   if (disk_read(pdrv, sec.get(), 0, 1) != RES_OK) {
@@ -68,14 +72,16 @@ inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
     return direct;
   if (!fatfs_has_boot_signature(sec.get()))
     return FatfsDetected::NONE;
-  // Sector 0 is a partition table. First MBR entry: type at 0x1BE+4, start LBA at 0x1BE+8.
-  const uint8_t *entry = sec.get() + 0x1BE;
-  uint8_t part_type = entry[4];
-  uint64_t start_lba = static_cast<uint32_t>(entry[8]) | (static_cast<uint32_t>(entry[9]) << 8) |
-                       (static_cast<uint32_t>(entry[10]) << 16) | (static_cast<uint32_t>(entry[11]) << 24);
-  if (part_type == 0xEE) {
-    // Protective MBR -> GPT. Header at LBA 1: entry array start LBA at offset 72; the first
-    // entry's first LBA at offset 32 within the entry.
+
+  // Sector 0 is a partition table. Keep a copy so candidate boot sectors can be read into
+  // sec without losing the table (reused as the GPT entry-array buffer on that path).
+  auto tbl = std::make_unique<uint8_t[]>(FF_MAX_SS);
+  memcpy(tbl.get(), sec.get(), FF_MAX_SS);
+
+  if (tbl[0x1BE + 4] == 0xEE) {
+    // Protective MBR -> GPT. Header at LBA 1: entry-array LBA at 72, entry count at 80,
+    // entry size at 84; each entry's first LBA at offset 32, an all-zero type GUID (first
+    // LBA 0) marking an unused slot.
     if (disk_read(pdrv, sec.get(), 1, 1) != RES_OK) {
       fatfs_log_probe_read_failed(tag);
       return FatfsDetected::UNREADABLE;
@@ -83,20 +89,54 @@ inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
     if (memcmp(sec.get(), "EFI PART", 8) != 0)
       return FatfsDetected::NONE;  // protective MBR without a GPT behind it
     uint64_t entries_lba = 0;
+    uint32_t num_entries = 0, entry_size = 0;
     memcpy(&entries_lba, sec.get() + 72, sizeof(entries_lba));
-    if (disk_read(pdrv, sec.get(), static_cast<LBA_t>(entries_lba), 1) != RES_OK) {
+    memcpy(&num_entries, sec.get() + 80, sizeof(num_entries));
+    memcpy(&entry_size, sec.get() + 84, sizeof(entry_size));
+    if (entry_size == 0)
+      entry_size = 128;
+    uint32_t per_sector = static_cast<uint32_t>(FF_MAX_SS) / entry_size;
+    if (per_sector == 0)
+      per_sector = 1;
+    uint32_t max_scan = num_entries < 8 ? num_entries : 8;
+    for (uint32_t i = 0; i < max_scan; i++) {
+      if (disk_read(pdrv, tbl.get(), static_cast<LBA_t>(entries_lba + i / per_sector), 1) != RES_OK) {
+        fatfs_log_probe_read_failed(tag);
+        return FatfsDetected::UNREADABLE;
+      }
+      uint64_t first_lba = 0;
+      memcpy(&first_lba, tbl.get() + (i % per_sector) * entry_size + 32, sizeof(first_lba));
+      if (first_lba == 0)
+        continue;  // unused entry slot
+      if (disk_read(pdrv, sec.get(), static_cast<LBA_t>(first_lba), 1) != RES_OK) {
+        fatfs_log_probe_read_failed(tag);
+        return FatfsDetected::UNREADABLE;
+      }
+      FatfsDetected found = fatfs_classify_boot_sector(sec.get());
+      if (found != FatfsDetected::NONE)
+        return found;
+    }
+    return FatfsDetected::NONE;
+  }
+
+  // Plain MBR: scan all four primary entries (type at +4, start LBA at +8).
+  for (int i = 0; i < 4; i++) {
+    const uint8_t *entry = tbl.get() + 0x1BE + i * 16;
+    if (entry[4] == 0x00)
+      continue;  // empty slot
+    uint64_t start_lba = static_cast<uint32_t>(entry[8]) | (static_cast<uint32_t>(entry[9]) << 8) |
+                         (static_cast<uint32_t>(entry[10]) << 16) | (static_cast<uint32_t>(entry[11]) << 24);
+    if (start_lba == 0)
+      continue;
+    if (disk_read(pdrv, sec.get(), static_cast<LBA_t>(start_lba), 1) != RES_OK) {
       fatfs_log_probe_read_failed(tag);
       return FatfsDetected::UNREADABLE;
     }
-    memcpy(&start_lba, sec.get() + 32, sizeof(start_lba));
+    FatfsDetected found = fatfs_classify_boot_sector(sec.get());
+    if (found != FatfsDetected::NONE)
+      return found;
   }
-  if (start_lba == 0)
-    return FatfsDetected::NONE;  // no first partition to look into
-  if (disk_read(pdrv, sec.get(), static_cast<LBA_t>(start_lba), 1) != RES_OK) {
-    fatfs_log_probe_read_failed(tag);
-    return FatfsDetected::UNREADABLE;
-  }
-  return fatfs_classify_boot_sector(sec.get());
+  return FatfsDetected::NONE;
 }
 
 // Make the medium carry the requested filesystem BEFORE the one and only mount happens.
@@ -105,23 +145,37 @@ inline FatfsDetected fatfs_probe(const char *tag, uint8_t pdrv) {
 // reformatted to the requested one right here -- destructive by configured contract, and the
 // subsequent mount is then already on the correct filesystem. Returns false only when the
 // reformat itself failed.
-inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const char *drive, uint8_t requested) {
+inline bool ensure_requested_filesystem(const char *tag, uint8_t pdrv, const char *drive, uint8_t requested,
+                                        bool format_on_mismatch) {
   if (requested == FS_SELECT_AUTO)
     return true;
   const bool want_exfat = requested == FS_SELECT_EXFAT;
   FatfsDetected found = fatfs_probe(tag, pdrv);
+  // only reformat if explicitly desired by user
   if (found == FatfsDetected::UNREADABLE) {
-    // The probe could not read the medium, which says nothing about what is on it. Formatting
-    // here would destroy a perfectly good filesystem over a card that was not ready yet or a
-    // connector that flickered. Leave it alone and let the mount below report the trouble.
-    return true;
+    fatfs_log_unreadable(tag);
+    return false;
   }
-  if ((found == FatfsDetected::EXFAT) == want_exfat && found != FatfsDetected::NONE)
+  // Must be a positive detection of the requested family, not just "not the other one":
+  // comparing (found == EXFAT) against want_exfat makes NONE indistinguishable from FAT for
+  // a fat32 request, which would accept a blank medium and skip the reformat below.
+  const bool matches = want_exfat ? (found == FatfsDetected::EXFAT) : (found == FatfsDetected::FAT);
+  if (matches)
     return true;
   if (found == FatfsDetected::NONE) {
-    fatfs_log_reformat_no_filesystem(tag, want_exfat);
+    if (format_on_mismatch) {
+      fatfs_log_reformat_no_filesystem(tag, want_exfat);
+    } else {
+      fatfs_log_no_reformat(tag);
+      return false;
+    }
   } else {
-    fatfs_log_reformat_mismatch(tag, found == FatfsDetected::EXFAT, want_exfat);
+    if (format_on_mismatch) {
+      fatfs_log_reformat_mismatch(tag, found == FatfsDetected::EXFAT, want_exfat);
+    } else {
+      fatfs_log_no_reformat(tag);
+      return false;
+    }
   }
   auto work = std::make_unique<uint8_t[]>(FF_MAX_SS);
   MKFS_PARM parm{};
