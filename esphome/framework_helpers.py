@@ -1,7 +1,8 @@
 """Generic toolchain installation helpers shared across framework implementations."""
 
-from collections.abc import Iterable
-from contextlib import ExitStack
+from collections.abc import Callable, Iterable, Iterator
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, contextmanager, suppress
 import hashlib
 import io
 import json
@@ -10,11 +11,16 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import time
 from typing import IO, TYPE_CHECKING
 
-from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import ProgressBar, rmtree
+from esphome.net_retry import (
+    NETWORK_MAX_ATTEMPTS,
+    http_request,
+    is_transient_download_error,
+)
 
 if TYPE_CHECKING:
     import requests
@@ -23,14 +29,16 @@ PathType = str | os.PathLike
 
 _LOGGER = logging.getLogger(__name__)
 
+
 # Attempts per mirror URL before falling through to the next mirror; only
 # mid-stream drops retry (resuming when the server gave a validator),
 # connect errors move on to the next mirror immediately.
 _MIRROR_ATTEMPTS = 3
 
 # Passes over the whole mirror list when a transient network error is in
-# the mix; matches git.py's _NETWORK_MAX_ATTEMPTS (3 tries, 2s/4s backoff).
-_MIRROR_SWEEP_ATTEMPTS = 3
+# the mix; shares net_retry's policy (3 tries, 2s/4s backoff), which in
+# turn matches git.py's _NETWORK_MAX_ATTEMPTS.
+_MIRROR_SWEEP_ATTEMPTS = NETWORK_MAX_ATTEMPTS
 
 
 def get_project_link_flags() -> list[str]:
@@ -595,12 +603,10 @@ def _open_ranged(
     Raises on connect errors and HTTP error statuses; the response is closed
     on failure.
     """
-    import requests
-
     headers = {"Range": f"bytes={offset}-"} if offset else {}
     if offset and validator:
         headers["If-Range"] = validator
-    resp = requests.get(url, stream=True, timeout=timeout, headers=headers)
+    resp = http_request("GET", url, stream=True, timeout=timeout, headers=headers)
     if offset and resp.status_code == 416:
         resp.close()
         return None, offset
@@ -697,7 +703,11 @@ def _response_validator(resp: "requests.Response") -> str | None:
 
 
 def _stream_response_to_file(
-    resp: "requests.Response", f: IO[bytes], offset: int, size: int | None = None
+    resp: "requests.Response",
+    f: IO[bytes],
+    offset: int,
+    size: int | None = None,
+    progress: Callable[[int], None] | None = None,
 ) -> None:
     """Stream an open ``_open_ranged`` response body into ``f`` at ``offset``.
 
@@ -705,21 +715,187 @@ def _stream_response_to_file(
     (effective offset 0) discards the stale bytes. ``offset`` also seeds the
     progress bar so a resumed download shows overall progress. ``size`` is
     the known full file size; when None it is derived from the response's
-    content-length, and without either there is no progress bar.
+    content-length, and without either there is no bar. With ``progress``
+    set no bar is drawn here; the callback gets the absolute byte count.
     """
     f.seek(offset)
     f.truncate(offset)
     total_size = size or offset + _content_length(resp)
     downloaded = offset
-    progress = ProgressBar("Downloading") if total_size > 0 else None
+    own_bar: ProgressBar | None = None
+    if progress is None:
+        own_bar = ProgressBar("Downloading") if total_size > 0 else None
+        progress = (
+            (lambda done: own_bar.update(done / total_size))
+            if own_bar
+            else (lambda _: None)
+        )
+    progress(downloaded)
     for chunk in resp.iter_content(chunk_size=256 * 1024):
         if chunk:
             f.write(chunk)
             downloaded += len(chunk)
-        if progress is not None:
-            progress.update(downloaded / total_size)
-    if progress is not None:
-        progress.update(1)
+        progress(downloaded)
+    if own_bar is not None:
+        own_bar.update(1)
+
+
+# Concurrent downloads per batch; enough to hide latency without
+# hammering the host or the mirrors.
+BATCH_DOWNLOAD_WORKERS = 4
+
+
+def run_batch_downloads(
+    header: str,
+    jobs: list[tuple[str, int, Callable[[Callable[[int], None]], None]]],
+    max_workers: int = BATCH_DOWNLOAD_WORKERS,
+) -> list[tuple[str, BaseException]]:
+    """Run ``(name, size, fetch)`` download jobs concurrently under one bar.
+
+    Each ``fetch(tracker)`` reports absolute byte counts; the bar total is
+    the sum of the sizes. Failures are returned after the bar is done so
+    warnings never land on its row. Ctrl-C drops queued jobs and aborts
+    in-flight ones at their next progress tick or backoff boundary (a
+    parked socket read defers that by its timeout, and an in-progress
+    archive extraction runs to completion); resumable destinations
+    (``download_with_resume``) keep their fetched ``.part`` bytes.
+    ``jobs`` must be non-empty.
+    """
+    progress = _BatchDownloadProgress(header, sum(size for _, size, _ in jobs))
+    cancelled = threading.Event()
+
+    def _run(
+        name: str, fetch: Callable[[Callable[[int], None]], None]
+    ) -> tuple[str, BaseException] | None:
+        tracker = progress.tracker()
+
+        def checked(done: int) -> None:
+            if cancelled.is_set():
+                raise _BatchDownloadCancelled
+            tracker(done)
+
+        try:
+            fetch(checked)
+        except (_BatchDownloadCancelled, Exception) as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # The cancelled arm exists for the tracker rollback below; the
+            # batch re-raises the interrupt, so the list is never returned
+            # after Ctrl-C. A bar-frame write failure must not displace the
+            # download error.
+            with suppress(Exception):
+                tracker(0)
+            failure = (name, err)
+        else:
+            failure = None
+        return failure
+
+    ex = ThreadPoolExecutor(max_workers=max_workers)
+    try:
+        with progress.logging_guard():
+            futures = [ex.submit(_run, name, fetch) for name, _, fetch in jobs]
+            return [failure for f in futures if (failure := f.result()) is not None]
+    except BaseException:
+        # Without this the non-daemon workers download to completion before
+        # the interpreter can exit, making Ctrl-C ineffective for minutes
+        cancelled.set()
+        raise
+    finally:
+        ex.shutdown(wait=True, cancel_futures=True)
+        progress.done()
+
+
+class _BatchDownloadCancelled(BaseException):
+    """Raised inside a download job to abandon it after Ctrl-C.
+
+    BaseException, like KeyboardInterrupt: a broad ``except Exception`` in
+    the download layers must not convert an abort into a retry.
+    """
+
+
+class _BatchDownloadProgress:
+    """One bar across several concurrent downloads, summing tracker bytes.
+
+    The lock also serialises stderr writes so workers never interleave
+    frames; a ``total`` of 0 draws nothing. Call ``done()`` at the end so a
+    bar short of 100% still ends its line.
+    """
+
+    def __init__(self, header: str, total: int) -> None:
+        self._bar = ProgressBar(header) if total > 0 else None
+        self._total = total
+        self._sum = 0
+        self._lock = threading.Lock()
+
+    def tracker(self) -> Callable[[int], None]:
+        if self._bar is None:
+            return lambda _: None
+        last = 0
+
+        def update(done: int) -> None:
+            nonlocal last
+            with self._lock:
+                self._sum += done - last
+                last = done
+                # A bar-write failure (broken stderr pipe) must not surface
+                # as a download failure and cost the .part file
+                with suppress(Exception):
+                    self._bar.update(min(self._sum / self._total, 1))
+
+        return update
+
+    def done(self) -> None:
+        if self._bar is not None:
+            self._bar.done()
+
+    @contextmanager
+    def logging_guard(self) -> Iterator[None]:
+        r"""End a partial bar row before any log record while active.
+
+        Worker warnings (mirror retries) share stderr with the bar's \r
+        frames; without this the record lands mid-row and the next frame
+        overwrites it. A handler-level filter runs just before emit, so
+        only a tiny window remains for a concurrent frame.
+        """
+        the_bar = self._bar
+        if the_bar is None:
+            yield
+            return
+        lock = self._lock
+
+        class _EndRow(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:
+                # Handler.handle() runs filters outside handleError's try; a
+                # stderr write failure must not escape through the log call
+                with lock, suppress(Exception):
+                    the_bar.interrupt()
+                return True
+
+        end_row = _EndRow()
+        handlers = logging.getLogger().handlers
+        for handler in handlers:
+            handler.addFilter(end_row)
+        try:
+            yield
+        finally:
+            for handler in handlers:
+                handler.removeFilter(end_row)
+
+
+def _part_path(dest: Path) -> Path:
+    """The in-progress sidecar ``download_with_resume`` streams into."""
+    return dest.with_name(dest.name + ".part")
+
+
+def _cancellable_sleep(
+    delay: float, progress: Callable[[int], None] | None, done: int
+) -> None:
+    """Backoff sleep that still observes a batch cancellation tick."""
+    if progress is None:
+        time.sleep(delay)
+        return
+    end = time.monotonic() + delay
+    while (remaining := end - time.monotonic()) > 0:
+        progress(done)  # raises when the batch was cancelled
+        time.sleep(min(0.5, remaining))
 
 
 def download_with_resume(
@@ -732,6 +908,7 @@ def download_with_resume(
     attempts: int = 5,
     timeout: int = 30,
     retry_connect_errors: bool = True,
+    progress: Callable[[int], None] | None = None,
 ) -> None:
     """Download ``url`` to ``dest``, resuming partial downloads.
 
@@ -754,6 +931,9 @@ def download_with_resume(
     of consuming attempts — for callers with their own fallback, like
     ``download_from_mirrors``.
 
+    ``progress`` replaces the built-in bar: it receives the absolute bytes of
+    ``dest`` obtained so far (see ``_BatchDownloadProgress``).
+
     Raises EsphomeError when all attempts are exhausted.
     """
     # Imported lazily: requests is a heavy import (~85ms) and is only needed
@@ -762,10 +942,8 @@ def download_with_resume(
 
     from esphome.core import EsphomeError
 
-    ensure_happy_eyeballs()
-
     dest = Path(dest)
-    part = dest.with_name(dest.name + ".part")
+    part = _part_path(dest)
     meta = part.with_name(part.name + ".meta")
     dest.parent.mkdir(parents=True, exist_ok=True)
     last_error: Exception | None = None
@@ -777,6 +955,8 @@ def download_with_resume(
     if dest.is_file() and (sha256 is not None or size is not None):
         try:
             _verify_file(dest, sha256, size)
+            if progress is not None:
+                progress(size if size is not None else dest.stat().st_size)
             return
         except EsphomeError:
             dest.unlink()
@@ -822,7 +1002,7 @@ def download_with_resume(
                             # Recorded so a later run can prove an If-Range
                             # resume of this part file safe.
                             _write_download_meta(meta, url, validator, expected_total)
-                        _stream_response_to_file(resp, f, offset, size)
+                        _stream_response_to_file(resp, f, offset, size, progress)
             # else: a previous run already wrote every byte (or more) but
             # was killed before the rename below. Skip the network entirely
             # — a Range request past EOF would draw HTTP 416 — and let
@@ -831,6 +1011,10 @@ def download_with_resume(
 
             expected_size = size if size is not None else expected_total
             _verify_file(part, sha256, expected_size or None)
+            if progress is not None:
+                # Also credits a part file an earlier run completed without
+                # streaming anything this time.
+                progress(expected_size or part.stat().st_size)
             if not expected_size and sha256 is None:
                 # No sha, no size, and the server sent no usable
                 # content-length: nothing can prove the download complete
@@ -878,11 +1062,11 @@ def download_with_resume(
 
     raise EsphomeError(
         f"Failed to download {url} after {attempts} attempts: "
-        f"{_failure_reason(last_error)}"
+        f"{failure_reason(last_error)}"
     ) from last_error
 
 
-def _failure_reason(e: Exception) -> str:
+def failure_reason(e: BaseException) -> str:
     """Format a download exception for the aggregated error message.
 
     ``requests`` appends " for url: <url>" to HTTP errors; the URL is already
@@ -893,46 +1077,12 @@ def _failure_reason(e: Exception) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
-def _spent_attempts_error(e: Exception, attempts: int) -> Exception:
-    """Wrap a failure whose mirror already consumed download attempts, so
-    the sweep classifies it as permanent."""
-    from esphome.core import EsphomeError
-
-    err = EsphomeError(f"failed after {attempts} attempts: {_failure_reason(e)}")
-    err.__cause__ = e
-    return err
-
-
-def _is_transient_download_error(e: Exception) -> bool:
-    """Return True when a download failure is worth retrying.
-
-    Connection-level failures and HTTP 429/5xx are transient. Other HTTP
-    errors, local errors, and exhausted-attempts EsphomeError wrappers
-    (their per-mirror retries are already spent) are permanent.
-    """
-    # Imported lazily: requests is a heavy import (~85ms) and is only
-    # needed when actually downloading, never during config validation.
-    import requests
-
-    if isinstance(e, requests.exceptions.HTTPError):
-        resp = e.response
-        return resp is not None and (resp.status_code == 429 or resp.status_code >= 500)
-    return isinstance(
-        e,
-        (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-            requests.exceptions.ChunkedEncodingError,
-        ),
-    )
-
-
 def _try_mirrors_once(
     urls: list[str],
-    path_target: Path | None,
-    f: IO[bytes] | None,
+    path_target: Path,
     timeout: int,
     failures: list[tuple[str, Exception]],
+    progress: Callable[[int], None] | None = None,
 ) -> str | None:
     """Single pass over the resolved mirror ``urls``, one try per URL.
 
@@ -948,109 +1098,75 @@ def _try_mirrors_once(
     for url in urls:
         _LOGGER.debug("Trying to download from %s", url)
 
-        # Path targets delegate to download_with_resume so a partial
-        # download persists (and resumes) across esphome runs.
-        if path_target is not None:
-            try:
-                download_with_resume(
-                    url,
-                    path_target,
-                    attempts=_MIRROR_ATTEMPTS,
-                    timeout=timeout,
-                    # Pre-body failures (connect/HTTP errors) fall to the
-                    # next mirror immediately; only mid-stream drops
-                    # retry-with-resume on the same URL.
-                    retry_connect_errors=False,
-                )
-                return url
-            except (requests.RequestException, OSError, EsphomeError) as e:
-                # Everything download_with_resume classifies as a download
-                # failure; programming errors propagate.
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append((url, e))
-                continue
-
-        # File-like targets download here; mid-stream failures retry the
-        # same mirror with resume (see download_with_resume) instead of
-        # starting over. There is no checksum to verify a resumed file
-        # against, so a stitch is only trusted when the server proves
-        # consistency: the If-Range validator guarantees 206 only for
-        # unchanged content, and the expected total length (when the first
-        # response carried one) guards against short or shifted bodies.
-        # Without a validator the retry restarts from zero.
-        offset = 0
-        expected_total = 0
-        validator = None
-        for attempt in range(_MIRROR_ATTEMPTS):
-            try:
-                resp, offset = _open_ranged(url, offset, timeout, validator)
-            except (requests.RequestException, OSError) as e:
-                # Connect/HTTP error, no bytes flowed — next mirror. Wrap
-                # when earlier attempts were already spent on this mirror.
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append(
-                    (url, _spent_attempts_error(e, attempt + 1) if attempt else e)
-                )
-                break
-
-            try:
-                # A None response means HTTP 416: the file already holds
-                # every byte the server has (a drop after the last byte);
-                # only the length check below remains.
-                if resp is not None:
-                    with resp:
-                        if offset == 0:
-                            validator = _response_validator(resp)
-                            expected_total = _content_length(resp)
-                        _stream_response_to_file(resp, f, offset)
-
-                if expected_total and f.tell() != expected_total:
-                    raise EsphomeError(
-                        f"size mismatch: expected {expected_total}, got {f.tell()}"
-                    )
-                if not expected_total:
-                    # Same trust decision as download_with_resume's
-                    # unverifiable promotion; surface it at the same level.
-                    _LOGGER.debug(
-                        "Downloaded %s without any way to verify completeness",
-                        url,
-                    )
-
-                _LOGGER.debug("Downloaded successfully from: %s", url)
-
-                # Reset file pointer and return
-                f.seek(0)
-                return url
-
-            except (requests.RequestException, OSError, EsphomeError) as e:
-                # Mid-stream drop: keep the received bytes and retry this
-                # mirror from the current position — but only when the
-                # server gave a validator to resume against safely AND a
-                # total length to prove the stitched file complete (the
-                # length check above is the only verification here).
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                if validator and expected_total:
-                    offset = f.tell()
-                else:
-                    _LOGGER.debug(
-                        "Restarting %s from zero: cannot prove a "
-                        "resumed file complete (validator=%s, total=%s)",
-                        url,
-                        validator is not None,
-                        expected_total,
-                    )
-                    offset = 0
-                if attempt == _MIRROR_ATTEMPTS - 1:
-                    failures.append((url, _spent_attempts_error(e, _MIRROR_ATTEMPTS)))
+        # Delegate to download_with_resume so a partial download persists
+        # (and resumes) across esphome runs.
+        try:
+            download_with_resume(
+                url,
+                path_target,
+                attempts=_MIRROR_ATTEMPTS,
+                timeout=timeout,
+                # Pre-body failures (connect/HTTP errors) fall to the
+                # next mirror immediately; only mid-stream drops
+                # retry-with-resume on the same URL.
+                retry_connect_errors=False,
+                progress=progress,
+            )
+            return url
+        except (requests.RequestException, OSError, EsphomeError) as e:
+            # Everything download_with_resume classifies as a download
+            # failure; programming errors propagate.
+            _LOGGER.debug("Failed to download %s: %s", url, str(e))
+            failures.append((url, e))
 
     return None
+
+
+def download_and_extract(
+    mirrors: list[str],
+    substitutions: dict[str, str],
+    archive_path: PathType,
+    extract_dir: PathType,
+    timeout: int = 30,
+    progress_header: str | None = None,
+    progress: Callable[[int], None] | None = None,
+) -> str:
+    """Download an archive from ``mirrors`` to ``archive_path``, extract it
+    into ``extract_dir``, and delete the archive.
+
+    The archive should live next to its destination (not in a temp dir) so
+    an interrupted download's ``.part`` file resumes on the next run. The
+    archive is deleted whether extraction succeeds or fails: a
+    complete-but-corrupt file (e.g. torn by an unclean shutdown) must not
+    poison the next run, and without a checksum only a failed extraction
+    can expose it.
+
+    Returns the source URL the download came from.
+    """
+    archive_path = Path(archive_path)
+    url = download_from_mirrors(
+        mirrors, substitutions, archive_path, timeout=timeout, progress=progress
+    )
+    try:
+        archive_extract_all(archive_path, extract_dir, progress_header=progress_header)
+    finally:
+        # Best-effort: an AV handle on the just-written archive (Windows)
+        # must not replace the real extraction error or fail a successful
+        # extraction. A surviving archive is harmless; download_with_resume
+        # re-verifies or re-downloads it next run.
+        try:
+            archive_path.unlink(missing_ok=True)
+        except OSError as err:
+            _LOGGER.debug("Could not remove archive %s: %s", archive_path, err)
+    return url
 
 
 def download_from_mirrors(
     mirrors: list[str],
     substitutions: dict[str, str],
-    target: io.RawIOBase | IO[bytes] | PathType,
+    target: PathType,
     timeout: int = 30,
+    progress: Callable[[int], None] | None = None,
 ) -> str:
     """
     Download file from multiple mirrors with substitution support.
@@ -1058,8 +1174,10 @@ def download_from_mirrors(
     Args:
         mirrors: list of mirror URLs
         substitutions: Dictionary of substitutions to apply to URLs
-        target: Target file path or file-like object
+        target: Target file path
         timeout: Download timeout in seconds
+        progress: Passed through to the download (see ``download_with_resume``);
+            replaces the built-in per-file bar
 
     Returns:
         The source URL.
@@ -1068,9 +1186,8 @@ def download_from_mirrors(
     ``substitutions`` are skipped, so callers can offer templates that only
     apply to some downloads.
 
-    A path target downloads through ``download_with_resume``, so an
-    interrupted download resumes on the next esphome run; a file-like target
-    only resumes mid-stream drops within this call.
+    The target downloads through ``download_with_resume``, so an
+    interrupted download resumes on the next esphome run.
 
     When every mirror fails and at least one failure is transient (dropped
     connection, timeout, HTTP 429/5xx), the whole list is retried with a
@@ -1084,21 +1201,11 @@ def download_from_mirrors(
     """
     from esphome.core import EsphomeError
 
-    ensure_happy_eyeballs()
+    if not isinstance(target, (str, os.PathLike)):
+        raise TypeError(f"target must be a str or Path: {type(target)}")
+    path_target = Path(target)
 
-    # 1. Classify the target: filesystem path or open file object
-    path_target: Path | None = None
-    f: IO[bytes] | None = None
-    if isinstance(target, (str, os.PathLike)):
-        path_target = Path(target)
-    elif isinstance(target, (io.RawIOBase, io.IOBase)):
-        f = target
-    else:
-        raise TypeError(
-            f"target must be str, Path, or file-like object: {type(target)}"
-        )
-
-    # 2. Resolve the mirror templates (invariant across retry sweeps)
+    # 1. Resolve the mirror templates (invariant across retry sweeps)
     urls: list[str] = []
     skipped: list[tuple[str, str]] = []
     for mirror in mirrors:
@@ -1117,21 +1224,23 @@ def download_from_mirrors(
             _LOGGER.warning("Skipping malformed mirror URL template %s: %r", mirror, e)
             skipped.append((mirror, f"skipped ({e!r})"))
 
-    # 3. Sweep the mirror list, retrying transient failures with backoff:
+    # 2. Sweep the mirror list, retrying transient failures with backoff:
     # a single pass keeps mirror failover fast, re-sweeping keeps one
     # network blip from failing the build when only one mirror applies.
     failures: list[tuple[str, Exception]] = []
     for sweep in range(1, _MIRROR_SWEEP_ATTEMPTS + 1):
         sweep_failures: list[tuple[str, Exception]] = []
         if (
-            url := _try_mirrors_once(urls, path_target, f, timeout, sweep_failures)
+            url := _try_mirrors_once(
+                urls, path_target, timeout, sweep_failures, progress
+            )
         ) is not None:
             return url
         failures.extend(sweep_failures)
         # Permanent failures (404, verification mismatch) won't heal;
         # only retry when a transient error is in the mix (as git.py does).
         transient = next(
-            ((u, e) for u, e in sweep_failures if _is_transient_download_error(e)),
+            ((u, e) for u, e in sweep_failures if is_transient_download_error(e)),
             None,
         )
         if transient is None:
@@ -1141,21 +1250,27 @@ def download_from_mirrors(
             _LOGGER.warning(
                 "Download of %s failed (%s); retrying in %d seconds (attempt %d/%d)",
                 transient[0],
-                _failure_reason(transient[1]),
+                failure_reason(transient[1]),
                 delay,
                 sweep + 1,
                 _MIRROR_SWEEP_ATTEMPTS,
             )
-            time.sleep(delay)
+            # Tick with the bytes already on disk so a combined bar holds
+            # steady during the backoff instead of rewinding to zero
+            done = 0
+            if progress is not None:
+                part = _part_path(path_target)
+                done = part.stat().st_size if part.is_file() else 0
+            _cancellable_sleep(delay, progress, done)
 
-    # 4. Report every attempted URL if all mirrors failed. failures spans
+    # 3. Report every attempted URL if all mirrors failed. failures spans
     # all sweeps (deduplicated by URL and reason), so neither an early
     # mirror's failure nor an earlier sweep's failure mode is hidden.
     if failures:
         seen: set[tuple[str, str]] = set()
         attempts = ""
         for url, e in failures:
-            reason = _failure_reason(e)
+            reason = failure_reason(e)
             if (url, reason) not in seen:
                 seen.add((url, reason))
                 attempts += f"\n  {url}\n    {reason}"

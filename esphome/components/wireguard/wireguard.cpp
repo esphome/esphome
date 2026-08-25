@@ -178,25 +178,6 @@ time_t Wireguard::get_latest_handshake() const {
   return result;
 }
 
-void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
-void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
-void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
-
-#ifdef USE_BINARY_SENSOR
-void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
-void Wireguard::set_enabled_sensor(binary_sensor::BinarySensor *sensor) { this->enabled_sensor_ = sensor; }
-#endif
-
-#ifdef USE_SENSOR
-void Wireguard::set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
-#endif
-
-#ifdef USE_TEXT_SENSOR
-void Wireguard::set_address_sensor(text_sensor::TextSensor *sensor) { this->address_sensor_ = sensor; }
-#endif
-
-void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
-
 void Wireguard::enable() {
   this->enabled_ = true;
   ESP_LOGI(TAG, "Enabled");
@@ -217,8 +198,6 @@ void Wireguard::publish_enabled_state() {
   }
 #endif
 }
-
-bool Wireguard::is_enabled() { return this->enabled_; }
 
 void Wireguard::start_connection_() {
   if (!this->enabled_) {

@@ -111,7 +111,7 @@ template<typename T> T ZigbeeAttribute::scale_value_(float value) {
     const float scaled = this->scale_ * value;
     if (std::isnan(value) || scaled < static_cast<float>(std::numeric_limits<T>::lowest()) ||
         scaled > static_cast<float>(std::numeric_limits<T>::max())) {
-      return this->invalid_value_<T>();  // 0x8000 / 0xFFFF / 0 for map & enum
+      return this->invalid_value_<T>();  // 0x8000 / 0xFFFF / 0 for bitmaps
     }
     return static_cast<T>(lroundf(scaled));
   }

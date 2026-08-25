@@ -11,6 +11,7 @@ CONNECT = "connect"
 SCALE = "scale"
 KEY_ZIGBEE_EP = "zigbee_ep"
 KEY_ZIGBEE_EP_NO_NUM = "zigbee_ep_no_num"
+KEY_ZIGBEE_FIRST_EP_CL = "zigbee_first_ep_cl"
 
 DEVICE_ID = {
     "ON_OFF_OUTPUT": cg.RawExpression("EZB_ZHA_ON_OFF_OUTPUT_DEVICE_ID"),
@@ -28,6 +29,7 @@ cluster_id = cg.esphome_ns.enum("ezb_zcl_cluster_id_e")
 CLUSTER_ID = {
     "BASIC": cluster_id.EZB_ZCL_CLUSTER_ID_BASIC,
     "ON_OFF": cluster_id.EZB_ZCL_CLUSTER_ID_ON_OFF,
+    "TIME": cluster_id.EZB_ZCL_CLUSTER_ID_TIME,
     "BINARY_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_BINARY_INPUT,
     "BINARY_OUTPUT": cluster_id.EZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
     "ANALOG_INPUT": cluster_id.EZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
@@ -42,6 +44,7 @@ CLUSTER_ID = {
 }
 CLUSTER_ROLE = {
     "SERVER": cg.RawExpression("EZB_ZCL_CLUSTER_SERVER"),
+    "CLIENT": cg.RawExpression("EZB_ZCL_CLUSTER_CLIENT"),
 }
 attr_type = cg.esphome_ns.enum("ezb_zcl_attr_type_e")
 ATTR_TYPE = {

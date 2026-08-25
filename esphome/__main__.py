@@ -762,9 +762,11 @@ def _wrap_to_code(name, comp, yaml_util):
     async def wrapped(conf):
         cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
-            conf_str = yaml_util.dump(conf)
+            # sort_keys: voluptuous fills defaults in set order, so an
+            # unsorted dump would churn main.cpp and relink every run
+            conf_str = yaml_util.dump(conf, sort_keys=True)
             conf_str = conf_str.replace("//", "")
-            # remove tailing \ to avoid multi-line comment warning
+            # remove trailing \ to avoid multi-line comment warning
             conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
@@ -855,7 +857,20 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        toolchain.get_idedata()
+        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+
+        try:
+            if toolchain.get_idedata() is None:
+                _LOGGER.warning("No idedata was generated for this build")
+        except IDEDATA_BEST_EFFORT_ERRORS as err:
+            # The firmware already built; an idedata failure must not fail
+            # a successful build.
+            _LOGGER.warning(
+                "Could not generate idedata: %s (IDE, clang-tidy, and "
+                "memory-analysis data will be unavailable for this build)",
+                err,
+            )
+            _LOGGER.debug("Idedata failure detail", exc_info=True)
     else:
         from esphome.platformio import toolchain
 

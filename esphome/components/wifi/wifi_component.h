@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #ifdef USE_LIBRETINY
@@ -261,38 +262,38 @@ class WiFiAP {
   friend class WiFiScanResult;
 
  public:
-  void set_ssid(const std::string &ssid);
-  void set_ssid(const char *ssid);
+  void set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
+  void set_ssid(const char *ssid) { this->set_ssid(StringRef(ssid)); }
   void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
-  void set_bssid(const bssid_t &bssid);
-  void clear_bssid();
-  void set_password(const std::string &password);
-  void set_password(const char *password);
+  void set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
+  void clear_bssid() { this->bssid_ = {}; }
+  void set_password(const std::string &password) { this->password_ = CompactString(password.c_str(), password.size()); }
+  void set_password(const char *password) { this->set_password(StringRef(password)); }
   void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
 #ifdef USE_WIFI_WPA2_EAP
-  void set_eap(optional<EAPAuth> eap_auth);
+  void set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif  // USE_WIFI_WPA2_EAP
-  void set_channel(uint8_t channel);
-  void clear_channel();
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void clear_channel() { this->channel_ = 0; }
   void set_priority(int8_t priority) { priority_ = priority; }
 #ifdef USE_WIFI_MANUAL_IP
-  void set_manual_ip(optional<ManualIP> manual_ip);
+  void set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
-  void set_hidden(bool hidden);
+  void set_hidden(bool hidden) { this->hidden_ = hidden; }
   StringRef get_ssid() const { return this->ssid_.ref(); }
   StringRef get_password() const { return this->password_.ref(); }
-  const bssid_t &get_bssid() const;
-  bool has_bssid() const;
+  const bssid_t &get_bssid() const { return this->bssid_; }
+  bool has_bssid() const { return this->bssid_ != bssid_t{}; }
 #ifdef USE_WIFI_WPA2_EAP
-  const optional<EAPAuth> &get_eap() const;
+  const optional<EAPAuth> &get_eap() const { return this->eap_; }
 #endif  // USE_WIFI_WPA2_EAP
   uint8_t get_channel() const { return this->channel_; }
   bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
-  const optional<ManualIP> &get_manual_ip() const;
+  const optional<ManualIP> &get_manual_ip() const { return this->manual_ip_; }
 #endif
-  bool get_hidden() const;
+  bool get_hidden() const { return this->hidden_; }
 
  protected:
   CompactString ssid_;
@@ -319,14 +320,15 @@ class WiFiScanResult {
 
   bool matches(const WiFiAP &config) const;
 
-  bool get_matches() const;
-  void set_matches(bool matches);
-  const bssid_t &get_bssid() const;
+  bool get_matches() const { return this->matches_; }
+  void set_matches(bool matches) { this->matches_ = matches; }
+  const bssid_t &get_bssid() const { return this->bssid_; }
   StringRef get_ssid() const { return this->ssid_.ref(); }
-  uint8_t get_channel() const;
-  int8_t get_rssi() const;
-  bool get_with_auth() const;
-  bool get_is_hidden() const;
+  uint8_t get_channel() const { return this->channel_; }
+  int8_t get_rssi() const { return this->rssi_; }
+  bool get_with_auth() const { return this->with_auth_; }
+  bool get_is_hidden() const { return this->is_hidden_; }
+  bool ssid_equals(const WiFiScanResult &other) const { return this->ssid_ == other.ssid_; }
   int8_t get_priority() const { return priority_; }
   void set_priority(int8_t priority) { priority_ = priority; }
 
@@ -441,6 +443,7 @@ class WiFiComponent final : public Component {
   void set_sta(const WiFiAP &ap);
   // Returns a copy of the currently selected AP configuration
   WiFiAP get_sta() const;
+  // init_sta/add_sta kept out of line: inlining them into the generated setup() grows flash
   void init_sta(size_t count);
   void add_sta(const WiFiAP &ap);
   void clear_sta();
@@ -460,7 +463,7 @@ class WiFiComponent final : public Component {
 
   void enable();
   void disable();
-  bool is_disabled();
+  bool is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap);
@@ -471,7 +474,7 @@ class WiFiComponent final : public Component {
 
   void retry_connect();
 
-  void set_reboot_timeout(uint32_t reboot_timeout);
+  void set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 
   bool is_connected() const { return this->connected_; }
 
@@ -491,7 +494,7 @@ class WiFiComponent final : public Component {
   void set_phy_mode(WiFi8266PhyMode phy_mode) { this->phy_mode_ = phy_mode; }
 #endif
 
-  void set_passive_scan(bool passive);
+  void set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   void save_wifi_sta(const char *ssid, const char *password);
@@ -505,7 +508,7 @@ class WiFiComponent final : public Component {
   void dump_config() override;
   void restart_adapter();
   /// WIFI setup_priority.
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::WIFI; }
   /// Reconnect WiFi if required.
   void loop() override;
 
@@ -514,8 +517,8 @@ class WiFiComponent final : public Component {
   bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
-  void set_btm(bool btm);
-  void set_rrm(bool rrm);
+  void set_btm(bool btm) { this->btm_ = btm; }
+  void set_rrm(bool rrm) { this->rrm_ = rrm; }
 #endif
 
   network::IPAddress get_dns_address(int num);
@@ -549,9 +552,6 @@ class WiFiComponent final : public Component {
   void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use wifi_ssid_to() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string wifi_ssid();
   /// Write SSID to buffer without heap allocation.
   /// Returns pointer to buffer, or empty string if not connected.
   const char *wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer);
@@ -951,6 +951,14 @@ class WiFiComponent final : public Component {
   // On ESP8266, written from SDK system context (wifi_event_callback) —
   // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
   uint8_t sta_state_{0};
+#endif
+#ifdef USE_LIBRETINY
+  // First attempt since STA-up (re-armed on every STA off->on); the
+  // pre-attempt teardown is skipped then.
+  bool lt_first_connect_attempt_{true};
+  // A self-inflicted disconnect from that teardown is pending; it must not
+  // consume an ignored-disconnect slot.
+  bool lt_teardown_event_pending_{false};
 #endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};

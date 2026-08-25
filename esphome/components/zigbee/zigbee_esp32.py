@@ -124,7 +124,7 @@ def get_default_by_type(attr_type: str) -> str | bool | int | float:
         return float("nan")
     test = re.match(r"^(UINT|ENUM)(\d{1,2})$", attr_type)
     if test:
-        # ZCL "invalid value" sentinel for unsigned ints is the maximum (0xFFFF for INT16)
+        # ZCL "invalid value" sentinel for unsigned ints is the maximum (0xFFFF for UINT16)
         return 2 ** (int(test.group(2))) - 1
     test = re.match(r"^INT(\d{1,2})$", attr_type)
     if test:
