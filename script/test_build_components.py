@@ -1062,10 +1062,10 @@ def test_components(
     # toolchain build.
     include_validate = esphome_command != "compile"
 
-    # Find all component tests; remember which patterns (wildcards
-    # included) matched anything, for the deferred no-tests accounting
+    # Find all component tests; remember which components each pattern
+    # (wildcards included) matched, for the deferred no-tests accounting
     all_tests = {}
-    pattern_hits: dict[str, bool] = {}
+    pattern_components: dict[str, set[str]] = {}
     for pattern in component_patterns:
         # Skip empty patterns (happens when components list is empty string)
         if not pattern:
@@ -1073,7 +1073,7 @@ def test_components(
         found = find_component_tests(
             tests_dir, pattern, base_only, include_validate=include_validate
         )
-        pattern_hits[pattern] = bool(found)
+        pattern_components[pattern] = set(found)
         all_tests.update(found)
 
     # The flag's contract is "no test matched fails": a fully blank pattern
@@ -1203,10 +1203,12 @@ def test_components(
         # legitimately match nothing. Failing is deferred past the summary
         # so a real failure's reproduce commands still print.
         built = {c for r in test_results for c in r.components}
+        # A pattern is silent when it matched no fixture, or when none of
+        # its matched components produced a build (wildcards included)
         silent = [
             p
             for p in component_patterns
-            if p and (not pattern_hits.get(p) or ("*" not in p and p not in built))
+            if p and not (pattern_components.get(p, set()) & built)
         ]
         if silent:
             print(f"No tests ran for requested pattern(s): {', '.join(silent)}")

@@ -644,7 +644,10 @@ def _warn_decode_problem(key: str, message: str, *args) -> bool:
     return True
 
 
-def _decode_pc(config: ConfigType, addr: str) -> None:
+def _decode_pc(config: ConfigType, addr: str, *, bulk: bool = False) -> None:
+    """Decode one crash address. ``bulk``: the caller is scanning every
+    8-hex stack word, most of which are not code addresses -- unmappable
+    ones log at debug so real frames are not buried."""
     if (native_toolchain := native_toolchain_module()) is not None:
         addr2line = native_toolchain.get_addr2line_path()
         elf = native_toolchain.get_elf_path()
@@ -686,9 +689,10 @@ def _decode_pc(config: ConfigType, addr: str) -> None:
         return
 
     if "?? ??:0" in translation:
-        # A stale or mismatched ELF: mark it, or the frame silently reads
-        # as merely unmappable
-        _LOGGER.warning("Not decoded %s (address not in %s)", addr, elf)
+        # A named register that fails to decode is confusing silence; a
+        # bulk stack word failing is the expected common case
+        log = _LOGGER.debug if bulk else _LOGGER.warning
+        log("Not decoded %s (address not in %s)", addr, elf)
         return
     translation = translation.replace(" at ??:?", "").replace(":?", "")
     _LOGGER.warning("Decoded %s", translation)
@@ -758,6 +762,6 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
 
     if backtrace_state:
         for addr in re.finditer(STACKTRACE_ESP8266_BACKTRACE_PC_RE, line):
-            _decode_pc(config, addr.group())
+            _decode_pc(config, addr.group(), bulk=True)
 
     return backtrace_state
