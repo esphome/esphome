@@ -261,8 +261,23 @@ def test_esp32_configuration_errors(
         ),
         pytest.param(
             "exclusion_reincludes_web_server.yaml",
-            ("esp-tls",),
+            ("esp-tls", "esp_http_server"),
             id="web_server_idf",
+        ),
+        pytest.param(
+            "nvs_encryption_s3.yaml",
+            ("nvs_sec_provider",),
+            id="nvs_encryption",
+        ),
+        pytest.param(
+            "exclusion_reincludes_nvs_sdkconfig.yaml",
+            ("nvs_sec_provider",),
+            id="nvs_encryption_raw_sdkconfig",
+        ),
+        pytest.param(
+            "exclusion_reincludes_camera_web_server.yaml",
+            ("esp_http_server",),
+            id="esp32_camera_web_server",
         ),
         pytest.param(
             "exclusion_reincludes_nextion.yaml",
@@ -291,6 +306,19 @@ def test_default_exclusions_reincluded_by_owning_components(
     # Components no part of this config touches stay excluded.
     assert "unity" in excluded
     assert "fatfs" in excluded
+    # The HTTP server only comes back for configs that run one.
+    assert ("esp_http_server" in excluded) == ("esp_http_server" not in reincluded)
+
+
+def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """An explicit CONFIG_NVS_ENCRYPTION=n keeps nvs_sec_provider excluded."""
+    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
+
+    generate_main(component_config_path("exclusion_stays_nvs_sdkconfig_off.yaml"))
+    assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
 
 _BUNDLE_OPTIONS = (

@@ -238,6 +238,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
+    "esp_http_server",  # HTTP server - re-included by web_server_idf, esp32_camera_web_server
     "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
@@ -246,6 +247,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
+    "nvs_sec_provider",  # NVS encryption key provider - re-included when CONFIG_NVS_ENCRYPTION is set
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
@@ -647,6 +649,16 @@ class RawSdkconfigValue:
 
 
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
+
+
+def is_idf_sdkconfig_option_enabled(name: str) -> bool:
+    """Return True when a bool sdkconfig option resolves to ``y``.
+
+    Handles both the ``True`` a component sets and the raw ``y`` a user sets
+    in ``sdkconfig_options``.
+    """
+    value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
+    return value is not None and _format_sdkconfig_val(value) == "y"
 
 
 def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
@@ -2191,6 +2203,10 @@ def register_exclude_components_cmake_arg() -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
+    # NVS encryption needs nvs_sec_provider however it was enabled: the
+    # nvs_encryption option, raw sdkconfig_options or another component.
+    if is_idf_sdkconfig_option_enabled("CONFIG_NVS_ENCRYPTION"):
+        include_builtin_idf_component("nvs_sec_provider")
     register_exclude_components_cmake_arg()
 
 
