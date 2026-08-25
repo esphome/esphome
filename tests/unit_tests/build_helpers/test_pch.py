@@ -105,12 +105,18 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     os.name == "nt" or os.geteuid() == 0, reason="chmod is ineffective here"
 )
-def test_include_closure_skips_unreadable(tmp_path: Path) -> None:
+def test_include_closure_marks_unreadable(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable header warns and hashes as a marker, so it still
+    invalidates instead of silently vanishing from the digest."""
     _write(tmp_path, "a.h", '#include "locked.h"\n')
     locked = tmp_path / "locked.h"
     locked.write_text("")
     locked.chmod(0)
     try:
-        assert sorted(pch._include_closure(tmp_path, ["a.h"])) == ["a.h"]
+        closure = pch._include_closure(tmp_path, ["a.h"])
     finally:
         locked.chmod(0o644)
+    assert closure["locked.h"] == b"<unreadable>"
+    assert "Could not read locked.h" in caplog.text

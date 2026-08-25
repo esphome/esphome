@@ -39,8 +39,9 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
             continue
         try:
             data = (src_dir / rel).read_bytes()
-        except OSError:
-            continue
+        except OSError as err:
+            print(f"ESPHome: could not read {rel} for the pch checksum: {err}")
+            data = b"<unreadable>"
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
@@ -81,6 +82,9 @@ def _setup_pch() -> None:
             include_headers.append(next(flag_it, ""))
         else:
             flags.append(tok)
+    if any(not name for name in include_headers):
+        print("ESPHome: build_src_flags has a trailing -include; skipping pch")
+        return
     content = "".join(
         f'#include "{name}"\n' for name in (*include_headers, _CORE_HEADER)
     )
@@ -100,8 +104,10 @@ def _setup_pch() -> None:
     for package in sorted(platform.packages):
         try:
             version = platform.get_package_version(package)
-        except Exception:  # noqa: BLE001 -- absent optional package
-            version = None
+        except Exception as err:  # noqa: BLE001 -- absent optional package
+            # Folded into the digest so an unexpected lookup failure still
+            # invalidates instead of hashing like a fixed absence
+            version = f"error:{type(err).__name__}"
         digest.update(f"{package}={version}".encode())
         digest.update(b"\0")
     closure = _include_closure(src_dir, [*include_headers, _CORE_HEADER])
@@ -113,7 +119,8 @@ def _setup_pch() -> None:
 
     # The ccache .sum sidecar doubles as the freshness stamp
     if (
-        not gch.is_file()
+        not header.is_file()
+        or not gch.is_file()
         or not sum_path.is_file()
         or (sum_path.read_text(encoding="utf-8").strip() != checksum)
     ):
@@ -122,11 +129,16 @@ def _setup_pch() -> None:
             failed_marker.is_file()
             and failed_marker.read_text(encoding="utf-8").strip() == checksum
         ):
+            print(
+                "ESPHome: skipping precompiled header (previous attempt "
+                f"failed); delete {failed_marker.name} to retry"
+            )
             return
         header.write_text(content, encoding="utf-8")
         try:
             result = subprocess.run(  # noqa: PLW1510
                 [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
+                cwd=proj_dir,
                 capture_output=True,
                 text=True,
             )

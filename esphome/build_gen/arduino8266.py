@@ -1232,10 +1232,17 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             # per-device build path so identically-configured devices
             # produce identical .sum files and share cache entries
             flags_id = " ".join(cxxflags).replace(effective_ccache_basedir(), "")
+            # The header text covers include order, which the sorted
+            # closure alone does not
             checksum = pch_checksum(
                 src_dir,
                 pch_includes,
-                (str(paths.framework), str(paths.toolchain), flags_id),
+                (
+                    pch_header_text(pch_includes),
+                    str(paths.framework),
+                    str(paths.toolchain),
+                    flags_id,
+                ),
             )
             write_file_if_changed(
                 build_dir / f"{PCH_HEADER_NAME}.gch.sum", checksum + "\n"
