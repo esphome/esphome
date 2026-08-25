@@ -5,7 +5,6 @@ from pathlib import Path
 import platform
 import shutil
 import sys
-import tempfile
 
 import platformdirs
 
@@ -13,9 +12,8 @@ import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
-    archive_extract_all,
     create_venv,
-    download_from_mirrors,
+    download_and_extract,
     get_python_env_executable_path,
     rmdir,
     run_command_ok,
@@ -60,6 +58,22 @@ def get_sdk_nrf_tools_path() -> Path:
         # see espidf.framework.get_idf_tools_path for the location rationale.
         path = Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
     return path.resolve()
+
+
+def _needs_venv_rebuild(
+    env_python_path: Path, sentinel: Path, requirements_hash: str
+) -> bool:
+    """True when a penv must be (re)built.
+
+    Rebuild when the interpreter is not a regular file, which covers a
+    dangling symlink (a cached venv outliving a host interpreter upgrade)
+    and a corrupt restore, or when the sentinel is missing or stale.
+    """
+    return (
+        not env_python_path.is_file()
+        or not sentinel.exists()
+        or sentinel.read_text(encoding="utf-8") != requirements_hash
+    )
 
 
 def _get_python_env_path(version: str) -> Path:
@@ -198,10 +212,7 @@ def setup_platformio_python_env() -> None:
         + "\n".join(_PLATFORMIO_PENV_REQUIREMENTS).encode()
         + f"python{sys.version_info.major}.{sys.version_info.minor}".encode()
     ).hexdigest()
-    if (
-        not sentinel.exists()
-        or sentinel.read_text(encoding="utf-8") != requirements_hash
-    ):
+    if _needs_venv_rebuild(env_python_path, sentinel, requirements_hash):
         rmdir(penv_path, msg="Clean up PlatformIO toolchain Python environment")
 
         create_venv(penv_path, msg="PlatformIO toolchain")
@@ -250,10 +261,7 @@ def check_and_install() -> None:
     env_python_path = get_python_env_executable_path(python_env_path, "python")
     sentinel = python_env_path / ".ready"
     requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
-    install_venv = (
-        not sentinel.exists()
-        or sentinel.read_text(encoding="utf-8") != requirements_hash
-    )
+    install_venv = _needs_venv_rebuild(env_python_path, sentinel, requirements_hash)
     if install_venv:
         rmdir(python_env_path, msg=f"Clean up {version} Python environment")
 
@@ -336,34 +344,37 @@ def check_and_install() -> None:
     if not sentinel.exists():
         rmdir(toolchains_dir, msg=f"Clean up {TOOLCHAIN_VERSION} toolchain environment")
         sysname, machine, extension = _get_toolchain_platform_info()
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading Zephyr SDK %s minimal ...", TOOLCHAIN_VERSION)
-            download_from_mirrors(
-                SDK_NG_MINIMAL_MIRRORS,
-                {
-                    "VERSION": TOOLCHAIN_VERSION,
-                    "sysname": sysname,
-                    "machine": machine,
-                    "extension": extension,
-                },
-                tmp.file,
-            )
-            archive_extract_all(tmp.file, toolchains_dir, progress_header="Extracting")
-        with tempfile.NamedTemporaryFile() as tmp:
-            _LOGGER.info("Downloading %s toolchain ...", TOOLCHAIN_VERSION)
-            download_from_mirrors(
+        substitutions = {
+            "VERSION": TOOLCHAIN_VERSION,
+            "sysname": sysname,
+            "machine": machine,
+            "extension": extension,
+        }
+        # Downloaded next to the destination (not a temp file) so an
+        # interrupted download's .part file resumes on the next run.
+        for mirrors, extract_dir, what, slug in (
+            (SDK_NG_MINIMAL_MIRRORS, toolchains_dir, "Zephyr SDK minimal", "minimal"),
+            (
                 SDK_NG_TOOLCHAIN_MIRRORS,
-                {
-                    "VERSION": TOOLCHAIN_VERSION,
-                    "sysname": sysname,
-                    "machine": machine,
-                    "extension": extension,
-                },
-                tmp.file,
-            )
-            archive_extract_all(
-                tmp.file,
                 toolchains_dir / "arm-zephyr-eabi",
+                "toolchain",
+                "toolchain",
+            ),
+        ):
+            _LOGGER.info("Downloading %s %s ...", TOOLCHAIN_VERSION, what)
+            download_and_extract(
+                mirrors,
+                substitutions,
+                toolchains_dir.with_name(f"{toolchains_dir.name}.{slug}.archive"),
+                extract_dir,
                 progress_header="Extracting",
             )
+        # Best-effort prune of resume leftovers, including a previous
+        # TOOLCHAIN_VERSION's orphans; the SDK archives are hundreds of MB.
+        # A locked file must not discard the just-completed install.
+        for leftover in toolchains_dir.parent.glob("*.archive.part*"):
+            try:
+                leftover.unlink()
+            except OSError as err:
+                _LOGGER.debug("Could not remove %s: %s", leftover, err)
         sentinel.touch()

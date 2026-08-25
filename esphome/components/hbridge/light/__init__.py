@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import light, output
 import esphome.config_validation as cv
 from esphome.const import CONF_OUTPUT_ID, CONF_PIN_A, CONF_PIN_B, CONF_UPDATE_INTERVAL
+from esphome.types import ConfigType
 
 from .. import hbridge_ns
 
@@ -21,7 +22,7 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     cg.add(var.set_update_interval(config.pop(CONF_UPDATE_INTERVAL)))
     await cg.register_component(var, config)

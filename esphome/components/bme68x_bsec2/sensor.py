@@ -29,6 +29,8 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 from . import CONF_BME68X_BSEC2_ID, SAMPLE_RATE_OPTIONS, BME68xBSEC2Component
 
@@ -119,7 +121,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config, key, hub):
+async def setup_conf(config: ConfigType, key: str, hub: MockObj) -> None:
     if conf := config.get(key):
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
@@ -127,7 +129,7 @@ async def setup_conf(config, key, hub):
             cg.add(getattr(hub, f"set_{key}_sample_rate")(sample_rate))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_BME68X_BSEC2_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

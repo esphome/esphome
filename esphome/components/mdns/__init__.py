@@ -31,7 +31,7 @@ MDNSTXTRecord = mdns_ns.struct("MDNSTXTRecord")
 MDNSService = mdns_ns.struct("MDNSService")
 
 
-def _remove_id_if_disabled(value):
+def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
     value = value.copy()
     if value[CONF_DISABLED]:
         value.pop(CONF_ID)
@@ -117,7 +117,7 @@ def mdns_txt_record(key: str, value: str) -> cg.RawExpression:
 
 
 async def _mdns_txt_record_templated(
-    mdns_comp: cg.Pvariable, key: str, value: Lambda | str
+    mdns_comp: cg.MockObj, key: str, value: Lambda | str
 ) -> cg.RawExpression:
     """Create a mDNS TXT record with support for templated values.
 
@@ -172,7 +172,7 @@ def mdns_service(
     )
 
 
-def enable_mdns_storage():
+def enable_mdns_storage() -> None:
     """Enable persistent storage of mDNS services in the MDNSComponent.
 
     Called by external components (like OpenThread) that need access to
@@ -184,7 +184,7 @@ def enable_mdns_storage():
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED] is True:
         return
 

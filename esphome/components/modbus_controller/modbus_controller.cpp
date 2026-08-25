@@ -14,7 +14,6 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
                                      RegisterRange &&range)
     : modbus::ModbusClientDevice(parent, address),
       sensors(std::move(range.sensors)),
-      skip_updates(range.skip_updates),
       register_type_(range.register_type),
       start_address_(range.start_address),
       register_count_(range.register_count),
@@ -24,12 +23,14 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
 ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
                                      SensorItem *sensor)
     : modbus::ModbusClientDevice(parent, address),
-      skip_updates(sensor->skip_updates),
       start_address_(sensor->start_address),
       register_count_(sensor->register_count),
-      function_code_(FunctionCode::CUSTOM),
-      custom_data_(&sensor->custom_data),
+      custom_pdu_(&sensor->custom_pdu),
       controller_(&controller) {
+  // The PDU's first byte is its real function code; carry it so dump_config, the on_command_sent
+  // trigger and the response callbacks report the actual code instead of CUSTOM.
+  if (!sensor->custom_pdu.empty())
+    this->function_code_ = static_cast<FunctionCode>(sensor->custom_pdu.data()[0]);
   this->sensors.insert(sensor);
 }
 
@@ -40,13 +41,12 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
 ModbusCommandItem::ModbusCommandItem(const ModbusCommandItem &other)
     : modbus::ModbusClientDevice(other.parent_, other.address_),
       sensors(other.sensors),
-      skip_updates(other.skip_updates),
       on_data_func(other.on_data_func),
       register_type_(other.register_type_),
       start_address_(other.start_address_),
       register_count_(other.register_count_),
       function_code_(other.function_code_),
-      custom_data_(other.custom_data_),
+      custom_pdu_(other.custom_pdu_),
       controller_(other.controller_) {
   // SmallInlineBuffer is move-only, so deep-copy the bytes explicitly.
   this->payload.set(other.payload.data(), other.payload.size());
@@ -55,14 +55,13 @@ ModbusCommandItem::ModbusCommandItem(const ModbusCommandItem &other)
 ModbusCommandItem::ModbusCommandItem(ModbusCommandItem &&other) noexcept
     : modbus::ModbusClientDevice(other.parent_, other.address_),
       sensors(std::move(other.sensors)),
-      skip_updates(other.skip_updates),
       on_data_func(std::move(other.on_data_func)),
       payload(std::move(other.payload)),
       register_type_(other.register_type_),
       start_address_(other.start_address_),
       register_count_(other.register_count_),
       function_code_(other.function_code_),
-      custom_data_(other.custom_data_),
+      custom_pdu_(other.custom_pdu_),
       controller_(other.controller_) {
   other.parent_ = nullptr;
 }
@@ -74,11 +73,14 @@ void ModbusCommandItem::on_response(std::span<const uint8_t> request_pdu, std::s
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
   if (this->on_data_func) {
     this->on_data_func(this->register_type_, this->start_address_, data);
-  } else if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
-    // write acknowledgement - nothing to publish
-  } else {
+  } else if (!this->sensors.empty()) {
+    // A polling command always has sensors; a factory/write command never does. Test this before the
+    // write-code branch so a custom_pdu whose function code is a write (e.g. 0x17, whose response
+    // carries read data) still reaches its sensor instead of being treated as a bare write ack.
     for (auto *sensor : this->sensors)
       sensor->parse_and_publish(data);
+  } else if (modbus::helpers::is_function_code_write(static_cast<uint8_t>(this->function_code_))) {
+    // write acknowledgement - nothing to publish
   }
   if (this->controller_ != nullptr)
     this->controller_->unqueue_command(this);
@@ -116,13 +118,11 @@ void ModbusCommandItem::on_sent(std::span<const uint8_t> request_pdu) {
   // on_sent is this command's only callback, so drop the one-shot from the queue here, or it would leak.
   // Test the address the frame went to, not address_: a custom command's frame carries its own address
   // (frame[0]), which may differ from this controller's. (unqueue_command() is a no-op for a poll.)
+  // A custom polling command sends its PDU to this controller's own address, so only a factory custom
+  // command (a raw frame staged in payload) can carry a different address byte.
   uint8_t wire_address = this->address_;
-  if (this->function_code_ == FunctionCode::CUSTOM) {
-    std::span<const uint8_t> frame =
-        this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
-    if (!frame.empty())
-      wire_address = frame[0];
-  }
+  if (this->function_code_ == FunctionCode::CUSTOM && !this->payload.empty())
+    wire_address = this->payload.data()[0];
   if (wire_address == modbus::BROADCAST_ADDRESS)
     this->controller_->unqueue_command(this);
 }
@@ -167,6 +167,7 @@ void ModbusController::queue_command(ModbusCommandItem command) {
   this->one_shot_command_items_.push_back(make_unique<ModbusCommandItem>(std::move(command)));
   // A refused frame gets no terminal callback (see the hub contract), so reclaim the item here.
   auto &item = this->one_shot_command_items_.back();
+  // We intentionally do not pass read_options_ here, because one-shot commands are usually writes, and are non-polling.
   if (!item->send()) {
     // The caller (e.g. a write entity) has usually already published optimistically - surface the loss.
     ESP_LOGW(TAG, "Command refused by hub: type=0x%X address=0x%X", static_cast<uint8_t>(item->register_type()),
@@ -194,28 +195,20 @@ void ModbusController::sweep_completed_one_shots_() {
       [](const std::unique_ptr<ModbusCommandItem> &item) { return item->pending_removal; });
 }
 
-void ModbusController::update_range_(ModbusCommandItem &cmd) {
-  if (this->update_counter_ % (cmd.skip_updates + 1) != 0) {
-    ESP_LOGVV(TAG, "Skipping update for range 0x%X", cmd.register_address());
-    return;
-  }
-  // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-  if (!cmd.send())
-    ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
-}
-
 void ModbusController::update() {
   this->sweep_completed_one_shots_();  // reclaim one-shots deferred out of their own callbacks
   if (this->module_offline_) {
-    // Offline probing follows the offline cadence alone; per-range skip_updates resumes once the
-    // device is back online. Requiring both cadences to coincide would leave phase combinations
-    // where a probe never goes out.
+    // Offline probing follows the offline cadence alone; regular every-update polling resumes once
+    // the device is back online.
     if (offline_retry_due(this->update_counter_, this->module_offline_at_, this->offline_skip_updates_)) {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
       for (auto &cmd : this->polling_command_items_) {
-        if (!cmd.send())
+        // Probes carry the read-side options too, so a recovering device resumes streaming on the
+        // probe itself rather than waiting for the next update_interval.
+        if (!cmd.send(this->read_options_)) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
+        }
       }
     } else {
       ESP_LOGV(TAG, "Module offline - skipping update");
@@ -227,7 +220,11 @@ void ModbusController::update() {
   if (this->can_send()) {
     for (auto &cmd : this->polling_command_items_) {
       ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
-      this->update_range_(cmd);
+      // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
+      // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
+      if (!cmd.send(this->read_options_)) {
+        ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
+      }
     }
   }
   this->update_counter_++;
@@ -262,8 +259,8 @@ void ModbusController::create_polling_commands_() {
   bool range_custom_size = false;
   SensorItem *prev = nullptr;
   for (SensorItem *curr : this->sensorset_) {
-    ESP_LOGV(TAG, "Register: 0x%X count=%d size=%zu offset=%u skip=%u addr=%p", curr->start_address,
-             curr->register_count, curr->get_register_size(), curr->offset, curr->skip_updates, curr);
+    ESP_LOGV(TAG, "Register: 0x%X count=%d size=%zu offset=%u addr=%p", curr->start_address, curr->register_count,
+             curr->get_register_size(), curr->offset, curr);
 
     const bool custom_size = curr->get_register_size() != static_cast<size_t>(curr->register_count) * 2;
 
@@ -294,14 +291,12 @@ void ModbusController::create_polling_commands_() {
         ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
       } else if (range_shared && !range_forced && curr->start_address >= r.start_address &&
                  curr->start_address + curr->register_count <= r.start_address + r.register_count &&
-                 !range_custom_size && !custom_size && curr->skip_updates == r.skip_updates) {
+                 !range_custom_size && !custom_size) {
         // The registers already fall inside a range that a shared-address join widened, so this sensor
         // reads its slice of that response instead of adding an overlapping second poll. The guards keep
         // it narrow: only a widened range, never a force-isolated one; only where every register in the
         // range returns two bytes, so interior positions follow from the addresses; only sensors genuinely
-        // inside it, which is why the lower bound is needed given the walk is not address-ordered; and
-        // only where the polling rates already match, since joining runs this sensor through the rate
-        // merge below and would otherwise change one of them.
+        // inside it, which is why the lower bound is needed given the walk is not address-ordered.
         const uint16_t addr_delta = curr->start_address - r.start_address;
         curr->offset = static_cast<uint8_t>((curr->addresses_bits() ? addr_delta : addr_delta * 2) +
                                             curr->offset_from_start_address);
@@ -327,7 +322,7 @@ void ModbusController::create_polling_commands_() {
 
     if (!join) {
       if (have_range) {
-        ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
+        ESP_LOGV(TAG, "Add range 0x%X %d", r.start_address, r.register_count);
         this->create_polling_command_(std::move(r));
       }
       r = {};
@@ -339,11 +334,7 @@ void ModbusController::create_polling_commands_() {
       r.start_address = curr->start_address;
       r.register_count = curr->register_count;
       r.register_type = curr->register_type;
-      r.skip_updates = curr->skip_updates;
       have_range = true;
-    } else if (curr->skip_updates != 0) {
-      // use the lowest non-zero skip_updates for the whole range (0 is the default and is excluded)
-      r.skip_updates = (r.skip_updates != 0) ? std::min(r.skip_updates, curr->skip_updates) : curr->skip_updates;
     }
 
     // Every member records its range's first register. The resolved offset is relative to it, so the
@@ -353,7 +344,7 @@ void ModbusController::create_polling_commands_() {
     prev = curr;
   }
   if (have_range) {
-    ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
+    ESP_LOGV(TAG, "Add last range 0x%X %d", r.start_address, r.register_count);
     this->create_polling_command_(std::move(r));
   }
   // Reclaim growth slack; safe here because nothing has registered with the hub yet (see the
@@ -378,8 +369,8 @@ void ModbusController::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "ranges");
   for (auto &it : this->polling_command_items_) {
-    ESP_LOGCONFIG(TAG, "  Range type=%u start=0x%X count=%d skip_updates=%d", static_cast<uint8_t>(it.register_type()),
-                  it.register_address(), it.register_count(), it.skip_updates);
+    ESP_LOGCONFIG(TAG, "  Range type=%u start=0x%X count=%d", static_cast<uint8_t>(it.register_type()),
+                  it.register_address(), it.register_count());
   }
 #endif
 }
@@ -509,24 +500,28 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
-bool ModbusCommandItem::send() {
+bool ModbusCommandItem::send(modbus::CommandOptions options) {
+  // Options pass straight through to the hub
   bool accepted;
-  if (this->function_code_ != FunctionCode::CUSTOM) {
+  if (this->custom_pdu_ != nullptr) {
+    // Custom polling command: send the sensor's ready-made PDU (function code + data, no address byte)
+    // to this controller's own device address; the hub prepends the address and appends the CRC.
+    accepted = modbus::ModbusClientDevice::queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
+  } else if (this->function_code_ != FunctionCode::CUSTOM) {
     accepted = this->queue_pdu(modbus::helpers::create_client_pdu(
-        this->function_code_, this->start_address_, this->register_count_,
-        this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()));
+                                   this->function_code_, this->start_address_, this->register_count_,
+                                   this->payload.empty() ? nullptr : this->payload.data(), this->payload.size()),
+                               options);
   } else {
-    // Custom command: the bytes are a complete raw frame (address + PDU). Send the PDU to the frame's own
-    // address (which may differ from this controller's); the hub appends the CRC and routes the response
-    // back to this item by pointer. (send_raw() is deprecated, so queue_pdu() is called with the extracted
-    // address. Raw-frame semantics are kept here; the custom_pdu migration is a later step.)
-    std::span<const uint8_t> frame =
-        this->custom_data_ != nullptr ? std::span<const uint8_t>(*this->custom_data_) : this->payload;
+    // Factory custom command: payload holds a complete raw frame (address + PDU). Send the PDU to the
+    // frame's own address (which may differ from this controller's); the hub appends the CRC and routes
+    // the response back to this item by pointer.
+    std::span<const uint8_t> frame = this->payload;
     if (frame.empty()) {
       ESP_LOGW(TAG, "Empty custom command frame, not sent");
       accepted = false;
     } else {
-      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
+      accepted = this->parent_->queue_pdu(frame[0], frame.subspan(1), this, options);
     }
   }
   // The on_command_sent trigger fires from on_sent() when the frame actually reaches the wire.
