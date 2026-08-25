@@ -47,7 +47,16 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
     return seen
 
 
-def _esp8266_setup_pch() -> None:
+def _shell_arg(element) -> str:
+    """One compiler argv from one SCons element, matching the real spawn:
+    SCons whole-quotes spaced elements, the shell unquotes the rest."""
+    arg = str(element)
+    if " " in arg:
+        return arg.replace('\\"', '"')
+    return shlex.split(arg)[0] if arg else arg
+
+
+def _setup_pch() -> None:
     # Project root, not $BUILD_DIR: SCons compiles run with the project dir
     # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
     # An absolute path would put the per-device build path on every compile
@@ -63,13 +72,9 @@ def _esp8266_setup_pch() -> None:
     # not see them; consumers keep theirs, which the .gch then satisfies.
     flags = []
     include_headers = []
-    # subst_list keeps SCons's element boundaries; a flattened-string
-    # shlex.split would shred defines with embedded spaces (-DX=\"A B\")
-    # into stray tokens gcc reads as input files
     flag_it = iter(
-        tok
+        _shell_arg(element)
         for element in projenv.subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]  # noqa: F821
-        for tok in shlex.split(str(element))
     )
     for tok in flag_it:
         if tok == "-include":
@@ -154,4 +159,4 @@ def _esp8266_setup_pch() -> None:
     print("ESPHome: Compiling with precompiled header")
 
 
-_esp8266_setup_pch()
+_setup_pch()
