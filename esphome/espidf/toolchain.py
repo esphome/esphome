@@ -528,10 +528,16 @@ def run_compile(config, verbose: bool) -> int:
             return result.returncode
         _patch_memory_segments()
 
-    # After every reconfigure so compile_commands and sdkconfig are settled
+    # After every reconfigure so compile_commands and sdkconfig are settled.
+    # An optional speedup must never abort the build
     from esphome.build_gen.espidf import prepare_pch
 
-    prepare_pch()
+    try:
+        prepare_pch()
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        _LOGGER.warning(
+            "Precompiled header setup failed; compiling without it: %s", err
+        )
 
     # Build
     args = []
