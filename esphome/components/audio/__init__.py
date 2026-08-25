@@ -1,10 +1,13 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     include_builtin_idf_component,
+    require_certificate_bundle,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -15,6 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ring_buffer"]
 CODEOWNERS = ["@kahrendt"]
@@ -125,10 +129,10 @@ CONF_THREADSAFE = "threadsafe"
 _MEMORY_LOCATION_VALIDATOR = cv.one_of(*MEMORY_LOCATIONS, lower=True)
 
 
-def _maybe_empty_codec(schema):
+def _maybe_empty_codec(schema: cv.Schema) -> Callable[[Any], Any]:
     """Wrap a codec dict schema so that a bare key (None value) is treated as an empty dict."""
 
-    def validator(value):
+    def validator(value: Any) -> Any:
         if value is None:
             value = {}
         return schema(value)
@@ -200,14 +204,14 @@ def set_stream_limits(
     max_channels: int = cv.UNDEFINED,
     min_sample_rate: int = cv.UNDEFINED,
     max_sample_rate: int = cv.UNDEFINED,
-):
+) -> Callable[[ConfigType], None]:
     """Sets the limits for the audio stream that audio component can handle
 
     When the component sinks audio (e.g., a speaker), these indicate the limits to the audio it can receive.
     When the component sources audio (e.g., a microphone), these indicate the limits to the audio it can send.
     """
 
-    def set_limits_in_config(config):
+    def set_limits_in_config(config: ConfigType) -> None:
         if min_bits_per_sample is not cv.UNDEFINED:
             config[CONF_MIN_BITS_PER_SAMPLE] = min_bits_per_sample
         if max_bits_per_sample is not cv.UNDEFINED:
@@ -233,7 +237,7 @@ def final_validate_audio_schema(
     sample_rate: int = cv.UNDEFINED,
     enabled_channels: list[int] = cv.UNDEFINED,
     audio_device_issue: bool = False,
-):
+) -> cv.Schema:
     """Validates audio compatibility when passed between different components.
 
     The component derived from ``AUDIO_COMPONENT_SCHEMA`` should call ``set_stream_limits`` in a validator to specify its compatible settings
@@ -251,7 +255,7 @@ def final_validate_audio_schema(
         audio_device_issue (bool, optional): Format the error message to indicate the problem is in the configuration for the ``audio_device`` component. Defaults to False.
     """
 
-    def validate_audio_compatiblity(audio_config):
+    def validate_audio_compatiblity(audio_config: ConfigType) -> ConfigType:
         audio_schema = {}
 
         if bits_per_sample is not cv.UNDEFINED:
@@ -329,9 +333,11 @@ def _emit_memory_pair(value: str | None, psram_key: str, internal_key: str) -> N
         add_idf_sdkconfig_option(internal_key, True)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
     include_builtin_idf_component("esp_http_client")
+    # HTTPS streams verify the server against the root certificate bundle
+    require_certificate_bundle()
 
     add_idf_component(
         name="esphome/esp-audio-libs",

@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 from hypothesis import given
 import pytest
-from strategies import mac_addr_strings
 
 from esphome import const, core
+from tests.unit_tests.strategies import mac_addr_strings
 
 
 class TestHexInt:
@@ -990,3 +990,35 @@ class TestEsphomeCore:
         )
         # The unflag is still recorded either way.
         assert target.build_unflags == {"-fno-rtti", "-fno-exceptions"}
+
+    def test_add_cmake_arg(self, target) -> None:
+        target.add_cmake_arg("EXCLUDE_COMPONENTS", "unity;esp_lcd")
+        assert target.cmake_args == {"EXCLUDE_COMPONENTS": "unity;esp_lcd"}
+
+    @pytest.mark.parametrize("name", ["", "BAD NAME", 'A"B', "A(B)", "1ABC"])
+    def test_add_cmake_arg__rejects_invalid_name(self, target, name: str) -> None:
+        with pytest.raises(ValueError, match="Invalid CMake arg name"):
+            target.add_cmake_arg(name, "value")
+
+    @pytest.mark.parametrize("value", ["a b", "a\tb", 'a"b', "a'b", "a${FOO}b"])
+    def test_add_cmake_arg__rejects_invalid_value(self, target, value: str) -> None:
+        """Whitespace and quotes are rejected (the PlatformIO backend passes
+        args as one space-joined string, which would split such a value), and
+        so is '$' (expanded differently by CMake and PlatformIO)."""
+        with pytest.raises(ValueError, match="must not contain"):
+            target.add_cmake_arg("MY_ARG", value)
+
+    def test_add_cmake_arg__warns_on_overwrite(
+        self, target, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Re-registering with a different value is last-writer-wins; warn so
+        the silently dropped value is diagnosable."""
+        target.add_cmake_arg("MY_ARG", "one")
+        target.add_cmake_arg("MY_ARG", "one")
+        assert "overwriting" not in caplog.text
+
+        target.add_cmake_arg("MY_ARG", "two")
+        assert (
+            "CMake arg MY_ARG already set to one; overwriting with two" in caplog.text
+        )
+        assert target.cmake_args == {"MY_ARG": "two"}

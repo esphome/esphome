@@ -1,11 +1,20 @@
-import base64
 import logging
+from typing import Any
 
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.logger import request_log_listener
-from esphome.config_helpers import get_logger_level
+
+# ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
+# components and downstream consumers that import them from api
+from esphome.components.noise import (  # noqa: F401
+    ENCRYPTION_SCHEMA,
+    decode_encryption_key,
+    encryption_schema,
+    validate_encryption_key,
+)
+from esphome.config_helpers import filter_source_files_from_defines, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -37,6 +46,10 @@ from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_pr
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigFragmentType, ConfigType
 
+# Compat alias: downstream consumers (e.g. device-builder) referenced the
+# schema by its old private name before it moved to the noise component
+_encryption_schema = encryption_schema
+
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "api"
@@ -45,8 +58,14 @@ CODEOWNERS = ["@esphome/core"]
 
 
 def AUTO_LOAD(config: ConfigType) -> list[str]:
-    """Conditionally auto-load json only when capture_response is used."""
+    """Conditionally auto-load noise (encryption) and json (capture_response)."""
     base = ["socket"]
+
+    # A falsy config is a tooling probe for the maximal set (None from
+    # dependency resolution, {} from the components-graph platform probe);
+    # a validated config always carries defaults, never empty
+    if not config or CONF_ENCRYPTION in config:
+        base = base + ["noise"]
 
     # Check if any homeassistant.action/homeassistant.service has capture_response: true
     # This flag is set during config validation in _validate_response_config
@@ -129,20 +148,6 @@ def _register_provisioning_source(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_encryption_key(value):
-    value = cv.string_strict(value)
-    try:
-        decoded = base64.b64decode(value, validate=True)
-    except ValueError as err:
-        raise cv.Invalid("Invalid key format, please check it's using base64") from err
-
-    if len(decoded) != 32:
-        raise cv.Invalid("Encryption key must be base64 and 32 bytes long")
-
-    # Return original data for roundtrip conversion
-    return value
-
-
 CONF_SUPPORTS_RESPONSE = "supports_response"
 
 # Enum values in api::enums namespace
@@ -217,7 +222,7 @@ def _auto_detect_supports_response(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_supports_response(value):
+def _validate_supports_response(value: Any) -> str:
     """Validate supports_response after auto-detection has set the value."""
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
@@ -248,18 +253,6 @@ ACTIONS_SCHEMA = automation.validate_automation(
         ),
     ),
 )
-
-ENCRYPTION_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
-    }
-)
-
-
-def _encryption_schema(config):
-    if config is None:
-        config = {}
-    return ENCRYPTION_SCHEMA(config)
 
 
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
@@ -296,7 +289,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SERVICES, group_of_exclusion=CONF_ACTIONS
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
-            cv.Optional(CONF_ENCRYPTION): _encryption_schema,
+            cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -393,7 +386,7 @@ async def to_code(config: ConfigType) -> None:
 
     if actions := config.get(CONF_ACTIONS, []):
         # Collect all triggers first, then register all at once with initializer_list
-        triggers: list[cg.Pvariable] = []
+        triggers: list[cg.MockObj] = []
         for conf in actions:
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
@@ -483,7 +476,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            decoded = base64.b64decode(key)
+            decoded = decode_encryption_key(key)
             cg.add(var.set_noise_psk(list(decoded)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
@@ -497,10 +490,6 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.21")
-        # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
-        cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
-        cg.add_build_flag("-DHAVE_INLINE_ASM=1")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
@@ -581,7 +570,7 @@ async def homeassistant_service_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-):
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
@@ -647,7 +636,7 @@ async def homeassistant_service_to_code(
     return var
 
 
-def validate_homeassistant_event(value):
+def validate_homeassistant_event(value: Any) -> str:
     value = cv.string(value)
     if not value.startswith("esphome."):
         raise cv.Invalid(
@@ -676,7 +665,12 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
     synchronous=True,
 )
-async def homeassistant_event_to_code(config, action_id, template_arg, args):
+async def homeassistant_event_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
@@ -724,7 +718,12 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
     synchronous=True,
 )
-async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+async def homeassistant_tag_scanned_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
@@ -740,7 +739,7 @@ CONF_SUCCESS = "success"
 CONF_ERROR_MESSAGE = "error_message"
 
 
-def _validate_api_respond_data(config):
+def _validate_api_respond_data(config: ConfigType) -> ConfigType:
     """Set flag during validation so AUTO_LOAD can include json component."""
     if CONF_DATA in config:
         CORE.data.setdefault(DOMAIN, {})[CONF_CAPTURE_RESPONSE] = True
@@ -824,18 +823,32 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 @automation.register_condition(
     "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
 )
-async def api_connected_to_code(config, condition_id, template_arg, args):
+async def api_connected_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
     cg.add(var.set_state_subscription_only(templ))
     return var
 
 
+# user_services.cpp is only needed when user defined actions exist; the
+# frame helpers are fully #ifdef'd on the protocol defines set in to_code
+# (both are set when encryption is configured without a key).
+_define_filter = filter_source_files_from_defines(
+    {
+        "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
+        "api_frame_helper_noise.cpp": "USE_API_NOISE",
+        "api_frame_helper_plaintext.cpp": "USE_API_PLAINTEXT",
+    }
+)
+
+
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled,
-    user_services.cpp when no services are defined, and protocol-specific
-    implementations based on encryption configuration."""
-    files_to_filter: list[str] = []
+    files_to_filter = _define_filter()
 
     # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
     # This is a particularly large file that still needs to be opened and read
@@ -845,22 +858,5 @@ def FILTER_SOURCE_FILES() -> list[str]:
     # which happens when the logger level is VERY_VERBOSE
     if get_logger_level() != "VERY_VERBOSE":
         files_to_filter.append("api_pb2_dump.cpp")
-
-    # user_services.cpp is only needed when services are defined
-    config = CORE.config.get(DOMAIN, {})
-    if config and not config.get(CONF_ACTIONS) and not config[CONF_CUSTOM_SERVICES]:
-        files_to_filter.append("user_services.cpp")
-
-    # Filter protocol-specific implementations based on encryption configuration
-    encryption_config = config.get(CONF_ENCRYPTION) if config else None
-
-    # If encryption is not configured at all, we only need plaintext
-    if encryption_config is None:
-        files_to_filter.append("api_frame_helper_noise.cpp")
-    # If encryption is configured with a key, we only need noise
-    elif encryption_config.get(CONF_KEY):
-        files_to_filter.append("api_frame_helper_plaintext.cpp")
-    # If encryption is configured but no key is provided, we need both
-    # (this allows a plaintext client to provide a noise key)
 
     return files_to_filter

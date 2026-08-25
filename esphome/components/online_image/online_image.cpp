@@ -1,9 +1,12 @@
 #include "online_image.h"
 #include "esphome/components/runtime_image/image_decoder.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <algorithm>
+#include <cstdio>
 
 static const char *const TAG = "online_image";
+static const char *const CONTENT_TYPE_HEADER_NAME = "content-type";
 static const char *const ETAG_HEADER_NAME = "etag";
 static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
 static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
@@ -60,37 +63,19 @@ void OnlineImage::update() {
     headers.push_back({IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
   }
 
-  // Add Accept header based on image format
-  const char *accept_mime_type;
-  switch (this->get_format()) {
-#ifdef USE_RUNTIME_IMAGE_BMP
-    case runtime_image::BMP:
-      accept_mime_type = "image/bmp,*/*;q=0.8";
-      break;
-#endif
-#ifdef USE_RUNTIME_IMAGE_JPEG
-    case runtime_image::JPEG:
-      accept_mime_type = "image/jpeg,*/*;q=0.8";
-      break;
-#endif
-#ifdef USE_RUNTIME_IMAGE_PNG
-    case runtime_image::PNG:
-      accept_mime_type = "image/png,*/*;q=0.8";
-      break;
-#endif
-    default:
-      accept_mime_type = "image/*,*/*;q=0.8";
-      break;
-  }
-  headers.push_back({"Accept", accept_mime_type});
+  runtime_image::ImageFormat format = this->get_format();
+  // Accept: "<mime>,*/*;q=0.8"; 32 covers the longest MIME type plus the suffix
+  char accept_header[32];
+  snprintf(accept_header, sizeof(accept_header), "%s,*/*;q=0.8", runtime_image::get_mime_type_for_format(format));
+  headers.push_back({"Accept", accept_header});
 
   // User headers last so they can override any of the above
   for (auto &header : this->request_headers_) {
     headers.push_back(http_request::Header{header.first, header.second.value()});
   }
 
-  this->downloader_ = this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME});
-
+  this->downloader_ =
+      this->parent_->get(this->url_, headers, {ETAG_HEADER_NAME, LAST_MODIFIED_HEADER_NAME, CONTENT_TYPE_HEADER_NAME});
   if (this->downloader_ == nullptr) {
     ESP_LOGE(TAG, "Download failed.");
     this->end_connection_();
@@ -115,17 +100,40 @@ void OnlineImage::update() {
 
   ESP_LOGD(TAG, "Starting download");
   size_t total_size = this->downloader_->content_length;
+  ESP_LOGV(TAG, "Content-Length: %zu", total_size);
+
+  if (format == runtime_image::AUTO) {
+    // Try to auto-detect format from Content-Type header
+    auto content_type = this->downloader_->get_response_header(CONTENT_TYPE_HEADER_NAME);
+    ESP_LOGV(TAG, "Content-Type: %s", content_type.c_str());
+    auto mime_format = esphome::runtime_image::get_format_for_mime_type(content_type.c_str());
+    if (mime_format.has_value()) {
+      format = *mime_format;
+    } else {
+      if (content_type.empty()) {
+        ESP_LOGE(TAG, "Server sent no Content-Type header; cannot determine image format. Set `format:` explicitly");
+      } else if (str_contains_ignore_case(content_type.c_str(), "image/")) {
+        ESP_LOGE(TAG, "Image format '%s' not supported.", content_type.c_str());
+      } else {
+        ESP_LOGE(TAG, "Server did not return an image (Content-Type: '%s')", content_type.c_str());
+      }
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
+    }
+  }
+  ESP_LOGD(TAG, "Using image format: %d", format);
 
   // Initialize decoder with the known format
-  if (!this->begin_decode(total_size)) {
-    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", this->get_format());
+  if (!this->begin_decode(total_size, format)) {
+    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", format);
     this->end_connection_();
     this->download_error_callback_.call();
     return;
   }
 
   // JPEG requires the complete image in the download buffer before decoding
-  if (this->get_format() == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
+  if (format == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
     this->download_buffer_.resize(total_size);
   }
 
@@ -216,7 +224,7 @@ void OnlineImage::loop() {
 }
 
 void OnlineImage::end_connection_() {
-  // Abort any in-progress decode to free decoder resources.
+  // Abort any in-progress decode; the decoder object is kept warm for the next decode.
   // Use RuntimeImage::release() directly to avoid recursion with OnlineImage::release().
   if (this->is_decoding()) {
     RuntimeImage::release();

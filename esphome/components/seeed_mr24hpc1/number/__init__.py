@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
 from esphome.const import CONF_SENSITIVITY, ENTITY_CATEGORY_CONFIG
+from esphome.types import ConfigType
 
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
@@ -63,7 +64,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if sensitivity_config := config.get(CONF_SENSITIVITY):
         n = await number.new_number(

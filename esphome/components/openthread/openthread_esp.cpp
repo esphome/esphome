@@ -118,7 +118,7 @@ int OpenThreadComponent::openthread_stop_() {
   // Mark complete even on failure: we're already mid-shutdown/reboot, so there's no
   // recovery path to retry into -- leaving the stage stuck would only burn the full
   // teardown timeout for no benefit.
-  this->teardown_stage_ = TeardownStage::COMPLETED;
+  this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
   return error;
 }
 
