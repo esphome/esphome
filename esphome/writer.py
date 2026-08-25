@@ -7,7 +7,7 @@ import re
 import time
 
 from esphome import loader
-from esphome.build_helpers.pch import PCH_HEADER_NAME
+from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES
 from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
@@ -612,15 +612,8 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
                 rmtree(idf_path)
         # The PlatformIO pch artifacts live at the project root so the
         # relative -include resolves; a partial clean must drop them too
-        for name in (
-            PCH_HEADER_NAME,
-            f"{PCH_HEADER_NAME}.gch",
-            f"{PCH_HEADER_NAME}.gch.sum",
-            f"{PCH_HEADER_NAME}.gch.failed",
-        ):
-            pch_path = CORE.relative_build_path(name)
-            if pch_path.is_file():
-                pch_path.unlink()
+        for name in PCH_ARTIFACT_NAMES:
+            CORE.relative_build_path(name).unlink(missing_ok=True)
 
     # The idedata caches are derived from the build but live under the data
     # dir, not the build path, so they must be removed separately in both
