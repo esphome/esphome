@@ -3,7 +3,16 @@
 import json
 import logging
 from pathlib import Path
+import subprocess
 
+from esphome.build_helpers.idedata import is_launcher, split_command
+from esphome.build_helpers.pch import (
+    PCH_CORE_HEADER,
+    PCH_HEADER_NAME,
+    pch_checksum,
+    pch_enabled,
+    pch_header_text,
+)
 from esphome.components.esp32 import (
     get_esp32_variant,
     get_excluded_builtin_components,
@@ -21,6 +30,24 @@ from esphome.framework_helpers import (
 from esphome.helpers import mkdir_p, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
+
+# Prefix-header contents, defines.h first so USE_* macros exist for the
+# rest. Deliberately hard-coded: frequency-derived sets measured no better
+# and kept selecting headers that cannot compile standalone (X-macro,
+# platform-variant). Every entry must be safe to include first in an
+# empty TU.
+_PCH_HEADERS = (
+    PCH_CORE_HEADER,
+    "esphome/core/component.h",
+    "esphome/core/helpers.h",
+    "esphome/core/log.h",
+    "esphome/core/application.h",
+    "esphome/core/automation.h",
+)
+
+# Header and .gch/.sum sidecars, relative to the device dir; see
+# _pch_cmake() and prepare_pch() for the layout rationale
+_PCH_BUILD_HEADER = f"build/{PCH_HEADER_NAME}"
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
@@ -279,7 +306,127 @@ idf_component_register(
 target_link_options(${{COMPONENT_LIB}} PUBLIC
     {link_opts_str}
 )
+{_pch_cmake()}"""
+
+
+def _pch_cmake() -> str:
+    """The src component's precompiled-header block (C++ TUs only).
+
+    The -include stays relative (resolved from the compilers' cwd, the
+    build dir, where prepare_pch() puts the header and .gch); an absolute
+    path would poison ccache keys with the per-device build path.
+    """
+    if not pch_enabled():
+        return ""
+    return f"""
+# ESPHome precompiled header (see esphome/build_helpers/pch.py)
+target_compile_options(${{COMPONENT_LIB}} PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:-include>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
+)
 """
+
+
+def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] | None:
+    """The exact src C++ flags from compile_commands.json, retargeted at
+    the header; None when no configured C++ TU is available yet."""
+    try:
+        entries = json.loads(
+            (build_dir / "compile_commands.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return None
+    entry = next(
+        (
+            e
+            for e in entries
+            if "__idf_src.dir" in e.get("command", "")
+            and e.get("file", "").endswith((".cpp", ".cc", ".cxx"))
+        ),
+        None,
+    )
+    if entry is None:
+        return None
+    tokens = split_command(entry["command"])
+    # A DB recorded with ccache enabled prefixes the compiler with the
+    # launcher; the .gch must be compiled directly
+    if tokens and is_launcher(tokens[0]):
+        tokens = tokens[1:]
+    args: list[str] = []
+    arg_it = iter(tokens)
+    for tok in arg_it:
+        # Strip the source/output and any -include (the header holds it)
+        if tok in ("-include", "-o", "-c"):
+            next(arg_it, None)
+            continue
+        args.append(tok)
+    return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)]
+
+
+def prepare_pch() -> None:
+    """Compile the prefix header's .gch and write its ccache .sum.
+
+    Runs right before ninja, after every reconfigure, so the flags in
+    compile_commands.json and the sdkconfig are the settled ones. The .sum
+    doubles as the freshness stamp; a failed .gch compile falls back to
+    the plain header include.
+    """
+    if not pch_enabled():
+        return
+    build_dir = CORE.relative_build_path("build")
+    header = CORE.relative_build_path(_PCH_BUILD_HEADER)
+    gch = Path(f"{header}.gch")
+    sum_path = Path(f"{gch}.sum")
+    try:
+        sdkconfig = CORE.relative_build_path(f"sdkconfig.{CORE.name}").read_text(
+            encoding="utf-8"
+        )
+    except OSError:
+        sdkconfig = "no-sdkconfig"
+    checksum = pch_checksum(
+        CORE.relative_src_path(),
+        _PCH_HEADERS,
+        (
+            str(idf_version()),
+            CORE.cpp_standard or "",
+            sdkconfig,
+            *get_project_compile_flags(),
+            *get_project_cxx_compile_flags(),
+        ),
+    )
+    if (
+        gch.is_file()
+        and sum_path.is_file()
+        and sum_path.read_text(encoding="utf-8").strip() == checksum
+    ):
+        return
+    failed_marker = Path(f"{gch}.failed")
+    if (
+        failed_marker.is_file()
+        and failed_marker.read_text(encoding="utf-8").strip() == checksum
+    ):
+        return
+    cmd = _pch_compile_command(build_dir, header, gch)
+    if cmd is None:
+        return
+    try:
+        result = subprocess.run(
+            cmd, cwd=build_dir, capture_output=True, text=True, check=False
+        )
+        error = result.stderr.strip() if result.returncode != 0 else None
+    except OSError as err:
+        error = str(err)
+    if error is not None:
+        _LOGGER.warning(
+            "Precompiled header failed; compiling without it: %s", error[:400]
+        )
+        gch.unlink(missing_ok=True)
+        sum_path.unlink(missing_ok=True)
+        # Skip retries until a flag/header/sdkconfig change alters the checksum
+        failed_marker.write_text(checksum + "\n", encoding="utf-8")
+        return
+    failed_marker.unlink(missing_ok=True)
+    sum_path.write_text(checksum + "\n", encoding="utf-8")
 
 
 def write_project(
@@ -300,6 +447,11 @@ def write_project(
         CORE.relative_src_path("CMakeLists.txt"),
         get_component_cmakelists(),
     )
+
+    if pch_enabled():
+        write_file_if_changed(
+            CORE.relative_build_path(_PCH_BUILD_HEADER), pch_header_text(_PCH_HEADERS)
+        )
 
     # Snapshot the exclusion set so has_outdated_files() can trigger a
     # discovery reconfigure when it changes. Excluded components never

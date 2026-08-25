@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -488,3 +489,100 @@ def test_get_component_cmakelists_no_compile_features() -> None:
         content = get_component_cmakelists()
 
     assert "target_compile_features" not in content
+
+
+def _make_pch_device(tmp_path: Path, name: str) -> Path:
+    """A device dir with the pch source headers and a stub compile_commands."""
+    from esphome.build_gen.espidf import _PCH_HEADERS
+
+    dev = tmp_path / name
+    for header in _PCH_HEADERS:
+        path = dev / "src" / header
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("")
+    build = dev / "build"
+    build.mkdir(exist_ok=True)
+    from esphome.build_helpers.pch import pch_header_text
+
+    (build / "esphome_pch.h").write_text(pch_header_text(_PCH_HEADERS))
+    (build / "compile_commands.json").write_text(
+        json.dumps(
+            [
+                {
+                    "directory": str(build),
+                    "command": (
+                        "g++ -DX=1 -include esphome_pch.h "
+                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj "
+                        f"-c {dev}/src/a.cpp"
+                    ),
+                    "file": f"{dev}/src/a.cpp",
+                }
+            ]
+        )
+    )
+    return dev
+
+
+def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_a")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def fake_compile(cmd, **kwargs):
+        # The compile must target the header, not the stub TU
+        assert cmd[-5:-3] == ["c++-header", "-c"]
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+    ):
+        prepare_pch()
+    assert (dev / "build" / "esphome_pch.h").read_text().startswith("#include")
+    checksum = (dev / "build" / "esphome_pch.h.gch.sum").read_text().strip()
+    assert len(checksum) == 64
+    # Unchanged inputs: the second call must not recompile
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+
+
+def test_pch_no_device_path_poison(tmp_path: Path) -> None:
+    """Regression: neither the injected -include nor the .sum may carry the
+    per-device build path, or cross-device ccache sharing breaks."""
+    from esphome.build_gen.espidf import get_component_cmakelists, prepare_pch
+
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        dev = _make_pch_device(tmp_path, name)
+        CORE.build_path = dev
+        gch = dev / "build" / "esphome_pch.h.gch"
+
+        def fake_compile(cmd, _gch=gch, **kwargs):
+            _gch.write_bytes(b"gch")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with (
+            patch.object(CORE, "name", name),
+            patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+        ):
+            prepare_pch()
+            content = get_component_cmakelists()
+        assert str(dev) not in content
+        sums.append((dev / "build" / "esphome_pch.h.gch.sum").read_text())
+    assert sums[0] == sums[1]
+
+
+def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert '"$<$<COMPILE_LANGUAGE:CXX>:-include>"' in content
+    assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert "-include" not in get_component_cmakelists()

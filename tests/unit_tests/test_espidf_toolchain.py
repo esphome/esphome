@@ -93,6 +93,13 @@ def test_get_configured_targets_ci_installs_all(monkeypatch: pytest.MonkeyPatch)
     assert toolchain._get_configured_targets() is None
 
 
+@pytest.fixture(autouse=True)
+def _no_ccache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Deterministic run_compile: no host ccache probe, no pch work."""
+    monkeypatch.setenv("IDF_CCACHE_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+
+
 def _setup_build(setup_core: Path) -> tuple[Path, Path]:
     """Point CORE at a build dir; return (compile_commands, idedata cache) paths."""
     CORE.name = "test"

@@ -327,7 +327,7 @@ def test_split_command_preserves_paths_and_unescapes_quotes() -> None:
     r"""Backslash paths survive while ``\"`` define-quoting is unescaped."""
     command = r"C:\esp\bin\riscv32-esp-elf-g++.exe -DVER=\"1.2.3\" -IC:/inc/a -c x.cpp"
 
-    tokens = idedata._split_command(command)
+    tokens = idedata.split_command(command)
 
     assert tokens[0] == r"C:\esp\bin\riscv32-esp-elf-g++.exe"
     assert '-DVER="1.2.3"' in tokens
@@ -341,8 +341,8 @@ def test_split_command_empty_returns_empty() -> None:
     Guards against ``CommandLineToArgvW("")`` returning the current process name
     instead of an empty list.
     """
-    assert idedata._split_command("") == []
-    assert idedata._split_command("   ") == []
+    assert idedata.split_command("") == []
+    assert idedata.split_command("   ") == []
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows argv tokenization")
@@ -503,9 +503,9 @@ def test_load_or_build_idedata_rebuilds_non_dict_cache(tmp_path: Path) -> None:
 def test_is_launcher_matches_only_known_launchers() -> None:
     """Compilers of any shape pass; only the closed launcher set matches."""
     for token in ("/t/g++-13", "gcc-8.4.0", "clang++-17", "armcc", "icx", "cc"):
-        assert not idedata._is_launcher(token)
+        assert not idedata.is_launcher(token)
     for token in ("/opt/homebrew/bin/ccache", "CCACHE.EXE", "distcc", "sccache"):
-        assert idedata._is_launcher(token)
+        assert idedata.is_launcher(token)
 
 
 def test_load_or_build_idedata_corrupted_cache_is_logged(
