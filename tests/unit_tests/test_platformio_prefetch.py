@@ -194,9 +194,10 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     ):
         pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
     assert dl_path.read_bytes() == b"data"
-    # only the archive and the lock file remain; no orphaned staging file
+    # no orphaned staging file; the lock file may or may not persist
+    # (filelock removes it on release on some platforms)
     leftovers = {f.name for f in tmp_path.iterdir()}
-    assert leftovers == {dl_path.name, f"{dl_path.name}.prefetch.lock"}
+    assert leftovers - {f"{dl_path.name}.prefetch.lock"} == {dl_path.name}
 
 
 def test_uri_fetch_job_skips_when_another_process_won(tmp_path: Path) -> None:
