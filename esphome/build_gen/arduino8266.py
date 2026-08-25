@@ -32,6 +32,13 @@ from esphome.build_helpers.ninja import (
     quote_path as _q,
     shell_token as _shell_token,
 )
+from esphome.build_helpers.pch import (
+    PCH_CORE_HEADER,
+    PCH_HEADER_NAME,
+    pch_checksum,
+    pch_enabled,
+    pch_header_text,
+)
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
     BOARDS,
@@ -874,18 +881,26 @@ def _ninja_compile_edges(
     root: Path,
     group: str,
     flags: str = "",
+    cxx_flags: str = "",
+    cxx_implicit: str = "",
 ) -> list[str]:
-    """Emit compile edges for ``sources``; return the object paths."""
+    """Emit compile edges for ``sources``; return the object paths.
+
+    ``cxx_flags``/``cxx_implicit`` override ``flags`` and add an implicit
+    dependency on C++ edges only (used for the precompiled header).
+    """
     objects = []
     for src in sources:
         rel = src.relative_to(root).as_posix()
         obj = f"obj/{group}/{rel}.o"
         escaped_obj = _e(obj)
-        lines.append(
-            f"build {escaped_obj}: {SOURCE_KIND_FOR_SUFFIX[src.suffix]} {_e(src)}"
-        )
-        if flags:
-            lines.append(f"  flags = {flags}")
+        kind = SOURCE_KIND_FOR_SUFFIX[src.suffix]
+        is_cxx = kind == "cxx"
+        implicit = f" | {cxx_implicit}" if is_cxx and cxx_implicit else ""
+        lines.append(f"build {escaped_obj}: {kind} {_e(src)}{implicit}")
+        edge_flags = cxx_flags if is_cxx and cxx_flags else flags
+        if edge_flags:
+            lines.append(f"  flags = {edge_flags}")
         # Escaped once here: the returned paths only ever appear in build
         # statements (archive/link inputs), which use ninja escaping.
         objects.append(escaped_obj)
@@ -1087,6 +1102,13 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "  depfile = $out.d",
         "  deps = gcc",
         "  description = AS $out",
+        # No $ccache: the .gch is compiled once per build dir and ccache
+        # cannot cache it usefully (its bytes embed build-dir paths)
+        "rule pch",
+        "  command = $cxx -MMD -MF $out.d -x c++-header $cxxflags $flags -c $in -o $out",
+        "  depfile = $out.d",
+        "  deps = gcc",
+        "  description = PCH $out",
         # Plain assembler, as SCons's ASCOM: no preprocessor, so no
         # depfile and no $flags (defines/includes) either
         "rule asm",
@@ -1175,7 +1197,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # One source of truth with the PlatformIO path: esp8266/__init__ pins
     # build_src_flags (the throw_stubs force-include); -include paths
     # resolve against the source root
-    src_parts: list[str] = []
+    src_other: list[str] = []
+    src_includes: list[str] = []
     src_it = iter(
         lex_build_flags(_pio_option("build_src_flags", ""), "build_src_flags")
     )
@@ -1186,15 +1209,57 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 raise EsphomeError(
                     "build_src_flags has a trailing '-include' with no header"
                 )
-            src_parts.append(f"-include {_q(src_dir / header)}")
+            src_includes.append(header)
         else:
-            src_parts.append(_shell_token(tok))
-    src_extra = " ".join(src_parts)
+            src_other.append(_shell_token(tok))
+    include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
-    lines.append(f"srcflags = {src_extra}")
+    lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
+    src_cxx_flags = None
+    src_cxx_implicit = ""
+    if pch_enabled():
+        # C++ src edges swap the force-includes for one precompiled prefix
+        # header holding the same content plus defines.h; C and assembly
+        # edges keep srcflags (a .gch is a C++ artifact)
+        pch_header = build_dir / PCH_HEADER_NAME
+        pch_includes = (*src_includes, PCH_CORE_HEADER)
+        write_file_if_changed(pch_header, pch_header_text(pch_includes))
+        if ccache:
+            # The .sum sidecar only exists for CCACHE_PCH_EXTSUM; ninja's
+            # depfile handles staleness. Mirror CCACHE_BASEDIR: strip the
+            # per-device build path so identically-configured devices
+            # produce identical .sum files and share cache entries
+            flags_id = " ".join(cxxflags).replace(
+                str(Path(CORE.build_path).resolve()), ""
+            )
+            checksum = pch_checksum(
+                src_dir,
+                pch_includes,
+                (str(paths.framework), str(paths.toolchain), flags_id),
+            )
+            write_file_if_changed(
+                build_dir / f"{PCH_HEADER_NAME}.gch.sum", checksum + "\n"
+            )
+        gch = _e(f"{PCH_HEADER_NAME}.gch")
+        lines.append(f"build {gch}: pch {_e(pch_header)}")
+        if src_other:
+            lines.append(f"  flags = {' '.join(src_other)}")
+        # Relative -include (resolved from the ninja cwd, where the header
+        # lives): an absolute path would put the per-device build path on
+        # every compile command and defeat cross-device ccache sharing
+        cxx_parts = src_other + [f"-include {PCH_HEADER_NAME}"]
+        lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
+        src_cxx_flags = "$srccxxflags"
+        src_cxx_implicit = gch
     src_objs = _ninja_compile_edges(
-        lines, _collect_sources(src_dir), src_dir, "src", flags="$srcflags"
+        lines,
+        _collect_sources(src_dir),
+        src_dir,
+        "src",
+        flags="$srcflags",
+        cxx_flags=src_cxx_flags,
+        cxx_implicit=src_cxx_implicit,
     )
 
     ld_deps = [f"ld/{_COMMON_LD_NAME}"]

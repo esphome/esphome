@@ -19,6 +19,7 @@ from typing import NamedTuple
 
 from esphome.build_helpers.ccache import ccache_defaults_env
 from esphome.build_helpers.ninja import find_ninja
+from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import ARDUINO8266_TOOLS_CACHE, tools_cache_path
 from esphome.core import EsphomeError, Version
 from esphome.framework_helpers import str_to_lst_of_str
@@ -161,4 +162,6 @@ def ccache_env(ccache: str | None) -> dict[str, str]:
     """
     if ccache is None:
         return {}
-    return ccache_defaults_env(get_arduino8266_tools_path() / "ccache")
+    env = ccache_defaults_env(get_arduino8266_tools_path() / "ccache")
+    env.update(ccache_pch_env())
+    return env

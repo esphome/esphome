@@ -1,0 +1,110 @@
+import hashlib
+import os
+from pathlib import Path
+import shlex
+import subprocess
+
+# pylint: disable=E0602
+Import("env", "projenv")  # noqa: F821
+
+# Precompile the src force-includes plus defines.h (which pulls in
+# Arduino.h) and force-include the result into C++ src compiles only; those
+# TUs already include this content first, so their preprocessed output is
+# unchanged. Post script: the final src flags exist, nothing compiled yet.
+# Registration is gated host-side (esp8266/__init__.py, pch_enabled()).
+# Keep the header tail and ccache values in sync with build_helpers/pch.py.
+
+
+def _esp8266_setup_pch() -> None:
+    # Project root, not $BUILD_DIR: SCons compiles run with the project dir
+    # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
+    # An absolute path would put the per-device build path on every compile
+    # command and defeat cross-device ccache sharing.
+    proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
+    src_dir = Path(env.subst("$PROJECT_SRC_DIR"))  # noqa: F821
+    header = proj_dir / "esphome_pch.h"
+    gch = Path(f"{header}.gch")
+    sum_path = Path(f"{gch}.sum")
+
+    cxx = projenv.subst("$CXX")  # noqa: F821
+    # The header holds the -include entries itself, so the .gch compile must
+    # not see them; consumers keep theirs, which the .gch then satisfies.
+    flags = []
+    include_headers = []
+    flag_it = iter(shlex.split(projenv.subst("$CXXFLAGS $CCFLAGS $_CCCOMCOM")))  # noqa: F821
+    for tok in flag_it:
+        if tok == "-include":
+            include_headers.append(next(flag_it, ""))
+        else:
+            flags.append(tok)
+    content = "".join(
+        f'#include "{name}"\n' for name in (*include_headers, "esphome/core/defines.h")
+    )
+
+    digest = hashlib.sha256()
+    digest.update(content.encode())
+    digest.update(cxx.encode())
+    # Mirror CCACHE_BASEDIR: strip the per-device build path so identical
+    # configs produce identical .sum files and share cache entries
+    flags_id = " ".join(flags)
+    if basedir := os.environ.get("CCACHE_BASEDIR"):
+        flags_id = flags_id.replace(basedir, "")
+    digest.update(flags_id.encode())
+    # GCC never validates a .gch against its source headers, and PlatformIO
+    # package paths carry no version, so a platform bump must invalidate here
+    platform = env.PioPlatform()  # noqa: F821
+    for package in ("framework-arduinoespressif8266", "toolchain-xtensa"):
+        digest.update(str(platform.get_package_version(package)).encode())
+        digest.update(b"\0")
+    for name in (*include_headers, "esphome/core/defines.h", "esphome/core/macros.h"):
+        path = Path(name) if Path(name).is_absolute() else src_dir / name
+        try:
+            digest.update(path.read_bytes())
+        except OSError:
+            digest.update(b"unreadable")
+        digest.update(b"\0")
+    checksum = digest.hexdigest()
+
+    # The ccache .sum sidecar doubles as the freshness stamp
+    if (
+        not gch.is_file()
+        or not sum_path.is_file()
+        or (sum_path.read_text(encoding="utf-8").strip() != checksum)
+    ):
+        failed_marker = Path(f"{gch}.failed")
+        if (
+            failed_marker.is_file()
+            and failed_marker.read_text(encoding="utf-8").strip() == checksum
+        ):
+            return
+        header.write_text(content, encoding="utf-8")
+        result = subprocess.run(  # noqa: PLW1510
+            [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print("ESPHome: precompiled header failed; compiling without it")
+            print(result.stderr)
+            # Skip retries until a flag/header/platform change alters the checksum
+            failed_marker.write_text(checksum + "\n", encoding="utf-8")
+            return
+        failed_marker.unlink(missing_ok=True)
+        sum_path.write_text(checksum + "\n", encoding="utf-8")
+
+    # Scoped to src compiles: framework/library TUs never consume the .gch
+    # and keep strict ccache hashing. User-set values win.
+    for key, value in (
+        ("CCACHE_SLOPPINESS", "pch_defines,time_macros"),
+        ("CCACHE_PCH_EXTSUM", "true"),
+    ):
+        if key not in os.environ:
+            projenv["ENV"][key] = value  # noqa: F821
+
+    # Prepended so it is processed before the build_src_flags -include
+    # entries: GCC only uses a .gch while no other tokens have been seen.
+    projenv.Prepend(CXXFLAGS=["-include", header.name])  # noqa: F821
+    print("ESPHome: Compiling with precompiled header")
+
+
+_esp8266_setup_pch()

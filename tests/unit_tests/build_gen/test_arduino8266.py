@@ -364,7 +364,50 @@ def test_write_project_link_line_and_exclusions(tmp_path: Path) -> None:
         line for line in content.splitlines() if line.startswith("  flags = ")
     ]
     assert flags_lines
-    assert all(line == "  flags = $srcflags" for line in flags_lines)
+    # C++ src edges consume the precompiled header; C/assembly keep srcflags
+    assert set(flags_lines) == {"  flags = $srcflags", "  flags = $srccxxflags"}
+
+
+def test_write_project_pch(tmp_path: Path) -> None:
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    assert "rule pch" in content
+    assert "build esphome_pch.h.gch: pch" in content
+    for line in content.splitlines():
+        # C++ edges wait on the .gch; the C edge must not reference it
+        if line.startswith("build obj/src/main.cpp.o:"):
+            assert line.endswith("| esphome_pch.h.gch")
+        if line.startswith("build obj/src/esphome/vendor.c.o:"):
+            assert "esphome_pch" not in line
+    assert (build_dir / "esphome_pch.h").read_text().splitlines() == [
+        '#include "esphome/components/esp8266/throw_stubs.h"',
+        '#include "esphome/core/defines.h"',
+    ]
+    assert (build_dir / "esphome_pch.h.gch.sum").read_text().strip()
+
+
+def test_write_project_pch_sum_only_with_ccache(tmp_path: Path) -> None:
+    """The .sum sidecar exists solely for ccache; skip it when disabled."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    build_dir = CORE.relative_pioenvs_path(CORE.name)
+    assert "build esphome_pch.h.gch: pch" in content
+    assert not (build_dir / "esphome_pch.h.gch.sum").exists()
+
+
+def test_write_project_pch_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths)
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "  flags = $srcflags" in content
 
 
 def test_write_project_scanf_float_and_waveform_kept(tmp_path: Path) -> None:
@@ -1711,3 +1754,22 @@ def test_write_project_rejects_spaced_ldscript_override(tmp_path: Path) -> None:
     _set_flags()
     with pytest.raises(EsphomeError, match="Invalid flash linker script name"):
         arduino8266.write_project(paths, None)
+
+
+def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
+    """Regression: the -include stays relative and the .sum carries no
+    per-device path, or cross-device ccache sharing breaks."""
+    paths = _make_framework(tmp_path / "shared")
+    sums = []
+    for name in ("dev_a", "dev_b"):
+        CORE.name = name
+        CORE.build_path = tmp_path / name
+        _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+        content = _write_ninja(paths, ccache="/usr/bin/ccache")
+        assert "srccxxflags = -include esphome_pch.h" in content
+        sums.append(
+            (
+                CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum"
+            ).read_text()
+        )
+    assert sums[0] == sums[1]

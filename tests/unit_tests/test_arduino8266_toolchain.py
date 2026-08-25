@@ -629,3 +629,25 @@ def test_get_idedata_accepts_preresolved_ccache() -> None:
         assert toolchain.get_idedata("/usr/bin/ccache") == {"ok": True}
     mock_resolve.assert_not_called()
     assert mock_build.call_args.kwargs["launcher"] == "/usr/bin/ccache"
+
+
+def test_ccache_env_includes_pch_settings() -> None:
+    """The native build exports the ccache settings the pch needs."""
+    with patch.dict(os.environ, {}, clear=True):
+        env = framework.ccache_env("/usr/bin/ccache")
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
+
+
+def test_ccache_env_pch_disabled() -> None:
+    with patch.dict(os.environ, {"ESPHOME_PCH_ENABLE": "0"}, clear=True):
+        env = framework.ccache_env("/usr/bin/ccache")
+    assert "CCACHE_SLOPPINESS" not in env
+    assert "CCACHE_PCH_EXTSUM" not in env
+
+
+def test_ccache_env_respects_user_sloppiness() -> None:
+    with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
+        env = framework.ccache_env("/usr/bin/ccache")
+    assert "CCACHE_SLOPPINESS" not in env
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
