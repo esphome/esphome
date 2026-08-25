@@ -1,6 +1,8 @@
 import hashlib
 import os
 from pathlib import Path
+import posixpath
+import re
 import shlex
 import subprocess
 
@@ -12,7 +14,36 @@ Import("env", "projenv")  # noqa: F821
 # TUs already include this content first, so their preprocessed output is
 # unchanged. Post script: the final src flags exist, nothing compiled yet.
 # Registration is gated host-side (esp8266/__init__.py, pch_enabled()).
-# Keep the header tail and ccache values in sync with build_helpers/pch.py.
+# Keep the header tail, ccache values, include-closure recipe, and the
+# checksum/failed-marker stamp flow in sync with build_helpers/pch.py.
+
+_INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
+_CORE_HEADER = "esphome/core/defines.h"
+
+
+def _include_closure(src_dir: Path, roots: list) -> dict:
+    """Quoted-include closure: src-relative name -> contents (mirror of
+    build_helpers/pch.py)."""
+    seen = {}
+    stack = [(name, "") for name in roots]
+    while stack:
+        name, from_dir = stack.pop()
+        for candidate in (f"{from_dir}/{name}" if from_dir else name, name):
+            rel = posixpath.normpath(candidate)
+            if not rel.startswith("..") and (src_dir / rel).is_file():
+                break
+        else:
+            continue
+        if rel in seen:
+            continue
+        try:
+            data = (src_dir / rel).read_bytes()
+        except OSError:
+            continue
+        seen[rel] = data
+        parent = posixpath.dirname(rel)
+        stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
+    return seen
 
 
 def _esp8266_setup_pch() -> None:
@@ -38,7 +69,7 @@ def _esp8266_setup_pch() -> None:
         else:
             flags.append(tok)
     content = "".join(
-        f'#include "{name}"\n' for name in (*include_headers, "esphome/core/defines.h")
+        f'#include "{name}"\n' for name in (*include_headers, _CORE_HEADER)
     )
 
     digest = hashlib.sha256()
@@ -56,12 +87,10 @@ def _esp8266_setup_pch() -> None:
     for package in ("framework-arduinoespressif8266", "toolchain-xtensa"):
         digest.update(str(platform.get_package_version(package)).encode())
         digest.update(b"\0")
-    for name in (*include_headers, "esphome/core/defines.h", "esphome/core/macros.h"):
-        path = Path(name) if Path(name).is_absolute() else src_dir / name
-        try:
-            digest.update(path.read_bytes())
-        except OSError:
-            digest.update(b"unreadable")
+    closure = _include_closure(src_dir, [*include_headers, _CORE_HEADER])
+    for rel in sorted(closure):
+        digest.update(rel.encode())
+        digest.update(closure[rel])
         digest.update(b"\0")
     checksum = digest.hexdigest()
 
@@ -78,14 +107,20 @@ def _esp8266_setup_pch() -> None:
         ):
             return
         header.write_text(content, encoding="utf-8")
-        result = subprocess.run(  # noqa: PLW1510
-            [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
+        try:
+            result = subprocess.run(  # noqa: PLW1510
+                [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
+                capture_output=True,
+                text=True,
+            )
+            error = result.stderr if result.returncode != 0 else None
+        except OSError as err:
+            error = str(err)
+        if error is not None:
             print("ESPHome: precompiled header failed; compiling without it")
-            print(result.stderr)
+            print(error)
+            gch.unlink(missing_ok=True)
+            sum_path.unlink(missing_ok=True)
             # Skip retries until a flag/header/platform change alters the checksum
             failed_marker.write_text(checksum + "\n", encoding="utf-8")
             return

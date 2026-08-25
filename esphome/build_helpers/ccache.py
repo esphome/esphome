@@ -90,3 +90,11 @@ def ccache_defaults_env(cache_dir: Path) -> dict[str, str]:
         "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
     }
     return {k: v for k, v in defaults.items() if k not in os.environ}
+
+
+def effective_ccache_basedir() -> str:
+    """The prefix ccache rewrites out of hashed paths: a user CCACHE_BASEDIR
+    wins, else the resolved build path (matching ccache_defaults_env)."""
+    from esphome.core import CORE
+
+    return os.environ.get("CCACHE_BASEDIR") or str(Path(CORE.build_path).resolve())

@@ -27,6 +27,7 @@ import sys
 from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.arduino8266.framework import toolchain_tool
+from esphome.build_helpers.ccache import effective_ccache_basedir
 from esphome.build_helpers.ninja import (
     escape as _e,
     quote_path as _q,
@@ -1216,7 +1217,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
-    src_cxx_flags = None
+    src_cxx_flags = ""
     src_cxx_implicit = ""
     if pch_enabled():
         # C++ src edges swap the force-includes for one precompiled prefix
@@ -1230,9 +1231,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             # depfile handles staleness. Mirror CCACHE_BASEDIR: strip the
             # per-device build path so identically-configured devices
             # produce identical .sum files and share cache entries
-            flags_id = " ".join(cxxflags).replace(
-                str(Path(CORE.build_path).resolve()), ""
-            )
+            flags_id = " ".join(cxxflags).replace(effective_ccache_basedir(), "")
             checksum = pch_checksum(
                 src_dir,
                 pch_includes,

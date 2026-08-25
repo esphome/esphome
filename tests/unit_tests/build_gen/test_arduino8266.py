@@ -1768,8 +1768,6 @@ def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
         content = _write_ninja(paths, ccache="/usr/bin/ccache")
         assert "srccxxflags = -include esphome_pch.h" in content
         sums.append(
-            (
-                CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum"
-            ).read_text()
+            (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
         )
     assert sums[0] == sums[1]
