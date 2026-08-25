@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 import socket
+import threading
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -66,9 +68,6 @@ def test_ensure_happy_eyeballs_concurrent_first_calls_patch_once(
 ) -> None:
     """Worker threads fanning out (download_content_many, run_batch_downloads)
     may race the first call; the replacement is built exactly once."""
-    from concurrent.futures import ThreadPoolExecutor
-    import threading
-
     import urllib3.util.connection
 
     from esphome import happy_eyeballs
