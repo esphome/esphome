@@ -1,3 +1,5 @@
+from contextlib import ExitStack
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_ROWS
@@ -6,12 +8,12 @@ from esphome.const import CONF_ID, CONF_ITEMS, CONF_ROW, CONF_TEXT, CONF_WIDTH
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.schema_extractors import SCHEMA_EXTRACT
-from esphome.types import ConfigType, SafeExpType
+from esphome.types import ConfigFragmentType, ConfigType, SafeExpType
 
 from ..automation import action_to_code
 from ..defines import CONF_COLUMN, CONF_MAIN, LValidator, literal
-from ..lv_validation import lv_int, lv_text, pixels_or_percent
-from ..lvcode import lv, lv_add, lv_expr
+from ..lv_validation import lv_int, lv_text, pixels_or_percent, pixels_validator
+from ..lvcode import LocalVariable, lv, lv_add, lv_expr
 from ..types import LvCompound, LvType, ObjUpdateAction, lv_coord_t
 from . import Widget, WidgetType, get_widgets
 from .label import CONF_LABEL
@@ -46,14 +48,12 @@ ROW_SCHEMA = cv.maybe_simple_value(
 )
 
 
-def _column_width_validator(value):
-    """Like pixels_or_percent, but rejects negative percentages, which would
+def _column_width_validator(value: ConfigFragmentType) -> int | float | list[str]:
+    """Like pixels_or_percent, but rejects negative widths, which would
     defeat the 100%-total check and wrap around in the generated uint8_t pct."""
     if value == SCHEMA_EXTRACT:
         return ["pixels", "..%"]
-    if isinstance(value, str) and value.lower().endswith("px"):
-        return cv.int_(value[:-2])
-    return cv.Any(cv.int_, cv.percentage)(value)
+    return cv.Any(pixels_validator, cv.percentage)(value)
 
 
 column_width = LValidator(
@@ -256,11 +256,24 @@ async def table_cell_update_to_code(
     async def do_update(w: Widget):
         row = await lv_int.process(config[CONF_ROW])
         column = await lv_int.process(config[CONF_COLUMN])
-        if CONF_TEXT in config:
-            lv.table_set_cell_value(
-                w.obj, row, column, await lv_text.process(config[CONF_TEXT])
-            )
-        await set_cell_ctrl(w, row, column, config)
+        fields_set = sum(
+            key in config for key in (CONF_TEXT, CONF_MERGE_RIGHT, CONF_TEXT_CROP)
+        )
+        with ExitStack() as stack:
+            if fields_set > 1:
+                # row/column feed more than one generated call below: cache them in
+                # local variables so a !lambda value is only evaluated once.
+                row = stack.enter_context(
+                    LocalVariable("row", cg.int_, row, modifier="")
+                )
+                column = stack.enter_context(
+                    LocalVariable("column", cg.int_, column, modifier="")
+                )
+            if CONF_TEXT in config:
+                lv.table_set_cell_value(
+                    w.obj, row, column, await lv_text.process(config[CONF_TEXT])
+                )
+            await set_cell_ctrl(w, row, column, config)
 
     return await action_to_code(
         widgets, do_update, action_id, template_arg, args, config
