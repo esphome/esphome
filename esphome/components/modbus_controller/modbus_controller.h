@@ -157,7 +157,7 @@ class SensorItem {
     this->range_start_address = address;
   }
 
-  void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
+  void set_custom_pdu(std::initializer_list<uint8_t> pdu) { this->custom_pdu.set(pdu.begin(), pdu.size()); }
   size_t virtual get_register_size() const {
     if (this->addresses_bits()) {
       return 1;
@@ -186,8 +186,7 @@ class SensorItem {
   uint8_t offset_from_start_address{0};
   /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
   uint16_t range_start_address{0};
-  uint16_t skip_updates{0};
-  std::vector<uint8_t> custom_data{};
+  SmallInlineBuffer<8> custom_pdu{};
   bool force_new_range{false};
 };
 
@@ -230,8 +229,7 @@ struct RegisterRange {
   uint16_t start_address;
   modbus::EntityType register_type;
   uint8_t register_count;
-  uint16_t skip_updates;  // the config value
-  SensorSet sensors;      // all sensors of this range
+  SensorSet sensors;  // all sensors of this range
 };
 
 /// A single modbus command. Each command is its own ModbusClientDevice: it sends its frame to the hub
@@ -257,7 +255,6 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   ModbusCommandItem &operator=(ModbusCommandItem &&) = delete;
 
   SensorSet sensors;  // sensors served by this command (empty for factory/write commands)
-  uint16_t skip_updates{0};
   std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> on_data_func;
   /// Write data bytes for the command (register/coil values), or the raw frame of a one-shot custom
   /// command; reads leave it empty. Small-buffer optimized: fixed-size commands (single-register/coil
@@ -287,7 +284,9 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
   /// The item is the hub device, so it must stay alive until its terminal callback; a destroyed item's
   /// pending frame is silently retired.
-  bool send();
+  /// Options pass straight through to the hub; the polling path passes the controller's read-side
+  /// options so reads re-queue after each success, one-shot commands keep the default.
+  bool send(modbus::CommandOptions options = {});
 
   /// factory methods
   /** Create modbus read command
@@ -378,7 +377,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   uint16_t register_count_{0};
   FunctionCode function_code_{FunctionCode::CUSTOM};
   /// Custom polling commands reference the PDU bytes owned by their SensorItem instead of copying them.
-  const std::vector<uint8_t> *custom_data_{nullptr};
+  const SmallInlineBuffer<8> *custom_pdu_{nullptr};
   ModbusController *controller_{nullptr};
 };
 
@@ -455,6 +454,10 @@ class ModbusController final : public PollingComponent {
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
+  /// called by esphome generated code with the read-side command options applied to every poll
+  void set_read_options(modbus::CommandOptions options) { this->read_options_ = options; }
+  /// the read-side command options applied to every poll
+  const modbus::CommandOptions &read_options() const { return this->read_options_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -462,19 +465,15 @@ class ModbusController final : public PollingComponent {
   void create_polling_commands_();
   /// build one persistent polling command from a range and add it to polling_command_items_
   void create_polling_command_(RegisterRange &&range) {
-    // A custom range polls the first sensor's custom_data (a ready-made raw frame); it needs the
-    // sensor constructor so the command references those bytes and decodes the real function code.
-    // The response still dispatches to every sensor in the range.
+    // A custom range polls the first sensor's custom_pdu (referenced, not copied); the sensor constructor
+    // decodes the real function code. The response still dispatches to every sensor in the range.
     if (range.register_type == EntityType::CUSTOM && !range.sensors.empty()) {
       auto &cmd = this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, *range.sensors.begin());
       cmd.sensors = std::move(range.sensors);
-      cmd.skip_updates = range.skip_updates;  // the range's merged rate, not the first sensor's
     } else {
       this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, std::move(range));
     }
   }
-  /// send a range's polling command if it is due this update
-  void update_range_(ModbusCommandItem &cmd);
   /// The hub this controller's commands/entities send through, and the modbus address they target.
   modbus::ModbusClientHub *hub_{nullptr};
   uint8_t address_{0};
@@ -496,7 +495,7 @@ class ModbusController final : public PollingComponent {
   bool module_offline_{false};
   /// update_counter_ value at which the module went offline (for offline_skip_updates timing)
   uint16_t module_offline_at_{0};
-  /// counts update() cycles; drives skip_updates and offline timing
+  /// counts update() cycles; drives the offline-retry cadence
   uint16_t update_counter_{0};
   /// consecutive non-responses; drives can_send() and offline detection
   uint8_t cmd_non_responses_{0};
@@ -504,6 +503,8 @@ class ModbusController final : public PollingComponent {
   uint16_t offline_skip_updates_{0};
   /// How many times we will retry a command if we get no response
   uint8_t max_cmd_retries_{4};
+  /// read-side command options applied to every poll
+  modbus::CommandOptions read_options_{};
   /// Command sent callback
   CallbackManager<void(int, int)> command_sent_callback_{};
   /// Server online callback
