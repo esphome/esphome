@@ -200,6 +200,10 @@ def parse_entry(
     for tok in it:
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
+        elif tok == "-include":
+            # Resolve like -I so cached idedata works from any cwd (the pch
+            # include is emitted relative to the build dir)
+            cxx_flags.extend(("-include", _include(next(it, ""))))
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.
