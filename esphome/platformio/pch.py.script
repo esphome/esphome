@@ -50,11 +50,13 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
 
 def _shell_arg(element) -> str:
     """One compiler argv from one SCons element, matching the real spawn:
-    SCons whole-quotes spaced elements, the shell unquotes the rest."""
+    SCons whole-quotes spaced elements, the shell unquotes the rest. On
+    Windows there is no POSIX shell pass and shlex would eat path
+    backslashes."""
     arg = str(element)
-    if " " in arg:
+    if " " in arg or os.name == "nt":
         return arg.replace('\\"', '"')
-    return shlex.split(arg)[0] if arg else arg
+    return shlex.split(arg)[0] if arg.strip() else arg
 
 
 def _setup_pch() -> None:
@@ -104,10 +106,13 @@ def _setup_pch() -> None:
     for package in sorted(platform.packages):
         try:
             version = platform.get_package_version(package)
-        except Exception as err:  # noqa: BLE001 -- absent optional package
-            # Folded into the digest so an unexpected lookup failure still
-            # invalidates instead of hashing like a fixed absence
-            version = f"error:{type(err).__name__}"
+        except KeyError:
+            version = None  # absent optional package
+        except Exception as err:  # noqa: BLE001
+            # Without trustworthy package identity a stale .gch could be
+            # reused across upgrades; skip the pch instead
+            print(f"ESPHome: skipping precompiled header: {err}")
+            return
         digest.update(f"{package}={version}".encode())
         digest.update(b"\0")
     closure = _include_closure(src_dir, [*include_headers, _CORE_HEADER])
@@ -133,9 +138,13 @@ def _setup_pch() -> None:
             and not inc_dir.is_relative_to(src_dir)
         ):
             continue
-        for local in sorted(inc_dir.rglob("*.h")):
+        for local in sorted(p for p in inc_dir.rglob("*") if p.is_file()):
+            try:
+                data = local.read_bytes()
+            except OSError:
+                data = b"<unreadable>"
             digest.update(str(local.relative_to(proj_dir)).encode())
-            digest.update(local.read_bytes())
+            digest.update(data)
             digest.update(b"\0")
     checksum = digest.hexdigest()
 
@@ -215,8 +224,11 @@ def _setup_pch() -> None:
 
     # Prepended so it is processed before the build_src_flags -include
     # entries: GCC only uses a .gch while no other tokens have been seen.
-    projenv.Prepend(CXXFLAGS=["-include", header.name])  # noqa: F821
+    projenv.Prepend(CXXFLAGS=["-Winvalid-pch", "-include", header.name])  # noqa: F821
     print("ESPHome: Compiling with precompiled header")
 
 
-_setup_pch()
+try:
+    _setup_pch()
+except Exception as err:  # noqa: BLE001 -- a speedup must never break the build
+    print(f"ESPHome: precompiled header setup failed; compiling without it: {err}")
