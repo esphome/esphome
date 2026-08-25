@@ -667,3 +667,22 @@ def test_get_core_framework_version_from_core_data():
 
     CORE.data = {KEY_ESP32: {KEY_IDF_VERSION: cv.Version(5, 5, 4)}}
     assert toolchain._get_core_framework_version() == "5.5.4"
+
+
+def test_run_compile_invokes_prepare_pch_and_survives_failure(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The pch hook runs before the build and a failure never aborts it."""
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+        patch(
+            "esphome.build_gen.espidf.prepare_pch", side_effect=RuntimeError("boom")
+        ) as prepare,
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    prepare.assert_called_once()

@@ -667,20 +667,27 @@ def test_prepare_pch_failure_writes_marker_and_skips_retry(tmp_path: Path) -> No
     assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
 
 
-def test_prepare_pch_spawn_oserror_degrades(tmp_path: Path) -> None:
+def test_prepare_pch_spawn_oserror_is_transient(tmp_path: Path) -> None:
+    """Spawn/IO failures retry on the next build instead of latching."""
     from esphome.build_gen.espidf import prepare_pch
 
     dev = _make_pch_device(tmp_path, "dev_o")
     CORE.build_path = dev
+    calls = []
+
+    def raising(cmd, **kwargs):
+        calls.append(cmd)
+        raise OSError("no such compiler")
+
     with (
         patch.object(CORE, "name", "test"),
-        patch(
-            "esphome.build_gen.espidf.subprocess.run",
-            side_effect=OSError("no such compiler"),
-        ),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=raising),
     ):
         prepare_pch()
-    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert len(calls) == 2
 
 
 def test_prepare_pch_disabled_is_noop(
@@ -810,3 +817,53 @@ def test_component_cmakelists_pch_object_depends() -> None:
 
     content = get_component_cmakelists()
     assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in content
+
+
+def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
+    """A flag-only change in the compile DB must rebuild the .gch."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_c")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def fake_compile(cmd, **kwargs):
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+    ):
+        prepare_pch()
+        first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+        db = dev / "build" / "compile_commands.json"
+        db.write_text(db.read_text().replace("-DX=1", "-DX=2"))
+        prepare_pch()
+    assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
+
+
+def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import _pch_compile_command
+
+    dev = _make_pch_device(tmp_path, "dev_u")
+    CORE.build_path = dev
+    build = dev / "build"
+    src_file = str(dev / "src" / "esphome" / "a.cpp")
+    build.joinpath("compile_commands.json").write_text(
+        json.dumps(
+            [
+                {
+                    "directory": str(build),
+                    "command": (
+                        "g++ -include user.h -include esphome_pch.h "
+                        f"-o a.obj -c {src_file}"
+                    ),
+                    "file": src_file,
+                }
+            ]
+        )
+    )
+    cmd = _pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
+    assert "user.h" in cmd
+    assert "esphome_pch.h" not in " ".join(cmd[:-3])
