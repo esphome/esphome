@@ -628,7 +628,7 @@ def test_prefetch_installs_cached_archives_without_downloads(
         pf._prefetch(tmp_path, "testenv")
     mock_batch.assert_not_called()
     assert mock_install.call_count == 1
-    assert mock_install.call_args[0][1] == [spec]
+    assert mock_install.call_args[0][1] == [("cachedpkg@1", spec)]
     assert not (tmp_path / pf._SENTINEL_NAME).exists()
 
 
@@ -647,12 +647,12 @@ def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
         installed.append(spec.name)
 
     m._install.side_effect = fake_install
-    specs = [
-        _FakeSpec(uri=None, name="a"),
-        _FakeSpec(uri=None, name="bad"),
-        _FakeSpec(uri=None, name="b"),
+    entries = [
+        ("a@1", _FakeSpec(uri=None, name="a")),
+        ("bad@1", _FakeSpec(uri=None, name="bad")),
+        ("b@1", _FakeSpec(uri=None, name="b")),
     ]
-    pf._preinstall(m, specs)
+    pf._preinstall(m, entries)
     assert sorted(installed) == ["a", "b"]
     m.lock.assert_called_once_with()
     m.unlock.assert_called_once_with()
@@ -665,7 +665,14 @@ def test_preinstall_all_failed_warns_once(
     """Every install failing is a systemic fault, not archive noise."""
     m = _fake_manager(tmp_path)
     m._install.side_effect = AttributeError("_install went away")
-    pf._preinstall(m, [_FakeSpec(uri=None, name="a"), _FakeSpec(uri=None, name="b")])
+    pf._preinstall(
+        m,
+        [
+            ("a@1", _FakeSpec(uri=None, name="a")),
+            ("b@1", _FakeSpec(uri=None, name="b")),
+        ],
+    )
+    assert "Could not pre-install a@1" in caplog.text
     assert "Could not pre-install any of 2" in caplog.text
 
 
@@ -690,7 +697,7 @@ def test_preinstall_dedupes_names_across_entries(tmp_path: Path) -> None:
     ):
         pf._prefetch(tmp_path, "testenv")
     mock_install.assert_called_once()
-    assert mock_install.call_args[0][1] == [s1]
+    assert mock_install.call_args[0][1] == [("pkg@1", s1)]
 
 
 def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
@@ -699,7 +706,7 @@ def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
         patch.object(pf, "ThreadPoolExecutor", side_effect=RuntimeError("no threads")),
         pytest.raises(RuntimeError),
     ):
-        pf._preinstall(m, [_FakeSpec(uri=None, name="a")])
+        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
     m.unlock.assert_called_once_with()
 
 

@@ -323,13 +323,14 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
     return run
 
 
-def _preinstall(manager, specs) -> None:
+def _preinstall(manager, entries) -> None:
     """Install downloaded packages now, extracting in parallel.
 
     pio run's installer unpacks one archive at a time on one core. With the
     manager's inter-process lock held once and a per-thread manager driving
     PlatformIO's own ``_install`` for each distinct package, extraction uses
-    every usable core and pio run finds the packages installed. Dependencies
+    every usable core and pio run finds the packages installed. ``entries``
+    are ``(name, spec)`` pairs, one per destination directory. Dependencies
     are skipped: two packages sharing one dependency must not extract it
     into the same directory from two threads, and pio run installs any
     missing dependency itself. Any failure leaves that package to pio run's
@@ -341,7 +342,8 @@ def _preinstall(manager, specs) -> None:
 
     local = threading.local()
 
-    def _install_one(spec) -> bool:
+    def _install_one(entry) -> bool:
+        name, spec = entry
         try:
             # PlatformIO's real install (metadata, postinstall scripts);
             # only the concurrency across packages is ours
@@ -350,22 +352,29 @@ def _preinstall(manager, specs) -> None:
             mgr._install(spec, skip_dependencies=True)  # pylint: disable=protected-access  # noqa: SLF001
             return True
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            _LOGGER.debug("Could not pre-install %s", spec, exc_info=True)
+            # pio run installs it serially instead
+            _LOGGER.warning("Could not pre-install %s", name)
+            _LOGGER.debug("Pre-install failure detail", exc_info=True)
             return False
 
-    _LOGGER.info("Installing %d PlatformIO package(s) in parallel", len(specs))
-    workers = min(get_usable_cpu_count(), len(specs))
+    workers = min(get_usable_cpu_count(), len(entries))
+    _LOGGER.info(
+        "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
+        len(entries),
+        workers,
+        ", ".join(name for name, _ in entries),
+    )
     manager.lock()
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_install_one, specs))
+            results = list(ex.map(_install_one, entries))
     finally:
         manager.unlock()
     manager.memcache_reset()
     if not any(results):
         # A systematic fault, not one bad archive; pio run installs serially
         _LOGGER.warning(
-            "Could not pre-install any of %d PlatformIO package(s)", len(specs)
+            "Could not pre-install any of %d PlatformIO package(s)", len(entries)
         )
 
 
@@ -460,7 +469,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         # into the same package dir from two threads
         to_install = {name: spec for name, spec in entries if name not in failed_names}
         if to_install:
-            _preinstall(mgr, list(to_install.values()))
+            _preinstall(mgr, list(to_install.items()))
 
 
 def main(argv: list[str]) -> int:
