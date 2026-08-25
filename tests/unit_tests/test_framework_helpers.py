@@ -2,6 +2,7 @@
 
 # pylint: disable=protected-access
 
+import gzip
 import hashlib
 import importlib.util
 import io
@@ -31,6 +32,7 @@ from esphome.framework_helpers import (
     _zip_extract_all,
     archive_extract_all,
     create_venv,
+    download_and_extract,
     download_from_mirrors,
     download_with_resume,
     get_project_compile_flags,
@@ -1339,20 +1341,20 @@ class TestDownloadFromMirrors:
         assert url == "https://example.com/f"
         assert target.read_bytes() == b"filedata"
 
-    def test_file_object_target_reports_progress(self) -> None:
-        """The library prefetch's production path: a file-object target
-        streams through the mirror fallback and ticks the tracker."""
-        buf = io.BytesIO()
+    def test_progress_callback_reports_bytes(self, tmp_path: Path) -> None:
+        """The library prefetch's production path: the mirror download ticks
+        the caller's tracker instead of drawing its own bar."""
+        target = tmp_path / "f.bin"
         ticks: list[int] = []
         with patch(
             "requests.get",
             return_value=_mock_response(b"filedata"),
         ):
             url = download_from_mirrors(
-                ["https://example.com/f"], {}, buf, progress=ticks.append
+                ["https://example.com/f"], {}, target, progress=ticks.append
             )
         assert url == "https://example.com/f"
-        assert buf.getvalue() == b"filedata"
+        assert target.read_bytes() == b"filedata"
         assert ticks and ticks[-1] == len(b"filedata")
 
     def test_substitutions_applied_to_url(self, tmp_path: Path) -> None:
@@ -1460,8 +1462,8 @@ class TestDownloadFromMirrors:
             ei.value
         )
 
-    def test_falls_back_to_second_mirror(self) -> None:
-        buf = io.BytesIO()
+    def test_falls_back_to_second_mirror(self, tmp_path: Path) -> None:
+        target = tmp_path / "f.bin"
         with patch(
             "requests.get",
             side_effect=[_mock_response(b"", ok=False), _mock_response(b"second")],
@@ -1469,18 +1471,18 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                buf,
+                target,
             )
         assert url == "https://mirror2.com/f"
-        assert buf.getvalue() == b"second"
+        assert target.read_bytes() == b"second"
 
-    def test_mid_stream_drop_resumes_same_mirror(self) -> None:
+    def test_mid_stream_drop_resumes_same_mirror(self, tmp_path: Path) -> None:
         """A mid-stream failure retries the same mirror with Range and
         If-Range headers, keeping the bytes already received, before falling
         to the next."""
         first = _interrupted_response(b"1234", etag='"v1"')
         first.headers = {**first.headers, "content-length": "8"}
-        buf = io.BytesIO()
+        target = tmp_path / "f.bin"
         with patch(
             "requests.get",
             side_effect=[first, _resumed_response(b"5678")],
@@ -1488,10 +1490,10 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                buf,
+                target,
             )
         assert url == "https://mirror1.com/f"
-        assert buf.getvalue() == b"12345678"
+        assert target.read_bytes() == b"12345678"
         assert mock_get.call_count == 2
         assert mock_get.call_args_list[1][0][0] == "https://mirror1.com/f"
         # the resume is conditional on the content being unchanged
@@ -1499,48 +1501,6 @@ class TestDownloadFromMirrors:
             "Range": "bytes=4-",
             "If-Range": '"v1"',
         }
-
-    def test_mid_stream_drop_without_validator_restarts(self) -> None:
-        """A server offering no ETag/Last-Modified cannot be resumed safely;
-        the retry restarts from zero instead of stitching unverified bytes."""
-        buf = io.BytesIO()
-        with patch(
-            "requests.get",
-            side_effect=[_interrupted_response(b"1234"), _mock_response(b"full")],
-        ) as mock_get:
-            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
-        assert buf.getvalue() == b"full"
-        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
-
-    def test_drop_after_last_byte_recovers_via_416(self) -> None:
-        """A connection drop after the final body byte leaves a complete file;
-        the retry's 416 answer plus the length check turn it into success
-        instead of a wasted refetch."""
-        first = _interrupted_response(b"1234", etag='"v1"')
-        first.headers = {**first.headers, "content-length": "4"}
-        r416 = _mock_response(b"", ok=False)
-        r416.status_code = 416
-        buf = io.BytesIO()
-        with patch("requests.get", side_effect=[first, r416]) as mock_get:
-            url = download_from_mirrors(["https://mirror1.com/f"], {}, buf)
-        assert url == "https://mirror1.com/f"
-        assert buf.getvalue() == b"1234"
-        assert mock_get.call_count == 2
-
-    def test_mirror_drop_without_length_restarts(self) -> None:
-        """With no content-length there is no way to prove a stitched file
-        complete, so the retry restarts even though a validator exists."""
-        buf = io.BytesIO()
-        with patch(
-            "requests.get",
-            side_effect=[
-                _interrupted_response(b"1234", etag='"v1"'),
-                _mock_response(b"full"),
-            ],
-        ) as mock_get:
-            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
-        assert buf.getvalue() == b"full"
-        assert "Range" not in mock_get.call_args_list[1][1]["headers"]
 
     def test_path_target_resumes_across_runs(self, tmp_path: Path) -> None:
         """A path target routes through download_with_resume: a part file and
@@ -1573,32 +1533,14 @@ class TestDownloadFromMirrors:
         assert url == "https://mirror2.com/f"
         assert dest.read_bytes() == b"data"
 
-    def test_resumed_short_body_fails_length_check(self) -> None:
-        """A stitched file whose final length disagrees with the advertised
-        total is rejected instead of reported as success."""
-        first = _interrupted_response(b"1234", etag='"v1"')
-        first.headers = {**first.headers, "content-length": "8"}
-        # the resume ends early (5 of 8 bytes); the poisoned part is then
-        # discarded and the fresh retry also delivers a short body
-        short_resume = _resumed_response(b"5")
-        short_fresh = _mock_response(b"56")
-        short_fresh.headers = {**short_fresh.headers, "content-length": "8"}
-        buf = io.BytesIO()
-        with (
-            patch("requests.get", side_effect=[first, short_resume, short_fresh]),
-            pytest.raises(EsphomeError, match="all mirrors"),
-        ):
-            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
-
-    def test_failed_mirror_leftovers_not_kept_for_next_mirror(self) -> None:
-        """Bytes from a mirror that failed all attempts must not leak into the
-        next mirror's download (no bogus Range request, fresh content)."""
-        exhausted = [_interrupted_response(b"AAAA", etag='"a1"')]
-        for _ in range(2):
-            r = _interrupted_response(b"BB")
-            r.status_code = 206
-            exhausted.append(r)
-        buf = io.BytesIO()
+    def test_failed_mirror_leftovers_not_resumed_on_next_mirror(
+        self, tmp_path: Path
+    ) -> None:
+        """A part file left by a mirror that failed all attempts must not be
+        stitched onto the next mirror's download (its meta names the other
+        URL, so the retry restarts from zero without a Range request)."""
+        exhausted = [_interrupted_response(b"AAAA") for _ in range(3)]
+        target = tmp_path / "f.bin"
         with patch(
             "requests.get",
             side_effect=exhausted + [_mock_response(b"clean")],
@@ -1606,15 +1548,17 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                buf,
+                target,
             )
         assert url == "https://mirror2.com/f"
-        assert buf.getvalue() == b"clean"
+        assert target.read_bytes() == b"clean"
         # the second mirror starts fresh, without a Range header
         assert mock_get.call_args_list[3][0][0] == "https://mirror2.com/f"
         assert "Range" not in mock_get.call_args_list[3][1]["headers"]
 
-    def test_all_mirrors_fail_raises_error_listing_every_attempt(self) -> None:
+    def test_all_mirrors_fail_raises_error_listing_every_attempt(
+        self, tmp_path: Path
+    ) -> None:
         with (
             patch(
                 "requests.get",
@@ -1625,7 +1569,7 @@ class TestDownloadFromMirrors:
             download_from_mirrors(
                 ["https://mirror1.com/f", "https://mirror2.com/f"],
                 {},
-                io.BytesIO(),
+                tmp_path / "out.bin",
             )
         # Every attempted URL appears in the message, and the first mirror's
         # exception (the primary URL, usually the one that matters) is chained.
@@ -1640,16 +1584,6 @@ class TestDownloadFromMirrors:
     def test_invalid_target_type_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="target must be"):
             download_from_mirrors(["https://example.com/f"], {}, 42)  # type: ignore[arg-type]
-
-    def test_file_like_target_written(self) -> None:
-        buf = io.BytesIO()
-        with patch(
-            "requests.get",
-            return_value=_mock_response(b"bytes"),
-        ):
-            download_from_mirrors(["https://example.com/f"], {}, buf)
-        buf.seek(0)
-        assert buf.read() == b"bytes"
 
     def test_progress_bar_shown_when_content_length_known(self, tmp_path: Path) -> None:
         r = _mock_response(b"1234567890")
@@ -1676,13 +1610,10 @@ class TestDownloadFromMirrors:
         assert target.exists()
         assert target.read_bytes() == b""
 
-    @pytest.mark.parametrize("target_kind", ["path", "file-like"])
-    def test_transient_failure_retries_mirror_sweep(
-        self, tmp_path: Path, target_kind: str
-    ) -> None:
+    def test_transient_failure_retries_mirror_sweep(self, tmp_path: Path) -> None:
         """A transient connect error on the only applicable mirror retries the
         whole mirror list with backoff instead of failing the build."""
-        target = tmp_path / "idf.tar.xz" if target_kind == "path" else io.BytesIO()
+        target = tmp_path / "idf.tar.xz"
         with (
             patch(
                 "requests.get",
@@ -1695,32 +1626,9 @@ class TestDownloadFromMirrors:
         ):
             url = download_from_mirrors(["https://mirror1.com/f"], {}, target)
         assert url == "https://mirror1.com/f"
-        data = target.read_bytes() if target_kind == "path" else target.getvalue()
-        assert data == b"data"
+        assert target.read_bytes() == b"data"
         assert mock_get.call_count == 2
         mock_sleep.assert_called_once_with(2)
-
-    def test_backoff_tick_reports_filelike_bytes(self) -> None:
-        """For a file-like target the backoff tick carries f.tell(), so the
-        combined bar holds steady through the sweep retry."""
-        target = io.BytesIO()
-        ticks: list[int] = []
-        with (
-            patch(
-                "requests.get",
-                side_effect=[
-                    req.ConnectionError("down"),
-                    _mock_response(b"data"),
-                ],
-            ),
-            patch("esphome.framework_helpers._cancellable_sleep") as mock_sleep,
-        ):
-            download_from_mirrors(
-                ["https://mirror1.com/f"], {}, target, progress=ticks.append
-            )
-        # No bytes had streamed at backoff time, so the tick carries 0
-        assert mock_sleep.call_args == call(2, ticks.append, 0)
-        assert target.getvalue() == b"data"
 
     def test_backoff_tick_reports_partial_bytes(self, tmp_path: Path) -> None:
         """The backoff tick carries the bytes already in the part file, so a
@@ -1831,41 +1739,83 @@ class TestDownloadFromMirrors:
         assert isinstance(ei.value.__cause__, req.ConnectionError)
         mock_sleep.assert_called_once_with(2)
 
-    def test_exhausted_mid_stream_attempts_not_swept(self) -> None:
-        """A file-like mirror that spent all its mid-stream attempts is not
-        retried again at the sweep level (unlike a path target, it has no
-        part file to resume from on a later sweep)."""
-        buf = io.BytesIO()
+    def test_exhausted_mid_stream_attempts_not_swept(self, tmp_path: Path) -> None:
+        """A mirror that spent all its mid-stream attempts fails permanently
+        instead of re-arming the sweep, and its part file survives so the
+        next esphome run resumes it."""
         with (
             patch(
                 "requests.get",
                 side_effect=[_interrupted_response(b"1234") for _ in range(3)],
             ) as mock_get,
             patch("esphome.framework_helpers.time.sleep") as mock_sleep,
-            pytest.raises(EsphomeError, match="failed after 3 attempts"),
+            pytest.raises(EsphomeError, match="after 3 attempts"),
         ):
-            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
         assert mock_get.call_count == 3
         mock_sleep.assert_not_called()
+        assert (tmp_path / "out.bin.part").exists()
 
-    def test_mid_stream_drop_then_connect_error_not_swept(self) -> None:
-        """A connect error on a later attempt (after a mid-stream drop spent
-        one) also counts as spent budget and does not re-arm the sweep."""
-        buf = io.BytesIO()
+
+class TestDownloadAndExtract:
+    def test_downloads_extracts_and_deletes_archive(self, tmp_path: Path) -> None:
+        content = gzip.compress(
+            _make_tar([_reg("file.txt")], {"file.txt": b"data"}).getvalue()
+        )
+        dest = tmp_path / "out"
+        with patch("requests.get", return_value=_mock_response(content)):
+            url = download_and_extract(
+                ["https://example.com/lib.tar.gz"],
+                {},
+                tmp_path / "lib.archive",
+                dest,
+            )
+        assert url == "https://example.com/lib.tar.gz"
+        assert (dest / "file.txt").read_bytes() == b"data"
+        # the archive is consumed; only the extraction remains
+        assert not (tmp_path / "lib.archive").exists()
+
+    def test_locked_archive_does_not_mask_result(self, tmp_path: Path) -> None:
+        """A cleanup unlink blocked by e.g. an AV handle (Windows) must not
+        replace the extraction result; the archive simply survives."""
+        content = gzip.compress(
+            _make_tar([_reg("file.txt")], {"file.txt": b"data"}).getvalue()
+        )
+        real_unlink = Path.unlink
+
+        def locked_unlink(self: Path, missing_ok: bool = False) -> None:
+            if self.name.endswith(".archive"):
+                raise PermissionError("held by antivirus")
+            real_unlink(self, missing_ok=missing_ok)
+
         with (
-            patch(
-                "requests.get",
-                side_effect=[
-                    _interrupted_response(b"1234"),
-                    req.ConnectionError("down"),
-                ],
-            ) as mock_get,
-            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
-            pytest.raises(EsphomeError, match="failed after 2 attempts"),
+            patch("requests.get", return_value=_mock_response(content)),
+            patch("pathlib.Path.unlink", locked_unlink),
         ):
-            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
-        assert mock_get.call_count == 2
-        mock_sleep.assert_not_called()
+            url = download_and_extract(
+                ["https://example.com/lib.tar.gz"],
+                {},
+                tmp_path / "lib.archive",
+                tmp_path / "out",
+            )
+        assert url == "https://example.com/lib.tar.gz"
+        assert (tmp_path / "out" / "file.txt").read_bytes() == b"data"
+        assert (tmp_path / "lib.archive").exists()  # left behind, harmless
+
+    def test_corrupt_archive_deleted_on_extract_failure(self, tmp_path: Path) -> None:
+        """A complete-but-corrupt archive must not survive to poison the next
+        run; without a checksum only a failed extraction can expose it."""
+        with (
+            patch("requests.get", return_value=_mock_response(b"not an archive")),
+            pytest.raises(ValueError, match="Unsupported archive format"),
+        ):
+            download_and_extract(
+                ["https://example.com/lib.tar.gz"],
+                {},
+                tmp_path / "lib.archive",
+                tmp_path / "out",
+            )
+        assert not (tmp_path / "lib.archive").exists()
 
 
 def test_importing_framework_helpers_does_not_import_requests() -> None:
