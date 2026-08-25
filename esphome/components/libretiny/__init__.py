@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from esphome.build_helpers.pch import pch_enabled
+from esphome.build_helpers.pch import pch_extra_scripts
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -514,11 +514,9 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    extra_scripts = ["pre:ccache.py"]
-    # Generation-time gate: the script itself has no enable check
-    if pch_enabled():
-        extra_scripts.append("post:pch.py")
-    cg.add_platformio_option("extra_scripts", extra_scripts)
+    cg.add_platformio_option(
+        "extra_scripts", ["pre:ccache.py", *pch_extra_scripts()]
+    )
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
