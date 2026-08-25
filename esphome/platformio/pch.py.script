@@ -5,9 +5,14 @@ import posixpath
 import re
 import shlex
 import subprocess
+import traceback
 
 # pylint: disable=E0602
-Import("env", "projenv")  # noqa: F821
+Import("env")  # noqa: F821
+try:
+    Import("projenv")  # noqa: F821
+except Exception:  # noqa: BLE001 -- not exported under -t nobuild
+    projenv = None
 
 # Precompile the src force-includes plus defines.h (which pulls in
 # Arduino.h on Arduino platforms) and force-include the result into C++ src
@@ -50,14 +55,55 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
 
 def _shell_arg(element) -> str:
     """One compiler argv from one SCons element, matching the real spawn:
-    SCons whole-quotes spaced elements, the shell unquotes the rest."""
+    SCons whole-quotes spaced elements, the shell unquotes the rest. On
+    Windows there is no POSIX shell pass and shlex would eat path
+    backslashes."""
     arg = str(element)
-    if " " in arg:
+    if " " in arg or os.name == "nt":
         return arg.replace('\\"', '"')
-    return shlex.split(arg)[0] if arg else arg
+    return shlex.split(arg)[0] if arg.strip() else arg
+
+
+def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
+    """Compile the .gch, then probe that the toolchain can load it back
+    (GCC 10 on macOS arm64 builds one it then rejects per-process: "had
+    text segment at different address"). Returns a deterministic error
+    string or None; OSError propagates for transient handling."""
+    result = subprocess.run(  # noqa: PLW1510
+        [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
+        cwd=proj_dir,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return result.stderr
+    probe = subprocess.run(  # noqa: PLW1510
+        [
+            cxx,
+            *flags,
+            "-MF",
+            os.devnull,
+            "-Winvalid-pch",
+            "-include",
+            str(header),
+            "-fsyntax-only",
+            "-x",
+            "c++",
+            "-",
+        ],
+        cwd=proj_dir,
+        input="",
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode != 0 or ".gch" in probe.stderr:
+        return f"toolchain cannot load the pch: {probe.stderr.strip()}"
+    return None
 
 
 def _setup_pch() -> None:
+    if projenv is None:
+        return
     # Project root, not $BUILD_DIR: SCons compiles run with the project dir
     # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
     # An absolute path would put the per-device build path on every compile
@@ -104,10 +150,18 @@ def _setup_pch() -> None:
     for package in sorted(platform.packages):
         try:
             version = platform.get_package_version(package)
-        except Exception as err:  # noqa: BLE001 -- absent optional package
-            # Folded into the digest so an unexpected lookup failure still
-            # invalidates instead of hashing like a fixed absence
-            version = f"error:{type(err).__name__}"
+        except KeyError:
+            # Only trust KeyError as "absent" when the package really is not
+            # installed; an unresolved manifest must not hash as a constant
+            if platform.get_package(package) is not None:
+                print(f"ESPHome: skipping precompiled header: no version for {package}")
+                return
+            version = None  # absent optional package
+        except Exception as err:  # noqa: BLE001
+            # Without trustworthy package identity a stale .gch could be
+            # reused across upgrades; skip the pch instead
+            print(f"ESPHome: skipping precompiled header: {err}")
+            return
         digest.update(f"{package}={version}".encode())
         digest.update(b"\0")
     closure = _include_closure(src_dir, [*include_headers, _CORE_HEADER])
@@ -131,11 +185,31 @@ def _setup_pch() -> None:
             inc_dir.is_dir()
             and inc_dir.is_relative_to(proj_dir)
             and not inc_dir.is_relative_to(src_dir)
+            # Library/build trees are versioned via the package digest above;
+            # walking them would read every library file on every build
+            and not inc_dir.is_relative_to(proj_dir / ".piolibdeps")
+            and not inc_dir.is_relative_to(proj_dir / ".pioenvs")
         ):
             continue
-        for local in sorted(inc_dir.rglob("*.h")):
+        headers = (
+            p
+            for p in inc_dir.rglob("*")
+            if p.is_file() and p.suffix in (".h", ".hpp", ".hh", ".inc")
+        )
+        for local in sorted(headers):
+            try:
+                data = local.read_bytes()
+            except OSError as err:
+                print(f"ESPHome: could not read {local} for the pch checksum: {err}")
+                try:
+                    # mtime/size keep a changed-but-unreadable header shifting
+                    # the digest without putting device paths in it
+                    st = local.stat()
+                    data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
+                except OSError:
+                    data = b"<unreadable>"
             digest.update(str(local.relative_to(proj_dir)).encode())
-            digest.update(local.read_bytes())
+            digest.update(data)
             digest.update(b"\0")
     checksum = digest.hexdigest()
 
@@ -158,15 +232,13 @@ def _setup_pch() -> None:
             return
         header.write_text(content, encoding="utf-8")
         try:
-            result = subprocess.run(  # noqa: PLW1510
-                [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
-                cwd=proj_dir,
-                capture_output=True,
-                text=True,
-            )
-            error = result.stderr if result.returncode != 0 else None
+            error = _compile_gch(cxx, flags, header, gch, proj_dir)
         except OSError as err:
-            error = str(err)
+            # Transient spawn/IO failure: no marker, retry next build
+            print(f"ESPHome: precompiled header compile did not run: {err}")
+            gch.unlink(missing_ok=True)
+            sum_path.unlink(missing_ok=True)
+            return
         if error is not None:
             print("ESPHome: precompiled header failed; compiling without it")
             print(error)
@@ -178,8 +250,9 @@ def _setup_pch() -> None:
         failed_marker.unlink(missing_ok=True)
         sum_path.write_text(checksum + "\n", encoding="utf-8")
 
-    # Scoped to src compiles: framework/library TUs never consume the .gch
-    # and keep strict ccache hashing. User-set values win.
+    # projenv["ENV"] aliases os.environ under PlatformIO, so these reach
+    # framework/library TUs too; only time_macros affects non-pch TUs (the
+    # trade-off ccache_pch_env documents). User-set values win.
     for key, value in (
         ("CCACHE_SLOPPINESS", "pch_defines,time_macros"),
         ("CCACHE_PCH_EXTSUM", "true"),
@@ -189,8 +262,12 @@ def _setup_pch() -> None:
 
     # Prepended so it is processed before the build_src_flags -include
     # entries: GCC only uses a .gch while no other tokens have been seen.
-    projenv.Prepend(CXXFLAGS=["-include", header.name])  # noqa: F821
+    projenv.Prepend(CXXFLAGS=["-Winvalid-pch", "-include", header.name])  # noqa: F821
     print("ESPHome: Compiling with precompiled header")
 
 
-_setup_pch()
+try:
+    _setup_pch()
+except Exception:  # noqa: BLE001 -- a speedup must never break the build
+    print("ESPHome: precompiled header setup failed; compiling without it")
+    traceback.print_exc()

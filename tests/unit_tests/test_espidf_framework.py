@@ -1991,3 +1991,12 @@ def test_ccache_env_opt_in_with_usable_binary(
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_ccache_env_exports_pch_settings(tmp_path: Path) -> None:
+    # The pch cannot cache under ccache without these
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
