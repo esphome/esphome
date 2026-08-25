@@ -284,7 +284,9 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
   /// The item is the hub device, so it must stay alive until its terminal callback; a destroyed item's
   /// pending frame is silently retired.
-  bool send();
+  /// Options pass straight through to the hub; the polling path passes the controller's read-side
+  /// options so reads re-queue after each success, one-shot commands keep the default.
+  bool send(modbus::CommandOptions options = {});
 
   /// factory methods
   /** Create modbus read command
@@ -452,6 +454,10 @@ class ModbusController final : public PollingComponent {
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
+  /// called by esphome generated code with the read-side command options applied to every poll
+  void set_read_options(modbus::CommandOptions options) { this->read_options_ = options; }
+  /// the read-side command options applied to every poll
+  const modbus::CommandOptions &read_options() const { return this->read_options_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -497,6 +503,8 @@ class ModbusController final : public PollingComponent {
   uint16_t offline_skip_updates_{0};
   /// How many times we will retry a command if we get no response
   uint8_t max_cmd_retries_{4};
+  /// read-side command options applied to every poll
+  modbus::CommandOptions read_options_{};
   /// Command sent callback
   CallbackManager<void(int, int)> command_sent_callback_{};
   /// Server online callback
