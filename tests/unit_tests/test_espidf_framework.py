@@ -1582,6 +1582,9 @@ def test_ccache_env_default_enabled_when_available(tmp_path: Path) -> None:
     assert env["CCACHE_NOHASHDIR"] == "true"
     assert env["CCACHE_DEPEND"] == "1"
     assert env["CCACHE_BASEDIR"] == str((tmp_path / "build").resolve())
+    # The pch cannot cache under ccache without these
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
+    assert env["CCACHE_PCH_EXTSUM"] == "true"
 
 
 def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
@@ -1991,12 +1994,3 @@ def test_ccache_env_opt_in_with_usable_binary(
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
-
-
-def test_ccache_env_exports_pch_settings(tmp_path: Path) -> None:
-    # The pch cannot cache under ccache without these
-    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
-    with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
-        env = _ccache_env()
-    assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
-    assert env["CCACHE_PCH_EXTSUM"] == "true"

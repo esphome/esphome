@@ -156,9 +156,13 @@ _PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-o", "-c", "-MT", "-MF", "-MQ"})
 _PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
 
 
-def pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] | None:
-    """The exact src C++ flags from compile_commands.json, retargeted at
-    the header; None (logged) when no configured C++ TU is available yet."""
+def pch_compile_command(
+    build_dir: Path, header: Path, gch: Path
+) -> tuple[list[str], Path] | None:
+    """The exact src C++ flags from compile_commands.json retargeted at the
+    header, with the directory they resolve against (relative -I paths must
+    be expanded and executed from the same root); None (logged) when no
+    configured C++ TU is available yet."""
     from esphome.core import CORE
 
     try:
@@ -187,9 +191,8 @@ def pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] |
     if entry is None:
         _LOGGER.warning("No src C++ entry in the compile database, skipping pch")
         return None
-    tokens = expand_response_files(
-        split_command(entry.get("command", "")), Path(entry.get("directory", build_dir))
-    )
+    cmd_dir = Path(entry.get("directory", build_dir))
+    tokens = expand_response_files(split_command(entry.get("command", "")), cmd_dir)
     # A DB recorded with ccache enabled prefixes the compiler with the
     # launcher; the .gch must be compiled directly
     if tokens and is_launcher(tokens[0]):
@@ -215,7 +218,7 @@ def pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] |
                 args.extend(("-include", inc))
             continue
         args.append(tok)
-    return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)]
+    return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)], cmd_dir
 
 
 def discard_pch(build_dir: Path) -> None:
@@ -247,14 +250,18 @@ def prepare_pch(
     """
     from esphome.core import CORE
 
+    _LOGGER.info(
+        "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
+    )
     header = build_dir / PCH_HEADER_NAME
     gch = Path(f"{header}.gch")
     sum_path = Path(f"{gch}.sum")
-    cmd = pch_compile_command(build_dir, header, gch)
-    if cmd is None:
+    cmd_and_dir = pch_compile_command(build_dir, header, gch)
+    if cmd_and_dir is None:
         # Freshness cannot be validated; a leftover .gch must not be consumed
         discard_pch(build_dir)
         return
+    cmd, cmd_dir = cmd_and_dir
     # Stripped like ccache's own rewriting (a user CCACHE_BASEDIR wins) so
     # identical configs hash identically across devices; the raw build path
     # covers unresolved spellings in the compile DB
@@ -291,7 +298,7 @@ def prepare_pch(
         return
     try:
         result = subprocess.run(
-            cmd, cwd=build_dir, capture_output=True, text=True, check=False, timeout=300
+            cmd, cwd=cmd_dir, capture_output=True, text=True, check=False, timeout=300
         )
         error = None
         if result.returncode != 0:

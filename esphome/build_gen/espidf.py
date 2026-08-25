@@ -322,6 +322,8 @@ def prepare_pch() -> None:
     """Build the .gch right before ninja, after every reconfigure, so the
     compile_commands.json flags and the sdkconfig are the settled ones."""
     if not pch_enabled():
+        # Self-cleaning escape hatch: drop any previously built .gch
+        pch.discard_pch(CORE.relative_build_path("build"))
         return
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     try:
