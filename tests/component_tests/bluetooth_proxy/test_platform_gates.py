@@ -19,6 +19,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_RP2,
+    PLATFORM_RTL87XX,
     PlatformFramework,
 )
 from esphome.core import CORE
@@ -30,12 +31,14 @@ from ..types import SetCoreConfigCallable
 HUB_PLATFORM_FRAMEWORKS = [
     PlatformFramework.BK72XX_ARDUINO,
     PlatformFramework.LN882X_ARDUINO,
+    PlatformFramework.RTL87XX_ARDUINO,
 ]
 
 HUB_TRACKERS = {
     PLATFORM_BK72XX: "bk72xx_ble_tracker",
     PLATFORM_LN882X: "ln882h_ble_tracker",
     PLATFORM_RP2: "rp2_ble_tracker",
+    PLATFORM_RTL87XX: "rtl87xx_ble_tracker",
 }
 
 
