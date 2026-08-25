@@ -882,13 +882,12 @@ def _ninja_compile_edges(
     root: Path,
     group: str,
     flags: str = "",
-    cxx_flags: str = "",
-    cxx_implicit: str = "",
+    cxx_override: tuple[str, str] | None = None,
 ) -> list[str]:
     """Emit compile edges for ``sources``; return the object paths.
 
-    ``cxx_flags``/``cxx_implicit`` override ``flags`` and add an implicit
-    dependency on C++ edges only (used for the precompiled header).
+    ``cxx_override`` is a (flags, implicit-dep) pair applied to C++ edges
+    only, replacing ``flags`` (used for the precompiled header).
     """
     objects = []
     for src in sources:
@@ -896,10 +895,10 @@ def _ninja_compile_edges(
         obj = f"obj/{group}/{rel}.o"
         escaped_obj = _e(obj)
         kind = SOURCE_KIND_FOR_SUFFIX[src.suffix]
-        is_cxx = kind == "cxx"
-        implicit = f" | {cxx_implicit}" if is_cxx and cxx_implicit else ""
+        override = cxx_override if kind == "cxx" and cxx_override else None
+        implicit = f" | {override[1]}" if override else ""
         lines.append(f"build {escaped_obj}: {kind} {_e(src)}{implicit}")
-        edge_flags = cxx_flags if is_cxx and cxx_flags else flags
+        edge_flags = override[0] if override else flags
         if edge_flags:
             lines.append(f"  flags = {edge_flags}")
         # Escaped once here: the returned paths only ever appear in build
@@ -1217,15 +1216,20 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # One shared variable instead of repeating the flags line on every src
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
-    src_cxx_flags = ""
-    src_cxx_implicit = ""
+    src_cxx_override = None
     if pch_enabled():
         # C++ src edges swap the force-includes for one precompiled prefix
         # header holding the same content plus defines.h; C and assembly
         # edges keep srcflags (a .gch is a C++ artifact)
+        # The opt-out hint matters when a toolchain rejects its own .gch:
+        # the build stays correct but every TU warns via -Winvalid-pch
+        _LOGGER.info(
+            "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
+        )
         pch_header = build_dir / PCH_HEADER_NAME
         pch_includes = (*src_includes, PCH_CORE_HEADER)
-        write_file_if_changed(pch_header, pch_header_text(pch_includes))
+        pch_text = pch_header_text(pch_includes)
+        write_file_if_changed(pch_header, pch_text)
         if ccache:
             # The .sum sidecar only exists for CCACHE_PCH_EXTSUM; ninja's
             # depfile handles staleness. Mirror CCACHE_BASEDIR: strip the
@@ -1238,7 +1242,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 src_dir,
                 pch_includes,
                 (
-                    pch_header_text(pch_includes),
+                    pch_text,
                     str(paths.framework),
                     str(paths.toolchain),
                     flags_id,
@@ -1254,18 +1258,16 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         # Relative -include (resolved from the ninja cwd, where the header
         # lives): an absolute path would put the per-device build path on
         # every compile command and defeat cross-device ccache sharing
-        cxx_parts = src_other + [f"-include {PCH_HEADER_NAME}"]
+        cxx_parts = src_other + [f"-Winvalid-pch -include {PCH_HEADER_NAME}"]
         lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
-        src_cxx_flags = "$srccxxflags"
-        src_cxx_implicit = gch
+        src_cxx_override = ("$srccxxflags", gch)
     src_objs = _ninja_compile_edges(
         lines,
         _collect_sources(src_dir),
         src_dir,
         "src",
         flags="$srcflags",
-        cxx_flags=src_cxx_flags,
-        cxx_implicit=src_cxx_implicit,
+        cxx_override=src_cxx_override,
     )
 
     ld_deps = [f"ld/{_COMMON_LD_NAME}"]

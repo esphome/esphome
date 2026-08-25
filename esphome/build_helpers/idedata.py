@@ -59,11 +59,11 @@ def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
             _LOGGER.warning("Idedata failure detail", exc_info=True)
 
 
-# C++ translation-unit suffixes used to identify ESPHome source files.
-_CXX_SUFFIXES = (".cpp", ".cc")
+# C++ translation-unit suffixes.
+CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
 # Suffixes of input/output files that appear bare on the command line (and so
 # must not be mistaken for compiler flags).
-_INPUT_FILE_SUFFIXES = (*_CXX_SUFFIXES, ".c", ".o", ".S", ".s")
+_INPUT_FILE_SUFFIXES = (*CXX_SOURCE_SUFFIXES, ".c", ".o", ".S", ".s")
 # Path marker identifying an ESPHome source translation unit.
 _ESPHOME_SRC_MARKER = "/src/esphome/"
 
@@ -72,7 +72,7 @@ def _is_esphome_src(file: str) -> bool:
     """Whether ``file`` is an ESPHome C++ translation unit; normalized to
     ``/`` first since Windows compile DBs use backslashes."""
     return _ESPHOME_SRC_MARKER in file.replace("\\", "/") and file.endswith(
-        _CXX_SUFFIXES
+        CXX_SOURCE_SUFFIXES
     )
 
 
@@ -147,7 +147,7 @@ def _pick_entry(entries: list[dict]) -> dict:
         if _is_esphome_src(entry["file"]):
             return entry
     for entry in entries:
-        if entry["file"].endswith(_CXX_SUFFIXES):
+        if entry["file"].endswith(CXX_SOURCE_SUFFIXES):
             return entry
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
@@ -198,10 +198,20 @@ def parse_entry(
 
     it = iter(tokens[1:])
     for tok in it:
-        if tok in ("-c", "-o", "-include"):
-            # Drop the flag and its argument; the injected relative
-            # -include esphome_pch.h does not resolve outside the build dir
-            next(it, None)
+        if tok in ("-c", "-o"):
+            next(it, None)  # drop the flag and its argument (input/output)
+        elif tok == "-include":
+            # -include searches the compile cwd first, then the -I chain, so
+            # only re-anchor paths that really live next to the compile (the
+            # pch); a name meant for the -I chain must stay untouched
+            raw = next(it, "")
+            if not raw:
+                _LOGGER.warning("Dropping -include with no argument")
+            else:
+                resolved = _include(raw)
+                cxx_flags.extend(
+                    ("-include", resolved if Path(resolved).is_file() else raw)
+                )
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.
