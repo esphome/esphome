@@ -255,8 +255,10 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 }
 
 void SafeModeComponent::write_rtc_(uint32_t val) {
-  this->rtc_.save(&val);
-  global_preferences->sync();
+  bool ok = this->rtc_.save(&val);
+  ok = global_preferences->sync() && ok;
+  if (!ok)
+    ESP_LOGE(TAG, "Failed to persist boot-loop counter (%" PRIu32 "); bootloop protection may not work", val);
 }
 
 uint32_t SafeModeComponent::read_rtc_() {
