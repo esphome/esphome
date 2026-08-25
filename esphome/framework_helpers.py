@@ -677,7 +677,7 @@ def _write_download_meta(
         _LOGGER.debug("Could not update download metadata %s: %s", meta, e)
 
 
-def _content_length(resp: "requests.Response") -> int:
+def content_length(resp: "requests.Response") -> int:
     """Return the response's Content-Length, or 0 when absent or malformed.
 
     0 means "unknown", which downstream disables the progress bar and the
@@ -720,7 +720,7 @@ def _stream_response_to_file(
     """
     f.seek(offset)
     f.truncate(offset)
-    total_size = size or offset + _content_length(resp)
+    total_size = size or offset + content_length(resp)
     downloaded = offset
     own_bar: ProgressBar | None = None
     if progress is None:
@@ -1025,7 +1025,7 @@ def download_with_resume(
                         streamed = True
                         if offset == 0:
                             validator = _response_validator(resp)
-                            expected_total = _content_length(resp)
+                            expected_total = content_length(resp)
                             # Recorded so a later run can prove an If-Range
                             # resume of this part file safe.
                             _write_download_meta(meta, url, validator, expected_total)

@@ -367,6 +367,15 @@ def copy_ccache_script() -> None:
     )
 
 
+def default_libdeps_dir() -> str:
+    """The PLATFORMIO_LIBDEPS_DIR value a pio run defaults to.
+
+    The package prefetch resolves installed libraries against the same dir;
+    both call sites must agree or warm builds re-resolve every library.
+    """
+    return str(CORE.relative_piolibdeps_path().absolute())
+
+
 def run_platformio_cli(*args, **kwargs) -> str | int:
     # Re-provision the PlatformIO cache if the interpreter's major.minor changed
     # since it was last built; a stale platform otherwise rejects the new Python
@@ -374,9 +383,7 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     heal_platformio_python_env()
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = str(CORE.relative_pioenvs_path().absolute())
-    os.environ.setdefault(
-        "PLATFORMIO_LIBDEPS_DIR", str(CORE.relative_piolibdeps_path().absolute())
-    )
+    os.environ.setdefault("PLATFORMIO_LIBDEPS_DIR", default_libdeps_dir())
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
@@ -426,9 +433,6 @@ def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
 def run_compile(config, verbose):
     from esphome.platformio.prefetch import prefetch_platformio_packages
 
-    # Heal before prefetching: a Python-version wipe would otherwise discard
-    # the caches the prefetch just warmed (the later heal call is a no-op)
-    heal_platformio_python_env()
     prefetch_platformio_packages()
     args = []
     if CONF_COMPILE_PROCESS_LIMIT in config[CONF_ESPHOME]:

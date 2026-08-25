@@ -114,13 +114,18 @@ def test_registry_jobs_skips_cached_and_sizeless(tmp_path: Path) -> None:
 
 
 def test_registry_jobs_dedupes_download_paths(tmp_path: Path) -> None:
-    """Duplicate specs resolving to one archive yield a single job; two
-    batch workers must never share a .part file."""
+    """Duplicate specs resolve once, and distinct specs resolving to one
+    archive yield a single job; two batch workers must never share a .part
+    file. Nine specs against eight workers also make one worker resolve
+    twice, reusing its thread-local manager."""
     m = _fake_manager(tmp_path)
     specs = [_FakeSpec(uri=None, name="dup"), _FakeSpec(uri=None, name="dup")]
+    specs += [_FakeSpec(uri=None, name=f"n{i}") for i in range(8)]
     with _mirror_patch():
         jobs = pf._registry_jobs(m, specs, set())
+    # the fake resolves every spec to the same mirror URL and checksum
     assert len(jobs) == 1
+    assert m.search_registry_packages.call_count == 9  # dup resolved once
 
 
 def test_registry_jobs_uri_specs_excluded(tmp_path: Path) -> None:
@@ -159,6 +164,25 @@ def test_uri_jobs_head_failure_skips(tmp_path: Path) -> None:
         )
 
 
+def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
+    """Two specs with one URL yield one HEAD and one job; two batch workers
+    must never share a .part file."""
+    m = _fake_manager(tmp_path)
+    resp = MagicMock()
+    resp.headers = {"content-length": "5"}
+    with patch("esphome.net_retry.http_request", return_value=resp) as mock_head:
+        jobs = pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(uri="https://x/a.zip", name="a"),
+                _FakeSpec(uri="https://x/a.zip", name="a"),
+            ],
+            set(),
+        )
+    assert len(jobs) == 1
+    mock_head.assert_called_once()
+
+
 def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
     m = _fake_manager(tmp_path)
     m.get_package.return_value = object()
@@ -175,38 +199,24 @@ def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
     )
 
 
-def test_resume_fetch_job_threads_tracker(tmp_path: Path) -> None:
-    """The batch runner passes the tracker positionally; the shared adapter
-    must deliver it as download_with_resume's progress keyword."""
-    from esphome.framework_helpers import resume_fetch_job
-
-    with patch("esphome.framework_helpers.download_with_resume") as mock_download:
-        fetch = resume_fetch_job("https://x/a.zip", tmp_path / "a", sha256="ff", size=9)
-        tracker = lambda done: None  # noqa: E731
-        fetch(tracker)
-    mock_download.assert_called_once_with(
-        "https://x/a.zip", tmp_path / "a", progress=tracker, sha256="ff", size=9
-    )
-
-
-def test_warn_prefetch_failures_names_each_failure(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The shared failure loop warns per job with the failure reason."""
-    from esphome.framework_helpers import warn_prefetch_failures
-
-    warn_prefetch_failures([("toolchain-x@1", OSError("down"))])
-    assert "Could not prefetch toolchain-x@1: down" in caplog.text
-    warn_prefetch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
-    assert "Prefetch of lib failed: gone" in caplog.text
-
-
 def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
-    """The prefetch runs in a subprocess (platform setup code may rewrite
-    the interpreter's sys.path) with pio run's libdeps dir."""
+    """The prefetch heals the PlatformIO cache first (a later Python-version
+    wipe would discard what it warms), then runs in a subprocess (platform
+    setup code may rewrite the interpreter's sys.path) with pio run's
+    libdeps dir and no leaked PYTHONPATH."""
     proc = MagicMock(returncode=0)
-    with patch.object(pf.subprocess, "run", return_value=proc) as mock_run:
+    order = MagicMock()
+    order.run.return_value = proc
+    with (
+        patch(
+            "esphome.platformio.toolchain.heal_platformio_python_env",
+            order.heal,
+        ),
+        patch.object(pf.subprocess, "run", order.run) as mock_run,
+        patch.dict("os.environ", {"PYTHONPATH": "/leak"}),
+    ):
         pf.prefetch_platformio_packages()
+    assert [c[0] for c in order.mock_calls[:2]] == ["heal", "run"]
     (cmd,), kwargs = mock_run.call_args
     assert cmd == [
         sys.executable,
@@ -218,11 +228,15 @@ def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     assert kwargs["env"]["PLATFORMIO_LIBDEPS_DIR"] == str(
         CORE.relative_piolibdeps_path().absolute()
     )
+    assert "PYTHONPATH" not in kwargs["env"]
 
 
 def test_prefetch_nonzero_exit_warns(caplog: pytest.LogCaptureFixture) -> None:
     proc = MagicMock(returncode=3)
-    with patch.object(pf.subprocess, "run", return_value=proc):
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(pf.subprocess, "run", return_value=proc),
+    ):
         pf.prefetch_platformio_packages()
     assert "prefetch skipped (exit 3)" in caplog.text
 
@@ -231,7 +245,10 @@ def test_prefetch_launch_failure_never_raises(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Any spawn failure is one warning, never a build failure."""
-    with patch.object(pf.subprocess, "run", side_effect=OSError("no exec")):
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(pf.subprocess, "run", side_effect=OSError("no exec")),
+    ):
         pf.prefetch_platformio_packages()
     assert "PlatformIO package prefetch skipped" in caplog.text
 
@@ -261,6 +278,11 @@ def test_prefetch_no_platform_returns(tmp_path: Path) -> None:
 
 
 def _pio_modules(tmp_path: Path, fake_platform, fake_pm, config, lib_captures=None):
+    def fake_lib_manager(storage_dir):
+        if lib_captures is not None:
+            lib_captures.append(storage_dir)
+        return _fake_manager(tmp_path)
+
     modules = {
         "platformio": MagicMock(),
         "platformio.app": MagicMock(),
@@ -275,10 +297,7 @@ def _pio_modules(tmp_path: Path, fake_platform, fake_pm, config, lib_captures=No
         "platformio.package": MagicMock(),
         "platformio.package.manager": MagicMock(),
         "platformio.package.manager.library": SimpleNamespace(
-            LibraryPackageManager=lambda storage_dir: (
-                lib_captures.append(storage_dir) if lib_captures is not None else None,
-                _fake_manager(tmp_path),
-            )[1]
+            LibraryPackageManager=fake_lib_manager
         ),
         "platformio.package.manager.platform": SimpleNamespace(
             PlatformPackageManager=lambda: fake_pm
@@ -301,19 +320,28 @@ def _pio_modules(tmp_path: Path, fake_platform, fake_pm, config, lib_captures=No
 
 def _fake_config(tmp_path: Path, env_options: dict):
     config = MagicMock()
-    options = {"libdeps_dir": str(tmp_path / "libdeps"), **env_options}
+    options = {
+        "libdeps_dir": str(tmp_path / "libdeps"),
+        "packages_dir": str(tmp_path / "packages"),
+        **env_options,
+    }
     config.get.side_effect = lambda section, key, default=None: options.get(
         key, default
     )
     return config
 
 
-def test_prefetch_all_cached_is_quiet(tmp_path: Path) -> None:
-    """With nothing to download the prefetch neither logs nor batches."""
+def test_prefetch_all_cached_is_quiet_and_writes_sentinel(tmp_path: Path) -> None:
+    """With nothing to download the prefetch neither logs nor batches, and
+    records a sentinel so the parent skips the next spawn."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    (tmp_path / "packages").mkdir()
+    (tmp_path / "libdeps" / "testenv").mkdir(parents=True)
     fake_platform = MagicMock()
     fake_platform.packages = {}
-    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    config = _fake_config(
+        tmp_path, {"platform": "fake/p@1", "lib_deps": ["esphome/noise-c@1.0"]}
+    )
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
     with (
         patch.dict("sys.modules", modules),
@@ -323,6 +351,49 @@ def test_prefetch_all_cached_is_quiet(tmp_path: Path) -> None:
     ):
         pf._prefetch(tmp_path, "testenv")
     mock_batch.assert_not_called()
+    assert pf._prefetch_is_warm(tmp_path)
+
+
+def test_sentinel_invalidation(tmp_path: Path) -> None:
+    """The sentinel stops matching when the ini changes or a recorded dir
+    disappears; garbage sentinels read as cold."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    pkg_dir = tmp_path / "packages"
+    pkg_dir.mkdir()
+    assert not pf._prefetch_is_warm(tmp_path)  # no sentinel yet
+    (tmp_path / pf._SENTINEL_NAME).write_text(
+        __import__("json").dumps(
+            {**pf._sentinel_state(tmp_path), "dirs": [str(pkg_dir)]}
+        ),
+        encoding="utf-8",
+    )
+    assert pf._prefetch_is_warm(tmp_path)
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@2\n")
+    assert not pf._prefetch_is_warm(tmp_path)  # ini changed
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    pkg_dir.rmdir()
+    assert not pf._prefetch_is_warm(tmp_path)  # recorded dir gone
+    (tmp_path / pf._SENTINEL_NAME).write_text("not json", encoding="utf-8")
+    assert not pf._prefetch_is_warm(tmp_path)
+
+
+def test_prefetch_warm_sentinel_skips_spawn(tmp_path: Path) -> None:
+    """A valid sentinel skips the subprocess entirely."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    pkg_dir = tmp_path / "packages"
+    pkg_dir.mkdir()
+    (tmp_path / pf._SENTINEL_NAME).write_text(
+        __import__("json").dumps(
+            {**pf._sentinel_state(tmp_path), "dirs": [str(pkg_dir)]}
+        ),
+        encoding="utf-8",
+    )
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(pf.subprocess, "run") as mock_run,
+    ):
+        pf.prefetch_platformio_packages()
+    mock_run.assert_not_called()
 
 
 def test_prefetch_end_to_end_wiring(
@@ -357,6 +428,7 @@ def test_prefetch_end_to_end_wiring(
     )
     lib_dirs: list[str] = []
     modules = _pio_modules(tmp_path, fake_platform, fake_pm, config, lib_dirs)
+    (tmp_path / pf._SENTINEL_NAME).write_text("{}", encoding="utf-8")
     captured: dict = {}
 
     def fake_registry_jobs(manager, specs, seen):
@@ -375,6 +447,7 @@ def test_prefetch_end_to_end_wiring(
     ):
         pf._prefetch(tmp_path, "testenv")
     fake_pm.install.assert_called_once_with("fake/platform@1.0", skip_dependencies=True)
+    assert not (tmp_path / pf._SENTINEL_NAME).exists()  # stale sentinel removed
     fake_platform.configure_project_packages.assert_called_once_with("testenv", ["run"])
     assert bogus not in sys.path
     # non-optional platform package + tool-scons (never piohome), then libs
