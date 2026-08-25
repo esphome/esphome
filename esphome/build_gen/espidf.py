@@ -1,6 +1,7 @@
 """ESP-IDF direct build generator for ESPHome."""
 
 import json
+import logging
 from pathlib import Path
 
 from esphome.components.esp32 import (
@@ -19,6 +20,8 @@ from esphome.framework_helpers import (
 )
 from esphome.helpers import mkdir_p, write_file_if_changed
 
+_LOGGER = logging.getLogger(__name__)
+
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
 # cg.set_cpp_standard(). Emitted between include(project.cmake) and project(),
@@ -31,16 +34,13 @@ list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
 
-def get_available_components_with_dirs(
-    root: Path | None = None,
-) -> dict[str, str] | None:
+def get_available_components_with_dirs() -> dict[str, str] | None:
     """Map built-in ESP-IDF component names to their source directories.
 
-    Read from ``project_description.json``. Excludes ``src``, IDF-managed
-    components (``managed_components/``), and converted PIO libs
-    (``pio_components/``). With ``root`` only components below that
-    directory are kept, which drops project local ones such as the Arduino
-    ``component_stubs``. Returns ``None`` if the build dir or
+    Read from ``project_description.json``; only components below its
+    ``idf_path/components`` count, which leaves out ``src``, IDF-managed
+    components, converted PIO libs and project local ones such as the
+    Arduino ``component_stubs``. Returns ``None`` if the build dir or
     ``project_description.json`` isn't ready yet.
     """
     if CORE.build_path is None:
@@ -54,24 +54,17 @@ def get_available_components_with_dirs(
             data = json.load(f)
 
         component_info = data.get("build_component_info", {})
+        root = (Path(data["idf_path"]) / "components").resolve()
 
-        result: dict[str, str] = {}
-        for name, info in component_info.items():
-            # Exclude our own src component
-            if name == "src":
-                continue
-
-            # Exclude IDF-managed and converted-PIO components (external).
-            comp_dir = info.get("dir", "")
-            if "managed_components" in comp_dir or "pio_components" in comp_dir:
-                continue
-            if root is not None and not Path(comp_dir).resolve().is_relative_to(root):
-                continue
-
-            result[name] = comp_dir
-
+        result = {
+            name: info["dir"]
+            for name, info in component_info.items()
+            if Path(info.get("dir", "")).resolve().is_relative_to(root)
+        }
+        if not result:
+            _LOGGER.warning("No ESP-IDF components found under %s", root)
         return result
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, KeyError, OSError):
         return None
 
 

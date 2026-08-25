@@ -298,27 +298,14 @@ def load_cached_builtin_components() -> list[str] | None:
     return None
 
 
-def save_cached_builtin_components() -> list[str] | None:
-    """Store the components discovered by the last configure and return them.
-
-    Only components under ``$IDF_PATH/components`` are kept; project local
-    ones (Arduino ``component_stubs``, ``override_path`` entries) are
-    reachable through the manifest and must not leak into other builds.
-    """
-    from esphome.build_gen.espidf import get_available_components_with_dirs
-
-    if (path := _builtin_component_cache_path()) is None:
-        return None
-    root = (path.parents[1] / "components").resolve()
-    components = get_available_components_with_dirs(root)
-    if not components:
-        return None
-    builtin = sorted(components)
+def save_cached_builtin_components(components: list[str]) -> None:
+    """Store a built-in component list that just configured successfully."""
+    if not components or (path := _builtin_component_cache_path()) is None:
+        return
     try:
-        write_file(path, json.dumps(builtin, separators=(",", ":")))
+        write_file(path, json.dumps(components, separators=(",", ":")))
     except EsphomeError as err:
-        _LOGGER.debug("Could not write component list cache %s: %s", path, err)
-    return builtin
+        _LOGGER.warning("Could not write component list cache %s: %s", path, err)
 
 
 def _write_project_and_reconfigure(builtin_components: list[str] | None) -> int:
@@ -338,14 +325,14 @@ def _configure_project() -> int:
     """Configure the project, discovering the built-in components if needed.
 
     A cached component list skips the discovery configure. If the configure
-    with a cached list fails the entry is dropped and discovery runs once, so
-    a bad entry never poisons later builds.
+    with a cached list fails the entry is dropped and discovery runs once; a
+    list is only cached after it configured successfully.
     """
-    from esphome.build_gen.espidf import write_project
+    from esphome.build_gen.espidf import get_available_components, write_project
 
     if (cached := load_cached_builtin_components()) is not None:
         _LOGGER.info("Using cached ESP-IDF component list")
-        if (rc := _write_project_and_reconfigure(cached)) == 0:
+        if _write_project_and_reconfigure(cached) == 0:
             return 0
         _LOGGER.warning("Cached component list failed; rediscovering")
         _builtin_component_cache_path().unlink(missing_ok=True)
@@ -354,9 +341,12 @@ def _configure_project() -> int:
     if (rc := run_reconfigure()) != 0:
         _LOGGER.error("Component discovery failed")
         return rc
-    if (rc := _write_project_and_reconfigure(save_cached_builtin_components())) != 0:
+    discovered = get_available_components()
+    if (rc := _write_project_and_reconfigure(discovered)) != 0:
         _LOGGER.error("Reconfigure with discovered components failed")
-    return rc
+        return rc
+    save_cached_builtin_components(discovered or [])
+    return 0
 
 
 def has_outdated_files():

@@ -412,9 +412,8 @@ def _record_compile_calls(
     def record_write(minimal: bool = False, builtin_components=None) -> None:
         calls.append(("write_project", minimal, builtin_components))
 
-    def record_save() -> list[str] | None:
-        calls.append(("save",))
-        return saved
+    def record_save(components: list[str]) -> None:
+        calls.append(("save", components))
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=True),
@@ -422,6 +421,7 @@ def _record_compile_calls(
         patch.object(
             toolchain, "save_cached_builtin_components", side_effect=record_save
         ),
+        patch("esphome.build_gen.espidf.get_available_components", return_value=saved),
         patch("esphome.build_gen.espidf.write_project", side_effect=record_write),
         patch.object(toolchain, "run_reconfigure", side_effect=record_reconfigure),
         patch.object(
@@ -456,25 +456,25 @@ def test_run_compile_poisoned_cache_is_dropped_and_rediscovered(
         ("run_reconfigure",),
         ("write_project", True, None),
         ("run_reconfigure",),
-        ("save",),
         ("write_project", False, ["lwip"]),
         ("run_reconfigure",),
+        ("save", ["lwip"]),
         ("build",),
     ]
 
 
 def test_run_compile_cache_miss_discovers_and_saves(setup_core: Path) -> None:
-    """Without a cached list the discovery configure runs, its result is saved
-    and the same filtered list feeds the full write."""
+    """Without a cached list the discovery configure runs, the discovered list
+    feeds the full write and is cached only after that configure succeeds."""
     _setup_build(setup_core)
     rc, calls = _record_compile_calls(None, saved=["lwip"])
     assert rc == 0
     assert calls == [
         ("write_project", True, None),
         ("run_reconfigure",),
-        ("save",),
         ("write_project", False, ["lwip"]),
         ("run_reconfigure",),
+        ("save", ["lwip"]),
         ("build",),
     ]
 
@@ -488,6 +488,16 @@ def test_run_compile_discovery_failure_stops_before_full_write(
     rc, calls = _record_compile_calls(None, reconfigure_rcs=(2,))
     assert rc == 2
     assert calls == [("write_project", True, None), ("run_reconfigure",)]
+
+
+def test_run_compile_does_not_cache_a_list_that_failed_to_configure(
+    setup_core: Path,
+) -> None:
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(None, saved=["lwip"], reconfigure_rcs=(0, 3))
+    assert rc == 3
+    assert ("save", ["lwip"]) not in calls
+    assert ("build",) not in calls
 
 
 def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:
@@ -517,25 +527,17 @@ def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
         yield idf_path
 
 
-def test_component_cache_round_trip_keeps_only_idf_components(
-    setup_core: Path, tmp_path: Path
-) -> None:
+def test_component_cache_round_trip(setup_core: Path, tmp_path: Path) -> None:
     """A saved list is read back until it is dropped."""
     _setup_build(setup_core)
     with _cache_env(tmp_path, "fatfs") as idf_path:
         for name in ("lwip", "esp_timer"):
             (idf_path / "components" / name).mkdir()
-        components = {
-            "lwip": str(idf_path / "components" / "lwip"),
-            "esp_timer": str(idf_path / "components" / "esp_timer"),
-        }
-        with patch(
-            "esphome.build_gen.espidf.get_available_components_with_dirs",
-            return_value=components,
-        ):
-            assert toolchain.load_cached_builtin_components() is None
-            assert toolchain.save_cached_builtin_components() == ["esp_timer", "lwip"]
+        assert toolchain.load_cached_builtin_components() is None
+        toolchain.save_cached_builtin_components(["esp_timer", "lwip"])
         assert toolchain.load_cached_builtin_components() == ["esp_timer", "lwip"]
+        toolchain._builtin_component_cache_path().unlink()
+        assert toolchain.load_cached_builtin_components() is None
 
 
 def test_component_cache_misses_on_key_change_or_missing_component(
@@ -547,11 +549,7 @@ def test_component_cache_misses_on_key_change_or_missing_component(
     _setup_build(setup_core)
     with _cache_env(tmp_path, "fatfs") as idf_path:
         (idf_path / "components" / "lwip").mkdir()
-        with patch(
-            "esphome.build_gen.espidf.get_available_components_with_dirs",
-            return_value={"lwip": str(idf_path / "components" / "lwip")},
-        ):
-            toolchain.save_cached_builtin_components()
+        toolchain.save_cached_builtin_components(["lwip"])
         path = toolchain._builtin_component_cache_path()
         assert path.parent == idf_path / ".esphome_component_lists"
         assert path.name.startswith("esp32-")
@@ -565,51 +563,28 @@ def test_component_cache_misses_on_key_change_or_missing_component(
         assert toolchain.load_cached_builtin_components() is None
 
 
-def test_component_cache_save_skips_without_key_or_discovery(
+def test_component_cache_save_skips_empty_list_or_custom_idf_path(
     setup_core: Path, tmp_path: Path
 ) -> None:
-    """Nothing is written for a custom IDF_PATH checkout or before a configure
-    has produced project_description.json."""
     _setup_build(setup_core)
     with _cache_env(tmp_path, "") as idf_path:
+        toolchain.save_cached_builtin_components([])
         with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
-            assert toolchain.save_cached_builtin_components() is None
-        assert toolchain.save_cached_builtin_components() is None
+            toolchain.save_cached_builtin_components(["lwip"])
         assert not (idf_path / ".esphome_component_lists").exists()
 
 
-def test_component_cache_never_stores_an_empty_list(
-    setup_core: Path, tmp_path: Path
+def test_component_cache_write_failure_is_logged(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """When no component resolves under $IDF_PATH/components nothing is cached
-    and the full write falls back to project_description.json."""
     _setup_build(setup_core)
     with (
-        _cache_env(tmp_path, "") as idf_path,
-        patch(
-            "esphome.build_gen.espidf.get_available_components_with_dirs",
-            return_value={},
-        ),
-    ):
-        assert toolchain.save_cached_builtin_components() is None
-        assert not (idf_path / ".esphome_component_lists").exists()
-
-
-def test_component_cache_write_failure_still_returns_list(
-    setup_core: Path, tmp_path: Path
-) -> None:
-    """A cache write error is logged and the discovered list is still used."""
-    _setup_build(setup_core)
-    with (
-        _cache_env(tmp_path, "") as idf_path,
-        patch(
-            "esphome.build_gen.espidf.get_available_components_with_dirs",
-            return_value={"lwip": str(idf_path / "components" / "lwip")},
-        ),
+        _cache_env(tmp_path, ""),
         patch.object(toolchain, "write_file", side_effect=EsphomeError("disk full")),
     ):
-        assert toolchain.save_cached_builtin_components() == ["lwip"]
+        toolchain.save_cached_builtin_components(["lwip"])
         assert toolchain.load_cached_builtin_components() is None
+    assert "Could not write component list cache" in caplog.text
 
 
 def test_component_cache_ignores_corrupt_file(setup_core: Path, tmp_path: Path) -> None:
