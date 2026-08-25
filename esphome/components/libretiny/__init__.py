@@ -514,9 +514,7 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    cg.add_platformio_option(
-        "extra_scripts", ["pre:ccache.py", *pch_extra_scripts()]
-    )
+    cg.add_platformio_option("extra_scripts", ["pre:ccache.py", *pch_extra_scripts()])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
