@@ -24,6 +24,11 @@ namespace esphome::noise {
  *   offer_mac   = HKDF(secret, "offer"   || session_id || client_nonce).out1[:16]
  *   confirm_mac = HKDF(secret, "confirm" || client_nonce || server_nonce).out1[:16]
  *   k_c2d, k_d2c = HKDF(secret, "keys" || client_nonce || server_nonce || SHA256(prologue))
+ *
+ * A client that offers a ticket must hold handshake message 1 back until
+ * the ServerHello declines: an accept switches the responder straight to
+ * transport mode. A resumed session has no ephemeral DH; its keys come
+ * from the single-use ticket secret, which both sides wipe on redemption.
  */
 
 static constexpr uint8_t RESUME_OFFER_VERSION = 0x01;
@@ -63,12 +68,15 @@ class ResumeTicketCache {
   /// out_capacity is too small. Secrets are wiped internally.
   size_t try_accept(const uint8_t *offer, size_t offer_len, const uint8_t *prologue, size_t prologue_len,
                     uint8_t *out_ext, size_t out_capacity, NoiseCipherState *&send_cipher,
-                    NoiseCipherState *&recv_cipher);  /// Forget every ticket (PSK change).
+                    NoiseCipherState *&recv_cipher);
+  /// Forget every ticket (PSK change).
   void clear();
 
-  // Realistically one or two controllers hold a ticket at a time; a third
-  // just evicts the oldest and that client does one full handshake.
+  // Realistically one or two controllers hold a ticket at a time. Issue is
+  // round robin, so three steady clients keep evicting each other and all
+  // fall back to full handshakes.
   static constexpr uint8_t SLOTS = 2;
+  static_assert(SLOTS <= 8, "used_mask_ is a uint8_t bitmask");
 
  protected:
   ResumeTicket slots_[SLOTS];
@@ -81,8 +89,14 @@ extern const char RESUME_LABEL_OFFER[6];
 extern const char RESUME_LABEL_CONFIRM[8];
 extern const char RESUME_LABEL_KEYS[5];
 
+// Largest KDF input: "keys" || client_nonce || server_nonce || SHA256(prologue)
+static constexpr size_t RESUME_KDF_MAX_DATA =
+    sizeof(RESUME_LABEL_KEYS) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32;
+
 /// Noise-construction HKDF-SHA256 keyed with the ticket secret over
 /// label || a || b [|| SHA256(hash_in)]. out2 == nullptr means MAC only.
+/// label_len + a_len + b_len (+ 32 with hash_in) must not exceed
+/// RESUME_KDF_MAX_DATA; the wrappers below static_assert their inputs.
 bool resume_kdf(const uint8_t *secret, const char *label, size_t label_len, const uint8_t *a, size_t a_len,
                 const uint8_t *b, size_t b_len, const uint8_t *hash_in, size_t hash_in_len, uint8_t *out1,
                 size_t out1_len, uint8_t *out2);
@@ -91,6 +105,8 @@ bool resume_kdf(const uint8_t *secret, const char *label, size_t label_len, cons
 /// try_accept checks).
 inline bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *session_id, const uint8_t *client_nonce,
                                      uint8_t *out_mac) {
+  static_assert(sizeof(RESUME_LABEL_OFFER) - 1 + RESUME_SESSION_ID_SIZE + RESUME_NONCE_SIZE <= RESUME_KDF_MAX_DATA,
+                "offer MAC input must fit the KDF buffer");
   return resume_kdf(secret, RESUME_LABEL_OFFER, sizeof(RESUME_LABEL_OFFER) - 1, session_id, RESUME_SESSION_ID_SIZE,
                     client_nonce, RESUME_NONCE_SIZE, nullptr, 0, out_mac, RESUME_MAC_SIZE, nullptr);
 }
@@ -98,6 +114,8 @@ inline bool resume_compute_offer_mac(const uint8_t *secret, const uint8_t *sessi
 /// confirm_mac for the ServerHello extension.
 inline bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
                                        uint8_t *out_mac) {
+  static_assert(sizeof(RESUME_LABEL_CONFIRM) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE <= RESUME_KDF_MAX_DATA,
+                "confirm MAC input must fit the KDF buffer");
   return resume_kdf(secret, RESUME_LABEL_CONFIRM, sizeof(RESUME_LABEL_CONFIRM) - 1, client_nonce, RESUME_NONCE_SIZE,
                     server_nonce, RESUME_NONCE_SIZE, nullptr, 0, out_mac, RESUME_MAC_SIZE, nullptr);
 }
@@ -106,6 +124,8 @@ inline bool resume_compute_confirm_mac(const uint8_t *secret, const uint8_t *cli
 /// k_d2c device-to-client.
 inline bool resume_derive_keys(const uint8_t *secret, const uint8_t *client_nonce, const uint8_t *server_nonce,
                                const uint8_t *prologue, size_t prologue_len, uint8_t *k_c2d, uint8_t *k_d2c) {
+  static_assert(sizeof(RESUME_LABEL_KEYS) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32 <= RESUME_KDF_MAX_DATA,
+                "key derivation input must fit the KDF buffer");
   return resume_kdf(secret, RESUME_LABEL_KEYS, sizeof(RESUME_LABEL_KEYS) - 1, client_nonce, RESUME_NONCE_SIZE,
                     server_nonce, RESUME_NONCE_SIZE, prologue, prologue_len, k_c2d, 32, k_d2c);
 }

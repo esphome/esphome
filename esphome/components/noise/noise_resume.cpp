@@ -12,12 +12,6 @@ namespace esphome::noise {
 const char RESUME_LABEL_OFFER[6] PROGMEM = "offer";
 const char RESUME_LABEL_CONFIRM[8] PROGMEM = "confirm";
 const char RESUME_LABEL_KEYS[5] PROGMEM = "keys";
-// Largest KDF input: "keys" || client_nonce || server_nonce || SHA256(prologue)
-static constexpr size_t RESUME_KDF_MAX_DATA =
-    sizeof(RESUME_LABEL_KEYS) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE + 32;
-static_assert(sizeof(RESUME_LABEL_CONFIRM) - 1 + RESUME_NONCE_SIZE + RESUME_NONCE_SIZE <= RESUME_KDF_MAX_DATA,
-              "MAC input must fit the KDF buffer");
-
 bool resume_kdf(const uint8_t *secret, const char *label, size_t label_len, const uint8_t *a, size_t a_len,
                 const uint8_t *b, size_t b_len, const uint8_t *hash_in, size_t hash_in_len, uint8_t *out1,
                 size_t out1_len, uint8_t *out2) {

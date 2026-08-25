@@ -167,6 +167,28 @@ TEST(NoiseResumeCache, BadMacOrMalformedOfferLeavesTicketIntact) {
   noise_cipherstate_free(recv);
 }
 
+TEST(NoiseResumeCache, SetPskForgetsTickets) {
+  NoiseContext ctx;
+  ResumeTicket ticket;
+  ASSERT_TRUE(ctx.resume_cache().issue(ticket));
+
+  psk_t psk{};
+  psk[0] = 1;
+  ctx.set_psk(psk);
+
+  uint8_t offer[RESUME_OFFER_SIZE];
+  build_offer_for_ticket(offer, ticket, KAT_CLIENT_NONCE);
+  uint8_t prologue[KAT_PROLOGUE_SIZE];
+  build_prologue(prologue, offer);
+  uint8_t ext[RESUME_ACCEPT_SIZE];
+  NoiseCipherState *send = nullptr, *recv = nullptr;
+  EXPECT_EQ(
+      ctx.resume_cache().try_accept(offer, sizeof(offer), prologue, sizeof(prologue), ext, sizeof(ext), send, recv),
+      0u);
+  EXPECT_EQ(send, nullptr);
+  EXPECT_EQ(recv, nullptr);
+}
+
 TEST(NoiseResumeCache, IssueRotatesSlotsAndClearForgetsAll) {
   ResumeTicketCache cache;
   ResumeTicket tickets[ResumeTicketCache::SLOTS + 1];

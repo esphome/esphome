@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import aioesphomeapi.core
 import pytest
 
@@ -20,27 +22,37 @@ async def test_api_noise_resume(
     if not hasattr(aioesphomeapi.core, "ResumeAPIError"):
         pytest.skip("aioesphomeapi without noise session resume")
 
-    device_lines: list[str] = []
+    resumed = asyncio.Event()
+    resumed_count = 0
+
+    def on_line(line: str) -> None:
+        nonlocal resumed_count
+        if "Session resumed" in line:
+            resumed_count += 1
+            resumed.set()
 
     async with (
-        run_compiled(yaml_config, line_callback=device_lines.append),
+        run_compiled(yaml_config, line_callback=on_line),
         api_client_connected(noise_psk=NOISE_KEY) as client,
     ):
         # First connection: full handshake, the device issues a ticket
         info = await client.device_info()
         assert info.name == "host-noise-resume"
-        assert not any("Session resumed" in line for line in device_lines)
+        assert resumed_count == 0
 
         # Same client reconnects and offers the ticket
         await client.disconnect()
         await client.connect(login=True)
         info = await client.device_info()
         assert info.name == "host-noise-resume"
-        assert any("Session resumed" in line for line in device_lines)
+        await asyncio.wait_for(resumed.wait(), timeout=10.0)
+        assert resumed_count == 1
+        resumed.clear()
 
         # The resumed session issued a fresh ticket, so it resumes again
         await client.disconnect()
         await client.connect(login=True)
         info = await client.device_info()
         assert info.name == "host-noise-resume"
-        assert sum("Session resumed" in line for line in device_lines) == 2
+        await asyncio.wait_for(resumed.wait(), timeout=10.0)
+        assert resumed_count == 2
