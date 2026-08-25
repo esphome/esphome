@@ -525,6 +525,19 @@ def set_core_data(config):
     return config
 
 
+def _require_ipv4_on_arduino(config):
+    """CONFIG_LWIP_IPV4 has no Arduino override the way CONFIG_LWIP_IPV6 does (Arduino's
+    esp-idf core can't build without IPv6, so 'network' force-enables it there); Arduino
+    can build with IPv4 off, but nothing in this repo exercises or supports that
+    combination, so require it here rather than risk a silent broken build.
+    """
+    if CORE.using_arduino:
+        from esphome.components import network
+
+        network.require_ipv4(config)
+    return config
+
+
 def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
 
@@ -2045,6 +2058,7 @@ CONFIG_SCHEMA = cv.All(
     _set_default_framework,
     _check_versions,
     set_core_data,
+    _require_ipv4_on_arduino,
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
 )
 

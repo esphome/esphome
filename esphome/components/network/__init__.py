@@ -91,8 +91,13 @@ def _detect_explicit_ipv6_disable(config: ConfigType) -> ConfigType:
     """Record an explicit 'enable_ipv6: false' before CONFIG_SCHEMA replaces it with
     its default, so _final_validate() can reject it if IPv6 turns out to be required --
     a merely-defaulted false is fine and gets turned on automatically.
+
+    Normalizes with cv.boolean instead of comparing the raw value against the literal
+    Python `False`, so a substitution or quoted 'false'/'no'/'off' is still caught --
+    otherwise the value never matches `is False` and the conflict check downstream
+    silently never fires.
     """
-    if config.get(CONF_ENABLE_IPV6) is False:
+    if (value := config.get(CONF_ENABLE_IPV6)) is not None and not cv.boolean(value):
         CORE.data[KEY_USER_DISABLED_IPV6] = True
     return config
 

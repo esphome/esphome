@@ -9,6 +9,7 @@ import subprocess
 
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.zephyr import (
     add_extra_script,
     copy_files as zephyr_copy_files,
@@ -272,6 +273,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _resolve_toolchain,
     set_framework,
+    network.require_ipv6,
 )
 
 

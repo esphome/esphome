@@ -3,6 +3,7 @@ import logging
 from pathlib import Path
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -315,6 +316,7 @@ BASE_SCHEMA = cv.Schema(
 
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(_update_core_data)
+BASE_SCHEMA.add_extra(network.require_ipv4)
 
 
 def _configure_lwip(config: dict) -> None:

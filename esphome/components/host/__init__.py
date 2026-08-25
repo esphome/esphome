@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAC_ADDRESS,
@@ -37,6 +38,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     set_core_data,
+    network.require_ipv4,
 )
 
 

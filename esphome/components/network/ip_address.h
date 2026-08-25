@@ -100,7 +100,7 @@ struct IPAddress {
 #if defined(CONFIG_NET_IPV4)
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     struct in_addr addr4 {
-      .s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth)
+      .s_addr = htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth)
     };
     net_ipv6_addr_create_v4_mapped(&addr4, &ip_addr_);
   }
@@ -144,7 +144,8 @@ struct IPAddress {
   // uses for the dual-stack (V4-mapped) and IPv6-only cases.
   IPAddress() { ip_addr_.s_addr = 0; }
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
-    this->ip_addr_.s_addr = htonl((first << 24) | (second << 16) | (third << 8) | fourth);
+    this->ip_addr_.s_addr =
+        htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth);
   }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }

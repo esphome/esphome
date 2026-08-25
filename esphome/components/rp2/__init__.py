@@ -7,6 +7,7 @@ import subprocess
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -312,6 +313,7 @@ CONFIG_SCHEMA = cv.All(
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
     _detect_variant,
     set_core_data,
+    network.require_ipv4,
 )
 
 
