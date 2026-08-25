@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_COL, CONF_ROW
+from esphome.types import ConfigType
 
 from .. import CONF_SX1509_ID, SX1509Component, sx1509_ns
 
@@ -18,7 +19,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(SX1509BinarySensor).extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     hub = await cg.get_variable(config[CONF_SX1509_ID])
     cg.add(var.set_row_col(config[CONF_ROW], config[CONF_COL]))

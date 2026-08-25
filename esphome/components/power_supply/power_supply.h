@@ -7,7 +7,7 @@
 
 namespace esphome::power_supply {
 
-class PowerSupply : public Component {
+class PowerSupply final : public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void set_enable_time(uint32_t enable_time) { enable_time_ = enable_time; }

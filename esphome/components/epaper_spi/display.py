@@ -112,6 +112,7 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            **model.get_config_options(),
         }
     )
 
@@ -152,7 +153,7 @@ def customise_schema(config):
 CONFIG_SCHEMA = customise_schema
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     spi.final_validate_device_schema(
         "epaper_spi", require_miso=False, require_mosi=True
     )(config)
@@ -169,7 +170,6 @@ def _final_validate(config):
             config[CONF_SHOW_TEST_CARD] = True
     elif CONF_UPDATE_INTERVAL not in config:
         config[CONF_UPDATE_INTERVAL] = update_interval("1min")
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -198,6 +198,7 @@ async def to_code(config):
     )
 
     await display.register_display(var, config)
+    config = await model.to_code(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])

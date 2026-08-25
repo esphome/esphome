@@ -24,10 +24,10 @@ sensor:
       name: PM <10µm Weight concentration
       id: pm_10_0
       accuracy_decimals: 1
-    nox:
-      name: NOx
-    voc:
-      name: VOC
+    nox_index:
+      name: NOx Index
+    voc_index:
+      name: VOC Index
       algorithm_tuning:
         index_offset: 100
         learning_time_offset_hours: 12
@@ -42,4 +42,5 @@ sensor:
     auto_cleaning_interval: 604800s
     acceleration_mode: low
     store_baseline: true
+    model: sen55
     address: 0x69

@@ -6,7 +6,7 @@
 #ifdef USE_ESP32
 
 namespace esphome::mixer_speaker {
-template<typename... Ts> class DuckingApplyAction : public Action<Ts...>, public Parented<SourceSpeaker> {
+template<typename... Ts> class DuckingApplyAction final : public Action<Ts...>, public Parented<SourceSpeaker> {
   TEMPLATABLE_VALUE(uint8_t, decibel_reduction);
   TEMPLATABLE_VALUE(uint32_t, duration);
   void play(const Ts &...x) override {

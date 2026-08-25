@@ -4,6 +4,9 @@ import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_GAIN, CONF_ID, ICON_SCALE, STATE_CLASS_MEASUREMENT
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@cujomalainey"]
 DEPENDENCIES = ["i2c"]
@@ -93,7 +96,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -131,7 +134,12 @@ NAU7802_CALIBRATE_SCHEMA = maybe_simple_id(
     NAU7802_CALIBRATE_SCHEMA,
     synchronous=True,
 )
-async def nau7802_calibrate_to_code(config, action_id, template_arg, args):
+async def nau7802_calibrate_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
