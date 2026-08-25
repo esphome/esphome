@@ -108,6 +108,36 @@ BINARY_INPUT_EP = {
     ],
 }
 
+
+def _pressure_ep(device_type: bool = False) -> dict[str, Any]:
+    ep = {
+        ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
+        CONF_CLUSTERS: [
+            {
+                CONF_ID: "PRESSURE_MEASUREMENT",
+                ROLE: "SERVER",
+                CONF_ATTRIBUTES: [
+                    {
+                        CONF_ATTRIBUTE_ID: 0x0,
+                        CONF_TYPE: "INT16",
+                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
+                        CONNECT: True,
+                        SCALE: {
+                            UNIT_HECTOPASCAL: 1,
+                            UNIT_PASCAL: 0.01,
+                        },
+                    },
+                ],
+            },
+        ],
+    }
+    if device_type:
+        ep[DEVICE_TYPE] = (
+            "PRESSURE_SENSOR"  # Sensor that measures pressure of liquids like water
+        )
+    return ep
+
+
 SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
     DEVICE_CLASS_TEMPERATURE: {
         ALLOWED_UNITS: [UNIT_CELSIUS],
@@ -146,49 +176,8 @@ SENSOR_EP_CONFIGS: dict[str, dict[str, Any]] = {
             },
         ],
     },
-    DEVICE_CLASS_ATMOSPHERIC_PRESSURE: {
-        ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
-        CONF_CLUSTERS: [
-            {
-                CONF_ID: "PRESSURE_MEASUREMENT",
-                ROLE: "SERVER",
-                CONF_ATTRIBUTES: [
-                    {
-                        CONF_ATTRIBUTE_ID: 0x0,
-                        CONF_TYPE: "INT16",
-                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONNECT: True,
-                        SCALE: {
-                            UNIT_HECTOPASCAL: 1,
-                            UNIT_PASCAL: 0.01,
-                        },
-                    },
-                ],
-            },
-        ],
-    },
-    DEVICE_CLASS_PRESSURE: {
-        ALLOWED_UNITS: [UNIT_HECTOPASCAL, UNIT_PASCAL],
-        DEVICE_TYPE: "PRESSURE_SENSOR",  # Sensor that measures pressure of liquids like water
-        CONF_CLUSTERS: [
-            {
-                CONF_ID: "PRESSURE_MEASUREMENT",
-                ROLE: "SERVER",
-                CONF_ATTRIBUTES: [
-                    {
-                        CONF_ATTRIBUTE_ID: 0x0,
-                        CONF_TYPE: "INT16",
-                        CONF_REPORT: cv.enum(REPORT, lower=True)("default"),
-                        CONNECT: True,
-                        SCALE: {
-                            UNIT_HECTOPASCAL: 1,
-                            UNIT_PASCAL: 0.01,
-                        },
-                    },
-                ],
-            },
-        ],
-    },
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE: _pressure_ep(),
+    DEVICE_CLASS_PRESSURE: _pressure_ep(device_type=True),
     DEVICE_CLASS_VOLUME_FLOW_RATE: {
         ALLOWED_UNITS: [UNIT_LITRE_PER_HOUR, UNIT_CUBIC_METER_PER_HOUR],
         DEVICE_TYPE: "FLOW_SENSOR",
