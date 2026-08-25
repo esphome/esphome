@@ -60,10 +60,13 @@ def parallel_install(manager_cls, specs: list[str]) -> None:
     """Best-effort parallel top-level install, one extraction worker per core.
 
     PlatformIO's own installer downloads and unpacks one package at a time
-    on one core. Dependencies are skipped (two packages sharing one must
-    not extract into the same directory from two threads) and any failure
-    is left alone: the stock ``pkg install`` pass below installs whatever
-    is missing and is the authority on the final state.
+    on one core. Each worker downloads (network bound, GIL released) and
+    unpacks (CPU bound), so the pool oversubscribes the cores to keep the
+    network busy while unpacks share them. Dependencies are skipped (two
+    packages sharing one must not extract into the same directory from two
+    threads) and any failure is left alone: the stock ``pkg install`` pass
+    below installs whatever is missing and is the authority on the final
+    state.
     """
     manager = manager_cls(None)
     pending = [spec for spec in specs if not manager.get_package(spec)]
@@ -80,9 +83,11 @@ def parallel_install(manager_cls, specs: list[str]) -> None:
             pass
 
     cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 4
+    workers = min(len(pending), max(8, 4 * cpus), 16)
+    print(f"Preinstalling {len(pending)} package(s) with {workers} workers")
     manager.lock()
     try:
-        with ThreadPoolExecutor(max_workers=min(cpus, len(pending))) as ex:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
             list(ex.map(install_one, pending))
     finally:
         manager.unlock()
