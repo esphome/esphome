@@ -128,7 +128,7 @@ def _run_script(
     if missing_cxx:
         cxx = tmp_path / "no-such-gxx"
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
-    # Distinct objects: the script must scope ccache/flags to projenv only
+    # Distinct objects: the -include flags must land on projenv only
     global_env = _FakeSConsEnv(*args)
     projenv = _FakeSConsEnv(*args)
     projenv.global_env = global_env
@@ -149,13 +149,11 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
     assert len((proj / "esphome_pch.h.gch.sum").read_text().strip()) == 64
     # Relative include: an absolute path would poison ccache keys
     assert scons_env.prepended == ["-Winvalid-pch", "-include", "esphome_pch.h"]
-    # ccache settings land on projenv's ENV only: framework/library TUs
-    # compile under the global env and must keep strict hashing
+    # In production projenv["ENV"] aliases os.environ; only the -include
+    # flags are genuinely scoped to projenv (src compiles)
     assert scons_env["ENV"]["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
     assert scons_env["ENV"]["CCACHE_PCH_EXTSUM"] == "true"
-    assert scons_env.global_env["ENV"] == {}
     assert scons_env.global_env.prepended == []
-    assert "CCACHE_SLOPPINESS" not in os.environ
 
 
 def test_pch_script_preserves_spaced_flag_elements(tmp_path: Path) -> None:
@@ -273,6 +271,44 @@ def test_copy_pch_script(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
     toolchain.copy_pch_script()
     assert (tmp_path / "pch.py").read_text() == _SCRIPT.read_text()
+
+
+def test_pch_script_nobuild_without_projenv_is_noop(tmp_path: Path) -> None:
+    """-t nobuild never exports projenv; the script must not abort."""
+    proj = tmp_path / "dev"
+    (proj / "src").mkdir(parents=True)
+
+    def strict_import(*names: str) -> None:
+        if "projenv" in names:
+            raise RuntimeError("Import of non-existent variable 'projenv'")
+
+    env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
+    exec(  # noqa: S102
+        compile(_SCRIPT.read_text(), "pch.py", "exec"),
+        {"Import": strict_import, "env": env},
+    )
+    assert not (proj / "esphome_pch.h").exists()
+
+
+def test_pch_script_ignores_library_trees_and_non_headers(tmp_path: Path) -> None:
+    """.piolibdeps and non-header files must not enter the digest (or be
+    read at all); package versions already cover library identity."""
+    proj = tmp_path / "dev"
+    libdeps = proj / ".piolibdeps" / "lib" / "src"
+    libdeps.mkdir(parents=True)
+    (libdeps / "lib.h").write_text("#define A 1\n")
+    override = proj / "lwip_override"
+    override.mkdir(parents=True)
+    (override / "lwipopts.h").write_text("#define TCP_MSS 1460\n")
+    (override / "notes.txt").write_text("v1\n")
+    flags = ["-DX=1", "-I", str(libdeps), "-I", str(override)]
+    _run_script(tmp_path, flags=flags)
+    first = (proj / "esphome_pch.h.gch.sum").read_text()
+    (libdeps / "lib.h").write_text("#define A 2\n")
+    (override / "notes.txt").write_text("v2\n")
+    (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
+    _run_script(tmp_path, flags=flags)
+    assert (proj / "esphome_pch.h.gch.sum").read_text() == first
 
 
 def test_pch_script_hashes_project_local_include_dirs(tmp_path: Path) -> None:
