@@ -49,14 +49,6 @@ _W5500_SPI_ID_CONFIG = {
 }
 
 
-@pytest.fixture(autouse=True)
-def _reset_full_config():
-    """Reset fv.full_config so each test starts with a clean slate."""
-    token = fv.full_config.set({})
-    yield
-    fv.full_config.reset(token)
-
-
 def _set_esp32_s3(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(
         PlatformFramework.ESP32_IDF,
