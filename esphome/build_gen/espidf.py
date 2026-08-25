@@ -31,12 +31,16 @@ list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
 
-def get_available_components_with_dirs() -> dict[str, str] | None:
+def get_available_components_with_dirs(
+    root: Path | None = None,
+) -> dict[str, str] | None:
     """Map built-in ESP-IDF component names to their source directories.
 
     Read from ``project_description.json``. Excludes ``src``, IDF-managed
     components (``managed_components/``), and converted PIO libs
-    (``pio_components/``). Returns ``None`` if the build dir or
+    (``pio_components/``). With ``root`` only components below that
+    directory are kept, which drops project local ones such as the Arduino
+    ``component_stubs``. Returns ``None`` if the build dir or
     ``project_description.json`` isn't ready yet.
     """
     if CORE.build_path is None:
@@ -61,6 +65,8 @@ def get_available_components_with_dirs() -> dict[str, str] | None:
             comp_dir = info.get("dir", "")
             if "managed_components" in comp_dir or "pio_components" in comp_dir:
                 continue
+            if root is not None and not Path(comp_dir).resolve().is_relative_to(root):
+                continue
 
             result[name] = comp_dir
 
@@ -80,7 +86,7 @@ def get_available_components() -> list[str] | None:
 
 def has_discovered_components() -> bool:
     """Check if we have discovered components from a previous configure."""
-    return get_available_components() is not None
+    return get_available_components_with_dirs() is not None
 
 
 def _cmake_quote(value: str) -> str:
@@ -100,8 +106,6 @@ def get_project_cmakelists(
     ``builtin_components`` supplies the discovered list (from the cache)
     instead of reading it from ``project_description.json``.
     """
-    if builtin_components is None:
-        builtin_components = get_available_components()
     idf_target = variant_to_idf_target(get_esp32_variant())
 
     # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
@@ -177,9 +181,11 @@ def get_project_cmakelists(
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(
-                set(builtin_components or []).difference(
-                    CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";")
-                )
+                set(
+                    builtin_components
+                    if builtin_components is not None
+                    else get_available_components() or []
+                ).difference(CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";"))
             )
         )
     )

@@ -272,63 +272,91 @@ def _builtin_component_cache_path() -> Path | None:
     excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
     excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
     return (
-        _get_idf_path(_get_core_framework_version())
-        / ".esphome_component_lists"
-        / f"{target}-{excluded_key}.json"
+        _get_idf_path() / ".esphome_component_lists" / f"{target}-{excluded_key}.json"
     )
 
 
 def load_cached_builtin_components() -> list[str] | None:
     """Return the cached built-in component list for this build, if valid.
 
-    Every name must still be a directory under ``$IDF_PATH/components`` so a
-    stale entry is treated as a miss instead of failing the configure.
+    Every name must still exist under ``$IDF_PATH/components`` so a stale
+    entry is treated as a miss instead of failing the configure.
     """
     if (path := _builtin_component_cache_path()) is None:
         return None
     try:
         components = json.loads(path.read_text(encoding="utf-8"))
+        present = {entry.name for entry in (path.parents[1] / "components").iterdir()}
     except (OSError, ValueError):
         return None
-    components_dir = _get_idf_path(_get_core_framework_version()) / "components"
-    if not (
+    if (
         isinstance(components, list)
-        and all(
-            isinstance(c, str) and (components_dir / c).is_dir() for c in components
-        )
+        and all(isinstance(c, str) for c in components)
+        and present.issuperset(components)
     ):
-        return None
-    return components
+        return components
+    return None
 
 
 def save_cached_builtin_components() -> list[str] | None:
     """Store the components discovered by the last configure and return them.
 
-    Only components that live in ``$IDF_PATH/components`` are kept; project
-    local ones (Arduino ``component_stubs``, ``override_path`` entries) are
+    Only components under ``$IDF_PATH/components`` are kept; project local
+    ones (Arduino ``component_stubs``, ``override_path`` entries) are
     reachable through the manifest and must not leak into other builds.
     """
     from esphome.build_gen.espidf import get_available_components_with_dirs
 
     if (path := _builtin_component_cache_path()) is None:
         return None
-    if (components := get_available_components_with_dirs()) is None:
+    root = (path.parents[1] / "components").resolve()
+    components = get_available_components_with_dirs(root)
+    if not components:
         return None
-    idf_path = _get_idf_path(_get_core_framework_version())
-    roots = {idf_path / "components", idf_path.resolve() / "components"}
-    builtin = sorted(
-        name
-        for name, comp_dir in components.items()
-        if any(Path(comp_dir).is_relative_to(root) for root in roots)
-    )
-    if not builtin:
-        _LOGGER.debug("No components found under %s; not caching", roots)
-        return None
+    builtin = sorted(components)
     try:
         write_file(path, json.dumps(builtin, separators=(",", ":")))
     except EsphomeError as err:
         _LOGGER.debug("Could not write component list cache %s: %s", path, err)
     return builtin
+
+
+def _write_project_and_reconfigure(builtin_components: list[str] | None) -> int:
+    """Write the full CMakeLists.txt and run the configure for it."""
+    from esphome.build_gen.espidf import write_project
+
+    _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
+    write_project(minimal=False, builtin_components=builtin_components)
+    # Explicit reconfigure: ninja only re-runs cmake when CMakeLists.txt
+    # is strictly newer than build.ninja, which fails on coarse-mtime
+    # filesystems (#18682). Also keeps idf.py from regenerating memory.ld
+    # in testing mode.
+    return run_reconfigure()
+
+
+def _configure_project() -> int:
+    """Configure the project, discovering the built-in components if needed.
+
+    A cached component list skips the discovery configure. If the configure
+    with a cached list fails the entry is dropped and discovery runs once, so
+    a bad entry never poisons later builds.
+    """
+    from esphome.build_gen.espidf import write_project
+
+    if (cached := load_cached_builtin_components()) is not None:
+        _LOGGER.info("Using cached ESP-IDF component list")
+        if (rc := _write_project_and_reconfigure(cached)) == 0:
+            return 0
+        _LOGGER.warning("Cached component list failed; rediscovering")
+        _builtin_component_cache_path().unlink(missing_ok=True)
+    _LOGGER.info("Discovering available ESP-IDF components...")
+    write_project(minimal=True)
+    if (rc := run_reconfigure()) != 0:
+        _LOGGER.error("Component discovery failed")
+        return rc
+    if (rc := _write_project_and_reconfigure(save_cached_builtin_components())) != 0:
+        _LOGGER.error("Reconfigure with discovered components failed")
+    return rc
 
 
 def has_outdated_files():
@@ -463,38 +491,9 @@ def run_compile(config, verbose: bool) -> int:
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
-    from esphome.build_gen.espidf import write_project
-
-    def configure_with(builtin_components: list[str] | None) -> int:
-        _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
-        write_project(minimal=False, builtin_components=builtin_components)
-        # Explicit reconfigure: ninja only re-runs cmake when CMakeLists.txt
-        # is strictly newer than build.ninja, which fails on coarse-mtime
-        # filesystems (#18682). Also keeps idf.py from regenerating memory.ld
-        # in testing mode.
-        return run_reconfigure()
-
     # Check if we need to do discovery phase
     if need_reconfigure():
-        cached = load_cached_builtin_components()
-        rc = 1
-        if cached is not None:
-            _LOGGER.info("Using cached ESP-IDF component list")
-            rc = configure_with(cached)
-            if rc != 0:
-                # Never leave a poisoned entry behind: drop it and discover again.
-                _LOGGER.warning("Cached component list failed; rediscovering")
-                _builtin_component_cache_path().unlink(missing_ok=True)
-        if rc != 0:
-            _LOGGER.info("Discovering available ESP-IDF components...")
-            write_project(minimal=True)
-            rc = run_reconfigure()
-            if rc != 0:
-                _LOGGER.error("Component discovery failed")
-                return rc
-            rc = configure_with(save_cached_builtin_components())
-        if rc != 0:
-            _LOGGER.error("Reconfigure with discovered components failed")
+        if (rc := _configure_project()) != 0:
             return rc
         # cmake does not rewrite CMakeCache.txt when only properties change,
         # so restamp it or every build repeats discovery. Only after success,

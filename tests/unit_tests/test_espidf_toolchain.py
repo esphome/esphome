@@ -394,16 +394,20 @@ def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
 def _record_compile_calls(
     cached: list[str] | None,
     saved: list[str] | None = None,
-    reconfigure_rcs: tuple[int, ...] = (0, 0, 0),
+    reconfigure_rcs: tuple[int, ...] = (),
     cache_file: Path | None = None,
 ) -> tuple[int, list[tuple]]:
-    """Run run_compile with a stubbed cache and return (rc, call log)."""
+    """Run run_compile with a stubbed cache and return (rc, call log).
+
+    ``reconfigure_rcs`` overrides the exit codes of the first reconfigures;
+    later ones succeed.
+    """
     calls: list[tuple] = []
     rcs = iter(reconfigure_rcs)
 
     def record_reconfigure() -> int:
         calls.append(("run_reconfigure",))
-        return next(rcs)
+        return next(rcs, 0)
 
     def record_write(minimal: bool = False, builtin_components=None) -> None:
         calls.append(("write_project", minimal, builtin_components))
@@ -423,7 +427,11 @@ def _record_compile_calls(
         patch.object(
             toolchain, "_builtin_component_cache_path", return_value=cache_file
         ),
-        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(
+            toolchain,
+            "run_idf_py",
+            side_effect=lambda *a, **kw: calls.append(("build",)) or 0,
+        ),
         patch.object(toolchain, "print_summary"),
     ):
         rc = toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
@@ -439,7 +447,7 @@ def test_run_compile_poisoned_cache_is_dropped_and_rediscovered(
     cache_file = tmp_path / "esp32-abc.json"
     cache_file.write_text("[]")
     rc, calls = _record_compile_calls(
-        ["stale"], saved=["lwip"], reconfigure_rcs=(1, 0, 0), cache_file=cache_file
+        ["stale"], saved=["lwip"], reconfigure_rcs=(1,), cache_file=cache_file
     )
     assert rc == 0
     assert not cache_file.exists()
@@ -451,6 +459,7 @@ def test_run_compile_poisoned_cache_is_dropped_and_rediscovered(
         ("save",),
         ("write_project", False, ["lwip"]),
         ("run_reconfigure",),
+        ("build",),
     ]
 
 
@@ -466,6 +475,7 @@ def test_run_compile_cache_miss_discovers_and_saves(setup_core: Path) -> None:
         ("save",),
         ("write_project", False, ["lwip"]),
         ("run_reconfigure",),
+        ("build",),
     ]
 
 
@@ -473,27 +483,11 @@ def test_run_compile_discovery_failure_stops_before_full_write(
     setup_core: Path,
 ) -> None:
     """A failed discovery configure returns its exit code and never writes
-    the full CMakeLists or a cache entry."""
+    the full CMakeLists, a cache entry or a build."""
     _setup_build(setup_core)
-    calls: list[tuple] = []
-    with (
-        patch.object(toolchain, "need_reconfigure", return_value=True),
-        patch.object(toolchain, "load_cached_builtin_components", return_value=None),
-        patch.object(toolchain, "save_cached_builtin_components") as save,
-        patch(
-            "esphome.build_gen.espidf.write_project",
-            side_effect=lambda minimal=False, builtin_components=None: calls.append(
-                ("write_project", minimal)
-            ),
-        ),
-        patch.object(toolchain, "run_reconfigure", return_value=2),
-        patch.object(toolchain, "run_idf_py", return_value=0) as build,
-        patch.object(toolchain, "print_summary"),
-    ):
-        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 2
-    assert calls == [("write_project", True)]
-    save.assert_not_called()
-    build.assert_not_called()
+    rc, calls = _record_compile_calls(None, reconfigure_rcs=(2,))
+    assert rc == 2
+    assert calls == [("write_project", True, None), ("run_reconfigure",)]
 
 
 def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:
@@ -505,6 +499,7 @@ def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:
     assert calls == [
         ("write_project", False, ["esp_timer", "lwip"]),
         ("run_reconfigure",),
+        ("build",),
     ]
 
 
@@ -515,7 +510,6 @@ def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
     idf_path = tmp_path / "idf"
     (idf_path / "components").mkdir(parents=True, exist_ok=True)
     with (
-        patch.object(toolchain, "_get_core_framework_version", return_value="5.5.5"),
         patch.object(toolchain, "_get_idf_path", return_value=idf_path),
         patch.dict(CORE.data, {KEY_ESP32: {KEY_VARIANT: "ESP32"}}),
         patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": excluded}),
@@ -526,8 +520,7 @@ def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
 def test_component_cache_round_trip_keeps_only_idf_components(
     setup_core: Path, tmp_path: Path
 ) -> None:
-    """Saved lists hold only components under $IDF_PATH/components; Arduino
-    stubs and local override_path components stay out."""
+    """A saved list is read back until it is dropped."""
     _setup_build(setup_core)
     with _cache_env(tmp_path, "fatfs") as idf_path:
         for name in ("lwip", "esp_timer"):
@@ -535,7 +528,6 @@ def test_component_cache_round_trip_keeps_only_idf_components(
         components = {
             "lwip": str(idf_path / "components" / "lwip"),
             "esp_timer": str(idf_path / "components" / "esp_timer"),
-            "cbor": str(setup_core / "build" / "test" / "component_stubs" / "cbor"),
         }
         with patch(
             "esphome.build_gen.espidf.get_available_components_with_dirs",
@@ -596,7 +588,7 @@ def test_component_cache_never_stores_an_empty_list(
         _cache_env(tmp_path, "") as idf_path,
         patch(
             "esphome.build_gen.espidf.get_available_components_with_dirs",
-            return_value={"cbor": str(setup_core / "component_stubs" / "cbor")},
+            return_value={},
         ),
     ):
         assert toolchain.save_cached_builtin_components() is None

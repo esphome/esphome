@@ -110,6 +110,24 @@ def test_get_available_components_with_dirs_maps_names_to_dirs(tmp_path: Path) -
     assert get_available_components_with_dirs() == {"lwip": "/idf/components/lwip"}
 
 
+def test_get_available_components_with_dirs_filters_by_root(tmp_path: Path) -> None:
+    """With a root only components below it are kept; Arduino stubs and
+    override_path components outside the IDF tree drop out."""
+    idf = tmp_path / "idf"
+    (idf / "components" / "lwip").mkdir(parents=True)
+    _write_project_description(
+        tmp_path,
+        {
+            "lwip": str(idf / "components" / "lwip"),
+            "cbor": str(tmp_path / "build" / "component_stubs" / "cbor"),
+        },
+    )
+    from esphome.build_gen.espidf import get_available_components_with_dirs
+
+    assert list(get_available_components_with_dirs(idf / "components")) == ["lwip"]
+    assert sorted(get_available_components_with_dirs()) == ["cbor", "lwip"]
+
+
 def test_get_available_components_with_dirs_ignores_corrupt_file(
     tmp_path: Path,
 ) -> None:
