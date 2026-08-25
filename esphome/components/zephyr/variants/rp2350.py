@@ -39,6 +39,13 @@ _DEFAULT_BOARD = "rpi_pico2"
 # supply the fully qualified board themselves, e.g. board: rpi_pico2/rp2350a/m33/mcuboot.
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 
+# GPIO -> RP2350 ADC channel index. Same fixed-function silicon mapping as RP2040
+# (see variants/rp2040.py): only GPIO26-29 route to the ADC, channel = pin - 26.
+# Confirmed against Zephyr's raspberrypi,pico-adc binding and
+# rpi-pico-rp2350a-pinctrl.h's ADC_CH0_P26..ADC_CH3_P29 macros (identical names to
+# RP2040's header).
+_ADC_CHANNEL_MAP = {26: 0, 27: 1, 28: 2, 29: 3}
+
 VARIANT_NAME = ZEPHYR_VARIANT_RP2350
 VARIANT = ZephyrVariant(
     sdk=MAINLINE,
@@ -57,6 +64,7 @@ VARIANT = ZephyrVariant(
     qualifier="m33",
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
+    adc1_channel_map=_ADC_CHANNEL_MAP,
     # A single "pwm" controller node covers all 8 slices reachable within the 30
     # GPIOs this variant exposes (P0-P29) -- repeat the label once per slice so
     # zephyr_pwm's block-count math (len(pwm_node_labels)) still works unmodified.

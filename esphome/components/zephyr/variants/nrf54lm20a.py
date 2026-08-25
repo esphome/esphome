@@ -33,6 +33,27 @@ _DEFAULT_BOARD = "nrf54lm20dk"
 
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
+# GPIO -> nRF54LM20A SAADC analog-input name. Fixed silicon fact (AIN0-AIN7 datasheet
+# pin assignment) -- not discoverable from any board's DTS, same reasoning as nrf52's
+# own _ADC_AIN_MAP. Cross-checked against Nordic's nRF54LM20A/nRF54LM20B datasheet
+# v1.0 (QFN52 pinout table): P1.00/AIN0, P1.31/AIN1, P1.30/AIN2, P1.29/AIN3, P1.06/AIN4,
+# P1.05/AIN5, P1.04/AIN6, P1.03/AIN7. Non-monotonic pin order is a real silicon fact,
+# unlike nrf54l15's contiguous AIN0-AIN7 -- confirmed directly against the datasheet's
+# pin assignment table, not just the pinout diagram.
+# Unlike nrf52 (single GPIO port, so pin number == AIN's flat GPIO number directly),
+# these pins are all on P1 -- flat number is port * gpio_port_width(32) + pin, e.g.
+# P1.00 -> 32.
+_ADC_AIN_MAP = {
+    32: "AIN0",  # P1.00
+    63: "AIN1",  # P1.31
+    62: "AIN2",  # P1.30
+    61: "AIN3",  # P1.29
+    38: "AIN4",  # P1.06
+    37: "AIN5",  # P1.05
+    36: "AIN6",  # P1.04
+    35: "AIN7",  # P1.03
+}
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NRF54LM20A
 VARIANT = ZephyrVariant(
@@ -55,6 +76,7 @@ VARIANT = ZephyrVariant(
     # scratch_partition, and move/offset don't need one.
     # offset is untested on hardware as of 2026-08-02, update this comment when tested.
     swap_methods=frozenset({"move", "offset"}),
+    adc_ain_map=_ADC_AIN_MAP,
     # nrf54lm20_a_b.dtsi (SoC-level) defines uart20-uart24; there is no uart0/uart1 node
     # on this SoC. uart20 is nrf54lm20dk's own console (VCOM0); uart21 isn't pinctrl'd by
     # the DK board itself but is a real SoC instance (e.g. wired to header pins on the
