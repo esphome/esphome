@@ -1719,8 +1719,8 @@ def pio_core_dir(tmp_path: Path) -> Path:
 
 
 def test_current_python_minor_matches_running_interpreter() -> None:
-    """_current_python_minor returns major.minor of the running interpreter."""
-    assert toolchain._current_python_minor() == _CURRENT_MINOR
+    """current_python_minor returns major.minor of the running interpreter."""
+    assert toolchain.current_python_minor() == _CURRENT_MINOR
 
 
 def test_pio_stamp_round_trip(tmp_path: Path) -> None:
