@@ -1633,7 +1633,7 @@ def test_ccache_env_opt_in_with_working_binary(
     ):
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
-    assert "ccache" not in caplog.text.lower() or "Not decoded" in caplog.text
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 def test_ccache_env_opt_in_with_rejected_binary(
