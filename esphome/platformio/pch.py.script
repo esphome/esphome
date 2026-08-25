@@ -8,7 +8,11 @@ import subprocess
 import traceback
 
 # pylint: disable=E0602
-Import("env", "projenv")  # noqa: F821
+Import("env")  # noqa: F821
+try:
+    Import("projenv")  # noqa: F821
+except Exception:  # noqa: BLE001 -- not exported under -t nobuild
+    projenv = None
 
 # Precompile the src force-includes plus defines.h (which pulls in
 # Arduino.h on Arduino platforms) and force-include the result into C++ src
@@ -98,6 +102,8 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
 
 
 def _setup_pch() -> None:
+    if projenv is None:
+        return
     # Project root, not $BUILD_DIR: SCons compiles run with the project dir
     # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
     # An absolute path would put the per-device build path on every compile
@@ -179,9 +185,18 @@ def _setup_pch() -> None:
             inc_dir.is_dir()
             and inc_dir.is_relative_to(proj_dir)
             and not inc_dir.is_relative_to(src_dir)
+            # Library/build trees are versioned via the package digest above;
+            # walking them would read every library file on every build
+            and not inc_dir.is_relative_to(proj_dir / ".piolibdeps")
+            and not inc_dir.is_relative_to(proj_dir / ".pioenvs")
         ):
             continue
-        for local in sorted(p for p in inc_dir.rglob("*") if p.is_file()):
+        headers = (
+            p
+            for p in inc_dir.rglob("*")
+            if p.is_file() and p.suffix in (".h", ".hpp", ".hh", ".inc")
+        )
+        for local in sorted(headers):
             try:
                 data = local.read_bytes()
             except OSError as err:
@@ -235,8 +250,9 @@ def _setup_pch() -> None:
         failed_marker.unlink(missing_ok=True)
         sum_path.write_text(checksum + "\n", encoding="utf-8")
 
-    # Scoped to src compiles: framework/library TUs never consume the .gch
-    # and keep strict ccache hashing. User-set values win.
+    # projenv["ENV"] aliases os.environ under PlatformIO, so these reach
+    # framework/library TUs too; only time_macros affects non-pch TUs (the
+    # trade-off ccache_pch_env documents). User-set values win.
     for key, value in (
         ("CCACHE_SLOPPINESS", "pch_defines,time_macros"),
         ("CCACHE_PCH_EXTSUM", "true"),
