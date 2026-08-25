@@ -525,6 +525,52 @@ void IndicatorLine::update_length_() {
 }
 #endif
 
+#ifdef USE_LVGL_TABLE
+uint32_t lv_table_get_selected_row(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return row;
+}
+
+uint32_t lv_table_get_selected_column(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return column;
+}
+
+void LvTableType::set_obj(lv_obj_t *lv_obj) {
+  LvCompound::set_obj(lv_obj);
+  lv_obj_add_event_cb(
+      lv_obj,
+      [](lv_event_t *e) {
+        auto *table = static_cast<LvTableType *>(lv_event_get_user_data(e));
+        table->update_column_widths_();
+      },
+      LV_EVENT_SIZE_CHANGED, this);
+}
+
+void LvTableType::add_column_width_pct(uint32_t col, uint8_t pct) {
+  for (auto &i : this->column_pct_) {
+    if (i.col == col) {
+      i.pct = pct;
+      this->update_column_widths_();
+      return;
+    }
+  }
+  this->column_pct_.push_back({col, pct});
+  this->update_column_widths_();
+}
+
+void LvTableType::update_column_widths_() {
+  auto content_width = lv_obj_get_content_width(this->obj);
+  for (const auto &col : this->column_pct_) {
+    lv_table_set_column_width(this->obj, col.col, content_width * col.pct / 100);
+  }
+}
+#endif  // USE_LVGL_TABLE
+
 #ifdef USE_LVGL_KEY_LISTENER
 LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time) {
   this->drv_ = lv_indev_create();
