@@ -50,7 +50,7 @@ def _write_project_description(tmp_path: Path, components: dict[str, str]) -> No
     )
 
 
-def _render(minimal: bool = False) -> str:
+def _render(minimal: bool = False, builtin_components: list[str] | None = None) -> str:
     """Render the top-level CMakeLists with the standard variant/name patches."""
     with (
         patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
@@ -58,7 +58,9 @@ def _render(minimal: bool = False) -> str:
     ):
         from esphome.build_gen.espidf import get_project_cmakelists
 
-        return get_project_cmakelists(minimal=minimal)
+        return get_project_cmakelists(
+            minimal=minimal, builtin_components=builtin_components
+        )
 
 
 def test_get_available_components_returns_none_without_build_path() -> None:
@@ -92,6 +94,30 @@ def test_get_available_components_filters_src_managed_and_pio(tmp_path: Path) ->
     from esphome.build_gen.espidf import get_available_components
 
     assert sorted(get_available_components()) == ["esp_lcd", "freertos"]
+
+
+def test_get_available_components_with_dirs_maps_names_to_dirs(tmp_path: Path) -> None:
+    _write_project_description(
+        tmp_path,
+        {
+            "src": f"{tmp_path}/src",
+            "lwip": "/idf/components/lwip",
+            "espressif__mdns": f"{tmp_path}/managed_components/mdns",
+        },
+    )
+    from esphome.build_gen.espidf import get_available_components_with_dirs
+
+    assert get_available_components_with_dirs() == {"lwip": "/idf/components/lwip"}
+
+
+def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
+    """A cached list replaces project_description.json and is still filtered
+    by EXCLUDE_COMPONENTS."""
+    with patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": "fatfs;unity"}):
+        content = _render(builtin_components=["lwip", "fatfs", "esp_timer"])
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS esp_timer APPEND" in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS lwip APPEND" in content
+    assert "ESPHOME_PROJECT_BUILTIN_COMPONENTS fatfs APPEND" not in content
 
 
 def test_get_project_cmakelists_minimal_omits_builtin_components_property(

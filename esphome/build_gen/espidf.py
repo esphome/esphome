@@ -11,6 +11,7 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.core import CORE
+from esphome.espidf import variant_to_idf_target
 from esphome.framework_helpers import (
     get_project_compile_flags,
     get_project_cxx_compile_flags,
@@ -30,12 +31,13 @@ list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
 
-def get_available_components() -> list[str] | None:
-    """Get list of built-in ESP-IDF components from project_description.json.
+def get_available_components_with_dirs() -> dict[str, str] | None:
+    """Map built-in ESP-IDF component names to their source directories.
 
-    Excludes ``src``, IDF-managed components (``managed_components/``), and
-    converted PIO libs (``pio_components/``). Returns ``None`` if the build
-    dir or ``project_description.json`` isn't ready yet.
+    Read from ``project_description.json``. Excludes ``src``, IDF-managed
+    components (``managed_components/``), and converted PIO libs
+    (``pio_components/``). Returns ``None`` if the build dir or
+    ``project_description.json`` isn't ready yet.
     """
     if CORE.build_path is None:
         return None
@@ -49,7 +51,7 @@ def get_available_components() -> list[str] | None:
 
         component_info = data.get("build_component_info", {})
 
-        result = []
+        result: dict[str, str] = {}
         for name, info in component_info.items():
             # Exclude our own src component
             if name == "src":
@@ -60,11 +62,20 @@ def get_available_components() -> list[str] | None:
             if "managed_components" in comp_dir or "pio_components" in comp_dir:
                 continue
 
-            result.append(name)
+            result[name] = comp_dir
 
         return result
     except (json.JSONDecodeError, OSError):
         return None
+
+
+def get_available_components() -> list[str] | None:
+    """Get list of built-in ESP-IDF components from project_description.json.
+
+    See ``get_available_components_with_dirs``; returns ``None`` when that does.
+    """
+    components = get_available_components_with_dirs()
+    return None if components is None else list(components)
 
 
 def has_discovered_components() -> bool:
@@ -79,15 +90,19 @@ def _cmake_quote(value: str) -> str:
     return f'"{escaped}"'
 
 
-def get_project_cmakelists(minimal: bool = False) -> str:
+def get_project_cmakelists(
+    minimal: bool = False, builtin_components: list[str] | None = None
+) -> str:
     """Generate the top-level CMakeLists.txt for ESP-IDF project.
 
     When ``minimal`` is true, omit ``ESPHOME_PROJECT_BUILTIN_COMPONENTS``
     since ``project_description.json`` may be stale on the first write.
+    ``builtin_components`` supplies the discovered list (from the cache)
+    instead of reading it from ``project_description.json``.
     """
-    # Get IDF target from ESP32 variant (e.g., ESP32S3 -> esp32s3)
-    variant = get_esp32_variant()
-    idf_target = variant.lower().replace("-", "")
+    if builtin_components is None:
+        builtin_components = get_available_components()
+    idf_target = variant_to_idf_target(get_esp32_variant())
 
     # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
     # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
@@ -162,7 +177,7 @@ def get_project_cmakelists(minimal: bool = False) -> str:
         else "\n".join(
             f"idf_build_set_property(ESPHOME_PROJECT_BUILTIN_COMPONENTS {name} APPEND)"
             for name in sorted(
-                set(get_available_components() or []).difference(
+                set(builtin_components or []).difference(
                     CORE.cmake_args.get("EXCLUDE_COMPONENTS", "").split(";")
                 )
             )
@@ -279,7 +294,9 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 """
 
 
-def write_project(minimal: bool = False) -> None:
+def write_project(
+    minimal: bool = False, builtin_components: list[str] | None = None
+) -> None:
     """Write ESP-IDF project files."""
     mkdir_p(CORE.build_path)
     mkdir_p(CORE.relative_src_path())
@@ -287,7 +304,7 @@ def write_project(minimal: bool = False) -> None:
     # Write top-level CMakeLists.txt
     write_file_if_changed(
         CORE.relative_build_path("CMakeLists.txt"),
-        get_project_cmakelists(minimal=minimal),
+        get_project_cmakelists(minimal=minimal, builtin_components=builtin_components),
     )
 
     # Write component CMakeLists.txt in src/

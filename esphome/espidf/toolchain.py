@@ -1,6 +1,7 @@
 """ESP-IDF direct build API for ESPHome."""
 
 from dataclasses import dataclass, field
+import hashlib
 import json
 import logging
 import os
@@ -23,7 +24,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
-from esphome.helpers import add_git_ceiling_directory
+from esphome.helpers import add_git_ceiling_directory, write_file
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -256,6 +257,83 @@ def run_reconfigure() -> int:
     return run_idf_py(*_get_sdkconfig_args(), "reconfigure")
 
 
+def _builtin_component_cache_path() -> Path | None:
+    """Cache file for this build's built-in component list, or ``None`` when
+    IDF_PATH is unknown.
+
+    The discovered list is a function of the IDF checkout, the target and the
+    EXCLUDE_COMPONENTS set, so those form the key, together with the mtime of
+    ``$IDF_PATH/components`` so an added or removed component directory
+    invalidates the entry.
+    """
+    from esphome.espidf.framework import get_idf_tools_path
+
+    version = _get_core_framework_version()
+    idf_path = _get_idf_path(version)
+    if idf_path is None or not (components_dir := idf_path / "components").is_dir():
+        return None
+    key = hashlib.sha256(
+        json.dumps(
+            [
+                str(idf_path.resolve()),
+                version,
+                variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT]),
+                CORE.cmake_args.get("EXCLUDE_COMPONENTS", ""),
+                components_dir.stat().st_mtime_ns,
+            ]
+        ).encode()
+    ).hexdigest()[:16]
+    return get_idf_tools_path() / "component_lists" / f"{key}.json"
+
+
+def load_cached_builtin_components() -> list[str] | None:
+    """Return the cached built-in component list for this build, if valid.
+
+    Every name must still be a directory under ``$IDF_PATH/components`` so a
+    stale entry is treated as a miss instead of failing the configure.
+    """
+    if (path := _builtin_component_cache_path()) is None:
+        return None
+    try:
+        components = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    components_dir = _get_idf_path(_get_core_framework_version()) / "components"
+    if not (
+        isinstance(components, list)
+        and all(isinstance(c, str) and (components_dir / c).is_dir() for c in components)
+    ):
+        return None
+    return components
+
+
+def save_cached_builtin_components() -> list[str] | None:
+    """Store the components discovered by the last configure and return them.
+
+    Only components that live in ``$IDF_PATH/components`` are kept; project
+    local ones (Arduino ``component_stubs``, ``override_path`` entries) are
+    reachable through the manifest and must not leak into other builds.
+    """
+    from esphome.build_gen.espidf import get_available_components_with_dirs
+
+    if (path := _builtin_component_cache_path()) is None:
+        return None
+    if (components := get_available_components_with_dirs()) is None:
+        return None
+    idf_path = _get_idf_path(_get_core_framework_version())
+    roots = {idf_path / "components", idf_path.resolve() / "components"}
+    builtin = sorted(
+        name
+        for name, comp_dir in components.items()
+        if any(Path(comp_dir).is_relative_to(root) for root in roots)
+    )
+    try:
+        write_file(path, json.dumps(builtin, separators=(",", ":")))
+    except EsphomeError as err:
+        _LOGGER.debug("Could not write component list cache %s: %s", path, err)
+    return builtin
+
+
 def has_outdated_files():
     """Check if the build configuration is stale.
 
@@ -382,7 +460,9 @@ def run_compile(config, verbose: bool) -> int:
     """Compile the ESP-IDF project.
 
     Uses two-phase configure to auto-discover available components:
-    1. If no previous build, configure with minimal REQUIRES to discover components
+    1. If no previous build, configure with minimal REQUIRES to discover
+       components (skipped when a cached list for this IDF/target/exclusion
+       set exists)
     2. Regenerate CMakeLists.txt with discovered components
     3. Run full build
     """
@@ -390,14 +470,19 @@ def run_compile(config, verbose: bool) -> int:
 
     # Check if we need to do discovery phase
     if need_reconfigure():
-        _LOGGER.info("Discovering available ESP-IDF components...")
-        write_project(minimal=True)
-        rc = run_reconfigure()
-        if rc != 0:
-            _LOGGER.error("Component discovery failed")
-            return rc
+        builtin_components = load_cached_builtin_components()
+        if builtin_components is None:
+            _LOGGER.info("Discovering available ESP-IDF components...")
+            write_project(minimal=True)
+            rc = run_reconfigure()
+            if rc != 0:
+                _LOGGER.error("Component discovery failed")
+                return rc
+            builtin_components = save_cached_builtin_components()
+        else:
+            _LOGGER.info("Using cached ESP-IDF component list")
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
-        write_project(minimal=False)
+        write_project(minimal=False, builtin_components=builtin_components)
         # Explicit reconfigure: ninja only re-runs cmake when CMakeLists.txt
         # is strictly newer than build.ninja, which fails on coarse-mtime
         # filesystems (#18682). Also keeps idf.py from regenerating memory.ld
