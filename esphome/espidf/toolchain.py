@@ -262,9 +262,10 @@ def _builtin_component_cache_path() -> Path | None:
 
     The file lives inside the extracted framework directory so it is
     discarded together with that exact checkout (re-extract, source
-    override, clean); the target and the EXCLUDE_COMPONENTS set name it. A
-    checkout supplied through IDF_PATH is not managed by ESPHome and is never
-    cached.
+    override, clean-all); the target and the EXCLUDE_COMPONENTS set name it.
+    The sdkconfig is not part of the key: IDF components register regardless
+    of CONFIG_* options and only gate their sources on them. A checkout
+    supplied through IDF_PATH is not managed by ESPHome and is never cached.
     """
     if "IDF_PATH" in os.environ:
         return None
@@ -312,7 +313,7 @@ def _write_project_and_reconfigure(builtin_components: list[str] | None) -> int:
     """Write the full CMakeLists.txt and run the configure for it."""
     from esphome.build_gen.espidf import write_project
 
-    _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
+    _LOGGER.info("Writing CMakeLists.txt with the built-in component list...")
     write_project(minimal=False, builtin_components=builtin_components)
     # Explicit reconfigure: ninja only re-runs cmake when CMakeLists.txt
     # is strictly newer than build.ninja, which fails on coarse-mtime
@@ -342,10 +343,13 @@ def _configure_project() -> int:
         _LOGGER.error("Component discovery failed")
         return rc
     discovered = get_available_components()
+    if discovered is None:
+        _LOGGER.error("Component discovery produced no project_description.json")
+        return 1
     if (rc := _write_project_and_reconfigure(discovered)) != 0:
         _LOGGER.error("Reconfigure with discovered components failed")
         return rc
-    save_cached_builtin_components(discovered or [])
+    save_cached_builtin_components(discovered)
     return 0
 
 

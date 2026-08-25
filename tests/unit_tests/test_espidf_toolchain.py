@@ -313,6 +313,9 @@ def test_run_compile_restamps_cmakecache_after_discovery(setup_core: Path) -> No
         patch.object(toolchain, "need_reconfigure", return_value=True),
         patch.object(toolchain, "load_cached_builtin_components", return_value=None),
         patch.object(toolchain, "save_cached_builtin_components"),
+        patch(
+            "esphome.build_gen.espidf.get_available_components", return_value=["lwip"]
+        ),
         patch("esphome.build_gen.espidf.write_project"),
         patch.object(toolchain, "run_reconfigure", return_value=0),
         patch.object(toolchain, "run_idf_py", return_value=0),
@@ -335,6 +338,9 @@ def test_run_compile_discovery_without_cmakecache(setup_core: Path) -> None:
         patch.object(toolchain, "need_reconfigure", return_value=True),
         patch.object(toolchain, "load_cached_builtin_components", return_value=None),
         patch.object(toolchain, "save_cached_builtin_components"),
+        patch(
+            "esphome.build_gen.espidf.get_available_components", return_value=["lwip"]
+        ),
         patch("esphome.build_gen.espidf.write_project"),
         patch.object(toolchain, "run_reconfigure", return_value=0),
         patch.object(toolchain, "run_idf_py", return_value=0),
@@ -373,6 +379,9 @@ def test_run_compile_reconfigures_after_full_write_outside_testing_mode(
         patch.object(toolchain, "need_reconfigure", return_value=True),
         patch.object(toolchain, "load_cached_builtin_components", return_value=None),
         patch.object(toolchain, "save_cached_builtin_components"),
+        patch(
+            "esphome.build_gen.espidf.get_available_components", return_value=["lwip"]
+        ),
         patch("esphome.build_gen.espidf.write_project", side_effect=record_write),
         patch.object(toolchain, "run_reconfigure", side_effect=record_reconfigure),
         patch.object(toolchain, "run_idf_py", return_value=0) as mock_build,
@@ -498,6 +507,16 @@ def test_run_compile_does_not_cache_a_list_that_failed_to_configure(
     assert rc == 3
     assert ("save", ["lwip"]) not in calls
     assert ("build",) not in calls
+
+
+def test_run_compile_fails_when_discovery_leaves_no_manifest(
+    setup_core: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _setup_build(setup_core)
+    rc, calls = _record_compile_calls(None, saved=None)
+    assert rc == 1
+    assert calls == [("write_project", True, None), ("run_reconfigure",)]
+    assert "produced no project_description.json" in caplog.text
 
 
 def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:

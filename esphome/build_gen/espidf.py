@@ -57,9 +57,10 @@ def get_available_components_with_dirs() -> dict[str, str] | None:
         root = (Path(data["idf_path"]) / "components").resolve()
 
         result = {
-            name: info["dir"]
+            name: comp_dir
             for name, info in component_info.items()
-            if Path(info.get("dir", "")).resolve().is_relative_to(root)
+            if (comp_dir := info.get("dir"))
+            and Path(comp_dir).resolve().is_relative_to(root)
         }
         if not result:
             _LOGGER.warning("No ESP-IDF components found under %s", root)
