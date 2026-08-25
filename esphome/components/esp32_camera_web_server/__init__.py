@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PORT
 from esphome.types import ConfigType
@@ -44,3 +45,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(server.set_port(config[CONF_PORT]))
     cg.add(server.set_mode(config[CONF_MODE]))
     await cg.register_component(server, config)
+    # esp_http_server is excluded from IDF builds by default to save compile time
+    include_builtin_idf_component("esp_http_server")

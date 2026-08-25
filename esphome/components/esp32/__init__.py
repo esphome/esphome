@@ -237,6 +237,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
+    "esp_http_server",  # HTTP server - re-included by web_server_idf, esp32_camera_web_server
     "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
@@ -245,6 +246,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
+    "nvs_sec_provider",  # NVS encryption key provider - re-included when nvs_encryption is set
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
@@ -2856,6 +2858,7 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             "CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID", nvs_enc[CONF_KEY_ID]
         )
+        include_builtin_idf_component("nvs_sec_provider")
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 

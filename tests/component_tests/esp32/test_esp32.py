@@ -260,8 +260,13 @@ def test_esp32_configuration_errors(
         ),
         pytest.param(
             "exclusion_reincludes_web_server.yaml",
-            ("esp-tls",),
+            ("esp-tls", "esp_http_server"),
             id="web_server_idf",
+        ),
+        pytest.param(
+            "nvs_encryption_s3.yaml",
+            ("nvs_sec_provider",),
+            id="nvs_encryption",
         ),
         pytest.param(
             "exclusion_reincludes_nextion.yaml",
