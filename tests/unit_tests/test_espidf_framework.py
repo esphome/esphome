@@ -1602,15 +1602,18 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
         assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
-def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
-    # Explicit IDF_CCACHE_ENABLE=1 forces it on; the probe verdict is
-    # ignored but the resolver still runs for its no-binary warning.
+def test_ccache_env_opt_in_without_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Explicit IDF_CCACHE_ENABLE=1 forces it on; without a usable binary
+    # idf.py silently skips ccache, so this branch must say so out loud.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
     assert env["CCACHE_DEPEND"] == "1"
+    assert "no usable ccache binary" in caplog.text
 
 
 def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
