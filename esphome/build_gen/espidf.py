@@ -2,21 +2,12 @@
 
 import json
 import logging
-import os
 from pathlib import Path
-import subprocess
 
-from esphome.build_helpers.ccache import effective_ccache_basedir
-from esphome.build_helpers.idedata import (
-    CXX_SOURCE_SUFFIXES,
-    expand_response_files,
-    is_launcher,
-    split_command,
-)
+from esphome.build_helpers import pch
 from esphome.build_helpers.pch import (
     PCH_CORE_HEADER,
     PCH_HEADER_NAME,
-    pch_checksum,
     pch_enabled,
     pch_header_text,
 )
@@ -57,12 +48,6 @@ _PCH_HEADERS = (
 # Header and .gch/.sum sidecars, relative to the device dir; see
 # _pch_cmake() and prepare_pch() for the layout rationale
 _PCH_BUILD_HEADER = f"build/{PCH_HEADER_NAME}"
-
-# Compile-command tokens dropped when retargeting a TU's flags at the
-# prefix header: source/output/depfile flags with an argument, and the
-# argument-less depfile flags (the pch compile must not touch depfiles)
-_PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-o", "-c", "-MT", "-MF", "-MQ"})
-_PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
@@ -348,101 +333,15 @@ set_source_files_properties(${{app_sources}} PROPERTIES
 """
 
 
-def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] | None:
-    """The exact src C++ flags from compile_commands.json, retargeted at
-    the header; None (logged) when no configured C++ TU is available yet."""
-    try:
-        entries = json.loads(
-            (build_dir / "compile_commands.json").read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError) as err:
-        # Configure already succeeded, so an unusable DB is a real anomaly
-        _LOGGER.warning("No usable compile database, skipping pch: %s", err)
-        return None
-    if not isinstance(entries, list):
-        _LOGGER.warning("Malformed compile database, skipping pch")
-        return None
-    # Windows compile DBs use backslashes; normalize both sides
-    src_prefix = str(CORE.relative_src_path()).replace("\\", "/")
-    entry = next(
-        (
-            e
-            for e in entries
-            if isinstance(e, dict)
-            and e.get("file", "").replace("\\", "/").startswith(src_prefix)
-            and e.get("file", "").endswith(CXX_SOURCE_SUFFIXES)
-        ),
-        None,
-    )
-    if entry is None:
-        _LOGGER.warning("No src C++ entry in the compile database, skipping pch")
-        return None
-    tokens = expand_response_files(
-        split_command(entry.get("command", "")), Path(entry.get("directory", build_dir))
-    )
-    # A DB recorded with ccache enabled prefixes the compiler with the
-    # launcher; the .gch must be compiled directly
-    if tokens and is_launcher(tokens[0]):
-        tokens = tokens[1:]
-    if not tokens:
-        # An "arguments"-style or empty entry must skip cleanly, not spawn
-        # a compiler-less argv that warns on every build
-        _LOGGER.warning("Compile database entry has no usable command, skipping pch")
-        return None
-    args: list[str] = []
-    arg_it = iter(tokens)
-    for tok in arg_it:
-        if tok in _PCH_STRIP_FLAGS_WITH_ARG:
-            next(arg_it, None)
-            continue
-        if tok in _PCH_STRIP_FLAGS:
-            continue
-        if tok == "-include":
-            # Drop only the injected prefix; user force-includes must reach
-            # the .gch compile or GCC rejects it over the macro mismatch
-            inc = next(arg_it, "")
-            if not inc.endswith(PCH_HEADER_NAME):
-                args.extend(("-include", inc))
-            continue
-        args.append(tok)
-    return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)]
-
-
 def discard_pch() -> None:
-    """Remove the pch sidecars so a stale .gch is never consumed.
-
-    Bumps the header only when a .gch was actually removed: TUs compiled
-    against it have incomplete depfiles, while a repeat failure with no
-    .gch must not force a full rebuild every build.
-    """
-    header = CORE.relative_build_path(_PCH_BUILD_HEADER)
-    gch = Path(f"{header}.gch")
-    had_gch = gch.is_file()
-    gch.unlink(missing_ok=True)
-    Path(f"{gch}.sum").unlink(missing_ok=True)
-    if had_gch and header.is_file():
-        os.utime(header)
+    """Drop the pch sidecars in the IDF build dir."""
+    pch.discard_pch(CORE.relative_build_path("build"))
 
 
 def prepare_pch() -> None:
-    """Compile the prefix header's .gch and write its ccache .sum.
-
-    Runs right before ninja, after every reconfigure, so the flags in
-    compile_commands.json and the sdkconfig are the settled ones. The .sum
-    doubles as the freshness stamp and folds in the compile command, so a
-    flag-only change rebuilds the .gch. A failed compile falls back to the
-    plain header include.
-    """
+    """Build the .gch right before ninja, after every reconfigure, so the
+    compile_commands.json flags and the sdkconfig are the settled ones."""
     if not pch_enabled():
-        return
-    build_dir = CORE.relative_build_path("build")
-    header = CORE.relative_build_path(_PCH_BUILD_HEADER)
-    gch = Path(f"{header}.gch")
-    sum_path = Path(f"{gch}.sum")
-    cmd = _pch_compile_command(build_dir, header, gch)
-    if cmd is None:
-        # Freshness cannot be validated; a leftover .gch must not be consumed
-        discard_pch()
         return
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     try:
@@ -454,72 +353,17 @@ def prepare_pch() -> None:
             "Could not read %s for the pch checksum: %s", sdkconfig_path, err
         )
         sdkconfig = f"unreadable:{type(err).__name__}:{err.errno}"
-    # Stripped like ccache's own rewriting (a user CCACHE_BASEDIR wins) so
-    # identical configs hash identically across devices; the raw build path
-    # covers unresolved spellings in the compile DB
-    cmd_id = (
-        " ".join(cmd)
-        .replace(effective_ccache_basedir(), "")
-        .replace(str(CORE.build_path), "")
-    )
-    checksum = pch_checksum(
-        CORE.relative_src_path(),
+    pch.prepare_pch(
+        CORE.relative_build_path("build"),
         _PCH_HEADERS,
         (
-            # The closure is sorted, so root order only enters via the text
-            pch_header_text(_PCH_HEADERS),
             str(idf_version()),
             CORE.cpp_standard or "",
             sdkconfig,
             *get_project_compile_flags(),
             *get_project_cxx_compile_flags(),
-            cmd_id,
         ),
     )
-    if (
-        gch.is_file()
-        and sum_path.is_file()
-        and sum_path.read_text(encoding="utf-8").strip() == checksum
-    ):
-        return
-    failed_marker = Path(f"{gch}.failed")
-    if (
-        failed_marker.is_file()
-        and failed_marker.read_text(encoding="utf-8").strip() == checksum
-    ):
-        _LOGGER.info(
-            "Precompiled header disabled after an earlier failure; delete %s to retry",
-            failed_marker,
-        )
-        return
-    try:
-        result = subprocess.run(
-            cmd, cwd=build_dir, capture_output=True, text=True, check=False, timeout=300
-        )
-        error = None
-        if result.returncode != 0:
-            error = result.stderr.strip() or f"exit code {result.returncode}"
-        elif not gch.is_file():
-            error = "compiler produced no .gch"
-    except (OSError, subprocess.SubprocessError) as err:
-        # Transient (timeout, spawn/IO): warn and retry next build, no marker
-        _LOGGER.warning("Precompiled header compile did not run: %s", err)
-        discard_pch()
-        return
-    if error is not None:
-        _LOGGER.warning(
-            "Precompiled header failed; compiling without it: %s", error[:400]
-        )
-        discard_pch()
-        # Skip retries until a header/flag/sdkconfig/command change
-        failed_marker.write_text(checksum + "\n", encoding="utf-8")
-        os.utime(header)
-        return
-    failed_marker.unlink(missing_ok=True)
-    sum_path.write_text(checksum + "\n", encoding="utf-8")
-    # The OBJECT_DEPENDS edge watches the header; bump it so consumers of
-    # the previous .gch recompile
-    os.utime(header)
 
 
 def write_project(
