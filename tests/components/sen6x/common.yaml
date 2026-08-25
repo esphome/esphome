@@ -8,6 +8,16 @@ sensor:
     id: sen6x_sensor
     type: SEN69C
     i2c_id: i2c_bus
+    startup_delay: 30s
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    temperature_acceleration:
+      k: 20.0
+      p: 20.0
+      t1: 100.0
+      t2: 300.0
     temperature:
       name: Temperature
       accuracy_decimals: 1

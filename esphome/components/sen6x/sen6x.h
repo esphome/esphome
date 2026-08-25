@@ -20,6 +20,21 @@ struct GasTuning {
   uint16_t gain_factor;
 };
 
+// Raw values in the device's fixed-point encoding (offset x200, slope x10000)
+struct TemperatureCompensation {
+  int16_t offset;
+  int16_t normalized_offset_slope;
+  uint16_t time_constant;
+};
+
+// Raw values in the device's fixed-point encoding (all x10)
+struct TemperatureAcceleration {
+  uint16_t k;
+  uint16_t p;
+  uint16_t t1;
+  uint16_t t2;
+};
+
 class SEN6XComponent final : public PollingComponent, public sensirion_common::SensirionI2CDevice {
   SUB_SENSOR(pm_1_0)
   SUB_SENSOR(pm_2_5)
@@ -58,6 +73,9 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
                                          NOX_STD_INITIAL,
                                          gain_factor};
   }
+  void set_startup_delay(uint32_t delay_ms) { this->startup_delay_ms_ = delay_ms; }
+  void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant);
+  void set_temperature_acceleration(float k, float p, float t1, float t2);
   void set_automatic_self_calibration(bool enabled) { this->co2_asc_ = enabled; }
   void set_altitude_compensation(uint16_t altitude) { this->altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(uint16_t pressure_hpa) { this->ambient_pressure_ = pressure_hpa; }
@@ -70,6 +88,8 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   bool write_config_words_(uint16_t i2c_command, const uint16_t *data, uint8_t len);
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);
   bool write_setup_register_(uint16_t i2c_command, uint16_t value);
+  bool write_temperature_compensation_(const TemperatureCompensation &compensation);
+  bool write_temperature_acceleration_(const TemperatureAcceleration &acceleration);
   bool update_ambient_pressure_compensation_(float pressure_hpa);
   void poll_data_ready_();
   void read_measurements_();
@@ -84,6 +104,9 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   optional<uint16_t> last_ambient_pressure_;
   sensor::Sensor *ambient_pressure_source_{nullptr};
   bool pressure_range_warned_{false};
+  optional<TemperatureCompensation> temperature_compensation_;
+  optional<TemperatureAcceleration> temperature_acceleration_;
+  uint32_t startup_delay_ms_{60000};
   uint8_t setup_step_index_{0};
   bool initialized_{false};
   std::string product_name_;

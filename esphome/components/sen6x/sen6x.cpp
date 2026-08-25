@@ -1,6 +1,7 @@
 #include "sen6x.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <cmath>
 
 namespace esphome::sen6x {
@@ -30,6 +31,8 @@ static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
 static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 static constexpr uint16_t SEN6X_CMD_VOC_ALGORITHM_TUNING = 0x60D0;
 static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
+static constexpr uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
+static constexpr uint16_t SEN6X_CMD_RHT_ACCELERATION_MODE = 0x6100;
 static constexpr uint16_t SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL = 0x6711;
 static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
@@ -182,8 +185,24 @@ void SEN6XComponent::run_next_setup_step_() {
         break;
       }
       [[fallthrough]];
-    // CO2 settings are skipped when setup() disabled the CO2 sensor for this variant
     case 2:
+      this->setup_step_index_++;
+      if (this->temperature_compensation_.has_value()) {
+        if (!this->write_temperature_compensation_(this->temperature_compensation_.value()))
+          return;
+        break;
+      }
+      [[fallthrough]];
+    case 3:
+      this->setup_step_index_++;
+      if (this->temperature_acceleration_.has_value()) {
+        if (!this->write_temperature_acceleration_(this->temperature_acceleration_.value()))
+          return;
+        break;
+      }
+      [[fallthrough]];
+    // CO2 settings are skipped when setup() disabled the CO2 sensor for this variant
+    case 4:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->co2_asc_.has_value()) {
         if (!this->write_setup_register_(SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL, this->co2_asc_.value() ? 1 : 0))
@@ -191,7 +210,7 @@ void SEN6XComponent::run_next_setup_step_() {
         break;
       }
       [[fallthrough]];
-    case 3:
+    case 5:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->altitude_compensation_.has_value()) {
         if (!this->write_setup_register_(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_.value()))
@@ -199,7 +218,7 @@ void SEN6XComponent::run_next_setup_step_() {
         break;
       }
       [[fallthrough]];
-    case 4:
+    case 6:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->ambient_pressure_.has_value()) {
         if (!this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, this->ambient_pressure_.value()))
@@ -215,6 +234,30 @@ void SEN6XComponent::run_next_setup_step_() {
   this->set_timeout(TIMEOUT_SETUP_STEP, CMD_EXEC_DELAY, [this]() { this->run_next_setup_step_(); });
 }
 
+void SEN6XComponent::set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
+  this->temperature_compensation_ =
+      TemperatureCompensation{static_cast<int16_t>(lroundf(offset * 200.0f)),
+                              static_cast<int16_t>(lroundf(normalized_offset_slope * 10000.0f)), time_constant};
+}
+
+void SEN6XComponent::set_temperature_acceleration(float k, float p, float t1, float t2) {
+  this->temperature_acceleration_ =
+      TemperatureAcceleration{static_cast<uint16_t>(lroundf(k * 10.0f)), static_cast<uint16_t>(lroundf(p * 10.0f)),
+                              static_cast<uint16_t>(lroundf(t1 * 10.0f)), static_cast<uint16_t>(lroundf(t2 * 10.0f))};
+}
+
+bool SEN6XComponent::write_temperature_compensation_(const TemperatureCompensation &compensation) {
+  // Word 4 selects compensation slot 0; other slots are not exposed
+  uint16_t params[4] = {static_cast<uint16_t>(compensation.offset),
+                        static_cast<uint16_t>(compensation.normalized_offset_slope), compensation.time_constant, 0};
+  return this->write_config_words_(SEN6X_CMD_TEMPERATURE_COMPENSATION, params, 4);
+}
+
+bool SEN6XComponent::write_temperature_acceleration_(const TemperatureAcceleration &acceleration) {
+  uint16_t params[4] = {acceleration.k, acceleration.p, acceleration.t1, acceleration.t2};
+  return this->write_config_words_(SEN6X_CMD_RHT_ACCELERATION_MODE, params, 4);
+}
+
 bool SEN6XComponent::write_setup_register_(uint16_t i2c_command, uint16_t value) {
   return this->write_config_words_(i2c_command, &value, 1);
 }
@@ -226,7 +269,7 @@ void SEN6XComponent::finish_setup_() {
     return;
   }
 
-  this->set_timeout(60000, [this]() { this->startup_complete_ = true; });
+  this->set_timeout(this->startup_delay_ms_, [this]() { this->startup_complete_ = true; });
   this->initialized_ = true;
   ESP_LOGD(TAG, "Initialized");
 }
@@ -261,6 +304,17 @@ void SEN6XComponent::dump_config() {
                 this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
                 this->firmware_version_minor_, this->address_);
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Startup delay: %" PRIu32 " ms", this->startup_delay_ms_);
+  if (this->temperature_compensation_.has_value()) {
+    const auto &comp = this->temperature_compensation_.value();
+    ESP_LOGCONFIG(TAG, "  Temperature compensation: offset=%.2f slope=%.4f time_constant=%us", comp.offset / 200.0f,
+                  comp.normalized_offset_slope / 10000.0f, comp.time_constant);
+  }
+  if (this->temperature_acceleration_.has_value()) {
+    const auto &accel = this->temperature_acceleration_.value();
+    ESP_LOGCONFIG(TAG, "  Temperature acceleration: K=%.1f P=%.1f T1=%.1f T2=%.1f", accel.k / 10.0f, accel.p / 10.0f,
+                  accel.t1 / 10.0f, accel.t2 / 10.0f);
+  }
   // Gate on the variant, not co2_sensor_: dump_config can run before the async setup
   // chain identifies the device and disables unsupported sensors
   const bool co2_supported = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C;
