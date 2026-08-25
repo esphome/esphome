@@ -147,7 +147,7 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
   static float compensated_pressure(uint32_t d1_raw_pressure, const struct CalibrationValues &calibration_values,
                                     const struct CompensatedTemperature &temperature_values);
 
-  ///
+  /// convert raw humidity value into correct range & apply temperature compensation calculation
   static float compensated_humidity(float humidity_float, float temperature_float);
 };
 
