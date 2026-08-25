@@ -115,6 +115,28 @@ def _setup_pch() -> None:
         digest.update(rel.encode())
         digest.update(closure[rel])
         digest.update(b"\0")
+    # Project-local include dirs outside src (e.g. rp2's lwip_override)
+    # hold generated headers the src closure cannot see; hash them so an
+    # ESPHome-side change invalidates an existing build dir
+    prev = ""
+    for tok in flags:
+        inc = tok[2:] if tok.startswith("-I") and len(tok) > 2 else ""
+        if prev == "-I":
+            inc = tok
+        prev = tok
+        if not inc:
+            continue
+        inc_dir = Path(inc)
+        if not (
+            inc_dir.is_dir()
+            and inc_dir.is_relative_to(proj_dir)
+            and not inc_dir.is_relative_to(src_dir)
+        ):
+            continue
+        for local in sorted(inc_dir.rglob("*.h")):
+            digest.update(str(local.relative_to(proj_dir)).encode())
+            digest.update(local.read_bytes())
+            digest.update(b"\0")
     checksum = digest.hexdigest()
 
     # The ccache .sum sidecar doubles as the freshness stamp

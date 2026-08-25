@@ -50,6 +50,12 @@ def ccache_pch_env() -> dict[str, str]:
     return {k: v for k, v in _CCACHE_PCH_ENV.items() if k not in os.environ}
 
 
+def pch_extra_scripts() -> list[str]:
+    """The extra_scripts entries a PlatformIO platform registers for the
+    pch; empty when disabled (the script itself has no enable check)."""
+    return ["post:pch.py"] if pch_enabled() else []
+
+
 def pch_header_text(include_headers: Iterable[str]) -> str:
     """The prefix-header source: exactly these includes, in order."""
     return "".join(f'#include "{name}"\n' for name in include_headers)
