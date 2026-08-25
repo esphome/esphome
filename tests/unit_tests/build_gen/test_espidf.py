@@ -110,6 +110,28 @@ def test_get_available_components_with_dirs_maps_names_to_dirs(tmp_path: Path) -
     assert get_available_components_with_dirs() == {"lwip": "/idf/components/lwip"}
 
 
+def test_get_available_components_with_dirs_ignores_corrupt_file(
+    tmp_path: Path,
+) -> None:
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    (build_dir / "project_description.json").write_text("{not json")
+    from esphome.build_gen.espidf import (
+        get_available_components_with_dirs,
+        has_discovered_components,
+    )
+
+    assert get_available_components_with_dirs() is None
+    assert not has_discovered_components()
+
+
+def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
+    _write_project_description(tmp_path, {"lwip": "/idf/components/lwip"})
+    from esphome.build_gen.espidf import has_discovered_components
+
+    assert has_discovered_components()
+
+
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:
     """A cached list replaces project_description.json and is still filtered
     by EXCLUDE_COMPONENTS."""

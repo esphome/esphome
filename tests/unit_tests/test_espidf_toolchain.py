@@ -438,6 +438,33 @@ def test_run_compile_cache_miss_discovers_and_saves(setup_core: Path) -> None:
     ]
 
 
+def test_run_compile_discovery_failure_stops_before_full_write(
+    setup_core: Path,
+) -> None:
+    """A failed discovery configure returns its exit code and never writes
+    the full CMakeLists or a cache entry."""
+    _setup_build(setup_core)
+    calls: list[tuple] = []
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=True),
+        patch.object(toolchain, "load_cached_builtin_components", return_value=None),
+        patch.object(toolchain, "save_cached_builtin_components") as save,
+        patch(
+            "esphome.build_gen.espidf.write_project",
+            side_effect=lambda minimal=False, builtin_components=None: calls.append(
+                ("write_project", minimal)
+            ),
+        ),
+        patch.object(toolchain, "run_reconfigure", return_value=2),
+        patch.object(toolchain, "run_idf_py", return_value=0) as build,
+        patch.object(toolchain, "print_summary"),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 2
+    assert calls == [("write_project", True)]
+    save.assert_not_called()
+    build.assert_not_called()
+
+
 def test_run_compile_cache_hit_skips_discovery(setup_core: Path) -> None:
     """A cached list goes straight to the full write; the explicit reconfigure
     after it (#18730) still runs."""
