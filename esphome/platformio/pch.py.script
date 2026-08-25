@@ -167,6 +167,32 @@ def _setup_pch() -> None:
             error = result.stderr if result.returncode != 0 else None
         except OSError as err:
             error = str(err)
+        if error is None:
+            # Some toolchains build a .gch they cannot load back (GCC 10 on
+            # macOS arm64 rejects it per-process: "had text segment at
+            # different address"); probe once so consumers never pay for a
+            # pch that every compile would silently reject
+            probe = subprocess.run(  # noqa: PLW1510
+                [
+                    cxx,
+                    *flags,
+                    "-MF",
+                    os.devnull,
+                    "-Winvalid-pch",
+                    "-include",
+                    str(header),
+                    "-fsyntax-only",
+                    "-x",
+                    "c++",
+                    "-",
+                ],
+                cwd=proj_dir,
+                input="",
+                capture_output=True,
+                text=True,
+            )
+            if ".gch" in probe.stderr:
+                error = f"toolchain cannot load the pch: {probe.stderr.strip()}"
         if error is not None:
             print("ESPHome: precompiled header failed; compiling without it")
             print(error)
