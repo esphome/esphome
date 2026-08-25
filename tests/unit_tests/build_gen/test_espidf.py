@@ -500,6 +500,13 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
         path = dev / "src" / header
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("")
+    # A real quoted include chain and a per-device-named sdkconfig with
+    # identical content: the closure and sdkconfig inputs must be exercised
+    (dev / "src" / "esphome" / "core" / "defines.h").write_text(
+        '#include "esphome/core/macros.h"\n'
+    )
+    (dev / "src" / "esphome" / "core" / "macros.h").write_text("#define M 1\n")
+    (dev / f"sdkconfig.{name}").write_text("CONFIG_X=y\n")
     build = dev / "build"
     build.mkdir(exist_ok=True)
     from esphome.build_helpers.pch import pch_header_text
@@ -736,3 +743,70 @@ def test_write_project_writes_pch_header(tmp_path: Path) -> None:
     assert (tmp_path / "build" / "esphome_pch.h").read_text() == pch_header_text(
         _PCH_HEADERS
     )
+
+
+def test_prepare_pch_stale_bailout_removes_gch(tmp_path: Path) -> None:
+    """A stale .gch must not survive when no compile command is available."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_s")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+    gch.write_bytes(b"stale")
+    (dev / "build" / "esphome_pch.h.gch.sum").write_text("stale-sum\n")
+    (dev / "build" / "compile_commands.json").unlink()
+    with patch.object(CORE, "name", "test"):
+        prepare_pch()
+    assert not gch.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+
+
+def test_prepare_pch_zero_exit_without_gch_is_failure(tmp_path: Path) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_z")
+    CORE.build_path = dev
+
+    def no_output(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=no_output),
+    ):
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_prepare_pch_bumps_header_for_object_depends(tmp_path: Path) -> None:
+    """The OBJECT_DEPENDS edge watches the header; a rebuilt .gch must bump
+    it so pch-consuming TUs recompile."""
+    import os as _os
+
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_t")
+    CORE.build_path = dev
+    header = dev / "build" / "esphome_pch.h"
+    gch = dev / "build" / "esphome_pch.h.gch"
+    _os.utime(header, (0, 0))
+    before = header.stat().st_mtime
+
+    def fake_compile(cmd, **kwargs):
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+    ):
+        prepare_pch()
+    assert header.stat().st_mtime > before
+
+
+def test_component_cmakelists_pch_object_depends() -> None:
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in content
