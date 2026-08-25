@@ -505,6 +505,9 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
     from esphome.build_helpers.pch import pch_header_text
 
     (build / "esphome_pch.h").write_text(pch_header_text(_PCH_HEADERS))
+    # Native separators: mixed f-string paths break the src-prefix match
+    # on Windows
+    src_file = str(dev / "src" / "a.cpp")
     (build / "compile_commands.json").write_text(
         json.dumps(
             [
@@ -513,9 +516,9 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
                     "command": (
                         "g++ -DX=1 -include esphome_pch.h "
                         "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj "
-                        f"-c {dev}/src/a.cpp"
+                        f'-c "{src_file}"'
                     ),
-                    "file": f"{dev}/src/a.cpp",
+                    "file": src_file,
                 }
             ]
         )
