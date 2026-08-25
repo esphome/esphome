@@ -609,8 +609,6 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     # A count alone can't catch an over-match/under-match that cancels out.
     missing = requested_sources - analyzed_sources
     covered = not missing
-    if covered and regenerated:
-        update_cache(cache_key_path, key)
 
     if failed:
         # Analyzer crashes/errors must not read as a clean run just because
@@ -633,6 +631,11 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             print(f"    {path}", file=sys.stderr)
         invalidate_stale_cache()
         return 1
+
+    # Only recorded once analyze/coverage are confirmed clean -- otherwise a
+    # regenerated database that produced failures would be cached as good.
+    if regenerated:
+        update_cache(cache_key_path, key)
 
     # Does not return the number of failed files, just pass/fail
     return (

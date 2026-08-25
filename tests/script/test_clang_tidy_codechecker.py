@@ -670,6 +670,47 @@ def test_run_codechecker_zephyr_keeps_reused_cache_on_success(
     assert reused_cache.exists()
 
 
+def test_run_codechecker_zephyr_does_not_cache_regenerated_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A regenerated database that produced analyzer failures must not be cached as good."""
+    work_dir = tmp_path / "zephyr-nrf52-adafruit"
+    cc_path = work_dir / "build" / "compile_commands.json"
+
+    def fake_generate(
+        work_dir: Path, platformio_ini: Path, source_files: list[str]
+    ) -> Path:
+        cc_path.parent.mkdir(parents=True, exist_ok=True)
+        cc_path.write_text("[]")
+        return cc_path
+
+    monkeypatch.setattr(
+        "esphome.components.nrf52.clang_tidy.generate_compile_commands",
+        fake_generate,
+    )
+    monkeypatch.setattr(clang_tidy_hash, "is_cached", lambda *a, **k: False)
+    update_cache_calls = []
+    monkeypatch.setattr(
+        clang_tidy_hash,
+        "update_cache",
+        lambda *a, **k: update_cache_calls.append((a, k)),
+    )
+
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            # All requested files covered, but one failed -- must not cache.
+            _write_metadata(output_dir, successful=0, failed=1)
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    assert update_cache_calls == []
+
+
 def test_run_codechecker_zephyr_regenerated_failure_does_not_crash(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
