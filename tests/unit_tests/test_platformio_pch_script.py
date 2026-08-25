@@ -56,7 +56,9 @@ class _FakeSConsEnv(dict):
 def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     """A compiler stand-in that records its argv and writes the -o target."""
     cxx = tmp_path / "fake-gxx"
-    body = 'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
+    body = (
+        'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
+    )
     if fail:
         body += "echo boom >&2\nexit 1\n"
     else:
