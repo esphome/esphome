@@ -12,7 +12,9 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
-from unittest.mock import MagicMock, Mock, patch
+import threading
+import time
+from unittest.mock import MagicMock, Mock, call, patch
 import zipfile
 
 import pytest
@@ -22,6 +24,7 @@ from esphome import framework_helpers
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
     _7z_extract_all,
+    _BatchDownloadProgress,
     _detect_archive_root,
     _rename_with_retry,
     _tar_extract_all,
@@ -36,6 +39,7 @@ from esphome.framework_helpers import (
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
+    run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
@@ -185,6 +189,24 @@ def test_run_command_passes_env(mock_subprocess_run: Mock) -> None:
     mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
     run_command(["cmd"], env={"MY_VAR": "42"})
     assert mock_subprocess_run.call_args[1]["env"]["MY_VAR"] == "42"
+
+
+def test_run_command_pops_inherited_pythonpath(mock_subprocess_run: Mock) -> None:
+    """A PYTHONPATH from the parent environment must not leak into subprocesses."""
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
+    with patch.dict(os.environ, {"PYTHONPATH": "/outside/site-packages"}):
+        run_command(["cmd"])
+    assert "PYTHONPATH" not in mock_subprocess_run.call_args[1]["env"]
+
+
+def test_run_command_env_pythonpath_preferred_over_pop(
+    mock_subprocess_run: Mock,
+) -> None:
+    """A PYTHONPATH set explicitly via ``env`` is passed through."""
+    mock_subprocess_run.return_value = Mock(returncode=0, stdout="", stderr="")
+    with patch.dict(os.environ, {"PYTHONPATH": "/outside/site-packages"}):
+        run_command(["cmd"], env={"PYTHONPATH": "/idf/tools"})
+    assert mock_subprocess_run.call_args[1]["env"]["PYTHONPATH"] == "/idf/tools"
 
 
 def test_run_command_passes_cwd(mock_subprocess_run: Mock, tmp_path: Path) -> None:
@@ -515,16 +537,23 @@ class TestArchiveExtractAll:
 # ---------------------------------------------------------------------------
 
 
-def _mock_response(content: bytes, ok: bool = True) -> MagicMock:
+def _mock_response(
+    content: bytes, ok: bool = True, status: int | None = None
+) -> MagicMock:
+    """A fake requests response. The HTTPError carries the response (as
+    ``raise_for_status`` on a real response) so the transient classifier
+    can see its ``status``; failures default to a permanent 404."""
+    if status is None:
+        status = 200 if ok else 404
     r = MagicMock()
     r.__enter__.return_value = r
     r.__exit__.return_value = False
-    r.status_code = 200
+    r.status_code = status
     r.ok = ok
     if ok:
         r.raise_for_status.return_value = None
     else:
-        r.raise_for_status.side_effect = req.HTTPError("503")
+        r.raise_for_status.side_effect = req.HTTPError(str(status), response=r)
     r.headers = {"content-length": "0"}  # suppress ProgressBar
     r.iter_content.return_value = [content] if content else []
     return r
@@ -1086,6 +1115,218 @@ class TestDownloadWithResume:
         assert mock_get.call_args[1]["headers"] == {}
         assert dest.read_bytes() == b"data"
 
+    def test_progress_callback_reports_absolute_bytes(self, tmp_path: Path) -> None:
+        """With a callback no bar is drawn; the callback sees the running
+        byte count of this file, then its final verified size."""
+        dest = tmp_path / "tool.tar.gz"
+        resp = _mock_response(b"")
+        resp.headers = {"content-length": "7"}
+        resp.iter_content.return_value = [b"1234", b"567"]
+        seen: list[int] = []
+        with (
+            patch("requests.get", return_value=resp),
+            patch("esphome.framework_helpers.ProgressBar") as bar_cls,
+        ):
+            download_with_resume(
+                "https://example.com/t", dest, size=7, progress=seen.append
+            )
+        assert seen == [0, 4, 7, 7]
+        bar_cls.assert_not_called()
+
+    def test_progress_callback_seeds_with_resume_offset(self, tmp_path: Path) -> None:
+        dest = tmp_path / "tool.tar.gz"
+        (tmp_path / "tool.tar.gz.part").write_bytes(b"12345")
+        good = hashlib.sha256(b"12345678").hexdigest()
+        seen: list[int] = []
+        with patch("requests.get", return_value=_resumed_response(b"678")):
+            download_with_resume(
+                "https://example.com/t", dest, sha256=good, size=8, progress=seen.append
+            )
+        assert seen[0] == 5
+        assert seen[-1] == 8
+
+    def test_progress_callback_credits_already_complete_download(
+        self, tmp_path: Path
+    ) -> None:
+        """A verified dest from an earlier run still counts toward the batch."""
+        dest = tmp_path / "tool.tar.gz"
+        dest.write_bytes(b"12345678")
+        seen: list[int] = []
+        with patch("requests.get") as mock_get:
+            download_with_resume(
+                "https://example.com/t", dest, size=8, progress=seen.append
+            )
+        mock_get.assert_not_called()
+        assert seen == [8]
+
+
+def test_run_batch_downloads_ctrl_c_aborts_in_flight_jobs() -> None:
+    """Ctrl-C cancels in-flight downloads at their next tick instead of
+    letting non-daemon workers download to completion."""
+    started = threading.Event()
+    ticks: list[int] = []
+
+    def interrupter(tracker) -> None:
+        started.wait(5)
+        raise KeyboardInterrupt
+
+    def slow_download(tracker) -> None:
+        started.set()
+        for i in range(500):
+            tracker(i)
+            ticks.append(i)
+            time.sleep(0.01)
+
+    t0 = time.monotonic()
+    with pytest.raises(KeyboardInterrupt):
+        run_batch_downloads(
+            "Downloading",
+            [("boom", 0, interrupter), ("slow", 0, slow_download)],
+            max_workers=2,
+        )
+    # Uncancelled, slow_download alone takes ~5s
+    assert time.monotonic() - t0 < 3
+    assert len(ticks) < 500
+
+
+def test_cancellation_escapes_broad_except_in_fetch() -> None:
+    """A fetch that wraps its work in except Exception cannot swallow the
+    Ctrl-C sentinel (it is a BaseException)."""
+    from esphome.framework_helpers import _BatchDownloadCancelled
+
+    started = threading.Event()
+    swallowed = []
+
+    def interrupter(tracker) -> None:
+        started.wait(5)
+        raise KeyboardInterrupt
+
+    def greedy_fetch(tracker) -> None:
+        started.set()
+        try:
+            for i in range(500):
+                tracker(i)
+                time.sleep(0.01)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            swallowed.append(err)
+
+    t0 = time.monotonic()
+    with pytest.raises(KeyboardInterrupt):
+        run_batch_downloads(
+            "Downloading",
+            [("boom", 0, interrupter), ("greedy", 0, greedy_fetch)],
+            max_workers=2,
+        )
+    assert time.monotonic() - t0 < 3
+    assert not swallowed
+    assert issubclass(_BatchDownloadCancelled, BaseException)
+    assert not issubclass(_BatchDownloadCancelled, Exception)
+
+
+def test_logging_guard_ends_the_bar_row_before_a_record() -> None:
+    r"""A worker warning gets its own line instead of the bar's \r row."""
+    stream = io.StringIO()
+    stream.isatty = lambda: True  # type: ignore[method-assign]
+    with patch("esphome.helpers.sys.stderr", stream):
+        progress = _BatchDownloadProgress("Downloading", 10)
+        progress.tracker()(5)
+        with progress.logging_guard():
+            logging.getLogger("esphome.test").warning("mirror retry")
+        # The partial 50% frame ended its line before the record was emitted
+        assert stream.getvalue().endswith("50% \n")
+        # And the next tick redraws the frame on a fresh row
+        progress.tracker()(2)
+        assert stream.getvalue().endswith("70% ")
+
+
+def test_logging_guard_without_a_bar_is_a_no_op() -> None:
+    """An unknown total draws no bar; the guard passes records through."""
+    progress = _BatchDownloadProgress("Downloading", 0)
+    with progress.logging_guard():
+        logging.getLogger("esphome.test").warning("plain record")
+
+
+def test_cancellable_sleep_sleeps_between_ticks() -> None:
+    """An uncancelled backoff actually waits out its delay in slices."""
+    from esphome.framework_helpers import _cancellable_sleep
+
+    ticks: list[int] = []
+    t0 = time.monotonic()
+    _cancellable_sleep(0.05, ticks.append, 3)
+    assert time.monotonic() - t0 >= 0.05
+    assert ticks and all(t == 3 for t in ticks)
+
+
+def test_cancellable_sleep_aborts_at_the_tick() -> None:
+    """A backoff sleep observes the cancellation raise promptly."""
+    from esphome.framework_helpers import _BatchDownloadCancelled, _cancellable_sleep
+
+    def cancelled_tick(done: int) -> None:
+        raise _BatchDownloadCancelled
+
+    t0 = time.monotonic()
+    with pytest.raises(_BatchDownloadCancelled):
+        _cancellable_sleep(30, cancelled_tick, 0)
+    assert time.monotonic() - t0 < 1
+
+
+class Test_BatchDownloadProgress:
+    def test_sums_trackers_into_one_bar(self) -> None:
+        with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
+            progress = _BatchDownloadProgress("Downloading", 100)
+            a = progress.tracker()
+            b = progress.tracker()
+            a(10)
+            b(20)
+            a(30)
+            a(0)  # a restart from zero takes that file's bytes back out
+        bar_cls.assert_called_once_with("Downloading")
+        updates = [c[0][0] for c in bar_cls.return_value.update.call_args_list]
+        assert updates == [0.1, 0.3, 0.5, 0.2]
+
+    def test_clamps_at_one(self) -> None:
+        """Sizes are advisory; an over-delivering server never pushes past 100%."""
+        with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
+            progress = _BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(25)
+        assert bar_cls.return_value.update.call_args[0][0] == 1
+
+    def test_unknown_total_draws_nothing(self) -> None:
+        with patch("esphome.framework_helpers.ProgressBar") as bar_cls:
+            progress = _BatchDownloadProgress("Downloading", 0)
+            progress.tracker()(5)
+            progress.done()
+        bar_cls.assert_not_called()
+
+    def test_done_ends_an_unfinished_bar(self) -> None:
+        """A batch that stops short of 100% (a failed archive) still ends its
+        line so the next log message starts on a fresh row."""
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            progress = _BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(5)
+            progress.done()
+        assert stream.getvalue().endswith("50% \n")
+
+    def test_done_before_any_frame_writes_nothing(self) -> None:
+        """A batch aborted before any tracker fired must not emit a stray
+        newline for a bar that was never drawn."""
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            _BatchDownloadProgress("Downloading", 10).done()
+        assert stream.getvalue() == ""
+
+    def test_done_after_full_bar_adds_nothing(self) -> None:
+        stream = io.StringIO()
+        stream.isatty = lambda: True  # type: ignore[method-assign]
+        with patch("esphome.helpers.sys.stderr", stream):
+            progress = _BatchDownloadProgress("Downloading", 10)
+            progress.tracker()(10)
+            progress.done()
+        assert stream.getvalue().endswith("100% Done...\r\n")
+
 
 class TestDownloadFromMirrors:
     def test_success_returns_url_and_writes_content(self, tmp_path: Path) -> None:
@@ -1097,6 +1338,22 @@ class TestDownloadFromMirrors:
             url = download_from_mirrors(["https://example.com/f"], {}, target)
         assert url == "https://example.com/f"
         assert target.read_bytes() == b"filedata"
+
+    def test_file_object_target_reports_progress(self) -> None:
+        """The library prefetch's production path: a file-object target
+        streams through the mirror fallback and ticks the tracker."""
+        buf = io.BytesIO()
+        ticks: list[int] = []
+        with patch(
+            "requests.get",
+            return_value=_mock_response(b"filedata"),
+        ):
+            url = download_from_mirrors(
+                ["https://example.com/f"], {}, buf, progress=ticks.append
+            )
+        assert url == "https://example.com/f"
+        assert buf.getvalue() == b"filedata"
+        assert ticks and ticks[-1] == len(b"filedata")
 
     def test_substitutions_applied_to_url(self, tmp_path: Path) -> None:
         with patch(
@@ -1418,6 +1675,197 @@ class TestDownloadFromMirrors:
             download_from_mirrors(["https://example.com/f"], {}, target)
         assert target.exists()
         assert target.read_bytes() == b""
+
+    @pytest.mark.parametrize("target_kind", ["path", "file-like"])
+    def test_transient_failure_retries_mirror_sweep(
+        self, tmp_path: Path, target_kind: str
+    ) -> None:
+        """A transient connect error on the only applicable mirror retries the
+        whole mirror list with backoff instead of failing the build."""
+        target = tmp_path / "idf.tar.xz" if target_kind == "path" else io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("Remote end closed connection"),
+                    _mock_response(b"data"),
+                ],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors(["https://mirror1.com/f"], {}, target)
+        assert url == "https://mirror1.com/f"
+        data = target.read_bytes() if target_kind == "path" else target.getvalue()
+        assert data == b"data"
+        assert mock_get.call_count == 2
+        mock_sleep.assert_called_once_with(2)
+
+    def test_backoff_tick_reports_filelike_bytes(self) -> None:
+        """For a file-like target the backoff tick carries f.tell(), so the
+        combined bar holds steady through the sweep retry."""
+        target = io.BytesIO()
+        ticks: list[int] = []
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("down"),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers._cancellable_sleep") as mock_sleep,
+        ):
+            download_from_mirrors(
+                ["https://mirror1.com/f"], {}, target, progress=ticks.append
+            )
+        # No bytes had streamed at backoff time, so the tick carries 0
+        assert mock_sleep.call_args == call(2, ticks.append, 0)
+        assert target.getvalue() == b"data"
+
+    def test_backoff_tick_reports_partial_bytes(self, tmp_path: Path) -> None:
+        """The backoff tick carries the bytes already in the part file, so a
+        combined bar holds steady instead of rewinding to zero."""
+        dest = tmp_path / "out.bin"
+        (tmp_path / "out.bin.part").write_bytes(b"12345")
+        ticks: list[int] = []
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("down"),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers._cancellable_sleep") as mock_sleep,
+        ):
+            download_from_mirrors(
+                ["https://mirror1.com/f"], {}, dest, progress=ticks.append
+            )
+        assert mock_sleep.call_args == call(2, ticks.append, 5)
+
+    def test_permanent_failure_does_not_retry_sweep(self, tmp_path: Path) -> None:
+        """An HTTP 404 will not heal on its own; fail after a single pass."""
+        with (
+            patch(
+                "requests.get", return_value=_mock_response(b"", ok=False, status=404)
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert mock_get.call_count == 1
+        mock_sleep.assert_not_called()
+
+    def test_transient_failure_exhausts_sweeps(self, tmp_path: Path) -> None:
+        """A persistent transient error gives up after the configured number
+        of passes, with 2s/4s backoff, and still lists the attempted URL."""
+        with (
+            patch("requests.get", side_effect=req.ConnectionError("down")) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert mock_get.call_count == 3
+        assert mock_sleep.call_args_list == [call(2), call(4)]
+        assert "https://mirror1.com/f" in str(ei.value)
+
+    def test_mixed_permanent_and_transient_retries_sweep(self, tmp_path: Path) -> None:
+        """One mirror 404s permanently while another hits a transient error;
+        the transient failure makes the whole list worth another pass."""
+        dest = tmp_path / "out.bin"
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _mock_response(b"", ok=False, status=404),
+                    req.ConnectionError("down"),
+                    _mock_response(b"", ok=False, status=404),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors(
+                ["https://mirror1.com/f", "https://mirror2.com/f"], {}, dest
+            )
+        assert url == "https://mirror2.com/f"
+        assert dest.read_bytes() == b"data"
+        mock_sleep.assert_called_once_with(2)
+
+    def test_http_5xx_retries_sweep(self, tmp_path: Path) -> None:
+        """A real 5xx (response attached to the HTTPError) is transient."""
+        dest = tmp_path / "out.bin"
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _mock_response(b"", ok=False, status=503),
+                    _mock_response(b"data"),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+        ):
+            url = download_from_mirrors(["https://mirror1.com/f"], {}, dest)
+        assert url == "https://mirror1.com/f"
+        assert dest.read_bytes() == b"data"
+        mock_sleep.assert_called_once_with(2)
+
+    def test_error_reports_failure_modes_from_all_sweeps(self, tmp_path: Path) -> None:
+        """A failure mode that changes between sweeps stays in the final
+        error; the first failure (the one that started the retries) is
+        chained as the cause."""
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    req.ConnectionError("dropped by middlebox"),
+                    _mock_response(b"", ok=False, status=404),
+                ],
+            ),
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="all mirrors") as ei,
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, tmp_path / "out.bin")
+        assert "dropped by middlebox" in str(ei.value)
+        assert "404" in str(ei.value)
+        assert isinstance(ei.value.__cause__, req.ConnectionError)
+        mock_sleep.assert_called_once_with(2)
+
+    def test_exhausted_mid_stream_attempts_not_swept(self) -> None:
+        """A file-like mirror that spent all its mid-stream attempts is not
+        retried again at the sweep level (unlike a path target, it has no
+        part file to resume from on a later sweep)."""
+        buf = io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[_interrupted_response(b"1234") for _ in range(3)],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="failed after 3 attempts"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert mock_get.call_count == 3
+        mock_sleep.assert_not_called()
+
+    def test_mid_stream_drop_then_connect_error_not_swept(self) -> None:
+        """A connect error on a later attempt (after a mid-stream drop spent
+        one) also counts as spent budget and does not re-arm the sweep."""
+        buf = io.BytesIO()
+        with (
+            patch(
+                "requests.get",
+                side_effect=[
+                    _interrupted_response(b"1234"),
+                    req.ConnectionError("down"),
+                ],
+            ) as mock_get,
+            patch("esphome.framework_helpers.time.sleep") as mock_sleep,
+            pytest.raises(EsphomeError, match="failed after 2 attempts"),
+        ):
+            download_from_mirrors(["https://mirror1.com/f"], {}, buf)
+        assert mock_get.call_count == 2
+        mock_sleep.assert_not_called()
 
 
 def test_importing_framework_helpers_does_not_import_requests() -> None:

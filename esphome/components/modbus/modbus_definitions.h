@@ -128,6 +128,19 @@ static_assert(MAX_RAW_SIZE + 2 == MAX_FRAME_SIZE, "a framed raw server payload m
 /// Bits pack 8 per data byte, rounded up to whole bytes.
 constexpr size_t packed_bit_bytes(size_t bits) { return (bits + 7) / 8; }
 
+// A coil/discrete-input read answers with byte count(1) + packed_bit_bytes(count) bytes, which has to fit
+// the raw frame body. The runtime check on that path catches a caller entering with bytes already written;
+// this catches the other way in, raising the ceiling past what a frame can carry.
+static_assert(1 + packed_bit_bytes(MAX_NUM_OF_COILS_TO_READ) <= MAX_RAW_SIZE,
+              "MAX_NUM_OF_COILS_TO_READ yields a read response larger than MAX_RAW_SIZE");
+static_assert(1 + packed_bit_bytes(MAX_NUM_OF_DISCRETE_INPUTS_TO_READ) <= MAX_RAW_SIZE,
+              "MAX_NUM_OF_DISCRETE_INPUTS_TO_READ yields a read response larger than MAX_RAW_SIZE");
+
+// The coil and discrete-input ceilings are separate limits in the spec but hold the same value, so the
+// read paths validate both against MAX_NUM_OF_COILS_TO_READ. Should the spec ever split them, this fires.
+static_assert(MAX_NUM_OF_COILS_TO_READ == MAX_NUM_OF_DISCRETE_INPUTS_TO_READ,
+              "the coil and discrete-input read ceilings must match");
+
 /** Read-only view of Modbus-packed bits: bit 0 of byte 0 is the first bit (LSB first), the layout
  * coil/discrete-input values use on the wire. Bundles the bit count with the packed bytes so the
  * two cannot desynchronize. The view does not own the bytes - it is only valid while they are.

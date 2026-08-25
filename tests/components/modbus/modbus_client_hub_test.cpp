@@ -322,14 +322,14 @@ TEST(ModbusClientHubPriority, ContinuousReadRequeuesOnSuccessOnly) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
   hub.force_send_next();
 
   // A matching successful response cycles the continuous entry back to READY.
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
 
   // An exception response ends the poll.
   hub.force_send_next();
@@ -346,13 +346,13 @@ TEST(ModbusClientHubPriority, RetriedContinuousReadStaysContinuous) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
   hub.force_send_next();
 
   hub.timeout_waiting();  // no response -> device requests retry
 
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);  // the retried poll stays continuous
+  EXPECT_TRUE(hub.queued(0).options.continuous);  // the retried poll stays continuous
 }
 
 // A one-shot duplicate downgrades a continuous poll to a one-shot (the mirror of a continuous
@@ -363,16 +363,16 @@ TEST(ModbusClientHubPriority, DuplicateSendDowngradesContinuous) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
 
   device.read_holding_registers(0x100, 2);  // one-shot duplicate downgrades the poll
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_FALSE(hub.queued(0).continuous);
+  EXPECT_FALSE(hub.queued(0).options.continuous);
   EXPECT_EQ(hub.queued(0).pending, 1u);
 
   // It runs one more cycle to serve the request, then stops - not re-queued as a poll.
   hub.force_send_next();
-  EXPECT_FALSE(hub.waiting_command().continuous);
+  EXPECT_FALSE(hub.waiting_command().options.continuous);
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   EXPECT_EQ(hub.queued_frames(), 0u);
@@ -407,16 +407,16 @@ TEST(ModbusClientHubPriority, DowngradeAfterTerminalKeepsRequestAlive) {
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
 
   hub.force_send_next();
   const uint8_t exception_response[] = {0x83, 0x02};
   hub.receive_frame_for_test(0x02, exception_response);  // exception ends the poll; on_error re-sends
 
-  EXPECT_EQ(device.error_count_, 1);       // one terminal delivered so far
-  ASSERT_EQ(hub.queued_frames(), 1u);      // the re-send survived the sweep instead of being erased
-  EXPECT_FALSE(hub.queued(0).continuous);  // downgraded to a one-shot
-  EXPECT_EQ(hub.queued(0).pending, 1u);    // debt restored so the request runs
+  EXPECT_EQ(device.error_count_, 1);               // one terminal delivered so far
+  ASSERT_EQ(hub.queued_frames(), 1u);              // the re-send survived the sweep instead of being erased
+  EXPECT_FALSE(hub.queued(0).options.continuous);  // downgraded to a one-shot
+  EXPECT_EQ(hub.queued(0).pending, 1u);            // debt restored so the request runs
 
   // And it runs to its own terminal - a good response this time - then the entry is gone.
   hub.force_send_next();
@@ -434,18 +434,18 @@ TEST(ModbusClientHubPriority, ContinuousRequestUpgradesQueuedDuplicate) {
 
   device.read_holding_registers(0x100, 2);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  ASSERT_FALSE(hub.queued(0).continuous);
+  ASSERT_FALSE(hub.queued(0).options.continuous);
 
   device.read_holding_registers(0x100, 2, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
 
   // And it behaves as a poll from here: success cycles it back to READY.
   hub.force_send_next();
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);
   ASSERT_EQ(hub.queued_frames(), 1u);
-  EXPECT_TRUE(hub.queued(0).continuous);
+  EXPECT_TRUE(hub.queued(0).options.continuous);
 }
 
 // The transmit order is one key with three levels: writes, then one-shot reads, then continuous
@@ -473,7 +473,7 @@ TEST(ModbusClientHubPriority, WritesThenOneShotReadsThenContinuousPolls) {
   EXPECT_EQ(hub.waiting_command().frame.pdu()[1], 0x02);  // then the one-shot read
   hub.timeout_waiting();
   hub.force_send_next();
-  EXPECT_TRUE(hub.waiting_command().continuous);  // and the poll takes what is left
+  EXPECT_TRUE(hub.waiting_command().options.continuous);  // and the poll takes what is left
 }
 
 // continuous is ignored for writes: the frame still sends at WRITE priority, once.
@@ -485,7 +485,7 @@ TEST(ModbusClientHubPriority, ContinuousIgnoredForWrites) {
   device.queue_pdu(write_pdu, {.continuous = true});
   ASSERT_EQ(hub.queued_frames(), 1u);
   EXPECT_EQ(hub.queued(0).priority(), CommandPriority::WRITE);
-  EXPECT_FALSE(hub.queued(0).continuous);
+  EXPECT_FALSE(hub.queued(0).options.continuous);
 }
 
 // A queued continuous poll does not count against immediate-send readiness: it ranks below every
@@ -496,7 +496,7 @@ TEST(ModbusClientHubPriority, ContinuousPollDoesNotBlockImmediateSend) {
 
   EXPECT_TRUE(hub.tx_buffer_empty());  // nothing queued
   device.read_holding_registers(0x100, 2, {.continuous = true});
-  ASSERT_TRUE(hub.queued(0).continuous);
+  ASSERT_TRUE(hub.queued(0).options.continuous);
   EXPECT_TRUE(hub.tx_buffer_empty());  // a READY continuous poll still leaves room to send now
 
   device.read_holding_registers(0x200, 2);  // a one-shot does count
@@ -682,6 +682,155 @@ TEST(ModbusClientHubSent, FiresOnWireNotOnQueue) {
   // The callback identifies which command transmitted: it carries the request PDU.
   EXPECT_EQ(device.last_sent_pdu_, (std::vector<uint8_t>(READ_PDU, READ_PDU + sizeof(READ_PDU))));
   EXPECT_TRUE(hub.waiting());
+}
+
+namespace {
+// Records on_sent / on_response / on_no_response so a broadcast's fire-and-forget completion
+// (on_sent, and no terminal) can be asserted.
+class BroadcastProbeDevice : public ModbusClientDevice {
+ public:
+  BroadcastProbeDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_count_++; }
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override {
+    this->response_count_++;
+    this->last_response_size_ = response_pdu.size();
+  }
+  bool on_no_response(std::span<const uint8_t> request_pdu) override {
+    this->no_response_count_++;
+    return false;
+  }
+  int sent_count_{0};
+  int response_count_{0};
+  int no_response_count_{0};
+  size_t last_response_size_{0};
+};
+}  // namespace
+
+// A broadcast (address 0) is never answered (Modbus 4.1), so the client treats it as fire-and-forget:
+// on_sent fires as the frame goes out, NO terminal (on_response/on_error/on_no_response) is delivered,
+// the hub is left NOT waiting - no timeout is burned - and the sweep erases the entry.
+TEST(ModbusClientHubBroadcast, CompletesAtTransmissionWithoutWaiting) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
+  ASSERT_TRUE(device.queue_pdu(write));
+  EXPECT_EQ(hub.queued_frames(), 1u);
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);         // the frame went on the wire
+  EXPECT_EQ(device.response_count_, 0);     // fire-and-forget: no terminal callback
+  EXPECT_EQ(device.no_response_count_, 0);  // and it never waited for a reply
+  EXPECT_FALSE(hub.waiting());              // no waiting slot occupied
+  EXPECT_EQ(hub.queued_frames(), 0u);       // and the entry is gone
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+namespace {
+// Keeps the DEFAULT on_response() (so the base typed dispatcher runs) and records the typed write
+// callback and the catch-all, to prove a broadcast reaches neither - only on_sent.
+class BroadcastTypedProbeDevice : public ModbusClientDevice {
+ public:
+  BroadcastTypedProbeDevice(ModbusClientHub *hub, uint8_t address) : ModbusClientDevice(hub, address) {}
+  void on_sent(std::span<const uint8_t> request_pdu) override { this->sent_count_++; }
+  void on_write_single_register(uint16_t address, uint16_t value, ResponseStatus status) override {
+    this->write_single_count_++;
+  }
+  void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          ResponseStatus status) override {
+    this->custom_count_++;
+  }
+  int sent_count_{0};
+  int write_single_count_{0};
+  int custom_count_{0};
+};
+}  // namespace
+
+// Completing a broadcast with an empty response({}) used to fall, for a device on the default
+// on_response(), through the typed dispatcher to on_custom_response() - firing the wrong callback and
+// logging a spurious "non-standard" warning. Fire-and-forget delivers no terminal at all, so a broadcast
+// write reaches neither the typed write callback nor the catch-all: only on_sent.
+TEST(ModbusClientHubBroadcast, DeliversNoTerminalToTypedDevice) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastTypedProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t write[] = {0x06, 0x00, 0x10, 0x00, 0x01};  // write single register 0x0010 = 0x0001
+  ASSERT_TRUE(device.queue_pdu(write));
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);          // on_sent still reports the transmission
+  EXPECT_EQ(device.write_single_count_, 0);  // no terminal: the typed write callback never fires
+  EXPECT_EQ(device.custom_count_, 0);        // and it is NOT diverted to the catch-all (no false warning)
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// A broadcast is only meaningful for a command that changes state; a broadcast READ could never be
+// answered, so the hub refuses it at the door (false return, no entry queued) rather than silently
+// retiring it. Writes, 0x17, and custom codes still go through (covered above).
+TEST(ModbusClientHubBroadcast, RefusesReadBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t read[] = {0x03, 0x00, 0x10, 0x00, 0x02};  // read holding registers 0x0010, count 2
+  EXPECT_FALSE(device.queue_pdu(read));                   // refused: a broadcast read is never answered
+  EXPECT_EQ(hub.entries(), 0u);                           // nothing entered the machine
+  EXPECT_FALSE(hub.waiting());
+
+  hub.send_next_for_test();          // nothing to send
+  EXPECT_EQ(device.sent_count_, 0);  // never transmitted
+}
+
+// The counterpart to RefusesReadBroadcast: a custom (user-defined) function code carries no reply the
+// hub knows how to expect, so a broadcast of one is accepted and completes fire-and-forget like a write.
+TEST(ModbusClientHubBroadcast, AcceptsCustomBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t custom[] = {0x41, 0x01, 0x02};  // FC 0x41: first user-defined function code space
+  ASSERT_TRUE(device.queue_pdu(custom));        // accepted: a custom code is not a read
+  EXPECT_EQ(hub.queued_frames(), 1u);
+
+  hub.send_next_for_test();  // transmit + sweep
+
+  EXPECT_EQ(device.sent_count_, 1);         // the frame went on the wire
+  EXPECT_EQ(device.response_count_, 0);     // fire-and-forget: no terminal callback
+  EXPECT_EQ(device.no_response_count_, 0);  // and it never waited for a reply
+  EXPECT_FALSE(hub.waiting());
+  EXPECT_EQ(hub.entries(), 0u);  // the entry is gone
+}
+
+// An exception-flagged custom code (0x80 bit set) is not a real request: is_function_code_custom() masks
+// the bit away and would accept it, but the broadcast guard excludes it, matching classify()'s handling
+// of an exception-flagged write.
+TEST(ModbusClientHubBroadcast, RefusesExceptionFlaggedCustomBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t exception_custom[] = {0xC1, 0x01, 0x02};  // 0x41 | 0x80: custom code with the exception bit
+  EXPECT_FALSE(device.queue_pdu(exception_custom));       // refused: exception-flagged, never a real broadcast
+  EXPECT_EQ(hub.entries(), 0u);                           // nothing entered the machine
+  EXPECT_FALSE(hub.waiting());
+
+  hub.send_next_for_test();          // nothing to send
+  EXPECT_EQ(device.sent_count_, 0);  // never transmitted
 }
 
 namespace {
@@ -1729,8 +1878,8 @@ TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) 
   const uint8_t ok_response[] = {0x03, 0x04, 0x00, 0x2A, 0x01, 0x00};
   hub.receive_frame_for_test(0x02, ok_response);  // handler re-sends the identical frame mid-completion
 
-  ASSERT_EQ(hub.queued_frames(), 1u);      // absorbed into the same entry, not a fresh twin
-  EXPECT_FALSE(hub.queued(0).continuous);  // the one-shot re-send downgraded the poll
+  ASSERT_EQ(hub.queued_frames(), 1u);              // absorbed into the same entry, not a fresh twin
+  EXPECT_FALSE(hub.queued(0).options.continuous);  // the one-shot re-send downgraded the poll
 }
 
 // An exception-flagged function code is never silently re-sendable, even though the read check

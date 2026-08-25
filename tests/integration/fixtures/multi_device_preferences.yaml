@@ -156,17 +156,10 @@ button:
           ESP_LOGI("test", "Device A Mode: %s", id(mode_device_a).current_option().c_str());
           ESP_LOGI("test", "Device B Mode: %s", id(mode_device_b).current_option().c_str());
           ESP_LOGI("test", "Main Mode: %s", id(mode_main).current_option().c_str());
-          // Log preference key bases for entities that actually store preferences.
-          // This is the key base make_entity_preference() uses: entity key XOR device id.
-          ESP_LOGI("test", "Device A Switch Pref Hash: %u",
-                   id(light_device_a).get_entity_key() ^ id(light_device_a).get_device_id_or_zero());
-          ESP_LOGI("test", "Device B Switch Pref Hash: %u",
-                   id(light_device_b).get_entity_key() ^ id(light_device_b).get_device_id_or_zero());
-          ESP_LOGI("test", "Main Switch Pref Hash: %u",
-                   id(light_main).get_entity_key() ^ id(light_main).get_device_id_or_zero());
-          ESP_LOGI("test", "Device A Number Pref Hash: %u",
-                   id(setpoint_device_a).get_entity_key() ^ id(setpoint_device_a).get_device_id_or_zero());
-          ESP_LOGI("test", "Device B Number Pref Hash: %u",
-                   id(setpoint_device_b).get_entity_key() ^ id(setpoint_device_b).get_device_id_or_zero());
-          ESP_LOGI("test", "Main Number Pref Hash: %u",
-                   id(setpoint_main).get_entity_key() ^ id(setpoint_main).get_device_id_or_zero());
+          // Log preference hashes for entities that actually store preferences
+          ESP_LOGI("test", "Device A Switch Pref Hash: %u", id(light_device_a).get_preference_hash());
+          ESP_LOGI("test", "Device B Switch Pref Hash: %u", id(light_device_b).get_preference_hash());
+          ESP_LOGI("test", "Main Switch Pref Hash: %u", id(light_main).get_preference_hash());
+          ESP_LOGI("test", "Device A Number Pref Hash: %u", id(setpoint_device_a).get_preference_hash());
+          ESP_LOGI("test", "Device B Number Pref Hash: %u", id(setpoint_device_b).get_preference_hash());
+          ESP_LOGI("test", "Main Number Pref Hash: %u", id(setpoint_main).get_preference_hash());

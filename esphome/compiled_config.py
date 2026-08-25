@@ -18,9 +18,9 @@ from pathlib import Path
 from typing import Any
 
 from esphome.const import __version__ as ESPHOME_VERSION
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
 from esphome.helpers import write_file
-from esphome.storage_json import StorageJSON, ext_storage_path
+from esphome.storage_json import StorageJSON, ext_storage_path, storage_path
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,7 +65,71 @@ def save_compiled_config(config: ConfigType) -> None:
         # non-basic dict key), so every upload/logs pays the slow path.
         _LOGGER.warning("Cannot cache the validated config: %s", err)
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
-        _LOGGER.debug("Skipping compiled config cache write: %s", err)
+        # Likely persistent (permissions, full disk): every upload/logs
+        # pays the slow path until it clears, so surface it.
+        _LOGGER.warning("Skipping compiled config cache write: %s", err)
+
+
+def save_compiled_config_and_sidecar(config: ConfigType) -> None:
+    """Refresh the cache from the upload/logs fallback (CORE.config must be set).
+
+    The cache is only written when a complete sidecar is on disk:
+    load_compiled_config can't use it otherwise, and it holds resolved
+    secrets.
+    """
+    if _refresh_sidecar():
+        save_compiled_config(config)
+
+
+def _refresh_sidecar() -> bool:
+    """Ensure a complete sidecar is on disk; True when one is.
+
+    Writes one (without claiming a build) when missing or wizard-only.
+    Failures are non-fatal; the next upload/logs pays the slow path again.
+    """
+    try:
+        path = storage_path()
+        try:
+            old = StorageJSON.load_strict(path)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            # Present but unreadable: it may hold a real build's metadata,
+            # and a fresh rewrite would also stop the next compile from
+            # cleaning a possibly incoherent build tree.
+            _LOGGER.warning(
+                "Not caching: storage sidecar %s is unreadable (%s)", path, err
+            )
+            return False
+        if old is not None and old.can_apply_to_core():
+            # Compile-written; nothing to refresh.
+            return True
+        if CORE.build_path is not None and CORE.build_path.exists():
+            # An unvalidated build tree: its absent or mismatched sidecar
+            # is what makes the next compile wipe it, so don't vouch for
+            # a build this run never saw.
+            _LOGGER.warning(
+                "Not caching: build tree %s has no matching sidecar; "
+                "'esphome compile' will settle it",
+                CORE.build_path,
+            )
+            return False
+        new = StorageJSON.from_esphome_core(CORE, old, claim_build=False)
+        if not new.can_apply_to_core():
+            _LOGGER.warning("Not caching: rebuilt storage sidecar is still incomplete")
+            return False
+        new.save(path)
+        return True
+    except (OSError, EsphomeError) as err:
+        # write_file wraps OSError into EsphomeError. Persistent
+        # (unwritable storage dir), so surface that every upload/logs
+        # pays the slow path.
+        _LOGGER.warning("Could not refresh the storage sidecar: %s", err)
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        # A structural bug; keep the traceback so it isn't mistaken
+        # for the I/O failure above.
+        _LOGGER.warning(
+            "Unexpected error refreshing the storage sidecar", exc_info=True
+        )
+    return False
 
 
 def load_compiled_config(conf_path: Path) -> ConfigType | None:
@@ -98,11 +162,8 @@ def load_compiled_config(conf_path: Path) -> ConfigType | None:
         return None
 
     storage = StorageJSON.load(ext_storage_path(conf_path.name))
-    if storage is None:
-        return None
-    # apply_to_core assumes a real compile wrote the sidecar; wizard-only
-    # sidecars leave both of these unset and can't drive upload/logs.
-    if not storage.core_platform and not storage.target_platform:
+    if storage is None or not storage.can_apply_to_core():
+        _LOGGER.debug("Ignoring compiled config cache: sidecar missing or incomplete")
         return None
     storage.apply_to_core()
     return config

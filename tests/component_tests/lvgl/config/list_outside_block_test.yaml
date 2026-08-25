@@ -1,0 +1,41 @@
+esphome:
+  name: test-list-outside-block
+  on_boot:
+    priority: -100
+    then:
+      - lvgl.list.add:
+          id: test_list
+          switch:
+            transform_rotation: 100
+            drop_shadow_color: 0x000000
+            bg_image_src: my_image
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin: GPIO3
+
+image:
+  - platform: file
+    file: mdi:battery
+    id: my_image
+    resize: 8x8
+    type: binary
+
+lvgl:
+  widgets:
+    - list:
+        id: test_list

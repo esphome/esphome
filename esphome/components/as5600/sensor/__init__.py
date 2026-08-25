@@ -11,6 +11,7 @@ from esphome.const import (
     ICON_ROTATE_RIGHT,
     STATE_CLASS_MEASUREMENT,
 )
+from esphome.types import ConfigType
 
 from .. import AS5600Component, as5600_ns
 
@@ -77,7 +78,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_AS5600_ID])
     await cg.register_component(var, config)
