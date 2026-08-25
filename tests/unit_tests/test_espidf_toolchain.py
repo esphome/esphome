@@ -489,12 +489,12 @@ def test_component_cache_round_trip_keeps_only_idf_components(
         assert toolchain.load_cached_builtin_components() == ["esp_timer", "lwip"]
 
 
-def test_component_cache_misses_on_key_or_checkout_change(
+def test_component_cache_misses_on_key_change_or_missing_component(
     setup_core: Path, tmp_path: Path
 ) -> None:
-    """A different exclusion set uses another entry, touching the IDF
-    components directory invalidates one, and an entry naming a component
-    that no longer exists is ignored."""
+    """A different exclusion set uses another entry, an entry naming a
+    component that no longer exists is ignored, and a custom IDF_PATH is
+    never cached."""
     _setup_build(setup_core)
     with _cache_env(tmp_path, "fatfs") as idf_path:
         (idf_path / "components" / "lwip").mkdir()
@@ -504,16 +504,15 @@ def test_component_cache_misses_on_key_or_checkout_change(
         ):
             toolchain.save_cached_builtin_components()
         path = toolchain._builtin_component_cache_path()
+        assert path.name.startswith("5.5.5-esp32-")
         assert toolchain.load_cached_builtin_components() == ["lwip"]
+        with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
+            assert toolchain.load_cached_builtin_components() is None
     with _cache_env(tmp_path, "fatfs;unity"):
         assert toolchain.load_cached_builtin_components() is None
-    with _cache_env(tmp_path, "fatfs") as idf_path:
+    with _cache_env(tmp_path, "fatfs"):
         path.write_text(json.dumps(["lwip", "gone"]))
         assert toolchain.load_cached_builtin_components() is None
-        components_dir = idf_path / "components"
-        old = components_dir.stat().st_mtime - 100
-        os.utime(components_dir, (old, old))
-        assert toolchain._builtin_component_cache_path() != path
 
 
 def test_component_cache_ignores_corrupt_file(setup_core: Path, tmp_path: Path) -> None:

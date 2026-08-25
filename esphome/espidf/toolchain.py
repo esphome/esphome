@@ -262,30 +262,23 @@ def run_reconfigure() -> int:
 
 
 def _builtin_component_cache_path() -> Path | None:
-    """Cache file for this build's built-in component list, or ``None`` when
-    IDF_PATH is unknown.
+    """Cache file for this build's built-in component list.
 
-    The discovered list is a function of the IDF checkout, the target and the
-    EXCLUDE_COMPONENTS set, so those form the key, together with the mtime of
-    ``$IDF_PATH/components`` so an added or removed component directory
-    invalidates the entry.
+    The discovered list depends on the IDF version, the target and the
+    EXCLUDE_COMPONENTS set, so those name the file. A checkout supplied
+    through IDF_PATH is not managed by ESPHome and is never cached.
     """
-    version = _get_core_framework_version()
-    idf_path = _get_idf_path(version)
-    if idf_path is None or not (components_dir := idf_path / "components").is_dir():
+    if "IDF_PATH" in os.environ:
         return None
-    key = hashlib.sha256(
-        json.dumps(
-            [
-                str(idf_path.resolve()),
-                version,
-                variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT]),
-                CORE.cmake_args.get("EXCLUDE_COMPONENTS", ""),
-                components_dir.stat().st_mtime_ns,
-            ]
-        ).encode()
-    ).hexdigest()[:16]
-    return get_idf_tools_path() / "component_lists" / f"{key}.json"
+    version = _get_core_framework_version()
+    target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
+    excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
+    excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
+    return (
+        get_idf_tools_path()
+        / "component_lists"
+        / f"{version}-{target}-{excluded_key}.json"
+    )
 
 
 def load_cached_builtin_components() -> list[str] | None:
