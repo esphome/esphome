@@ -24,7 +24,7 @@ PCH_CORE_HEADER = "esphome/core/defines.h"
 
 # ccache cannot hash through a .gch; CCACHE_PCH_EXTSUM makes it hash the
 # .sum sidecar instead of the .gch bytes, which are not reproducible.
-# Keep in sync with the literals in components/esp8266/pch.py.script.
+# Keep in sync with the literals in platformio/pch.py.script.
 _CCACHE_PCH_ENV = {
     "CCACHE_SLOPPINESS": "pch_defines,time_macros",
     "CCACHE_PCH_EXTSUM": "true",
