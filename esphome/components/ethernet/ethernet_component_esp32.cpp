@@ -59,6 +59,9 @@
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
+#ifdef USE_SPI
+#include "esphome/components/spi/spi.h"
+#endif
 #endif
 
 namespace esphome::ethernet {
@@ -168,25 +171,34 @@ void EthernetComponent::ethernet_lazy_init_() {
   // Install GPIO ISR handler to be able to service SPI Eth modules interrupts
   gpio_install_isr_service(0);
 
-  spi_bus_config_t buscfg = {
-      .mosi_io_num = this->mosi_pin_,
-      .miso_io_num = this->miso_pin_,
-      .sclk_io_num = this->clk_pin_,
-      .quadwp_io_num = -1,
-      .quadhd_io_num = -1,
-      .data4_io_num = -1,
-      .data5_io_num = -1,
-      .data6_io_num = -1,
-      .data7_io_num = -1,
-      .max_transfer_sz = 0,
-      .flags = 0,
-      .intr_flags = 0,
-  };
+  spi_host_device_t host;
+#ifdef USE_SPI
+  if (this->spi_parent_ != nullptr) {
+    // The bus is owned and already initialized by the spi component; share its host.
+    host = this->spi_parent_->get_interface();
+  } else
+#endif
+  {
+    spi_bus_config_t buscfg = {
+        .mosi_io_num = this->mosi_pin_,
+        .miso_io_num = this->miso_pin_,
+        .sclk_io_num = this->clk_pin_,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .data4_io_num = -1,
+        .data5_io_num = -1,
+        .data6_io_num = -1,
+        .data7_io_num = -1,
+        .max_transfer_sz = 0,
+        .flags = 0,
+        .intr_flags = 0,
+    };
 
-  auto host = this->interface_;
+    host = this->interface_;
 
-  err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
-  ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
+    err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
+    ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
+  }
 #endif
   // Network interface setup handled by network component
 
@@ -575,17 +587,25 @@ void EthernetComponent::dump_config() {
                 YESNO(this->is_connected()));
   this->dump_connect_params_();
 #ifdef USE_ETHERNET_SPI
-  ESP_LOGCONFIG(TAG,
-                "  CLK Pin: %u\n"
-                "  MISO Pin: %u\n"
-                "  MOSI Pin: %u\n"
-                "  CS Pin: %u",
-                this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
-  const char *spi_interface = "spi3";
-  if (this->interface_ == SPI2_HOST) {
-    spi_interface = "spi2";
+#ifdef USE_SPI
+  if (this->spi_parent_ != nullptr) {
+    // Pins and interface come from the shared spi bus; only CS is ours.
+    ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_pin_);
+  } else
+#endif
+  {
+    ESP_LOGCONFIG(TAG,
+                  "  CLK Pin: %u\n"
+                  "  MISO Pin: %u\n"
+                  "  MOSI Pin: %u\n"
+                  "  CS Pin: %u",
+                  this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
+    const char *spi_interface = "spi3";
+    if (this->interface_ == SPI2_HOST) {
+      spi_interface = "spi2";
+    }
+    ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
   }
-  ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
     ESP_LOGCONFIG(TAG, "  Polling Interval: %" PRIu32 " ms", this->polling_interval_);
