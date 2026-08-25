@@ -645,6 +645,16 @@ class RawSdkconfigValue:
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
+def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
+    """Set an sdkconfig option unless the user already set it in sdkconfig_options.
+
+    For the FINAL priority reconcile jobs, which run after the user options
+    were applied in to_code and must not override them.
+    """
+    if name not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
+        add_idf_sdkconfig_option(name, value)
+
+
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     """Set an esp-idf sdkconfig value."""
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
@@ -1755,7 +1765,7 @@ def require_full_certificate_bundle() -> None:
 
     Call this from components that need to connect to services using uncommon CAs.
     """
-    CORE.data[KEY_ESP32][KEY_CERT_BUNDLE] = True
+    require_certificate_bundle()
     CORE.data[KEY_ESP32][KEY_FULL_CERT_BUNDLE] = True
 
 
@@ -2170,43 +2180,6 @@ def register_exclude_components_cmake_arg() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def _write_certificate_bundle_sdkconfig() -> None:
-    """Enable the mbedTLS certificate bundle only when a component asked for it.
-
-    Runs at FINAL priority so every require_certificate_bundle() call has
-    happened. Without a request the bundle is disabled, which skips
-    esp_crt_bundle.c, the gen_crt_bundle step and the x509_crt_bundle.S embed.
-    A user-supplied sdkconfig_options value takes precedence.
-    """
-    data = CORE.data[KEY_ESP32]
-    opts = data[KEY_SDKCONFIG_OPTIONS]
-
-    def set_opt(name: str, value: SdkconfigValueType) -> None:
-        # User sdkconfig_options (applied during to_code) win.
-        if name not in opts:
-            add_idf_sdkconfig_option(name, value)
-
-    # A user forcing the bundle on through sdkconfig_options still gets the
-    # CMN variant pinned, as before this job existed.
-    user_value = opts.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE")
-    user_enabled = str(getattr(user_value, "value", user_value)).lower() in (
-        "y",
-        "true",
-    )
-    if not (data.get(KEY_CERT_BUNDLE, False) or user_enabled):
-        set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", False)
-        return
-    set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
-    # Use CMN (common CAs) bundle by default to save ~51KB flash
-    # CMN covers CAs with >1% market share (~99% of websites)
-    # Components needing uncommon CAs can call require_full_certificate_bundle()
-    use_full_bundle = data.get(KEY_FULL_CERT_BUNDLE, False)
-    set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle)
-    if not use_full_bundle:
-        set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
-
-
-@coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
     register_exclude_components_cmake_arg()
@@ -2268,6 +2241,31 @@ async def _set_libc_picolibc_newlib_compat() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_certificate_bundle_sdkconfig() -> None:
+    """Enable the mbedTLS certificate bundle only when something asked for it.
+
+    Runs at FINAL priority so every require_certificate_bundle() call has
+    happened. Without a request the bundle is disabled, which skips
+    esp_crt_bundle.c, the gen_crt_bundle step and the x509_crt_bundle.S embed.
+    A user-supplied sdkconfig_options value takes precedence.
+    """
+    data = CORE.data[KEY_ESP32]
+    enabled = data.get(KEY_CERT_BUNDLE, False)
+    set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", enabled)
+    if not enabled:
+        return
+    # Use CMN (common CAs) bundle by default to save ~51KB flash
+    # CMN covers CAs with >1% market share (~99% of websites)
+    # Components needing uncommon CAs can call require_full_certificate_bundle()
+    use_full_bundle = data.get(KEY_FULL_CERT_BUNDLE, False)
+    set_idf_sdkconfig_default(
+        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
+    )
+    if not use_full_bundle:
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _reconcile_network_sdkconfig() -> None:
     """Reconcile WiFi/Ethernet/Bluetooth/coexistence sdkconfig flags.
 
@@ -2278,37 +2276,31 @@ async def _reconcile_network_sdkconfig() -> None:
     always takes precedence.
     """
     net = CORE.data[KEY_ESP32].get(KEY_NETWORK_SDKCONFIG, NetworkSdkconfigData())
-    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     is_arduino = CORE.using_arduino
-
-    def set_opt(name: str, value: SdkconfigValueType) -> None:
-        # User sdkconfig_options (applied during to_code) win.
-        if name not in opts:
-            add_idf_sdkconfig_option(name, value)
 
     # Bluetooth: only ever enable when requested. The IDF default is off.
     # According to the IDF docs, only one of 4.2 or 5.0 should be enabled.
     if net.bluetooth:
-        set_opt("CONFIG_BT_ENABLED", True)
-        set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
-        set_opt("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", False)
+        set_idf_sdkconfig_default("CONFIG_BT_ENABLED", True)
+        set_idf_sdkconfig_default("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+        set_idf_sdkconfig_default("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", False)
 
     # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
     # relies on the IDF default (enabled), so it is never written True here.
     wifi_disabled = net.ethernet and not net.wifi
     if wifi_disabled:
-        set_opt("CONFIG_ESP_WIFI_ENABLED", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENABLED", False)
 
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
     if net.software_coexistence:
-        set_opt("CONFIG_SW_COEXIST_ENABLE", True)
+        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
-        set_opt("CONFIG_SW_COEXIST_ENABLE", False)
+        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
     if not is_arduino and net.wifi and not net.wifi_ap:
-        set_opt("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
 
     # LWIP DHCP server: a WiFi-AP-mode / enable_lwip_dhcp_server concern (not
     # coexistence). Disable when WiFi has no AP (IDF) or the enable_lwip_dhcp_server
@@ -2319,7 +2311,7 @@ async def _reconcile_network_sdkconfig() -> None:
     if (
         wifi_wants_dhcps_off or dhcp_server_disabled_by_option
     ) and not arduino_eth_exclusion:
-        set_opt("CONFIG_LWIP_DHCPS", False)
+        set_idf_sdkconfig_default("CONFIG_LWIP_DHCPS", False)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2344,29 +2336,24 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
-    def set_opt(name: str, value: SdkconfigValueType) -> None:
-        # User sdkconfig_options (applied during to_code) win.
-        if name not in opts:
-            add_idf_sdkconfig_option(name, value)
-
     # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
-        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_TERMIOS", True)
     else:
-        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
 
     # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
     # sockets use lwip_select() either way. ~2.7KB flash when off.
     if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
-        set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
-        set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
     # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
-        set_opt("CONFIG_VFS_SUPPORT_DIR", True)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_DIR", True)
     else:
-        set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
 
     # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
     # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
@@ -2379,15 +2366,15 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     user_picked_lfn = any(k in opts for k in lfn_keys)
     if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
         if not user_picked_lfn:
-            set_opt("CONFIG_FATFS_LFN_NONE", False)
-            set_opt("CONFIG_FATFS_LFN_HEAP", True)
-            set_opt("CONFIG_FATFS_MAX_LFN", 255)
-        set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
+            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", False)
+            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_HEAP", True)
+            set_idf_sdkconfig_default("CONFIG_FATFS_MAX_LFN", 255)
+        set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 4)
     elif disable_fatfs:
         if not user_picked_lfn:
-            set_opt("CONFIG_FATFS_LFN_NONE", True)
+            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
-        set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
+        set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 1)
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
@@ -2968,6 +2955,9 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
+    # FINAL priority: runs after every require_certificate_bundle() call
+    CORE.add_job(_reconcile_certificate_bundle_sdkconfig)
+
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
     CORE.add_job(
@@ -2995,6 +2985,19 @@ async def to_code(config):
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+    # A bundle forced on through sdkconfig_options is a request like any other,
+    # so it still gets the CMN variant pinned.
+    if (
+        _format_sdkconfig_val(
+            RawSdkconfigValue(
+                conf[CONF_SDKCONFIG_OPTIONS].get(
+                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", "n"
+                )
+            )
+        )
+        == "y"
+    ):
+        require_certificate_bundle()
 
     # Components from YAML are added in a separate coroutine with FINAL priority
     # Schedule it to run after all other components
@@ -3005,7 +3008,6 @@ async def to_code(config):
     # a chance to call include_builtin_idf_component() to re-enable components they need.
     # Default exclusions are added in set_core_data() during config validation.
     CORE.add_job(_write_exclude_components)
-    CORE.add_job(_write_certificate_bundle_sdkconfig)
 
     # Write Arduino selective compilation sdkconfig at FINAL priority after all
     # components have had a chance to call cg.add_library() to enable libraries they need.

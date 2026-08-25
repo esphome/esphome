@@ -293,59 +293,54 @@ def test_default_exclusions_reincluded_by_owning_components(
     assert "fatfs" in excluded
 
 
+_BUNDLE_OPTIONS = (
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN",
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL",
+)
+
+
 @pytest.mark.parametrize(
-    ("config_file", "enabled"),
+    ("config_file", "expected"),
     [
-        pytest.param("exclusion_reincludes.yaml", False, id="no_tls_client"),
-        pytest.param("certificate_bundle_http_request.yaml", True, id="http_request"),
+        pytest.param("exclusion_reincludes.yaml", (False, None, None), id="no_tls"),
+        pytest.param(
+            "certificate_bundle_http_request.yaml",
+            (True, True, False),
+            id="http_request",
+        ),
         pytest.param(
             "exclusion_reincludes_http_request.yaml",
-            False,
+            (False, None, None),
             id="http_request_no_verify",
+        ),
+        pytest.param(
+            "certificate_bundle_full.yaml", (True, None, True), id="full_option"
         ),
     ],
 )
-def test_certificate_bundle_only_when_requested(
+def test_certificate_bundle_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
-    enabled: bool,
+    expected: tuple[bool | None, ...],
 ) -> None:
-    """The mbedTLS certificate bundle is compiled only when a component asks for it."""
+    """The bundle and its CMN/FULL variant are written only when requested."""
     generate_main(component_config_path(config_file))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") is enabled
-    if enabled:
-        assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
-    else:
-        assert "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN" not in sdkconfig
-
-
-def test_full_certificate_bundle_option_enables_bundle(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-) -> None:
-    """use_full_certificate_bundle turns the bundle on and selects the full variant."""
-    generate_main(component_config_path("certificate_bundle_full.yaml"))
-    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") is True
-    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL") is True
-    assert "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN" not in sdkconfig
+    assert tuple(sdkconfig.get(name) for name in _BUNDLE_OPTIONS) == expected
 
 
 def test_user_sdkconfig_certificate_bundle_wins(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """A raw sdkconfig_options bundle setting is not overridden by the FINAL job."""
+    """A raw sdkconfig_options bundle setting is kept and still pins CMN."""
     generate_main(component_config_path("certificate_bundle_sdkconfig.yaml"))
-    value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][
-        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE"
-    ]
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    value = sdkconfig["CONFIG_MBEDTLS_CERTIFICATE_BUNDLE"]
     assert isinstance(value, RawSdkconfigValue)
     assert value.value == "y"
-    # The variant choice is still pinned to CMN for a user-forced bundle.
-    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
     assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL") is False
 
