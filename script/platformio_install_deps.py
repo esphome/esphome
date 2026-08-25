@@ -3,11 +3,8 @@
 # all platformio libraries in the global storage
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor
 import configparser
-import os
 import subprocess
-import threading
 
 config = configparser.ConfigParser(inline_comment_prefixes=(";",))
 
@@ -39,8 +36,10 @@ for section in config.sections():
             if "@" not in lib_dep:
                 # No version pinned, this is an internal lib
                 continue
+            libs.append("-l")
             libs.append(lib_dep)
     if "platform" in conf and args.platforms:
+        platforms.append("-p")
         platforms.append(conf["platform"])
     if "platform_packages" in conf and args.tools:
         for tool in conf["platform_packages"].splitlines():
@@ -53,60 +52,9 @@ for section in config.sections():
             if tool.find("https://github.com") != -1:
                 split = tool.find("@")
                 tool = tool[split + 1 :]
+            tools.append("-t")
             tools.append(tool)
 
-
-def parallel_install(manager_cls, specs: list[str]) -> None:
-    """Best-effort parallel top-level install, one extraction worker per core.
-
-    PlatformIO's own installer downloads and unpacks one package at a time
-    on one core. Dependencies are skipped (two packages sharing one must
-    not extract into the same directory from two threads) and any failure
-    is left alone: the stock ``pkg install`` pass below installs whatever
-    is missing and is the authority on the final state.
-    """
-    manager = manager_cls(None)
-    pending = [spec for spec in specs if not manager.get_package(spec)]
-    if not pending:
-        return
-    local = threading.local()
-
-    def install_one(spec: str) -> None:
-        try:
-            if (mgr := getattr(local, "mgr", None)) is None:
-                mgr = local.mgr = manager_cls(None)
-            mgr._install(spec, skip_dependencies=True)  # noqa: SLF001
-        except Exception:  # noqa: BLE001
-            pass
-
-    cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 4
-    manager.lock()
-    try:
-        with ThreadPoolExecutor(max_workers=min(cpus, len(pending))) as ex:
-            list(ex.map(install_one, pending))
-    finally:
-        manager.unlock()
-
-
-if libs or platforms or tools:
-    from platformio.package.manager.library import LibraryPackageManager
-    from platformio.package.manager.platform import PlatformPackageManager
-    from platformio.package.manager.tool import ToolPackageManager
-
-    for manager_cls, specs in (
-        (PlatformPackageManager, platforms),
-        (ToolPackageManager, tools),
-        (LibraryPackageManager, libs),
-    ):
-        if specs:
-            parallel_install(manager_cls, specs)
-
-cli_args = []
-for flag, specs in (("-l", libs), ("-p", platforms), ("-t", tools)):
-    for spec in specs:
-        cli_args.append(flag)
-        cli_args.append(spec)
-
 subprocess.check_call(
-    ["platformio", "pkg", "install", "-g", *cli_args], close_fds=False
+    ["platformio", "pkg", "install", "-g", *libs, *platforms, *tools], close_fds=False
 )
