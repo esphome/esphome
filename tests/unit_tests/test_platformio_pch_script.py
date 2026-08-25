@@ -165,3 +165,19 @@ def test_copy_pch_script(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
     toolchain.copy_pch_script()
     assert (tmp_path / "pch.py").read_text() == _SCRIPT.read_text()
+
+
+def test_pch_script_hashes_project_local_include_dirs(tmp_path: Path) -> None:
+    """Generated headers in project-local -I dirs (e.g. rp2's lwip_override)
+    must invalidate the checksum when they change."""
+    proj = tmp_path / "dev"
+    override = proj / "lwip_override"
+    override.mkdir(parents=True)
+    (override / "lwipopts.h").write_text("#define TCP_MSS 1460\n")
+    flags = ["-DX=1", "-I", str(override)]
+    _run_script(tmp_path, flags=flags)
+    first = (proj / "esphome_pch.h.gch.sum").read_text()
+    (override / "lwipopts.h").write_text("#define TCP_MSS 536\n")
+    (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
+    _run_script(tmp_path, flags=flags)
+    assert (proj / "esphome_pch.h.gch.sum").read_text() != first
