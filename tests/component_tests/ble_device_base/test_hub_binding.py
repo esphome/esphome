@@ -211,6 +211,7 @@ def test_add_service_uuid_dispatches_by_width(monkeypatch: pytest.MonkeyPatch) -
         ("rp2_tracker.yaml", "USE_RP2_BLE_TRACKER"),
         ("bk72xx_tracker.yaml", "USE_BK72XX_BLE_TRACKER"),
         ("ln882h_tracker.yaml", "USE_LN882H_BLE_TRACKER"),
+        ("rtl87xx_tracker.yaml", "USE_RTL87XX_BLE_TRACKER"),
     ],
 )
 def test_every_tracker_emits_its_alias_define(

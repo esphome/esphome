@@ -449,6 +449,7 @@ esphome/components/rp2_ble_tracker/* @bdraco
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtl87xx_ble/* @Bl00d-B0b
+esphome/components/rtl87xx_ble_tracker/* @Bl00d-B0b
 esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt
 esphome/components/runtime_stats/* @bdraco
