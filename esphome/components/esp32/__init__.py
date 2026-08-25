@@ -344,6 +344,10 @@ ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
     "Zigbee": ("espressif__esp-zigbee-lib", "espressif__esp-zboss-lib"),
 }
 
+# Arduino libraries whose sources reference esp_crt_bundle_attach without a
+# CONFIG_MBEDTLS_CERTIFICATE_BUNDLE guard, so enabling them needs the bundle.
+ARDUINO_LIBRARIES_NEEDING_CERT_BUNDLE = frozenset({"NetworkClientSecure"})
+
 # Arduino library to Arduino library dependencies
 # When enabling one library, also enable its dependencies
 # Kconfig "select" statements don't work with CONFIG_ARDUINO_SELECTIVE_COMPILATION
@@ -800,8 +804,9 @@ def _enable_arduino_library(name: str) -> None:
     # Also enable any required IDF components
     for idf_component in ARDUINO_LIBRARY_IDF_COMPONENTS.get(name, ()):
         include_builtin_idf_component(idf_component)
-    # ssl_client.cpp references esp_crt_bundle_attach without a guard
-    if name == "NetworkClientSecure":
+    if not ARDUINO_LIBRARIES_NEEDING_CERT_BUNDLE.isdisjoint(
+        {name, *ARDUINO_LIBRARY_DEPENDENCIES.get(name, ())}
+    ):
         require_certificate_bundle()
 
 
