@@ -350,6 +350,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_rp2040=4,  # 264KB RAM, matches platform: rp2's own rp2=4 tier
                 zephyr_rp2350=4,  # 520KB RAM, kept at rp2040's conservative tier
                 zephyr_stm32l4=4,  # 128KB RAM (nucleo_l476rg), below every 8-tier board
+                zephyr_stm32f4=4,  # 96KB RAM (nucleo_f401re), same tier as stm32l4
                 zephyr_ra4m1=4,  # 32KB RAM -- smallest of any zephyr variant, kept at the floor
             ): cv.int_range(min=1, max=20),
             # Maximum queued send buffers per connection before dropping connection
@@ -379,6 +380,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_rp2040=8,  # Moderate RAM, matches platform: rp2's own rp2=8 tier
                 zephyr_rp2350=8,  # Moderate RAM
                 zephyr_stm32l4=4,  # 128KB RAM, fail fast like esp8266 rather than buffer
+                zephyr_stm32f4=4,  # 96KB RAM (nucleo_f401re), same tier as stm32l4
                 zephyr_ra4m1=4,  # 32KB RAM -- fail fast, same tier as esp8266
             ): cv.int_range(min=1, max=64),
         }
