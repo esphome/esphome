@@ -196,9 +196,7 @@ async def to_code(config: ConfigType) -> None:
                 #     framework:
                 #       advanced:
                 #         use_full_certificate_bundle: true
-                esp32.add_idf_sdkconfig_option(
-                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
-                )
+                esp32.require_certificate_bundle()
 
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_TLS_INSECURE",
