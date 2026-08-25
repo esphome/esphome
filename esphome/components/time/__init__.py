@@ -426,10 +426,12 @@ async def setup_time_core_(time_var, config):
             raise EsphomeError(f"Invalid timezone: {timezone}") from e
         _emit_parsed_timezone_fields(parsed)
 
-    if config.get(CONF_ON_TIME) or config.get(CONF_ON_TIME_SYNC):
+    on_time = config.get(CONF_ON_TIME, [])
+    on_time_sync = config.get(CONF_ON_TIME_SYNC, [])
+    if on_time or on_time_sync:
         cg.add_define("USE_TIME_TRIGGERS")
 
-    for conf in config.get(CONF_ON_TIME, []):
+    for conf in on_time:
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         seconds = conf.get(CONF_SECONDS, list(range(61)))
@@ -448,7 +450,7 @@ async def setup_time_core_(time_var, config):
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 
-    for conf in config.get(CONF_ON_TIME_SYNC, []):
+    for conf in on_time_sync:
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         await cg.register_component(trigger, conf)
