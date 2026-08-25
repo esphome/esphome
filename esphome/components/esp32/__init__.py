@@ -2969,6 +2969,7 @@ async def to_code(config):
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+
     # Components from YAML are added in a separate coroutine with FINAL priority
     # Schedule it to run after all other components
     if conf[CONF_COMPONENTS]:

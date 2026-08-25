@@ -305,6 +305,8 @@ def test_default_exclusions_reincluded_by_owning_components(
     # Components no part of this config touches stay excluded.
     assert "unity" in excluded
     assert "fatfs" in excluded
+    # The HTTP server only comes back for configs that run one.
+    assert ("esp_http_server" in excluded) == ("esp_http_server" not in reincluded)
 
 
 def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
