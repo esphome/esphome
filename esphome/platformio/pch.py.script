@@ -63,7 +63,14 @@ def _esp8266_setup_pch() -> None:
     # not see them; consumers keep theirs, which the .gch then satisfies.
     flags = []
     include_headers = []
-    flag_it = iter(shlex.split(projenv.subst("$CXXFLAGS $CCFLAGS $_CCCOMCOM")))  # noqa: F821
+    # subst_list keeps SCons's element boundaries; a flattened-string
+    # shlex.split would shred defines with embedded spaces (-DX=\"A B\")
+    # into stray tokens gcc reads as input files
+    flag_it = iter(
+        tok
+        for element in projenv.subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]  # noqa: F821
+        for tok in shlex.split(str(element))
+    )
     for tok in flag_it:
         if tok == "-include":
             include_headers.append(next(flag_it, ""))
