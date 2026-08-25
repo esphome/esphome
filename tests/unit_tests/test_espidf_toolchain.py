@@ -488,7 +488,6 @@ def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
         patch.object(toolchain, "_get_idf_path", return_value=idf_path),
         patch.dict(CORE.data, {KEY_ESP32: {KEY_VARIANT: "ESP32"}}),
         patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": excluded}),
-        patch.object(toolchain, "get_idf_tools_path", return_value=tmp_path),
     ):
         yield idf_path
 
@@ -531,7 +530,8 @@ def test_component_cache_misses_on_key_change_or_missing_component(
         ):
             toolchain.save_cached_builtin_components()
         path = toolchain._builtin_component_cache_path()
-        assert path.name.startswith("5.5.5-esp32-")
+        assert path.parent == idf_path / ".esphome_component_lists"
+        assert path.name.startswith("esp32-")
         assert toolchain.load_cached_builtin_components() == ["lwip"]
         with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
             assert toolchain.load_cached_builtin_components() is None
@@ -552,7 +552,7 @@ def test_component_cache_save_skips_without_key_or_discovery(
         with patch.dict(os.environ, {"IDF_PATH": str(idf_path)}):
             assert toolchain.save_cached_builtin_components() is None
         assert toolchain.save_cached_builtin_components() is None
-        assert not (tmp_path / "component_lists").exists()
+        assert not (idf_path / ".esphome_component_lists").exists()
 
 
 def test_component_cache_write_failure_still_returns_list(

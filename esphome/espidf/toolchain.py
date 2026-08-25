@@ -22,11 +22,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
-from esphome.espidf.framework import (
-    check_esp_idf_install,
-    get_framework_env,
-    get_idf_tools_path,
-)
+from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory, write_file
 
@@ -264,20 +260,21 @@ def run_reconfigure() -> int:
 def _builtin_component_cache_path() -> Path | None:
     """Cache file for this build's built-in component list.
 
-    The discovered list depends on the IDF version, the target and the
-    EXCLUDE_COMPONENTS set, so those name the file. A checkout supplied
-    through IDF_PATH is not managed by ESPHome and is never cached.
+    The file lives inside the extracted framework directory so it is
+    discarded together with that exact checkout (re-extract, source
+    override, clean); the target and the EXCLUDE_COMPONENTS set name it. A
+    checkout supplied through IDF_PATH is not managed by ESPHome and is never
+    cached.
     """
     if "IDF_PATH" in os.environ:
         return None
-    version = _get_core_framework_version()
     target = variant_to_idf_target(CORE.data[KEY_ESP32][KEY_VARIANT])
     excluded = CORE.cmake_args.get("EXCLUDE_COMPONENTS", "")
     excluded_key = hashlib.sha256(excluded.encode()).hexdigest()[:12]
     return (
-        get_idf_tools_path()
-        / "component_lists"
-        / f"{version}-{target}-{excluded_key}.json"
+        _get_idf_path(_get_core_framework_version())
+        / ".esphome_component_lists"
+        / f"{target}-{excluded_key}.json"
     )
 
 
