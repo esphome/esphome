@@ -59,7 +59,7 @@ def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
             _LOGGER.warning("Idedata failure detail", exc_info=True)
 
 
-# C++ translation-unit suffixes, shared with the pch backends.
+# C++ translation-unit suffixes.
 CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
 # Suffixes of input/output files that appear bare on the command line (and so
 # must not be mistaken for compiler flags).
