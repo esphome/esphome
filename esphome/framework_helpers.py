@@ -1205,7 +1205,7 @@ def download_from_mirrors(
         raise TypeError(f"target must be a str or Path: {type(target)}")
     path_target = Path(target)
 
-    # 2. Resolve the mirror templates (invariant across retry sweeps)
+    # 1. Resolve the mirror templates (invariant across retry sweeps)
     urls: list[str] = []
     skipped: list[tuple[str, str]] = []
     for mirror in mirrors:
@@ -1224,7 +1224,7 @@ def download_from_mirrors(
             _LOGGER.warning("Skipping malformed mirror URL template %s: %r", mirror, e)
             skipped.append((mirror, f"skipped ({e!r})"))
 
-    # 3. Sweep the mirror list, retrying transient failures with backoff:
+    # 2. Sweep the mirror list, retrying transient failures with backoff:
     # a single pass keeps mirror failover fast, re-sweeping keeps one
     # network blip from failing the build when only one mirror applies.
     failures: list[tuple[str, Exception]] = []
@@ -1263,7 +1263,7 @@ def download_from_mirrors(
                 done = part.stat().st_size if part.is_file() else 0
             _cancellable_sleep(delay, progress, done)
 
-    # 4. Report every attempted URL if all mirrors failed. failures spans
+    # 3. Report every attempted URL if all mirrors failed. failures spans
     # all sweeps (deduplicated by URL and reason), so neither an early
     # mirror's failure nor an earlier sweep's failure mode is hidden.
     if failures:

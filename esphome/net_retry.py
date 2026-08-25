@@ -131,9 +131,11 @@ def http_request(
 ) -> requests.Response:
     """Perform one HTTP request with the Happy Eyeballs patch in place.
 
-    Every ESPHome download funnels through here so the urllib3 patch and
-    the lazy requests import live in exactly one place. Status handling,
-    retries and streaming stay with the caller.
+    Every ESPHome file download funnels through here so the urllib3 patch
+    and the lazy requests import live in exactly one place. Status handling,
+    retries and streaming stay with the caller. The web server OTA and log
+    clients bypass this on purpose: they iterate already-resolved device
+    addresses themselves, so the patch buys them nothing.
     """
     import requests
 
