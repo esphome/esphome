@@ -45,9 +45,6 @@ _PREFETCH_TIMEOUT = 20 * 60
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
 
-# Extraction is CPU-bound (xz/gzip decompress); one worker per core
-_INSTALL_WORKERS = os.cpu_count() or 4
-
 
 class _Resolved(NamedTuple):
     """A registry spec resolved to its archive; ``cached`` skips the download."""
@@ -332,27 +329,44 @@ def _preinstall(manager, specs) -> None:
     pio run's installer unpacks one archive at a time on one core. With the
     manager's inter-process lock held once and a per-thread manager driving
     PlatformIO's own ``_install`` for each distinct package, extraction uses
-    every core and pio run finds the packages installed. Any failure leaves
-    that package to pio run's own installer.
+    every usable core and pio run finds the packages installed. Dependencies
+    are skipped: two packages sharing one dependency must not extract it
+    into the same directory from two threads, and pio run installs any
+    missing dependency itself. Any failure leaves that package to pio run's
+    own installer; every install failing (a PlatformIO API change would)
+    warns once. The re-resolution ``_install`` performs against the registry
+    is the price of reusing PlatformIO's metadata and postinstall handling.
     """
+    from esphome.core.config import get_usable_cpu_count
 
-    def _install_one(spec) -> None:
+    local = threading.local()
+
+    def _install_one(spec) -> bool:
         try:
-            # PlatformIO's real install (metadata, postinstall, deps);
+            # PlatformIO's real install (metadata, postinstall scripts);
             # only the concurrency across packages is ours
-            mgr = manager.__class__(manager.package_dir)
-            mgr._install(spec)  # pylint: disable=protected-access  # noqa: SLF001
+            if (mgr := getattr(local, "mgr", None)) is None:
+                mgr = local.mgr = manager.__class__(manager.package_dir)
+            mgr._install(spec, skip_dependencies=True)  # pylint: disable=protected-access  # noqa: SLF001
+            return True
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             _LOGGER.debug("Could not pre-install %s", spec, exc_info=True)
+            return False
 
     _LOGGER.info("Installing %d PlatformIO package(s) in parallel", len(specs))
+    workers = min(get_usable_cpu_count(), len(specs))
     manager.lock()
     try:
-        with ThreadPoolExecutor(max_workers=min(_INSTALL_WORKERS, len(specs))) as ex:
-            list(ex.map(_install_one, specs))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            results = list(ex.map(_install_one, specs))
     finally:
         manager.unlock()
     manager.memcache_reset()
+    if not any(results):
+        # A systematic fault, not one bad archive; pio run installs serially
+        _LOGGER.warning(
+            "Could not pre-install any of %d PlatformIO package(s)", len(specs)
+        )
 
 
 def _prefetch(build_dir: Path, env: str) -> None:
@@ -429,24 +443,24 @@ def _prefetch(build_dir: Path, env: str) -> None:
         failures = run_batch_downloads("Downloading PlatformIO packages", jobs)
         warn_prefetch_failures(failures)
         failed_names = {name for name, _ in failures}
-    elif not groups:
-        if not unresolved:
-            # Record the no-work run so the parent skips the next spawn.
-            # A failed resolution is not "no work": a registry outage must
-            # not be cached as warm.
-            dirs = [config.get("platformio", "packages_dir")]
-            if lib_specs:
-                dirs.append(str(libdeps_dir))
-            sentinel.write_text(
-                json.dumps({**_sentinel_state(build_dir), "dirs": dirs}),
-                encoding="utf-8",
-            )
-        return
+    elif not groups and not unresolved:
+        # Record the no-work run so the parent skips the next spawn.
+        # A failed resolution is not "no work": a registry outage must
+        # not be cached as warm.
+        dirs = [config.get("platformio", "packages_dir")]
+        if lib_specs:
+            dirs.append(str(libdeps_dir))
+        sentinel.write_text(
+            json.dumps({**_sentinel_state(build_dir), "dirs": dirs}),
+            encoding="utf-8",
+        )
 
     for mgr, entries in groups:
-        to_install = [spec for name, spec in entries if name not in failed_names]
+        # One install per destination: duplicate names must not extract
+        # into the same package dir from two threads
+        to_install = {name: spec for name, spec in entries if name not in failed_names}
         if to_install:
-            _preinstall(mgr, to_install)
+            _preinstall(mgr, list(to_install.values()))
 
 
 def main(argv: list[str]) -> int:

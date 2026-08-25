@@ -637,7 +637,10 @@ def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
     m = _fake_manager(tmp_path)
     installed: list[str] = []
 
-    def fake_install(spec):
+    def fake_install(spec, skip_dependencies):
+        # Dependencies must be skipped: a shared dep extracted from two
+        # threads would race one destination dir
+        assert skip_dependencies is True
         if spec.name == "bad":
             raise RuntimeError("corrupt archive")
         installed.append(spec.name)
@@ -653,6 +656,40 @@ def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
     m.lock.assert_called_once_with()
     m.unlock.assert_called_once_with()
     m.memcache_reset.assert_called_once_with()
+
+
+def test_preinstall_all_failed_warns_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every install failing is a systemic fault, not archive noise."""
+    m = _fake_manager(tmp_path)
+    m._install.side_effect = AttributeError("_install went away")
+    pf._preinstall(m, [_FakeSpec(uri=None, name="a"), _FakeSpec(uri=None, name="b")])
+    assert "Could not pre-install any of 2" in caplog.text
+
+
+def test_preinstall_dedupes_names_across_entries(tmp_path: Path) -> None:
+    """Two entries with one name install once (one destination dir)."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    s1 = _FakeSpec(uri=None, name="dup")
+    s2 = _FakeSpec(uri=None, name="dup")
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf,
+            "_registry_jobs",
+            side_effect=[([], 0, [("pkg@1", s1), ("pkg@1", s2)]), ([], 0, [])],
+        ),
+        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
+        patch.object(pf, "_preinstall") as mock_install,
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    mock_install.assert_called_once()
+    assert mock_install.call_args[0][1] == [s1]
 
 
 def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
@@ -689,3 +726,33 @@ def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:
     ):
         pf._prefetch(tmp_path, "testenv")
     assert batches[0] == ["tool-scons"]
+
+
+def test_platformio_private_api_contract() -> None:
+    """The pinned PlatformIO still exposes what the pre-install drives.
+
+    Everything else in this module mocks the managers, so this is the one
+    test that fails loudly when a requirements bump changes the private
+    surface instead of silently degrading the prefetch to a no-op.
+    """
+    import inspect
+
+    from platformio.package.manager._install import PackageManagerInstallMixin
+    from platformio.package.manager.base import BasePackageManager
+    from platformio.package.manager.library import LibraryPackageManager
+    from platformio.package.manager.platform import PlatformPackageManager
+    from platformio.package.manager.tool import ToolPackageManager
+
+    params = inspect.signature(PackageManagerInstallMixin._install).parameters
+    assert "spec" in params
+    assert "skip_dependencies" in params
+    for cls in (ToolPackageManager, LibraryPackageManager, PlatformPackageManager):
+        assert "package_dir" in inspect.signature(cls.__init__).parameters
+    for name in (
+        "lock",
+        "unlock",
+        "memcache_reset",
+        "get_package",
+        "compute_download_path",
+    ):
+        assert callable(getattr(BasePackageManager, name))
