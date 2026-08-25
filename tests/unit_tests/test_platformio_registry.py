@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -32,12 +32,11 @@ def test_registry_download_resolves_once_per_process() -> None:
         ]
     }
 
-    def fake_download(mirrors, substitutions, target):
-        calls.append(substitutions)
-        target.write(json.dumps(payload).encode())
-        return mirrors[0]
+    def fake_request(method, url, **kwargs):
+        calls.append(url)
+        return _http_response(json.dumps(payload))
 
-    with patch.object(registry, "download_from_mirrors", side_effect=fake_download):
+    with patch.object(registry, "http_request", side_effect=fake_request):
         first = registry.registry_download("o/pkg", "1.0.0")
         second = registry.registry_download("o/pkg", "1.0.0")
     assert first == second
@@ -105,41 +104,47 @@ def test_get_systype_windows_empty_machine() -> None:
         assert registry.get_systype() == "windows_amd64"
 
 
+def _http_response(text: str) -> MagicMock:
+    resp = MagicMock()
+    resp.text = text
+    resp.raise_for_status.return_value = None
+    return resp
+
+
 def _registry_response(files: list[dict]):
-    """Patch the shared downloader to serve a canned registry response."""
+    """Patch the consolidated HTTP path to serve a canned registry response."""
     payload = {"versions": [{"name": "1.0.0", "files": files}]}
-
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(json.dumps(payload).encode())
-        return mirrors[0].format(**substitutions)
-
-    return patch.object(registry, "download_from_mirrors", side_effect=fake_download)
+    return patch.object(
+        registry, "http_request", return_value=_http_response(json.dumps(payload))
+    )
 
 
-def test_registry_download_uses_shared_downloader() -> None:
-    """The metadata fetch delegates its retries and error reporting to
-    download_from_mirrors; failures surface unchanged."""
+def test_registry_download_uses_shared_http_path() -> None:
+    """The metadata fetch delegates to the consolidated http_request path;
+    request failures surface as a named EsphomeError."""
+    import requests as req
+
     with (
         patch.object(
             registry,
-            "download_from_mirrors",
-            side_effect=EsphomeError("Failed to download from all mirrors"),
-        ) as mock_download,
-        pytest.raises(EsphomeError, match="Failed to download from all mirrors"),
+            "http_request",
+            side_effect=req.exceptions.ConnectionError("registry down"),
+        ) as mock_request,
+        pytest.raises(EsphomeError, match="Could not fetch registry metadata"),
     ):
         registry.registry_download("pkg", "1.0.0")
-    (mirrors, substitutions, _), _ = mock_download.call_args
-    assert mirrors == [registry._REGISTRY_URL]
-    assert substitutions == {"package": "pkg"}
+    (method, url), _ = mock_request.call_args
+    assert method == "GET"
+    assert url == registry._REGISTRY_URL.format(package="pkg")
 
 
 def test_registry_download_invalid_json_is_clean() -> None:
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(b"<html>not json</html>")
-        return "http://x"
-
     with (
-        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        patch.object(
+            registry,
+            "http_request",
+            return_value=_http_response("<html>not json</html>"),
+        ),
         pytest.raises(EsphomeError, match="invalid JSON"),
     ):
         registry.registry_download("pkg", "1.0.0")
@@ -224,14 +229,14 @@ def test_registry_download_no_system_match() -> None:
 
 
 def test_registry_download_version_not_found() -> None:
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(
-            json.dumps({"versions": [{"name": "2.0.0", "files": []}]}).encode()
-        )
-        return "http://x"
-
     with (
-        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        patch.object(
+            registry,
+            "http_request",
+            return_value=_http_response(
+                json.dumps({"versions": [{"name": "2.0.0", "files": []}]})
+            ),
+        ),
         pytest.raises(EsphomeError, match="not found"),
     ):
         registry.registry_download("pkg", "1.0.0")
@@ -391,12 +396,12 @@ def test_registry_download_empty_system_list_does_not_match() -> None:
 def test_registry_download_unexpected_payload_is_named() -> None:
     """An error envelope without a versions list is not 'version not found'."""
 
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(json.dumps({"message": "rate limited"}).encode())
-        return "http://x"
-
     with (
-        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        patch.object(
+            registry,
+            "http_request",
+            return_value=_http_response(json.dumps({"message": "rate limited"})),
+        ),
         pytest.raises(EsphomeError, match="Unexpected package registry response"),
     ):
         registry.registry_download("pkg", "1.0.0")
@@ -441,28 +446,26 @@ def test_registry_download_non_dict_version_entry_is_named() -> None:
     """A versions list of bare strings is an unexpected payload, not an
     AttributeError traceback."""
 
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(json.dumps({"versions": ["1.0.0", "2.0.0"]}).encode())
-        return "http://x"
-
     with (
-        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        patch.object(
+            registry,
+            "http_request",
+            return_value=_http_response(json.dumps({"versions": ["1.0.0", "2.0.0"]})),
+        ),
         pytest.raises(EsphomeError, match="Unexpected package registry response"),
     ):
         registry.registry_download("pkg", "1.0.0")
 
 
 def test_registry_download_non_dict_file_entry_is_named() -> None:
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(
-            json.dumps(
-                {"versions": [{"name": "1.0.0", "files": ["a.tar.gz"]}]}
-            ).encode()
-        )
-        return "http://x"
-
     with (
-        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        patch.object(
+            registry,
+            "http_request",
+            return_value=_http_response(
+                json.dumps({"versions": [{"name": "1.0.0", "files": ["a.tar.gz"]}]})
+            ),
+        ),
         pytest.raises(EsphomeError, match="Unexpected package registry response"),
     ):
         registry.registry_download("pkg", "1.0.0")
@@ -471,12 +474,12 @@ def test_registry_download_non_dict_file_entry_is_named() -> None:
 def test_registry_download_non_dict_payload_is_named() -> None:
     """A JSON array answer is an unexpected payload at the outermost level."""
 
-    def fake_download(mirrors: list[str], substitutions: dict, target) -> str:
-        target.write(json.dumps(["1.0.0"]).encode())
-        return "http://x"
-
     with (
-        patch.object(registry, "download_from_mirrors", side_effect=fake_download),
+        patch.object(
+            registry,
+            "http_request",
+            return_value=_http_response(json.dumps(["1.0.0"])),
+        ),
         pytest.raises(EsphomeError, match="Unexpected package registry response"),
     ):
         registry.registry_download("pkg", "1.0.0")

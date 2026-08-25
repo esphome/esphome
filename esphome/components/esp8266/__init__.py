@@ -661,8 +661,10 @@ def _decode_pc(config: ConfigType, addr: str, *, bulk: bool = False) -> None:
                 _warn_decode_problem(
                     str(path), "Cannot decode crash addresses: %s missing", path
                 )
-                # The detailed warning names no address, so mark each one
-                _LOGGER.warning("Not decoded %s (toolchain file missing)", addr)
+                # The detailed warning names no address; mark named
+                # registers, but bulk stack words at debug (~150 per dump)
+                log = _LOGGER.debug if bulk else _LOGGER.warning
+                log("Not decoded %s (toolchain file missing)", addr)
                 return
         addr2line, elf = str(addr2line), str(elf)
     else:
@@ -674,7 +676,8 @@ def _decode_pc(config: ConfigType, addr: str, *, bulk: bool = False) -> None:
                 "no-addr2line",
                 "Cannot decode crash addresses: no addr2line or ELF in idedata",
             )
-            _LOGGER.warning("Not decoded %s (no addr2line or ELF)", addr)
+            log = _LOGGER.debug if bulk else _LOGGER.warning
+            log("Not decoded %s (no addr2line or ELF)", addr)
             return
         addr2line, elf = idedata.addr2line_path, idedata.firmware_elf_path
     command = [addr2line, "-pfiaC", "-e", elf, addr]
@@ -688,8 +691,9 @@ def _decode_pc(config: ConfigType, addr: str, *, bulk: bool = False) -> None:
             "addr2line-failed", "Could not decode crash address %s (%s)", addr, err
         ):
             # The detailed warning already named this address; mark only
-            # the addresses whose warning was rate-limited away
-            _LOGGER.warning("Not decoded %s (addr2line failed)", addr)
+            # the rate-limited ones, and bulk stack words at debug
+            log = _LOGGER.debug if bulk else _LOGGER.warning
+            log("Not decoded %s (addr2line failed)", addr)
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
