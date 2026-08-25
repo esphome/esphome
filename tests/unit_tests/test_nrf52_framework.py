@@ -16,6 +16,7 @@ from esphome.components.nrf52.framework import (
     _get_penv_site_packages,
     _get_platformio_penv_path,
     _get_toolchain_platform_info,
+    _needs_venv_rebuild,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
@@ -103,11 +104,13 @@ def mock_nrf52_ops():
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
+        # download_and_extract resolves its internals in framework_helpers,
+        # so the download/extract seams are patched there.
         patch(
-            "esphome.components.nrf52.framework.download_from_mirrors",
+            "esphome.framework_helpers.download_from_mirrors",
             return_value="https://example.com/tc.tar.xz",
         ) as mock_download,
-        patch("esphome.components.nrf52.framework.archive_extract_all") as mock_extract,
+        patch("esphome.framework_helpers.archive_extract_all") as mock_extract,
     ):
         yield SimpleNamespace(
             rmdir=mock_rmdir,
@@ -123,10 +126,19 @@ def mock_nrf52_ops():
 # ---------------------------------------------------------------------------
 
 
+def _touch_penv_python(penv: Path) -> None:
+    """Create the interpreter file so the rebuild gate sees a live venv."""
+    python = get_python_env_executable_path(penv, "python")
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.touch()
+
+
 def _mark_venv_ready(python_env: Path) -> None:
-    """Write the venv sentinel with the current requirements hash."""
+    """Write the venv sentinel with the current requirements hash and a
+    present interpreter so the rebuild gate passes."""
     requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
     (python_env / ".ready").write_text(requirements_hash, encoding="utf-8")
+    _touch_penv_python(python_env)
 
 
 class TestCheckAndInstall:
@@ -147,6 +159,23 @@ class TestCheckAndInstall:
         mock_nrf52_ops.run_command_ok.assert_not_called()
         mock_nrf52_ops.download_from_mirrors.assert_not_called()
         mock_nrf52_ops.archive_extract_all.assert_not_called()
+
+    def test_missing_interpreter_rebuilds_venv(
+        self,
+        nrf52_dirs: SimpleNamespace,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A valid sentinel must not mask a missing interpreter (a cached venv
+        restored after a host interpreter upgrade)."""
+        requirements_hash = hashlib.sha256(_REQUIREMENTS.read_bytes()).hexdigest()
+        (nrf52_dirs.python_env / ".ready").write_text(
+            requirements_hash, encoding="utf-8"
+        )
+        # no interpreter on disk
+
+        check_and_install()
+
+        mock_nrf52_ops.create_venv.assert_called_once()
 
     def test_fresh_install_runs_all_steps(
         self,
@@ -348,6 +377,7 @@ class TestSetupPlatformioPythonEnv:
         (platformio_penv_dir / ".ready").write_text(
             _platformio_requirements_hash(), encoding="utf-8"
         )
+        _touch_penv_python(platformio_penv_dir)
 
         with patch.dict(os.environ):
             setup_platformio_python_env()
@@ -392,6 +422,22 @@ class TestSetupPlatformioPythonEnv:
 
         assert not (platformio_penv_dir / ".ready").exists()
 
+    def test_missing_interpreter_reinstalls(
+        self,
+        platformio_penv_dir: Path,
+        mock_nrf52_ops: SimpleNamespace,
+    ) -> None:
+        """A valid sentinel must not mask a missing interpreter."""
+        (platformio_penv_dir / ".ready").write_text(
+            _platformio_requirements_hash(), encoding="utf-8"
+        )
+        # no interpreter on disk
+
+        with patch.dict(os.environ):
+            setup_platformio_python_env()
+
+        mock_nrf52_ops.create_venv.assert_called_once()
+
     def test_repeated_calls_do_not_duplicate_env_entries(
         self,
         platformio_penv_dir: Path,
@@ -401,6 +447,7 @@ class TestSetupPlatformioPythonEnv:
         (platformio_penv_dir / ".ready").write_text(
             _platformio_requirements_hash(), encoding="utf-8"
         )
+        _touch_penv_python(platformio_penv_dir)
         site_packages = str(_get_penv_site_packages(platformio_penv_dir))
         bin_dir = str(
             get_python_env_executable_path(platformio_penv_dir, "python").parent
@@ -422,6 +469,7 @@ class TestSetupPlatformioPythonEnv:
         (platformio_penv_dir / ".ready").write_text(
             _platformio_requirements_hash(), encoding="utf-8"
         )
+        _touch_penv_python(platformio_penv_dir)
         site_packages = str(_get_penv_site_packages(platformio_penv_dir))
 
         with patch.dict(os.environ, {"PYTHONPATH": "/existing/path"}):
@@ -531,3 +579,45 @@ def testget_tools_path_default_is_global_cache(
         Path(platformdirs.user_cache_dir("esphome", appauthor=False)) / "sdk-nrf"
     ).resolve()
     assert get_sdk_nrf_tools_path() == expected
+
+
+def test_needs_venv_rebuild_gates(tmp_path: Path) -> None:
+    """The shared penv gate rebuilds on any missing or stale piece."""
+    penv = tmp_path / "penv"
+    penv.mkdir()
+    python = penv / "python"
+    sentinel = penv / ".ready"
+    good_hash = "abc123"
+
+    # Nothing in place yet
+    assert _needs_venv_rebuild(python, sentinel, good_hash)
+
+    python.write_text("")
+    # Interpreter present but no sentinel
+    assert _needs_venv_rebuild(python, sentinel, good_hash)
+
+    sentinel.write_text(good_hash, encoding="utf-8")
+    # Everything in place
+    assert not _needs_venv_rebuild(python, sentinel, good_hash)
+
+    # Stale requirements hash
+    assert _needs_venv_rebuild(python, sentinel, "otherhash")
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="symlink creation needs privileges on Windows"
+)
+def test_needs_venv_rebuild_on_dangling_interpreter_symlink(tmp_path: Path) -> None:
+    """A cached venv restored after a host interpreter upgrade has a
+    bin/python symlink whose target is gone; the valid sentinel must not
+    mask it."""
+    penv = tmp_path / "penv"
+    penv.mkdir()
+    python = penv / "python"
+    sentinel = penv / ".ready"
+    sentinel.write_text("abc123", encoding="utf-8")
+    python.symlink_to(tmp_path / "hostedtoolcache" / "3.12.14" / "python3")
+    assert python.is_symlink()
+    assert not python.exists()
+
+    assert _needs_venv_rebuild(python, sentinel, "abc123")

@@ -31,6 +31,13 @@ SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
 
+# cv.boolean's closed spelling tables, shared with the env-knob parsing below
+TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
+FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
+# cv.boolean's spelling tables plus the 1/0 env convention
+TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
+FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
+
 IS_MACOS = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
@@ -395,12 +402,14 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
 
 
 def get_bool_env(var, default=False):
+    """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
+    anything else falls through to ``bool(value)``."""
     value = os.getenv(var, default)
     if isinstance(value, str):
         value = value.lower()
-        if value in ["1", "true"]:
+        if value in TRUTHY_ENV_STRINGS:
             return True
-        if value in ["0", "false"]:
+        if value in FALSY_ENV_STRINGS:
             return False
     return bool(value)
 
@@ -552,7 +561,18 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     """
     src_content = None
     if path.is_file():
-        src_content = read_file(path)
+        try:
+            src_content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as err:
+            # Replace a damaged file rather than abort the regeneration that
+            # fixes it; an OSError may hide an intact file, so it still raises
+            _LOGGER.warning("Replacing damaged file %s: %s", path, err)
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+        except OSError as err:
+            from esphome.core import EsphomeError
+
+            raise EsphomeError(f"Error reading file {path}: {err}") from err
     if src_content == text:
         return False
     write_file(path, text)
@@ -718,10 +738,21 @@ class ProgressBar:
         sys.stderr.flush()
 
     def done(self) -> None:
-        if not self.enabled:
+        # No frame drawn, or the 100% frame already ended its own line
+        if not self.enabled or self.last_progress is None or self.last_progress == 100:
             return
         sys.stderr.write("\n")
         sys.stderr.flush()
+
+    def interrupt(self) -> None:
+        """End a mid-row frame so the next write starts on its own row.
+
+        The next ``update()`` redraws the bar; a finished bar stays done.
+        """
+        if self.last_progress == 100:
+            return
+        self.done()
+        self.last_progress = None
 
 
 def docs_url(path: str) -> str:

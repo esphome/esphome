@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from ctypes.util import find_library
+from functools import partial
 import json
 import logging
 import os
@@ -16,13 +17,15 @@ import platformdirs
 from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
-    archive_extract_all,
     create_venv,
+    download_and_extract,
     download_from_mirrors,
     download_with_resume,
+    failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
     rmdir,
+    run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
@@ -690,6 +693,18 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
+def _download_tool(
+    dist_path: Path, entry: dict, tracker: Callable[[int], None]
+) -> None:
+    download_with_resume(
+        entry["url"],
+        dist_path / entry["dest"],
+        sha256=entry["sha256"],
+        size=entry["size"],
+        progress=tracker,
+    )
+
+
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -702,10 +717,10 @@ def _prefetch_idf_tool_archives(
     which makes large archives effectively impossible to fetch on unstable
     connections (#17703). This asks the framework's idf_tools (via
     ``get_tool_downloads.py``) which archives the coming install needs, then
-    downloads each into ``<IDF_TOOLS_PATH>/dist`` with
-    ``download_with_resume``. The installer then finds the verified archives
-    already in place ("file ... is already downloaded") and never touches the
-    network.
+    downloads them into ``<IDF_TOOLS_PATH>/dist`` with
+    ``download_with_resume``, a few at a time under one combined progress
+    bar. The installer then finds the verified archives already in place
+    ("file ... is already downloaded") and never touches the network.
 
     Strictly best-effort: any failure here just logs and returns, leaving
     ``idf_tools.py install`` to download whatever is missing exactly as
@@ -727,30 +742,67 @@ def _prefetch_idf_tool_archives(
             )
             return
         dist_path = get_idf_tools_path() / "dist"
-        entries = [
-            entry
-            for entry in json.loads(stdout)
-            if not (dist_path / entry["dest"]).is_file()
-        ]
-        for index, entry in enumerate(entries, start=1):
-            _LOGGER.info(
-                "Downloading %s (%d/%d) ...", entry["name"], index, len(entries)
-            )
-            try:
-                download_with_resume(
-                    entry["url"],
-                    dist_path / entry["dest"],
-                    sha256=entry["sha256"],
-                    size=entry["size"],
+        entries = []
+        seen_dests: set[str] = set()
+        for entry in json.loads(stdout):
+            if (dist_path / entry["dest"]).is_file():
+                continue
+            # Never download unverified: an entry without sha256/size is
+            # left to the installer, which fails loudly on a bad archive.
+            # Checked before the dedupe so it cannot shadow a verifiable
+            # duplicate of the same dest.
+            if not (entry.get("sha256") and entry.get("size")):
+                _LOGGER.warning(
+                    "Tool %s has no sha256/size in the download list; "
+                    "leaving it to the installer",
+                    entry["name"],
                 )
-            except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                # Keep prefetching the remaining archives; the installer
-                # will retry this one itself (without resume).
-                _LOGGER.warning("Could not prefetch %s: %s", entry["name"], e)
+                continue
+            if entry["dest"] in seen_dests:
+                # Two workers on one .part file would interleave
+                # seek/truncate writes; mirror the library prefetch's dedupe
+                continue
+            seen_dests.add(entry["dest"])
+            entries.append(entry)
+        if not entries:
+            return
+        _LOGGER.info(
+            "Downloading %d ESP-IDF tool archive(s): %s",
+            len(entries),
+            ", ".join(entry["name"] for entry in entries),
+        )
+
+        # No sequential fallback here: skipping the prefetch would lose the
+        # resume workaround for #17703, and every entry has a size (above).
+        # A failed archive is retried by the installer itself (without
+        # resume); keep prefetching the rest.
+        failures = run_batch_downloads(
+            "Downloading ESP-IDF tools",
+            [
+                (
+                    entry["name"],
+                    entry["size"],
+                    partial(_download_tool, dist_path, entry),
+                )
+                for entry in entries
+            ],
+        )
+        for name, e in failures:
+            # failure_reason: a message-less exception must not log blank
+            _LOGGER.warning("Could not prefetch %s: %s", name, failure_reason(e))
+            _LOGGER.debug("Prefetch failure detail", exc_info=e)
+        if len(failures) == len(entries):
+            # A systematic fault, not one flaky mirror: the resume
+            # workaround (#17703) is off for this whole install
+            _LOGGER.error(
+                "Every ESP-IDF tool prefetch failed; the installer will "
+                "download without resume"
+            )
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The installer downloads anything missing itself; never let the
         # prefetch become a new way for the install to fail.
-        _LOGGER.warning("ESP-IDF tool prefetch failed: %s", e)
+        _LOGGER.warning("ESP-IDF tool prefetch failed: %s", failure_reason(e))
+        _LOGGER.debug("Prefetch failure detail", exc_info=True)
 
 
 def _check_esphome_idf_framework_install(
@@ -857,20 +909,13 @@ def _check_esphome_idf_framework_install(
             # a temp file) so an interrupted download resumes on the next
             # run; the cache is pruned after a successful install anyway.
             tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
-            download_from_mirrors(mirrors, substitutions, tarball_path)
-
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            try:
-                with tarball_path.open("rb") as tarball:
-                    archive_extract_all(
-                        tarball, framework_path, progress_header="Extracting"
-                    )
-            finally:
-                # Success: drop the archive rather than caching ~70MB twice.
-                # Failure: a corrupt archive (e.g. torn by an unclean
-                # shutdown) must not be reused — without a checksum only a
-                # failed extraction can expose it, so force a re-download.
-                tarball_path.unlink(missing_ok=True)
+            download_and_extract(
+                mirrors,
+                substitutions,
+                tarball_path,
+                framework_path,
+                progress_header="Extracting",
+            )
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
