@@ -17,6 +17,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
+    RawSdkconfigValue,
     _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
@@ -318,6 +319,63 @@ def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
 
     generate_main(component_config_path("exclusion_stays_nvs_sdkconfig_off.yaml"))
     assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+
+_BUNDLE_OPTIONS = (
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN",
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL",
+)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("exclusion_reincludes.yaml", (False, None, None), id="no_tls"),
+        pytest.param(
+            "certificate_bundle_http_request.yaml",
+            (True, True, False),
+            id="http_request",
+        ),
+        pytest.param(
+            "exclusion_reincludes_http_request.yaml",
+            (False, None, None),
+            id="http_request_no_verify",
+        ),
+        pytest.param(
+            "certificate_bundle_full.yaml", (True, None, True), id="full_option"
+        ),
+        pytest.param(
+            "certificate_bundle_arduino_tls.yaml",
+            (True, True, False),
+            id="arduino_network_client_secure",
+        ),
+    ],
+)
+def test_certificate_bundle_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: tuple[bool | None, ...],
+) -> None:
+    """The bundle and its CMN/FULL variant are written only when requested."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _BUNDLE_OPTIONS) == expected
+
+
+def test_user_sdkconfig_certificate_bundle_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A raw sdkconfig_options bundle setting is kept and still pins CMN."""
+    generate_main(component_config_path("certificate_bundle_sdkconfig.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    value = sdkconfig["CONFIG_MBEDTLS_CERTIFICATE_BUNDLE"]
+    assert isinstance(value, RawSdkconfigValue)
+    assert value.value == "y"
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL") is False
 
 
 def test_execute_from_psram_s3_sdkconfig(
