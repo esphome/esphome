@@ -60,6 +60,43 @@ def _shell_arg(element) -> str:
     return shlex.split(arg)[0] if arg.strip() else arg
 
 
+def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
+    """Compile the .gch, then probe that the toolchain can load it back
+    (GCC 10 on macOS arm64 builds one it then rejects per-process: "had
+    text segment at different address"). Returns a deterministic error
+    string or None; OSError propagates for transient handling."""
+    result = subprocess.run(  # noqa: PLW1510
+        [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
+        cwd=proj_dir,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return result.stderr
+    probe = subprocess.run(  # noqa: PLW1510
+        [
+            cxx,
+            *flags,
+            "-MF",
+            os.devnull,
+            "-Winvalid-pch",
+            "-include",
+            str(header),
+            "-fsyntax-only",
+            "-x",
+            "c++",
+            "-",
+        ],
+        cwd=proj_dir,
+        input="",
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode != 0 or ".gch" in probe.stderr:
+        return f"toolchain cannot load the pch: {probe.stderr.strip()}"
+    return None
+
+
 def _setup_pch() -> None:
     # Project root, not $BUILD_DIR: SCons compiles run with the project dir
     # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
@@ -180,44 +217,13 @@ def _setup_pch() -> None:
             return
         header.write_text(content, encoding="utf-8")
         try:
-            result = subprocess.run(  # noqa: PLW1510
-                [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
-                cwd=proj_dir,
-                capture_output=True,
-                text=True,
-            )
-            error = result.stderr if result.returncode != 0 else None
+            error = _compile_gch(cxx, flags, header, gch, proj_dir)
         except OSError as err:
-            error = str(err)
-        if error is None:
-            # Some toolchains build a .gch they cannot load back (GCC 10 on
-            # macOS arm64 rejects it per-process: "had text segment at
-            # different address"); probe once so consumers never pay for a
-            # pch that every compile would silently reject
-            try:
-                probe = subprocess.run(  # noqa: PLW1510
-                    [
-                        cxx,
-                        *flags,
-                        "-MF",
-                        os.devnull,
-                        "-Winvalid-pch",
-                        "-include",
-                        str(header),
-                        "-fsyntax-only",
-                        "-x",
-                        "c++",
-                        "-",
-                    ],
-                    cwd=proj_dir,
-                    input="",
-                    capture_output=True,
-                    text=True,
-                )
-                if probe.returncode != 0 or ".gch" in probe.stderr:
-                    error = f"toolchain cannot load the pch: {probe.stderr.strip()}"
-            except OSError as err:
-                error = str(err)
+            # Transient spawn/IO failure: no marker, retry next build
+            print(f"ESPHome: precompiled header compile did not run: {err}")
+            gch.unlink(missing_ok=True)
+            sum_path.unlink(missing_ok=True)
+            return
         if error is not None:
             print("ESPHome: precompiled header failed; compiling without it")
             print(error)

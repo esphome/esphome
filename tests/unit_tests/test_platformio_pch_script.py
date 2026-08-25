@@ -115,6 +115,7 @@ def _run_script(
     fail: bool = False,
     reject_pch: bool = False,
     probe_exit: int = 0,
+    missing_cxx: bool = False,
     env_vars: dict[str, str] | None = None,
     name: str = "dev",
     platform_cls: type[_FakePlatform] = _FakePlatform,
@@ -124,6 +125,8 @@ def _run_script(
     (src / "esphome" / "core").mkdir(parents=True, exist_ok=True)
     (src / "esphome" / "core" / "defines.h").write_text("#define USE_X\n")
     cxx = _fake_cxx(tmp_path, fail=fail, reject_pch=reject_pch, probe_exit=probe_exit)
+    if missing_cxx:
+        cxx = tmp_path / "no-such-gxx"
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
     # Distinct objects: the script must scope ccache/flags to projenv only
     global_env = _FakeSConsEnv(*args)
@@ -219,6 +222,18 @@ def test_pch_script_probe_rejection_falls_back(
     assert "toolchain cannot load the pch" in capsys.readouterr().out
 
 
+def test_pch_script_spawn_failure_is_transient(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A spawn failure must not latch a .failed marker (matches espidf)."""
+    scons_env = _run_script(tmp_path, missing_cxx=True)
+    proj = tmp_path / "dev"
+    assert not (proj / "esphome_pch.h.gch.failed").exists()
+    assert not (proj / "esphome_pch.h.gch.sum").exists()
+    assert scons_env.prepended == []
+    assert "did not run" in capsys.readouterr().out
+
+
 def test_pch_script_probe_nonzero_exit_falls_back(tmp_path: Path) -> None:
     """A probe failure whose stderr never mentions .gch must still count."""
     scons_env = _run_script(tmp_path, probe_exit=1)
@@ -276,7 +291,9 @@ def test_pch_script_hashes_project_local_include_dirs(tmp_path: Path) -> None:
     assert (proj / "esphome_pch.h.gch.sum").read_text() != first
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file modes")
+@pytest.mark.skipif(
+    getattr(os, "geteuid", lambda: -1)() == 0, reason="root ignores file modes"
+)
 def test_pch_script_unreadable_local_header_warns_and_varies(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

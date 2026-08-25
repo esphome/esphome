@@ -59,11 +59,11 @@ def warn_if_idedata_missing(get_idedata: Callable[[], dict | None]) -> None:
             _LOGGER.warning("Idedata failure detail", exc_info=True)
 
 
-# C++ translation-unit suffixes used to identify ESPHome source files.
-_CXX_SUFFIXES = (".cpp", ".cc")
+# C++ translation-unit suffixes, shared with the pch backends.
+CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
 # Suffixes of input/output files that appear bare on the command line (and so
 # must not be mistaken for compiler flags).
-_INPUT_FILE_SUFFIXES = (*_CXX_SUFFIXES, ".c", ".o", ".S", ".s")
+_INPUT_FILE_SUFFIXES = (*CXX_SOURCE_SUFFIXES, ".c", ".o", ".S", ".s")
 # Path marker identifying an ESPHome source translation unit.
 _ESPHOME_SRC_MARKER = "/src/esphome/"
 
@@ -72,7 +72,7 @@ def _is_esphome_src(file: str) -> bool:
     """Whether ``file`` is an ESPHome C++ translation unit; normalized to
     ``/`` first since Windows compile DBs use backslashes."""
     return _ESPHOME_SRC_MARKER in file.replace("\\", "/") and file.endswith(
-        _CXX_SUFFIXES
+        CXX_SOURCE_SUFFIXES
     )
 
 
@@ -147,7 +147,7 @@ def _pick_entry(entries: list[dict]) -> dict:
         if _is_esphome_src(entry["file"]):
             return entry
     for entry in entries:
-        if entry["file"].endswith(_CXX_SUFFIXES):
+        if entry["file"].endswith(CXX_SOURCE_SUFFIXES):
             return entry
     raise ValueError("no C++ translation unit found in compile_commands.json")
 
