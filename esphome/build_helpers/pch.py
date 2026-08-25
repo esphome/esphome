@@ -9,12 +9,15 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 import hashlib
+import logging
 import os
 from pathlib import Path
 import posixpath
 import re
 
 from esphome.build_helpers.ccache import parse_enable_env
+
+_LOGGER = logging.getLogger(__name__)
 
 # The header and its .gch/.sum sidecars live in the build directory.
 PCH_HEADER_NAME = "esphome_pch.h"
@@ -76,8 +79,11 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
             continue
         try:
             data = (src_dir / rel).read_bytes()
-        except OSError:
-            continue
+        except OSError as err:
+            # Hash a marker so an unreadable header invalidates instead of
+            # silently vanishing from the digest
+            _LOGGER.warning("Could not read %s for the pch checksum: %s", rel, err)
+            data = b"<unreadable>"
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
