@@ -22,7 +22,11 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.espidf import variant_to_idf_target
-from esphome.espidf.framework import check_esp_idf_install, get_framework_env
+from esphome.espidf.framework import (
+    check_esp_idf_install,
+    get_framework_env,
+    get_idf_tools_path,
+)
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory, write_file
 
@@ -266,8 +270,6 @@ def _builtin_component_cache_path() -> Path | None:
     ``$IDF_PATH/components`` so an added or removed component directory
     invalidates the entry.
     """
-    from esphome.espidf.framework import get_idf_tools_path
-
     version = _get_core_framework_version()
     idf_path = _get_idf_path(version)
     if idf_path is None or not (components_dir := idf_path / "components").is_dir():

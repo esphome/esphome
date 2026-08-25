@@ -461,7 +461,7 @@ def _cache_env(tmp_path: Path, excluded: str) -> Iterator[Path]:
         patch.object(toolchain, "_get_idf_path", return_value=idf_path),
         patch.dict(CORE.data, {KEY_ESP32: {KEY_VARIANT: "ESP32"}}),
         patch.dict(CORE.cmake_args, {"EXCLUDE_COMPONENTS": excluded}),
-        patch("esphome.espidf.framework.get_idf_tools_path", return_value=tmp_path),
+        patch.object(toolchain, "get_idf_tools_path", return_value=tmp_path),
     ):
         yield idf_path
 
