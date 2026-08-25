@@ -1,21 +1,13 @@
 """ESP-IDF direct build generator for ESPHome."""
 
-import hashlib
 import json
 import logging
-import os
 from pathlib import Path
-import subprocess
 
-from esphome.build_helpers.idedata import (
-    expand_response_files,
-    is_launcher,
-    split_command,
-)
+from esphome.build_helpers import pch
 from esphome.build_helpers.pch import (
-    PCH_CORE_HEADER,
+    PCH_DEFAULT_HEADERS,
     PCH_HEADER_NAME,
-    pch_checksum,
     pch_enabled,
     pch_header_text,
 )
@@ -36,31 +28,6 @@ from esphome.framework_helpers import (
 from esphome.helpers import mkdir_p, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
-
-# Prefix-header contents, defines.h first so USE_* macros exist for the
-# rest. Deliberately hard-coded: frequency-derived sets measured no better
-# and kept selecting headers that cannot compile standalone (X-macro,
-# platform-variant). Every entry must be safe to include first in an
-# empty TU.
-_PCH_HEADERS = (
-    PCH_CORE_HEADER,
-    "esphome/core/component.h",
-    "esphome/core/helpers.h",
-    "esphome/core/log.h",
-    "esphome/core/application.h",
-    "esphome/core/automation.h",
-)
-
-# Header and .gch/.sum sidecars, relative to the device dir; see
-# _pch_cmake() and prepare_pch() for the layout rationale
-_PCH_BUILD_HEADER = f"build/{PCH_HEADER_NAME}"
-
-# Compile-command tokens dropped when retargeting a TU's flags at the
-# prefix header: source/output/depfile flags with an argument, and the
-# argument-less depfile flags (the pch compile must not touch depfiles)
-_PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-include", "-o", "-c", "-MT", "-MF", "-MQ"})
-_PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
-_CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
@@ -337,6 +304,7 @@ def _pch_cmake() -> str:
 # a .gch drop out of the TU depfiles, and prepare_pch() touches the
 # header whenever it rebuilds the .gch so consumers recompile.
 target_compile_options(${{COMPONENT_LIB}} PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
     "$<$<COMPILE_LANGUAGE:CXX>:-include>"
     "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
 )
@@ -345,72 +313,29 @@ set_source_files_properties(${{app_sources}} PROPERTIES
 """
 
 
-def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] | None:
-    """The exact src C++ flags from compile_commands.json, retargeted at
-    the header; None (logged) when no configured C++ TU is available yet."""
-    try:
-        entries = json.loads(
-            (build_dir / "compile_commands.json").read_text(encoding="utf-8")
-        )
-    except (OSError, json.JSONDecodeError) as err:
-        _LOGGER.debug("No usable compile database, skipping pch: %s", err)
-        return None
-    # Windows compile DBs use backslashes; normalize both sides
-    src_prefix = str(CORE.relative_src_path()).replace("\\", "/")
-    entry = next(
-        (
-            e
-            for e in entries
-            if e.get("file", "").replace("\\", "/").startswith(src_prefix)
-            and e.get("file", "").endswith(_CXX_SOURCE_SUFFIXES)
-        ),
-        None,
-    )
-    if entry is None:
-        _LOGGER.debug("No src C++ entry in the compile database, skipping pch")
-        return None
-    tokens = expand_response_files(
-        split_command(entry["command"]), Path(entry.get("directory", build_dir))
-    )
-    # A DB recorded with ccache enabled prefixes the compiler with the
-    # launcher; the .gch must be compiled directly
-    if tokens and is_launcher(tokens[0]):
-        tokens = tokens[1:]
-    args: list[str] = []
-    arg_it = iter(tokens)
-    for tok in arg_it:
-        if tok in _PCH_STRIP_FLAGS_WITH_ARG:
-            next(arg_it, None)
-            continue
-        if tok in _PCH_STRIP_FLAGS:
-            continue
-        args.append(tok)
-    return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)]
+def discard_pch() -> None:
+    """Drop the pch sidecars in the IDF build dir."""
+    pch.discard_pch(CORE.relative_build_path("build"))
 
 
 def prepare_pch() -> None:
-    """Compile the prefix header's .gch and write its ccache .sum.
-
-    Runs right before ninja, after every reconfigure, so the flags in
-    compile_commands.json and the sdkconfig are the settled ones. The .sum
-    doubles as the freshness stamp; a failed .gch compile falls back to
-    the plain header include.
-    """
+    """Build the .gch right before ninja, after every reconfigure, so the
+    compile_commands.json flags and the sdkconfig are the settled ones."""
     if not pch_enabled():
         return
-    build_dir = CORE.relative_build_path("build")
-    header = CORE.relative_build_path(_PCH_BUILD_HEADER)
-    gch = Path(f"{header}.gch")
-    sum_path = Path(f"{gch}.sum")
+    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     try:
-        sdkconfig = CORE.relative_build_path(f"sdkconfig.{CORE.name}").read_text(
-            encoding="utf-8"
+        sdkconfig = sdkconfig_path.read_text(encoding="utf-8")
+    except OSError as err:
+        # Path-independent marker: str(err) embeds the per-device path and
+        # would defeat cross-device .sum sharing
+        _LOGGER.warning(
+            "Could not read %s for the pch checksum: %s", sdkconfig_path, err
         )
-    except OSError:
-        sdkconfig = "no-sdkconfig"
-    checksum = pch_checksum(
-        CORE.relative_src_path(),
-        _PCH_HEADERS,
+        sdkconfig = f"unreadable:{type(err).__name__}:{err.errno}"
+    pch.prepare_pch(
+        CORE.relative_build_path("build"),
+        PCH_DEFAULT_HEADERS,
         (
             str(idf_version()),
             CORE.cpp_standard or "",
@@ -419,54 +344,6 @@ def prepare_pch() -> None:
             *get_project_cxx_compile_flags(),
         ),
     )
-    if (
-        gch.is_file()
-        and sum_path.is_file()
-        and sum_path.read_text(encoding="utf-8").strip() == checksum
-    ):
-        return
-    cmd = _pch_compile_command(build_dir, header, gch)
-    if cmd is None:
-        # The checksum is stale; a leftover .gch must not be consumed
-        gch.unlink(missing_ok=True)
-        sum_path.unlink(missing_ok=True)
-        return
-    # Keyed on the checksum and the compile command: a failure caused by
-    # the command alone must retry when the command changes
-    marker_key = f"{checksum} {hashlib.sha256(' '.join(cmd).encode()).hexdigest()}"
-    failed_marker = Path(f"{gch}.failed")
-    if (
-        failed_marker.is_file()
-        and failed_marker.read_text(encoding="utf-8").strip() == marker_key
-    ):
-        _LOGGER.debug("Pch previously failed for these inputs; skipping")
-        return
-    try:
-        result = subprocess.run(
-            cmd, cwd=build_dir, capture_output=True, text=True, check=False, timeout=300
-        )
-        error = None
-        if result.returncode != 0:
-            error = result.stderr.strip() or f"exit code {result.returncode}"
-        elif not gch.is_file():
-            error = "compiler produced no .gch"
-    except (OSError, subprocess.SubprocessError) as err:
-        error = str(err)
-    if error is not None:
-        _LOGGER.warning(
-            "Precompiled header failed; compiling without it: %s", error[:400]
-        )
-        gch.unlink(missing_ok=True)
-        sum_path.unlink(missing_ok=True)
-        # Skip retries until a header/flag/sdkconfig/command change
-        failed_marker.write_text(marker_key + "\n", encoding="utf-8")
-        os.utime(header)
-        return
-    failed_marker.unlink(missing_ok=True)
-    sum_path.write_text(checksum + "\n", encoding="utf-8")
-    # The OBJECT_DEPENDS edge watches the header; bump it so consumers of
-    # the previous .gch recompile
-    os.utime(header)
 
 
 def write_project(
@@ -490,7 +367,8 @@ def write_project(
 
     if pch_enabled():
         write_file_if_changed(
-            CORE.relative_build_path(_PCH_BUILD_HEADER), pch_header_text(_PCH_HEADERS)
+            CORE.relative_build_path("build", PCH_HEADER_NAME),
+            pch_header_text(PCH_DEFAULT_HEADERS),
         )
 
     # Snapshot the exclusion set so has_outdated_files() can trigger a

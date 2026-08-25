@@ -85,6 +85,51 @@ def test_parse_entry_resolves_relative_includes() -> None:
     assert all(Path(inc).is_absolute() for inc in includes)
 
 
+def test_parse_entry_resolves_force_include_path(tmp_path: Path) -> None:
+    """The pch -include is emitted relative to the build dir; idedata must
+    resolve it so cached flags work from any cwd."""
+    (tmp_path / "esphome_pch.h").write_text("")
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        "g++ -include esphome_pch.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    idx = cxx_flags.index("-include")
+    resolved = cxx_flags[idx + 1]
+    assert Path(resolved).is_absolute()
+    assert resolved == str(tmp_path / "esphome_pch.h").replace("\\", "/")
+
+
+def test_parse_entry_keeps_search_chain_force_include(tmp_path: Path) -> None:
+    """-include names resolved via the -I chain (libretiny's Arduino.h) must
+    not be re-anchored to a nonexistent build-dir path."""
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        "g++ -include Arduino.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    assert cxx_flags[cxx_flags.index("-include") + 1] == "Arduino.h"
+
+
+def test_parse_entry_drops_trailing_force_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    entry = _entry(
+        str(tmp_path), f"{tmp_path}/src/esphome/x.cpp", "g++ -c x.cpp -include"
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    assert "-include" not in cxx_flags
+    assert "no argument" in caplog.text
+
+
 def test_parse_entry_skips_dependency_flags() -> None:
     """Dependency-generation flags (and their args) are dropped."""
     entry = _entry(
