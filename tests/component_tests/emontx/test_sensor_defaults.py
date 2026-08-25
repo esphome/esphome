@@ -92,6 +92,9 @@ def _make_config(tag: str) -> dict:
         # "PULSE" (no index) is how some real emonTx firmware reports a
         # single pulse counter, so it still resolves to the PULSE defaults
         ("PULSE", STATE_CLASS_TOTAL_INCREASING, 0),
+        # Real firmware sends this lowercase; tag_upper's case-folding must
+        # still match it against the PULSE pattern
+        ("pulse", STATE_CLASS_TOTAL_INCREASING, 0),
         # PF/AP require a numeric index; the bare prefix alone (no index)
         # falls back to generic defaults
         ("PF", STATE_CLASS_MEASUREMENT, 0),
@@ -123,6 +126,9 @@ def test_apply_tag_defaults(tag, expected_state_class, expected_decimals):
         ("PULSE12", UNIT_PULSES, DEVICE_CLASS_ENERGY),
         # Bare "PULSE" (no index), as reported by some real emonTx firmware
         ("PULSE", UNIT_PULSES, DEVICE_CLASS_ENERGY),
+        # Real firmware sends this lowercase; tag_upper's case-folding must
+        # still match it against the PULSE pattern
+        ("pulse", UNIT_PULSES, DEVICE_CLASS_ENERGY),
         ("PF1", UNIT_EMPTY, DEVICE_CLASS_POWER_FACTOR),
         ("AP1", UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER),
         ("AP12", UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER),
