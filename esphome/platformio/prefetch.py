@@ -1,13 +1,16 @@
-"""Parallel prefetch of the packages a PlatformIO run would install.
+"""Parallel prefetch and install of the packages a PlatformIO run needs.
 
 Downloads the archives concurrently into PlatformIO's own download cache
-(identical ``compute_download_path`` keys) so the serial installer finds
-them already cached. Runs in a subprocess like all PlatformIO execution:
-loading a platform executes its code (pioarduino's penv setup rewrites
-``sys.path``). A sentinel in the build dir lets warm builds skip the
-spawn. Best-effort: any failure logs and PlatformIO downloads as before;
-concurrent esphome processes sharing a core dir may race a ``.part`` file,
-which the sha256 check catches at the cost of one wasted download.
+(identical ``compute_download_path`` keys), then installs them through
+PlatformIO's own ``_install`` with one worker per core, so extraction
+(the serial, single-core half of a cold install) parallelizes too and
+``pio run`` finds every package already installed. Runs in a subprocess
+like all PlatformIO execution: loading a platform executes its code
+(pioarduino's penv setup rewrites ``sys.path``). A sentinel in the build
+dir lets warm builds skip the spawn. Best-effort: any failure logs and
+PlatformIO downloads and installs as before; concurrent esphome processes
+sharing a core dir may race a ``.part`` file, which the sha256 check
+catches at the cost of one wasted download.
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
-from typing import Any
+from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
     content_length,
@@ -41,6 +44,22 @@ _PREFETCH_TIMEOUT = 20 * 60
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
+
+# Extraction is CPU-bound (xz/gzip decompress); one worker per core
+_INSTALL_WORKERS = os.cpu_count() or 4
+
+
+class _Resolved(NamedTuple):
+    """A registry spec resolved to its archive; ``cached`` skips the download."""
+
+    spec: Any
+    name: str
+    size: int
+    url: str
+    dl_path: Path
+    checksum: str
+    cached: bool
+
 
 # Child records a no-work run; the parent skips the next spawn while valid
 _SENTINEL_NAME = ".esphome_prefetch.json"
@@ -135,18 +154,19 @@ def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
 
 def _registry_jobs(
     manager, specs, seen: set[str]
-) -> tuple[list[tuple[str, int, Any]], int]:
+) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Resolve registry specs to ``(name, size, fetch)`` batch jobs.
 
     Mirrors PlatformIO's install path: best version, systype file, first
     mirror, and the same sha1(url + checksum) download-cache key. Also
-    returns how many resolutions errored (a clean skip is not an error).
+    returns how many resolutions errored (a clean skip is not an error)
+    and the ``(name, spec)`` pairs whose archives will be installable.
     """
     from platformio.registry.mirror import RegistryFileMirrorIterator
 
     local = threading.local()
 
-    def _resolve(spec) -> tuple[str, int, str, Path, str] | object | None:
+    def _resolve(spec) -> _Resolved | object | None:
         # One manager (and registry HTTP session) per worker thread;
         # installed-state was already checked on the shared manager
         if (mgr := getattr(local, "mgr", None)) is None:
@@ -164,12 +184,12 @@ def _registry_jobs(
             url, checksum = next(RegistryFileMirrorIterator(pkgfile["download_url"]))
             checksum = checksum or pkgfile["checksum"]["sha256"]
             dl_path = Path(mgr.compute_download_path(url, checksum))
-            if dl_path.is_file():
-                return None  # cached from an earlier run
+            cached = dl_path.is_file()  # fetched by an earlier run
             size = pkgfile.get("size")
-            if not size:
+            if not cached and not size:
                 return None  # no size, no bar share; PlatformIO fetches it
-            return f"{package['name']}@{version['name']}", size, url, dl_path, checksum
+            name = f"{package['name']}@{version['name']}"
+            return _Resolved(spec, name, size or 0, url, dl_path, checksum, cached)
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # One flaky spec must not discard the rest of the batch
             _LOGGER.debug("Could not resolve %s", spec, exc_info=True)
@@ -190,11 +210,12 @@ def _registry_jobs(
             )
     pending = list(unique.values())
     if not pending:
-        return [], 0
+        return [], 0, []
     # Serial resolutions (registry GET + mirror HEAD each) dominate
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(pending))) as ex:
         results = list(ex.map(_resolve, pending))
     jobs: list[tuple[str, int, Any]] = []
+    installable: list[tuple[str, Any]] = []
     failed = 0
     for res in results:
         if res is None:
@@ -202,12 +223,18 @@ def _registry_jobs(
         if res is _RESOLVE_FAILED:
             failed += 1
             continue
-        name, size, url, dl_path, checksum = res
-        if str(dl_path) in seen:
-            continue  # duplicate spec; two workers must not share a .part
-        seen.add(str(dl_path))
+        installable.append((res.name, res.spec))
+        if res.cached or str(res.dl_path) in seen:
+            continue  # already fetched, or a duplicate must not share a .part
+        seen.add(str(res.dl_path))
         jobs.append(
-            (name, size, resume_fetch_job(url, dl_path, sha256=checksum, size=size))
+            (
+                res.name,
+                res.size,
+                resume_fetch_job(
+                    res.url, res.dl_path, sha256=res.checksum, size=res.size
+                ),
+            )
         )
     if failed == len(pending):
         # A systematic fault (outage, proxy), not one flaky package
@@ -216,18 +243,22 @@ def _registry_jobs(
             "PlatformIO will download them serially",
             failed,
         )
-    return jobs, failed
+    return jobs, failed, installable
 
 
-def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]], int]:
+def _uri_jobs(
+    manager, specs, seen: set[str]
+) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
     Also returns how many HEAD probes errored (an absent length is not an
-    error).
+    error) and the ``(name, spec)`` pairs whose archives will be
+    installable.
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
-    candidates: list[tuple[str, str, Path]] = []
+    candidates: list[tuple[str, str, Path, Any]] = []
+    installable: list[tuple[str, Any]] = []
     for spec in specs:
         url = spec.uri
         if not url or not url.startswith(("http://", "https://")):
@@ -236,12 +267,16 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
             continue  # bare-URL VCS spec; PlatformIO clones it
         if manager.get_package(spec):
             continue
+        name = spec.name or url.rsplit("/", 1)[-1]
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
-        if dl_path.is_file() or str(dl_path) in seen:
-            continue  # cached, or another spec already claimed this .part
+        if dl_path.is_file():
+            installable.append((name, spec))  # fetched by an earlier run
+            continue
+        if str(dl_path) in seen:
+            continue  # another spec already claimed this .part
         seen.add(str(dl_path))
-        candidates.append((spec.name or url.rsplit("/", 1)[-1], url, dl_path))
+        candidates.append((name, url, dl_path, spec))
 
     def _head_size(url: str) -> int:
         try:
@@ -257,17 +292,18 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
         return content_length(resp)
 
     if not candidates:
-        return [], 0
+        return [], 0, installable
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(candidates))) as ex:
-        sizes = list(ex.map(_head_size, [url for _, url, _ in candidates]))
+        sizes = list(ex.map(_head_size, [url for _, url, _, _ in candidates]))
     jobs: list[tuple[str, int, Any]] = []
     failed = 0
-    for (name, url, dl_path), size in zip(candidates, sizes, strict=True):
+    for (name, url, dl_path, spec), size in zip(candidates, sizes, strict=True):
         if size < 0:
             failed += 1
         elif size:
             jobs.append((name, size, _uri_fetch_job(url, dl_path, size)))
-    return jobs, failed
+            installable.append((name, spec))
+    return jobs, failed, installable
 
 
 def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
@@ -285,6 +321,35 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
         tmp.replace(dl_path)
 
     return run
+
+
+def _preinstall(manager, specs) -> None:
+    """Install downloaded packages now, extracting in parallel.
+
+    pio run's installer unpacks one archive at a time on one core. With the
+    manager's inter-process lock held once and a per-thread manager driving
+    PlatformIO's own ``_install`` for each distinct package, extraction uses
+    every core and pio run finds the packages installed. Any failure leaves
+    that package to pio run's own installer.
+    """
+
+    def _install_one(spec) -> None:
+        try:
+            # PlatformIO's real install (metadata, postinstall, deps);
+            # only the concurrency across packages is ours
+            mgr = manager.__class__(manager.package_dir)
+            mgr._install(spec)  # pylint: disable=protected-access  # noqa: SLF001
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            _LOGGER.debug("Could not pre-install %s", spec, exc_info=True)
+
+    _LOGGER.info("Installing %d PlatformIO package(s) in parallel", len(specs))
+    manager.lock()
+    try:
+        with ThreadPoolExecutor(max_workers=min(_INSTALL_WORKERS, len(specs))) as ex:
+            list(ex.map(_install_one, specs))
+    finally:
+        manager.unlock()
+    manager.memcache_reset()
 
 
 def _prefetch(build_dir: Path, env: str) -> None:
@@ -336,15 +401,32 @@ def _prefetch(build_dir: Path, env: str) -> None:
 
     seen: set[str] = set()
     jobs: list[tuple[str, int, Any]] = []
+    groups: list[tuple[Any, list[tuple[str, Any]]]] = []
     unresolved = 0
     for mgr, batch in ((p.pm, specs), (lm, lib_specs)):
+        entries: list[tuple[str, Any]] = []
         for build_jobs in (_registry_jobs, _uri_jobs):
-            batch_jobs, failed = build_jobs(mgr, batch, seen)
+            batch_jobs, failed, installable = build_jobs(mgr, batch, seen)
             jobs += batch_jobs
             unresolved += failed
+            entries += installable
+        if entries:
+            groups.append((mgr, entries))
 
     sentinel = build_dir / _SENTINEL_NAME
-    if not jobs:
+    failed_names: set[str] = set()
+    if jobs:
+        sentinel.unlink(missing_ok=True)
+        _LOGGER.info(
+            "Prefetching %d PlatformIO package(s): %s",
+            len(jobs),
+            ", ".join(name for name, _, _ in jobs),
+        )
+        # PlatformIO retries failed packages itself, without resume
+        failures = run_batch_downloads("Downloading PlatformIO packages", jobs)
+        warn_prefetch_failures(failures)
+        failed_names = {name for name, _ in failures}
+    elif not groups:
         if not unresolved:
             # Record the no-work run so the parent skips the next spawn.
             # A failed resolution is not "no work": a registry outage must
@@ -357,14 +439,11 @@ def _prefetch(build_dir: Path, env: str) -> None:
                 encoding="utf-8",
             )
         return
-    sentinel.unlink(missing_ok=True)
-    _LOGGER.info(
-        "Prefetching %d PlatformIO package(s): %s",
-        len(jobs),
-        ", ".join(name for name, _, _ in jobs),
-    )
-    # PlatformIO retries failed packages itself, without resume
-    warn_prefetch_failures(run_batch_downloads("Downloading PlatformIO packages", jobs))
+
+    for mgr, entries in groups:
+        to_install = [spec for name, spec in entries if name not in failed_names]
+        if to_install:
+            _preinstall(mgr, to_install)
 
 
 def main(argv: list[str]) -> int:
