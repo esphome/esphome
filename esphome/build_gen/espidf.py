@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 import subprocess
 
@@ -331,11 +332,16 @@ def _pch_cmake() -> str:
     if not pch_enabled():
         return ""
     return f"""
-# ESPHome precompiled header (see esphome/build_helpers/pch.py)
+# ESPHome precompiled header (see esphome/build_helpers/pch.py). The
+# OBJECT_DEPENDS edge is on the header, not the .gch: headers baked into
+# a .gch drop out of the TU depfiles, and prepare_pch() touches the
+# header whenever it rebuilds the .gch so consumers recompile.
 target_compile_options(${{COMPONENT_LIB}} PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:-include>"
     "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
 )
+set_source_files_properties(${{app_sources}} PROPERTIES
+    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
 """
 
 
@@ -349,12 +355,13 @@ def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] 
     except (OSError, json.JSONDecodeError) as err:
         _LOGGER.debug("No usable compile database, skipping pch: %s", err)
         return None
-    src_prefix = str(CORE.relative_src_path())
+    # Windows compile DBs use backslashes; normalize both sides
+    src_prefix = str(CORE.relative_src_path()).replace("\\", "/")
     entry = next(
         (
             e
             for e in entries
-            if e.get("file", "").startswith(src_prefix)
+            if e.get("file", "").replace("\\", "/").startswith(src_prefix)
             and e.get("file", "").endswith(_CXX_SOURCE_SUFFIXES)
         ),
         None,
@@ -420,6 +427,9 @@ def prepare_pch() -> None:
         return
     cmd = _pch_compile_command(build_dir, header, gch)
     if cmd is None:
+        # The checksum is stale; a leftover .gch must not be consumed
+        gch.unlink(missing_ok=True)
+        sum_path.unlink(missing_ok=True)
         return
     # Keyed on the checksum and the compile command: a failure caused by
     # the command alone must retry when the command changes
@@ -433,12 +443,14 @@ def prepare_pch() -> None:
         return
     try:
         result = subprocess.run(
-            cmd, cwd=build_dir, capture_output=True, text=True, check=False
+            cmd, cwd=build_dir, capture_output=True, text=True, check=False, timeout=300
         )
         error = None
         if result.returncode != 0:
             error = result.stderr.strip() or f"exit code {result.returncode}"
-    except OSError as err:
+        elif not gch.is_file():
+            error = "compiler produced no .gch"
+    except (OSError, subprocess.SubprocessError) as err:
         error = str(err)
     if error is not None:
         _LOGGER.warning(
@@ -448,9 +460,13 @@ def prepare_pch() -> None:
         sum_path.unlink(missing_ok=True)
         # Skip retries until a header/flag/sdkconfig/command change
         failed_marker.write_text(marker_key + "\n", encoding="utf-8")
+        os.utime(header)
         return
     failed_marker.unlink(missing_ok=True)
     sum_path.write_text(checksum + "\n", encoding="utf-8")
+    # The OBJECT_DEPENDS edge watches the header; bump it so consumers of
+    # the previous .gch recompile
+    os.utime(header)
 
 
 def write_project(
