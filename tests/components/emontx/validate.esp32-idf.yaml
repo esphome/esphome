@@ -64,7 +64,7 @@ sensor:
     name: Apparent Power 1
     emontx_id: test_emontx
 
-  # Frequency sensor (F prefix, bare single-instance tag): expects
+  # Frequency sensor (F, matched exactly, not as a prefix): expects
   # state_class=measurement, unit=Hz, device_class=frequency,
   # accuracy_decimals=2
   - platform: emontx

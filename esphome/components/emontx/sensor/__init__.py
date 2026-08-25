@@ -33,6 +33,32 @@ from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
 
+# Known emonTx/avrdb JSON tag conventions, gathered from real firmware
+# (see https://github.com/openenergymonitor/avrdb_firmware), used to decide
+# whether each tag below requires a numeric index or may also appear bare:
+#
+#   Tag family    Bare (no index)          Numeric-indexed
+#   -----------   -----------------------  ----------------------------------
+#   P (power)     no                       P1, P2, ... (multi-channel boards)
+#   E (energy)    no                       E1, E2, ...
+#   V (voltage)   Vrms (NOT matched here,  V1, V2, V3 (per-phase boards)
+#                 doesn't fit "V"+digits)
+#   I (current)   no                       I1, I2, ...
+#   T (temp.)     no                       T1, T2, ...
+#   F (frequency) F (single mains freq.)   not seen indexed
+#   PULSE         pulse (single-CT boards) PULSE1, PULSE2, ... (other variants)
+#   PF (power     not seen bare            PF1, PF2, ... (currently unused/
+#     factor)                              commented out in avrdb firmware)
+#   AP (apparent  not seen bare            AP1, AP2, ... (not an avrdb tag at
+#     power)                               all; avrdb uses "VA"+index instead,
+#                                           itself currently unused/commented
+#                                           out; "AP" is kept here for other
+#                                           firmware/integrations using it)
+#
+# This is why a bare "PULSE" resolves to proper defaults below, but bare
+# "PF"/"AP" fall back to generic defaults instead: only PULSE has a
+# confirmed bare-tag use in real, currently-shipping firmware.
+
 # Define sensor type configurations by prefix
 SENSOR_CONFIGS = {
     "P": {
@@ -78,8 +104,14 @@ EXACT_TAG_CONFIGS = {
     },
 }
 
-# Pattern-based configurations. The remainder after the prefix must be empty
-# or numeric, so e.g. "APPLE" doesn't collide with the "AP" prefix.
+# Pattern-based configurations. The remainder after the prefix must be a
+# non-empty numeric index (like V1/I1/E1), so e.g. "APPLE" doesn't collide
+# with the "AP" prefix and a bare "PF"/"AP" (no index) doesn't match.
+# "PULSE" is the exception: some emonTx firmware (e.g. avrdb-based single-CT
+# variants) reports a single pulse counter as a bare "pulse" tag with no
+# numeric index at all, so that pattern also accepts an empty suffix.
+PATTERNS_ALLOWING_BARE_TAG = {"PULSE"}
+
 PATTERN_CONFIGS = {
     "PULSE": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_PULSES,
@@ -146,7 +178,8 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
 
     for pattern, pattern_config in PATTERN_CONFIGS.items():
         suffix = tag_upper[len(pattern) :]
-        if tag_upper.startswith(pattern) and (not suffix or suffix.isdigit()):
+        bare_ok = not suffix and pattern in PATTERNS_ALLOWING_BARE_TAG
+        if tag_upper.startswith(pattern) and (suffix.isdigit() or bare_ok):
             _apply_defaults(config, pattern_config)
             return config
 

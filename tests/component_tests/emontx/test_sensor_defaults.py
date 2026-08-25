@@ -87,6 +87,15 @@ def _make_config(tag: str) -> dict:
         # Unknown / free-form tags fall back to generic defaults
         ("CUSTOM1", STATE_CLASS_MEASUREMENT, 0),
         ("X", STATE_CLASS_MEASUREMENT, 0),
+        # "F1" is not the exact "F" tag, so it falls back to generic defaults
+        ("F1", STATE_CLASS_MEASUREMENT, 0),
+        # "PULSE" (no index) is how some real emonTx firmware reports a
+        # single pulse counter, so it still resolves to the PULSE defaults
+        ("PULSE", STATE_CLASS_TOTAL_INCREASING, 0),
+        # PF/AP require a numeric index; the bare prefix alone (no index)
+        # falls back to generic defaults
+        ("PF", STATE_CLASS_MEASUREMENT, 0),
+        ("AP", STATE_CLASS_MEASUREMENT, 0),
     ],
 )
 def test_apply_tag_defaults(tag, expected_state_class, expected_decimals):
@@ -112,6 +121,8 @@ def test_apply_tag_defaults(tag, expected_state_class, expected_decimals):
         # Known patterns
         ("PULSE1", UNIT_PULSES, DEVICE_CLASS_ENERGY),
         ("PULSE12", UNIT_PULSES, DEVICE_CLASS_ENERGY),
+        # Bare "PULSE" (no index), as reported by some real emonTx firmware
+        ("PULSE", UNIT_PULSES, DEVICE_CLASS_ENERGY),
         ("PF1", UNIT_EMPTY, DEVICE_CLASS_POWER_FACTOR),
         ("AP1", UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER),
         ("AP12", UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER),
@@ -145,6 +156,12 @@ def test_apply_tag_defaults_unit_and_device_class(
         "APPLE",
         "PFX",
         "PULSE_A",
+        # "F1" is not the exact "F" tag
+        "F1",
+        # Bare "PF"/"AP" (no numeric index) don't match; unlike "PULSE",
+        # real firmware never reports these without an index
+        "PF",
+        "AP",
     ],
 )
 def test_apply_tag_defaults_unknown_tag_has_no_unit_or_device_class(tag):
