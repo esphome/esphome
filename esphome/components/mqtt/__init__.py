@@ -1,7 +1,10 @@
+import re
+
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
+from esphome.components.const import CONF_SSL_FINGERPRINTS
 from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
@@ -62,12 +65,16 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, HexInt, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 ESP8266_ASYNC_MQTT_CLIENT_LIBRARY = "esphome/AsyncMqttClient-esphome"
 ESP8266_ASYNC_MQTT_CLIENT_VERSION = "2.2.0"
+
+_SHA1_FINGERPRINT_RE = re.compile(
+    r"(?:[0-9a-fA-F]{40}|(?:[0-9a-fA-F]{2}:){19}[0-9a-fA-F]{2})"
+)
 
 
 def AUTO_LOAD():
@@ -227,6 +234,24 @@ def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_fingerprint(value: object) -> list[HexInt]:
+    fingerprint = cv.string(value).strip()
+    if _SHA1_FINGERPRINT_RE.fullmatch(fingerprint) is None:
+        raise cv.Invalid("fingerprint must be a SHA1 hash with 40 hexadecimal digits")
+    fingerprint_bytes = fingerprint.replace(":", "")
+    return [
+        HexInt(int(fingerprint_bytes[index : index + 2], 16))
+        for index in range(0, len(fingerprint_bytes), 2)
+    ]
+
+
+def validate_ssl_fingerprints(value: object) -> list[list[HexInt]]:
+    fingerprints = cv.ensure_list(validate_fingerprint)(value)
+    if len(fingerprints) != 1:
+        raise cv.Invalid("ESP8266 MQTT TLS supports exactly one fingerprint")
+    return fingerprints
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -282,6 +307,9 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
+            ),
+            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
+                cv.only_on_esp8266, validate_ssl_fingerprints
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -466,6 +494,10 @@ async def to_code(config):
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
     # end esp-idf
+
+    if CONF_SSL_FINGERPRINTS in config:
+        cg.add(var.set_ssl_fingerprint(config[CONF_SSL_FINGERPRINTS][0]))
+        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC])

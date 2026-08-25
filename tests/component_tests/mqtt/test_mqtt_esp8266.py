@@ -15,7 +15,10 @@ def test_mqtt_esp8266_codegen_uses_esp8266_mqtt_libraries(
     generate_main: Callable[[str | Path], str],
 ) -> None:
     """Test ESP8266 MQTT uses the ESP8266 MQTT libraries."""
-    generate_main("tests/component_tests/mqtt/test_mqtt_esp8266.yaml")
+    main_cpp = generate_main("tests/component_tests/mqtt/test_mqtt_esp8266.yaml")
+
+    assert "set_ssl_fingerprint" not in main_cpp
+    assert "-DASYNC_TCP_SSL_ENABLED=1" not in CORE.build_flags
 
     async_mqtt_client = CORE.platformio_libraries["AsyncMqttClient-esphome"]
     assert async_mqtt_client.name == ESP8266_ASYNC_MQTT_CLIENT_LIBRARY
