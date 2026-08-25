@@ -6,7 +6,7 @@ from string import ascii_letters, digits
 import subprocess
 from typing import Any
 
-from esphome.build_helpers.pch import pch_enabled
+from esphome.build_helpers.pch import pch_extra_scripts
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -341,12 +341,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.SINGLE)
 
-    extra_scripts = ["pre:ccache.py"]
-    # Generation-time gate: the script itself has no enable check
-    if pch_enabled():
-        extra_scripts.append("post:pch.py")
-    extra_scripts.append("post:post_build.py")
-    cg.add_platformio_option("extra_scripts", extra_scripts)
+    cg.add_platformio_option(
+        "extra_scripts",
+        ["pre:ccache.py", *pch_extra_scripts(), "post:post_build.py"],
+    )
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
