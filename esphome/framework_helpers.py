@@ -15,9 +15,12 @@ import threading
 import time
 from typing import IO, TYPE_CHECKING
 
-from esphome.happy_eyeballs import ensure_happy_eyeballs
 from esphome.helpers import ProgressBar, rmtree
-from esphome.net_retry import NETWORK_MAX_ATTEMPTS, is_transient_download_error
+from esphome.net_retry import (
+    NETWORK_MAX_ATTEMPTS,
+    http_request,
+    is_transient_download_error,
+)
 
 if TYPE_CHECKING:
     import requests
@@ -600,12 +603,10 @@ def _open_ranged(
     Raises on connect errors and HTTP error statuses; the response is closed
     on failure.
     """
-    import requests
-
     headers = {"Range": f"bytes={offset}-"} if offset else {}
     if offset and validator:
         headers["If-Range"] = validator
-    resp = requests.get(url, stream=True, timeout=timeout, headers=headers)
+    resp = http_request("GET", url, stream=True, timeout=timeout, headers=headers)
     if offset and resp.status_code == 416:
         resp.close()
         return None, offset
@@ -941,8 +942,6 @@ def download_with_resume(
 
     from esphome.core import EsphomeError
 
-    ensure_happy_eyeballs()
-
     dest = Path(dest)
     part = _part_path(dest)
     meta = part.with_name(part.name + ".meta")
@@ -1078,20 +1077,9 @@ def failure_reason(e: BaseException) -> str:
     return str(e).split(" for url: ", maxsplit=1)[0] or repr(e)
 
 
-def _spent_attempts_error(e: Exception, attempts: int) -> Exception:
-    """Wrap a failure whose mirror already consumed download attempts, so
-    the sweep classifies it as permanent."""
-    from esphome.core import EsphomeError
-
-    err = EsphomeError(f"failed after {attempts} attempts: {failure_reason(e)}")
-    err.__cause__ = e
-    return err
-
-
 def _try_mirrors_once(
     urls: list[str],
-    path_target: Path | None,
-    f: IO[bytes] | None,
+    path_target: Path,
     timeout: int,
     failures: list[tuple[str, Exception]],
     progress: Callable[[int], None] | None = None,
@@ -1110,109 +1098,73 @@ def _try_mirrors_once(
     for url in urls:
         _LOGGER.debug("Trying to download from %s", url)
 
-        # Path targets delegate to download_with_resume so a partial
-        # download persists (and resumes) across esphome runs.
-        if path_target is not None:
-            try:
-                download_with_resume(
-                    url,
-                    path_target,
-                    attempts=_MIRROR_ATTEMPTS,
-                    timeout=timeout,
-                    # Pre-body failures (connect/HTTP errors) fall to the
-                    # next mirror immediately; only mid-stream drops
-                    # retry-with-resume on the same URL.
-                    retry_connect_errors=False,
-                    progress=progress,
-                )
-                return url
-            except (requests.RequestException, OSError, EsphomeError) as e:
-                # Everything download_with_resume classifies as a download
-                # failure; programming errors propagate.
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append((url, e))
-                continue
-
-        # File-like targets download here; mid-stream failures retry the
-        # same mirror with resume (see download_with_resume) instead of
-        # starting over. There is no checksum to verify a resumed file
-        # against, so a stitch is only trusted when the server proves
-        # consistency: the If-Range validator guarantees 206 only for
-        # unchanged content, and the expected total length (when the first
-        # response carried one) guards against short or shifted bodies.
-        # Without a validator the retry restarts from zero.
-        offset = 0
-        expected_total = 0
-        validator = None
-        for attempt in range(_MIRROR_ATTEMPTS):
-            try:
-                resp, offset = _open_ranged(url, offset, timeout, validator)
-            except (requests.RequestException, OSError) as e:
-                # Connect/HTTP error, no bytes flowed — next mirror. Wrap
-                # when earlier attempts were already spent on this mirror.
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                failures.append(
-                    (url, _spent_attempts_error(e, attempt + 1) if attempt else e)
-                )
-                break
-
-            try:
-                # A None response means HTTP 416: the file already holds
-                # every byte the server has (a drop after the last byte);
-                # only the length check below remains.
-                if resp is not None:
-                    with resp:
-                        if offset == 0:
-                            validator = _response_validator(resp)
-                            expected_total = _content_length(resp)
-                        _stream_response_to_file(resp, f, offset, progress=progress)
-
-                if expected_total and f.tell() != expected_total:
-                    raise EsphomeError(
-                        f"size mismatch: expected {expected_total}, got {f.tell()}"
-                    )
-                if not expected_total:
-                    # Same trust decision as download_with_resume's
-                    # unverifiable promotion; surface it at the same level.
-                    _LOGGER.debug(
-                        "Downloaded %s without any way to verify completeness",
-                        url,
-                    )
-
-                _LOGGER.debug("Downloaded successfully from: %s", url)
-
-                # Reset file pointer and return
-                f.seek(0)
-                return url
-
-            except (requests.RequestException, OSError, EsphomeError) as e:
-                # Mid-stream drop: keep the received bytes and retry this
-                # mirror from the current position — but only when the
-                # server gave a validator to resume against safely AND a
-                # total length to prove the stitched file complete (the
-                # length check above is the only verification here).
-                _LOGGER.debug("Failed to download %s: %s", url, str(e))
-                if validator and expected_total:
-                    offset = f.tell()
-                else:
-                    _LOGGER.debug(
-                        "Restarting %s from zero: cannot prove a "
-                        "resumed file complete (validator=%s, total=%s)",
-                        url,
-                        validator is not None,
-                        expected_total,
-                    )
-                    offset = 0
-                if attempt == _MIRROR_ATTEMPTS - 1:
-                    failures.append((url, _spent_attempts_error(e, _MIRROR_ATTEMPTS)))
+        # Delegate to download_with_resume so a partial download persists
+        # (and resumes) across esphome runs.
+        try:
+            download_with_resume(
+                url,
+                path_target,
+                attempts=_MIRROR_ATTEMPTS,
+                timeout=timeout,
+                # Pre-body failures (connect/HTTP errors) fall to the
+                # next mirror immediately; only mid-stream drops
+                # retry-with-resume on the same URL.
+                retry_connect_errors=False,
+                progress=progress,
+            )
+            return url
+        except (requests.RequestException, OSError, EsphomeError) as e:
+            # Everything download_with_resume classifies as a download
+            # failure; programming errors propagate.
+            _LOGGER.debug("Failed to download %s: %s", url, str(e))
+            failures.append((url, e))
 
     return None
+
+
+def download_and_extract(
+    mirrors: list[str],
+    substitutions: dict[str, str],
+    archive_path: PathType,
+    extract_dir: PathType,
+    timeout: int = 30,
+    progress_header: str | None = None,
+    progress: Callable[[int], None] | None = None,
+) -> str:
+    """Download an archive from ``mirrors`` to ``archive_path``, extract it
+    into ``extract_dir``, and delete the archive.
+
+    The archive should live next to its destination (not in a temp dir) so
+    an interrupted download's ``.part`` file resumes on the next run. The
+    archive is deleted whether extraction succeeds or fails: a
+    complete-but-corrupt file (e.g. torn by an unclean shutdown) must not
+    poison the next run, and without a checksum only a failed extraction
+    can expose it.
+
+    Returns the source URL the download came from.
+    """
+    archive_path = Path(archive_path)
+    url = download_from_mirrors(
+        mirrors, substitutions, archive_path, timeout=timeout, progress=progress
+    )
+    try:
+        archive_extract_all(archive_path, extract_dir, progress_header=progress_header)
+    finally:
+        # Best-effort: an AV handle on the just-written archive (Windows)
+        # must not replace the real extraction error or fail a successful
+        # extraction. A surviving archive is harmless; download_with_resume
+        # re-verifies or re-downloads it next run.
+        try:
+            archive_path.unlink(missing_ok=True)
+        except OSError as err:
+            _LOGGER.debug("Could not remove archive %s: %s", archive_path, err)
+    return url
 
 
 def download_from_mirrors(
     mirrors: list[str],
     substitutions: dict[str, str],
-    target: io.RawIOBase | IO[bytes] | PathType,
+    target: PathType,
     timeout: int = 30,
     progress: Callable[[int], None] | None = None,
 ) -> str:
@@ -1222,7 +1174,7 @@ def download_from_mirrors(
     Args:
         mirrors: list of mirror URLs
         substitutions: Dictionary of substitutions to apply to URLs
-        target: Target file path or file-like object
+        target: Target file path
         timeout: Download timeout in seconds
         progress: Passed through to the download (see ``download_with_resume``);
             replaces the built-in per-file bar
@@ -1234,9 +1186,8 @@ def download_from_mirrors(
     ``substitutions`` are skipped, so callers can offer templates that only
     apply to some downloads.
 
-    A path target downloads through ``download_with_resume``, so an
-    interrupted download resumes on the next esphome run; a file-like target
-    only resumes mid-stream drops within this call.
+    The target downloads through ``download_with_resume``, so an
+    interrupted download resumes on the next esphome run.
 
     When every mirror fails and at least one failure is transient (dropped
     connection, timeout, HTTP 429/5xx), the whole list is retried with a
@@ -1250,21 +1201,11 @@ def download_from_mirrors(
     """
     from esphome.core import EsphomeError
 
-    ensure_happy_eyeballs()
+    if not isinstance(target, (str, os.PathLike)):
+        raise TypeError(f"target must be a str or Path: {type(target)}")
+    path_target = Path(target)
 
-    # 1. Classify the target: filesystem path or open file object
-    path_target: Path | None = None
-    f: IO[bytes] | None = None
-    if isinstance(target, (str, os.PathLike)):
-        path_target = Path(target)
-    elif isinstance(target, (io.RawIOBase, io.IOBase)):
-        f = target
-    else:
-        raise TypeError(
-            f"target must be str, Path, or file-like object: {type(target)}"
-        )
-
-    # 2. Resolve the mirror templates (invariant across retry sweeps)
+    # 1. Resolve the mirror templates (invariant across retry sweeps)
     urls: list[str] = []
     skipped: list[tuple[str, str]] = []
     for mirror in mirrors:
@@ -1283,7 +1224,7 @@ def download_from_mirrors(
             _LOGGER.warning("Skipping malformed mirror URL template %s: %r", mirror, e)
             skipped.append((mirror, f"skipped ({e!r})"))
 
-    # 3. Sweep the mirror list, retrying transient failures with backoff:
+    # 2. Sweep the mirror list, retrying transient failures with backoff:
     # a single pass keeps mirror failover fast, re-sweeping keeps one
     # network blip from failing the build when only one mirror applies.
     failures: list[tuple[str, Exception]] = []
@@ -1291,7 +1232,7 @@ def download_from_mirrors(
         sweep_failures: list[tuple[str, Exception]] = []
         if (
             url := _try_mirrors_once(
-                urls, path_target, f, timeout, sweep_failures, progress
+                urls, path_target, timeout, sweep_failures, progress
             )
         ) is not None:
             return url
@@ -1318,14 +1259,11 @@ def download_from_mirrors(
             # steady during the backoff instead of rewinding to zero
             done = 0
             if progress is not None:
-                if f is not None:
-                    done = f.tell()
-                else:
-                    part = _part_path(path_target)
-                    done = part.stat().st_size if part.is_file() else 0
+                part = _part_path(path_target)
+                done = part.stat().st_size if part.is_file() else 0
             _cancellable_sleep(delay, progress, done)
 
-    # 4. Report every attempted URL if all mirrors failed. failures spans
+    # 3. Report every attempted URL if all mirrors failed. failures spans
     # all sweeps (deduplicated by URL and reason), so neither an early
     # mirror's failure nor an earlier sweep's failure mode is hidden.
     if failures:

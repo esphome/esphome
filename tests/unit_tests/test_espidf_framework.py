@@ -371,10 +371,9 @@ def _fake_download_from_mirrors(
 ) -> str:
     """Stand-in for download_from_mirrors that creates path targets, since
     the framework code opens the downloaded tarball afterwards."""
-    if isinstance(target, (str, os.PathLike)):
-        path = Path(target)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch()
+    path = Path(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.touch()
     return "https://example.com/idf.tar.xz"
 
 
@@ -384,13 +383,15 @@ def espidf_mocks(setup_core: Path):
     # archive_extract_all is mocked, so pre-create the framework dir that the
     # extracted-marker touch writes into.
     _get_framework_path(_IDF_VERSION).mkdir(parents=True, exist_ok=True)
+    # One mock covers the tarball (via framework_helpers.download_and_extract)
+    # and the constraints file (espidf-bound download_from_mirrors), so call
+    # counts and ordering assertions span the two.
+    download = MagicMock(side_effect=_fake_download_from_mirrors)
     with (
         patch("esphome.espidf.framework.rmdir") as rmdir_mock,
-        patch(
-            "esphome.espidf.framework.download_from_mirrors",
-            side_effect=_fake_download_from_mirrors,
-        ) as download,
-        patch("esphome.espidf.framework.archive_extract_all") as extract,
+        patch("esphome.framework_helpers.download_from_mirrors", download),
+        patch("esphome.espidf.framework.download_from_mirrors", download),
+        patch("esphome.framework_helpers.archive_extract_all") as extract,
         patch("esphome.espidf.framework.create_venv") as venv,
         patch("esphome.espidf.framework.run_command_ok", return_value=True) as run_ok,
         patch(
