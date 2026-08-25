@@ -6,6 +6,7 @@ from string import ascii_letters, digits
 import subprocess
 from typing import Any
 
+from esphome.build_helpers.pch import pch_enabled
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -33,7 +34,7 @@ from esphome.core import (
 )
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
-from esphome.platformio.toolchain import copy_ccache_script
+from esphome.platformio.toolchain import copy_ccache_script, copy_pch_script
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -340,7 +341,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[variant])
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option("extra_scripts", ["pre:ccache.py", "post:post_build.py"])
+    extra_scripts = ["pre:ccache.py"]
+    # Generation-time gate: the script itself has no enable check
+    if pch_enabled():
+        extra_scripts.append("post:pch.py")
+    extra_scripts.append("post:post_build.py")
+    cg.add_platformio_option("extra_scripts", extra_scripts)
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -644,6 +650,7 @@ def copy_files() -> None:
         CORE.relative_build_path("inject_lwip_include.py"),
     )
     copy_ccache_script()
+    copy_pch_script()
     _generate_lwipopts_h()
     if generate_pio_files():
         path = CORE.relative_src_path("esphome.h")
