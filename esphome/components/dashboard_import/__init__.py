@@ -4,7 +4,6 @@ import re
 import secrets
 from typing import Any
 
-import requests
 from ruamel.yaml import YAML
 
 from esphome import git
@@ -111,6 +110,10 @@ def import_config(
 
     if git_file.query and "full_config" in git_file.query:
         url = git_file.raw_url
+
+        # Deferred so config-time imports of this component stay light;
+        # http_request does the lazy import for the request itself.
+        import requests
 
         def _fetch() -> str:
             req = http_request("GET", url, timeout=30)
