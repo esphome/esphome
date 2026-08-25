@@ -539,8 +539,17 @@ def test_prefetch_packages_skips_freshly_installed_dest(tmp_path: Path) -> None:
     already installed; re-downloading would orphan an archive copy."""
     dest = tmp_path / "a"
     dest.mkdir()
-    (dest / ".esphome_extracted").touch()
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def marker_appears_under_lock(path, **kwargs):
+        # Simulates the concurrent build finishing while we waited
+        (dest / ".esphome_extracted").touch()
+        yield
+
     with (
+        patch("filelock.FileLock", side_effect=marker_appears_under_lock),
         patch.object(registry, "download_with_resume") as mock_download,
         patch.object(
             registry, "registry_download", side_effect=_resolve_for({"a": 10})
