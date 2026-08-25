@@ -7,6 +7,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 from . import APDS9960, CONF_APDS9960_ID
 
@@ -27,7 +28,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_APDS9960_ID])
     var = await sensor.new_sensor(config)
     func = getattr(hub, f"set_{config[CONF_TYPE]}_sensor")

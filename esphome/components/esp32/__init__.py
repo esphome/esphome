@@ -12,6 +12,7 @@ from typing import Any
 from esphome import yaml_util
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
@@ -204,21 +205,36 @@ COMPILER_OPTIMIZATIONS = {
 # ESP-IDF components excluded by default to reduce compile time.
 # Components can be re-enabled by calling include_builtin_idf_component() in to_code().
 #
-# Cannot be excluded (dependencies of required components):
-# - "console": espressif/mdns unconditionally depends on it
-# - "sdmmc": driver -> esp_driver_sdmmc -> sdmmc dependency chain
+# Note: excluding a component only removes it from the initial build set.
+# ESP-IDF's requirement expansion adds an excluded component back when any
+# component still in the build REQUIRES it (e.g. espressif/mdns pulls
+# "console" back in, esp_http_client pulls "tcp_transport" back in), so
+# exclusions here are safe for such components and simply become no-ops in
+# builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
+    "app_trace",  # CPU trace/SystemView support - unused by ESPHome
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
+    "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
+    "esp-tls",  # TLS wrapper - re-included by http_request, mqtt, web_server_idf
     "esp_adc",  # ADC driver - only needed by adc component
+    "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
+    "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
+    "esp_driver_i2c",  # I2C driver - re-included by i2c; esp32-camera pulls it back itself
     "esp_driver_i2s",  # I2S driver - only needed by i2s_audio component
+    "esp_driver_ledc",  # LEDC PWM driver - re-included by ledc; esp32-camera pulls it back itself
     "esp_driver_mcpwm",  # MCPWM driver - ESPHome doesn't use motor control PWM
     "esp_driver_pcnt",  # PCNT driver - only needed by pulse_counter, hlw8012 components
     "esp_driver_rmt",  # RMT driver - only needed by remote_transmitter/receiver, neopixelbus
+    "esp_driver_sdio",  # SDIO device-mode driver - unused by ESPHome
+    "esp_driver_sdm",  # Sigma-delta modulation driver - unused by ESPHome
+    "esp_driver_sdmmc",  # SD/MMC host driver - unused by ESPHome
+    "esp_driver_sdspi",  # SD-over-SPI driver - unused by ESPHome
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
+    "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
     "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
@@ -227,11 +243,16 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
+    "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
     "protocomm",  # Protocol communication for provisioning - unused by ESPHome
+    "rt",  # POSIX realtime extensions - unused by ESPHome
+    "sdmmc",  # SD/MMC protocol layer - only used by SD drivers and fatfs (also excluded)
     "spiffs",  # SPIFFS filesystem - ESPHome doesn't use filesystem storage (IDF only)
+    "tcp_transport",  # Transport layer - esp_http_client/mqtt pull it back when re-included
     "ulp",  # ULP coprocessor - not currently used by any ESPHome component
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
@@ -738,6 +759,17 @@ def include_builtin_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
+def get_excluded_builtin_components() -> list[str]:
+    """Return the sorted built-in IDF components excluded from the build.
+
+    The set reaches both build writers as the ``EXCLUDE_COMPONENTS`` CMake
+    arg (registered via ``cg.add_cmake_arg`` at FINAL priority); the native
+    ESP-IDF writer also reads it directly to filter the built-in component
+    list.
+    """
+    return sorted(CORE.data.get(KEY_ESP32, {}).get(KEY_EXCLUDE_COMPONENTS, ()))
+
+
 def _enable_arduino_library(name: str) -> None:
     """Enable an Arduino library that is disabled by default.
 
@@ -1073,6 +1105,26 @@ def _parse_pio_platform_version(value):
         return value
 
 
+def _normalize_p4_engineering_sample(value: ConfigType) -> bool:
+    """Fill in CONF_ENGINEERING_SAMPLE when unset, warning that production
+    silicon (rev3) is assumed. Returns the normalized flag."""
+    if (engineering_sample := value.get(CONF_ENGINEERING_SAMPLE)) is None:
+        _LOGGER.warning(
+            "Defaulting to ESP32-P4 production silicon (rev3).\n"
+            "If you have an early engineering sample (pre-rev3), add this to your config:\n"
+            "\n"
+            "  esp32:\n"
+            "    engineering_sample: true\n"
+            "\n"
+            "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
+            "Engineering samples will show a revision below v3.0.\n"
+            "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
+        )
+        engineering_sample = False
+        value[CONF_ENGINEERING_SAMPLE] = engineering_sample
+    return engineering_sample
+
+
 def _detect_variant(value):
     board = value.get(CONF_BOARD)
     variant = value.get(CONF_VARIANT)
@@ -1085,6 +1137,8 @@ def _detect_variant(value):
         # name rather than carrying a PIO board name through the IDF build.
         if CORE.using_toolchain_esp_idf:
             value = value.copy()
+            if variant == VARIANT_ESP32P4:
+                _normalize_p4_engineering_sample(value)
             value[CONF_BOARD] = VARIANT_FRIENDLY[variant].lower()
             return value
         if variant not in STANDARD_BOARDS:
@@ -1095,22 +1149,8 @@ def _detect_variant(value):
             )
         value = value.copy()
         value[CONF_BOARD] = STANDARD_BOARDS[variant]
-        if variant == VARIANT_ESP32P4:
-            engineering_sample = value.get(CONF_ENGINEERING_SAMPLE)
-            if engineering_sample is None:
-                _LOGGER.warning(
-                    "No board specified for ESP32-P4. Defaulting to production silicon (rev3).\n"
-                    "If you have an early engineering sample (pre-rev3), add this to your config:\n"
-                    "\n"
-                    "  esp32:\n"
-                    "    engineering_sample: true\n"
-                    "\n"
-                    "To check your chip revision, look for 'chip revision: vX.Y' in the boot log.\n"
-                    "Engineering samples will show a revision below v3.0.\n"
-                    "The 'debug:' component also reports the revision (e.g. Revision: 100 = v1.0, 300 = v3.0)."
-                )
-            elif engineering_sample:
-                value[CONF_BOARD] = "esp32-p4-evboard"
+        if variant == VARIANT_ESP32P4 and _normalize_p4_engineering_sample(value):
+            value[CONF_BOARD] = "esp32-p4-evboard"
     elif board in BOARDS:
         variant = variant or BOARDS[board][KEY_VARIANT]
         if variant != BOARDS[board][KEY_VARIANT]:
@@ -1120,6 +1160,14 @@ def _detect_variant(value):
             )
         value = value.copy()
         value[CONF_VARIANT] = variant
+        if variant == VARIANT_ESP32P4:
+            board_is_es = BOARDS[board].get("engineering_sample", False)
+            engineering_sample = value.setdefault(CONF_ENGINEERING_SAMPLE, board_is_es)
+            if engineering_sample != board_is_es:
+                raise cv.Invalid(
+                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{board}'",
+                    path=[CONF_ENGINEERING_SAMPLE],
+                )
     elif not variant:
         raise cv.Invalid(
             "This board is unknown, if you are sure you want to compile with this board selection, "
@@ -1131,6 +1179,9 @@ def _detect_variant(value):
             "This board is unknown; the specified variant '%s' will be used but this may not work as expected.",
             variant,
         )
+        if variant == VARIANT_ESP32P4:
+            value = value.copy()
+            _normalize_p4_engineering_sample(value)
     return value
 
 
@@ -1368,7 +1419,7 @@ def _validate_signed_ota_keys(config: ConfigType) -> ConfigType:
     return config
 
 
-def final_validate(config):
+def final_validate(config) -> None:
     # Imported locally to avoid circular import issues
     from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 
@@ -1434,20 +1485,6 @@ def final_validate(config):
                 path=[CONF_ENGINEERING_SAMPLE],
             )
         )
-    if (
-        config[CONF_VARIANT] == VARIANT_ESP32P4
-        and config.get(CONF_ENGINEERING_SAMPLE) is not None
-    ):
-        board_is_es = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
-        )
-        if config[CONF_ENGINEERING_SAMPLE] != board_is_es:
-            errs.append(
-                cv.Invalid(
-                    f"'{CONF_ENGINEERING_SAMPLE}' does not match board '{config[CONF_BOARD]}'",
-                    path=[CONF_ENGINEERING_SAMPLE],
-                )
-            )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
         if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
@@ -1628,8 +1665,6 @@ def final_validate(config):
         )
     if errs:
         raise cv.MultipleInvalid(errs)
-
-    return config
 
 
 CONF_SDKCONFIG_OPTIONS = "sdkconfig_options"
@@ -2118,17 +2153,16 @@ def _configure_lwip_max_sockets(conf: dict) -> None:
     add_idf_sdkconfig_option("CONFIG_LWIP_MAX_SOCKETS", max_sockets)
 
 
+def register_exclude_components_cmake_arg() -> None:
+    """Register the current exclusion set as the EXCLUDE_COMPONENTS cmake arg."""
+    if excluded := get_excluded_builtin_components():
+        cg.add_cmake_arg("EXCLUDE_COMPONENTS", ";".join(excluded))
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
-    if KEY_ESP32 not in CORE.data:
-        return
-    excluded = CORE.data[KEY_ESP32].get(KEY_EXCLUDE_COMPONENTS)
-    if excluded:
-        exclude_list = ";".join(sorted(excluded))
-        cg.add_platformio_option(
-            "board_build.cmake_extra_args", f"-DEXCLUDE_COMPONENTS={exclude_list}"
-        )
+    register_exclude_components_cmake_arg()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2535,15 +2569,14 @@ async def to_code(config):
             f"CONFIG_ESPTOOLPY_FLASHFREQ_{flash_frequency[:-3]}M", True
         )
 
-    # ESP32-P4: ESP-IDF 5.5.3 changed the default of ESP32P4_SELECTS_REV_LESS_V3
-    # from y to n. PlatformIO uses sections.ld.in (for rev <3) or
-    # sections.rev3.ld.in (for rev >=3) based on board definition.
-    # Set the sdkconfig option to match the board's chip revision.
+    # ESP32-P4: pre-v3 and rev3 (v3.0+) silicon are not binary compatible.
+    # CONFIG_ESP32P4_SELECTS_REV_LESS_V3 selects which layout ESP-IDF links;
+    # validation normalizes CONF_ENGINEERING_SAMPLE from the board when unset.
     if variant == VARIANT_ESP32P4:
-        is_eng_sample = BOARDS.get(config[CONF_BOARD], {}).get(
-            "engineering_sample", False
+        add_idf_sdkconfig_option(
+            "CONFIG_ESP32P4_SELECTS_REV_LESS_V3",
+            config.get(CONF_ENGINEERING_SAMPLE, False),
         )
-        add_idf_sdkconfig_option("CONFIG_ESP32P4_SELECTS_REV_LESS_V3", is_eng_sample)
 
     # Set minimum chip revision for ESP32 variant
     # Setting this to 3.0 or higher reduces flash size by excluding workaround code,
@@ -3518,3 +3551,10 @@ def process_stacktrace(config, line, backtrace_state):
             _decode_pc(config, addr.group())
 
     return backtrace_state
+
+
+# gpio.cpp only implements ESP32InternalGPIOPin and its ISR helpers, which
+# are instantiated solely by the pin schema codegen (esp32_pin_to_code)
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"gpio.cpp": "USE_ESP32_INTERNAL_GPIO"}
+)

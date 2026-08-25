@@ -16,7 +16,7 @@ uint8_t temprature_sens_read();
 
 namespace esphome::internal_temperature {
 
-static const char *const TAG = "internal_temperature.esp32";
+static const char *const TAG = "internal_temperature";
 
 void InternalTemperatureSensor::update() {
   float temperature = NAN;

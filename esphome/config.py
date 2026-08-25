@@ -620,6 +620,23 @@ class LoadValidationStep(ConfigValidationStep):
             elif not isinstance(self.conf, list):
                 result[self.domain] = self.conf = [self.conf]
 
+            # Permanent expansion hook: a platform-tagged entry may expand into
+            # several (e.g. `image`'s `defaults:`/`files:`), for `platform:`-tagged dicts only.
+            if (expand := component.expand_platform_config) is not None and all(
+                isinstance(entry, dict) and CONF_PLATFORM in entry
+                for entry in self.conf
+            ):
+                with result.catch_error(path):
+                    expanded = expand(self.conf)
+                    if not isinstance(expanded, list):
+                        # A non-list return is a component bug (not a user error):
+                        # raise explicitly (survives -O/-OO) so it escapes catch_error.
+                        raise TypeError(
+                            f"{self.domain}: EXPAND_PLATFORM_CONFIG must "
+                            f"return a list, got {type(expanded).__name__}"
+                        )
+                    result[self.domain] = self.conf = expanded
+
         # Process AUTO_LOAD
         _process_auto_load(result, component, path)
 
