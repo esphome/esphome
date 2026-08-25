@@ -2960,7 +2960,10 @@ async def to_code(config):
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
     # NVS encryption turned on through raw sdkconfig options still needs the provider
-    if "CONFIG_NVS_ENCRYPTION" in conf[CONF_SDKCONFIG_OPTIONS]:
+    if str(conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_NVS_ENCRYPTION", "n")).lower() in (
+        "y",
+        "true",
+    ):
         include_builtin_idf_component("nvs_sec_provider")
 
     # Components from YAML are added in a separate coroutine with FINAL priority
