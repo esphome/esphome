@@ -34,14 +34,13 @@ list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
 
-def get_available_components_with_dirs() -> dict[str, str] | None:
-    """Map built-in ESP-IDF component names to their source directories.
+def get_available_components() -> list[str] | None:
+    """List the built-in ESP-IDF components from ``project_description.json``.
 
-    Read from ``project_description.json``; only components below its
-    ``idf_path/components`` count, which leaves out ``src``, IDF-managed
-    components, converted PIO libs and project local ones such as the
-    Arduino ``component_stubs``. Returns ``None`` if the build dir or
-    ``project_description.json`` isn't ready yet.
+    Only components below its ``idf_path/components`` count, which leaves out
+    ``src``, IDF-managed components, converted PIO libs and project local
+    ones such as the Arduino ``component_stubs``. Returns ``None`` if the
+    build dir or ``project_description.json`` isn't ready yet.
     """
     if CORE.build_path is None:
         return None
@@ -52,35 +51,24 @@ def get_available_components_with_dirs() -> dict[str, str] | None:
     try:
         with project_desc.open(encoding="utf-8") as f:
             data = json.load(f)
-
-        component_info = data.get("build_component_info", {})
         root = (Path(data["idf_path"]) / "components").resolve()
-
-        result = {
-            name: comp_dir
-            for name, info in component_info.items()
+        result = [
+            name
+            for name, info in data.get("build_component_info", {}).items()
             if (comp_dir := info.get("dir"))
             and Path(comp_dir).resolve().is_relative_to(root)
-        }
-        if not result:
-            _LOGGER.warning("No ESP-IDF components found under %s", root)
-        return result
-    except (json.JSONDecodeError, KeyError, OSError):
+        ]
+    except (json.JSONDecodeError, KeyError, OSError) as err:
+        _LOGGER.debug("Could not read %s: %s", project_desc, err)
         return None
-
-
-def get_available_components() -> list[str] | None:
-    """Get list of built-in ESP-IDF components from project_description.json.
-
-    See ``get_available_components_with_dirs``; returns ``None`` when that does.
-    """
-    components = get_available_components_with_dirs()
-    return None if components is None else list(components)
+    if not result:
+        _LOGGER.warning("No ESP-IDF components found under %s", root)
+    return result
 
 
 def has_discovered_components() -> bool:
-    """Check if we have discovered components from a previous configure."""
-    return get_available_components_with_dirs() is not None
+    """Check if a previous configure discovered any built-in components."""
+    return bool(get_available_components())
 
 
 def _cmake_quote(value: str) -> str:

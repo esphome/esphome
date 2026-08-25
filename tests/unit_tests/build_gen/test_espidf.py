@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -103,20 +104,6 @@ def test_get_available_components_keeps_only_idf_tree_components(
     assert sorted(get_available_components()) == ["esp_lcd", "freertos"]
 
 
-def test_get_available_components_with_dirs_maps_names_to_dirs(tmp_path: Path) -> None:
-    _write_project_description(
-        tmp_path,
-        {
-            "src": f"{tmp_path}/src",
-            "lwip": "/idf/components/lwip",
-            "espressif__mdns": f"{tmp_path}/managed_components/mdns",
-        },
-    )
-    from esphome.build_gen.espidf import get_available_components_with_dirs
-
-    assert get_available_components_with_dirs() == {"lwip": "/idf/components/lwip"}
-
-
 def test_codegen_and_configure_writes_render_the_same_cmakelists(
     tmp_path: Path,
 ) -> None:
@@ -139,25 +126,34 @@ def test_get_available_components_warns_when_nothing_is_under_idf_path(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     _write_project_description(tmp_path, {"cbor": f"{tmp_path}/component_stubs/cbor"})
-    from esphome.build_gen.espidf import get_available_components
-
-    assert get_available_components() == []
-    assert "No ESP-IDF components found under" in caplog.text
-
-
-def test_get_available_components_with_dirs_ignores_corrupt_file(
-    tmp_path: Path,
-) -> None:
-    build_dir = tmp_path / "build"
-    build_dir.mkdir()
-    (build_dir / "project_description.json").write_text("{not json")
     from esphome.build_gen.espidf import (
-        get_available_components_with_dirs,
+        get_available_components,
         has_discovered_components,
     )
 
-    assert get_available_components_with_dirs() is None
+    assert get_available_components() == []
+    assert "No ESP-IDF components found under" in caplog.text
+    # An empty discovery must not count as configured, or it would be latched in.
     assert not has_discovered_components()
+
+
+def test_get_available_components_ignores_corrupt_or_unexpected_file(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    from esphome.build_gen.espidf import (
+        get_available_components,
+        has_discovered_components,
+    )
+
+    (build_dir / "project_description.json").write_text("{not json")
+    assert get_available_components() is None
+    assert not has_discovered_components()
+    (build_dir / "project_description.json").write_text('{"build_component_info": {}}')
+    with caplog.at_level(logging.DEBUG, logger="esphome.build_gen.espidf"):
+        assert get_available_components() is None
+    assert "Could not read" in caplog.text
 
 
 def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
