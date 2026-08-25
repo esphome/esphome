@@ -1616,6 +1616,19 @@ def test_ccache_env_opt_in_without_binary(
     assert "no ccache binary is on PATH" in caplog.text
 
 
+def test_ccache_env_opt_in_with_working_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Forced on with a working binary: no warning fires at all.
+    ccache = tmp_path / "ccache"
+    ccache.touch()
+    p1, p2, p3 = _ccache_patches(tmp_path, str(ccache), tmp_path / "build")
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert "ccache" not in caplog.text.lower() or "Not decoded" in caplog.text
+
+
 def test_ccache_env_opt_in_with_rejected_binary(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

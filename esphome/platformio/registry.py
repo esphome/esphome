@@ -169,6 +169,11 @@ class _PendingArchive(NamedTuple):
     size: int
 
 
+def _already_installed(dest: Path) -> bool:
+    """Whether ``dest`` holds a completed install (extraction marker)."""
+    return (dest / ".esphome_extracted").is_file()
+
+
 def prefetch_packages(
     packages: list[tuple[str, str, Path, list[str]]], downloads_dir: Path
 ) -> None:
@@ -221,7 +226,9 @@ def prefetch_packages(
             # Marker re-check: a concurrent build may have installed (and
             # deleted the archive of) this package while we waited;
             # re-downloading would orphan a fresh copy in downloads_dir
-            if not (entry.dest / ".esphome_extracted").is_file():
+            # no branch: the thread tracer misses the skip edge; both
+            # arms of _already_installed are pinned directly
+            if not _already_installed(entry.dest):  # pragma: no branch
                 download_with_resume(
                     entry.url,
                     downloads_dir / f"{entry.name}-{entry.version}",
