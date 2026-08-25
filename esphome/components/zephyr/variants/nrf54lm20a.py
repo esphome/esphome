@@ -92,6 +92,7 @@ async def to_code(config: ConfigType) -> None:
     from .. import (
         zephyr_add_overlay,
         zephyr_add_prj_conf,
+        zephyr_add_sysbuild_conf,
         zephyr_setup_preferences,
         zephyr_to_code,
     )
@@ -118,7 +119,5 @@ async def to_code(config: ConfigType) -> None:
         """
     )
 
-    # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
-    # smaller footprint. Same tradeoff nrf52/nrf54l15 make -- strictly smaller either way.
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+    # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+    zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
