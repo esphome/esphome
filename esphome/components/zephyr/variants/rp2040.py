@@ -47,6 +47,12 @@ _DEFAULT_BOARD = "rpi_pico"
 
 _ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 
+# GPIO -> RP2040 ADC channel index. Fixed-function silicon: only GPIO26-29 route to
+# the ADC, channel = pin - 26 (Espressif-shaped: the devicetree channel@N address IS
+# the real silicon channel). Confirmed against Zephyr's raspberrypi,pico-adc binding
+# and rpi-pico-rp2040-pinctrl.h's ADC_CH0_P26..ADC_CH3_P29 macros.
+_ADC_CHANNEL_MAP = {26: 0, 27: 1, 28: 2, 29: 3}
+
 VARIANT_NAME = ZEPHYR_VARIANT_RP2040
 VARIANT = ZephyrVariant(
     sdk=MAINLINE,
@@ -64,6 +70,7 @@ VARIANT = ZephyrVariant(
     soc="rp2040",
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
+    adc1_channel_map=_ADC_CHANNEL_MAP,
     # A single "pwm" controller node covers all 8 slices reachable within the 30
     # GPIOs this variant exposes (P0-P29) -- repeat the label once per slice so
     # zephyr_pwm's block-count math (len(pwm_node_labels)) still works unmodified.
