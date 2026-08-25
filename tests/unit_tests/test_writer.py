@@ -2441,3 +2441,39 @@ def test_copy_src_tree_ignores_removed_generated_file(
     # file was removed and regenerated, not that it triggered sources_changed.
     new_json = json.loads(build_info_json_path.read_text())
     assert new_json["config_hash"] == 0xDEADBEEF
+
+
+@pytest.mark.parametrize(
+    ("case", "content", "expected"),
+    [
+        ("files missing", None, True),
+        ("json missing", "ABSENT", True),
+        ("json unreadable", "not json", True),
+        # Valid JSON that is not an object is stale, not an AttributeError
+        ("json not an object", "[]", True),
+        ("hash mismatch", {"config_hash": 2, "esphome_version": "CURRENT"}, True),
+        ("version mismatch", {"config_hash": 1, "esphome_version": "0.0.0"}, True),
+        ("matching record", {"config_hash": 1, "esphome_version": "CURRENT"}, False),
+    ],
+)
+def test_build_info_stale_branches(
+    tmp_path: Path, case: str, content, expected: bool
+) -> None:
+    """Missing files, an unreadable JSON, a hash or version mismatch each
+    regenerate; a matching record does not."""
+    from esphome.const import __version__
+    from esphome.writer import _build_info_stale
+
+    h = tmp_path / "build_info_data.h"
+    cpp = tmp_path / "build_info_data.cpp"
+    info = tmp_path / "build_info.json"
+    if content is not None:
+        h.write_text("")
+        cpp.write_text("")
+    if isinstance(content, dict):
+        if content.get("esphome_version") == "CURRENT":
+            content["esphome_version"] = __version__
+        info.write_text(json.dumps(content))
+    elif isinstance(content, str) and content != "ABSENT":
+        info.write_text(content)
+    assert _build_info_stale(h, cpp, info, 1) is expected, case
