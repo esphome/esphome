@@ -27,10 +27,22 @@ class _FakePlatform:
         return "1.2.3"
 
 
+class _BrokenPlatform(_FakePlatform):
+    def get_package_version(self, name: str) -> str:
+        raise RuntimeError("manifest parse error")
+
+
 class _FakeSConsEnv(dict):
     """Just enough of a SCons construction environment for pch.py."""
 
-    def __init__(self, proj_dir: Path, src_dir: Path, cxx: str, flags: list[str]):
+    def __init__(
+        self,
+        proj_dir: Path,
+        src_dir: Path,
+        cxx: str,
+        flags: list[str],
+        platform_cls: type[_FakePlatform] = _FakePlatform,
+    ):
         super().__init__(ENV={})
         self._subst = {
             "$PROJECT_DIR": str(proj_dir),
@@ -38,6 +50,7 @@ class _FakeSConsEnv(dict):
             "$CXX": cxx,
         }
         self._flags = flags
+        self._platform_cls = platform_cls
         self.prepended: list[str] = []
 
     def subst(self, expr: str) -> str:  # noqa: N802
@@ -47,14 +60,18 @@ class _FakeSConsEnv(dict):
         return [self._flags]
 
     def PioPlatform(self) -> _FakePlatform:  # noqa: N802
-        return _FakePlatform()
+        return self._platform_cls()
 
     def Prepend(self, CXXFLAGS: list[str]) -> None:  # noqa: N802, N803
         self.prepended = CXXFLAGS
 
 
-def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
-    """A compiler stand-in that records its argv and writes the -o target."""
+def _fake_cxx(tmp_path: Path, fail: bool = False, reject_pch: bool = False) -> Path:
+    """A compiler stand-in that records its argv and writes the -o target.
+
+    With reject_pch it builds the .gch fine but, like GCC 10 on macOS arm64,
+    warns on any consuming compile that the .gch cannot be loaded.
+    """
     cxx = tmp_path / "fake-gxx"
     body = (
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
@@ -62,7 +79,12 @@ def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     if fail:
         body += "echo boom >&2\nexit 1\n"
     else:
-        body += 'out=""; prev=""\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done\necho gch > "$out"\n'
+        # Only the c++-header compile has a -o; the load probe has none
+        body += 'out=""; prev=""\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done\n'
+        body += '[ -n "$out" ] && echo gch > "$out"\n'
+        if reject_pch:
+            body += 'case " $* " in *c++-header*) ;; *) echo "warning: esphome_pch.h.gch: had text segment at different address" >&2;; esac\n'
+        body += "exit 0\n"
     cxx.write_text("#!/bin/sh\n" + body)
     cxx.chmod(cxx.stat().st_mode | stat.S_IEXEC)
     return cxx
@@ -72,22 +94,28 @@ def _run_script(
     tmp_path: Path,
     flags: list[str] | None = None,
     fail: bool = False,
+    reject_pch: bool = False,
     env_vars: dict[str, str] | None = None,
     name: str = "dev",
+    platform_cls: type[_FakePlatform] = _FakePlatform,
 ) -> _FakeSConsEnv:
     proj = tmp_path / name
     src = proj / "src"
     (src / "esphome" / "core").mkdir(parents=True, exist_ok=True)
     (src / "esphome" / "core" / "defines.h").write_text("#define USE_X\n")
-    cxx = _fake_cxx(tmp_path, fail=fail)
-    scons_env = _FakeSConsEnv(proj, src, str(cxx), flags or ["-DX=1"])
+    cxx = _fake_cxx(tmp_path, fail=fail, reject_pch=reject_pch)
+    args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
+    # Distinct objects: the script must scope ccache/flags to projenv only
+    global_env = _FakeSConsEnv(*args)
+    projenv = _FakeSConsEnv(*args)
+    projenv.global_env = global_env
     source = _SCRIPT.read_text()
     with patch.dict(os.environ, env_vars or {}, clear=True):
         exec(  # noqa: S102
             compile(source, "pch.py", "exec"),
-            {"Import": lambda *_names: None, "env": scons_env, "projenv": scons_env},
+            {"Import": lambda *_names: None, "env": global_env, "projenv": projenv},
         )
-    return scons_env
+    return projenv
 
 
 def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None:
@@ -98,9 +126,12 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
     assert len((proj / "esphome_pch.h.gch.sum").read_text().strip()) == 64
     # Relative include: an absolute path would poison ccache keys
     assert scons_env.prepended == ["-Winvalid-pch", "-include", "esphome_pch.h"]
-    # ccache settings land on the SCons ENV only, never os.environ
+    # ccache settings land on projenv's ENV only: framework/library TUs
+    # compile under the global env and must keep strict hashing
     assert scons_env["ENV"]["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
     assert scons_env["ENV"]["CCACHE_PCH_EXTSUM"] == "true"
+    assert scons_env.global_env["ENV"] == {}
+    assert scons_env.global_env.prepended == []
     assert "CCACHE_SLOPPINESS" not in os.environ
 
 
@@ -152,6 +183,29 @@ def test_pch_script_failure_marker_suppresses_retry(
     out = capsys.readouterr().out
     assert (tmp_path / "fake-gxx.argv").read_text().count("c++-header") == attempts
     assert "delete esphome_pch.h.gch.failed to retry" in out
+
+
+def test_pch_script_probe_rejection_falls_back(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A toolchain that cannot load its own .gch (GCC 10 on macOS arm64)
+    must not leave consumers paying for a pch every compile rejects."""
+    scons_env = _run_script(tmp_path, reject_pch=True)
+    proj = tmp_path / "dev"
+    assert not (proj / "esphome_pch.h.gch").exists()
+    assert not (proj / "esphome_pch.h.gch.sum").exists()
+    assert (proj / "esphome_pch.h.gch.failed").is_file()
+    assert scons_env.prepended == []
+    assert "toolchain cannot load the pch" in capsys.readouterr().out
+
+
+def test_pch_script_package_version_error_skips_pch(tmp_path: Path) -> None:
+    """Without trustworthy package identity a stale .gch could survive an
+    upgrade, so the script must not build one at all."""
+    scons_env = _run_script(tmp_path, platform_cls=_BrokenPlatform)
+    proj = tmp_path / "dev"
+    assert not (proj / "esphome_pch.h.gch").exists()
+    assert scons_env.prepended == []
 
 
 def test_pch_script_rebuilds_when_header_missing(tmp_path: Path) -> None:

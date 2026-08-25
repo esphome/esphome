@@ -1223,6 +1223,11 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         # C++ src edges swap the force-includes for one precompiled prefix
         # header holding the same content plus defines.h; C and assembly
         # edges keep srcflags (a .gch is a C++ artifact)
+        # The opt-out hint matters when a toolchain rejects its own .gch:
+        # the build stays correct but every TU warns via -Winvalid-pch
+        _LOGGER.info(
+            "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
+        )
         pch_header = build_dir / PCH_HEADER_NAME
         pch_includes = (*src_includes, PCH_CORE_HEADER)
         write_file_if_changed(pch_header, pch_header_text(pch_includes))
