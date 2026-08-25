@@ -18,8 +18,11 @@ void EmonTx::setup() { this->buffer_pos_ = 0; }
 void EmonTx::loop() {
   // Let another component take exclusive ownership of the UART (e.g. while
   // flashing new firmware to the emonTx over the same bus) without this
-  // component racing it for incoming bytes.
-  if (this->paused_) {
+  // component racing it for incoming bytes. Normally disable_loop() alone
+  // would keep this from being scheduled at all; the explicit check also
+  // covers direct loop() calls (e.g. from unit tests) that bypass the
+  // scheduler.
+  if (this->is_idle()) {
     return;
   }
 
@@ -102,7 +105,7 @@ void EmonTx::dump_config() {
  * @param command The command string to send (LF will be appended automatically).
  */
 void EmonTx::send_command(const std::string &command) {
-  if (this->paused_) {
+  if (this->is_idle()) {
     ESP_LOGW(TAG, "Not sending command, UART is paused: %s", command.c_str());
     return;
   }
