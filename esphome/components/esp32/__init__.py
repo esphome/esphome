@@ -2176,21 +2176,27 @@ async def _write_certificate_bundle_sdkconfig() -> None:
     Runs at FINAL priority so every require_certificate_bundle() call has
     happened. Without a request the bundle is disabled, which skips
     esp_crt_bundle.c, the gen_crt_bundle step and the x509_crt_bundle.S embed.
+    A user-supplied sdkconfig_options value takes precedence.
     """
     data = CORE.data[KEY_ESP32]
+    opts = data[KEY_SDKCONFIG_OPTIONS]
+
+    def set_opt(name: str, value: SdkconfigValueType) -> None:
+        # User sdkconfig_options (applied during to_code) win.
+        if name not in opts:
+            add_idf_sdkconfig_option(name, value)
+
     if not data.get(KEY_CERT_BUNDLE, False):
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", False)
+        set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", False)
         return
-    add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+    set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
     # Use CMN (common CAs) bundle by default to save ~51KB flash
     # CMN covers CAs with >1% market share (~99% of websites)
     # Components needing uncommon CAs can call require_full_certificate_bundle()
     use_full_bundle = data.get(KEY_FULL_CERT_BUNDLE, False)
-    add_idf_sdkconfig_option(
-        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
-    )
+    set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle)
     if not use_full_bundle:
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
+        set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

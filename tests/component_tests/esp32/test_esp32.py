@@ -17,6 +17,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
+    RawSdkconfigValue,
     _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
@@ -318,6 +319,31 @@ def test_certificate_bundle_only_when_requested(
         assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
     else:
         assert "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN" not in sdkconfig
+
+
+def test_full_certificate_bundle_option_enables_bundle(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """use_full_certificate_bundle turns the bundle on and selects the full variant."""
+    generate_main(component_config_path("certificate_bundle_full.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") is True
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL") is True
+    assert "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN" not in sdkconfig
+
+
+def test_user_sdkconfig_certificate_bundle_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A raw sdkconfig_options bundle setting is not overridden by the FINAL job."""
+    generate_main(component_config_path("certificate_bundle_sdkconfig.yaml"))
+    value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][
+        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE"
+    ]
+    assert isinstance(value, RawSdkconfigValue)
+    assert value.value == "y"
 
 
 def test_execute_from_psram_s3_sdkconfig(
