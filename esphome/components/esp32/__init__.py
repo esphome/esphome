@@ -65,6 +65,7 @@ from .boards import BOARDS, STANDARD_BOARDS
 from .const import (
     KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
+    KEY_CERT_BUNDLE,
     KEY_COMPONENTS,
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
@@ -1735,6 +1736,16 @@ def require_vfs_termios() -> None:
     CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
 
 
+def require_certificate_bundle() -> None:
+    """Enable the mbedTLS root certificate bundle for this build.
+
+    The bundle is off by default; components that verify TLS server
+    certificates (http_request, audio streaming) call this so the bundle is
+    compiled and gen_crt_bundle runs only when something uses it.
+    """
+    CORE.data[KEY_ESP32][KEY_CERT_BUNDLE] = True
+
+
 def require_full_certificate_bundle() -> None:
     """Request the full certificate bundle instead of the common-CAs-only bundle.
 
@@ -1744,6 +1755,7 @@ def require_full_certificate_bundle() -> None:
 
     Call this from components that need to connect to services using uncommon CAs.
     """
+    CORE.data[KEY_ESP32][KEY_CERT_BUNDLE] = True
     CORE.data[KEY_ESP32][KEY_FULL_CERT_BUNDLE] = True
 
 
@@ -2158,6 +2170,30 @@ def register_exclude_components_cmake_arg() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _write_certificate_bundle_sdkconfig() -> None:
+    """Enable the mbedTLS certificate bundle only when a component asked for it.
+
+    Runs at FINAL priority so every require_certificate_bundle() call has
+    happened. Without a request the bundle is disabled, which skips
+    esp_crt_bundle.c, the gen_crt_bundle step and the x509_crt_bundle.S embed.
+    """
+    data = CORE.data[KEY_ESP32]
+    if not data.get(KEY_CERT_BUNDLE, False):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", False)
+        return
+    add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+    # Use CMN (common CAs) bundle by default to save ~51KB flash
+    # CMN covers CAs with >1% market share (~99% of websites)
+    # Components needing uncommon CAs can call require_full_certificate_bundle()
+    use_full_bundle = data.get(KEY_FULL_CERT_BUNDLE, False)
+    add_idf_sdkconfig_option(
+        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
+    )
+    if not use_full_bundle:
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
     register_exclude_components_cmake_arg()
@@ -2525,21 +2561,11 @@ async def to_code(config):
         )
 
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
-    # Use CMN (common CAs) bundle by default to save ~51KB flash
-    # CMN covers CAs with >1% market share (~99% of websites)
-    # Components needing uncommon CAs can call require_full_certificate_bundle()
-    use_full_bundle = conf[CONF_ADVANCED].get(
-        CONF_USE_FULL_CERTIFICATE_BUNDLE, False
-    ) or CORE.data[KEY_ESP32].get(KEY_FULL_CERT_BUNDLE, False)
-    add_idf_sdkconfig_option(
-        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
-    )
-    if not use_full_bundle:
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
+    if conf[CONF_ADVANCED].get(CONF_USE_FULL_CERTIFICATE_BUNDLE, False):
+        require_full_certificate_bundle()
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
     add_idf_sdkconfig_option(
@@ -2966,6 +2992,7 @@ async def to_code(config):
     # a chance to call include_builtin_idf_component() to re-enable components they need.
     # Default exclusions are added in set_core_data() during config validation.
     CORE.add_job(_write_exclude_components)
+    CORE.add_job(_write_certificate_bundle_sdkconfig)
 
     # Write Arduino selective compilation sdkconfig at FINAL priority after all
     # components have had a chance to call cg.add_library() to enable libraries they need.

@@ -292,6 +292,34 @@ def test_default_exclusions_reincluded_by_owning_components(
     assert "fatfs" in excluded
 
 
+@pytest.mark.parametrize(
+    ("config_file", "enabled"),
+    [
+        pytest.param("exclusion_reincludes.yaml", False, id="no_tls_client"),
+        pytest.param("certificate_bundle_http_request.yaml", True, id="http_request"),
+        pytest.param(
+            "exclusion_reincludes_http_request.yaml",
+            False,
+            id="http_request_no_verify",
+        ),
+    ],
+)
+def test_certificate_bundle_only_when_requested(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    enabled: bool,
+) -> None:
+    """The mbedTLS certificate bundle is compiled only when a component asks for it."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") is enabled
+    if enabled:
+        assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
+    else:
+        assert "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN" not in sdkconfig
+
+
 def test_execute_from_psram_s3_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
