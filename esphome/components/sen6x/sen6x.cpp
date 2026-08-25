@@ -16,6 +16,7 @@ static constexpr uint16_t SEN6X_CMD_GET_DATA_READY_STATUS = 0x0202;
 static constexpr uint16_t SEN6X_CMD_GET_FIRMWARE_VERSION = 0xD100;
 static constexpr uint16_t SEN6X_CMD_GET_PRODUCT_NAME = 0xD014;
 static constexpr uint16_t SEN6X_CMD_GET_SERIAL_NUMBER = 0xD033;
+static constexpr uint16_t SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS = 0xD210;
 
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT = 0x0300;  // SEN66 only!
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN62 = 0x04A3;
@@ -130,6 +131,25 @@ void SEN6XComponent::setup() {
           ESP_LOGE(TAG, "Formaldehyde requires SEN68 or SEN69C");
           this->hcho_sensor_ = nullptr;
         }
+#ifdef USE_BINARY_SENSOR
+        if (this->gas_error_binary_sensor_ && !has_voc_nox) {
+          ESP_LOGE(TAG, "VOC requires SEN65, SEN66, SEN68, or SEN69C");
+          this->gas_error_binary_sensor_ = nullptr;
+        }
+        if (this->co2_error_binary_sensor_ && !has_co2) {
+          ESP_LOGE(TAG, "CO2 requires SEN63C, SEN66, or SEN69C");
+          this->co2_error_binary_sensor_ = nullptr;
+        }
+        if (this->hcho_error_binary_sensor_ && !has_hcho) {
+          ESP_LOGE(TAG, "Formaldehyde requires SEN68 or SEN69C");
+          this->hcho_error_binary_sensor_ = nullptr;
+        }
+        this->has_status_sensors_ =
+            this->fan_error_binary_sensor_ != nullptr || this->fan_speed_warning_binary_sensor_ != nullptr ||
+            this->rht_error_binary_sensor_ != nullptr || this->gas_error_binary_sensor_ != nullptr ||
+            this->co2_error_binary_sensor_ != nullptr || this->hcho_error_binary_sensor_ != nullptr ||
+            this->pm_error_binary_sensor_ != nullptr;
+#endif
 
         // Step 3: Read firmware version and start measurements in next loop iteration
         this->set_timeout(0, [this]() {
@@ -178,6 +198,15 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "NOx", this->nox_sensor_);
   LOG_SENSOR("  ", "HCHO", this->hcho_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Fan error", this->fan_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Fan speed warning", this->fan_speed_warning_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "RH&T error", this->rht_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Gas error", this->gas_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "CO2 error", this->co2_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "HCHO error", this->hcho_error_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "PM error", this->pm_error_binary_sensor_);
+#endif
 }
 
 void SEN6XComponent::update() {
@@ -206,6 +235,13 @@ void SEN6XComponent::update() {
   // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
   // at a time. cancel_timeout in update() stops any in-flight chain.
   this->poll_retries_remaining_ = POLL_RETRIES;
+#ifdef USE_BINARY_SENSOR
+  // Read the status register first so error sensors update even when the measurement chain fails
+  if (this->has_status_sensors_) {
+    this->read_device_status_();
+    return;
+  }
+#endif
   this->poll_data_ready_();
 }
 
@@ -382,6 +418,53 @@ void SEN6XComponent::parse_and_publish_measurements_() {
 
   this->status_clear_warning();
 }
+
+#ifdef USE_BINARY_SENSOR
+// Reads and clears the status register, then continues into the measurement poll chain.
+// Read And Clear (0xD210) is used because error flags are sticky on the device; clearing
+// each cycle makes the sensors report whether a problem occurred since the last update.
+void SEN6XComponent::read_device_status_() {
+  if (!this->write_command(SEN6X_CMD_READ_AND_CLEAR_DEVICE_STATUS)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read device status failed (%d)", this->last_error_);
+    this->poll_data_ready_();
+    return;
+  }
+
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_device_status_(); });
+}
+
+void SEN6XComponent::parse_and_publish_device_status_() {
+  uint16_t words[2];
+
+  if (!this->read_data(words, 2)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
+    this->poll_data_ready_();
+    return;
+  }
+  const uint32_t status = (static_cast<uint32_t>(words[0]) << 16) | words[1];
+
+  // Bit positions from the device status register (datasheet section 4.3).
+  // The CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C.
+  const uint32_t co2_mask = this->sen6x_type_ == SEN66 ? (1UL << 9) : (1UL << 12);
+  const struct {
+    binary_sensor::BinarySensor *sensor;
+    uint32_t mask;
+  } statuses[] = {
+      {this->fan_error_binary_sensor_, 1UL << 4}, {this->fan_speed_warning_binary_sensor_, 1UL << 21},
+      {this->rht_error_binary_sensor_, 1UL << 6}, {this->gas_error_binary_sensor_, 1UL << 7},
+      {this->co2_error_binary_sensor_, co2_mask}, {this->hcho_error_binary_sensor_, 1UL << 10},
+      {this->pm_error_binary_sensor_, 1UL << 11},
+  };
+  for (const auto &entry : statuses) {
+    if (entry.sensor != nullptr)
+      entry.sensor->publish_state((status & entry.mask) != 0);
+  }
+
+  this->poll_data_ready_();
+}
+#endif
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
   if (product_name == "SEN62")
