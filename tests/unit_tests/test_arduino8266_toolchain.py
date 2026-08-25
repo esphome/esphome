@@ -590,6 +590,32 @@ def test_parse_app_size_non_utf8_ld_warns(
     assert "Cannot read linker script" in caplog.text
 
 
+def test_run_compile_failed_probe_runs_full_build(tmp_path: Path) -> None:
+    """A failing -n probe (e.g. unknown target from a defective manifest)
+    falls through to the real build so the error prints attributably."""
+    probe = MagicMock(returncode=1, stdout="", stderr="")
+    ok = MagicMock(returncode=0, stdout="", stderr="")
+
+    def fake_run(cmd, *args, **kwargs):
+        return probe if "-n" in cmd else ok
+
+    with (
+        patch.object(framework, "check_and_install", return_value=_paths(tmp_path)),
+        patch.object(framework, "get_build_env", return_value={}),
+        patch("esphome.build_gen.arduino8266.write_project", return_value=False),
+        patch.object(toolchain.subprocess, "run", side_effect=fake_run) as mock_run,
+        patch.object(toolchain, "_write_compile_commands"),
+        patch.object(toolchain, "_print_size_summary", return_value=True),
+        patch.object(toolchain, "get_idedata", return_value={}),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    # The real build ran after the failed probe
+    assert any(
+        "firmware.ota.bin" in c[0][0] and "-n" not in c[0][0]
+        for c in mock_run.call_args_list
+    )
+
+
 def test_get_idedata_accepts_preresolved_ccache() -> None:
     """run_compile threads its resolved ccache through; the probe must not
     run again."""
