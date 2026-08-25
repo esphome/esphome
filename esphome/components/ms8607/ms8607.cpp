@@ -57,8 +57,8 @@ static constexpr float PRESSURE_UPPER_LIMIT = 1500.0f;
 void MS8607Component::setup() {
   this->reset_interval_ = 5;
   this->reset_attempts_remaining_ = 3;
-  this->error_code_ = ErrorCode::NONE;
-  this->setup_status_ = SetupStatus::NEEDS_RESET;
+  this->error_code_ = ErrorCode::ERROR_CODE_NONE;
+  this->setup_status_ = SetupStatus::SETUP_STATUS_NEEDS_RESET;
 
   // I do not know why the device sometimes NACKs the reset command, but
   // try 3 times in case it's a transitory issue on this boot
@@ -83,11 +83,11 @@ void MS8607Component::try_reset_() {
   if (!(pt_successful && h_successful)) {
     ESP_LOGE(TAG, "Resetting I2C devices failed");
     if (!pt_successful && !h_successful) {
-      this->error_code_ = ErrorCode::PTH_RESET_FAILED;
+      this->error_code_ = ErrorCode::ERROR_CODE_PTH_RESET_FAILED;
     } else if (!pt_successful) {
-      this->error_code_ = ErrorCode::PT_RESET_FAILED;
+      this->error_code_ = ErrorCode::ERROR_CODE_PT_RESET_FAILED;
     } else {
-      this->error_code_ = ErrorCode::H_RESET_FAILED;
+      this->error_code_ = ErrorCode::ERROR_CODE_H_RESET_FAILED;
     }
 
     if (--this->reset_attempts_remaining_ > 0) {
@@ -101,14 +101,14 @@ void MS8607Component::try_reset_() {
     return;
   }
 
-  this->setup_status_ = SetupStatus::NEEDS_PROM_READ;
-  this->error_code_ = ErrorCode::NONE;
+  this->setup_status_ = SetupStatus::SETUP_STATUS_NEEDS_PROM_READ;
+  this->error_code_ = ErrorCode::ERROR_CODE_NONE;
   this->status_clear_error();
 
   // 15ms delay matches datasheet, Adafruit_MS8607 & SparkFun_PHT_MS8607_Arduino_Library
   this->set_timeout("prom-read", 15, [this]() {
     if (this->read_calibration_values_from_prom_()) {
-      this->setup_status_ = SetupStatus::SUCCESSFUL;
+      this->setup_status_ = SetupStatus::SETUP_STATUS_SUCCESSFUL;
       this->status_clear_error();
       if (this->temperature_sensor_ == nullptr && this->pressure_sensor_ == nullptr &&
           this->humidity_sensor_ == nullptr) {
@@ -123,7 +123,7 @@ void MS8607Component::try_reset_() {
 }
 
 void MS8607Component::update() {
-  if (this->setup_status_ != SetupStatus::SUCCESSFUL) {
+  if (this->setup_status_ != SetupStatus::SETUP_STATUS_SUCCESSFUL) {
     // setup is still occurring, either because reset had to retry or due to the 15ms
     // delay needed between reset & reading the PROM values
     return;
@@ -145,22 +145,22 @@ void MS8607Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     switch (this->error_code_) {
-      case ErrorCode::PT_RESET_FAILED:
+      case ErrorCode::ERROR_CODE_PT_RESET_FAILED:
         ESP_LOGE(TAG, "Temperature/Pressure RESET failed");
         break;
-      case ErrorCode::H_RESET_FAILED:
+      case ErrorCode::ERROR_CODE_H_RESET_FAILED:
         ESP_LOGE(TAG, "Humidity RESET failed");
         break;
-      case ErrorCode::PTH_RESET_FAILED:
+      case ErrorCode::ERROR_CODE_PTH_RESET_FAILED:
         ESP_LOGE(TAG, "Temperature/Pressure && Humidity RESET failed");
         break;
-      case ErrorCode::PROM_READ_FAILED:
+      case ErrorCode::ERROR_CODE_PROM_READ_FAILED:
         ESP_LOGE(TAG, "Reading PROM failed");
         break;
-      case ErrorCode::PROM_CRC_FAILED:
+      case ErrorCode::ERROR_CODE_PROM_CRC_FAILED:
         ESP_LOGE(TAG, "PROM values failed CRC");
         break;
-      case ErrorCode::NONE:
+      case ErrorCode::ERROR_CODE_NONE:
       default:
         ESP_LOGE(TAG, "Error reason unknown %u", static_cast<uint8_t>(this->error_code_));
         break;
@@ -195,7 +195,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
 
   if (!successful) {
     ESP_LOGE(TAG, "Reading calibration values from PROM failed");
-    this->error_code_ = ErrorCode::PROM_READ_FAILED;
+    this->error_code_ = ErrorCode::ERROR_CODE_PROM_READ_FAILED;
     return false;
   }
 
@@ -206,7 +206,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
 
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc, actual_crc);
-    this->error_code_ = ErrorCode::PROM_CRC_FAILED;
+    this->error_code_ = ErrorCode::ERROR_CODE_PROM_CRC_FAILED;
     return false;
   }
 

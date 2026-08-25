@@ -97,34 +97,34 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
   /// Possible failure reasons of this component
   enum class ErrorCode {
     /// Component hasn't failed (yet?)
-    NONE = 0,
+    ERROR_CODE_NONE = 0,
     /// Both the Pressure/Temperature address and the Humidity address failed to reset
-    PTH_RESET_FAILED = 1,
+    ERROR_CODE_PTH_RESET_FAILED = 1,
     /// Asking the Pressure/Temperature sensor to reset failed
-    PT_RESET_FAILED = 2,
+    ERROR_CODE_PT_RESET_FAILED = 2,
     /// Asking the Humidity sensor to reset failed
-    H_RESET_FAILED = 3,
+    ERROR_CODE_H_RESET_FAILED = 3,
     /// Reading the PROM calibration values failed
-    PROM_READ_FAILED = 4,
+    ERROR_CODE_PROM_READ_FAILED = 4,
     /// The PROM calibration values failed the CRC check
-    PROM_CRC_FAILED = 5,
+    ERROR_CODE_PROM_CRC_FAILED = 5,
   };
 
   /// Current progress through required component setup
   enum class SetupStatus {
     /// This component has not successfully reset the PT & H devices
-    NEEDS_RESET,
+    SETUP_STATUS_NEEDS_RESET,
     /// Reset commands succeeded, need to wait >= 15ms to read PROM
-    NEEDS_PROM_READ,
+    SETUP_STATUS_NEEDS_PROM_READ,
     /// Successfully read PROM and ready to update sensors
-    SUCCESSFUL,
+    SETUP_STATUS_SUCCESSFUL,
   };
 
   /// Keep track of the reason why this component failed, to augment the dumped config
-  ErrorCode error_code_{ErrorCode::NONE};
+  ErrorCode error_code_{ErrorCode::ERROR_CODE_NONE};
 
   /// Current step in the multi-step & possibly delayed setup() process
-  SetupStatus setup_status_{SetupStatus::NEEDS_RESET};
+  SetupStatus setup_status_{SetupStatus::SETUP_STATUS_NEEDS_RESET};
   uint32_t reset_interval_{5};
   uint8_t reset_attempts_remaining_{3};
 
