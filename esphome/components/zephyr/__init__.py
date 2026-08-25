@@ -92,6 +92,7 @@ from .const import (
     ZEPHYR_VARIANT_RA4M1,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
+    ZEPHYR_VARIANT_STM32F4,
     ZEPHYR_VARIANT_STM32L4,
     zephyr_ns,
 )
@@ -789,7 +790,14 @@ def zephyr_to_code(config: ConfigType) -> None:
     # random_bytes() uses sys_rand_get() which requires the entropy subsystem. RP2040 has
     # no hardware RNG; RP2350's does exist but Zephyr's driver for it hangs the whole boot
     # sequence (unbounded busy-wait, no timeout -- see rp2350.py's TEST_RANDOM_GENERATOR).
-    if zephyr_variant() not in (ZEPHYR_VARIANT_RP2040, ZEPHYR_VARIANT_RP2350):
+    # STM32F4 is a whole chip family, not a single SoC -- RNG presence varies per member
+    # (F401/F411 have none, F405/F410/F412 and larger do), so stm32f4.py resolves this
+    # itself from the board's own DTS instead of a blanket per-variant default.
+    if zephyr_variant() not in (
+        ZEPHYR_VARIANT_RP2040,
+        ZEPHYR_VARIANT_RP2350,
+        ZEPHYR_VARIANT_STM32F4,
+    ):
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -1668,6 +1676,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.stm32l4 import config_schema as _stm32_config_schema
 
         config = _stm32_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32F4:
+        from .variants.stm32f4 import config_schema as _stm32f4_config_schema
+
+        config = _stm32f4_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import config_schema as _ra4m1_config_schema
 
@@ -1808,6 +1820,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.stm32l4 import to_code as _stm32_to_code
 
         await _stm32_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32F4:
+        from .variants.stm32f4 import to_code as _stm32f4_to_code
+
+        await _stm32f4_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import to_code as _ra4m1_to_code

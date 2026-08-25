@@ -59,6 +59,8 @@ SWAP_METHOD_SCHEMA = {
         zephyr_rp2040="offset",
         zephyr_rp2350="offset",
         zephyr_stm32l4="move",  # pending offset testing on real hardware
+        # No override: nucleo_f401re's stock scratch_partition makes the generic
+        # zephyr="scratch" default above valid here, unlike stm32l4.
         zephyr_ra4m1="offset",
     ): cv.one_of("scratch", "move", "offset", lower=True),
 }
