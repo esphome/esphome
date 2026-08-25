@@ -66,6 +66,8 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
+ESP8266_ASYNC_MQTT_CLIENT_LIBRARY = "esphome/AsyncMqttClient-esphome"
+ESP8266_ASYNC_MQTT_CLIENT_VERSION = "2.2.0"
 
 
 def AUTO_LOAD():
@@ -350,9 +352,14 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # Add required libraries for ESP8266 and LibreTiny
-    if CORE.is_esp8266 or CORE.is_libretiny:
+    if CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
+    elif CORE.is_esp8266:
+        cg.add_library(
+            ESP8266_ASYNC_MQTT_CLIENT_LIBRARY,
+            ESP8266_ASYNC_MQTT_CLIENT_VERSION,
+        )
 
     if CORE.is_esp32:
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
