@@ -1623,7 +1623,14 @@ def test_ccache_env_opt_in_with_working_binary(
     ccache = tmp_path / "ccache"
     ccache.touch()
     p1, p2, p3 = _ccache_patches(tmp_path, str(ccache), tmp_path / "build")
-    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
+    with (
+        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
+        patch("esphome.espidf.framework.shutil.which", return_value=str(ccache)),
+        patch("esphome.espidf.framework.tool_version_runs", return_value=True),
+        p1,
+        p2,
+        p3,
+    ):
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
     assert "ccache" not in caplog.text.lower() or "Not decoded" in caplog.text
@@ -1635,10 +1642,14 @@ def test_ccache_env_opt_in_with_rejected_binary(
     # Forced on with a present-but-rejected binary: idf.py does its own
     # PATH lookup and uses it anyway; the warning must say so, not claim
     # the build runs without ccache.
+    # A present but non-executable file: the real probe fails and logs
+    # the forced-on message (patching the probe would silence it)
+    broken = tmp_path / "broken-ccache"
+    broken.touch()
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with (
         patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
-        patch("esphome.espidf.framework.shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.espidf.framework.shutil.which", return_value=str(broken)),
         p1,
         p2,
         p3,
@@ -1646,6 +1657,9 @@ def test_ccache_env_opt_in_with_rejected_binary(
         env = _ccache_env()
     assert env["IDF_CCACHE_ENABLE"] == "1"
     assert "idf.py will use it anyway" in caplog.text
+    # Exactly one story: the resolver's contradictory "compiling without
+    # ccache" must not precede it
+    assert "compiling without ccache" not in caplog.text
 
 
 def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
