@@ -952,6 +952,14 @@ class WiFiComponent final : public Component {
   // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
   uint8_t sta_state_{0};
 #endif
+#ifdef USE_LIBRETINY
+  // First attempt since STA-up (re-armed on every STA off->on); the
+  // pre-attempt teardown is skipped then.
+  bool lt_first_connect_attempt_{true};
+  // A self-inflicted disconnect from that teardown is pending; it must not
+  // consume an ignored-disconnect slot.
+  bool lt_teardown_event_pending_{false};
+#endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
   bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
