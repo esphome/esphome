@@ -492,7 +492,9 @@ def run_compile(config, verbose: bool) -> int:
     3. Run full build
     """
     # Check if we need to do discovery phase
-    if need_reconfigure():
+    if not need_reconfigure():
+        _LOGGER.info("Build configuration is up to date")
+    else:
         if (rc := _configure_project()) != 0:
             return rc
         # cmake does not rewrite CMakeCache.txt when only properties change,
