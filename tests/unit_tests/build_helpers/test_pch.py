@@ -120,3 +120,10 @@ def test_include_closure_marks_unreadable(
         locked.chmod(0o644)
     assert closure["locked.h"] == b"<unreadable>"
     assert "Could not read locked.h" in caplog.text
+
+
+def test_pch_extra_scripts_gated(monkeypatch: pytest.MonkeyPatch) -> None:
+    with patch.dict(os.environ, {}, clear=True):
+        assert pch.pch_extra_scripts() == ["post:pch.py"]
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    assert pch.pch_extra_scripts() == []

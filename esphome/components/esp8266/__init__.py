@@ -6,7 +6,7 @@ import subprocess
 import time
 from typing import Any
 
-from esphome.build_helpers.pch import pch_enabled
+from esphome.build_helpers.pch import pch_extra_scripts
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -421,9 +421,7 @@ async def to_code(config: ConfigType) -> None:
         ]
         if not enable_scanf_float:
             extra_scripts.append("pre:remove_float_scanf.py")
-        # Generation-time gate: the script itself has no enable check
-        if pch_enabled():
-            extra_scripts.append("post:pch.py")
+        extra_scripts.extend(pch_extra_scripts())
         extra_scripts.append("post:post_build.py")
         cg.add_platformio_option("extra_scripts", extra_scripts)
 
