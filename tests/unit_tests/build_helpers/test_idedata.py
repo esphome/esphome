@@ -104,7 +104,7 @@ def test_expand_response_files(tmp_path: Path) -> None:
     rsp = tmp_path / "flags.rsp"
     rsp.write_text("-DFROM_RSP -I/rsp/inc")
 
-    tokens = idedata._expand_response_files(
+    tokens = idedata.expand_response_files(
         ["g++", f"@{rsp.name}", "-c", "x.cpp"], tmp_path
     )
 
@@ -115,7 +115,7 @@ def test_expand_response_files(tmp_path: Path) -> None:
 
 def test_expand_response_files_keeps_literal_when_missing(tmp_path: Path) -> None:
     """An unreadable ``@file`` token is kept verbatim rather than dropped."""
-    tokens = idedata._expand_response_files(["g++", "@nope.rsp"], tmp_path)
+    tokens = idedata.expand_response_files(["g++", "@nope.rsp"], tmp_path)
     assert "@nope.rsp" in tokens
 
 

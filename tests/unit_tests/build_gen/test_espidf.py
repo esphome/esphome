@@ -541,7 +541,6 @@ def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
         patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
     ):
         prepare_pch()
-    assert (dev / "build" / "esphome_pch.h").read_text().startswith("#include")
     checksum = (dev / "build" / "esphome_pch.h.gch.sum").read_text().strip()
     assert len(checksum) == 64
     # Unchanged inputs: the second call must not recompile
@@ -607,20 +606,23 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
     )
     assert _pch_compile_command(build, header, gch) is None
 
+    src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
     (build / "compile_commands.json").write_text(
         json.dumps(
             [
                 {
                     "command": (
-                        "/usr/bin/ccache g++ -DX=1 -include esphome_pch.h "
-                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj -c a.cpp"
+                        "/usr/bin/ccache g++ -DX=1 -include esphome_pch.h -MMD "
+                        "-MT a.cpp.obj -MF a.cpp.obj.d "
+                        "-o esp-idf/src/CMakeFiles/__idf_src.dir/a.cpp.obj "
+                        f"-c {src_file}"
                     ),
-                    "file": "/dev/src/esphome/a.cpp",
+                    "file": src_file,
                 },
             ]
         )
     )
-    # Launcher stripped, -include/-o/-c pairs removed, header targeted
+    # Launcher stripped; -include/-o/-c and depfile flags removed
     assert _pch_compile_command(build, header, gch) == [
         "g++",
         "-DX=1",
@@ -713,3 +715,21 @@ def test_write_project_pch_disabled_writes_no_header(
     ):
         write_project()
     assert not (tmp_path / "build" / "esphome_pch.h").exists()
+
+
+def test_write_project_writes_pch_header(tmp_path: Path) -> None:
+    """The header write_project emits is what _pch_cmake() force-includes;
+    this pairing is the one non-fail-safe path in the design."""
+    from esphome.build_gen.espidf import _PCH_HEADERS, write_project
+    from esphome.build_helpers.pch import pch_header_text
+
+    _write_project_description(tmp_path, {})
+    CORE.build_path = tmp_path
+    with (
+        patch("esphome.build_gen.espidf.get_esp32_variant", return_value="ESP32"),
+        patch.object(CORE, "name", "test"),
+    ):
+        write_project()
+    assert (tmp_path / "build" / "esphome_pch.h").read_text() == pch_header_text(
+        _PCH_HEADERS
+    )

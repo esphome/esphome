@@ -1200,6 +1200,8 @@ def _ccache_env() -> dict[str, str]:
 
     Only values the user has not already set in the environment are returned, so
     a custom ``CCACHE_DIR`` / ``CCACHE_MAXSIZE`` / etc. is respected.
+    The pch settings add ``time_macros`` sloppiness process-wide; the visible
+    effect is a cached TU can keep an older ``esp_app_desc`` build timestamp.
     """
     if not _ccache_enabled():
         # The raw knob value (e.g. "disable") is still inherited by idf.py

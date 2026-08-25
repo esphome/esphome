@@ -112,7 +112,7 @@ def split_command(command: str) -> list[str]:
         ctypes.windll.kernel32.LocalFree(argv)
 
 
-def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
+def expand_response_files(tokens: list[str], directory: Path) -> list[str]:
     """Inline any ``@response-file`` arguments (paths relative to ``directory``).
 
     GCC response files embed flags that must be expanded so GCC-only flags
@@ -127,7 +127,7 @@ def _expand_response_files(tokens: list[str], directory: Path) -> list[str]:
                 rf = directory / rf
             try:
                 out.extend(
-                    _expand_response_files(
+                    expand_response_files(
                         split_command(rf.read_text(encoding="utf-8")), directory
                     )
                 )
@@ -166,7 +166,7 @@ def parse_entry(
 ) -> tuple[str, list[str], list[str], list[str]]:
     """Parse one compile_commands entry -> (cxx_path, defines, includes, cxx_flags)."""
     directory = Path(entry["directory"])
-    tokens = _expand_response_files(split_command(entry["command"]), directory)
+    tokens = expand_response_files(split_command(entry["command"]), directory)
 
     def _include(raw: str) -> str:
         # Resolve against the entry's ``directory`` so cached idedata works

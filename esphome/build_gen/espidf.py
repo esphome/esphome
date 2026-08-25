@@ -1,11 +1,16 @@
 """ESP-IDF direct build generator for ESPHome."""
 
+import hashlib
 import json
 import logging
 from pathlib import Path
 import subprocess
 
-from esphome.build_helpers.idedata import is_launcher, split_command
+from esphome.build_helpers.idedata import (
+    expand_response_files,
+    is_launcher,
+    split_command,
+)
 from esphome.build_helpers.pch import (
     PCH_CORE_HEADER,
     PCH_HEADER_NAME,
@@ -48,6 +53,13 @@ _PCH_HEADERS = (
 # Header and .gch/.sum sidecars, relative to the device dir; see
 # _pch_cmake() and prepare_pch() for the layout rationale
 _PCH_BUILD_HEADER = f"build/{PCH_HEADER_NAME}"
+
+# Compile-command tokens dropped when retargeting a TU's flags at the
+# prefix header: source/output/depfile flags with an argument, and the
+# argument-less depfile flags (the pch compile must not touch depfiles)
+_PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-include", "-o", "-c", "-MT", "-MF", "-MQ"})
+_PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
+_CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
@@ -329,25 +341,30 @@ target_compile_options(${{COMPONENT_LIB}} PRIVATE
 
 def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] | None:
     """The exact src C++ flags from compile_commands.json, retargeted at
-    the header; None when no configured C++ TU is available yet."""
+    the header; None (logged) when no configured C++ TU is available yet."""
     try:
         entries = json.loads(
             (build_dir / "compile_commands.json").read_text(encoding="utf-8")
         )
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as err:
+        _LOGGER.debug("No usable compile database, skipping pch: %s", err)
         return None
+    src_prefix = str(CORE.relative_src_path())
     entry = next(
         (
             e
             for e in entries
-            if "__idf_src.dir" in e.get("command", "")
-            and e.get("file", "").endswith((".cpp", ".cc", ".cxx"))
+            if e.get("file", "").startswith(src_prefix)
+            and e.get("file", "").endswith(_CXX_SOURCE_SUFFIXES)
         ),
         None,
     )
     if entry is None:
+        _LOGGER.debug("No src C++ entry in the compile database, skipping pch")
         return None
-    tokens = split_command(entry["command"])
+    tokens = expand_response_files(
+        split_command(entry["command"]), Path(entry.get("directory", build_dir))
+    )
     # A DB recorded with ccache enabled prefixes the compiler with the
     # launcher; the .gch must be compiled directly
     if tokens and is_launcher(tokens[0]):
@@ -355,9 +372,10 @@ def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] 
     args: list[str] = []
     arg_it = iter(tokens)
     for tok in arg_it:
-        # Strip the source/output and any -include (the header holds it)
-        if tok in ("-include", "-o", "-c"):
+        if tok in _PCH_STRIP_FLAGS_WITH_ARG:
             next(arg_it, None)
+            continue
+        if tok in _PCH_STRIP_FLAGS:
             continue
         args.append(tok)
     return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)]
@@ -400,20 +418,26 @@ def prepare_pch() -> None:
         and sum_path.read_text(encoding="utf-8").strip() == checksum
     ):
         return
+    cmd = _pch_compile_command(build_dir, header, gch)
+    if cmd is None:
+        return
+    # Keyed on the checksum and the compile command: a failure caused by
+    # the command alone must retry when the command changes
+    marker_key = f"{checksum} {hashlib.sha256(' '.join(cmd).encode()).hexdigest()}"
     failed_marker = Path(f"{gch}.failed")
     if (
         failed_marker.is_file()
-        and failed_marker.read_text(encoding="utf-8").strip() == checksum
+        and failed_marker.read_text(encoding="utf-8").strip() == marker_key
     ):
-        return
-    cmd = _pch_compile_command(build_dir, header, gch)
-    if cmd is None:
+        _LOGGER.debug("Pch previously failed for these inputs; skipping")
         return
     try:
         result = subprocess.run(
             cmd, cwd=build_dir, capture_output=True, text=True, check=False
         )
-        error = result.stderr.strip() if result.returncode != 0 else None
+        error = None
+        if result.returncode != 0:
+            error = result.stderr.strip() or f"exit code {result.returncode}"
     except OSError as err:
         error = str(err)
     if error is not None:
@@ -422,8 +446,8 @@ def prepare_pch() -> None:
         )
         gch.unlink(missing_ok=True)
         sum_path.unlink(missing_ok=True)
-        # Skip retries until a flag/header/sdkconfig change alters the checksum
-        failed_marker.write_text(checksum + "\n", encoding="utf-8")
+        # Skip retries until a header/flag/sdkconfig/command change
+        failed_marker.write_text(marker_key + "\n", encoding="utf-8")
         return
     failed_marker.unlink(missing_ok=True)
     sum_path.write_text(checksum + "\n", encoding="utf-8")
