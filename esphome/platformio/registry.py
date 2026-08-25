@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Collection
 from functools import cache, partial
-import io
 import json
 import logging
 import os
@@ -21,6 +20,7 @@ from esphome.framework_helpers import (
     rmdir,
     run_batch_downloads,
 )
+from esphome.net_retry import fetch_with_retry, http_request
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -57,15 +57,29 @@ def get_systype() -> str:
 def registry_download(package: str, version: str) -> tuple[str, str, int | None]:
     """Resolve a package's download URL, sha256, and size via the registry.
 
-    The metadata fetch goes through ``download_from_mirrors`` so it shares
-    the retry, backoff, and error reporting of every other download here.
-    Cached per process so the prefetch and the install resolve each package
-    once (failures are not cached; the install retries them).
+    The metadata fetch goes through ``http_request``/``fetch_with_retry``
+    (the consolidated HTTP path) so it shares the Happy Eyeballs patch and
+    transient-retry policy of every other small fetch. Cached per process
+    so the prefetch and the install resolve each package once (failures
+    are not cached; the install retries them).
     """
-    buf = io.BytesIO()
-    download_from_mirrors([_REGISTRY_URL], {"package": package}, buf)
+    url = _REGISTRY_URL.format(package=package)
+
+    def _fetch() -> str:
+        resp = http_request("GET", url, timeout=30)
+        resp.raise_for_status()
+        return resp.text
+
+    import requests
+
     try:
-        data = json.loads(buf.getvalue())
+        body = fetch_with_retry(url, _fetch, what="Registry lookup")
+    except requests.exceptions.RequestException as err:
+        raise EsphomeError(
+            f"Could not fetch registry metadata for {package}: {err}"
+        ) from err
+    try:
+        data = json.loads(body)
     except ValueError as err:
         raise EsphomeError(
             f"The package registry returned invalid JSON for {package}: {err}"
