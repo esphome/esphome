@@ -5,6 +5,7 @@ import posixpath
 import re
 import shlex
 import subprocess
+import traceback
 
 # pylint: disable=E0602
 Import("env", "projenv")  # noqa: F821
@@ -107,6 +108,11 @@ def _setup_pch() -> None:
         try:
             version = platform.get_package_version(package)
         except KeyError:
+            # Only trust KeyError as "absent" when the package really is not
+            # installed; an unresolved manifest must not hash as a constant
+            if platform.get_package(package) is not None:
+                print(f"ESPHome: skipping precompiled header: no version for {package}")
+                return
             version = None  # absent optional package
         except Exception as err:  # noqa: BLE001
             # Without trustworthy package identity a stale .gch could be
@@ -141,8 +147,15 @@ def _setup_pch() -> None:
         for local in sorted(p for p in inc_dir.rglob("*") if p.is_file()):
             try:
                 data = local.read_bytes()
-            except OSError:
-                data = b"<unreadable>"
+            except OSError as err:
+                print(f"ESPHome: could not read {local} for the pch checksum: {err}")
+                try:
+                    # mtime/size keep a changed-but-unreadable header shifting
+                    # the digest without putting device paths in it
+                    st = local.stat()
+                    data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
+                except OSError:
+                    data = b"<unreadable>"
             digest.update(str(local.relative_to(proj_dir)).encode())
             digest.update(data)
             digest.update(b"\0")
@@ -181,27 +194,30 @@ def _setup_pch() -> None:
             # macOS arm64 rejects it per-process: "had text segment at
             # different address"); probe once so consumers never pay for a
             # pch that every compile would silently reject
-            probe = subprocess.run(  # noqa: PLW1510
-                [
-                    cxx,
-                    *flags,
-                    "-MF",
-                    os.devnull,
-                    "-Winvalid-pch",
-                    "-include",
-                    str(header),
-                    "-fsyntax-only",
-                    "-x",
-                    "c++",
-                    "-",
-                ],
-                cwd=proj_dir,
-                input="",
-                capture_output=True,
-                text=True,
-            )
-            if ".gch" in probe.stderr:
-                error = f"toolchain cannot load the pch: {probe.stderr.strip()}"
+            try:
+                probe = subprocess.run(  # noqa: PLW1510
+                    [
+                        cxx,
+                        *flags,
+                        "-MF",
+                        os.devnull,
+                        "-Winvalid-pch",
+                        "-include",
+                        str(header),
+                        "-fsyntax-only",
+                        "-x",
+                        "c++",
+                        "-",
+                    ],
+                    cwd=proj_dir,
+                    input="",
+                    capture_output=True,
+                    text=True,
+                )
+                if probe.returncode != 0 or ".gch" in probe.stderr:
+                    error = f"toolchain cannot load the pch: {probe.stderr.strip()}"
+            except OSError as err:
+                error = str(err)
         if error is not None:
             print("ESPHome: precompiled header failed; compiling without it")
             print(error)
@@ -230,5 +246,6 @@ def _setup_pch() -> None:
 
 try:
     _setup_pch()
-except Exception as err:  # noqa: BLE001 -- a speedup must never break the build
-    print(f"ESPHome: precompiled header setup failed; compiling without it: {err}")
+except Exception:  # noqa: BLE001 -- a speedup must never break the build
+    print("ESPHome: precompiled header setup failed; compiling without it")
+    traceback.print_exc()

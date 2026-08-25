@@ -358,13 +358,17 @@ def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] 
         # Configure already succeeded, so an unusable DB is a real anomaly
         _LOGGER.warning("No usable compile database, skipping pch: %s", err)
         return None
+    if not isinstance(entries, list):
+        _LOGGER.warning("Malformed compile database, skipping pch")
+        return None
     # Windows compile DBs use backslashes; normalize both sides
     src_prefix = str(CORE.relative_src_path()).replace("\\", "/")
     entry = next(
         (
             e
             for e in entries
-            if e.get("file", "").replace("\\", "/").startswith(src_prefix)
+            if isinstance(e, dict)
+            and e.get("file", "").replace("\\", "/").startswith(src_prefix)
             and e.get("file", "").endswith(_CXX_SOURCE_SUFFIXES)
         ),
         None,
@@ -379,6 +383,11 @@ def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] 
     # launcher; the .gch must be compiled directly
     if tokens and is_launcher(tokens[0]):
         tokens = tokens[1:]
+    if not tokens:
+        # An "arguments"-style or empty entry must skip cleanly, not spawn
+        # a compiler-less argv that warns on every build
+        _LOGGER.warning("Compile database entry has no usable command, skipping pch")
+        return None
     args: list[str] = []
     arg_it = iter(tokens)
     for tok in arg_it:
@@ -396,6 +405,22 @@ def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] 
             continue
         args.append(tok)
     return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)]
+
+
+def discard_pch() -> None:
+    """Remove the pch sidecars so a stale .gch is never consumed.
+
+    Bumps the header only when a .gch was actually removed: TUs compiled
+    against it have incomplete depfiles, while a repeat failure with no
+    .gch must not force a full rebuild every build.
+    """
+    header = CORE.relative_build_path(_PCH_BUILD_HEADER)
+    gch = Path(f"{header}.gch")
+    had_gch = gch.is_file()
+    gch.unlink(missing_ok=True)
+    Path(f"{gch}.sum").unlink(missing_ok=True)
+    if had_gch and header.is_file():
+        os.utime(header)
 
 
 def prepare_pch() -> None:
@@ -416,18 +441,18 @@ def prepare_pch() -> None:
     cmd = _pch_compile_command(build_dir, header, gch)
     if cmd is None:
         # Freshness cannot be validated; a leftover .gch must not be consumed
-        gch.unlink(missing_ok=True)
-        sum_path.unlink(missing_ok=True)
+        discard_pch()
         return
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     try:
         sdkconfig = sdkconfig_path.read_text(encoding="utf-8")
     except OSError as err:
-        # Folding the error in keeps distinct unreadable states from colliding
+        # Path-independent marker: str(err) embeds the per-device path and
+        # would defeat cross-device .sum sharing
         _LOGGER.warning(
             "Could not read %s for the pch checksum: %s", sdkconfig_path, err
         )
-        sdkconfig = f"unreadable:{err}"
+        sdkconfig = f"unreadable:{type(err).__name__}:{err.errno}"
     # Build-path stripped so identical configs hash identically across devices
     cmd_id = (
         " ".join(cmd)
@@ -438,6 +463,8 @@ def prepare_pch() -> None:
         CORE.relative_src_path(),
         _PCH_HEADERS,
         (
+            # The closure is sorted, so root order only enters via the text
+            pch_header_text(_PCH_HEADERS),
             str(idf_version()),
             CORE.cpp_standard or "",
             sdkconfig,
@@ -474,9 +501,7 @@ def prepare_pch() -> None:
     except (OSError, subprocess.SubprocessError) as err:
         # Transient (timeout, spawn/IO): warn and retry next build, no marker
         _LOGGER.warning("Precompiled header compile did not run: %s", err)
-        gch.unlink(missing_ok=True)
-        sum_path.unlink(missing_ok=True)
-        os.utime(header)
+        discard_pch()
         return
     if error is not None:
         _LOGGER.warning(

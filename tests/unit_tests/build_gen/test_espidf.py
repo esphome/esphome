@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 import subprocess
 from unittest.mock import patch
@@ -645,6 +646,59 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
     ]
 
 
+def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
+    """Malformed DB shapes and command-less entries skip cleanly instead of
+    producing a compiler-less argv retried every build."""
+    from esphome.build_gen.espidf import _pch_compile_command
+
+    build = tmp_path / "build"
+    build.mkdir()
+    header = build / "esphome_pch.h"
+    gch = build / "esphome_pch.h.gch"
+    db = build / "compile_commands.json"
+    src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
+
+    db.write_text(json.dumps({"not": "a list"}))
+    assert _pch_compile_command(build, header, gch) is None
+
+    db.write_text(json.dumps(["just a string"]))
+    assert _pch_compile_command(build, header, gch) is None
+
+    # arguments-style entry (allowed by the spec, unused by CMake)
+    db.write_text(
+        json.dumps([{"arguments": ["g++", "-c", src_file], "file": src_file}])
+    )
+    assert _pch_compile_command(build, header, gch) is None
+
+
+def test_pch_header_list_order_is_in_checksum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Reordering _PCH_HEADERS keeps the include closure identical, but the
+    generated header text differs, so the .gch must rebuild."""
+    import esphome.build_gen.espidf as espidf_mod
+
+    dev = _make_pch_device(tmp_path, "dev_r")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def fake_compile(cmd, **kwargs):
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+    ):
+        espidf_mod.prepare_pch()
+        first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+        monkeypatch.setattr(
+            espidf_mod, "_PCH_HEADERS", tuple(reversed(espidf_mod._PCH_HEADERS))
+        )
+        espidf_mod.prepare_pch()
+    assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
+
+
 def test_prepare_pch_failure_writes_marker_and_skips_retry(tmp_path: Path) -> None:
     from esphome.build_gen.espidf import prepare_pch
 
@@ -679,6 +733,8 @@ def test_prepare_pch_spawn_oserror_is_transient(tmp_path: Path) -> None:
         calls.append(cmd)
         raise OSError("no such compiler")
 
+    header = dev / "build" / "esphome_pch.h"
+    before = header.stat().st_mtime_ns
     with (
         patch.object(CORE, "name", "test"),
         patch("esphome.build_gen.espidf.subprocess.run", side_effect=raising),
@@ -688,6 +744,31 @@ def test_prepare_pch_spawn_oserror_is_transient(tmp_path: Path) -> None:
     assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
     assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
     assert len(calls) == 2
+    # No .gch was ever in play, so the header must not be re-touched into
+    # forcing a full rebuild on every failing build
+    assert header.stat().st_mtime_ns == before
+
+
+def test_prepare_pch_transient_with_stale_gch_bumps_header(tmp_path: Path) -> None:
+    """A stale .gch removed on a transient failure must dirty its consumers."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_s")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+    gch.write_bytes(b"stale")
+    header = dev / "build" / "esphome_pch.h"
+    os.utime(header, (1, 1))
+    with (
+        patch.object(CORE, "name", "test"),
+        patch(
+            "esphome.build_gen.espidf.subprocess.run",
+            side_effect=OSError("no such compiler"),
+        ),
+    ):
+        prepare_pch()
+    assert not gch.exists()
+    assert header.stat().st_mtime_ns > 1_000_000_000
 
 
 def test_prepare_pch_disabled_is_noop(
