@@ -21,6 +21,9 @@
 #elif defined(USE_LN882H_BLE_TRACKER)
 #include "esphome/components/ln882h_ble_tracker/ln882h_ble_tracker.h"
 #define ESPHOME_BLE_HUB_TYPE ln882h_ble_tracker::LN882HBLETracker
+#elif defined(USE_RTL87XX_BLE_TRACKER)
+#include "esphome/components/rtl87xx_ble_tracker/rtl87xx_ble_tracker.h"
+#define ESPHOME_BLE_HUB_TYPE rtl87xx_ble_tracker::RTL87xxBLETracker
 #endif
 // No #else on purpose: builds without a tracker (host unit tests) get no BLEHub.
 
