@@ -549,7 +549,7 @@ def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
     ):
         prepare_pch()
     checksum = (dev / "build" / "esphome_pch.h.gch.sum").read_text().strip()
@@ -557,7 +557,7 @@ def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
     # Unchanged inputs: the second call must not recompile
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=AssertionError),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
         prepare_pch()
 
@@ -579,7 +579,7 @@ def test_pch_no_device_path_poison(tmp_path: Path) -> None:
 
         with (
             patch.object(CORE, "name", name),
-            patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+            patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
         ):
             prepare_pch()
             content = get_component_cmakelists()
@@ -600,13 +600,13 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_pch_compile_command_variants(tmp_path: Path) -> None:
     """Missing DB, no matching entry, and launcher-prefixed commands."""
-    from esphome.build_gen.espidf import _pch_compile_command
+    from esphome.build_helpers.pch import pch_compile_command
 
     build = tmp_path / "build"
     build.mkdir()
     header = build / "esphome_pch.h"
     gch = build / "esphome_pch.h.gch"
-    assert _pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch) is None
 
     (build / "compile_commands.json").write_text(
         json.dumps(
@@ -615,7 +615,7 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
             ]
         )
     )
-    assert _pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch) is None
 
     src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
     (build / "compile_commands.json").write_text(
@@ -634,7 +634,7 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
         )
     )
     # Launcher stripped; -include/-o/-c and depfile flags removed
-    assert _pch_compile_command(build, header, gch) == [
+    assert pch_compile_command(build, header, gch) == [
         "g++",
         "-DX=1",
         "-x",
@@ -649,7 +649,7 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
 def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
     """Malformed DB shapes and command-less entries skip cleanly instead of
     producing a compiler-less argv retried every build."""
-    from esphome.build_gen.espidf import _pch_compile_command
+    from esphome.build_helpers.pch import pch_compile_command
 
     build = tmp_path / "build"
     build.mkdir()
@@ -659,16 +659,16 @@ def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
     src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
 
     db.write_text(json.dumps({"not": "a list"}))
-    assert _pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch) is None
 
     db.write_text(json.dumps(["just a string"]))
-    assert _pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch) is None
 
     # arguments-style entry (allowed by the spec, unused by CMake)
     db.write_text(
         json.dumps([{"arguments": ["g++", "-c", src_file], "file": src_file}])
     )
-    assert _pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch) is None
 
 
 def test_pch_header_list_order_is_in_checksum(
@@ -688,7 +688,7 @@ def test_pch_header_list_order_is_in_checksum(
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
     ):
         espidf_mod.prepare_pch()
         first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
@@ -712,7 +712,7 @@ def test_prepare_pch_failure_writes_marker_and_skips_retry(tmp_path: Path) -> No
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=failing_compile),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=failing_compile),
     ):
         prepare_pch()
         prepare_pch()
@@ -737,7 +737,7 @@ def test_prepare_pch_spawn_oserror_is_transient(tmp_path: Path) -> None:
     before = header.stat().st_mtime_ns
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=raising),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=raising),
     ):
         prepare_pch()
         prepare_pch()
@@ -762,7 +762,7 @@ def test_prepare_pch_transient_with_stale_gch_bumps_header(tmp_path: Path) -> No
     with (
         patch.object(CORE, "name", "test"),
         patch(
-            "esphome.build_gen.espidf.subprocess.run",
+            "esphome.build_helpers.pch.subprocess.run",
             side_effect=OSError("no such compiler"),
         ),
     ):
@@ -779,7 +779,7 @@ def test_prepare_pch_disabled_is_noop(
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     dev = _make_pch_device(tmp_path, "dev_d")
     CORE.build_path = dev
-    with patch("esphome.build_gen.espidf.subprocess.run", side_effect=AssertionError):
+    with patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError):
         prepare_pch()
 
 
@@ -792,7 +792,7 @@ def test_prepare_pch_without_compile_commands(tmp_path: Path) -> None:
     CORE.build_path = dev
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=AssertionError),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
         prepare_pch()
     assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
@@ -860,7 +860,7 @@ def test_prepare_pch_zero_exit_without_gch_is_failure(tmp_path: Path) -> None:
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=no_output),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=no_output),
     ):
         prepare_pch()
     assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
@@ -887,7 +887,7 @@ def test_prepare_pch_bumps_header_for_object_depends(tmp_path: Path) -> None:
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
     ):
         prepare_pch()
     assert header.stat().st_mtime > before
@@ -914,7 +914,7 @@ def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_gen.espidf.subprocess.run", side_effect=fake_compile),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
     ):
         prepare_pch()
         first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
@@ -925,7 +925,7 @@ def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
 
 
 def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
-    from esphome.build_gen.espidf import _pch_compile_command
+    from esphome.build_helpers.pch import pch_compile_command
 
     dev = _make_pch_device(tmp_path, "dev_u")
     CORE.build_path = dev
@@ -945,6 +945,6 @@ def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
             ]
         )
     )
-    cmd = _pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
+    cmd = pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
     assert "user.h" in cmd
     assert "esphome_pch.h" not in " ".join(cmd[:-3])
