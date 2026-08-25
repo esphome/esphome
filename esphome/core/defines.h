@@ -238,6 +238,7 @@
 #define USE_OTA_PASSWORD
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
+#define USE_TIME_TRIGGERS
 #define USE_WIFI
 #define USE_WIFI_AP
 #define USE_WIFI_MANUAL_IP
