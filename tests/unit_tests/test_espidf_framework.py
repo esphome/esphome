@@ -1613,7 +1613,26 @@ def test_ccache_env_opt_in_without_binary(
     assert env["IDF_CCACHE_ENABLE"] == "1"
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
     assert env["CCACHE_DEPEND"] == "1"
-    assert "no usable ccache binary" in caplog.text
+    assert "no ccache binary is on PATH" in caplog.text
+
+
+def test_ccache_env_opt_in_with_rejected_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Forced on with a present-but-rejected binary: idf.py does its own
+    # PATH lookup and uses it anyway; the warning must say so, not claim
+    # the build runs without ccache.
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    with (
+        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
+        patch("esphome.espidf.framework.shutil.which", return_value="/usr/bin/ccache"),
+        p1,
+        p2,
+        p3,
+    ):
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert "idf.py will use it anyway" in caplog.text
 
 
 def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
