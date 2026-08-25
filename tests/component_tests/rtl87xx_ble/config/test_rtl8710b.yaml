@@ -1,0 +1,11 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+esphome:
+  name: rtl-gate-8710b
+
+rtl87xx:
+  board: generic-rtl8710bn-2mb-788k
+
+rtl87xx_ble:
