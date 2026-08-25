@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_RUNTIME_IMAGE_QOI
 
-#include <algorithm>
 #include <memory>
 
 #include "image_decoder.h"
@@ -23,6 +22,7 @@ class QoiDecoder : public ImageDecoder {
    */
   QoiDecoder(RuntimeImage *image) : ImageDecoder(image, QOI) {}
 
+  void reset() override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 
   bool is_finished() const override {
@@ -35,14 +35,13 @@ class QoiDecoder : public ImageDecoder {
   }
 
  protected:
+  std::unique_ptr<Color[]> color_table_;
   size_t current_index_{0};
   size_t paint_index_{0};
-  ssize_t width_{0};
-  ssize_t height_{0};
-  uint16_t bits_per_pixel_{0};
-  std::unique_ptr<Color[]> color_table_;
-  size_t width_bytes_{0};
+  size_t width_{0};
+  size_t height_{0};
   Color last_pixel_{0, 0, 0, 255};  // QOI spec defines initial previous pixel as opaque black
+  uint16_t bits_per_pixel_{0};
 };
 
 }  // namespace esphome::runtime_image

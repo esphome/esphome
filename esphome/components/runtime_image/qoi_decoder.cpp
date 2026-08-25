@@ -12,17 +12,21 @@ namespace esphome::runtime_image {
 
 static const char *const TAG = "image_decoder.qoi";
 
-static const uint8_t QOI_QP_RGB = 0b11111110;
-static const uint8_t QOI_QP_RGBA = 0b11111111;
-static const uint8_t QOI_QP_INDEX = 0b00000000;  // 00xxxxxx
-static const uint8_t QOI_QP_DIFF = 0b01000000;   // 01xxxxxx
-static const uint8_t QOI_QP_LUMA = 0b10000000;   // 10xxxxxx
-static const uint8_t QOI_QP_RUN = 0b11000000;    // 11xxxxxx
+constexpr uint8_t QOI_QP_RGB = 0b11111110;
+constexpr uint8_t QOI_QP_RGBA = 0b11111111;
+constexpr uint8_t QOI_QP_INDEX = 0b00000000;  // 00xxxxxx
+constexpr uint8_t QOI_QP_DIFF = 0b01000000;   // 01xxxxxx
+constexpr uint8_t QOI_QP_LUMA = 0b10000000;   // 10xxxxxx
+constexpr uint8_t QOI_QP_RUN = 0b11000000;    // 11xxxxxx
 
-static const uint8_t QOI_MASK_OP = 0b11000000;
-static const uint8_t QOI_MASK_VALUE = 0b00111111;
+constexpr uint8_t QOI_RGB_CHUNK_SIZE = 4;
+constexpr uint8_t QOI_RGBA_CHUNK_SIZE = 5;
+constexpr uint8_t QOI_LUMA_CHUNK_SIZE = 2;
 
-static const size_t QOI_HEADER_SIZE = 14;
+constexpr uint8_t QOI_MASK_OP = 0b11000000;
+constexpr uint8_t QOI_MASK_VALUE = 0b00111111;
+
+constexpr size_t QOI_HEADER_SIZE = 14;
 
 inline size_t qoi_color_table_index(const Color &color) {
   // QOI color hash function: (r * 3 + g * 5 + b * 7 + a * 11) % 64
@@ -30,10 +34,17 @@ inline size_t qoi_color_table_index(const Color &color) {
          63;  // modulo 64 is equivalent to bitwise AND with 63 (0b00111111)
 }
 
+void QoiDecoder::reset() {
+  ImageDecoder::reset();
+  this->current_index_ = 0;
+  this->paint_index_ = 0;
+  this->last_pixel_ = Color(0, 0, 0, 255);
+}
+
 int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
   size_t index = 0;
   if (this->current_index_ == 0) {
-    if (size <= QOI_HEADER_SIZE) {
+    if (size < QOI_HEADER_SIZE) {
       return 0;  // Need more data for file header
     }
 
@@ -53,12 +64,12 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
     this->width_ = static_cast<ssize_t>(encode_uint32(buffer[4], buffer[5], buffer[6], buffer[7]));
     this->height_ = static_cast<ssize_t>(encode_uint32(buffer[8], buffer[9], buffer[10], buffer[11]));
     uint8_t channels = buffer[12];
-    uint8_t colorspace = buffer[13];
-    this->bits_per_pixel_ = channels * 8;
     if (channels < 3 || channels > 4) {
       ESP_LOGE(TAG, "Unsupported number of channels: %d", channels);
       return DECODE_ERROR_UNSUPPORTED_FORMAT;
     }
+    this->bits_per_pixel_ = channels * 8;
+    uint8_t colorspace = buffer[13];
     if (colorspace > 1) {
       ESP_LOGE(TAG, "Unsupported colorspace value: %d", colorspace);
       return DECODE_ERROR_UNSUPPORTED_FORMAT;
@@ -66,7 +77,9 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
     ESP_LOGD(TAG, "QOI image header: width=%zu, height=%zu, channels=%d, colorspace=%d", this->width_, this->height_,
              channels, colorspace);
 
-    this->color_table_ = std::make_unique<Color[]>(64);
+    if (!this->color_table_) {
+      this->color_table_ = std::make_unique<Color[]>(64);
+    }
 
     if (!this->set_size(this->width_, this->height_)) {
       return DECODE_ERROR_OUT_OF_MEMORY;
@@ -81,7 +94,7 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
     color = this->last_pixel_;
     uint8_t byte = buffer[index];
     if (byte == QOI_QP_RGB) {
-      if (index + 3 >= size) {
+      if (size < index + QOI_RGB_CHUNK_SIZE) {
         return index;  // Need more data for RGB chunk
       }
       index++;
@@ -91,7 +104,7 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
       this->draw(this->paint_index_ % this->width_, this->paint_index_ / this->width_, 1, 1, color);
       this->paint_index_++;
     } else if (byte == QOI_QP_RGBA) {
-      if (index + 4 >= size) {
+      if (size < index + QOI_RGBA_CHUNK_SIZE) {
         return index;  // Need more data for RGBA chunk
       }
       index++;
@@ -111,7 +124,7 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
       }
       index++;
     } else if ((byte & QOI_MASK_OP) == QOI_QP_LUMA) {
-      if (index + 2 >= size) {
+      if (size < index + QOI_LUMA_CHUNK_SIZE) {
         return index;  // Need more data for LUMA chunk
       }
       index++;
@@ -142,7 +155,7 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
   }
   this->decoded_bytes_ += size;
   return size;
-};
+}
 
 }  // namespace esphome::runtime_image
 

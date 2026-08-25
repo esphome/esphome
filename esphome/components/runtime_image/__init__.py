@@ -120,7 +120,7 @@ class QOIFormat(Format):
     """QOI format decoder configuration."""
 
     def __init__(self):
-        super().__init__("QOI", BmpDecoder)
+        super().__init__("QOI", QoiDecoder)
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_QOI")
