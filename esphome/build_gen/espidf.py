@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 import subprocess
 
+from esphome.build_helpers.ccache import effective_ccache_basedir
 from esphome.build_helpers.idedata import (
+    CXX_SOURCE_SUFFIXES,
     expand_response_files,
     is_launcher,
     split_command,
@@ -61,7 +63,6 @@ _PCH_BUILD_HEADER = f"build/{PCH_HEADER_NAME}"
 # argument-less depfile flags (the pch compile must not touch depfiles)
 _PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-o", "-c", "-MT", "-MF", "-MQ"})
 _PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
-_CXX_SOURCE_SUFFIXES = (".cpp", ".cc", ".cxx")
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
@@ -369,7 +370,7 @@ def _pch_compile_command(build_dir: Path, header: Path, gch: Path) -> list[str] 
             for e in entries
             if isinstance(e, dict)
             and e.get("file", "").replace("\\", "/").startswith(src_prefix)
-            and e.get("file", "").endswith(_CXX_SOURCE_SUFFIXES)
+            and e.get("file", "").endswith(CXX_SOURCE_SUFFIXES)
         ),
         None,
     )
@@ -453,10 +454,12 @@ def prepare_pch() -> None:
             "Could not read %s for the pch checksum: %s", sdkconfig_path, err
         )
         sdkconfig = f"unreadable:{type(err).__name__}:{err.errno}"
-    # Build-path stripped so identical configs hash identically across devices
+    # Stripped like ccache's own rewriting (a user CCACHE_BASEDIR wins) so
+    # identical configs hash identically across devices; the raw build path
+    # covers unresolved spellings in the compile DB
     cmd_id = (
         " ".join(cmd)
-        .replace(str(Path(CORE.build_path).resolve()), "")
+        .replace(effective_ccache_basedir(), "")
         .replace(str(CORE.build_path), "")
     )
     checksum = pch_checksum(
@@ -507,8 +510,7 @@ def prepare_pch() -> None:
         _LOGGER.warning(
             "Precompiled header failed; compiling without it: %s", error[:400]
         )
-        gch.unlink(missing_ok=True)
-        sum_path.unlink(missing_ok=True)
+        discard_pch()
         # Skip retries until a header/flag/sdkconfig/command change
         failed_marker.write_text(checksum + "\n", encoding="utf-8")
         os.utime(header)

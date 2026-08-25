@@ -87,7 +87,8 @@ def ccache_defaults_env(cache_dir: Path) -> dict[str, str]:
         "CCACHE_DIR": str(cache_dir),
         "CCACHE_NOHASHDIR": "true",
         "CCACHE_DEPEND": "1",
-        "CCACHE_BASEDIR": str(Path(CORE.build_path).resolve()),
+        # A user value wins via the filter below
+        "CCACHE_BASEDIR": effective_ccache_basedir(),
     }
     return {k: v for k, v in defaults.items() if k not in os.environ}
 
