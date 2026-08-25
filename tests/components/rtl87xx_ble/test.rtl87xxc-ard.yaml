@@ -1,0 +1,10 @@
+# Compiled on the STOCK released framework: LibreTiny links the AmebaZ2 BT
+# stack (btgap.a) in its releases, so this is the arm where CI actually
+# compiles the rtl87xx_ble C++. AmebaD stays validate-only until a release
+# carries realtek-ambd.
+wifi:  # the stack is brought up behind the STA (coexistence needs it)
+  ssid: MySSID
+  password: password1
+
+packages:
+  rtl87xx_ble: !include common.yaml
