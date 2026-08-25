@@ -10,6 +10,8 @@
 
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
+
+#include <atomic>
 #include "esphome/components/speaker/speaker.h"
 
 #include "esphome/core/component.h"
@@ -76,6 +78,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   size_t play(const uint8_t *data, size_t length) override { return play(data, length, 0); }
 
   bool has_buffered_data() const override;
+  bool buffered_bytes(size_t &bytes) const override;
 
   /// @brief Sets the volume of the speaker. Uses the speaker's configured audio dac component. If unavailble, it is
   /// implemented as a software volume control. Overrides the default setter to convert the floating point volume to a
@@ -150,6 +153,12 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   std::weak_ptr<ring_buffer::RingBuffer> audio_ring_buffer_;
 
   uint32_t buffer_duration_ms_;
+  // Total bytes resident in the I2S DMA descriptors, INCLUDING silence padding. The lockstep write
+  // records count only REAL frames, so the played-frames callback -- and any accounting built on it --
+  // cannot see padding, even though padding still costs time to render. Published so buffered_bytes()
+  // can answer "how long until audio handed over now reaches the pin" rather than "how many real
+  // frames are outstanding". Set once the DMA geometry is known; 0 while the task is not running.
+  std::atomic<size_t> dma_resident_bytes_{0};
 
   optional<uint32_t> timeout_;
 

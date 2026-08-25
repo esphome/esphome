@@ -246,6 +246,11 @@ class RingBufferAudioSource : public AudioReadableBuffer {
   size_t available() const override { return this->current_available_; }
   void consume(size_t bytes) override;
   bool has_buffered_data() const override;
+  /// @brief Total buffered audio in bytes, across the exposed region, the queued item, and the ring
+  /// buffer. Same accounting as has_buffered_data() but keeping the count instead of collapsing it to
+  /// a bool -- a consumer that needs to know HOW FAR BEHIND the audio it hands over will be played
+  /// cannot work from "some" versus "none".
+  size_t buffered_bytes() const;
   /// pre_shift is ignored: there is no intermediate transfer buffer to compact, so an unconsumed
   /// exposure stays in place and fill() returns 0 until it is fully consumed.
   size_t fill(TickType_t ticks_to_wait, bool pre_shift) override;

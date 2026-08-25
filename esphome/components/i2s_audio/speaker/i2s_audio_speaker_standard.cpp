@@ -103,9 +103,12 @@ void I2SAudioSpeaker::run_speaker_task() {
   if (i2s_channel_get_info(this->tx_handle_, &chan_info) == ESP_OK && chan_info.total_dma_buf_size > 0) {
     // total_dma_buf_size spans all DMA_BUFFERS_COUNT descriptors and is an exact multiple of the count.
     dma_buffer_bytes = chan_info.total_dma_buf_size / DMA_BUFFERS_COUNT;
+    // Descriptors are preloaded and kept full for the task's lifetime, so occupancy is the whole span
+    this->dma_resident_bytes_.store(chan_info.total_dma_buf_size, std::memory_order_relaxed);
   } else {
     // Should not happen for a READY channel; fall back to the requested size.
     dma_buffer_bytes = this->output_stream_info_.frames_to_bytes(dma_buffer_frames(this->output_stream_info_));
+    this->dma_resident_bytes_.store(dma_buffer_bytes * DMA_BUFFERS_COUNT, std::memory_order_relaxed);
   }
   // dma_buffer_bytes counts output-format bytes; convert with the output stream info.
   const uint32_t frames_per_dma_buffer = this->output_stream_info_.bytes_to_frames(dma_buffer_bytes);

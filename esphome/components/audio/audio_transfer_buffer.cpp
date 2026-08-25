@@ -276,6 +276,12 @@ bool RingBufferAudioSource::has_buffered_data() const {
   return (this->current_available_ > 0) || (this->queued_length_ > 0) || (this->ring_buffer_->available() > 0);
 }
 
+size_t RingBufferAudioSource::buffered_bytes() const {
+  // Same three terms as has_buffered_data(), and splice_length_ is excluded for the same reason: those
+  // bytes are still to arrive through the ring buffer and are already counted in its available().
+  return this->current_available_ + this->queued_length_ + this->ring_buffer_->available();
+}
+
 size_t RingBufferAudioSource::fill(TickType_t ticks_to_wait, bool /*pre_shift*/) {
   if (this->current_available_ > 0) {
     // Caller has not finished consuming the current exposure

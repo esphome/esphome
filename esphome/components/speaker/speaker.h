@@ -62,6 +62,20 @@ class Speaker {
 
   virtual bool has_buffered_data() const = 0;
 
+  /// @brief Bytes of audio buffered between this speaker's input and the point it is actually
+  /// rendered, if the platform can report it.
+  ///
+  /// has_buffered_data() answers "any or none", which is enough to drain but not enough to know WHEN
+  /// audio handed over now will be heard. A synchronised consumer needs the depth: it can count what
+  /// it pushed and be told what was played, but the fill sitting between those two points is
+  /// otherwise invisible, so a pipeline restart at an unobserved fill level leaves playback offset by
+  /// that amount with every other metric reading nominal.
+  ///
+  /// @param bytes Set to the buffered byte count on success. Untouched on failure.
+  /// @return false when the platform cannot report a count -- distinct from reporting zero, which
+  /// means genuinely empty.
+  virtual bool buffered_bytes(size_t & /*bytes*/) const { return false; }
+
   bool is_running() const { return this->state_ == STATE_RUNNING; }
   bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
