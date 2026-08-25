@@ -135,6 +135,49 @@ def test_registry_jobs_uri_specs_excluded(tmp_path: Path) -> None:
     m.search_registry_packages.assert_not_called()
 
 
+def test_registry_jobs_dedup_keeps_distinct_owners(tmp_path: Path) -> None:
+    """platformio/x and pioarduino/x are different packages."""
+    m = _fake_manager(tmp_path)
+    specs = [
+        _FakeSpec(uri=None, name="framework-x", owner="platformio"),
+        _FakeSpec(uri=None, name="framework-x", owner="pioarduino"),
+    ]
+    with _mirror_patch():
+        pf._registry_jobs(m, specs, set())
+    assert m.search_registry_packages.call_count == 2
+
+
+def test_registry_jobs_all_failed_warns_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A whole-batch failure is a systemic fault and must be visible."""
+    m = _fake_manager(tmp_path)
+    m.search_registry_packages.side_effect = RuntimeError("registry down")
+    with _mirror_patch():
+        jobs, failed = pf._registry_jobs(
+            m,
+            [_FakeSpec(uri=None, name="a"), _FakeSpec(uri=None, name="b")],
+            set(),
+        )
+    assert (jobs, failed) == ([], 2)
+    assert "Could not resolve any of 2" in caplog.text
+
+
+def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
+    """Checksum-less URL archives land via a process-unique rename."""
+    dl_path = tmp_path / "archive"
+
+    def fake_download(url, dest, progress=None, **kwargs):
+        Path(dest).write_bytes(b"data")
+
+    with patch(
+        "esphome.framework_helpers.download_with_resume", side_effect=fake_download
+    ):
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+    assert dl_path.read_bytes() == b"data"
+    assert list(tmp_path.iterdir()) == [dl_path]
+
+
 def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
     """A flaky resolution counts as failed without discarding the batch."""
     m = _fake_manager(tmp_path)
@@ -170,22 +213,28 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
         )
     assert failed == 0
     assert [(n, s) for n, s, _ in jobs] == [("big", 2222)]
+    # a successful HEAD with no Content-Length is a clean skip
+    resp.headers = {}
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        assert pf._uri_jobs(
+            m, [_FakeSpec(uri="https://x/nolen.zip", name="nolen")], set()
+        ) == ([], 0)
 
 
 def test_uri_jobs_head_failure_counts_as_unresolved(tmp_path: Path) -> None:
-    """A HEAD error is not a clean skip; an error response's length is."""
+    """HEAD errors and error responses both count as unresolved."""
     m = _fake_manager(tmp_path)
     with patch("esphome.net_retry.http_request", side_effect=OSError("no route")):
         assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == (
             [],
             1,
         )
-    resp = MagicMock(ok=False)
+    resp = MagicMock(ok=False, status_code=404)
     resp.headers = {"content-length": "999"}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == (
             [],
-            0,
+            1,
         )
 
 
@@ -225,7 +274,7 @@ def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
 
 def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     """Heal runs first, then the subprocess spawns with pio run's libdeps
-    dir and no leaked PYTHONPATH."""
+    dir and the parent's PYTHONPATH preserved (the child is esphome)."""
     proc = MagicMock(returncode=0)
     order = MagicMock()
     order.run.return_value = proc

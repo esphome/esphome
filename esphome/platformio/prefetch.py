@@ -177,10 +177,17 @@ def _registry_jobs(
 
     # Serial disk lookups on the shared manager: a fully warm build
     # resolves nothing, and duplicate specs resolve once
-    unique: dict[tuple[str, str], Any] = {}
+    unique: dict[tuple[str | None, str, str], Any] = {}
     for s in specs:
         if not s.uri and not manager.get_package(s):
-            unique.setdefault((s.name, str(getattr(s, "requirements", None))), s)
+            unique.setdefault(
+                (
+                    getattr(s, "owner", None),
+                    s.name,
+                    str(getattr(s, "requirements", None)),
+                ),
+                s,
+            )
     pending = list(unique.values())
     if not pending:
         return [], 0
@@ -201,6 +208,13 @@ def _registry_jobs(
         seen.add(str(dl_path))
         jobs.append(
             (name, size, resume_fetch_job(url, dl_path, sha256=checksum, size=size))
+        )
+    if failed == len(pending):
+        # A systematic fault (outage, proxy), not one flaky package
+        _LOGGER.warning(
+            "Could not resolve any of %d PlatformIO package(s); "
+            "PlatformIO will download them serially",
+            failed,
         )
     return jobs, failed
 
@@ -235,8 +249,12 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             _LOGGER.debug("HEAD %s failed", url, exc_info=True)
             return -1
-        # An error page's Content-Length is not a download size
-        return content_length(resp) if resp.ok else 0
+        if not resp.ok:
+            # An error page's Content-Length is not a download size, and a
+            # failing URL must not feed the warm sentinel
+            _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
+            return -1
+        return content_length(resp)
 
     if not candidates:
         return [], 0
@@ -248,8 +266,25 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
         if size < 0:
             failed += 1
         elif size:
-            jobs.append((name, size, resume_fetch_job(url, dl_path, size=size)))
+            jobs.append((name, size, _uri_fetch_job(url, dl_path, size)))
     return jobs, failed
+
+
+def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
+    """Fetch to a process-unique path, then rename into the cache.
+
+    URL specs carry no checksum, so a shared destination could let two
+    processes interleave a same-length corrupt file into the cache; the
+    atomic rename makes the promotion single-writer.
+    """
+    tmp = dl_path.with_name(f"{dl_path.name}.{os.getpid()}.tmp")
+    fetch = resume_fetch_job(url, tmp, size=size)
+
+    def run(tracker: Any) -> None:
+        fetch(tracker)
+        tmp.replace(dl_path)
+
+    return run
 
 
 def _prefetch(build_dir: Path, env: str) -> None:
