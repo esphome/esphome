@@ -41,6 +41,15 @@ class EmonTx final : public Component, public uart::UARTDevice {
   // Send command to emonTx via UART
   void send_command(const std::string &command);
 
+  /**
+   * Suspend or resume UART processing.
+   *
+   * When paused, loop() returns immediately without consuming any bytes from
+   * the UART buffer. This lets another component (e.g. a firmware updater)
+   * take exclusive ownership of a shared UART bus while it is active.
+   */
+  void set_paused(bool paused) { this->paused_ = paused; }
+
 #ifdef USE_SENSOR
   void init_sensors(size_t count) { this->sensors_.init(count); }
   void register_sensor(const char *tag_name, sensor::Sensor *sensor);
@@ -48,6 +57,10 @@ class EmonTx final : public Component, public uart::UARTDevice {
 
  protected:
   void parse_json_(const char *data, size_t len);
+
+  // Set from other components/tasks (e.g. an updater taking over the UART),
+  // so it must stay visible across cores/contexts without a full mutex.
+  volatile bool paused_{false};
 
 #ifdef USE_SENSOR
   FixedVector<std::pair<const char *, sensor::Sensor *>> sensors_{};
