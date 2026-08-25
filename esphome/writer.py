@@ -7,6 +7,7 @@ import re
 import time
 
 from esphome import loader
+from esphome.build_helpers.pch import PCH_HEADER_NAME
 from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
@@ -612,10 +613,10 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
         # The PlatformIO pch artifacts live at the project root so the
         # relative -include resolves; a partial clean must drop them too
         for name in (
-            "esphome_pch.h",
-            "esphome_pch.h.gch",
-            "esphome_pch.h.gch.sum",
-            "esphome_pch.h.gch.failed",
+            PCH_HEADER_NAME,
+            f"{PCH_HEADER_NAME}.gch",
+            f"{PCH_HEADER_NAME}.gch.sum",
+            f"{PCH_HEADER_NAME}.gch.failed",
         ):
             pch_path = CORE.relative_build_path(name)
             if pch_path.is_file():

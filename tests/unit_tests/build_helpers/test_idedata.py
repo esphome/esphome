@@ -85,6 +85,24 @@ def test_parse_entry_resolves_relative_includes() -> None:
     assert all(Path(inc).is_absolute() for inc in includes)
 
 
+def test_parse_entry_resolves_force_include_path() -> None:
+    """The pch -include is emitted relative to the build dir; idedata must
+    resolve it so cached flags work from any cwd."""
+    directory = f"{ABS}build/proj"
+    entry = _entry(
+        directory,
+        f"{directory}/src/esphome/x.cpp",
+        "g++ -include esphome_pch.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    idx = cxx_flags.index("-include")
+    resolved = cxx_flags[idx + 1]
+    assert Path(resolved).is_absolute()
+    assert resolved.endswith("build/proj/esphome_pch.h")
+
+
 def test_parse_entry_skips_dependency_flags() -> None:
     """Dependency-generation flags (and their args) are dropped."""
     entry = _entry(
