@@ -1209,9 +1209,14 @@ def _ccache_env() -> dict[str, str]:
         # export the canonical off spelling instead
         return {"IDF_CCACHE_ENABLE": "0"}
     if idf_knob is True:
-        # Forced on skips the runnability verdict, but still resolve for
-        # the "no ccache binary on PATH" warning
-        resolve_ccache_path()
+        # Forced on ignores the runnability verdict, but a missing or
+        # unusable binary is worth saying out loud: idf.py silently
+        # compiles without ccache in that case
+        if resolve_ccache_path() is None:
+            _LOGGER.warning(
+                "IDF_CCACHE_ENABLE=1 but no usable ccache binary was "
+                "found; idf.py will compile without ccache"
+            )
     elif resolve_ccache_path() is None:
         # ESP-IDF silently skips ccache without the binary; export the
         # canonical off spelling so an unparsable inherited value (or a
