@@ -10,6 +10,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.build_helpers import ccache
+from esphome.core import CORE
 
 
 def test_resolve_opt_out() -> None:
@@ -120,3 +121,11 @@ def test_parse_enable_env_spelling_tables(
     """cv.boolean's spelling tables plus the 1/0 env convention."""
     monkeypatch.setenv("ESPHOME_CCACHE_ENABLE", raw)
     assert ccache.parse_enable_env("ESPHOME_CCACHE_ENABLE") is expected
+
+
+def test_effective_ccache_basedir_prefers_user_value(tmp_path: Path) -> None:
+    CORE.build_path = tmp_path
+    with patch.dict(os.environ, {"CCACHE_BASEDIR": "/custom/base"}, clear=True):
+        assert ccache.effective_ccache_basedir() == "/custom/base"
+    with patch.dict(os.environ, {}, clear=True):
+        assert ccache.effective_ccache_basedir() == str(tmp_path.resolve())
