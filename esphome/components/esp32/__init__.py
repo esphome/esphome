@@ -646,6 +646,16 @@ class RawSdkconfigValue:
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
+def is_idf_sdkconfig_option_enabled(name: str) -> bool:
+    """Return True when a bool sdkconfig option resolves to ``y``.
+
+    Handles both the ``True`` a component sets and the raw ``y`` a user sets
+    in ``sdkconfig_options``.
+    """
+    value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
+    return value is not None and _format_sdkconfig_val(value) == "y"
+
+
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     """Set an esp-idf sdkconfig value."""
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
@@ -2164,14 +2174,7 @@ async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
     # NVS encryption needs nvs_sec_provider however it was enabled: the
     # nvs_encryption option, raw sdkconfig_options or another component.
-    if (
-        _format_sdkconfig_val(
-            CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
-                "CONFIG_NVS_ENCRYPTION", False
-            )
-        )
-        == "y"
-    ):
+    if is_idf_sdkconfig_option_enabled("CONFIG_NVS_ENCRYPTION"):
         include_builtin_idf_component("nvs_sec_provider")
     register_exclude_components_cmake_arg()
 
