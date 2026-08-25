@@ -1,5 +1,6 @@
 """Tests for the parallel PlatformIO package prefetch."""
 
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -21,7 +22,10 @@ def _core(tmp_path: Path):
 
 
 class _FakeSpec(SimpleNamespace):
-    """PackageSpec stand-in: .uri and .name are all the prefetch reads."""
+    """PackageSpec stand-in for the attributes the prefetch reads."""
+
+    def __init__(self, *, owner=None, requirements=None, **kwargs) -> None:
+        super().__init__(owner=owner, requirements=requirements, **kwargs)
 
 
 def _fake_manager(tmp_path: Path) -> MagicMock:
@@ -190,16 +194,27 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     ):
         pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
     assert dl_path.read_bytes() == b"data"
-    assert list(tmp_path.iterdir()) == [dl_path]
+    # only the archive and the lock file remain; no orphaned staging file
+    leftovers = {f.name for f in tmp_path.iterdir()}
+    assert leftovers == {dl_path.name, f"{dl_path.name}.prefetch.lock"}
+
+
+def test_uri_fetch_job_skips_when_another_process_won(tmp_path: Path) -> None:
+    dl_path = tmp_path / "archive"
+    dl_path.write_bytes(b"done")
+    with patch("esphome.framework_helpers.download_with_resume") as mock_download:
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+    mock_download.assert_not_called()
+    assert dl_path.read_bytes() == b"done"
 
 
 def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
     """A flaky resolution counts as failed without discarding the batch."""
     m = _fake_manager(tmp_path)
-    calls = iter([RuntimeError("registry 500"), [{"any": 1}]])
-    m.search_registry_packages.side_effect = lambda spec: (
-        (_ for _ in ()).throw(v) if isinstance(v := next(calls), Exception) else v
-    )
+    m.search_registry_packages.side_effect = [
+        RuntimeError("registry 500"),
+        [{"any": 1}],
+    ]
     with _mirror_patch():
         jobs, failed, installable = pf._registry_jobs(
             m,
@@ -327,44 +342,27 @@ def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     assert kwargs["timeout"] == pf._PREFETCH_TIMEOUT
 
 
-def test_prefetch_timeout_warns_and_continues(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A hung child is killed and the build continues."""
-    import subprocess
-
-    with (
-        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
-        patch.object(
-            pf.subprocess,
-            "run",
-            side_effect=subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT),
+@pytest.mark.parametrize(
+    ("run_effect", "expected"),
+    [
+        (
+            {"side_effect": pf.subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT)},
+            "prefetch timed out",
         ),
-    ):
-        pf.prefetch_platformio_packages()
-    assert "prefetch timed out" in caplog.text
-
-
-def test_prefetch_nonzero_exit_warns(caplog: pytest.LogCaptureFixture) -> None:
-    proc = MagicMock(returncode=3)
-    with (
-        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
-        patch.object(pf.subprocess, "run", return_value=proc),
-    ):
-        pf.prefetch_platformio_packages()
-    assert "prefetch skipped (exit 3)" in caplog.text
-
-
-def test_prefetch_launch_failure_never_raises(
-    caplog: pytest.LogCaptureFixture,
+        ({"return_value": MagicMock(returncode=3)}, "prefetch skipped (exit 3)"),
+        ({"side_effect": OSError("no exec")}, "PlatformIO package prefetch skipped"),
+    ],
+)
+def test_prefetch_spawn_failures_warn_and_continue(
+    caplog: pytest.LogCaptureFixture, run_effect, expected
 ) -> None:
-    """Any spawn failure is one warning, never a build failure."""
+    """Timeouts, nonzero exits, and spawn failures each warn, never raise."""
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
-        patch.object(pf.subprocess, "run", side_effect=OSError("no exec")),
+        patch.object(pf.subprocess, "run", **run_effect),
     ):
         pf.prefetch_platformio_packages()
-    assert "PlatformIO package prefetch skipped" in caplog.text
+    assert expected in caplog.text
 
 
 def test_main_guards_and_exits_zero(caplog: pytest.LogCaptureFixture) -> None:
@@ -392,6 +390,12 @@ def test_main_bad_argv_is_a_distinct_exit(
 
 def _write_ini(tmp_path: Path, body: str) -> None:
     (tmp_path / "platformio.ini").write_text(body)
+
+
+def _write_valid_sentinel(tmp_path: Path, dirs: list[str]) -> None:
+    (tmp_path / pf._SENTINEL_NAME).write_text(
+        json.dumps({**pf._sentinel_state(tmp_path), "dirs": dirs}), encoding="utf-8"
+    )
 
 
 def test_prefetch_no_platform_returns(tmp_path: Path) -> None:
@@ -504,12 +508,7 @@ def test_sentinel_invalidation(tmp_path: Path) -> None:
     pkg_dir = tmp_path / "packages"
     pkg_dir.mkdir()
     assert not pf._prefetch_is_warm(tmp_path)  # no sentinel yet
-    (tmp_path / pf._SENTINEL_NAME).write_text(
-        __import__("json").dumps(
-            {**pf._sentinel_state(tmp_path), "dirs": [str(pkg_dir)]}
-        ),
-        encoding="utf-8",
-    )
+    _write_valid_sentinel(tmp_path, [str(pkg_dir)])
     assert pf._prefetch_is_warm(tmp_path)
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@2\n")
     assert not pf._prefetch_is_warm(tmp_path)  # ini changed
@@ -525,12 +524,7 @@ def test_prefetch_warm_sentinel_skips_spawn(tmp_path: Path) -> None:
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     pkg_dir = tmp_path / "packages"
     pkg_dir.mkdir()
-    (tmp_path / pf._SENTINEL_NAME).write_text(
-        __import__("json").dumps(
-            {**pf._sentinel_state(tmp_path), "dirs": [str(pkg_dir)]}
-        ),
-        encoding="utf-8",
-    )
+    _write_valid_sentinel(tmp_path, [str(pkg_dir)])
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
         patch.object(pf.subprocess, "run") as mock_run,

@@ -72,10 +72,13 @@ def _ini_sha256(build_dir: Path) -> str:
 
 def _sentinel_state(build_dir: Path) -> dict[str, Any]:
     """The environment fingerprint a sentinel must match to stay valid."""
+    # Same fingerprint as the heal stamp: the sentinel's dirs die with its wipe
+    from esphome.platformio.toolchain import current_python_minor
+
     return {
         "schema": _SENTINEL_SCHEMA,
         "ini_sha256": _ini_sha256(build_dir),
-        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+        "python": current_python_minor(),
         "core_dir_env": os.environ.get("PLATFORMIO_CORE_DIR", ""),
     }
 
@@ -200,14 +203,7 @@ def _registry_jobs(
     unique: dict[tuple[str | None, str, str], Any] = {}
     for s in specs:
         if not s.uri and not manager.get_package(s):
-            unique.setdefault(
-                (
-                    getattr(s, "owner", None),
-                    s.name,
-                    str(getattr(s, "requirements", None)),
-                ),
-                s,
-            )
+            unique.setdefault((s.owner, s.name, str(s.requirements)), s)
     pending = list(unique.values())
     if not pending:
         return [], 0, []
@@ -307,18 +303,25 @@ def _uri_jobs(
 
 
 def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
-    """Fetch to a process-unique path, then rename into the cache.
+    """Fetch to a locked staging path, then rename into the cache.
 
     URL specs carry no checksum, so a shared destination could let two
-    processes interleave a same-length corrupt file into the cache; the
-    atomic rename makes the promotion single-writer.
+    processes interleave a same-length corrupt file into the cache. The
+    lock makes the staging file single-writer (a stable name keeps the
+    resume machinery working across interrupted runs) and the rename
+    makes the promotion atomic.
     """
-    tmp = dl_path.with_name(f"{dl_path.name}.{os.getpid()}.tmp")
+    tmp = dl_path.with_name(f"{dl_path.name}.prefetch")
     fetch = resume_fetch_job(url, tmp, size=size)
 
     def run(tracker: Any) -> None:
-        fetch(tracker)
-        tmp.replace(dl_path)
+        from filelock import FileLock
+
+        with FileLock(f"{tmp}.lock"):
+            if dl_path.is_file():
+                return  # another process finished it while we waited
+            fetch(tracker)
+            tmp.replace(dl_path)
 
     return run
 

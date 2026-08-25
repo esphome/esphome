@@ -131,7 +131,7 @@ def _clean_platformio_python_env(config: "ProjectConfig", core_dir: Path) -> Non
         rmtree(penv)
 
 
-def _current_python_minor() -> str:
+def current_python_minor() -> str:
     """Return the running interpreter's ``major.minor`` (e.g. ``3.13``)."""
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
@@ -196,7 +196,7 @@ def heal_platformio_python_env() -> None:
 
 def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
     """Compare the stamp to the running interpreter; wipe and restamp on mismatch."""
-    current = _current_python_minor()
+    current = current_python_minor()
     stamp_dir = _pio_stamp_dir(config)
     # Host the stamp/lock even before PlatformIO's first run creates the dir.
     stamp_dir.mkdir(parents=True, exist_ok=True)
