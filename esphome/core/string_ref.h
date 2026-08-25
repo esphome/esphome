@@ -239,6 +239,8 @@ template<typename R, typename F> inline R parse_number(const StringRef &str, siz
 }
 // NOLINTEND(google-runtime-int)
 }  // namespace internal
+// readability-non-const-parameter: `pos` is written through by internal::parse_number, one call
+// frame away; the check only inspects these bodies, so it wrongly proposes `const size_t *`.
 // NOLINTBEGIN(readability-identifier-naming,google-runtime-int,readability-non-const-parameter)
 inline int stoi(const StringRef &str, size_t *pos = nullptr, int base = 10) {
   return static_cast<int>(internal::parse_number<long>(str, pos, base, std::strtol));
