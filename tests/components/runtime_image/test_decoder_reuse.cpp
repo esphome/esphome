@@ -157,6 +157,19 @@ template<size_t H, size_t W> static void expect_pixels(TestableRuntimeImage &img
   }
 }
 
+template<size_t H, size_t W>
+static void expect_pixels_rgba(TestableRuntimeImage &img, const uint8_t (&expected)[H][W][4]) {
+  ASSERT_EQ(img.get_width(), static_cast<int>(W));
+  ASSERT_EQ(img.get_height(), static_cast<int>(H));
+  for (size_t y = 0; y < H; y++) {
+    for (size_t x = 0; x < W; x++) {
+      SCOPED_TRACE(::testing::Message() << "pixel (" << x << "," << y << ")");
+      Color color = img.get_pixel(x, y);
+      EXPECT_THAT((std::array<uint8_t, 4>{color.r, color.g, color.b, color.a}),
+                  ::testing::ElementsAreArray(expected[y][x]));
+    }
+  }
+}
 TEST(RuntimeImageDecoder, DecoderStaysWarmAcrossDecodes) {
   TestableRuntimeImage img(BMP);
 
