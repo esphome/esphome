@@ -36,6 +36,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODE): cv.enum(MODES, upper=True),
         },
     ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on_esp32,
     _consume_camera_web_server_sockets,
 )
 

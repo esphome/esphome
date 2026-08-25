@@ -269,6 +269,16 @@ def test_esp32_configuration_errors(
             id="nvs_encryption",
         ),
         pytest.param(
+            "exclusion_reincludes_nvs_sdkconfig.yaml",
+            ("nvs_sec_provider",),
+            id="nvs_encryption_raw_sdkconfig",
+        ),
+        pytest.param(
+            "exclusion_reincludes_camera_web_server.yaml",
+            ("esp_http_server",),
+            id="esp32_camera_web_server",
+        ),
+        pytest.param(
             "exclusion_reincludes_nextion.yaml",
             ("esp-tls", "esp_http_client"),
             id="nextion",

@@ -246,7 +246,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
-    "nvs_sec_provider",  # NVS encryption key provider - re-included when nvs_encryption is set
+    "nvs_sec_provider",  # NVS encryption key provider - re-included when NVS encryption is enabled
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
@@ -2959,6 +2959,9 @@ async def to_code(config):
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+    # NVS encryption turned on through raw sdkconfig options still needs the provider
+    if "CONFIG_NVS_ENCRYPTION" in conf[CONF_SDKCONFIG_OPTIONS]:
+        include_builtin_idf_component("nvs_sec_provider")
 
     # Components from YAML are added in a separate coroutine with FINAL priority
     # Schedule it to run after all other components
