@@ -38,9 +38,7 @@ class FakeUART final : public uart::UARTComponent {
   }
   size_t available() override { return this->rx_.size(); }
   uart::UARTFlushResult flush() override { return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
-  // No #ifdef/override: this base method only exists as a pure virtual on some platforms; a plain
-  // method here satisfies it there and is a harmless no-op elsewhere (avoids per-platform guards).
-  void load_settings(bool dump_config) {}
+  void load_settings(bool dump_config) override {}
 
  protected:
   void check_logger_conflict() override {}
