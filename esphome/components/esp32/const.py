@@ -1,15 +1,22 @@
 import esphome.codegen as cg
 
-# Re-exported for the many esp32-side users; defined in esphome.const so
-# the upload/logs fast path can read them without importing this package.
+# Re-exported for the many esp32-side users; defined in esphome.const
+# and esphome.espidf so the upload/logs fast path can use them without
+# importing this package.
 from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
     KEY_ESP32,
+    KEY_FLASH_SIZE,
     KEY_IDF_VERSION,
     KEY_VARIANT,
 )
 
+# Back compat for external components only; in-tree callers import it
+# from esphome.espidf directly.
+from esphome.espidf import (  # noqa: F401  # pylint: disable=unused-import
+    variant_to_idf_target,
+)
+
 KEY_BOARD = "board"
-KEY_FLASH_SIZE = "flash_size"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"
 KEY_EXCLUDE_COMPONENTS = "exclude_components"
@@ -67,11 +74,6 @@ VARIANT_FRIENDLY = {
     VARIANT_ESP32S3: "ESP32-S3",
     VARIANT_ESP32S31: "ESP32-S31",
 }
-
-
-def variant_to_idf_target(variant: str) -> str:
-    """Map an esp32 variant name (e.g. "ESP32S3") to its ESP-IDF target name."""
-    return variant.lower().replace("-", "")
 
 
 esp32_ns = cg.esphome_ns.namespace("esp32")

@@ -3,7 +3,6 @@
 #ifdef USE_TIME_TIMEZONE
 
 #include "posix_tz.h"
-#include <cctype>
 #include <cstdio>
 
 namespace esphome::time {
@@ -17,17 +16,6 @@ void set_global_tz(const ParsedTimezone &tz) { global_tz_ = tz; }
 const ParsedTimezone &get_global_tz() { return global_tz_; }
 
 namespace internal {
-
-// Remove before 2026.9.0: parse_uint, skip_tz_name, parse_offset, parse_dst_rule,
-// and parse_transition_time are only used by parse_posix_tz() (bridge code).
-static uint32_t parse_uint(const char *&p) {
-  uint32_t value = 0;
-  while (std::isdigit(static_cast<unsigned char>(*p))) {
-    value = value * 10 + (*p - '0');
-    p++;
-  }
-  return value;
-}
 
 bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
 
@@ -140,62 +128,6 @@ void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) 
   out_tm->tm_isdst = 0;
 }
 
-bool skip_tz_name(const char *&p) {
-  if (*p == '<') {
-    // Angle-bracket quoted name: <+07>, <-03>, <AEST>
-    p++;  // skip '<'
-    while (*p && *p != '>') {
-      p++;
-    }
-    if (*p == '>') {
-      p++;  // skip '>'
-      return true;
-    }
-    return false;  // Unterminated
-  }
-
-  // Standard name: 3+ letters
-  const char *start = p;
-  while (*p && std::isalpha(static_cast<unsigned char>(*p))) {
-    p++;
-  }
-  return (p - start) >= 3;
-}
-
-int32_t __attribute__((noinline)) parse_offset(const char *&p) {
-  int sign = 1;
-  if (*p == '-') {
-    sign = -1;
-    p++;
-  } else if (*p == '+') {
-    p++;
-  }
-
-  int hours = parse_uint(p);
-  int minutes = 0;
-  int seconds = 0;
-
-  if (*p == ':') {
-    p++;
-    minutes = parse_uint(p);
-    if (*p == ':') {
-      p++;
-      seconds = parse_uint(p);
-    }
-  }
-
-  return sign * (hours * 3600 + minutes * 60 + seconds);
-}
-
-// Helper to parse the optional /time suffix (reuses parse_offset logic)
-static void parse_transition_time(const char *&p, DSTRule &rule) {
-  rule.time_seconds = 2 * 3600;  // Default 02:00
-  if (*p == '/') {
-    p++;
-    rule.time_seconds = parse_offset(p);
-  }
-}
-
 void __attribute__((noinline)) julian_to_month_day(int julian_day, int &out_month, int &out_day) {
   // J format: day 1-365, Feb 29 is NOT counted even in leap years
   // So day 60 is always March 1
@@ -234,59 +166,6 @@ void __attribute__((noinline)) day_of_year_to_month_day(int day_of_year, int yea
   // Shouldn't reach here with valid input
   out_month = 12;
   out_day = 31;
-}
-
-bool parse_dst_rule(const char *&p, DSTRule &rule) {
-  rule = {};  // Zero initialize
-
-  if (*p == 'M' || *p == 'm') {
-    // M format: Mm.w.d (month.week.day)
-    rule.type = DSTRuleType::MONTH_WEEK_DAY;
-    p++;
-
-    rule.month = parse_uint(p);
-    if (rule.month < 1 || rule.month > 12)
-      return false;
-
-    if (*p++ != '.')
-      return false;
-
-    rule.week = parse_uint(p);
-    if (rule.week < 1 || rule.week > 5)
-      return false;
-
-    if (*p++ != '.')
-      return false;
-
-    rule.day_of_week = parse_uint(p);
-    if (rule.day_of_week > 6)
-      return false;
-
-  } else if (*p == 'J' || *p == 'j') {
-    // J format: Jn (Julian day 1-365, not counting Feb 29)
-    rule.type = DSTRuleType::JULIAN_NO_LEAP;
-    p++;
-
-    rule.day = parse_uint(p);
-    if (rule.day < 1 || rule.day > 365)
-      return false;
-
-  } else if (std::isdigit(static_cast<unsigned char>(*p))) {
-    // Plain number format: n (day 0-365, counting Feb 29)
-    rule.type = DSTRuleType::DAY_OF_YEAR;
-
-    rule.day = parse_uint(p);
-    if (rule.day > 365)
-      return false;
-
-  } else {
-    return false;
-  }
-
-  // Parse optional /time suffix
-  parse_transition_time(p, rule);
-
-  return true;
 }
 
 // Calculate days from Jan 1 of given year to given month/day
@@ -371,83 +250,6 @@ bool __attribute__((noinline)) is_in_dst(time_t utc_epoch, const ParsedTimezone 
     // Southern hemisphere: DST is outside the range (wraps around year)
     return (utc_epoch >= dst_start || utc_epoch < dst_end);
   }
-}
-
-// Remove before 2026.9.0: This parser is bridge code for backward compatibility with
-// older Home Assistant clients that send the timezone as a POSIX TZ string instead of
-// the pre-parsed ParsedTimezone protobuf struct. Once all clients send the struct
-// directly, this function and the parsing helpers above (skip_tz_name, parse_offset,
-// parse_dst_rule, parse_transition_time) can be removed.
-// See https://github.com/esphome/backlog/issues/91
-bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
-  if (!tz_string || !*tz_string) {
-    return false;
-  }
-
-  const char *p = tz_string;
-
-  // Initialize result (dst_start/dst_end default to type=NONE, so has_dst() returns false)
-  result.std_offset_seconds = 0;
-  result.dst_offset_seconds = 0;
-  result.dst_start = {};
-  result.dst_end = {};
-
-  // Skip standard timezone name
-  if (!internal::skip_tz_name(p)) {
-    return false;
-  }
-
-  // Parse standard offset (required)
-  if (!*p || (!std::isdigit(static_cast<unsigned char>(*p)) && *p != '+' && *p != '-')) {
-    return false;
-  }
-  result.std_offset_seconds = internal::parse_offset(p);
-
-  // Check for DST name
-  if (!*p) {
-    return true;  // No DST
-  }
-
-  // If next char is comma, there's no DST name but there are rules (invalid)
-  if (*p == ',') {
-    return false;
-  }
-
-  // Check if there's something that looks like a DST name start
-  // (letter or angle bracket). If not, treat as trailing garbage and return success.
-  if (!std::isalpha(static_cast<unsigned char>(*p)) && *p != '<') {
-    return true;  // No DST, trailing characters ignored
-  }
-
-  if (!internal::skip_tz_name(p)) {
-    return false;  // Invalid DST name (started but malformed)
-  }
-
-  // Optional DST offset (default is std - 1 hour)
-  if (*p && *p != ',' && (std::isdigit(static_cast<unsigned char>(*p)) || *p == '+' || *p == '-')) {
-    result.dst_offset_seconds = internal::parse_offset(p);
-  } else {
-    result.dst_offset_seconds = result.std_offset_seconds - 3600;
-  }
-
-  // Parse DST rules (required when DST name is present)
-  if (*p != ',') {
-    // DST name without rules - treat as no DST since we can't determine transitions
-    return true;
-  }
-
-  p++;
-  if (!internal::parse_dst_rule(p, result.dst_start)) {
-    return false;
-  }
-
-  // Second rule is required per POSIX
-  if (*p != ',') {
-    return false;
-  }
-  p++;
-  // has_dst() now returns true since dst_start.type was set by parse_dst_rule
-  return internal::parse_dst_rule(p, result.dst_end);
 }
 
 // Format a POSIX offset (positive = west) as "+HHMM" / "-HHMM" for display.

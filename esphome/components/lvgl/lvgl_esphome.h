@@ -116,6 +116,18 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
 #endif
 
+#ifdef USE_LVGL_LIST
+// Returns the index, within `list`, of the entry that contains `child`: `child` itself if it's a
+// direct child of `list`, or the ancestor of `child` that is, when `child` is nested inside a
+// widget hierarchy added via `lvgl.list.add`. Returns -1 if `child` isn't inside `list` at all.
+int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child);
+
+// Returns the entry at `index` within `list`, or nullptr (logging why) if `index` is out of
+// range -- shared by every `lvgl.list.remove` call site, since a templatable index can go out of
+// range at runtime in ways config validation can't catch (e.g. driven by a sensor value).
+lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index);
+#endif
+
 #ifdef USE_LVGL_GRADIENT
 /**
  *
@@ -134,6 +146,12 @@ class LvCompound {
   virtual void set_obj(lv_obj_t *lv_obj) { this->obj = lv_obj; }
   lv_obj_t *obj{};
 };
+
+// Frees a heap-allocated LvCompound wrapper on LV_EVENT_DELETE, since lv_obj_del() only knows how to destroy LVGL's own
+// object tree, not a separate C++ object paired with one of its nodes.
+template<typename T> void delete_lv_compound_on_delete(lv_event_t *e) {
+  delete static_cast<T *>(lv_event_get_user_data(e));
+}
 
 class LvglComponent;
 
@@ -241,10 +259,11 @@ class LvglComponent final : public PollingComponent {
   static void esphome_lvgl_init();
 
   //  Convenience overloads for adding a callback for one or more events
-  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event);
-  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2);
+  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event, void *user_data = nullptr);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
-                           lv_event_code_t event3);
+                           void *user_data = nullptr);
+  static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
+                           lv_event_code_t event3, void *user_data = nullptr);
 
   // change the state of a widget and fire an event if changed (only needed for CHECKED)
 

@@ -78,6 +78,7 @@ esphome/components/bl0942/* @dbuezas @dwmw2
 esphome/components/ble_client/* @buxtronix @clydebarrow
 esphome/components/ble_device_base/* @Bl00d-B0b
 esphome/components/ble_nus/* @tomaszduda23
+esphome/components/bluetooth_connection/* @bdraco @jesserockz
 esphome/components/bluetooth_proxy/* @bdraco @jesserockz
 esphome/components/bm8563/* @abmantis
 esphome/components/bme280_base/* @esphome/core
@@ -237,6 +238,7 @@ esphome/components/hlw8032/* @rici4kubicek
 esphome/components/hm3301/* @freekode
 esphome/components/hmac_md5/* @dwmw2
 esphome/components/hmac_sha256/* @dwmw2
+esphome/components/hoermann_hcp/* @zweckj
 esphome/components/homeassistant/* @esphome/core @OttoWinter
 esphome/components/homeassistant/number/* @landonr
 esphome/components/homeassistant/switch/* @Links2004
@@ -288,6 +290,7 @@ esphome/components/ld2412/* @Rihan9
 esphome/components/ld2420/* @descipher
 esphome/components/ld2450/* @hareeshmu
 esphome/components/ld24xx/* @kbx81
+esphome/components/ld6002b/* @hepter
 esphome/components/ledc/* @OttoWinter
 esphome/components/libretiny/* @kuba2k2
 esphome/components/libretiny_pwm/* @kuba2k2
@@ -296,6 +299,7 @@ esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lm75b/* @beormund
 esphome/components/ln882h_ble/* @Bl00d-B0b
+esphome/components/ln882h_ble_tracker/* @Bl00d-B0b
 esphome/components/ln882x/* @lamauny
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
@@ -350,6 +354,7 @@ esphome/components/mlx90393/* @functionpointer
 esphome/components/mlx90614/* @jesserockz
 esphome/components/mmc5603/* @benhoff
 esphome/components/mmc5983/* @agoode
+esphome/components/modbus_client/* @exciton
 esphome/components/modbus_controller/* @martgras
 esphome/components/modbus_controller/binary_sensor/* @martgras
 esphome/components/modbus_controller/number/* @martgras
@@ -376,6 +381,7 @@ esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
+esphome/components/noise/* @esphome/core
 esphome/components/npi19/* @bakerkj
 esphome/components/nrf52/* @tomaszduda23
 esphome/components/number/* @esphome/core
@@ -461,6 +467,7 @@ esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
 esphome/components/sen6x/* @martgras @mebner86 @tuct
 esphome/components/sendspin/* @kahrendt
+esphome/components/sendspin/image/* @kahrendt
 esphome/components/sendspin/media_player/* @kahrendt
 esphome/components/sendspin/media_source/* @kahrendt
 esphome/components/sendspin/sensor/* @kahrendt

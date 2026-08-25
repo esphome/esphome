@@ -2,8 +2,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::xiaomi_mjyd02yla {
 
 static const char *const TAG = "xiaomi_mjyd02yla";
@@ -17,7 +15,7 @@ void XiaomiMJYD02YLA::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
-bool XiaomiMJYD02YLA::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMJYD02YLA::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -65,5 +63,3 @@ bool XiaomiMJYD02YLA::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 void XiaomiMJYD02YLA::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
 }  // namespace esphome::xiaomi_mjyd02yla
-
-#endif

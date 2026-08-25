@@ -27,6 +27,8 @@ class APIServerConnectionBase {
   void on_ping_response(){};
   void on_device_info_request(){};
 
+  void on_device_capabilities_request(){};
+
   void on_list_entities_request(){};
 
   void on_subscribe_states_request(){};
@@ -113,32 +115,32 @@ class APIServerConnectionBase {
   void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &value){};
 #endif
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_device_request(const BluetoothDeviceRequest &value){};
 #endif
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &value){};
 #endif
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &value){};
 #endif
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_gatt_read_descriptor_request(const BluetoothGATTReadDescriptorRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_gatt_write_descriptor_request(const BluetoothGATTWriteDescriptorRequest &value){};
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &value){};
 #endif
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_subscribe_bluetooth_connections_free_request(){};
 #endif
 
@@ -233,7 +235,7 @@ class APIServerConnectionBase {
   void on_serial_proxy_request(const SerialProxyRequest &value){};
 #endif
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
   void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
 #endif
 };

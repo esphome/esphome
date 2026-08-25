@@ -5,8 +5,9 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import platformdirs
 
@@ -19,7 +20,7 @@ from esphome.helpers import (
     rmtree,
     write_file,
 )
-from esphome.util import FlashImage, run_external_process
+from esphome.util import ESP32_ARDUINO_ENV, FlashImage, run_external_process
 
 if TYPE_CHECKING:
     from platformio.project.config import ProjectConfig
@@ -58,6 +59,9 @@ def _strip_win_long_path_prefix(path: str) -> str:
     the ``\\?\`` prefix, so the build fails with
     "The system cannot find the path specified." Stripping the prefix early
     keeps the path shell-quotable.
+
+    Also applied to the ccache path exported by ``_ccache_env()``, which
+    ``shutil.which`` can return with the same prefix.
 
     No-op on non-Windows platforms.
     """
@@ -234,15 +238,59 @@ def _check_platformio_python_stamp(config: "ProjectConfig") -> None:
         _write_pio_stamp_python(stamp_file, current)
 
 
+def _ccache_runs(ccache: str) -> bool:
+    """Return True when the ``ccache`` found on PATH actually runs.
+
+    ``shutil.which`` proves existence, not runnability: on Windows it also
+    matches ``.bat``/``.cmd`` wrappers and stale package-manager shims whose
+    target is gone. Wrapping compiles around such a find fails every compile
+    step with an opaque OS error, so probe once and fall back to compiling
+    without ccache when the probe fails.
+    """
+    try:
+        subprocess.run(
+            [ccache, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            # Repo-wide convention (posix_spawn fast path); see the
+            # close_fds=False call sites across esphome/ and script/helpers.py
+            close_fds=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        _LOGGER.warning(
+            "Ignoring ccache at %s because it failed to run; compiling without ccache",
+            ccache,
+        )
+        return False
+    return True
+
+
 def _ccache_env() -> dict[str, str]:
-    """Return ccache settings for PlatformIO builds.
+    r"""Return ccache settings for PlatformIO builds.
 
     Enabled by default whenever the ``ccache`` binary is on PATH; set
     ``ESPHOME_CCACHE_ENABLE=0`` in the environment to opt out (or ``1`` to
-    force it on). The decision is normalized into ``ESPHOME_CCACHE_ENABLE``
-    so platform build scripts (e.g. the esp8266 ``ccache.py`` extra script,
-    which wraps compiler invocations inside SCons) only have to check for
-    ``"1"`` instead of re-implementing the policy.
+    force it on without the runnability probe; a binary is still needed).
+    The decision is normalized into ``ESPHOME_CCACHE_ENABLE`` and the
+    binary's location into ``ESPHOME_CCACHE_PATH`` so platform build scripts
+    (the shared ``ccache.py`` extra script, which wraps compiler invocations
+    inside SCons) only have to check for ``"1"`` and use the path as given
+    instead of re-implementing the policy.
+
+    The path is exported rather than looked up again inside SCons because
+    ``shutil.which`` can return a Windows extended-length ``\\?\`` path
+    (ESPHome Desktop puts its bundled ccache on PATH that way). Such a path
+    runs fine through ``CreateProcess``, which is how ESP-IDF invokes it,
+    but SCons runs every compile through ``cmd.exe``, which fails on it with
+    "The system cannot find the path specified." (#18399), so the prefix is
+    stripped here with ``_strip_win_long_path_prefix()`` before the
+    runnability probe, which therefore validates the exact string the build
+    will execute.
+    ``ESPHOME_CCACHE_PATH`` is an internal channel, not a user setting: the
+    script only honours it together with ``ESPHOME_CCACHE_ENABLE=1``, and this
+    function always sets both or neither.
 
     The returned values are merged into the environment of the PlatformIO
     subprocess only, never into ``os.environ``: a long-running process
@@ -263,13 +311,27 @@ def _ccache_env() -> dict[str, str]:
     build dir. The other ``CCACHE_*`` values the user already set in the
     environment are respected.
     """
-    if "ESPHOME_CCACHE_ENABLE" in os.environ:
-        enabled = get_bool_env("ESPHOME_CCACHE_ENABLE")
-    else:
-        enabled = shutil.which("ccache") is not None
-    env = {"ESPHOME_CCACHE_ENABLE": "1" if enabled else "0"}
-    if not enabled:
-        return env
+    explicit = "ESPHOME_CCACHE_ENABLE" in os.environ
+    if explicit and not get_bool_env("ESPHOME_CCACHE_ENABLE"):
+        return {"ESPHOME_CCACHE_ENABLE": "0"}
+    ccache_path = shutil.which("ccache")
+    if ccache_path is None:
+        if explicit:
+            _LOGGER.warning(
+                "ESPHOME_CCACHE_ENABLE is set but no ccache binary is on PATH; "
+                "compiling without ccache"
+            )
+        return {"ESPHOME_CCACHE_ENABLE": "0"}
+    # Strip before probing so the probe validates (and the failure warning
+    # names) the exact string the build will execute through cmd.exe.
+    ccache_path = _strip_win_long_path_prefix(ccache_path)
+    # An explicit opt-in skips the runnability probe.
+    if not explicit and not _ccache_runs(ccache_path):
+        return {"ESPHOME_CCACHE_ENABLE": "0"}
+    env = {
+        "ESPHOME_CCACHE_ENABLE": "1",
+        "ESPHOME_CCACHE_PATH": ccache_path,
+    }
     # build_path is set during preload for every config-loading command, so it
     # being unset means a caller built the environment too early; fail loudly
     # rather than with an opaque TypeError from Path(None).
@@ -342,6 +404,13 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     base_env = kwargs.pop("env", None)
     env = dict(os.environ if base_env is None else base_env)
     env.update(_ccache_env())
+    # The runner offers the out-of-flash tip but has no configured CORE, so
+    # tell it. Ask CORE, not is_esp32_arduino_build(), which reads this same
+    # variable; clear an inherited one so it cannot reach the wrong build.
+    if CORE.is_configured and CORE.is_esp32 and CORE.using_arduino:
+        env[ESP32_ARDUINO_ENV] = "1"
+    else:
+        env.pop(ESP32_ARDUINO_ENV, None)
 
     return run_external_process(*cmd, env=env, **kwargs)
 
@@ -364,18 +433,24 @@ def run_compile(config, verbose):
 def _run_idedata(config):
     args = ["-t", "idedata"]
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
+    if not isinstance(stdout, str):
+        # run_external_process returns 1 instead of captured output when
+        # launching platformio raised; see the error it logged above.
+        raise EsphomeError("Could not launch platformio to get idedata")
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
-        _LOGGER.error("Could not match idedata, please report this error")
+        # A run that launches but fails emits its build error instead of
+        # idedata; the logged stdout is the useful part, not a bug report.
+        _LOGGER.error("Could not find idedata in the platformio output")
         _LOGGER.error("Stdout: %s", stdout)
-        raise EsphomeError
+        raise EsphomeError("PlatformIO did not report idedata")
 
     try:
         return json.loads(match.group())
-    except ValueError:
+    except ValueError as err:
         _LOGGER.exception("Could not parse idedata")
         _LOGGER.error("Stdout: %s", stdout)
-        raise
+        raise EsphomeError("Could not parse idedata from platformio") from err
 
 
 def _load_idedata(config):
@@ -419,9 +494,27 @@ class IDEData:
     def __init__(self, raw):
         self.raw = raw
 
+    def _require(self, *keys: str) -> Any:
+        """Read a nested key, classifying a miss as an environment error.
+
+        A stale or truncated cached idedata JSON is the user's build
+        tree, not a bug; recompiling regenerates it. The message names
+        the key so a platformio schema change stays diagnosable.
+        """
+        value = self.raw
+        # TypeError covers a key that is null instead of absent.
+        try:
+            for key in keys:
+                value = value[key]
+        except (KeyError, TypeError) as err:
+            raise EsphomeError(
+                f"Cached idedata is incomplete (missing {'.'.join(keys)})"
+            ) from err
+        return value
+
     @property
     def firmware_elf_path(self) -> Path:
-        return Path(self.raw["prog_path"])
+        return Path(self._require("prog_path"))
 
     @property
     def firmware_bin_path(self) -> Path:
@@ -429,15 +522,22 @@ class IDEData:
 
     @property
     def extra_flash_images(self) -> list[FlashImage]:
-        return [
-            FlashImage(path=Path(entry["path"]), offset=entry["offset"])
-            for entry in self.raw["extra"]["flash_images"]
-        ]
+        try:
+            return [
+                FlashImage(path=Path(entry["path"]), offset=entry["offset"])
+                for entry in self._require("extra", "flash_images")
+            ]
+        except (KeyError, TypeError) as err:
+            # Covers entries missing path/offset and a null or non-list
+            # flash_images value alike.
+            raise EsphomeError(
+                "Cached idedata is incomplete (malformed extra.flash_images)"
+            ) from err
 
     @property
     def cc_path(self) -> str:
         # For example /Users/<USER>/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc
-        return self.raw["cc_path"]
+        return self._require("cc_path")
 
     @property
     def addr2line_path(self) -> str:

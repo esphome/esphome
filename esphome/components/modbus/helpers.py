@@ -38,7 +38,9 @@ SensorValueType = SensorValueType_ns.enum("SensorValueType")
 SENSOR_VALUE_TYPE = {
     "RAW": SensorValueType.RAW,
     "U_WORD": SensorValueType.U_WORD,
+    "U_WORD_S": SensorValueType.U_WORD_S,
     "S_WORD": SensorValueType.S_WORD,
+    "S_WORD_S": SensorValueType.S_WORD_S,
     "U_DWORD": SensorValueType.U_DWORD,
     "U_DWORD_R": SensorValueType.U_DWORD_R,
     "S_DWORD": SensorValueType.S_DWORD,
@@ -54,7 +56,9 @@ SENSOR_VALUE_TYPE = {
 TYPE_REGISTER_MAP = {
     "RAW": 1,
     "U_WORD": 1,
+    "U_WORD_S": 1,
     "S_WORD": 1,
+    "S_WORD_S": 1,
     "U_DWORD": 2,
     "U_DWORD_R": 2,
     "S_DWORD": 2,
@@ -70,7 +74,9 @@ TYPE_REGISTER_MAP = {
 CPP_TYPE_REGISTER_MAP = {
     "RAW": cg.uint16,
     "U_WORD": cg.uint16,
+    "U_WORD_S": cg.uint16,
     "S_WORD": cg.int16,
+    "S_WORD_S": cg.int16,
     "U_DWORD": cg.uint32,
     "U_DWORD_R": cg.uint32,
     "S_DWORD": cg.int32,

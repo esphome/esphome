@@ -233,18 +233,6 @@ WaterHeaterTraits WaterHeater::get_traits() {
   return traits;
 }
 
-#ifdef USE_WATER_HEATER_VISUAL_OVERRIDES
-void WaterHeater::set_visual_min_temperature_override(float min_temperature_override) {
-  this->visual_min_temperature_override_ = min_temperature_override;
-}
-void WaterHeater::set_visual_max_temperature_override(float max_temperature_override) {
-  this->visual_max_temperature_override_ = max_temperature_override;
-}
-void WaterHeater::set_visual_target_temperature_step_override(float visual_target_temperature_step_override) {
-  this->visual_target_temperature_step_override_ = visual_target_temperature_step_override;
-}
-#endif
-
 // Water heater mode strings indexed by WaterHeaterMode enum (0-6): OFF, ECO, ELECTRIC, PERFORMANCE, HIGH_DEMAND,
 // HEAT_PUMP, GAS
 PROGMEM_STRING_TABLE(WaterHeaterModeStrings, "OFF", "ECO", "ELECTRIC", "PERFORMANCE", "HIGH_DEMAND", "HEAT_PUMP", "GAS",

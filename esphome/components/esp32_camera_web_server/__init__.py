@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     server = cg.new_Pvariable(config[CONF_ID])
     cg.add(server.set_port(config[CONF_PORT]))
     cg.add(server.set_mode(config[CONF_MODE]))

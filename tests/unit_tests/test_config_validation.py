@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 import string
+from unittest.mock import patch
 
 from hypothesis import example, given, settings
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
@@ -931,7 +932,7 @@ def test_string_no_slash__slash_replaced_with_warning(
     actual = cv.string_no_slash(value)
     assert actual == expected
     assert "reserved as a URL path separator" in caplog.text
-    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+    assert "will become an error in ESPHome 2027.7.0" in caplog.text
 
 
 def test_string_no_slash__long_string_allowed() -> None:
@@ -2926,9 +2927,61 @@ def test_require_esphome_version_ok() -> None:
     assert cv.require_esphome_version(1, 0, 0)("test") == "test"
 
 
+def test_require_esphome_version_accepts_version_object() -> None:
+    """The Version form matches require_framework_version's style."""
+    assert cv.require_esphome_version(cv.Version(1, 0, 0))("test") == "test"
+    with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
+        cv.require_esphome_version(cv.Version(9999, 0, 0))("test")
+
+
+def test_require_esphome_version_partial_ints_fail_at_call_site() -> None:
+    """Missing ints raise immediately instead of a TypeError inside the validator."""
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026, 8)
+    with pytest.raises(ValueError, match="needs a Version or"):
+        cv.require_esphome_version(2026)
+
+
 def test_require_esphome_version_too_old() -> None:
     with pytest.raises(Invalid, match="at least ESPHome version 9999.0.0"):
         cv.require_esphome_version(9999, 0, 0)("test")
+
+
+@pytest.mark.parametrize("current", ["2026.8.0", "2026.8.0b1", "2026.8.0-dev20260801"])
+def test_require_esphome_version_prerelease_of_required_passes(current: str) -> None:
+    """A dev or beta build of the required version satisfies it.
+
+    Pins the behavior of the old tuple comparison that dropped the
+    suffix, now expressed through Version ordering where the extra field
+    only breaks ties upward.
+    """
+    with patch.object(cv, "ESPHOME_VERSION", current):
+        assert cv.require_esphome_version(2026, 8, 0)("test") == "test"
+
+
+def test_require_esphome_version_older_prerelease_fails() -> None:
+    with (
+        patch.object(cv, "ESPHOME_VERSION", "2026.7.0-dev20260701"),
+        pytest.raises(Invalid, match="at least ESPHome version 2026.8.0"),
+    ):
+        cv.require_esphome_version(2026, 8, 0)("test")
+
+
+def test_parse_esphome_version_deprecated_shim(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The removed helper still works for external components and warns."""
+    from esphome import const, util
+
+    with (
+        patch.object(const, "__version__", "2026.9.0-dev"),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert cv.parse_esphome_version() == (2026, 9, 0)
+        assert cv.parse_esphome_version() < (9999, 0, 0)
+    assert "parse_esphome_version() is deprecated" in caplog.text
+    # Both historical import paths resolve to the same function
+    assert cv.parse_esphome_version is util.parse_esphome_version
 
 
 # ---------------------------------------------------------------------------
