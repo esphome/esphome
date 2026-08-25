@@ -968,7 +968,11 @@ def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> Non
     config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}
     mock_run_platformio_cli_run.return_value = 0
 
-    toolchain.run_compile(config, verbose=True)
+    with (
+        patch.object(toolchain, "heal_platformio_python_env"),
+        patch("esphome.platformio.prefetch.prefetch_platformio_packages"),
+    ):
+        toolchain.run_compile(config, verbose=True)
 
     mock_run_platformio_cli_run.assert_called_once_with(config, True, "-j4")
 
@@ -983,9 +987,36 @@ def test_run_compile_without_process_limit(
     config = {CONF_ESPHOME: {}}
     mock_run_platformio_cli_run.return_value = 0
 
-    toolchain.run_compile(config, verbose=False)
+    with (
+        patch.object(toolchain, "heal_platformio_python_env"),
+        patch("esphome.platformio.prefetch.prefetch_platformio_packages"),
+    ):
+        toolchain.run_compile(config, verbose=False)
 
     mock_run_platformio_cli_run.assert_called_once_with(config, False)
+
+
+def test_run_compile_heals_before_prefetching(
+    setup_core: Path, mock_run_platformio_cli_run: Mock
+) -> None:
+    """The Python-version heal must run before the prefetch, or its wipe
+    would discard the caches the prefetch just warmed."""
+    from esphome.const import CONF_ESPHOME
+
+    CORE.build_path = str(setup_core / "build" / "test")
+    mock_run_platformio_cli_run.return_value = 0
+    order = Mock()
+
+    with (
+        patch.object(toolchain, "heal_platformio_python_env", order.heal),
+        patch(
+            "esphome.platformio.prefetch.prefetch_platformio_packages",
+            order.prefetch,
+        ),
+    ):
+        toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+
+    assert order.mock_calls == [call.heal(), call.prefetch()]
 
 
 def test_get_idedata_caches_result(

@@ -898,6 +898,33 @@ def _cancellable_sleep(
         time.sleep(min(0.5, remaining))
 
 
+def resume_fetch_job(
+    url: str, dest: PathType, **kwargs
+) -> Callable[[Callable[[int], None]], None]:
+    """A ``run_batch_downloads`` job callable wrapping ``download_with_resume``.
+
+    The batch runner passes its progress tracker positionally; forward it as
+    the ``progress`` keyword along with any extra download arguments
+    (``sha256``, ``size``, ...).
+    """
+
+    def fetch(tracker: Callable[[int], None]) -> None:
+        download_with_resume(url, dest, progress=tracker, **kwargs)
+
+    return fetch
+
+
+def warn_prefetch_failures(
+    failures: list[tuple[str, BaseException]],
+    message: str = "Could not prefetch %s: %s",
+) -> None:
+    """Warn per failed batch-prefetch job; the caller's installer retries them."""
+    for name, err in failures:
+        # failure_reason: a message-less exception must not log blank
+        _LOGGER.warning(message, name, failure_reason(err))
+        _LOGGER.debug("Prefetch failure detail", exc_info=err)
+
+
 def download_with_resume(
     url: str,
     dest: PathType,

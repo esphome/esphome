@@ -424,6 +424,12 @@ def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
 
 
 def run_compile(config, verbose):
+    from esphome.platformio.prefetch import prefetch_platformio_packages
+
+    # Heal before prefetching: a Python-version wipe would otherwise discard
+    # the caches the prefetch just warmed (the later heal call is a no-op)
+    heal_platformio_python_env()
+    prefetch_platformio_packages()
     args = []
     if CONF_COMPILE_PROCESS_LIMIT in config[CONF_ESPHOME]:
         args += [f"-j{config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]}"]
