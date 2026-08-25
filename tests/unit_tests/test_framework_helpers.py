@@ -1775,6 +1775,33 @@ class TestDownloadAndExtract:
         # the archive is consumed; only the extraction remains
         assert not (tmp_path / "lib.archive").exists()
 
+    def test_locked_archive_does_not_mask_result(self, tmp_path: Path) -> None:
+        """A cleanup unlink blocked by e.g. an AV handle (Windows) must not
+        replace the extraction result; the archive simply survives."""
+        content = gzip.compress(
+            _make_tar([_reg("file.txt")], {"file.txt": b"data"}).getvalue()
+        )
+        real_unlink = Path.unlink
+
+        def locked_unlink(self: Path, missing_ok: bool = False) -> None:
+            if self.name.endswith(".archive"):
+                raise PermissionError("held by antivirus")
+            real_unlink(self, missing_ok=missing_ok)
+
+        with (
+            patch("requests.get", return_value=_mock_response(content)),
+            patch("pathlib.Path.unlink", locked_unlink),
+        ):
+            url = download_and_extract(
+                ["https://example.com/lib.tar.gz"],
+                {},
+                tmp_path / "lib.archive",
+                tmp_path / "out",
+            )
+        assert url == "https://example.com/lib.tar.gz"
+        assert (tmp_path / "out" / "file.txt").read_bytes() == b"data"
+        assert (tmp_path / "lib.archive").exists()  # left behind, harmless
+
     def test_corrupt_archive_deleted_on_extract_failure(self, tmp_path: Path) -> None:
         """A complete-but-corrupt archive must not survive to poison the next
         run; without a checksum only a failed extraction can expose it."""
