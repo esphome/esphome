@@ -198,8 +198,10 @@ def parse_entry(
 
     it = iter(tokens[1:])
     for tok in it:
-        if tok in ("-c", "-o"):
-            next(it, None)  # drop the flag and its argument (input/output)
+        if tok in ("-c", "-o", "-include"):
+            # Drop the flag and its argument; the injected relative
+            # -include esphome_pch.h does not resolve outside the build dir
+            next(it, None)
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.
