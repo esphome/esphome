@@ -1,0 +1,6 @@
+# Declares the component graph the C++ unit test build needs so that the
+# emontx component's sources compile. to_code is suppressed by the test
+# harness; this only pulls the emontx source/include paths in.
+# Loaded with plain yaml.safe_load, so avoid lambdas / ESPHome-tagged values here.
+emontx:
+  id: test_emontx
