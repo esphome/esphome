@@ -6,7 +6,7 @@ namespace esphome::mk2pvrouter {
 
 static const char *const TAG = "mk2pvrouter_binary_sensor";
 
-Mk2PVRouterBinarySensor::Mk2PVRouterBinarySensor(const char *tag) { this->set_tag(tag); }
+Mk2PVRouterBinarySensor::Mk2PVRouterBinarySensor(const char *tag) : Mk2PVRouterListener(tag) {}
 
 void Mk2PVRouterBinarySensor::publish_val(const char *val) {
   bool state = (strcmp(val, "0") != 0);

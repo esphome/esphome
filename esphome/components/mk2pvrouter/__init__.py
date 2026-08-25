@@ -56,12 +56,15 @@ def _get_data() -> Mk2PVRouterData:
 def final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
 
-    # Count listeners (IDs are resolved at final_validate stage)
+    # Count listeners (IDs are resolved at final_validate stage).
+    # Iterate over all platform sections generically so newly added
+    # mk2pvrouter platforms are picked up automatically.
     _get_data().listener_count = sum(
         1
-        for platform_key in ("sensor", "binary_sensor", "text_sensor")
-        for entry in full_config.get(platform_key, [])
-        if entry.get(CONF_PLATFORM) == "mk2pvrouter"
+        for entries in full_config.values()
+        if isinstance(entries, list)
+        for entry in entries
+        if isinstance(entry, dict) and entry.get(CONF_PLATFORM) == "mk2pvrouter"
     )
 
     # Validate UART settings

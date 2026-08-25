@@ -1,5 +1,6 @@
 mk2pvrouter:
   id: test_mk2pvrouter
+  uart_id: uart_bus
 
 sensor:
   # Test single-letter tags (exact matches)

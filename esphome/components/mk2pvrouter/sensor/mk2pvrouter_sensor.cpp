@@ -5,7 +5,7 @@ namespace esphome::mk2pvrouter {
 
 static const char *const TAG = "mk2pvrouter_sensor";
 
-Mk2PVRouterSensor::Mk2PVRouterSensor(const char *tag) { this->set_tag(tag); }
+Mk2PVRouterSensor::Mk2PVRouterSensor(const char *tag) : Mk2PVRouterListener(tag) {}
 
 void Mk2PVRouterSensor::publish_val(const char *val) {
   auto result = parse_number<float>(val);

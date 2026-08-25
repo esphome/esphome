@@ -27,13 +27,13 @@ static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features e
  */
 class Mk2PVRouterListener {
  public:
+  explicit Mk2PVRouterListener(const char *tag) : tag_(tag) {}
   virtual ~Mk2PVRouterListener() = default;
-  void set_tag(const char *tag) { this->tag_ = tag; }
   const char *get_tag() const { return this->tag_; }
   virtual void publish_val(const char *val) = 0;
 
  protected:
-  const char *tag_{nullptr};
+  const char *tag_;
 };
 
 /**

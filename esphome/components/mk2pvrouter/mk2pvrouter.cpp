@@ -73,7 +73,7 @@ bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
   }
   const auto raw_crc = grp[grp_len - 1];
 
-  const auto calculated_crc = calculate_crc_(grp, grp_len);
+  const auto calculated_crc = this->calculate_crc_(grp, grp_len);
 
   if (raw_crc != calculated_crc) {
     ESP_LOGE(TAG, "CRC mismatch: expected %d, got %d", calculated_crc, raw_crc);
@@ -96,6 +96,8 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
 
   while (this->available() > 0 && j++ < MAX_ITERATIONS) {
     const auto received = this->read();
+    if (received < 0)
+      continue;
     if (received == c)
       return true;
     if (drop)
@@ -146,7 +148,7 @@ void Mk2PVRouter::loop() {
       if (this->read_chars_until_(false, END_FRAME))
         this->state_ = State::END_FRAME_RECEIVED;
       break;
-    case State::END_FRAME_RECEIVED:
+    case State::END_FRAME_RECEIVED: {
       ESP_LOGVV(TAG, "State: END_FRAME_RECEIVED -> processing");
 
       if (this->buf_index_ == 0) {
@@ -208,6 +210,7 @@ void Mk2PVRouter::loop() {
       this->buf_index_ = 0;
       this->state_ = State::WAITING_FOR_START;
       break;
+    }
   }
 }
 
