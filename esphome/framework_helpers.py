@@ -903,9 +903,7 @@ def resume_fetch_job(
 ) -> Callable[[Callable[[int], None]], None]:
     """A ``run_batch_downloads`` job callable wrapping ``download_with_resume``.
 
-    The batch runner passes its progress tracker positionally; forward it as
-    the ``progress`` keyword along with any extra download arguments
-    (``sha256``, ``size``, ...).
+    Forwards the runner's positional tracker as the ``progress`` keyword.
     """
 
     def fetch(tracker: Callable[[int], None]) -> None:

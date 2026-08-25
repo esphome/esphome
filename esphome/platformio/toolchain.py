@@ -368,11 +368,8 @@ def copy_ccache_script() -> None:
 
 
 def default_libdeps_dir() -> str:
-    """The PLATFORMIO_LIBDEPS_DIR value a pio run defaults to.
-
-    The package prefetch resolves installed libraries against the same dir;
-    both call sites must agree or warm builds re-resolve every library.
-    """
+    """The PLATFORMIO_LIBDEPS_DIR value a pio run defaults to; the package
+    prefetch must resolve installed libraries against the same dir."""
     return str(CORE.relative_piolibdeps_path().absolute())
 
 

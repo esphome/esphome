@@ -63,8 +63,7 @@ def _mirror_patch():
 
 
 def test_registry_jobs_resolves_like_platformio(tmp_path: Path) -> None:
-    """A registry spec resolves to a job keyed by the mirror URL and
-    checksum, sized from the registry file entry."""
+    """A registry spec resolves to a job keyed by mirror URL and checksum."""
     m = _fake_manager(tmp_path)
     with _mirror_patch():
         jobs = pf._registry_jobs(
@@ -99,8 +98,7 @@ def test_registry_jobs_skips(tmp_path: Path, method, attr, value) -> None:
 
 
 def test_registry_jobs_skips_cached_and_sizeless(tmp_path: Path) -> None:
-    """A file already in PlatformIO's cache, or one the registry reports no
-    size for, is left to PlatformIO."""
+    """Cached or sizeless files are left to PlatformIO."""
     m = _fake_manager(tmp_path)
     dl = Path(m.compute_download_path("https://mirror.example/t.tar.gz", "beef"))
     dl.parent.mkdir(parents=True, exist_ok=True)
@@ -114,10 +112,9 @@ def test_registry_jobs_skips_cached_and_sizeless(tmp_path: Path) -> None:
 
 
 def test_registry_jobs_dedupes_download_paths(tmp_path: Path) -> None:
-    """Duplicate specs resolve once, and distinct specs resolving to one
-    archive yield a single job; two batch workers must never share a .part
-    file. Nine specs against eight workers also make one worker resolve
-    twice, reusing its thread-local manager."""
+    """Duplicate specs resolve once and one archive yields one job (two
+    workers must never share a .part); nine specs against eight workers
+    also exercise the thread-local manager reuse."""
     m = _fake_manager(tmp_path)
     specs = [_FakeSpec(uri=None, name="dup"), _FakeSpec(uri=None, name="dup")]
     specs += [_FakeSpec(uri=None, name=f"n{i}") for i in range(8)]
@@ -138,8 +135,7 @@ def test_registry_jobs_uri_specs_excluded(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
-    """A direct-URL spec gets its size from a HEAD; git specs and
-    unreachable URLs are left to PlatformIO."""
+    """HEAD sizes direct-URL specs; git and unreachable URLs are skipped."""
     m = _fake_manager(tmp_path)
     resp = MagicMock()
     resp.headers = {"content-length": "2222"}
@@ -165,8 +161,7 @@ def test_uri_jobs_head_failure_skips(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
-    """Two specs with one URL yield one HEAD and one job; two batch workers
-    must never share a .part file."""
+    """Two specs with one URL yield one HEAD and one job."""
     m = _fake_manager(tmp_path)
     resp = MagicMock()
     resp.headers = {"content-length": "5"}
@@ -200,10 +195,8 @@ def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
 
 
 def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
-    """The prefetch heals the PlatformIO cache first (a later Python-version
-    wipe would discard what it warms), then runs in a subprocess (platform
-    setup code may rewrite the interpreter's sys.path) with pio run's
-    libdeps dir and no leaked PYTHONPATH."""
+    """Heal runs first, then the subprocess spawns with pio run's libdeps
+    dir and no leaked PYTHONPATH."""
     proc = MagicMock(returncode=0)
     order = MagicMock()
     order.run.return_value = proc
@@ -332,8 +325,7 @@ def _fake_config(tmp_path: Path, env_options: dict):
 
 
 def test_prefetch_all_cached_is_quiet_and_writes_sentinel(tmp_path: Path) -> None:
-    """With nothing to download the prefetch neither logs nor batches, and
-    records a sentinel so the parent skips the next spawn."""
+    """A no-work run neither logs nor batches, and records the sentinel."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     (tmp_path / "packages").mkdir()
     (tmp_path / "libdeps" / "testenv").mkdir(parents=True)
@@ -355,8 +347,7 @@ def test_prefetch_all_cached_is_quiet_and_writes_sentinel(tmp_path: Path) -> Non
 
 
 def test_sentinel_invalidation(tmp_path: Path) -> None:
-    """The sentinel stops matching when the ini changes or a recorded dir
-    disappears; garbage sentinels read as cold."""
+    """Ini changes, missing dirs, and garbage sentinels all read as cold."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     pkg_dir = tmp_path / "packages"
     pkg_dir.mkdir()
@@ -399,10 +390,9 @@ def test_prefetch_warm_sentinel_skips_spawn(tmp_path: Path) -> None:
 def test_prefetch_end_to_end_wiring(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Platform installs dep-free, the env is configured, non-optional
-    packages plus tool-scons resolve, libraries resolve against the env's
-    libdeps dir, a platform sys.path rewrite is undone, and failures warn
-    by name."""
+    """Platform installs dep-free, non-optional packages plus tool-scons
+    resolve, libraries use the env libdeps dir, a platform sys.path rewrite
+    is undone, and failures warn by name."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/platform@1.0\n")
     fake_platform = MagicMock()
     fake_platform.packages = {
