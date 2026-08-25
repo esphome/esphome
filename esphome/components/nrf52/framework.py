@@ -369,4 +369,8 @@ def check_and_install() -> None:
                 extract_dir,
                 progress_header="Extracting",
             )
+        # Prune resume leftovers, including a previous TOOLCHAIN_VERSION's
+        # orphans; the SDK archives are hundreds of MB.
+        for leftover in toolchains_dir.parent.glob("*.archive.part*"):
+            leftover.unlink(missing_ok=True)
         sentinel.touch()

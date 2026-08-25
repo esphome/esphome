@@ -909,7 +909,6 @@ def _check_esphome_idf_framework_install(
             # a temp file) so an interrupted download resumes on the next
             # run; the cache is pruned after a successful install anyway.
             tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
-            _LOGGER.info("Downloading and extracting ESP-IDF %s framework ...", version)
             download_and_extract(
                 mirrors,
                 substitutions,

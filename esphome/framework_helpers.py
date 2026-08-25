@@ -1125,7 +1125,7 @@ def _try_mirrors_once(
 def download_and_extract(
     mirrors: list[str],
     substitutions: dict[str, str],
-    archive_path: Path,
+    archive_path: PathType,
     extract_dir: PathType,
     timeout: int = 30,
     progress_header: str | None = None,
@@ -1143,6 +1143,7 @@ def download_and_extract(
 
     Returns the source URL the download came from.
     """
+    archive_path = Path(archive_path)
     url = download_from_mirrors(
         mirrors, substitutions, archive_path, timeout=timeout, progress=progress
     )
@@ -1193,7 +1194,8 @@ def download_from_mirrors(
     """
     from esphome.core import EsphomeError
 
-    # Path() rejects non-path targets with a descriptive TypeError.
+    if not isinstance(target, (str, os.PathLike)):
+        raise TypeError(f"target must be a str or Path: {type(target)}")
     path_target = Path(target)
 
     # 2. Resolve the mirror templates (invariant across retry sweeps)

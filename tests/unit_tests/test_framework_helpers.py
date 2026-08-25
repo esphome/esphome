@@ -1582,7 +1582,7 @@ class TestDownloadFromMirrors:
             download_from_mirrors([], {}, tmp_path / "out.bin")
 
     def test_invalid_target_type_raises_type_error(self) -> None:
-        with pytest.raises(TypeError, match="str or an os.PathLike"):
+        with pytest.raises(TypeError, match="target must be"):
             download_from_mirrors(["https://example.com/f"], {}, 42)  # type: ignore[arg-type]
 
     def test_progress_bar_shown_when_content_length_known(self, tmp_path: Path) -> None:
