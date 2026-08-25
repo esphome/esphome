@@ -344,6 +344,10 @@ def test_user_sdkconfig_certificate_bundle_wins(
     ]
     assert isinstance(value, RawSdkconfigValue)
     assert value.value == "y"
+    # The variant choice is still pinned to CMN for a user-forced bundle.
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL") is False
 
 
 def test_execute_from_psram_s3_sdkconfig(

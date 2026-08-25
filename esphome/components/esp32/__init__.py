@@ -2186,7 +2186,14 @@ async def _write_certificate_bundle_sdkconfig() -> None:
         if name not in opts:
             add_idf_sdkconfig_option(name, value)
 
-    if not data.get(KEY_CERT_BUNDLE, False):
+    # A user forcing the bundle on through sdkconfig_options still gets the
+    # CMN variant pinned, as before this job existed.
+    user_value = opts.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE")
+    user_enabled = str(getattr(user_value, "value", user_value)).lower() in (
+        "y",
+        "true",
+    )
+    if not (data.get(KEY_CERT_BUNDLE, False) or user_enabled):
         set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", False)
         return
     set_opt("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
