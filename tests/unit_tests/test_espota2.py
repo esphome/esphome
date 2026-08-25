@@ -6,6 +6,8 @@ from collections.abc import Generator
 import gzip
 import hashlib
 import io
+import itertools
+import logging
 from pathlib import Path
 import socket
 import struct
@@ -53,8 +55,9 @@ def mock_sleep() -> Generator[Mock]:
 @pytest.fixture
 def mock_time(mock_sleep: Mock) -> Generator[None]:
     """Mock time-related functions for consistent testing."""
-    # Provide enough values for multiple calls (tests may call perform_ota multiple times)
-    with patch("time.perf_counter", side_effect=[0, 1, 0, 1, 0, 1]):
+    # Monotonically increasing, never exhausted regardless of how many timing
+    # windows perform_ota measures or how many times a test calls it
+    with patch("time.perf_counter", side_effect=itertools.count()):
         yield
 
 
@@ -372,7 +375,9 @@ def test_perform_ota_successful_md5_auth(
 
 
 @pytest.mark.usefixtures("mock_time")
-def test_perform_ota_no_auth(mock_socket: Mock, mock_file: io.BytesIO) -> None:
+def test_perform_ota_no_auth(
+    mock_socket: Mock, mock_file: io.BytesIO, caplog: pytest.LogCaptureFixture
+) -> None:
     """Test OTA without authentication."""
     recv_responses = [
         bytes([espota2.RESPONSE_OK]),  # First byte of version response
@@ -387,7 +392,14 @@ def test_perform_ota_no_auth(mock_socket: Mock, mock_file: io.BytesIO) -> None:
 
     mock_socket.recv.side_effect = recv_responses
 
-    espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
+    # Distinct window lengths pin each duration to its label; exactly the 6
+    # expected perf_counter calls, so an unaccounted timing window raises
+    timings = [0.0, 2.0, 10.0, 15.0, 20.0, 27.0]
+    with (
+        patch("time.perf_counter", side_effect=timings),
+        caplog.at_level(logging.INFO),
+    ):
+        espota2.perform_ota(mock_socket, None, mock_file, "test.bin")
 
     # Should not send any auth-related data
     auth_calls = [
@@ -396,6 +408,14 @@ def test_perform_ota_no_auth(mock_socket: Mock, mock_file: io.BytesIO) -> None:
         if "cnonce" in str(call) or "result" in str(call)
     ]
     assert len(auth_calls) == 0
+
+    # The timing summary is the observable output of the upload; exact strings
+    # pin each duration to its label
+    assert "Preparing for upload took 2.00 seconds" in caplog.text
+    assert (
+        "Update took 14.00 seconds (prepare 2.00, upload 5.00, commit 7.00)"
+        in caplog.text
+    )
 
 
 @pytest.mark.usefixtures("mock_time")
@@ -978,10 +998,10 @@ def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     assert "100%" in captured.err
     assert "Done" in captured.err
 
-    # Test done method
+    # done() after the 100% frame adds nothing; that frame ended its line
     progress.done()
     captured = capsys.readouterr()
-    assert captured.err == "\n"
+    assert captured.err == ""
 
     # Test same progress doesn't update
     progress.update(0.5)
@@ -989,6 +1009,10 @@ def test_progress_bar(capsys: CaptureFixture[str]) -> None:
     captured = capsys.readouterr()
     # Should only see one update (second call shouldn't write)
     assert captured.err.count("50%") == 1
+
+    # done() after a mid-way frame ends the line
+    progress.done()
+    assert capsys.readouterr().err == "\n"
 
 
 # Tests for SHA256 authentication
