@@ -72,19 +72,24 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
     return hasher.hexdigest()
 
 
-def _cache_key(extra: str) -> str:
+def cache_key(extra: str = "") -> str:
+    """Compute the current cache key (plus extra).
+
+    Snapshot this once, before the work it gates -- recomputed after, it
+    would reflect edits made mid-run rather than what the work actually saw.
+    """
     if not extra:
         return calculate_clang_tidy_hash()
     return hashlib.sha256((calculate_clang_tidy_hash() + extra).encode()).hexdigest()
 
 
-def is_cached(hash_path: Path, extra: str = "") -> bool:
-    """True if hash_path still holds calculate_clang_tidy_hash() (plus extra)."""
+def is_cached(hash_path: Path, key: str) -> bool:
+    """True if hash_path already holds `key`."""
     if not hash_path.is_file():
         return False
-    return hash_path.read_text(encoding="utf-8").strip() == _cache_key(extra)
+    return hash_path.read_text(encoding="utf-8").strip() == key
 
 
-def update_cache(hash_path: Path, extra: str = "") -> None:
-    """Record the current calculate_clang_tidy_hash() (plus extra) as fresh."""
-    hash_path.write_text(_cache_key(extra) + "\n", encoding="utf-8")
+def update_cache(hash_path: Path, key: str) -> None:
+    """Record `key` as the fresh cache key."""
+    hash_path.write_text(key + "\n", encoding="utf-8")

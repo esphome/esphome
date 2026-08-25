@@ -814,12 +814,15 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # esphome/idf_component.yml), so this can't drift from that file list. A
     # content hash -- unlike an mtime comparison -- stays correct across git
     # checkouts, which don't preserve mtimes.
-    from clang_tidy_hash import is_cached, update_cache
+    from clang_tidy_hash import cache_key, is_cached, update_cache
 
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    if temp_idedata.is_file() and is_cached(temp_hash):
+    # Snapshotted now, before pio runs below -- see cache_key()'s docstring for why.
+    key = cache_key()
+
+    if temp_idedata.is_file() and is_cached(temp_hash, key):
         data = json.loads(temp_idedata.read_text())
         elapsed = time.time() - start_time
         print(f"IDE data loaded from cache in {elapsed:.2f} seconds")
@@ -844,7 +847,7 @@ def load_idedata(environment: str) -> dict[str, Any]:
             )
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
-    update_cache(temp_hash)
+    update_cache(temp_hash, key)
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")

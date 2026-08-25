@@ -601,6 +601,10 @@ jobs:
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
             cache_sdk_nrf: true
             ignore_errors: false
+            # script/clang-tidy routes any "nrf" environment through CodeChecker
+            # (see `"nrf" in args.environment` in script/clang-tidy), whose
+            # `parse` output needs this differently-shaped matcher.
+            matcher: clang-tidy-codechecker
           - id: clang-tidy
             name: Run script/clang-tidy for RP2
             options: --environment rp2-tidy --grep USE_RP2
@@ -665,13 +669,7 @@ jobs:
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          if [ "${{ matrix.cache_sdk_nrf }}" = "true" ]; then
-            # nrf52-tidy's diagnostics come from `CodeChecker parse`, whose
-            # plaintext format doesn't match matchers/clang-tidy.json.
-            echo "::add-matcher::.github/workflows/matchers/clang-tidy-codechecker.json"
-          else
-            echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
-          fi
+          echo "::add-matcher::.github/workflows/matchers/${{ matrix.matcher || 'clang-tidy' }}.json"
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan

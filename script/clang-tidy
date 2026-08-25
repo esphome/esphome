@@ -479,12 +479,12 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     work_dir = Path(temp_folder) / f"zephyr-{args.environment}"
     platformio_ini = Path(root_path) / "platformio.ini"
 
-    from clang_tidy_hash import is_cached, update_cache
+    from clang_tidy_hash import cache_key, is_cached, update_cache
 
     requested_sources = {Path(f).resolve() for f in files}
 
     cache_key_path = None
-    extra = None
+    key = None
     regenerated = False
     if explicit := os.environ.get("ESPHOME_ZEPHYR_COMPILE_COMMANDS"):
         compile_commands_path = Path(explicit)
@@ -493,9 +493,12 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         extra = "\n".join(sorted_sources)
         compile_commands_path = work_dir / "build" / "compile_commands.json"
         cache_key_path = work_dir / ".compile_commands.hash"
+        # Snapshotted now, before the west configure/CodeChecker analyze
+        # below -- see cache_key()'s docstring for why.
+        key = cache_key(extra)
         # Skip the west/CMake reconfigure if nothing that affects the
         # generated compile commands has changed since the last run.
-        if not compile_commands_path.is_file() or not is_cached(cache_key_path, extra):
+        if not compile_commands_path.is_file() or not is_cached(cache_key_path, key):
             compile_commands_path = generate_compile_commands(
                 work_dir, platformio_ini, sorted_sources
             )
@@ -607,7 +610,7 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     missing = requested_sources - analyzed_sources
     covered = not missing
     if covered and regenerated:
-        update_cache(cache_key_path, extra)
+        update_cache(cache_key_path, key)
 
     if failed:
         # Analyzer crashes/errors must not read as a clean run just because
