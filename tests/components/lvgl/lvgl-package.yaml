@@ -757,6 +757,13 @@ lvgl:
                     parent: button_button
                     path: [5]
                   text: "Never runs"
+              # First path element already out of range -- checks the multi-level
+              # walk doesn't feed a null intermediate into the next lookup.
+              - lvgl.label.update:
+                  id:
+                    parent: button_button
+                    path: [5, 0]
+                  text: "Never runs either"
             on_value:
               logger.log:
                 format: "state now %d"

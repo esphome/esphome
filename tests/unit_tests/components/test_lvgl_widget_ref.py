@@ -21,6 +21,7 @@ from esphome.components.lvgl.schemas import (
 )
 from esphome.components.lvgl.widgets.dropdown import dropdown_spec
 from esphome.components.lvgl.widgets.label import label_spec
+from esphome.components.lvgl.widgets.spinbox import spinbox_spec
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PATH
 
@@ -84,6 +85,12 @@ def test_plain_id_still_works_for_compound_widget_type() -> None:
     assert result[CONF_ID].id == "my_dropdown"
 
 
+def test_ref_rejected_for_spinbox() -> None:
+    item_schema = _update_id_item_schema(spinbox_spec, _id_schema_for(spinbox_spec))
+    with pytest.raises(cv.Invalid, match="widget type 'spinbox'"):
+        item_schema({CONF_PARENT: "my_obj", CONF_PATH: [0]})
+
+
 # --- Code generation ------------------------------------------------------------
 #
 # These build a minimal host+LVGL config, generate its C++ (via `esphome compile
@@ -144,12 +151,12 @@ def test_codegen_single_level_path(tmp_path: Path) -> None:
         text: "Updated"
 """,
     )
-    assert "lv_obj_get_child(my_button, 0)" in content
+    assert "lvgl::lv_obj_get_child_by_path(my_button, {0})" in content
     # Guarded against the reference resolving to null at runtime.
     assert "if (dyn_label_VAR_)" in content
 
 
-def test_codegen_nested_path_chains_child_lookups(tmp_path: Path) -> None:
+def test_codegen_nested_path_uses_null_safe_helper(tmp_path: Path) -> None:
     content = _generate(
         tmp_path,
         """\
@@ -160,7 +167,8 @@ def test_codegen_nested_path_chains_child_lookups(tmp_path: Path) -> None:
         text: "Updated"
 """,
     )
-    assert "lv_obj_get_child(lv_obj_get_child(my_button, 0), 1)" in content
+    assert "lvgl::lv_obj_get_child_by_path(my_button, {0, 1})" in content
+    assert "lv_obj_get_child(lv_obj_get_child(" not in content
 
 
 def test_codegen_mixed_plain_id_and_ref_in_same_action(tmp_path: Path) -> None:
@@ -176,7 +184,7 @@ def test_codegen_mixed_plain_id_and_ref_in_same_action(tmp_path: Path) -> None:
 """,
     )
     assert "lv_label_set_text(plain_label," in content
-    assert "lv_obj_get_child(my_button, 1)" in content
+    assert "lvgl::lv_obj_get_child_by_path(my_button, {1})" in content
 
 
 def test_config_validates_with_widget_ref(tmp_path: Path) -> None:

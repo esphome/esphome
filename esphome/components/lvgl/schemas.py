@@ -559,6 +559,13 @@ def _update_id_item_schema(
                 f"not supported for compound widget type '{widget_type.name}' (e.g. "
                 f"dropdown, page, msgbox)."
             )
+        if not widget_type.supports_child_ref():
+            raise cv.Invalid(
+                f"Referencing a widget nested in another widget by 'parent'/'path' is "
+                f"not supported for widget type '{widget_type.name}': its update logic "
+                f"needs configuration only available when it is created with its own "
+                f"'id:'."
+            )
         value = ref_schema(value)
         value[_REF_WIDGET_TYPE_KEY] = widget_type.name
         return {CONF_ID: value}

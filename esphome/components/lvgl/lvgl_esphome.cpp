@@ -964,6 +964,15 @@ lv_obj_t *lv_container_create(lv_obj_t *parent) {
   return obj;
 }
 
+lv_obj_t *lv_obj_get_child_by_path(lv_obj_t *obj, std::initializer_list<int32_t> path) {
+  for (int32_t index : path) {
+    if (obj == nullptr)
+      return nullptr;
+    obj = lv_obj_get_child(obj, index);
+  }
+  return obj;
+}
+
 #ifdef USE_LVGL_LIST
 int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child) {
   for (lv_obj_t *obj = child; obj != nullptr; obj = lv_obj_get_parent(obj)) {

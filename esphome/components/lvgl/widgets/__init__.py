@@ -169,6 +169,11 @@ class WidgetType:
     def is_compound(self):
         return self.w_type.inherits_from(LvCompound)
 
+    def supports_child_ref(self) -> bool:
+        # Override to False for types whose update codegen needs creation-time config,
+        # which a ref-resolved widget (built with an empty config) doesn't have.
+        return not self.is_compound()
+
     async def create_to_code(self, config: dict, parent: MockObj) -> "Widget":
         """
         Generate code for a widget creation.
@@ -507,10 +512,11 @@ async def _resolve_widget_ref(ref) -> Widget:
         return await get_widget_(ref)
 
     container = await get_widget_(ref[CONF_PARENT])
-    expr = container.obj
-    for element in ref[CONF_PATH]:
-        index = await lv_int.process(element)
-        expr = lv_expr.obj_get_child(expr, index)
+    indices = [await lv_int.process(element) for element in ref[CONF_PATH]]
+    path = ", ".join(str(index) for index in indices)
+    expr = cg.RawExpression(
+        f"lvgl::lv_obj_get_child_by_path({container.obj}, {{{path}}})"
+    )
     w = Widget(expr, WIDGET_TYPES[ref[_REF_WIDGET_TYPE_KEY]], {})
     w.from_ref = True
     return w
