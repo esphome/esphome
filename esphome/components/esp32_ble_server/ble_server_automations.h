@@ -237,6 +237,28 @@ template<typename... Ts> class BLEServerRemoveBondAction : public Action<Ts...> 
 };
 #endif  // USE_ESP32_BLE_SERVER_REMOVE_BOND_ACTION
 
+#ifdef USE_ESP32_BLE_SERVER_ENABLE_PAIRING_ACTION
+template<typename... Ts> class BLEServerEnablePairingAction : public Action<Ts...> {
+ public:
+  BLEServerEnablePairingAction(BLEServer *server) : parent_(server) {}
+  void play(const Ts &...x) override { this->parent_->set_pairing_enabled(true); }
+
+ protected:
+  BLEServer *parent_;
+};
+#endif
+
+#ifdef USE_ESP32_BLE_SERVER_DISABLE_PAIRING_ACTION
+template<typename... Ts> class BLEServerDisablePairingAction : public Action<Ts...> {
+ public:
+  BLEServerDisablePairingAction(BLEServer *server) : parent_(server) {}
+  void play(const Ts &...x) override { this->parent_->set_pairing_enabled(false); }
+
+ protected:
+  BLEServer *parent_;
+};
+#endif
+
 }  // namespace esphome::esp32_ble_server::esp32_ble_server_automations
 
 #endif

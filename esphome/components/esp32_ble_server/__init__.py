@@ -58,6 +58,7 @@ CONF_STRING_ENCODING = "string_encoding"
 CONF_WRITE = "write"
 CONF_WRITE_ENCRYPT = "write_encrypt"
 CONF_WRITE_NO_RESPONSE = "write_no_response"
+CONF_PAIRING_ENABLED = "pairing_enabled"
 
 # Internal configuration keys
 CONF_CHAR_VALUE_ACTION_ID_ = "char_value_action_id_"
@@ -126,6 +127,12 @@ BLEServerNumericComparisonReplyAction = esp32_ble_server_automations_ns.class_(
 )
 BLEServerRemoveBondAction = esp32_ble_server_automations_ns.class_(
     "BLEServerRemoveBondAction", automation.Action
+)
+BLEServerEnablePairingAction = esp32_ble_server_automations_ns.class_(
+    "BLEServerEnablePairingAction", automation.Action
+)
+BLEServerDisablePairingAction = esp32_ble_server_automations_ns.class_(
+    "BLEServerDisablePairingAction", automation.Action
 )
 bytebuffer_ns = cg.esphome_ns.namespace("bytebuffer")
 Endianness_ns = bytebuffer_ns.namespace("Endian")
@@ -504,6 +511,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ON_NUMERIC_COMPARISON_REQUEST): automation.validate_automation(
             single=True
         ),
+        cv.Optional(CONF_PAIRING_ENABLED, default=True): cv.boolean,
     },
     extra_schemas=[create_device_information_service],
 ).extend(cv.COMPONENT_SCHEMA)
@@ -635,6 +643,7 @@ async def to_code(config):
     cg.add(var.set_max_clients(config[CONF_MAX_CLIENTS]))
     if CONF_MANUFACTURER_DATA in config:
         cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
+    cg.add(var.set_pairing_enabled(config[CONF_PAIRING_ENABLED]))
     if CONF_PASSKEY in config:
         cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
         cg.add(var.set_passkey(config[CONF_PASSKEY]))
@@ -842,4 +851,30 @@ async def remove_bond_to_code(config, action_id, template_arg, args):
     else:
         cg.add(var.set_address(str(address)))
     cg.add_define("USE_ESP32_BLE_SERVER_REMOVE_BOND_ACTION")
+    return var
+
+
+@automation.register_action(
+    "ble_server.enable_pairing",
+    BLEServerEnablePairingAction,
+    cv.Schema({cv.GenerateID(CONF_ID): cv.use_id(BLEServer)}),
+    synchronous=True,
+)
+async def ble_server_enable_pairing_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    cg.add_define("USE_ESP32_BLE_SERVER_ENABLE_PAIRING_ACTION")
+    return var
+
+
+@automation.register_action(
+    "ble_server.disable_pairing",
+    BLEServerDisablePairingAction,
+    cv.Schema({cv.GenerateID(CONF_ID): cv.use_id(BLEServer)}),
+    synchronous=True,
+)
+async def ble_server_disable_pairing_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    cg.add_define("USE_ESP32_BLE_SERVER_DISABLE_PAIRING_ACTION")
     return var

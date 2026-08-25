@@ -244,7 +244,7 @@ void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_p
       if (this->passkey_) {
         esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
       }
-      esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
+      esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, this->pairing_enabled_);
       break;
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
       esp_bd_addr_t bd_addr;
