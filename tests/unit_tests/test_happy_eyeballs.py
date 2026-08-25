@@ -61,6 +61,44 @@ def test_ensure_happy_eyeballs_patches_and_is_idempotent(
     assert urllib3.util.connection.create_connection is patched
 
 
+def test_ensure_happy_eyeballs_concurrent_first_calls_patch_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Worker threads fanning out (download_content_many, run_batch_downloads)
+    may race the first call; the replacement is built exactly once."""
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    import urllib3.util.connection
+
+    from esphome import happy_eyeballs
+
+    def stock(*args: Any, **kwargs: Any) -> None:
+        pass
+
+    monkeypatch.setattr(urllib3.util.connection, "create_connection", stock)
+
+    barrier = threading.Barrier(8)
+    builds: list[int] = []
+    real_make = happy_eyeballs._make_create_connection
+
+    def counting_make() -> Any:
+        builds.append(1)
+        return real_make()
+
+    monkeypatch.setattr(happy_eyeballs, "_make_create_connection", counting_make)
+
+    def racer() -> None:
+        barrier.wait()
+        ensure_happy_eyeballs()
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        list(ex.map(lambda _: racer(), range(8)))
+
+    assert builds == [1]
+    assert urllib3.util.connection.create_connection._esphome_patched
+
+
 def test_connects_and_restores_socket_state(
     create_connection: Any, listener: tuple[str, int], mock_gai: Any
 ) -> None:
