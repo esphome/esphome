@@ -68,6 +68,22 @@ jobs:
           uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
           uv pip install -e .
 
+  seed-apt-cache:
+    name: Seed apt package cache
+    runs-on: ubuntu-24.04
+    # PR-branch cache saves are invisible to other PRs, so dev/beta/release
+    # pushes seed the one shared entry PR jobs restore. The key is derived
+    # only from the package list and version; keep both identical in every
+    # step that restores it. In ci-status needs so a broken seed fails dev.
+    if: github.event_name == 'push'
+    timeout-minutes: 10
+    steps:
+      - name: Install apt packages (cached)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
+
   determine-jobs:
     name: Determine which jobs to run
     runs-on: ubuntu-24.04
@@ -96,6 +112,12 @@ jobs:
       component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
       validate-only-components: ${{ steps.determine.outputs.validate-only-components }}
       benchmarks: ${{ steps.determine.outputs.benchmarks }}
+      # "true" when this run is a pull request into one of the release
+      # branches. Those pull requests are batches of changes already tested on
+      # their original dev pull requests, so several jobs below trade coverage
+      # for turnaround time on them. Matched exactly, not by prefix, so an
+      # ordinary branch named e.g. "release-notes" is not caught by it.
+      release-pr: ${{ github.base_ref == 'beta' || github.base_ref == 'release' }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -214,7 +236,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - determine-jobs
-    if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release') && needs.determine-jobs.outputs.core-ci == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.release-pr == 'false' && needs.determine-jobs.outputs.core-ci == 'true'
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -323,7 +345,8 @@ jobs:
 
   integration-tests:
     name: Run integration tests (${{ matrix.bucket.name }})
-    runs-on: ubuntu-latest
+    # Must match seed-apt-cache's image: the apt cache key has no OS in it.
+    runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
@@ -335,15 +358,19 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install ccache and SDL
-        # ccache speeds up the host compiles: tests in a bucket compile overlapping
-        # component sets, so later tests reuse earlier tests' objects.
-        # SDL is needed by the headless display tests, which capture screenshots.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends ccache libsdl2-dev
+      - name: Install apt packages (cached)
+        # ccache speeds up the host compiles. A cache hit never touches apt
+        # (mirror outages cannot hang the job); the timeout bounds the cold
+        # path. Packages and version must match seed-apt-cache exactly.
+        # libsdl2-dev is needed by the headless display tests, which capture
+        # screenshots.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
       - name: Restore ccache (restore-only)
-        # Prefer a same-bucket seed; fall back to any seed when the buckey layout differs
+        # Prefer a same-bucket seed; fall back to any seed when the bucket layout differs
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/esphome/platformio-ccache
@@ -441,16 +468,28 @@ jobs:
   benchmarks:
     name: Run CodSpeed benchmarks
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     needs:
       - common
       - determine-jobs
     if: >-
       github.repository == 'esphome/esphome' && (
         (github.event_name == 'push' && github.ref_name == 'dev') ||
-        (github.event_name == 'pull_request' && needs.determine-jobs.outputs.benchmarks == 'true')
+        (
+          github.event_name == 'pull_request' &&
+          needs.determine-jobs.outputs.release-pr == 'false' &&
+          needs.determine-jobs.outputs.benchmarks == 'true'
+        )
       )
     # CodSpeed benchmarks require a CodSpeed account linked to the repository to run
     # (https://codspeed.io) -- disabled on forks that aren't esphome/esphome itself.
+    #
+    # Pull requests into beta and release are skipped as well. CodSpeed compares a
+    # pull request against the newest commit of its base branch that has a benchmark
+    # run of its own, and only dev is benchmarked. A release pull request therefore
+    # falls back to dev's latest run, so every speed-up merged into dev since the
+    # release branched is reported as a regression in the release. The changes there
+    # have already been benchmarked on their original dev pull requests.
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -480,6 +519,41 @@ jobs:
             exit 1
           fi
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
+
+      - name: Bound apt fetches and pre-install libc6-dbg
+        # The CodSpeed runner installs valgrind + libc6-dbg via its own
+        # unbounded apt-get update; per-invocation apt options cannot reach
+        # it. The apt.conf.d timeouts below bound every later apt call in
+        # this job, the runner's included. Pre-installing libc6-dbg lets the
+        # runner skip apt once its valgrind cache is restored (it checks
+        # ``dpkg -s libc6-dbg``, so the cache action's unregistered restores
+        # would not count). Install without update first: image lists are
+        # fresh, and the index refresh is what a congested mirror makes
+        # slow. Best effort; the job timeout is the last backstop.
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+          Acquire::Retries "1";
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          EOF
+          if dpkg -s libc6-dbg >/dev/null 2>&1; then
+            echo "libc6-dbg already installed"
+            exit 0
+          fi
+          # Common path: the image's package lists are fresh enough.
+          if sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 \
+              apt-get install -y libc6-dbg; then
+            exit 0
+          fi
+          # Rescue path: refresh the lists once with a generous bound; the
+          # apt config already fails a stalled mirror over quickly.
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+            dpkg --configure -a || true
+          sudo timeout -k 15 300 apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 \
+            apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
@@ -892,7 +966,7 @@ jobs:
       ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 32 || 16 }}
+      max-parallel: ${{ needs.determine-jobs.outputs.release-pr == 'true' && 32 || 16 }}
       matrix:
         batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
@@ -904,12 +978,17 @@ jobs:
       - name: List components
         run: echo ${{ matrix.batch.components }}
 
-      - name: Install apt packages
-        # Not cached: this job is pull-request-only, so a cache save could
-        # never be shared and would only consume quota.
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libsdl2-dev ccache
+      - name: Install apt packages (cached)
+        # A cache hit (seeded on dev by seed-apt-cache) never touches apt,
+        # so mirror outages cannot hang this PR-only job; the timeout bounds
+        # the cold path. Packages and version must match seed-apt-cache
+        # exactly. The action has no --no-install-recommends; same package
+        # set this job used before #17463.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
 
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -974,7 +1053,7 @@ jobs:
           # - This catches pin conflicts and other issues in directly changed code
           # - Grouped tests use --testing-mode to allow config merging (disables some checks)
           # - Dependencies are safe to group since they weren't modified in this PR
-          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
+          if [[ "${{ needs.determine-jobs.outputs.release-pr }}" == "true" ]]; then
             directly_changed_csv=""
             echo "Testing components: $components_csv"
             echo "Target branch: ${{ github.base_ref }} - grouping all components"
@@ -1444,6 +1523,7 @@ jobs:
     # this check.
     needs:
       - common
+      - seed-apt-cache
       - determine-jobs
       - ci-custom
       - pylint

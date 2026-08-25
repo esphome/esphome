@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import display
@@ -44,7 +46,7 @@ WINDOW_OPTIONS = (
 SDL_WINDOWPOS_CENTERED_MASK = 0x2FFF0000
 
 
-def get_sdl_options(value):
+def get_sdl_options(value: str) -> str:
     if value != "":
         return value
     try:
@@ -55,7 +57,7 @@ def get_sdl_options(value):
         raise cv.Invalid("Unable to run sdl2-config - have you installed sdl2?") from e
 
 
-def get_window_options():
+def get_window_options() -> dict[cv.Optional, Callable[[Any], Any]]:
     return {cv.Optional(option, default=False): cv.boolean for option in WINDOW_OPTIONS}
 
 

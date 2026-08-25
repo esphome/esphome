@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_KEY
 from esphome.core import Lambda
 from esphome.cpp_generator import ExpressionStatement, RawExpression
+from esphome.types import ConfigType
 
 from . import SDL_KEYMAP
 from .display import CONF_SDL_ID, Sdl, headless_final_validate
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     parent = await cg.get_variable(config[CONF_SDL_ID])
     listener = Lambda(

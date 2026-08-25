@@ -66,7 +66,6 @@ from helpers import (
     base_python_changed,
     changed_files,
     core_changed,
-    filter_component_and_test_cpp_files,
     filter_component_and_test_files,
     get_changed_components,
     get_component_from_path,
@@ -525,13 +524,21 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     return False
 
 
-# ESP-IDF infra: changes under esphome/espidf/ or to the IDF build generator
-# affect every esp32 IDF build (now the default toolchain) but aren't
+# Native-build infra: changes under esphome/espidf/, the shared
+# esphome/build_helpers/ package, or the modules the native ESP-IDF build
+# imports affect every esp32 IDF build (now the default toolchain) but aren't
 # components, so the component matrix wouldn't otherwise force any esp32
 # compile. When they change we fold the `esp32` component into the matrix so
 # the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
+ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
+ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
+    {
+        "esphome/build_gen/espidf.py",
+        "esphome/framework_helpers.py",
+        "esphome/platformio/library.py",
+        "esphome/platformio/extra_script.py",
+    }
+)
 
 
 def _esp_idf_infra_changed(files: list[str]) -> bool:
@@ -620,12 +627,17 @@ def determine_cpp_unit_tests(
 
     C++ unit tests will run when any of the following conditions are met:
 
-    1. Any C++ core source files changed (esphome/core/*), in which case
+    1. Any core C++ or Python files changed (esphome/core/*), in which case
        all cpp unit tests run.
     2. A test file for a component changed, which triggers tests for that
        component.
     3. The code for a component changed, which triggers tests for that
-       component and all components that depend on it.
+       component and all components that depend on it. Python files count
+       too: a component's Python decides which sources and defines go into
+       the host test build, so a Python-only change can break the link.
+
+    Components without C++ test sources are dropped from the list, so the
+    job is only scheduled when there is something to build.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -639,9 +651,7 @@ def determine_cpp_unit_tests(
     if core_changed(files):
         return (True, [])
 
-    # Filter to only C++ files
-    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
-    return (False, get_cpp_changed_components(cpp_files))
+    return (False, get_cpp_changed_components(files))
 
 
 # Paths within tests/benchmarks/ that contain component benchmark files

@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.types import ConfigType
 
 from .. import copy_ns
 
@@ -33,7 +34,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await number.new_number(config, min_value=0, max_value=0, step=0)
     await cg.register_component(var, config)
 

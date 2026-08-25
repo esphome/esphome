@@ -981,6 +981,35 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
   return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
 }
 
+/// Fallback implementation for case insensitive substring comparison.
+bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
+
+#ifdef USE_ESP8266
+/// ESP8266 internal implementation reading the needle from flash — prefer the
+/// `str_contains_ignore_case` macro which wraps needle literals with PSTR() automatically.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle);
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// On ESP8266 the needle is wrapped with PSTR() so it stays in flash, which requires it to be
+/// a string literal; a runtime needle needs str_contains_ignore_case_p behind #ifdef USE_ESP8266.
+#define str_contains_ignore_case(haystack, needle) str_contains_ignore_case_p(haystack, PSTR(needle))
+#else
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
+  if (!needle || !haystack) {
+    return false;
+  }
+
+// strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
+// ESP32/host builds get it from their framework or from g++ on Linux;
+// LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
+#if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return str_contains_ignore_case_fallback(haystack, needle);
+#else   // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return strcasestr(haystack, needle) != nullptr;
+#endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+}
+#endif  // USE_ESP8266
+
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
 // str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
@@ -1626,15 +1655,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 
 /// @name Colors
 ///@{
-
-/// Applies gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_correct(float value, float gamma);
-/// Reverts gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_uncorrect(float value, float gamma);
 
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
