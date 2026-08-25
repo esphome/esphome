@@ -26,6 +26,16 @@ sensor:
       name: PM <10µm Weight concentration
       id: sen6x_pm_10_0
       accuracy_decimals: 1
+    pmc_0_5:
+      name: PM <0.5µm Number concentration
+    pmc_1_0:
+      name: PM <1µm Number concentration
+    pmc_2_5:
+      name: PM <2.5µm Number concentration
+    pmc_4_0:
+      name: PM <4µm Number concentration
+    pmc_10_0:
+      name: PM <10µm Number concentration
     nox_index:
       name: NOx Index
     voc_index:

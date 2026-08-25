@@ -24,6 +24,7 @@ static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN65 = 0x0446;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN68 = 0x0467;
 static constexpr uint16_t SEN6X_CMD_READ_MEASUREMENT_SEN69C = 0x04B5;
 
+static constexpr uint16_t SEN6X_CMD_READ_NUMBER_CONCENTRATION = 0x0316;
 static constexpr uint16_t SEN6X_CMD_START_MEASUREMENTS = 0x0021;
 static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 
@@ -172,6 +173,11 @@ void SEN6XComponent::dump_config() {
   LOG_SENSOR("  ", "PM  2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM  4.0", this->pm_4_0_sensor_);
   LOG_SENSOR("  ", "PM 10.0", this->pm_10_0_sensor_);
+  LOG_SENSOR("  ", "PMC  0.5", this->pmc_0_5_sensor_);
+  LOG_SENSOR("  ", "PMC  1.0", this->pmc_1_0_sensor_);
+  LOG_SENSOR("  ", "PMC  2.5", this->pmc_2_5_sensor_);
+  LOG_SENSOR("  ", "PMC  4.0", this->pmc_4_0_sensor_);
+  LOG_SENSOR("  ", "PMC 10.0", this->pmc_10_0_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "VOC", this->voc_sensor_);
@@ -381,6 +387,38 @@ void SEN6XComponent::parse_and_publish_measurements_() {
     this->co2_sensor_->publish_state(co2);
 
   this->status_clear_warning();
+
+  if (this->pmc_0_5_sensor_ != nullptr || this->pmc_1_0_sensor_ != nullptr || this->pmc_2_5_sensor_ != nullptr ||
+      this->pmc_4_0_sensor_ != nullptr || this->pmc_10_0_sensor_ != nullptr) {
+    this->read_number_concentration_();
+  }
+}
+
+void SEN6XComponent::read_number_concentration_() {
+  if (!this->write_command(SEN6X_CMD_READ_NUMBER_CONCENTRATION)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read measurement failed (%d)", this->last_error_);
+    return;
+  }
+
+  this->set_timeout(TIMEOUT_POLL, I2C_READ_DELAY, [this]() { this->parse_and_publish_number_concentration_(); });
+}
+
+void SEN6XComponent::parse_and_publish_number_concentration_() {
+  uint16_t measurements[5];
+
+  if (!this->read_data(measurements, 5)) {
+    this->status_set_warning();
+    ESP_LOGD(TAG, "Read data failed (%d)", this->last_error_);
+    return;
+  }
+
+  sensor::Sensor *sensors[5] = {this->pmc_0_5_sensor_, this->pmc_1_0_sensor_, this->pmc_2_5_sensor_,
+                                this->pmc_4_0_sensor_, this->pmc_10_0_sensor_};
+  for (size_t i = 0; i < 5; i++) {
+    if (sensors[i] != nullptr)
+      sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
+  }
 }
 
 SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {

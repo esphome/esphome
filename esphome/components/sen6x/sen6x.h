@@ -11,6 +11,11 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   SUB_SENSOR(pm_2_5)
   SUB_SENSOR(pm_4_0)
   SUB_SENSOR(pm_10_0)
+  SUB_SENSOR(pmc_0_5)
+  SUB_SENSOR(pmc_1_0)
+  SUB_SENSOR(pmc_2_5)
+  SUB_SENSOR(pmc_4_0)
+  SUB_SENSOR(pmc_10_0)
   SUB_SENSOR(temperature)
   SUB_SENSOR(humidity)
   SUB_SENSOR(voc)
@@ -33,6 +38,8 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void poll_data_ready_();
   void read_measurements_();
   void parse_and_publish_measurements_();
+  void read_number_concentration_();
+  void parse_and_publish_number_concentration_();
 
   bool initialized_{false};
   std::string product_name_;
