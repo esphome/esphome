@@ -9,6 +9,7 @@ from esphome.components.network import (
     get_network_priority,
     get_priority_interfaces_from_full_config,
     ip_address_literal,
+    require_ipv4,
 )
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -514,6 +515,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
     ),
     _validate,
+    require_ipv4,
 )
 
 

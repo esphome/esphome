@@ -1,4 +1,5 @@
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 import esphome.config_validation as cv
@@ -24,12 +25,17 @@ CHANNELS = {
 CONF_UNIVERSE = "universe"
 CONF_E131_ID = "e131_id"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(E131Component),
-        cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(*METHODS, upper=True),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(E131Component),
+            cv.Optional(CONF_METHOD, default="MULTICAST"): cv.one_of(
+                *METHODS, upper=True
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    network.require_ipv4,
+)
 
 
 async def to_code(config):

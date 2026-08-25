@@ -1,6 +1,7 @@
 from esphome import automation
 from esphome.automation import Trigger
 import esphome.codegen as cg
+from esphome.components import network
 from esphome.components.const import CONF_ON_RECEIVE
 from esphome.components.packet_transport import (
     CONF_BINARY_SENSORS,
@@ -106,6 +107,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(RELOCATED),
     _consume_udp_sockets,
+    network.require_ipv4,
 )
 
 

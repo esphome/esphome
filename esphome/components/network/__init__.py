@@ -17,25 +17,8 @@ from esphome.core import CORE, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .const import CONF_ENABLE_IPV4
-
 CODEOWNERS = ["@esphome/core"]
 AUTO_LOAD = ["mdns"]
-
-# Entries reference lwIP/BSD IPv4 types (e.g. ip4_addr_t, sockaddr_in) unconditionally, failing to
-# compile under LWIP_IPV4=n. Add only when disabling IPv4 breaks the build, not merely IPv4 usage.
-_DISABLE_IPV4_DENY_LIST = [
-    "e131",
-    "esp32_improv",
-    "ethernet",
-    "modem",
-    "mqtt",
-    "statsd",
-    "udp",
-    "voice_assistant",
-    "wifi",
-    "wireguard",
-]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +26,13 @@ _LOGGER = logging.getLogger(__name__)
 # Components can request high performance networking and this configures lwip and WiFi settings
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
+
+# IPv4/IPv6 requirement tracking infrastructure
+KEY_REQUIRE_IPV4 = "require_ipv4"
+KEY_REQUIRE_IPV6 = "require_ipv6"
+
+# Set by _detect_explicit_ipv6_disable()
+KEY_USER_DISABLED_IPV6 = "user_disabled_ipv6"
 
 # Network priority tracking infrastructure
 # Components can query this to determine their relative setup priority.
@@ -95,6 +85,16 @@ if (
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
+
+
+def _detect_explicit_ipv6_disable(config: ConfigType) -> ConfigType:
+    """Record an explicit 'enable_ipv6: false' before CONFIG_SCHEMA replaces it with
+    its default, so _final_validate() can reject it if IPv6 turns out to be required --
+    a merely-defaulted false is fine and gets turned on automatically.
+    """
+    if config.get(CONF_ENABLE_IPV6) is False:
+        CORE.data[KEY_USER_DISABLED_IPV6] = True
+    return config
 
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
@@ -207,18 +207,50 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
-def validate_ipv6(value: bool) -> bool:
-    if CORE.is_nrf52 and not value:
-        raise cv.Invalid("On nRF52, enable_ipv6 must be true")
+def require_ipv4(config: ConfigType) -> ConfigType:
+    """Declare that a component cannot compile or function with IPv4 disabled.
 
-    return value
+    Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
+    already a (config) -> config validator, so no wrapper function is needed.
+
+    Example:
+        from esphome.components import network
+
+        CONFIG_SCHEMA = cv.All(
+            ...,
+            network.require_ipv4,
+        )
+    """
+    CORE.data[KEY_REQUIRE_IPV4] = True
+    return config
 
 
-def validate_ipv4(value: bool) -> bool:
-    if CORE.is_nrf52 and value:
-        raise cv.Invalid("On nRF52, enable_ipv4 must be false")
+def has_ipv4_requirement() -> bool:
+    """Check if any configured component called require_ipv4()."""
+    return CORE.data.get(KEY_REQUIRE_IPV4, False)
 
-    return value
+
+def require_ipv6(config: ConfigType) -> ConfigType:
+    """Declare that a component cannot compile or function with IPv6 disabled.
+
+    Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
+    already a (config) -> config validator, so no wrapper function is needed.
+
+    Example:
+        from esphome.components import network
+
+        CONFIG_SCHEMA = cv.All(
+            ...,
+            network.require_ipv6,
+        )
+    """
+    CORE.data[KEY_REQUIRE_IPV6] = True
+    return config
+
+
+def has_ipv6_requirement() -> bool:
+    """Check if any configured component called require_ipv6()."""
+    return CORE.data.get(KEY_REQUIRE_IPV6, False)
 
 
 def get_network_priority(iface: str) -> float | None:
@@ -299,18 +331,11 @@ def _validate_priority_list(value: Any) -> list[dict[str, str]]:
 
 
 CONFIG_SCHEMA = cv.All(
+    _detect_explicit_ipv6_disable,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(NetworkComponent),
-            cv.SplitDefault(
-                CONF_ENABLE_IPV6,
-                bk72xx=False,
-                esp32=False,
-                esp8266=False,
-                host=False,
-                rp2=False,
-                nrf52=True,
-            ): cv.All(
+            cv.Optional(CONF_ENABLE_IPV6, default=False): cv.All(
                 cv.boolean,
                 cv.Any(
                     cv.require_framework_version(
@@ -324,21 +349,11 @@ CONFIG_SCHEMA = cv.All(
                     ),
                     cv.boolean_false,
                 ),
-                validate_ipv6,
             ),
             cv.Optional(CONF_MIN_IPV6_ADDR_COUNT, default=0): cv.positive_int,
             cv.Optional(CONF_ENABLE_HIGH_PERFORMANCE): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
-            cv.SplitDefault(
-                CONF_ENABLE_IPV4,
-                bk72xx=True,
-                esp32=True,
-                esp8266=True,
-                host=True,
-                rp2=True,
-                nrf52=False,
-            ): cv.All(cv.boolean, validate_ipv4),
             cv.Optional(CONF_PRIORITY): _validate_priority_list,
         }
     ),
@@ -348,22 +363,15 @@ CONFIG_SCHEMA = cv.All(
 
 def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
-    enable_ipv4 = config.get(CONF_ENABLE_IPV4, True)
-    if not enable_ipv4:
-        if not CORE.is_esp32 and not CORE.is_nrf52:
-            raise cv.Invalid("Disabling IPv4 is only supported on ESP32 or Zephyr")
-        if CORE.is_esp32:
-            if not config.get(CONF_ENABLE_IPV6, False):
-                raise cv.Invalid(
-                    "Disabling IPv4 requires 'enable_ipv6: true' — the build "
-                    "would have no IP stack"
-                )
-            for comp in _DISABLE_IPV4_DENY_LIST:
-                if comp in full_config:
-                    raise cv.Invalid(
-                        f"Disabling IPv4 is not currently compatible with "
-                        f"component {comp}"
-                    )
+
+    if has_ipv6_requirement():
+        if CORE.data.get(KEY_USER_DISABLED_IPV6, False):
+            raise cv.Invalid(
+                "IPv6 is required by a component in this configuration, but "
+                "'network: enable_ipv6: false' explicitly disables it"
+            )
+        # Flip it to true
+        config[CONF_ENABLE_IPV6] = True
 
     # Check that every interface named in 'priority' has a corresponding component block.
     priority_list = config.get(CONF_PRIORITY, [])
@@ -402,8 +410,14 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
-    enable_ipv4 = config.get(CONF_ENABLE_IPV4, True)
+    # enable_ipv6 is user-settable, but CONFIG_SCHEMA/_final_validate() have already resolved
+    # it to True here if any component called require_ipv6() -- an automatic default instead
+    # of failing validation and asking the user to type it in.
     enable_ipv6 = config.get(CONF_ENABLE_IPV6, None)
+
+    # IPv4 is only left out of the build when nothing needs it and IPv6 already provides
+    # an IP stack
+    enable_ipv4 = has_ipv4_requirement() or not enable_ipv6
 
     # Store the user-declared network priority list in CORE.data so that ethernet,
     # wifi and other network components can query it via get_network_priority()

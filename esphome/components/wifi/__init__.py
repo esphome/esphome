@@ -18,6 +18,7 @@ from esphome.components.network import (
     get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
+    require_ipv4,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
@@ -534,6 +535,7 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
+    require_ipv4,
 )
 
 
