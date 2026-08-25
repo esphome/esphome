@@ -2987,16 +2987,7 @@ async def to_code(config):
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
     # A bundle forced on through sdkconfig_options is a request like any other,
     # so it still gets the CMN variant pinned.
-    if (
-        _format_sdkconfig_val(
-            RawSdkconfigValue(
-                conf[CONF_SDKCONFIG_OPTIONS].get(
-                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", "n"
-                )
-            )
-        )
-        == "y"
-    ):
+    if conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") == "y":
         require_certificate_bundle()
 
     # Components from YAML are added in a separate coroutine with FINAL priority
