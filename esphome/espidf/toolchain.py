@@ -301,7 +301,9 @@ def load_cached_builtin_components() -> list[str] | None:
     components_dir = _get_idf_path(_get_core_framework_version()) / "components"
     if not (
         isinstance(components, list)
-        and all(isinstance(c, str) and (components_dir / c).is_dir() for c in components)
+        and all(
+            isinstance(c, str) and (components_dir / c).is_dir() for c in components
+        )
     ):
         return None
     return components
