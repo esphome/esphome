@@ -1209,14 +1209,23 @@ def _ccache_env() -> dict[str, str]:
         # export the canonical off spelling instead
         return {"IDF_CCACHE_ENABLE": "0"}
     if idf_knob is True:
-        # Forced on ignores the runnability verdict, but a missing or
-        # unusable binary is worth saying out loud: idf.py silently
-        # compiles without ccache in that case
+        # Forced on ignores the runnability verdict, but the outcome is
+        # worth saying out loud. Only the truly-missing case means idf.py
+        # compiles without ccache; a present-but-rejected binary (probe
+        # failure or shared opt-out) is still used, since idf.py does its
+        # own PATH lookup.
         if resolve_ccache_path() is None:
-            _LOGGER.warning(
-                "IDF_CCACHE_ENABLE=1 but no usable ccache binary was "
-                "found; idf.py will compile without ccache"
-            )
+            if shutil.which("ccache") is None:
+                _LOGGER.warning(
+                    "IDF_CCACHE_ENABLE=1 but no ccache binary is on PATH; "
+                    "idf.py will compile without ccache"
+                )
+            else:
+                _LOGGER.warning(
+                    "IDF_CCACHE_ENABLE=1 forces ccache on even though it "
+                    "was rejected here (probe failure or "
+                    "ESPHOME_CCACHE_ENABLE=0); idf.py will use it anyway"
+                )
     elif resolve_ccache_path() is None:
         # ESP-IDF silently skips ccache without the binary; export the
         # canonical off spelling so an unparsable inherited value (or a

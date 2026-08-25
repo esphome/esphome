@@ -218,18 +218,17 @@ def prefetch_packages(
     def _fetch(entry: _PendingArchive, tracker: Callable[[int], None]) -> None:
         entry.dest.parent.mkdir(parents=True, exist_ok=True)
         with FileLock(f"{entry.dest}.lock", fallback_to_soft=False):
-            if (entry.dest / ".esphome_extracted").is_file():
-                # A concurrent build installed (and deleted the archive of)
-                # this package while we waited; re-downloading would orphan
-                # a fresh copy in downloads_dir
-                return
-            download_with_resume(
-                entry.url,
-                downloads_dir / f"{entry.name}-{entry.version}",
-                sha256=entry.sha256,
-                size=entry.size,
-                progress=tracker,
-            )
+            # Marker re-check: a concurrent build may have installed (and
+            # deleted the archive of) this package while we waited;
+            # re-downloading would orphan a fresh copy in downloads_dir
+            if not (entry.dest / ".esphome_extracted").is_file():
+                download_with_resume(
+                    entry.url,
+                    downloads_dir / f"{entry.name}-{entry.version}",
+                    sha256=entry.sha256,
+                    size=entry.size,
+                    progress=tracker,
+                )
 
     failures = run_batch_downloads(
         "Downloading packages",
