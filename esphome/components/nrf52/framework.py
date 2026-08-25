@@ -369,8 +369,12 @@ def check_and_install() -> None:
                 extract_dir,
                 progress_header="Extracting",
             )
-        # Prune resume leftovers, including a previous TOOLCHAIN_VERSION's
-        # orphans; the SDK archives are hundreds of MB.
+        # Best-effort prune of resume leftovers, including a previous
+        # TOOLCHAIN_VERSION's orphans; the SDK archives are hundreds of MB.
+        # A locked file must not discard the just-completed install.
         for leftover in toolchains_dir.parent.glob("*.archive.part*"):
-            leftover.unlink(missing_ok=True)
+            try:
+                leftover.unlink()
+            except OSError as err:
+                _LOGGER.debug("Could not remove %s: %s", leftover, err)
         sentinel.touch()

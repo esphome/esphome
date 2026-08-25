@@ -88,7 +88,7 @@ def test_ensure_happy_eyeballs_concurrent_first_calls_patch_once(
     monkeypatch.setattr(happy_eyeballs, "_make_create_connection", counting_make)
 
     def racer() -> None:
-        barrier.wait()
+        barrier.wait(timeout=10)
         ensure_happy_eyeballs()
 
     with ThreadPoolExecutor(max_workers=8) as ex:

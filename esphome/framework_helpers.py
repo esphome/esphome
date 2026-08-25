@@ -1150,7 +1150,14 @@ def download_and_extract(
     try:
         archive_extract_all(archive_path, extract_dir, progress_header=progress_header)
     finally:
-        archive_path.unlink(missing_ok=True)
+        # Best-effort: an AV handle on the just-written archive (Windows)
+        # must not replace the real extraction error or fail a successful
+        # extraction. A surviving archive is harmless; download_with_resume
+        # re-verifies or re-downloads it next run.
+        try:
+            archive_path.unlink(missing_ok=True)
+        except OSError as err:
+            _LOGGER.debug("Could not remove archive %s: %s", archive_path, err)
     return url
 
 
