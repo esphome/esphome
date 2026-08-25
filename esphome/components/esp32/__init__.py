@@ -246,7 +246,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
     "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
-    "nvs_sec_provider",  # NVS encryption key provider - re-included when NVS encryption is enabled
+    "nvs_sec_provider",  # NVS encryption key provider - re-included when CONFIG_NVS_ENCRYPTION is set
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
@@ -2162,6 +2162,17 @@ def register_exclude_components_cmake_arg() -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
+    # NVS encryption needs nvs_sec_provider however it was enabled: the
+    # nvs_encryption option, raw sdkconfig_options or another component.
+    if (
+        _format_sdkconfig_val(
+            CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
+                "CONFIG_NVS_ENCRYPTION", False
+            )
+        )
+        == "y"
+    ):
+        include_builtin_idf_component("nvs_sec_provider")
     register_exclude_components_cmake_arg()
 
 
@@ -2858,7 +2869,6 @@ async def to_code(config):
         add_idf_sdkconfig_option(
             "CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID", nvs_enc[CONF_KEY_ID]
         )
-        include_builtin_idf_component("nvs_sec_provider")
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
@@ -2959,13 +2969,6 @@ async def to_code(config):
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
-    # NVS encryption turned on through raw sdkconfig options still needs the provider
-    if str(conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_NVS_ENCRYPTION", "n")).lower() in (
-        "y",
-        "true",
-    ):
-        include_builtin_idf_component("nvs_sec_provider")
-
     # Components from YAML are added in a separate coroutine with FINAL priority
     # Schedule it to run after all other components
     if conf[CONF_COMPONENTS]:
