@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import contextlib
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 import hashlib
 import logging
 import os
@@ -163,7 +164,7 @@ def has_remote_file_changed(
             # the GET's own retry.
             response = fetch_with_retry(
                 url,
-                lambda: http_request("HEAD", url, headers=headers, timeout=timeout),
+                partial(http_request, "HEAD", url, headers=headers, timeout=timeout),
                 what="Revalidation",
             )
 

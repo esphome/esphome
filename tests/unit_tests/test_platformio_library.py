@@ -199,7 +199,7 @@ def test_urlsource_downloads_to_sibling_archive_path(setup_core, monkeypatch):
     src = URLSource("http://example.test/lib.tar.gz")
     out = src.download("mylib")
 
-    assert targets == [out.with_name(out.name + ".archive")]
+    assert targets == [out.with_name(f"{out.name}.archive")]
 
 
 def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):

@@ -154,7 +154,7 @@ class URLSource(Source):
             download_and_extract(
                 [self.url],
                 {},
-                path.with_name(path.name + ".archive"),
+                path.with_name(f"{path.name}.archive"),
                 path,
                 progress=progress,
             )
