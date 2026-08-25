@@ -43,6 +43,23 @@ PCH_ARTIFACT_NAMES = (
 # The core defines header every backend anchors its prefix on.
 PCH_CORE_HEADER = "esphome/core/defines.h"
 
+# Prefix-header contents for backends that inject a curated set (rather
+# than mirroring the TUs' own force-includes), defines.h first so USE_*
+# macros exist for the rest. Deliberately hard-coded: frequency-derived
+# sets measured no better and kept selecting headers that cannot compile
+# standalone (X-macro, platform-variant). Every entry must be safe to
+# include first in an empty TU. Caveat: application.h/automation.h become
+# ambiently visible, so a TU missing those #includes still builds on such
+# backends; ESPHOME_PCH_ENABLE=0 restores the strict view.
+PCH_DEFAULT_HEADERS = (
+    PCH_CORE_HEADER,
+    "esphome/core/component.h",
+    "esphome/core/helpers.h",
+    "esphome/core/log.h",
+    "esphome/core/application.h",
+    "esphome/core/automation.h",
+)
+
 # ccache cannot hash through a .gch; CCACHE_PCH_EXTSUM makes it hash the
 # .sum sidecar instead of the .gch bytes, which are not reproducible.
 # Keep in sync with the literals in platformio/pch.py.script.
