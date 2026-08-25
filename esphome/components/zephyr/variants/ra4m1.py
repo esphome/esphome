@@ -156,5 +156,5 @@ async def to_code(config: ConfigType) -> None:
 
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+        # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+        zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

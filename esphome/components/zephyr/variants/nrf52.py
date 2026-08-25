@@ -122,7 +122,7 @@ async def to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _bootloader_to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_add_sysbuild_conf, zephyr_data
+    from .. import zephyr_add_sysbuild_conf, zephyr_data
 
     # ncs-zigbee's default devicetree has no boot/slot1 partitions, so zigbee only
     # gets MCUboot when OTA is actually configured. Deferred to FINAL priority: this
@@ -138,7 +138,5 @@ async def _bootloader_to_code(config: ConfigType) -> None:
         # flashed.
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
 
-        # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
-        # smaller footprint.
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+        # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+        zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)
