@@ -56,7 +56,7 @@ class _FakeSConsEnv(dict):
 def _fake_cxx(tmp_path: Path, fail: bool = False) -> Path:
     """A compiler stand-in that records its argv and writes the -o target."""
     cxx = tmp_path / "fake-gxx"
-    body = 'printf \'%s\\n\' "$@" >> "$0.argv"\n'
+    body = 'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     if fail:
         body += "echo boom >&2\nexit 1\n"
     else:
@@ -109,10 +109,11 @@ def test_pch_script_preserves_spaced_flag_elements(tmp_path: Path) -> None:
     spaced.mkdir()
     flags = ['-DUSB_PRODUCT=\\"Pico 2W\\"', "-I", str(spaced), "-include", "other.h"]
     _run_script(tmp_path, flags=flags)
-    argv = (tmp_path / "fake-gxx.argv").read_text().splitlines()
-    assert '-DUSB_PRODUCT="Pico 2W"' in argv
-    assert str(spaced) in argv
-    assert "-include" not in argv
+    calls = (tmp_path / "fake-gxx.argv").read_text().split("---call---\n")
+    gch_call = next(c for c in calls if "c++-header" in c).splitlines()
+    assert '-DUSB_PRODUCT="Pico 2W"' in gch_call
+    assert str(spaced) in gch_call
+    assert "-include" not in gch_call
     # The stripped -include header is folded into the prefix header instead
     pch = (tmp_path / "dev" / "esphome_pch.h").read_text()
     assert pch.splitlines()[0] == '#include "other.h"'
