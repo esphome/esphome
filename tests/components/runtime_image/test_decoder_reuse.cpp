@@ -379,12 +379,12 @@ TEST(RuntimeImageDecoder, QoiDecoderStaysWarmAcrossDecodes) {
   TestableRuntimeImage img(QOI);
 
   ASSERT_TRUE(decode_all(img, QOI_RGBA, sizeof(QOI_RGBA)));
-  expect_pixels(img, QOI_EXPECTED_RGBA);
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
   ImageDecoder *first = img.decoder();
   ASSERT_NE(first, nullptr);
 
   ASSERT_TRUE(decode_all(img, QOI_RGBA, sizeof(QOI_RGBA)));
-  expect_pixels(img, QOI_EXPECTED_RGBA);
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
   EXPECT_EQ(img.decoder(), first) << "decoder must be reused, not reallocated";
 }
 
@@ -392,13 +392,13 @@ TEST(RuntimeImageDecoder, QoiChunkedFeedDecodesLikeDownloadLoop) {
   TestableRuntimeImage img(QOI);
 
   ASSERT_TRUE(decode_chunked(img, QOI_RGBA, sizeof(QOI_RGBA), 10));
-  expect_pixels(img, QOI_EXPECTED_RGBA);
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
   ImageDecoder *first = img.decoder();
 
   // Chunked again on the warm decoder: the cross-call resume state
   // (current_index_ / paint_index_) must have been fully reset.
   ASSERT_TRUE(decode_chunked(img, QOI_RGBA, sizeof(QOI_RGBA), 10));
-  expect_pixels(img, QOI_EXPECTED_RGBA);
+  expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
   EXPECT_EQ(img.decoder(), first);
 }
 
