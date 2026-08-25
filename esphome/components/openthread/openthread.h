@@ -19,7 +19,11 @@ namespace esphome::openthread {
 
 class InstanceLock;
 
-enum class TeardownStage : uint8_t { NOT_STARTED = 0, STOP_IN_PROCESS, COMPLETED };
+enum class TeardownStage : uint8_t {
+  TEARDOWN_STAGE_NOT_STARTED = 0,
+  TEARDOWN_STAGE_STOP_IN_PROCESS,
+  TEARDOWN_STAGE_COMPLETED,
+};
 
 template<typename... Ts> class OpenThreadComponentPollPeriodAction;
 
@@ -79,8 +83,9 @@ class OpenThreadComponent final : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
-  std::atomic<TeardownStage> teardown_stage_{TeardownStage::NOT_STARTED};
-  bool connected_{false};
+  // Only ever written from teardown(), on the main task -- no atomic needed.
+  TeardownStage teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
+  std::atomic<bool> connected_{false};
 
   otDeviceRole active_role_{OT_DEVICE_ROLE_DISABLED};
 

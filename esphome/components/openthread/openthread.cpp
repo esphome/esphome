@@ -241,20 +241,16 @@ void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this
 
 bool OpenThreadComponent::teardown() {
   switch (this->teardown_stage_) {
-    case TeardownStage::NOT_STARTED: {
-      // start tearing down
-      this->teardown_stage_ = TeardownStage::STOP_IN_PROCESS;
-      ESP_LOGV(TAG, "Clear Srp");
-      // If the lock can't be acquired here, the OT task is likely wedged, so give up on
-      // teardown entirely rather than forcing the stop stage without the lock -- we're
-      // already shutting down, so this is an accepted low-risk failure mode.
+    case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
       {
         auto lock = InstanceLock::try_acquire(100);
+        // The OT task may still be starting up; stay pending and retry on
+        // the next call rather than giving up after a single failed attempt.
         if (!lock) {
-          ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
-          this->teardown_stage_ = TeardownStage::COMPLETED;
-          return true;
+          return false;
         }
+        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
+        ESP_LOGV(TAG, "Clear Srp");
         otInstance *instance = lock.get_instance();
         otSrpClientClearHostAndServices(instance);
         otSrpClientBuffersFreeAllServices(instance);
@@ -267,24 +263,23 @@ bool OpenThreadComponent::teardown() {
         // Release the lock before stopping -- openthread_stop_() (esp_openthread_stop() on
         // ESP32) acquires it internally, and the lock is not recursive.
       }
-      // stop openthread
+      // Stop OpenThread
       global_openthread_component = nullptr;
-      ESP_LOGV(TAG, "Stop Openthread");
+      ESP_LOGV(TAG, "Stop OpenThread");
       int error = this->openthread_stop_();
       if (error != 0) {
-        ESP_LOGW(TAG, "Failed attempt to stop openthread %d", error);
-        this->teardown_stage_ = TeardownStage::COMPLETED;
-        return true;
+        ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
       }
     } break;
-    case TeardownStage::STOP_IN_PROCESS:
+    case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
       // Unreachable today; kept as a hook for a future use.
       break;
-    case TeardownStage::COMPLETED:
-      ESP_LOGV(TAG, "OpenthreadComponent Teardown Complete");
-      return true;
+    case TeardownStage::TEARDOWN_STAGE_COMPLETED:
+      ESP_LOGV(TAG, "OpenThreadComponent Teardown Complete");
+      break;
   }
-  return this->teardown_stage_ == TeardownStage::COMPLETED;
+  return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {

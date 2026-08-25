@@ -102,12 +102,14 @@ uint8_t *SerialProxyInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PAR
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 1, this->name);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->port_type));
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->configured_line_states);
   return pos;
 }
 uint32_t SerialProxyInfo::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_length(1, this->name.size());
   size += this->port_type ? 2 : 0;
+  size += ProtoSize::calc_uint32(1, this->configured_line_states);
   return size;
 }
 #endif
@@ -1249,12 +1251,9 @@ bool ParsedTimezone::decode_length(uint32_t field_id, ProtoLengthDelimited value
 }
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
-    case 2: {
-      this->timezone = StringRef(reinterpret_cast<const char *>(value.data()), value.size());
-      break;
-    }
     case 3:
       value.decode_to_message(this->parsed_timezone);
+      this->has_parsed_timezone = true;
       break;
     default:
       return false;
@@ -3945,6 +3944,18 @@ uint32_t ZWaveProxyRequest::calculate_size() const {
   size += ProtoSize::calc_length(1, this->data_len);
   return size;
 }
+uint8_t *ZWaveProxyRequestResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, static_cast<uint32_t>(this->type));
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, static_cast<uint32_t>(this->status));
+  return pos;
+}
+uint32_t ZWaveProxyRequestResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += this->type ? 2 : 0;
+  size += this->status ? 2 : 0;
+  return size;
+}
 #endif
 #ifdef USE_INFRARED
 uint8_t *ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
@@ -4187,12 +4198,14 @@ uint8_t *SerialProxyGetModemPinsResponse::encode(ProtoWriteBuffer &buffer PROTO_
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->instance);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->line_states);
+  ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, static_cast<uint32_t>(this->status));
   return pos;
 }
 uint32_t SerialProxyGetModemPinsResponse::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->instance);
   size += ProtoSize::calc_uint32(1, this->line_states);
+  size += this->status ? 2 : 0;
   return size;
 }
 bool SerialProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {

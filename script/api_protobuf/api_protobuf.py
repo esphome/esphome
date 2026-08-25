@@ -498,6 +498,15 @@ def create_field_type_info(
     needs_encode: bool = True,
 ) -> TypeInfo:
     """Create the appropriate TypeInfo instance for a field, handling repeated fields and custom options."""
+    if get_field_opt(field, pb.track_presence, False) and (
+        field.label == FieldDescriptorProto.LABEL_REPEATED
+        or field.type != 11
+        or not needs_decode
+    ):
+        raise ValueError(
+            f"track_presence on field '{field.name}' has no effect; it requires "
+            "a non-repeated message field in a message that is decoded"
+        )
     if field.label == FieldDescriptorProto.LABEL_REPEATED:
         # Check if this is a packed_buffer field (zero-copy packed repeated)
         if get_field_opt(field, pb.packed_buffer, False):
@@ -541,6 +550,8 @@ def create_field_type_info(
         return PointerToStringBufferType(field, None)
 
     validate_field_type(field.type, field.name)
+    if field.type == 11:
+        return MessageType(field, needs_decode, needs_encode)
     return TYPE_INFO[field.type](field)
 
 
@@ -938,8 +949,32 @@ class MessageType(TypeInfo):
         return None
 
     @property
+    def public_content(self) -> list[str]:
+        content = [self.class_member]
+        if self._track_presence:
+            content.append(f"bool has_{self.name}{{false}};")
+        return content
+
+    @property
+    def _track_presence(self) -> bool:
+        # Presence is only observable on the decode side
+        return self._needs_decode and get_field_opt(
+            self._field, pb.track_presence, False
+        )
+
+    @property
     def decode_length_content(self) -> str:
         # Custom decode that doesn't use templates
+        if self._track_presence:
+            # decode_to_message() cannot report failure, so setting the flag
+            # afterwards only documents intent; a status-returning decode could
+            # gate it for real without touching callers.
+            return (
+                f"case {self.number}:\n"
+                f"      value.decode_to_message(this->{self.field_name});\n"
+                f"      this->has_{self.name} = true;\n"
+                f"      break;"
+            )
         return f"case {self.number}: value.decode_to_message(this->{self.field_name}); break;"
 
     def dump(self, name: str) -> str:
@@ -947,7 +982,10 @@ class MessageType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
+        o = ""
+        if self._track_presence:
+            o += f'dump_field(out, ESPHOME_PSTR("has_{self.name}"), this->has_{self.name});\n'
+        o += f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
         o += f"this->{self.field_name}.dump_to(out);\n"
         o += 'out.append("\\n");'
         return o
