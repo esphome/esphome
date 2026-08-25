@@ -569,23 +569,28 @@ def _final_validate_spi(config: ConfigType) -> None:
         return
     from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 
-    if (spi_id := config.get(CONF_SPI_ID)) is not None:
-        # Sharing the bus: the referenced spi component must own a hardware
-        # host (the IDF ethernet drivers require one) and expose MISO so the
-        # ethernet chip can be read.
-        spi_conf = next(
-            c for c in fv.full_config.get()[CONF_SPI] if c[CONF_ID] == spi_id
-        )
-        if CONF_INTERFACE_INDEX not in spi_conf:
-            raise cv.Invalid(
-                f"The 'spi' bus referenced by '{CONF_SPI_ID}' must use a hardware "
-                f"'{CONF_INTERFACE}' to be shared with 'ethernet'."
-            )
-        if CONF_MISO_PIN not in spi_conf:
-            raise cv.Invalid(
-                f"The 'spi' bus referenced by '{CONF_SPI_ID}' must declare a "
-                f"'{CONF_MISO_PIN}' to be shared with 'ethernet'."
-            )
+    if CONF_SPI_ID in config:
+        # Sharing the bus: the standard spi device schema enforces that the
+        # referenced bus declares both data lines. The IDF ethernet drivers
+        # additionally need a hardware host, which shows as an interface index
+        # on the validated bus config.
+        spi.final_validate_device_schema(
+            "ethernet", require_mosi=True, require_miso=True
+        )(config)
+        cv.Schema(
+            {
+                cv.Required(CONF_SPI_ID): fv.id_declaration_match_schema(
+                    {
+                        cv.Required(
+                            CONF_INTERFACE_INDEX,
+                            msg="Component ethernet requires this spi bus to use "
+                            "a hardware interface",
+                        ): cv.valid
+                    }
+                )
+            },
+            extra=cv.ALLOW_EXTRA,
+        )(config)
         return
 
     if spi_configs := fv.full_config.get().get(CONF_SPI):

@@ -134,24 +134,39 @@ def _eth_spi_id_final_config() -> dict:
     return {CONF_TYPE: "W5500", CONF_SPI_ID: ID("spi_bus")}
 
 
-def test_final_validate_accepts_hardware_bus_with_miso(
+class _FakeFinalConfig(dict):
+    """Dict-backed FinalValidateConfig with just enough ID resolution for
+    fv.id_declaration_match_schema to find an spi bus fragment."""
+
+    def get_path_for_id(self, id: ID) -> list:
+        for index, conf in enumerate(self[CONF_SPI]):
+            if conf[CONF_ID] == id:
+                return [CONF_SPI, index, CONF_ID]
+        raise KeyError(id)
+
+    def get_config_for_path(self, path: list) -> dict:
+        return self[path[0]][path[1]]
+
+
+def _set_spi_buses(*buses: dict) -> None:
+    fv.full_config.set(_FakeFinalConfig({CONF_SPI: list(buses)}))
+
+
+_SHAREABLE_BUS = {
+    CONF_ID: ID("spi_bus"),
+    CONF_INTERFACE_INDEX: 0,
+    CONF_MISO_PIN: {},
+    CONF_MOSI_PIN: {},
+}
+
+
+def test_final_validate_accepts_hardware_bus_with_data_pins(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """A hardware spi bus that declares miso_pin may be shared."""
+    """A hardware spi bus that declares miso_pin and mosi_pin may be shared."""
     _set_esp32_s3(set_core_config)
-    fv.full_config.set(
-        {
-            CONF_SPI: [
-                # An unrelated bus first: the lookup must skip past it.
-                {CONF_ID: ID("other_bus"), CONF_INTERFACE_INDEX: 1},
-                {
-                    CONF_ID: ID("spi_bus"),
-                    CONF_INTERFACE_INDEX: 0,
-                    CONF_MISO_PIN: {},
-                },
-            ]
-        }
-    )
+    # An unrelated bus first: the ID lookup must skip past it.
+    _set_spi_buses({CONF_ID: ID("other_bus"), CONF_INTERFACE_INDEX: 1}, _SHAREABLE_BUS)
     _final_validate(_eth_spi_id_final_config())
 
 
@@ -160,18 +175,21 @@ def test_final_validate_rejects_software_bus(
 ) -> None:
     """A software spi bus (no hardware interface index) cannot be shared."""
     _set_esp32_s3(set_core_config)
-    fv.full_config.set({CONF_SPI: [{CONF_ID: ID("spi_bus"), CONF_MISO_PIN: {}}]})
-    with pytest.raises(Invalid, match="must use a hardware 'interface'"):
+    bus = {k: v for k, v in _SHAREABLE_BUS.items() if k != CONF_INTERFACE_INDEX}
+    _set_spi_buses(bus)
+    with pytest.raises(Invalid, match="requires this spi bus to use a hardware"):
         _final_validate(_eth_spi_id_final_config())
 
 
-def test_final_validate_rejects_bus_without_miso(
-    set_core_config: SetCoreConfigCallable,
+@pytest.mark.parametrize("pin_key", [CONF_MISO_PIN, CONF_MOSI_PIN])
+def test_final_validate_rejects_bus_without_data_pin(
+    set_core_config: SetCoreConfigCallable, pin_key: str
 ) -> None:
-    """The shared bus must declare miso_pin; the ethernet chip needs to read."""
+    """The shared bus must declare both data pins to drive the ethernet chip."""
     _set_esp32_s3(set_core_config)
-    fv.full_config.set({CONF_SPI: [{CONF_ID: ID("spi_bus"), CONF_INTERFACE_INDEX: 0}]})
-    with pytest.raises(Invalid, match="must declare a 'miso_pin'"):
+    bus = {k: v for k, v in _SHAREABLE_BUS.items() if k != pin_key}
+    _set_spi_buses(bus)
+    with pytest.raises(Invalid, match=f"requires this spi bus to declare a {pin_key}"):
         _final_validate(_eth_spi_id_final_config())
 
 
