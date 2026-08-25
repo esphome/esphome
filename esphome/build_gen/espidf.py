@@ -6,7 +6,7 @@ from pathlib import Path
 
 from esphome.build_helpers import pch
 from esphome.build_helpers.pch import (
-    PCH_CORE_HEADER,
+    PCH_DEFAULT_HEADERS,
     PCH_HEADER_NAME,
     pch_enabled,
     pch_header_text,
@@ -28,26 +28,6 @@ from esphome.framework_helpers import (
 from esphome.helpers import mkdir_p, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
-
-# Prefix-header contents, defines.h first so USE_* macros exist for the
-# rest. Deliberately hard-coded: frequency-derived sets measured no better
-# and kept selecting headers that cannot compile standalone (X-macro,
-# platform-variant). Every entry must be safe to include first in an
-# empty TU. Caveat: application.h/automation.h become ambiently visible,
-# so a TU missing those #includes still builds here but not on other
-# platforms; ESPHOME_PCH_ENABLE=0 restores the strict view.
-_PCH_HEADERS = (
-    PCH_CORE_HEADER,
-    "esphome/core/component.h",
-    "esphome/core/helpers.h",
-    "esphome/core/log.h",
-    "esphome/core/application.h",
-    "esphome/core/automation.h",
-)
-
-# Header and .gch/.sum sidecars, relative to the device dir; see
-# _pch_cmake() and prepare_pch() for the layout rationale
-_PCH_BUILD_HEADER = f"build/{PCH_HEADER_NAME}"
 
 # Replaces the IDF default C++ standard (-std=gnu++2b appended to
 # CXX_COMPILE_OPTIONS by project.cmake's __build_init) with the one set via
@@ -355,7 +335,7 @@ def prepare_pch() -> None:
         sdkconfig = f"unreadable:{type(err).__name__}:{err.errno}"
     pch.prepare_pch(
         CORE.relative_build_path("build"),
-        _PCH_HEADERS,
+        PCH_DEFAULT_HEADERS,
         (
             str(idf_version()),
             CORE.cpp_standard or "",
@@ -387,7 +367,8 @@ def write_project(
 
     if pch_enabled():
         write_file_if_changed(
-            CORE.relative_build_path(_PCH_BUILD_HEADER), pch_header_text(_PCH_HEADERS)
+            CORE.relative_build_path("build", PCH_HEADER_NAME),
+            pch_header_text(PCH_DEFAULT_HEADERS),
         )
 
     # Snapshot the exclusion set so has_outdated_files() can trigger a

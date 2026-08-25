@@ -494,10 +494,10 @@ def test_get_component_cmakelists_no_compile_features() -> None:
 
 def _make_pch_device(tmp_path: Path, name: str) -> Path:
     """A device dir with the pch source headers and a stub compile_commands."""
-    from esphome.build_gen.espidf import _PCH_HEADERS
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS
 
     dev = tmp_path / name
-    for header in _PCH_HEADERS:
+    for header in PCH_DEFAULT_HEADERS:
         path = dev / "src" / header
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("")
@@ -512,7 +512,7 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
     build.mkdir(exist_ok=True)
     from esphome.build_helpers.pch import pch_header_text
 
-    (build / "esphome_pch.h").write_text(pch_header_text(_PCH_HEADERS))
+    (build / "esphome_pch.h").write_text(pch_header_text(PCH_DEFAULT_HEADERS))
     # Native separators: mixed f-string paths break the src-prefix match
     # on Windows
     src_file = str(dev / "src" / "a.cpp")
@@ -674,7 +674,7 @@ def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
 def test_pch_header_list_order_is_in_checksum(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Reordering _PCH_HEADERS keeps the include closure identical, but the
+    """Reordering PCH_DEFAULT_HEADERS keeps the include closure identical, but the
     generated header text differs, so the .gch must rebuild."""
     import esphome.build_gen.espidf as espidf_mod
 
@@ -693,7 +693,9 @@ def test_pch_header_list_order_is_in_checksum(
         espidf_mod.prepare_pch()
         first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
         monkeypatch.setattr(
-            espidf_mod, "_PCH_HEADERS", tuple(reversed(espidf_mod._PCH_HEADERS))
+            espidf_mod,
+            "PCH_DEFAULT_HEADERS",
+            tuple(reversed(espidf_mod.PCH_DEFAULT_HEADERS)),
         )
         espidf_mod.prepare_pch()
     assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
@@ -818,8 +820,8 @@ def test_write_project_pch_disabled_writes_no_header(
 def test_write_project_writes_pch_header(tmp_path: Path) -> None:
     """The header write_project emits is what _pch_cmake() force-includes;
     this pairing is the one non-fail-safe path in the design."""
-    from esphome.build_gen.espidf import _PCH_HEADERS, write_project
-    from esphome.build_helpers.pch import pch_header_text
+    from esphome.build_gen.espidf import write_project
+    from esphome.build_helpers.pch import PCH_DEFAULT_HEADERS, pch_header_text
 
     _write_project_description(tmp_path, {})
     CORE.build_path = tmp_path
@@ -829,7 +831,7 @@ def test_write_project_writes_pch_header(tmp_path: Path) -> None:
     ):
         write_project()
     assert (tmp_path / "build" / "esphome_pch.h").read_text() == pch_header_text(
-        _PCH_HEADERS
+        PCH_DEFAULT_HEADERS
     )
 
 
