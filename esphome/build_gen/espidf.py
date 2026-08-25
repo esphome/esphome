@@ -337,6 +337,7 @@ def _pch_cmake() -> str:
 # a .gch drop out of the TU depfiles, and prepare_pch() touches the
 # header whenever it rebuilds the .gch so consumers recompile.
 target_compile_options(${{COMPONENT_LIB}} PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
     "$<$<COMPILE_LANGUAGE:CXX>:-include>"
     "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
 )

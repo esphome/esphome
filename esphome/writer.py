@@ -609,6 +609,17 @@ def clean_build(clear_pio_cache: bool = True, *, full: bool = False):
             if idf_path.is_dir():
                 _LOGGER.info("Deleting %s", idf_path)
                 rmtree(idf_path)
+        # The PlatformIO pch artifacts live at the project root so the
+        # relative -include resolves; a partial clean must drop them too
+        for name in (
+            "esphome_pch.h",
+            "esphome_pch.h.gch",
+            "esphome_pch.h.gch.sum",
+            "esphome_pch.h.gch.failed",
+        ):
+            pch_path = CORE.relative_build_path(name)
+            if pch_path.is_file():
+                pch_path.unlink()
 
     # The idedata caches are derived from the build but live under the data
     # dir, not the build path, so they must be removed separately in both

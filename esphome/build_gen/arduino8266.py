@@ -1254,7 +1254,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         # Relative -include (resolved from the ninja cwd, where the header
         # lives): an absolute path would put the per-device build path on
         # every compile command and defeat cross-device ccache sharing
-        cxx_parts = src_other + [f"-include {PCH_HEADER_NAME}"]
+        cxx_parts = src_other + [f"-Winvalid-pch -include {PCH_HEADER_NAME}"]
         lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
         src_cxx_flags = "$srccxxflags"
         src_cxx_implicit = gch
