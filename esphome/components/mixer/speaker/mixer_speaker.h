@@ -58,6 +58,7 @@ class SourceSpeaker final : public speaker::Speaker, public Component {
   void finish() override;
 
   bool has_buffered_data() const override;
+  bool buffered_bytes(size_t &bytes) const override;
 
   /// @brief Mute state changes are passed to the parent's output speaker
   void set_mute_state(bool mute_state) override;
@@ -143,6 +144,10 @@ class MixerSpeaker final : public Component {
 
   speaker::Speaker *get_output_speaker() const { return this->output_speaker_; }
 
+  /// @brief Bytes held in the mixer task's output transfer buffer: mixed audio past the source rings
+  /// but not yet at the output speaker. Part of a source's true latency to the pin.
+  size_t output_transfer_bytes() const { return this->output_transfer_bytes_.load(std::memory_order_relaxed); }
+
   /// @brief Returns the current number of frames in the output pipeline (written but not yet played)
   uint32_t get_frames_in_pipeline() const { return this->frames_in_pipeline_.load(std::memory_order_acquire); }
 
@@ -153,6 +158,11 @@ class MixerSpeaker final : public Component {
 
   FixedVector<SourceSpeaker *> source_speakers_;
   speaker::Speaker *output_speaker_{nullptr};
+  // Bytes currently held in the mixer task's output transfer buffer -- mixed audio that has left the
+  // source rings but not yet reached the output speaker. The buffer itself is task-local, so without
+  // publishing it this stage of the pipeline is unreachable and a caller summing the layers it CAN
+  // see under-reports its true latency by up to TRANSFER_BUFFER_DURATION_MS.
+  std::atomic<size_t> output_transfer_bytes_{0};
 
   uint8_t output_bits_per_sample_;
   uint8_t output_channels_;

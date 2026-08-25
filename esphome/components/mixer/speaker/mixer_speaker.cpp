@@ -281,6 +281,65 @@ bool SourceSpeaker::has_buffered_data() const {
   return ((this->audio_source_.use_count() > 0) && this->audio_source_->has_buffered_data());
 }
 
+bool SourceSpeaker::buffered_bytes(size_t &bytes) const {
+  // TOTAL latency from this source's input to the output speaker's input: this source's own queue
+  // PLUS whatever the mixer has already combined and handed downstream.
+  //
+  // Reporting only the source queue was wrong precisely when the value matters. After a starvation
+  // the source ring is genuinely empty while the output speaker still holds a few hundred ms, so a
+  // caller anchoring its accounting to "0" believes the pipeline is empty when it is not, predicts
+  // playout that much too early, and delays real audio to compensate. Measured: a device logging
+  // "measured fill: 0 frames" settled with 69 ms accounted against a ~269 ms true fill and played
+  // ~200 ms behind its peers.
+  //
+  // The two queues are in series and hold different audio (pre- and post-mix), so summing them is
+  // correct and does not double count.
+  //
+  // Gate on the RING BUFFER, not on audio_source_. play() writes into ring_buffer_, while
+  // audio_source_ is the consumer-side wrapper the mixer task constructs in start_() -- so a
+  // writer can legitimately have queued audio before audio_source_ exists. Gating on the latter
+  // reported "cannot tell" while the ring held data, which reads identically to an empty pipeline
+  // at the call site.
+  size_t own = 0;
+  bool have_own = false;
+  if (this->audio_source_.use_count() > 0) {
+    // RingBufferAudioSource::buffered_bytes() already includes ring_buffer_->available() alongside
+    // its own in-flight exposure and queued item, so that must not be added to it.
+    own = this->audio_source_->buffered_bytes();
+    have_own = true;
+  } else {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    if (temp_ring_buffer != nullptr) {
+      // No consumer wrapper yet, so nothing can be in flight beyond the ring itself
+      own = temp_ring_buffer->available();
+      have_own = true;
+    }
+  }
+  if (!have_own) {
+    return false;
+  }
+
+  // Downstream is optional: a platform that cannot report it leaves the caller with the source
+  // queue alone, which is strictly better than nothing and no worse than the previous behaviour.
+  size_t downstream = 0;
+  if (this->parent_ != nullptr) {
+    // The mixer task's own output transfer buffer sits between the source rings and the output
+    // speaker, and holds up to TRANSFER_BUFFER_DURATION_MS. It is task-local, so it was the last
+    // unreachable stage of the chain: a caller summing only the layers it could see under-reported
+    // its latency by ~50 ms, which is exactly the residual that remained after the DMA was counted.
+    downstream += this->parent_->output_transfer_bytes();
+    speaker::Speaker *out = this->parent_->get_output_speaker();
+    if (out != nullptr) {
+      size_t out_bytes = 0;
+      if (out->buffered_bytes(out_bytes)) {
+        downstream += out_bytes;
+      }
+    }
+  }
+  bytes = own + downstream;
+  return true;
+}
+
 void SourceSpeaker::set_mute_state(bool mute_state) {
   this->mute_state_ = mute_state;
   this->parent_->get_output_speaker()->set_mute_state(mute_state);
@@ -485,6 +544,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
       // Never shift the data in the output transfer buffer to avoid unnecessary, slow data moves
       output_transfer_buffer->transfer_data_to_sink(pdMS_TO_TICKS(TASK_DELAY_MS), false);
+      this_mixer->output_transfer_bytes_.store(output_transfer_buffer->available(), std::memory_order_relaxed);
 
       const uint32_t output_frames_free =
           this_mixer->audio_stream_info_.value().bytes_to_frames(output_transfer_buffer->free());
@@ -552,6 +612,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
           // Update output transfer buffer length and pipeline frame count
           output_transfer_buffer->increase_buffer_length(output_info.frames_to_bytes(frames_to_mix));
+          this_mixer->output_transfer_bytes_.store(output_transfer_buffer->available(), std::memory_order_relaxed);
           this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
         } else {
           // Speaker's stream info doesn't match the output speaker's, so it's a new source speaker
@@ -616,6 +677,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
 
         // Update output transfer buffer length and pipeline frame count (once, not per source)
         output_transfer_buffer->increase_buffer_length(output_info.frames_to_bytes(frames_to_mix));
+        this_mixer->output_transfer_bytes_.store(output_transfer_buffer->available(), std::memory_order_relaxed);
         this_mixer->frames_in_pipeline_.fetch_add(frames_to_mix, std::memory_order_release);
       }
     }
@@ -626,6 +688,7 @@ void MixerSpeaker::audio_mixer_task(void *params) {
   // Reset pipeline frame count since the task is stopping
   this_mixer->frames_in_pipeline_.store(0, std::memory_order_release);
 
+  this_mixer->output_transfer_bytes_.store(0, std::memory_order_relaxed);
   xEventGroupSetBits(this_mixer->event_group_, MIXER_TASK_STATE_STOPPED);
 
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
