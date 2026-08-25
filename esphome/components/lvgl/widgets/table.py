@@ -181,7 +181,7 @@ class TableType(WidgetType):
             modify_schema=TABLE_MODIFY_SCHEMA,
         )
 
-    def get_uses(self) -> tuple:
+    def get_uses(self) -> tuple[str]:
         return (CONF_LABEL,)
 
     async def to_code(self, w: Widget, config: dict) -> None:
