@@ -1,5 +1,6 @@
 """ESP-IDF direct build API for ESPHome."""
 
+from contextlib import suppress
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -530,13 +531,17 @@ def run_compile(config, verbose: bool) -> int:
 
     # After every reconfigure so compile_commands and sdkconfig are settled.
     # An optional speedup must never abort the build
-    from esphome.build_gen.espidf import prepare_pch
+    from esphome.build_gen.espidf import discard_pch, prepare_pch
 
     try:
         prepare_pch()
-    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Discard so an unexpected error can never leave a stale .gch that
+        # GCC would silently consume; exc_info keeps the failure diagnosable
+        with suppress(OSError):
+            discard_pch()
         _LOGGER.warning(
-            "Precompiled header setup failed; compiling without it: %s", err
+            "Precompiled header setup failed; compiling without it", exc_info=True
         )
 
     # Build
