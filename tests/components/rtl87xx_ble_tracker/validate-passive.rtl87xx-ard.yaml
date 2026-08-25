@@ -1,0 +1,12 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+# Passive scanning variant: the package merge keeps the shared parameters from
+# common.yaml and overrides only the mode.
+packages:
+  rtl87xx_ble_tracker: !include common.yaml
+
+rtl87xx_ble_tracker:
+  scan_parameters:
+    active: false
