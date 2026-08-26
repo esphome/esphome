@@ -1,6 +1,8 @@
 """Tests for the parallel PlatformIO package prefetch."""
 
+import errno
 import json
+import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -247,7 +249,10 @@ def test_lockless_filesystem_downloads_unlocked(
     dl_path = tmp_path / "archive"
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
-        patch("filelock.FileLock.acquire", side_effect=OSError("ENOSYS")),
+        patch(
+            "filelock.FileLock.acquire",
+            side_effect=OSError(errno.ENOSYS, "no locks"),
+        ),
         patch("filelock.FileLock.release"),
     ):
         pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
@@ -272,6 +277,62 @@ def test_uri_fetch_job_failed_download_keeps_staging(tmp_path: Path) -> None:
         pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
     assert part.read_bytes() == b"partial"
     assert not dl_path.exists()
+
+
+def test_lock_real_fault_is_a_counted_failure(tmp_path: Path) -> None:
+    """EACCES on the lock is a real fault, not a lock-less filesystem; an
+    unlocked shared write is not a safe fallback."""
+    dl_path = tmp_path / "archive"
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch(
+            "filelock.FileLock.acquire",
+            side_effect=OSError(errno.EACCES, "denied"),
+        ),
+        pytest.raises(OSError),
+    ):
+        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            lambda done: None
+        )
+    mock_download.assert_not_called()
+
+
+def test_uri_fetch_job_rejects_wrong_length(tmp_path: Path) -> None:
+    """A checksum-less body of the wrong length is never published under a
+    cache key pio would trust forever."""
+    dl_path = tmp_path / "archive"
+
+    def fake_download(url, dest, progress=None, **kwargs):
+        Path(dest).write_bytes(b"short")
+
+    with (
+        patch(
+            "esphome.framework_helpers.download_with_resume", side_effect=fake_download
+        ),
+        pytest.raises(ValueError, match="expected 9999 bytes"),
+    ):
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 9999)(lambda done: None)
+    assert not dl_path.exists()
+    assert not (tmp_path / "archive.prefetch").exists()
+
+
+def test_sweep_stale_sidecars(tmp_path: Path) -> None:
+    """Sidecars past pio's own expiry are pruned; fresh and foreign files
+    stay."""
+    old_time = pf.time.time() - pf._SIDECAR_EXPIRE_SECONDS - 10
+    stale = tmp_path / "a.tar.gz.part"
+    stale.write_bytes(b"x")
+    os.utime(stale, (old_time, old_time))
+    fresh = tmp_path / "b.tar.gz.part"
+    fresh.write_bytes(b"x")
+    keep = tmp_path / "c.tar.gz"
+    keep.write_bytes(b"x")
+    os.utime(keep, (old_time, old_time))
+    pf._sweep_stale_sidecars(tmp_path)
+    assert not stale.exists()
+    assert fresh.exists()
+    assert keep.exists()
+    pf._sweep_stale_sidecars(tmp_path / "missing")  # tolerated
 
 
 def test_uri_fetch_job_no_discard_without_a_file(tmp_path: Path) -> None:
@@ -552,10 +613,11 @@ def test_prefetch_spawn_failures_warn_and_continue(
     assert expected in caplog.text
 
 
-def test_main_guards_and_exits_zero(caplog: pytest.LogCaptureFixture) -> None:
-    """The subprocess entry never propagates a failure exit code."""
+def test_main_guards_and_exits_nonzero(caplog: pytest.LogCaptureFixture) -> None:
+    """A swallowed failure still reaches the parent as a nonzero exit; the
+    parent warns and continues, never failing the build."""
     with patch.object(pf, "_prefetch", side_effect=RuntimeError("boom")):
-        assert pf.main(["/b", "testenv"]) == 0
+        assert pf.main(["/b", "testenv"]) == 1
     assert "PlatformIO package prefetch skipped" in caplog.text
 
 
