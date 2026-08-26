@@ -803,6 +803,15 @@ def test_uri_nameless_spec_downloads_but_never_installs(tmp_path: Path) -> None:
     assert failed == 0
     assert len(jobs) == 1  # still prefetched
     assert installable == []
+    # Cached-from-an-earlier-run nameless archives are skipped the same way
+    dl = Path(m.compute_download_path("https://x/v1.zip", ""))
+    dl.parent.mkdir(parents=True, exist_ok=True)
+    dl.touch()
+    assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/v1.zip", name=None)], set()) == (
+        [],
+        0,
+        [],
+    )
 
 
 def test_preinstall_wave_limit_warns(tmp_path: Path) -> None:
