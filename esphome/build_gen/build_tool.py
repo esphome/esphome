@@ -4,7 +4,7 @@ Plain script (not ``python -m``): it runs from ninja with whatever Python
 started esphome and must not depend on the package being importable.
 
 Subcommands:
-    ar <ar-binary> <archive> <rspfile>   remove stale archive, then ``ar rc``
+    ar <ar-binary> <archive> <rspfile>   remove stale archive, then ``ar rcs``
     copy <src> <dst>                     copy a file
 
 The ar rspfile carries one object path per line (the generating rule must
@@ -35,7 +35,7 @@ def _read_rspfile(rspfile: str) -> list[str]:
 
 
 def _run_ar(ar: str, archive: str, rspfile: str) -> int:
-    # Remove first: ``ar rc`` replaces members but never drops ones whose
+    # Remove first: ``ar rcs`` replaces members but never drops ones whose
     # source was removed from the build, which would leak stale objects.
     Path(archive).unlink(missing_ok=True)
     objects = _read_rspfile(rspfile)
