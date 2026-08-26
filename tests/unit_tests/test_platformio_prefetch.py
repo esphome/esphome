@@ -168,7 +168,10 @@ def test_registry_jobs_all_failed_warns_once(
             set(),
         )
     assert (jobs, failed) == ([], 2)
+    # The aggregate warning names a cause so an API break does not read
+    # as a registry outage
     assert "Could not resolve 2 of 2" in caplog.text
+    assert "registry down" in caplog.text
 
 
 def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
@@ -190,37 +193,87 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     assert leftovers - {f"{dl_path.name}.prefetch.lock"} == {dl_path.name}
 
 
-def test_uri_fetch_job_lock_timeout_skips(tmp_path: Path) -> None:
-    """A held or unavailable lock skips the job; pio downloads it later."""
+def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
+    """A lock freed within the deadline lets the job proceed normally."""
     from filelock import Timeout
 
     dl_path = tmp_path / "archive"
+
+    def fake_download(url, dest, progress=None, **kwargs):
+        Path(dest).write_bytes(b"data")
+
+    with (
+        patch(
+            "esphome.framework_helpers.download_with_resume", side_effect=fake_download
+        ),
+        patch("filelock.FileLock.acquire", side_effect=[Timeout("held"), None]),
+        patch("filelock.FileLock.release"),
+    ):
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+    assert dl_path.read_bytes() == b"data"
+
+
+def test_uri_fetch_job_lock_timeout_raises(tmp_path: Path) -> None:
+    """A held lock is a counted, warned failure, and the tracker is polled
+    between acquire slices so a parked worker observes cancellation."""
+    from filelock import Timeout
+
+    dl_path = tmp_path / "archive"
+    ticks: list[int] = []
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
+        patch.object(pf, "_URI_LOCK_TIMEOUT", 0),
+        pytest.raises(TimeoutError, match="another download"),
     ):
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(ticks.append)
     mock_download.assert_not_called()
+    assert ticks == [0]
     assert not dl_path.exists()
 
 
 def test_main_bad_log_level_falls_back(tmp_path: Path) -> None:
     with (
         patch.dict("os.environ", {"ESPHOME_PREFETCH_LOG_LEVEL": "verbose"}),
-        patch.object(pf.logging, "basicConfig") as mock_config,
+        patch("esphome.log.setup_log") as mock_setup,
         patch.object(pf, "_prefetch"),
     ):
         assert pf.main([str(tmp_path), "testenv"]) == 0
-    assert mock_config.call_args[1]["level"] == pf.logging.INFO
+    assert mock_setup.call_args[0][0] == pf.logging.INFO
+
+
+def test_main_mirrors_parent_log_setup(tmp_path: Path) -> None:
+    """The child adopts the parent's dashboard flag and log formatter so
+    its warnings and progress bar match the parent's."""
+    with (
+        patch.dict(
+            "os.environ",
+            {"ESPHOME_PREFETCH_LOG_LEVEL": "30", "ESPHOME_PREFETCH_DASHBOARD": "1"},
+        ),
+        patch("esphome.log.setup_log") as mock_setup,
+        patch.object(pf, "_prefetch"),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    mock_setup.assert_called_once_with(30)
+    assert CORE.dashboard is True
 
 
 def test_uri_fetch_job_skips_when_another_process_won(tmp_path: Path) -> None:
+    """A lost race discards the staging files; the cache never prunes them."""
     dl_path = tmp_path / "archive"
     dl_path.write_bytes(b"done")
+    stale = [
+        tmp_path / "archive.prefetch",
+        tmp_path / "archive.prefetch.part",
+        tmp_path / "archive.prefetch.part.meta",
+    ]
+    for f in stale:
+        f.write_bytes(b"stale")
     with patch("esphome.framework_helpers.download_with_resume") as mock_download:
         pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
     mock_download.assert_not_called()
     assert dl_path.read_bytes() == b"done"
+    assert not any(f.exists() for f in stale)
 
 
 def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
@@ -266,7 +319,9 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
         ) == ([], 0)
 
 
-def test_uri_jobs_head_failure_counts_as_unresolved(tmp_path: Path) -> None:
+def test_uri_jobs_head_failure_counts_as_unresolved(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """Network errors and transient statuses count as unresolved (and warn);
     a permanent error status is a clean skip so the sentinel can still be
     written."""
@@ -282,6 +337,14 @@ def test_uri_jobs_head_failure_counts_as_unresolved(tmp_path: Path) -> None:
     resp.headers = {"content-length": "999"}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(m, spec, set()) == ([], 0)
+    assert "HEAD https://x/a.zip" not in caplog.text
+    # A real URL problem is named, but stays a clean skip so the warm
+    # sentinel is not disabled forever
+    resp = MagicMock(ok=False, status_code=404)
+    resp.headers = {"content-length": "999"}
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        assert pf._uri_jobs(m, spec, set()) == ([], 0)
+    assert "HEAD https://x/a.zip returned 404" in caplog.text
 
 
 def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
@@ -348,7 +411,21 @@ def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     # The child is esphome itself; PYTHONPATH must survive so it imports
     # the same tree (tests/integration pins the source tree through it)
     assert kwargs["env"]["PYTHONPATH"] == "/leak"
+    assert "ESPHOME_PREFETCH_DASHBOARD" not in kwargs["env"]
     assert kwargs["timeout"] == pf._PREFETCH_TIMEOUT
+
+
+def test_prefetch_passes_dashboard_flag(tmp_path: Path) -> None:
+    """The dashboard flag reaches the child so its bar still draws."""
+    CORE.dashboard = True
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(
+            pf.subprocess, "run", return_value=MagicMock(returncode=0)
+        ) as mock_run,
+    ):
+        pf.prefetch_platformio_packages()
+    assert mock_run.call_args[1]["env"]["ESPHOME_PREFETCH_DASHBOARD"] == "1"
 
 
 @pytest.mark.parametrize(
