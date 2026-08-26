@@ -1181,6 +1181,38 @@ lvgl:
                 - logger.log:
                     format: "bar value %f"
                     args: [x]
+        - table:
+            id: table_id
+            align: top_mid
+            y: 60
+            columns:
+              - width: 40%
+              - width: 80
+            rows:
+              - ["Name", "Value"]
+              - cells:
+                  - text: "Temp"
+                    merge_right: true
+                  - text: "22.5"
+                    text_crop: true
+            selected_row: 0
+            on_value:
+              then:
+                - logger.log:
+                    format: "table selected row %u col %u"
+                    args: [row, column]
+            on_click:
+              then:
+                - lvgl.table.cell.update:
+                    id: table_id
+                    row: 1
+                    column: 1
+                    text: !lambda return str_sprintf("%.1f", (float) rand() / RAND_MAX * 100);
+                    merge_right: false
+                - lvgl.table.update:
+                    id: table_id
+                    selected_row: !lambda return (int) ((float) rand() / RAND_MAX * 2);
+                    selected_column: 0
         - line:
             id: lv_line_id
             align: center

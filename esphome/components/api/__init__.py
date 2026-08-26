@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 
 from esphome import automation
@@ -499,6 +500,40 @@ async def to_code(config: ConfigType) -> None:
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 
+_ID_CALL_PROG = re.compile(r"\bid\s*\(")
+
+
+# Remove before 2027.3.0: untagged strings that look like lambda source keep
+# being compiled as lambdas during the deprecation window
+def _coerce_implicit_lambda(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    if cv.looks_like_returning_lambda(value):
+        _LOGGER.warning(
+            "[api] The 'variables' value '%s' looks like a lambda but is "
+            "missing the !lambda tag. It is compiled as a lambda for now but "
+            "will be sent as literal text from 2027.3.0. Add !lambda to keep "
+            "it evaluated; literal text belongs under 'data:'.",
+            value,
+        )
+        # cv.templatable runs returning_lambda on the coerced Lambda
+        return cv.lambda_(value)
+    if _ID_CALL_PROG.search(value):
+        # lambda source without a return: issue 5394's mistake class
+        _LOGGER.warning(
+            "[api] The 'variables' value '%s' is sent as literal text; wrap "
+            "it in !lambda 'return ...;' to evaluate it instead.",
+            value,
+        )
+    return value
+
+
+# Static strings or !lambda values. cv.templatable stays introspectable for
+# schema tooling; removing the shim leaves KEY_VALUE_SCHEMA.
+VARIABLES_SCHEMA = cv.Schema(
+    {cv.string: cv.All(_coerce_implicit_lambda, cv.templatable(cv.string_strict))}
+)
+
 
 def _validate_response_config(config: ConfigType) -> ConfigType:
     # Validate dependencies:
@@ -535,9 +570,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
             cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-            cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
-                {cv.string: cv.returning_lambda}
-            ),
+            cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
             cv.Optional(CONF_RESPONSE_TEMPLATE): cv.templatable(cv.string),
             cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
             cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
@@ -598,6 +631,8 @@ async def homeassistant_service_to_code(
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
@@ -652,7 +687,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_EVENT): validate_homeassistant_event,
         cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
         cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_VARIABLES, default={}): KEY_VALUE_SCHEMA,
+        cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
     }
 )
 
@@ -698,6 +733,8 @@ async def homeassistant_event_to_code(
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     return var
