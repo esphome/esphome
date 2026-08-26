@@ -13,9 +13,8 @@ import threading
 import time
 import traceback
 
-# esphome is not installed at this docker layer, so its rmtree helper is
-# out of reach; pio's fs.rmtree is the same chmod-on-readonly shape and
-# is what pio's own installer uses on these directories
+# esphome is not installed at this docker layer; pio's fs.rmtree is the
+# same chmod-on-readonly shape its own installer uses
 try:
     from platformio import fs
     from platformio.cache import ContentCache
@@ -29,11 +28,9 @@ except ImportError:  # pragma: no cover
     # image build; the tripwire test makes the drift loud in CI
     PARALLEL_AVAILABLE = False
 
-# Downloads are network bound and release the GIL, unpacks are CPU bound;
-# a fixed pool well past the core count keeps the network busy while
-# unpacks share the cores. This bypasses pio's 500ms registry throttle
-# and races its self-unlinking usage.db/http-cache LockFiles; both are
-# cache-only bookkeeping and self-healing.
+# Network-bound downloads release the GIL, so the pool oversubscribes
+# the cores. This bypasses pio's 500ms registry throttle and races its
+# self-unlinking cache LockFiles; both are cache-only and self-healing.
 MAX_WORKERS = 16
 
 
@@ -80,9 +77,8 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
                     split = tool.find("@")
                     tool = tool[split + 1 :]
                 tools.append(tool)
-    # Exact-string duplicates only: each costs the pkg install pass a
-    # lock and rescan cycle. Name-level dedupe would change which version
-    # conflicts the pass reconciles, so it stays out of scope here.
+    # Exact-string dedupe only: name-level dedupe would change which
+    # version conflicts the pkg install pass reconciles
     return (
         list(dict.fromkeys(libs)),
         list(dict.fromkeys(platforms)),
@@ -143,11 +139,9 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     if not specs:
         return
     manager = manager_cls(None)
-    # One spec per destination: platformio.ini repeats specs across env
-    # sections, and two threads must not extract into the same directory.
-    # Another spec for the same name, and URL specs (which install into a
-    # manifest-named dir the spec cannot predict), are left to the pkg
-    # install pass; a dependency's URL version surfaces as spec.uri.
+    # One spec per destination: two threads must not extract into the
+    # same directory. Second versions of a name and URL specs (their dir
+    # comes from the archive manifest) stay with the pkg install pass.
     seen_names: set = prior_names if prior_names is not None else set()
     # Wave-1 items are strings; dependency waves carry (spec, compatibility)
     pairs = [item if isinstance(item, tuple) else (item, None) for item in specs]
@@ -170,10 +164,8 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     if not pending:
         return
     workers = min(len(pending), MAX_WORKERS)
-    # One manager per worker thread: _install mutates per-instance state
-    # (_MEMORY_CACHE, _INSTALL_HISTORY, the registry client). Built
-    # serially, because every construction rewires the shared manager
-    # logger and concurrent handler swaps drop log lines.
+    # One manager per worker (_install mutates instance state); built
+    # serially because construction rewires the shared manager logger
     managers: queue.SimpleQueue = queue.SimpleQueue()
     for _ in range(workers):
         managers.put(manager_cls(None))
@@ -193,27 +185,23 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
                 scan_err = None
                 break
             except Exception as err:  # noqa: BLE001
-                # Likely a transient read of another worker's in-flight
-                # copy; retry before deciding anything destructive
+                # Likely another worker's in-flight copy; retry first
                 scan_err = err
                 time.sleep(0.2)
         if scan_err is not None:
-            # Persistently unverifiable: a torn destination the serial
-            # pass would trust may remain, so the build must fail
+            # Unverifiable: a trusted torn destination may remain
             raise CleanupError(
                 f"could not verify the failed pre-install of {spec}: {scan_err!r}"
             ) from scan_err
         if pkg is None:
-            # Visible: an unresolvable torn directory is indistinguishable
-            # from nothing-to-clean without this line
+            # An unresolvable torn dir must not look like nothing-to-clean
             print(f"No resolvable destination to clean for {spec}", flush=True)
             return
         # fs.rmtree never raises (errors go to a printing onexc handler);
         # only the destination's absence proves the cleanup worked
         fs.rmtree(pkg.path)
         if Path(pkg.path).exists():
-            # The serial pass would trust this directory; failing the
-            # build beats baking a corrupt image
+            # Failing the build beats baking a corrupt image
             raise CleanupError(
                 f"could not remove the failed pre-install of {spec} at {pkg.path}"
             )
@@ -228,9 +216,7 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             )
             return True
         except (AttributeError, TypeError) as err:
-            # A PlatformIO API break, not a flaky package; clean the torn
-            # destination, then surface it so total degradation reads
-            # differently from a network blip
+            # A pio API break, not a flaky package; clean, then surface it
             print(f"Pre-install of {spec} hit an API break ({err!r})", flush=True)
             clean_torn(mgr, spec)
             raise
@@ -240,9 +226,8 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             return False
 
     print(f"Preinstalling {len(pending)} package(s) with {workers} workers", flush=True)
-    # PlatformIO creates these lazily with a bare isdir/makedirs; touch
-    # them once serially so cold-cache workers never race the creation,
-    # and re-create with exist_ok in case pio moves the side effect
+    # pio creates these lazily without exist_ok; touch them serially so
+    # cold-cache workers never race the creation
     for lazy_dir in (manager.get_download_dir(), manager.get_tmp_dir()):
         Path(lazy_dir).mkdir(parents=True, exist_ok=True)
     ContentCache("http")
@@ -251,8 +236,8 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = [ex.submit(install_one, item) for item in pending]
-        # All futures are done (the with-block joins); drain every one so
-        # a concurrent CleanupError is never dropped by iteration order
+        # The with-block joined every future; drain them all so a
+        # concurrent CleanupError is never dropped
         errors = [err for f in futures if (err := f.exception()) is not None]
         for err in errors:
             # Every failure is on the record; the raised one is a summary
@@ -276,18 +261,16 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         except OSError as chdir_err:
             print(f"Could not restore the working dir ({chdir_err!r})", flush=True)
     if failures := len(results) - sum(results):
-        # Visible once per wave. The stock pass retries CLI specs and,
-        # for already-installed packages, re-walks their dependencies
-        # (_install without skip_dependencies), so failed deps retry too
+        # The stock pass retries CLI specs and re-walks installed
+        # packages' dependencies, so failed deps retry too
         print(
             f"Pre-install failed for {failures} of {len(results)} package(s); "
             "pkg install retries them serially",
             flush=True,
         )
 
-    # The wave skipped dependencies (a shared one must not extract from two
-    # threads); collect them from the installed manifests, dedupe by name,
-    # and run them as the next wave until nothing new appears
+    # Waves skip dependencies (a shared one must not extract from two
+    # threads); the installed manifests feed the next wave
     seen_names.update(unique)
     # The pre-wave get_package calls memoized an empty storage snapshot
     manager.memcache_reset()
