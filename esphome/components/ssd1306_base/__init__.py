@@ -15,6 +15,8 @@ from esphome.const import (
     CONF_OFFSET_Y,
     CONF_RESET_PIN,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 ssd1306_base_ns = cg.esphome_ns.namespace("ssd1306_base")
 SSD1306 = ssd1306_base_ns.class_("SSD1306", cg.PollingComponent, display.DisplayBuffer)
@@ -40,7 +42,7 @@ MODELS = {
 SSD1306_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 
-def _validate(value):
+def _validate(value: ConfigType) -> ConfigType:
     model = value[CONF_MODEL]
     if (
         model not in ("SSD1305_128X32", "SSD1305_128X64")
@@ -73,7 +75,7 @@ SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_ssd1306(var, config):
+async def setup_ssd1306(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))

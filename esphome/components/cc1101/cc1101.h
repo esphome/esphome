@@ -71,6 +71,17 @@ class CC1101Component final : public Component,
   void set_wait_time(WaitTime value);
   void set_hyst_level(HystLevel value);
 
+  // Frequency offset compensation and bit synchronization settings
+  void set_foc_bs_cs_gate(bool value);
+  void set_foc_limit(FocLimit value);
+  void set_foc_pre_k(FocPreK value);
+  void set_foc_post_k(FocPostK value);
+  void set_bs_limit(BsLimit value);
+  void set_bs_pre_ki(BsPreKi value);
+  void set_bs_pre_kp(BsPreKp value);
+  void set_bs_post_ki(BsPostKi value);
+  void set_bs_post_kp(BsPostKp value);
+
   // Packet mode settings
   void set_packet_mode(bool value);
   void set_packet_length(uint8_t value);

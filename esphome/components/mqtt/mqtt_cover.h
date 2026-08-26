@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt {
 
-class MQTTCoverComponent : public mqtt::MQTTComponent {
+class MQTTCoverComponent final : public mqtt::MQTTComponent {
  public:
   explicit MQTTCoverComponent(cover::Cover *cover);
 

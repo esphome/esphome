@@ -10,9 +10,9 @@
 namespace esphome::wifi_signal {
 
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-class WiFiSignalSensor : public sensor::Sensor, public PollingComponent, public wifi::WiFiConnectStateListener {
+class WiFiSignalSensor final : public sensor::Sensor, public PollingComponent, public wifi::WiFiConnectStateListener {
 #else
-class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
+class WiFiSignalSensor final : public sensor::Sensor, public PollingComponent {
 #endif
  public:
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS

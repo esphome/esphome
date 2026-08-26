@@ -71,10 +71,10 @@ void MICS4514Component::update() {
     float co = 0.0f;
     if (red_f > 3.4f) {
       co = 0.0;
-    } else if (red_f < 0.01) {
+    } else if (red_f < 0.01f) {
       co = 1000.0;
     } else {
-      co = 4.2 / pow(red_f, 1.2);
+      co = 4.2f / powf(red_f, 1.2f);
     }
     this->carbon_monoxide_sensor_->publish_state(co);
   }
@@ -84,47 +84,47 @@ void MICS4514Component::update() {
     if (ox_f < 0.3f) {
       nitrogendioxide = 0.0;
     } else {
-      nitrogendioxide = 0.164 * pow(ox_f, 0.975);
+      nitrogendioxide = 0.164f * powf(ox_f, 0.975f);
     }
     this->nitrogen_dioxide_sensor_->publish_state(nitrogendioxide);
   }
 
   if (this->methane_sensor_ != nullptr) {
     float methane = 0.0f;
-    if (red_f > 0.9f || red_f < 0.5) {  // outside the range->unlikely
+    if (red_f > 0.9f || red_f < 0.5f) {  // outside the range->unlikely
       methane = 0.0;
     } else {
-      methane = 630 / pow(red_f, 4.4);
+      methane = 630 / powf(red_f, 4.4f);
     }
     this->methane_sensor_->publish_state(methane);
   }
 
   if (this->ethanol_sensor_ != nullptr) {
     float ethanol = 0.0f;
-    if (red_f > 1.0f || red_f < 0.02) {  // outside the range->unlikely
+    if (red_f > 1.0f || red_f < 0.02f) {  // outside the range->unlikely
       ethanol = 0.0;
     } else {
-      ethanol = 1.52 / pow(red_f, 1.55);
+      ethanol = 1.52f / powf(red_f, 1.55f);
     }
     this->ethanol_sensor_->publish_state(ethanol);
   }
 
   if (this->hydrogen_sensor_ != nullptr) {
     float hydrogen = 0.0f;
-    if (red_f > 0.9f || red_f < 0.02) {  // outside the range->unlikely
+    if (red_f > 0.9f || red_f < 0.02f) {  // outside the range->unlikely
       hydrogen = 0.0;
     } else {
-      hydrogen = 0.85 / pow(red_f, 1.75);
+      hydrogen = 0.85f / powf(red_f, 1.75f);
     }
     this->hydrogen_sensor_->publish_state(hydrogen);
   }
 
   if (this->ammonia_sensor_ != nullptr) {
     float ammonia = 0.0f;
-    if (red_f > 0.98f || red_f < 0.2532) {  // outside the ammonia range->unlikely
+    if (red_f > 0.98f || red_f < 0.2532f) {  // outside the ammonia range->unlikely
       ammonia = 0.0;
     } else {
-      ammonia = 0.9 / pow(red_f, 4.6);
+      ammonia = 0.9f / powf(red_f, 4.6f);
     }
     this->ammonia_sensor_->publish_state(ammonia);
   }

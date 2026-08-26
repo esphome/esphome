@@ -1,0 +1,24 @@
+# Legacy top-level `image:` structured form using single-dict (non-list) values
+# for `images:`, a type group, and a transparency group -- the old `ensure_list`
+# accepted a bare dict in each of these places. Deprecated; migrates to
+# `platform: file`. Config-only test exercising the deprecation/migration path.
+display:
+  - platform: sdl
+    id: image_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 480
+      height: 480
+
+image:
+  images:
+    id: legacy_images_single_dict
+    file: ../../pnglogo.png
+    type: rgb565
+  rgb565:
+    id: legacy_grouped_type_single_dict
+    file: ../../pnglogo.png
+  rgb:
+    alpha_channel:
+      id: legacy_grouped_transparency_single_dict
+      file: ../../pnglogo.png

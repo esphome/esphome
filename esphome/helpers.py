@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import MutableMapping
+from collections.abc import Iterable, MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -8,12 +8,9 @@ import os
 from pathlib import Path
 import platform
 import re
-import shutil
 import stat
 import sys
-import tempfile
 from typing import TYPE_CHECKING, TextIO
-from urllib.parse import urlparse
 
 from esphome.const import __version__ as ESPHOME_VERSION
 
@@ -33,6 +30,14 @@ IPv6SockAddr = tuple[str, int, int, int]  # (host, port, flowinfo, scope_id)
 SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
+
+# cv.boolean's closed spelling tables, shared with the strict env-knob
+# parser (build_helpers.ccache.parse_enable_env)
+TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
+FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
+# cv.boolean's spelling tables plus the 1/0 env convention
+TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
+FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
 
 IS_MACOS = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
@@ -56,13 +61,18 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
-def fnv1_hash(string: str) -> int:
-    """FNV-1 32-bit hash function (multiply then XOR)."""
+def _fnv1_hash(values: Iterable[int]) -> int:
+    """FNV-1 32-bit hash (multiply then XOR) over a sequence of integer values."""
     hash_value = FNV1_OFFSET_BASIS
-    for char in string:
+    for value in values:
         hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
-        hash_value ^= ord(char)
+        hash_value ^= value
     return hash_value
+
+
+def fnv1_hash(string: str) -> int:
+    """FNV-1 32-bit hash function (multiply then XOR) over code points."""
+    return _fnv1_hash(map(ord, string))
 
 
 def fnv1a_32bit_hash(string: str) -> int:
@@ -90,9 +100,19 @@ def fnv1_hash_object_id(name: str) -> int:
     """Compute FNV-1 hash of name with snake_case + sanitize transformations.
 
     IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
-    Used for pre-computing entity object_id hashes at code generation time.
+    If you modify this function, update the C++ version and tests in both places.
     """
     return fnv1_hash(sanitize(snake_case(name)))
+
+
+def fnv1_hash_name(name: str) -> int:
+    """Compute FNV-1 hash of the raw entity name (UTF-8 bytes, no transformations).
+
+    2026.8 beta firmware stored preferences under keys derived from this hash;
+    a future key migration must reconstruct those keys to recover that data
+    (see https://github.com/esphome/backlog/issues/85).
+    """
+    return _fnv1_hash(name.encode("utf-8"))
 
 
 def strip_accents(value: str) -> str:
@@ -146,6 +166,21 @@ def indent_list(text, padding="  "):
 
 def indent(text, padding="  "):
     return "\n".join(indent_list(text, padding))
+
+
+def format_duration(seconds: float) -> str:
+    """Format a duration in seconds as a short string like "1d 2h" or "42s".
+
+    Uses the two largest non-zero units, with unit suffixes matching the YAML
+    time period shorthand (d, h, min, s).
+    """
+    remainder = max(0, int(seconds))
+    parts = []
+    for suffix, length in (("d", 86400), ("h", 3600), ("min", 60), ("s", 1)):
+        value, remainder = divmod(remainder, length)
+        if value:
+            parts.append(f"{value}{suffix}")
+    return " ".join(parts[:2]) if parts else "0s"
 
 
 # From https://stackoverflow.com/a/14945195/8924614
@@ -246,6 +281,9 @@ def resolve_ip_address(
         hosts = host
     else:
         if not is_ip_address(host):
+            # Deferred: upload/logs with an IP target never parse a URL.
+            from urllib.parse import urlparse
+
             url = urlparse(host)
             if url.scheme != "":
                 host = url.hostname
@@ -322,6 +360,24 @@ def resolve_ip_address(
     return res
 
 
+def format_ip_url(family: int, sockaddr: tuple, port: int, path: str) -> str:
+    """Build an ``http://host:port/path`` URL for a resolved address.
+
+    ``family``/``sockaddr`` come from a :func:`resolve_ip_address` entry. IPv6
+    literals must be wrapped in brackets in URLs; link-local addresses need a
+    percent-encoded zone index per RFC 6874.
+    """
+    import socket
+
+    ip = sockaddr[0]
+    if family == socket.AF_INET6:
+        scope = sockaddr[3] if len(sockaddr) >= 4 else 0
+        host_part = f"[{ip}%25{scope}]" if scope else f"[{ip}]"
+    else:
+        host_part = ip
+    return f"http://{host_part}:{port}{path}"
+
+
 def sort_ip_addresses(address_list: list[str]) -> list[str]:
     """Takes a list of IP addresses in string form, e.g. from mDNS or MQTT,
     and sorts them into the best order to actually try connecting to them.
@@ -347,12 +403,14 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
 
 
 def get_bool_env(var, default=False):
+    """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
+    anything else falls through to ``bool(value)``."""
     value = os.getenv(var, default)
     if isinstance(value, str):
         value = value.lower()
-        if value in ["1", "true"]:
+        if value in TRUTHY_ENV_STRINGS:
             return True
-        if value in ["0", "false"]:
+        if value in FALSY_ENV_STRINGS:
             return False
     return bool(value)
 
@@ -397,17 +455,15 @@ def rmtree(path: Path | str) -> None:
     read-only flag and retrying.
     """
 
-    def _onerror(func, path, exc_info):
+    import shutil
+
+    def _onexc(func, path, exc):
         if os.access(path, os.W_OK):
-            raise exc_info[1].with_traceback(exc_info[2])
+            raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    # ``onerror`` is deprecated in 3.12 in favour of ``onexc`` (different
-    # callable signature); keep the existing handler shape for now and
-    # silence the lint locally so this PR doesn't bundle an unrelated
-    # migration.
-    shutil.rmtree(path, onerror=_onerror)  # pylint: disable=deprecated-argument
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):
@@ -438,6 +494,11 @@ def _write_file(
 
     Automatically creates all parent directories.
     """
+    # Deferred: a cache-hit upload/logs run never writes a file; keep the
+    # tempfile/shutil chain (bz2, lzma, random) off that path.
+    import shutil
+    import tempfile
+
     data = text
     if isinstance(text, str):
         data = text.encode()
@@ -501,7 +562,18 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     """
     src_content = None
     if path.is_file():
-        src_content = read_file(path)
+        try:
+            src_content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as err:
+            # Replace a damaged file rather than abort the regeneration that
+            # fixes it; an OSError may hide an intact file, so it still raises
+            _LOGGER.warning("Replacing damaged file %s: %s", path, err)
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+        except OSError as err:
+            from esphome.core import EsphomeError
+
+            raise EsphomeError(f"Error reading file {path}: {err}") from err
     if src_content == text:
         return False
     write_file(path, text)
@@ -513,6 +585,8 @@ def copy_file_if_changed(src: Path, dst: Path) -> bool:
 
     Returns True if file was copied, False if files already matched.
     """
+    import shutil
+
     if file_compare(src, dst):
         return False
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -616,7 +690,7 @@ def add_class_to_obj(value, cls):
         raise
 
 
-def snake_case(value):
+def snake_case(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_snake_case`."""
     return value.replace(" ", "_").lower()
 
@@ -624,7 +698,7 @@ def snake_case(value):
 _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 
 
-def sanitize(value):
+def sanitize(value: str) -> str:
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
 
@@ -665,16 +739,27 @@ class ProgressBar:
         sys.stderr.flush()
 
     def done(self) -> None:
-        if not self.enabled:
+        # No frame drawn, or the 100% frame already ended its own line
+        if not self.enabled or self.last_progress is None or self.last_progress == 100:
             return
         sys.stderr.write("\n")
         sys.stderr.flush()
+
+    def interrupt(self) -> None:
+        """End a mid-row frame so the next write starts on its own row.
+
+        The next ``update()`` redraws the bar; a finished bar stays done.
+        """
+        if self.last_progress == 100:
+            return
+        self.done()
+        self.last_progress = None
 
 
 def docs_url(path: str) -> str:
     """Return the URL to the documentation for a given path."""
     # Local import to avoid circular import
-    from esphome.config_validation import Version
+    from esphome.core import Version
 
     version = Version.parse(ESPHOME_VERSION)
     if version.is_beta:

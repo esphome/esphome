@@ -1,0 +1,3 @@
+packages:
+  modbus: !include ../../test_build_components/common/modbus/esp8266-ard.yaml
+  modbus_client: !include common.yaml

@@ -13,12 +13,7 @@ import pytest
 import voluptuous as vol
 
 from esphome import config_validation as cv
-import esphome.components.lvgl
-from esphome.components.lvgl import (
-    _theme_schema,
-    defines as df,
-    schemas as lvgl_schemas,
-)
+from esphome.components.lvgl import defines as df, schemas as lvgl_schemas
 from esphome.components.lvgl.schemas import (
     ALIGN_TO_SCHEMA,
     FLAG_SCHEMA,
@@ -31,6 +26,8 @@ from esphome.components.lvgl.schemas import (
     obj_schema,
     part_dict,
     part_schema,
+    theme_schema,
+    theme_update_schema,
 )
 from esphome.components.lvgl.types import LvType
 from esphome.components.lvgl.widgets import WidgetType
@@ -43,7 +40,7 @@ def _clear_obj_dict_cache() -> Generator[None]:
         cache.clear()
     # The lazily-built theme schema is cached on _build_theme_schema; clear it
     # too so each test starts from a clean slate.
-    build_theme = getattr(esphome.components.lvgl, "_build_theme_schema", None)
+    build_theme = getattr(lvgl_schemas, "_build_theme_schema", None)
     if build_theme is not None and hasattr(build_theme, "cache_clear"):
         build_theme.cache_clear()
     yield
@@ -173,12 +170,12 @@ def test_spread_sources_carry_no_extra_schemas(schema: cv.Schema) -> None:
 
 
 def test_theme_schema_merges_obj_dict_and_full_style_props() -> None:
-    # _theme_schema is the riskiest merge: obj_dict(w) and FULL_STYLE_SCHEMA.schema
+    # theme_schema is the riskiest merge: obj_dict(w) and FULL_STYLE_SCHEMA.schema
     # share many STYLE_SCHEMA marker instances. Exercise the merged schema
     # end-to-end with one key from each side (a STATE_SCHEMA part from obj_dict
     # and a FULL_STYLE-only property) to lock the behaviour against future
     # regressions in either source.
-    out = _theme_schema(
+    out = theme_schema(
         {
             df.CONF_DARK_MODE: True,
             "obj": {
@@ -202,7 +199,7 @@ def test_theme_schema_self_heals_when_a_widget_type_is_registered_later() -> Non
     # any_widget_schema explicitly supports external components registering
     # widgets lazily, and the device builder revalidates in-process, so a
     # widget registered after first use must invalidate the cached snapshot.
-    _theme_schema({df.CONF_DARK_MODE: True})  # populate the cache
+    theme_schema({df.CONF_DARK_MODE: True})  # populate the cache
 
     name = "test_self_heal_widget"
     assert name not in WIDGET_TYPES
@@ -210,10 +207,60 @@ def test_theme_schema_self_heals_when_a_widget_type_is_registered_later() -> Non
     # manually so the next theme call sees the new entry.
     WIDGET_TYPES[name] = WidgetType(name, LvType("test_fake_t"), (), is_mock=True)
     try:
-        out = _theme_schema({df.CONF_DARK_MODE: False, name: {"bg_color": 0x010203}})
+        out = theme_schema({df.CONF_DARK_MODE: False, name: {"bg_color": 0x010203}})
         assert out[name]["bg_color"] == 0x010203
     finally:
         WIDGET_TYPES.pop(name, None)
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_path"),
+    [
+        ({"button": {"styles": ["foo"]}}, ["button", "styles"]),
+        (
+            {"button": {"pressed": {"styles": ["foo"]}}},
+            ["button", "pressed", "styles"],
+        ),
+        (
+            {"arc": {"indicator": {"styles": ["foo"]}}},
+            ["arc", "indicator", "styles"],
+        ),
+        (
+            {"arc": {"indicator": {"pressed": {"styles": ["foo"]}}}},
+            ["arc", "indicator", "pressed", "styles"],
+        ),
+    ],
+)
+def test_theme_schema_rejects_styles_key(
+    config: dict, expected_path: list[str]
+) -> None:
+    # `styles:` (references to named styles) is accepted by FULL_STYLE_SCHEMA
+    # but silently dropped by style_set when building a theme's hidden style
+    # -- it only walks ALL_STYLES. Reject it instead of quietly doing nothing,
+    # at the top level and when nested under a part and/or state.
+    with pytest.raises(vol.Invalid, match="'styles:' is not allowed") as exc_info:
+        theme_schema(config)
+    assert exc_info.value.path == expected_path
+
+
+def test_theme_update_schema_rejects_styles_key() -> None:
+    with pytest.raises(vol.Invalid, match="'styles:' is not allowed") as exc_info:
+        theme_update_schema({"label": {"styles": ["foo"]}})
+    assert exc_info.value.path == ["label", "styles"]
+
+
+def test_theme_update_schema_does_not_request_untargeted_main_default() -> None:
+    # collect_parts() unconditionally seeds a main/default entry even when
+    # only a specific state (here "pressed") was targeted -- registering a
+    # request for that spurious entry would make theme_to_code create an
+    # unused, empty style and attach it to every widget of this type.
+    theme_update_schema({"label": {"pressed": {"text_color": 0x010203}}})
+    assert df.get_theme_update_requests()["label"] == {("main", "pressed"): None}
+
+
+def test_theme_update_schema_requests_explicit_main_default() -> None:
+    theme_update_schema({"label": {"text_color": 0x010203}})
+    assert df.get_theme_update_requests()["label"] == {("main", "default"): None}
 
 
 @pytest.mark.parametrize(
@@ -221,7 +268,7 @@ def test_theme_schema_self_heals_when_a_widget_type_is_registered_later() -> Non
     [STATE_SCHEMA, FLAG_SCHEMA, STYLE_SCHEMA, FULL_STYLE_SCHEMA],
 )
 def test_spread_sources_have_no_top_level_marker_defaults(schema: cv.Schema) -> None:
-    # _theme_schema merges obj_dict(w) with FULL_STYLE_SCHEMA.schema; on a key
+    # theme_schema merges obj_dict(w) with FULL_STYLE_SCHEMA.schema; on a key
     # collision, dict-spread keeps the first source's marker (and its default)
     # but the last source's value, whereas .extend() would take both from the
     # later source. The two are equivalent today because the overlapping

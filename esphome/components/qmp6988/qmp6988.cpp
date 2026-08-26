@@ -276,7 +276,7 @@ void QMP6988Component::write_oversampling_temperature_(QMP6988Oversampling overs
 
 void QMP6988Component::calculate_altitude_(float pressure, float temp) {
   float altitude;
-  altitude = (pow((101325 / pressure), 1 / 5.257) - 1) * (temp + 273.15) / 0.0065;
+  altitude = (powf((101325 / pressure), 1 / 5.257f) - 1) * (temp + 273.15f) / 0.0065f;
   this->qmp6988_data_.altitude = altitude;
 }
 
