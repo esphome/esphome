@@ -71,9 +71,12 @@ def _sweep_stale_sidecars(download_dir: Path) -> None:
         for f in download_dir.iterdir():
             if f.suffix not in (".part", ".meta", ".prefetch", ".lock"):
                 continue
-            with suppress(OSError):
+            try:
                 if f.stat().st_mtime < cutoff:
                     f.unlink()
+            except OSError as err:
+                # An unprunable sidecar grows the cache forever otherwise
+                _LOGGER.debug("Could not remove %s: %s", f, err)
     except OSError:
         _LOGGER.debug("Could not sweep %s", download_dir, exc_info=True)
 
@@ -246,7 +249,9 @@ def _registry_jobs(
         if str(dl_path) in seen:
             continue  # duplicate spec; two workers must not share a .part
         seen.add(str(dl_path))
-        jobs.append((name, size, _registry_fetch_job(url, dl_path, checksum, size)))
+        jobs.append(
+            (name, size, _registry_fetch_job(manager, url, dl_path, checksum, size))
+        )
     if failed := len(errors):
         # Visible once per build, naming a cause so an API break does not
         # read as an outage; per-spec detail stays at debug
@@ -284,16 +289,20 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
         seen.add(str(dl_path))
         candidates.append((spec.name or url.rsplit("/", 1)[-1], url, dl_path))
 
+    errors: list[str] = []
+
     def _head_size(url: str) -> int:
         try:
             resp = fetch_with_retry(url, lambda: http_request("HEAD", url, timeout=30))
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             _LOGGER.debug("HEAD %s failed", url, exc_info=True)
+            errors.append(failure_reason(err))
             return -1
         if not resp.ok:
             # An error page's Content-Length is not a download size
             _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
             if resp.status_code in (408, 429) or resp.status_code >= 500:
+                errors.append(f"HTTP {resp.status_code}")
                 return -1  # transient; must not be cached as warm
             if resp.status_code in (405, 501):
                 # HEAD unsupported but GET may work: a clean skip, or the
@@ -315,26 +324,32 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
         if size < 0:
             failed += 1
         elif size:
-            jobs.append((name, size, _uri_fetch_job(url, dl_path, size)))
+            jobs.append((name, size, _uri_fetch_job(manager, url, dl_path, size)))
     if failed:
         _LOGGER.warning(
-            "Could not size %d of %d PlatformIO package URL(s); "
+            "Could not size %d of %d PlatformIO package URL(s) (%s); "
             "PlatformIO will download them serially",
             failed,
             len(candidates),
+            errors[0] if errors else "no length",
         )
     return jobs, failed
 
 
-def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
+def _serialized_fetch_job(
+    dl_path: Path, lock_path: str, body: Any, unlocked_ok: bool = True
+) -> Any:
     """Wrap ``body`` so the shared destination is single-writer.
 
     Any download landing in PlatformIO's shared core dir can race a
     sibling esphome process writing the same ``.part``; interleaved
     writers truncate each other's bytes (see registry.py). A bounded
-    poll keeps a parked worker observing Ctrl-C via the tracker, a
-    blown deadline is a counted failure, and a lock-less filesystem
-    (git.py's ENOSYS/EPERM case) proceeds unlocked with one warning.
+    poll keeps a parked worker observing Ctrl-C via the tracker and a
+    blown deadline is a counted failure. On a lock-less filesystem
+    (git.py's ENOSYS/EPERM case) a sha256-verified body proceeds
+    unlocked with one warning; a checksum-less one becomes a counted
+    failure, since interleaved right-length corruption would go
+    undetected.
     """
 
     def run(tracker: Any) -> None:
@@ -358,9 +373,13 @@ def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
                         "timed out waiting for another download of the same file"
                     ) from None
             except OSError as err:
-                if err.errno not in (errno.ENOSYS, errno.EPERM, errno.EROFS):
-                    # EACCES/ENOSPC/EMFILE are real faults; an unlocked
-                    # write of a shared destination is not a safe fallback
+                if not unlocked_ok or err.errno not in (
+                    errno.ENOSYS,
+                    errno.EPERM,
+                    errno.EROFS,
+                ):
+                    # Real faults (EACCES/ENOSPC/EMFILE), or a body with no
+                    # checksum to catch interleaved corruption
                     raise
                 lock = None
                 _LOGGER.warning(
@@ -380,18 +399,33 @@ def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
     return run
 
 
-def _registry_fetch_job(url: str, dl_path: Path, checksum: str, size: int) -> Any:
+def _register_download(manager: Any, dl_path: Path) -> None:
+    """Hand the archive to pio's usage.db pruner; without an entry an
+    archive nothing ever consumes would be stranded at any age."""
+    with suppress(Exception):
+        manager.set_download_utime(str(dl_path))
+
+
+def _registry_fetch_job(
+    manager: Any, url: str, dl_path: Path, checksum: str, size: int
+) -> Any:
     """A locked fetch straight to the cache path; sha256 verifies it."""
     # .esphome.lock: pio's own LockFile(dl_path) owns <dl_path>.lock and
     # deletes it on release, which would unlink a held filelock
-    return _serialized_fetch_job(
+    fetch = _serialized_fetch_job(
         dl_path,
         f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
     )
 
+    def run(tracker: Any) -> None:
+        fetch(tracker)
+        _register_download(manager, dl_path)
 
-def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
+    return run
+
+
+def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
     """Fetch to a locked staging path, then rename into the cache.
 
     URL specs carry no checksum, so a same-length corrupt file could be
@@ -411,11 +445,14 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
         tmp.replace(dl_path)
 
     def run(tracker: Any) -> None:
-        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote)(tracker)
+        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote, unlocked_ok=False)(
+            tracker
+        )
         if dl_path.is_file():
             # Won or lost, the race is over; staging files left behind
             # are dead weight PlatformIO's cache never prunes
             discard_partial_download(tmp)
+            _register_download(manager, dl_path)
 
     return run
 
