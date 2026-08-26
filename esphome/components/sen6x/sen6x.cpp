@@ -186,16 +186,14 @@ void SEN6XComponent::run_next_setup_step_() {
     case 2:
       this->setup_step_index_++;
       if (this->temperature_compensation_.has_value()) {
-        if (!this->write_temperature_compensation_(this->temperature_compensation_.value()))
-          return;
+        this->write_temperature_compensation_(this->temperature_compensation_.value());
         break;
       }
       [[fallthrough]];
     case 3:
       this->setup_step_index_++;
       if (this->temperature_acceleration_.has_value()) {
-        if (!this->write_temperature_acceleration_(this->temperature_acceleration_.value()))
-          return;
+        this->write_temperature_acceleration_(this->temperature_acceleration_.value());
         break;
       }
       [[fallthrough]];
