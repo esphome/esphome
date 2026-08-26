@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import signal
 import sys
 import threading
 from types import SimpleNamespace
@@ -20,12 +21,14 @@ def _core(tmp_path: Path):
     CORE.build_path = str(tmp_path)
     CORE.name = "testenv"
     saved_bar = os.environ.get("PLATFORMIO_DISABLE_PROGRESSBAR")
+    saved_sigterm = signal.getsignal(signal.SIGTERM)
     yield
-    # _preinstall sets this process-wide; keep the suite hermetic
+    # _preinstall and main() set these process-wide; keep the suite hermetic
     if saved_bar is None:
         os.environ.pop("PLATFORMIO_DISABLE_PROGRESSBAR", None)
     else:
         os.environ["PLATFORMIO_DISABLE_PROGRESSBAR"] = saved_bar
+    signal.signal(signal.SIGTERM, saved_sigterm)
     CORE.reset()
 
 
@@ -46,6 +49,7 @@ def _fake_manager(tmp_path: Path) -> MagicMock:
     m.__class__ = lambda package_dir=None, **kwargs: m
     m.get_package.return_value = None
     m.compatibility = None
+    m.is_builtin_lib.return_value = False
     m.search_registry_packages.return_value = [{"any": 1}]
     m.find_best_registry_version.return_value = (
         {"name": "toolchain-xtensa"},
@@ -566,9 +570,29 @@ def test_dependency_entries_honor_compatibility(tmp_path: Path) -> None:
     assert [name for name, _ in entries] == ["espdep"]
 
 
+def test_dependency_entries_skip_builtin_libs(tmp_path: Path) -> None:
+    """An owner-less versioned dep naming a framework builtin (the dict
+    manifest form of SPI/Wire) is skipped like pio's install_dependency;
+    a registry copy would shadow the bundled library."""
+    m = _fake_manager(tmp_path)
+    m.is_builtin_lib.side_effect = lambda name: name == "SPI"
+    m.get_package.side_effect = lambda spec: (
+        SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
+    )
+    m.get_pkg_dependencies.return_value = [
+        {"name": "SPI", "version": "*"},
+        {"name": "realdep", "version": "^1"},
+    ]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    entries = pf._dependency_entries(
+        m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
+    )
+    assert [name for name, _ in entries] == ["realdep"]
+
+
 def test_prefetch_interrupt_stops_child_gracefully() -> None:
-    """A KeyboardInterrupt terminates the child (never SIGKILL first) and
-    re-raises."""
+    """On Ctrl-C the stop sequence waits first; a child that exits on its
+    own is never signalled, and the interrupt re-raises."""
     proc = MagicMock()
     proc.wait.side_effect = [KeyboardInterrupt(), 0]
     with (
@@ -1149,6 +1173,8 @@ def test_platformio_private_api_contract() -> None:
         "dependency_to_spec",
     ):
         assert callable(getattr(BasePackageManager, name))
+    # The dependency wave mirrors install_dependency's builtin skip
+    assert callable(LibraryPackageManager.is_builtin_lib)
     # The pre-install passes these positionally / by keyword
     assert "compatibility" in inspect.signature(BasePackageManager.__init__).parameters
     lib_params = inspect.signature(LibraryPackageManager.__init__).parameters

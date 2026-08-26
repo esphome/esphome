@@ -440,6 +440,7 @@ def _dependency_entries(
     from platformio.package.meta import PackageCompatibility
 
     compatibility = getattr(manager, "compatibility", None)
+    is_builtin = getattr(manager, "is_builtin_lib", None)
     deps: dict[str, Any] = {}
     for _name, spec in entries:
         if (pkg := manager.get_package(spec)) is None:
@@ -452,6 +453,15 @@ def _dependency_entries(
             ).is_compatible(compatibility):
                 continue  # pio's install_dependency would skip it too
             dspec = manager.dependency_to_spec(dep)
+            if (
+                is_builtin
+                and not dspec.owner
+                and not dspec.external
+                and is_builtin(dspec.name)
+            ):
+                # pio's LibraryPackageManager.install_dependency skips
+                # builtins; a registry copy would shadow the bundled one
+                continue
             if (key := (dspec.name or "").lower()) and key not in seen_names:
                 if manager.get_package(dspec) is not None:
                     continue  # already installed
@@ -515,7 +525,9 @@ def _preinstall(
         ", ".join(name for name, _ in entries),
     )
     # Postinstall scripts chdir process-globally; the cwd is restored
-    # after the pool. Suppress interleaved click progress bars.
+    # after the pool. Concurrent postinstalls can still race pio's
+    # non-reentrant fs.cd mid-pool; that install fails, warns, and is
+    # redone serially by pio run. Suppress interleaved progress bars.
     os.environ.setdefault("PLATFORMIO_DISABLE_PROGRESSBAR", "true")
     cwd = Path.cwd()
     manager.lock()
