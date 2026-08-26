@@ -7,9 +7,8 @@ loading a platform executes its code (pioarduino's penv setup rewrites
 ``sys.path``). A sentinel in the build dir lets warm builds skip the
 spawn. Best-effort: any failure logs and PlatformIO downloads as before.
 Across processes sharing a core dir every download destination is
-serialized by a file lock (interleaved writers truncate each other's
-bytes); URL downloads carry no checksum, so they additionally stage
-under a stable name and promote with an atomic rename.
+serialized by a file lock; checksum-less URL downloads additionally
+stage under a stable name and promote with an atomic rename.
 """
 
 from __future__ import annotations
@@ -64,13 +63,11 @@ _SIDECAR_EXPIRE_SECONDS = 30 * 24 * 3600
 
 
 def _sweep_stale_sidecars(download_dir: Path) -> None:
-    """Prune abandoned resume/lock files pio's cache pruner cannot see.
+    """Prune resume sidecars pio's usage.db pruner cannot see.
 
-    A version bump changes the cache key, stranding an aborted archive's
-    sidecars forever; anything past pio's own expiry is dead weight.
-    Lock files are excluded: O_TRUNC does not refresh mtime, so a held
-    lock can look ancient, and unlinking it would reopen the
-    interleaved-writer hole it guards (they are a few bytes anyway).
+    A version bump strands an aborted archive's sidecars forever. Lock
+    files stay: a held lock can carry an ancient mtime (O_TRUNC keeps
+    it), and unlinking one reopens the single-writer hole it guards.
     """
     cutoff = time.time() - _SIDECAR_EXPIRE_SECONDS
     try:
@@ -81,7 +78,6 @@ def _sweep_stale_sidecars(download_dir: Path) -> None:
                 if f.stat().st_mtime < cutoff:
                     f.unlink()
             except OSError as err:
-                # An unprunable sidecar grows the cache forever otherwise
                 _LOGGER.debug("Could not remove %s: %s", f, err)
     except OSError:
         _LOGGER.debug("Could not sweep %s", download_dir, exc_info=True)
@@ -355,15 +351,11 @@ def _serialized_fetch_job(
 ) -> Any:
     """Wrap ``body`` so the shared destination is single-writer.
 
-    Any download landing in PlatformIO's shared core dir can race a
-    sibling esphome process writing the same ``.part``; interleaved
-    writers truncate each other's bytes (see registry.py). A bounded
-    poll keeps a parked worker observing Ctrl-C via the tracker and a
-    blown deadline is a counted failure. On a lock-less filesystem
-    (git.py's ENOSYS/EPERM case) a sha256-verified body proceeds
-    unlocked with one warning; a checksum-less one becomes a counted
-    failure, since interleaved right-length corruption would go
-    undetected.
+    Interleaved writers truncate each other's ``.part`` bytes (see
+    registry.py). The bounded poll observes Ctrl-C via the tracker; a
+    blown deadline is a counted failure. On a lock-less filesystem a
+    sha256-verified body runs unlocked with one warning; a checksum-less
+    one (``unlocked_ok=False``) is a counted failure instead.
     """
 
     def run(tracker: Any) -> None:
@@ -378,10 +370,7 @@ def _serialized_fetch_job(
                 lock.acquire(timeout=_URI_LOCK_POLL)
                 break
             except Timeout:
-                # The tracker raises when the batch is cancelled, so a
-                # parked worker still observes Ctrl-C; a raise past the
-                # deadline makes the skip a counted, warned failure
-                tracker(0)
+                tracker(0)  # raises when the batch is cancelled
                 if time.monotonic() >= deadline:
                     raise TimeoutError(
                         "timed out waiting for another download of the same file"
@@ -413,19 +402,16 @@ def _serialized_fetch_job(
     return run
 
 
-# usage.db is a whole-file read-modify-write behind pio's self-unlinking
-# LockFile; concurrent writers could reset every recorded entry
+# usage.db is a whole-file rewrite behind pio's self-unlinking LockFile;
+# concurrent writers could reset every recorded entry
 _REGISTER_LOCK = threading.Lock()
 
-# Registration failures this run; systematic ones deserve one warning
-# (the child is a fresh process, so module state is per-run)
+# Per-run (the child is a fresh process); systematic failures warn once
 _REGISTER_FAILURES: list[str] = []
 
 
 def _warn_register_failures() -> None:
     if _REGISTER_FAILURES:
-        # Unregistered archives are never pruned; a systematic failure
-        # (usage.db corruption, a pio API change) must be visible once
         _LOGGER.warning(
             "%d archive(s) could not be registered with PlatformIO's cache pruner",
             len(_REGISTER_FAILURES),
@@ -433,13 +419,12 @@ def _warn_register_failures() -> None:
 
 
 def _register_download(manager: Any, dl_path: Path) -> None:
-    """Hand the archive to pio's usage.db pruner; without an entry an
-    archive nothing ever consumes would be stranded at any age."""
+    """Hand the archive to pio's usage.db pruner; an unregistered one is
+    never expired."""
     try:
         with _REGISTER_LOCK:
             manager.set_download_utime(str(dl_path))
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Unregistered archives are never pruned; leave a trace
         _LOGGER.debug("Could not register %s with pio's cache: %s", dl_path, err)
         _REGISTER_FAILURES.append(dl_path.name)
 
@@ -466,9 +451,8 @@ def _registry_fetch_job(
 def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
     """Fetch to a locked staging path, then rename into the cache.
 
-    URL specs carry no checksum, so a same-length corrupt file could be
-    interleaved undetected; the stable staging name keeps resume working
-    across interrupted runs and the rename makes the promotion atomic.
+    The stable staging name keeps resume working across interrupted
+    runs; the rename makes the promotion atomic.
     """
     tmp = dl_path.with_name(f"{dl_path.name}.prefetch")
     fetch = resume_fetch_job(url, tmp, size=size)
@@ -476,8 +460,7 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
     def promote(tracker: Any) -> None:
         fetch(tracker)
         if (actual := tmp.stat().st_size) != size:
-            # No checksum on URL archives: a wrong-length body must not be
-            # published under a cache key pio never re-validates
+            # A wrong-length checksum-less body must never be published
             discard_partial_download(tmp)
             raise ValueError(f"expected {size} bytes, fetched {actual}")
         tmp.replace(dl_path)
@@ -506,8 +489,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         build_dir / "platformio.ini", env
     )
     if not platform_spec:
-        # Visible under -v: an env-name mismatch or an unreadable ini
-        # would otherwise disable the feature with no trace
+        # An env mismatch must not disable the feature with no trace
         _LOGGER.debug(
             "No platform for env %s in %s; nothing to prefetch", env, build_dir
         )
@@ -623,8 +605,7 @@ def main(argv: list[str]) -> int:
     try:
         _prefetch(Path(build_dir), env)
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Nonzero so the parent's exit-code warning stays live; it treats
-        # any prefetch exit as warn-and-continue, never a failed build
+        # The parent treats any exit as warn-and-continue, never a failure
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
         return _EXIT_HANDLED
