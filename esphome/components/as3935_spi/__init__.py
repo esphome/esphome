@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import as3935, spi
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["as3935"]
 DEPENDENCIES = ["spi"]
@@ -20,7 +21,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await as3935.setup_as3935(var, config)
     await spi.register_spi_device(var, config)

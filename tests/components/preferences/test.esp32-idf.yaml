@@ -1,2 +1,9 @@
 preferences:
+  id: prefs_syncer
   flash_write_interval: 20s
+
+esphome:
+  on_boot:
+    then:
+      - component.suspend: prefs_syncer
+      - component.resume: prefs_syncer

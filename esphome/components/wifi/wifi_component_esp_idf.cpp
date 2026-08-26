@@ -140,11 +140,6 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-  uint8_t mac[MAC_ADDRESS_SIZE];
-  if (has_custom_mac_address()) {
-    get_mac_address_raw(mac);
-    set_mac_address(mac);
-  }
   // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
@@ -1236,18 +1231,6 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   std::copy(info.bssid, info.bssid + 6, bssid.begin());
   return bssid;
-}
-std::string WiFiComponent::wifi_ssid() {
-  wifi_ap_record_t info{};
-  esp_err_t err = esp_wifi_sta_get_ap_info(&info);
-  if (err != ESP_OK) {
-    // Very verbose only: this is expected during dump_config() before connection is established (PR #9823)
-    ESP_LOGVV(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
-    return "";
-  }
-  auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
-  size_t len = strnlen(ssid_s, sizeof(info.ssid));
-  return {ssid_s, len};
 }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   wifi_ap_record_t info{};

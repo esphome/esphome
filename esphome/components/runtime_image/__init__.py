@@ -58,10 +58,22 @@ class Format:
         """Add defines and libraries needed for this format."""
 
 
+class AUTOFormat(Format):
+    """AUTO format - detect from MIME type."""
+
+    def __init__(self) -> None:
+        super().__init__("AUTO", None)
+
+    def actions(self) -> None:
+        # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
+        for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
+            image_format.actions()
+
+
 class BMPFormat(Format):
     """BMP format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("BMP", BmpDecoder)
 
     def actions(self) -> None:
@@ -71,12 +83,17 @@ class BMPFormat(Format):
 class JPEGFormat(Format):
     """JPEG format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("JPEG", JpegDecoder)
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        if CORE.is_host:
+            # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
+            # predefines the lowercase __linux__; without this a Linux host
+            # build tries to include Arduino.h.
+            cg.add_build_flag("-D__LINUX__")
         if CORE.is_esp32:
             from esphome.components.esp32 import add_idf_component
 
@@ -89,7 +106,7 @@ class JPEGFormat(Format):
 class PNGFormat(Format):
     """PNG format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("PNG", PngDecoder)
 
     def actions(self) -> None:
@@ -97,18 +114,25 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
-# Registry of available formats
+# Decodable formats only; platforms that support runtime detection accept
+# "AUTO" in their own schema and get_format() resolves it
+_JPEG_FORMAT = JPEGFormat()
 IMAGE_FORMATS = {
     "BMP": BMPFormat(),
-    "JPEG": JPEGFormat(),
+    "JPEG": _JPEG_FORMAT,
+    "JPG": _JPEG_FORMAT,  # Alias for JPEG
     "PNG": PNGFormat(),
-    "JPG": JPEGFormat(),  # Alias for JPEG
 }
+
+AUTO_FORMAT = AUTOFormat()
 
 
 def get_format(format_name: str) -> Format | None:
     """Get a format instance by name."""
-    return IMAGE_FORMATS.get(format_name.upper())
+    name = format_name.upper()
+    if name == "AUTO":
+        return AUTO_FORMAT
+    return IMAGE_FORMATS.get(name)
 
 
 def enable_format(format_name: str) -> Format | None:

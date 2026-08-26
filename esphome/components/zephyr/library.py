@@ -28,6 +28,7 @@ from esphome.platformio.library import (
     collect_filtered_files,
     convert_libraries,
     ensure_list,
+    lex_build_flags,
     split_list_by_condition,
 )
 
@@ -38,11 +39,13 @@ ZEPHYR_FRAMEWORK = "zephyr"
 
 
 def _escape(p: PathType) -> str:
-    # In CMakeLists.txt, backslashes need to be escaped (mirrors the ESP-IDF
-    # backend's escape_entry). Doubling -- rather than rewriting '\' -> '/' --
-    # preserves content, so it's safe for arbitrary build flags (e.g. a -D value
-    # containing a backslash) as well as Windows paths.
-    return f'"{str(p)}"'.replace("\\", "\\\\")
+    # In CMakeLists.txt, backslashes and embedded quotes need escaping
+    # (mirrors the ESP-IDF backend's escape_entry; the lex round-trip makes
+    # a literal quote in a -D value reachable). Doubling backslashes --
+    # rather than rewriting '\' -> '/' -- preserves content, so it's safe
+    # for arbitrary build flags as well as Windows paths.
+    escaped = str(p).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
 
 def generate_module_yml(component: ConvertedLibrary) -> str:
@@ -80,7 +83,11 @@ def generate_cmakelists_txt(component: ConvertedLibrary) -> str:
 
     build_include_dir = build.get("includeDir", DEFAULT_BUILD_INCLUDE_DIR)
     build_src_filter = ensure_list(build.get("srcFilter", DEFAULT_BUILD_SRC_FILTER))
-    build_flags = ensure_list(build.get("flags", DEFAULT_BUILD_FLAGS))
+    # The shared lexer re-glues spaced entries and drops bare/empty
+    # arguments, same as the espidf emitter
+    build_flags = lex_build_flags(
+        build.get("flags", DEFAULT_BUILD_FLAGS), component.name
+    )
 
     src_files = collect_filtered_files(
         read_path / Path(build_src_dir), build_src_filter

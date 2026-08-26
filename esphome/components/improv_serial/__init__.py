@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_LOGGER
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["improv_base"]
 CODEOWNERS = ["@esphome/core"]
@@ -22,7 +23,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def validate_logger(config) -> None:
+def validate_logger(config: ConfigType) -> None:
     logger_conf = fv.full_config.get()[CONF_LOGGER]
     if logger_conf[CONF_BAUD_RATE] == 0:
         raise cv.Invalid("improv_serial requires the logger baud_rate to be not 0")
@@ -38,7 +39,7 @@ def validate_logger(config) -> None:
 FINAL_VALIDATE_SCHEMA = validate_logger
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await improv_base.setup_improv_core(var, config, "improv_serial")

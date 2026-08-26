@@ -43,7 +43,9 @@
 #define USE_ALARM_CONTROL_PANEL
 #define USE_AREAS
 #define USE_BINARY_SENSOR
+#define USE_BINARY_SENSOR_CLICK_TRIGGER
 #define USE_BINARY_SENSOR_FILTER
+#define USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
 #define USE_BLE_DEVICE_IRK
 #define USE_BUTTON
 #define USE_CAMERA
@@ -70,6 +72,7 @@
 #define USE_ESP32_IMPROV_STATE_CALLBACK
 #define USE_EVENT
 #define USE_FAN
+#define USE_GPIO_BINARY_SENSOR_INTERRUPT
 #define USE_GPIO_SWITCH_INTERLOCK
 #define USE_GRAPH
 #define USE_GRAPHICAL_DISPLAY_MENU
@@ -159,7 +162,6 @@
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
-#define USE_PREFERENCES_SYNC_EVERY_LOOP
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
 // managers do not provide load_from_key(), so the PreferencesKeyLookupContract
@@ -188,10 +190,12 @@
 #define USE_TEXT_SENSOR
 #define USE_TEXT_SENSOR_FILTER
 #define USE_TIME
+#define USE_TIME_TRIGGERS
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_UART_WAKE_LOOP_ON_RX
 #define USE_UPDATE
+#define USE_UPTIME_TIMESTAMP
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
@@ -222,6 +226,7 @@
 #define API_MAX_SEND_QUEUE 8
 #define MAX_API_CONNECTIONS 6
 #define USE_MD5
+#define USE_NOISE
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
@@ -283,6 +288,7 @@
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_ESP32_CRASH_HANDLER
+#define USE_ESP32_INTERNAL_GPIO
 #define USE_MQTT_IDF_ENQUEUE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
