@@ -513,7 +513,9 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
         '#include "esphome/core/macros.h"\n'
     )
     (dev / "src" / "esphome" / "core" / "macros.h").write_text("#define M 1\n")
+    # Both spellings: tests patch CORE.name to "test" or to the device name
     (dev / f"sdkconfig.{name}").write_text("CONFIG_X=y\n")
+    (dev / "sdkconfig.test").write_text("CONFIG_X=y\n")
     build = dev / "build"
     build.mkdir(exist_ok=True)
     from esphome.build_helpers.pch import pch_header_text
@@ -782,16 +784,60 @@ def test_prepare_pch_transient_with_stale_gch_bumps_header(tmp_path: Path) -> No
     assert header.stat().st_mtime_ns > 1_000_000_000
 
 
-def test_prepare_pch_disabled_is_noop(
+def test_prepare_pch_disabled_discards_and_skips_compile(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The escape hatch is self-cleaning: a leftover .gch is removed."""
     from esphome.build_gen.espidf import prepare_pch
 
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     dev = _make_pch_device(tmp_path, "dev_d")
     CORE.build_path = dev
+    stale = dev / "build" / "esphome_pch.h.gch"
+    stale.write_bytes(b"stale")
     with patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError):
         prepare_pch()
+    assert not stale.exists()
+
+
+def test_prepare_pch_missing_sdkconfig_fails_closed(tmp_path: Path) -> None:
+    """No sdkconfig means no config identity for the .sum: no pch at all."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_m")
+    (dev / "sdkconfig.test").unlink()
+    CORE.build_path = dev
+    stale = dev / "build" / "esphome_pch.h.gch"
+    stale.write_bytes(b"stale")
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+    assert not stale.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+
+
+def test_prepare_pch_signal_kill_is_transient(tmp_path: Path) -> None:
+    """A signal-killed compile (OOM) must not latch the .failed marker."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_k")
+    CORE.build_path = dev
+    calls = []
+
+    def killed(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, -9, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=killed),
+    ):
+        prepare_pch()
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+    assert len(calls) == 2
 
 
 def test_prepare_pch_without_compile_commands(tmp_path: Path) -> None:
