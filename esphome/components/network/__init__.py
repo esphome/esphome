@@ -27,12 +27,11 @@ _LOGGER = logging.getLogger(__name__)
 KEY_HIGH_PERFORMANCE_NETWORKING = "high_performance_networking"
 CONF_ENABLE_HIGH_PERFORMANCE = "enable_high_performance"
 
+CONF_ENABLE_IPV4 = "enable_ipv4"
+
 # IPv4/IPv6 requirement tracking infrastructure
 KEY_REQUIRE_IPV4 = "require_ipv4"
 KEY_REQUIRE_IPV6 = "require_ipv6"
-
-# Set by _detect_explicit_ipv6_disable()
-KEY_USER_DISABLED_IPV6 = "user_disabled_ipv6"
 
 # Network priority tracking infrastructure
 # Components can query this to determine their relative setup priority.
@@ -85,21 +84,6 @@ if (
 network_ns = cg.esphome_ns.namespace("network")
 NetworkComponent = network_ns.class_("NetworkComponent", cg.Component)
 IPAddress = network_ns.class_("IPAddress")
-
-
-def _detect_explicit_ipv6_disable(config: ConfigType) -> ConfigType:
-    """Record an explicit 'enable_ipv6: false' before CONFIG_SCHEMA replaces it with
-    its default, so _final_validate() can reject it if IPv6 turns out to be required --
-    a merely-defaulted false is fine and gets turned on automatically.
-
-    Normalizes with cv.boolean instead of comparing the raw value against the literal
-    Python `False`, so a substitution or quoted 'false'/'no'/'off' is still caught --
-    otherwise the value never matches `is False` and the conflict check downstream
-    silently never fires.
-    """
-    if (value := config.get(CONF_ENABLE_IPV6)) is not None and not cv.boolean(value):
-        CORE.data[KEY_USER_DISABLED_IPV6] = True
-    return config
 
 
 def _register_provisioning_source(config: ConfigType) -> ConfigType:
@@ -335,23 +319,28 @@ def _validate_priority_list(value: Any) -> list[dict[str, str]]:
     return entries
 
 
+# Shared so _final_validate()'s auto-flip to True enforces the same version floor as
+# the schema does for a user-typed 'enable_ipv6: true'.
+_ENABLE_IPV6_FRAMEWORK_VERSION_VALIDATOR = cv.require_framework_version(
+    bk72xx_arduino=cv.Version(1, 7, 0),
+    esp_idf=cv.Version(0, 0, 0),
+    esp32_arduino=cv.Version(0, 0, 0),
+    esp8266_arduino=cv.Version(0, 0, 0),
+    host=cv.Version(0, 0, 0),
+    rp2_arduino=cv.Version(0, 0, 0),
+    nrf52_zephyr=cv.Version(0, 0, 0),
+)
+
+
 CONFIG_SCHEMA = cv.All(
-    _detect_explicit_ipv6_disable,
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(NetworkComponent),
-            cv.Optional(CONF_ENABLE_IPV6, default=False): cv.All(
+            cv.Optional(CONF_ENABLE_IPV4, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_IPV6): cv.All(
                 cv.boolean,
                 cv.Any(
-                    cv.require_framework_version(
-                        bk72xx_arduino=cv.Version(1, 7, 0),
-                        esp_idf=cv.Version(0, 0, 0),
-                        esp32_arduino=cv.Version(0, 0, 0),
-                        esp8266_arduino=cv.Version(0, 0, 0),
-                        host=cv.Version(0, 0, 0),
-                        rp2_arduino=cv.Version(0, 0, 0),
-                        nrf52_zephyr=cv.Version(0, 0, 0),
-                    ),
+                    _ENABLE_IPV6_FRAMEWORK_VERSION_VALIDATOR,
                     cv.boolean_false,
                 ),
             ),
@@ -370,13 +359,20 @@ def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     if has_ipv6_requirement():
-        if CORE.data.get(KEY_USER_DISABLED_IPV6, False):
+        if config.get(CONF_ENABLE_IPV6) is False:
             raise cv.Invalid(
-                "IPv6 is required by a component in this configuration, but "
+                "IPv6 is required by at least 1 component in this configuration, but "
                 "'network: enable_ipv6: false' explicitly disables it"
             )
-        # Flip it to true
+        # Flipping to True must not bypass the version gate cv.Any() enforces.
+        _ENABLE_IPV6_FRAMEWORK_VERSION_VALIDATOR(True)
         config[CONF_ENABLE_IPV6] = True
+
+    if has_ipv4_requirement() and not config[CONF_ENABLE_IPV4]:
+        raise cv.Invalid(
+            "IPv4 is required by at least 1 component in this configuration, but "
+            "'network: enable_ipv4: false' explicitly disables it"
+        )
 
     # Check that every interface named in 'priority' has a corresponding component block.
     priority_list = config.get(CONF_PRIORITY, [])
@@ -420,9 +416,10 @@ async def to_code(config):
     # of failing validation and asking the user to type it in.
     enable_ipv6 = config.get(CONF_ENABLE_IPV6, None)
 
-    # IPv4 is only left out of the build when nothing needs it and IPv6 already provides
-    # an IP stack
-    enable_ipv4 = has_ipv4_requirement() or not enable_ipv6
+    # enable_ipv4 is user-settable (default True); _final_validate() has already
+    # rejected an explicit 'enable_ipv4: false' that conflicts with a component's
+    # actual requirement.
+    enable_ipv4 = config[CONF_ENABLE_IPV4]
 
     # Store the user-declared network priority list in CORE.data so that ethernet,
     # wifi and other network components can query it via get_network_priority()

@@ -57,7 +57,18 @@ using ip4_addr_t = in_addr;
 #include <zephyr/posix/arpa/inet.h>
 #if defined(CONFIG_NET_IPV6)
 using ip_addr_t = struct in6_addr;
-static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0; }
+static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) {
+#if defined(CONFIG_NET_IPV4)
+  // Dual-stack: a plain IPv4 literal must still parse -- store it as a v4-mapped
+  // IPv6 address (::ffff:a.b.c.d), matching the 4-octet constructor below.
+  struct in_addr addr4;
+  if (inet_pton(AF_INET, cp, &addr4) == 1) {
+    net_ipv6_addr_create_v4_mapped(&addr4, addr);
+    return 1;
+  }
+#endif /* CONFIG_NET_IPV4 */
+  return inet_pton(AF_INET6, cp, addr) == 1 ? 1 : 0;
+}
 #else
 using ip_addr_t = struct in_addr;
 using ip4_addr_t = struct in_addr;
@@ -80,7 +91,13 @@ static inline int ipaddr_aton(const char *cp, ip_addr_t *addr) { return inet_pto
 namespace esphome::network {
 
 /// Buffer size for IP address string (IPv6 max: 39 chars + null)
-static constexpr size_t IP_ADDRESS_BUFFER_SIZE = 40;
+static constexpr size_t IP_ADDRESS_BUFFER_SIZE =
+#if defined(USE_ZEPHYR)
+    // Mainline Zephyr's inet_ntop() rejects buffers smaller than NET_INET6_ADDRSTRLEN (46).
+    46;
+#else
+    40;
+#endif
 
 /// Lowercase hex digits in IP address string (A-F -> a-f for IPv6 per RFC 5952)
 inline void lowercase_ip_str(char *buf) {
@@ -93,8 +110,10 @@ inline void lowercase_ip_str(char *buf) {
 struct IPAddress {
  public:
 #if defined(USE_ZEPHYR)
-// CONFIG_NET_IPV4 is unset on nRF52 today (the only Zephyr platform), so the arms below are
-// unreachable here -- kept for a future Wi-Fi-capable zephyr platform that needs them.
+// nRF52 (the only Zephyr platform) always requires IPv6, so CONFIG_NET_IPV6 is always set here --
+// the CONFIG_NET_IPV4-only #else branch below is dead on nRF52, kept for a future Zephyr platform
+// without that invariant. CONFIG_NET_IPV4 itself is reachable: any component that calls
+// network.require_ipv4() (udp, mqtt, wake_on_lan, ...) turns on dual-stack alongside it.
 #if defined(CONFIG_NET_IPV6)
   IPAddress() { memset(&ip_addr_, 0, sizeof(ip_addr_)); }
 #if defined(CONFIG_NET_IPV4)

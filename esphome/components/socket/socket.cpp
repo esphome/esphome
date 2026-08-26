@@ -57,9 +57,11 @@ static inline const char *esphome_inet_ntop6(const void *addr, char *buf, size_t
 #elif defined(USE_ZEPHYR)
 // Zephyr BSD sockets — use Zephyr native address formatting via POSIX-subset wrappers.
 // <zephyr/net/socket.h> is already included transitively through <sys/socket.h>.
+#if USE_NETWORK_IPV4
 static inline const char *esphome_inet_ntop4(const void *addr, char *buf, size_t size) {
   return zsock_inet_ntop(AF_INET, addr, buf, size);
 }
+#endif /* USE_NETWORK_IPV4 */
 // IPv6 is always enabled on nRF52 (config validation enforces enable_ipv6=True),
 // but the guard is retained for consistency with other platform blocks.
 #if USE_NETWORK_IPV6
@@ -91,7 +93,11 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
   }
 #endif /* USE_NETWORK_IPV4 */
 #if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV4
+  else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
+#else
   if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
+#endif
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
 #ifdef USE_HOST
 #if USE_NETWORK_IPV4
@@ -102,6 +108,7 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
     }
 #endif /* USE_NETWORK_IPV4 */
 #elif defined(USE_ZEPHYR)
+#if USE_NETWORK_IPV4
     // Format IPv4-mapped IPv6 addresses as regular IPv4. Zephyr uses the standard POSIX
     // s6_addr layout (not the LWIP union) but provides no IN6_IS_ADDR_V4MAPPED macro, so
     // detect the ::ffff:0:0/96 prefix directly on the address words.
@@ -110,14 +117,15 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
         esphome_inet_ntop4(&addr->sin6_addr.s6_addr32[3], buf.data(), buf.size()) != nullptr) {
       return strlen(buf.data());
     }
+#endif /* USE_NETWORK_IPV4 */
 #elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
 #if USE_NETWORK_IPV4
-    // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
-    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
-        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
-        esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
-      return strlen(buf.data());
-    }
+  // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
+  if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
+      addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
+      esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
+    return strlen(buf.data());
+  }
 #endif /* USE_NETWORK_IPV4 */
 #endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)

@@ -7,16 +7,22 @@ import pytest
 from voluptuous import Invalid
 
 from esphome.components.network import (
+    CONF_ENABLE_IPV4,
     KEY_REQUIRE_IPV4,
     KEY_REQUIRE_IPV6,
-    KEY_USER_DISABLED_IPV6,
-    _detect_explicit_ipv6_disable,
     _final_validate,
     has_ipv4_requirement,
     require_ipv4,
 )
-from esphome.const import CONF_ENABLE_IPV6
-from esphome.core import CORE
+from esphome.const import (
+    CONF_ENABLE_IPV6,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
+    KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_HOST,
+)
+from esphome.core import CORE, Version
 import esphome.final_validate as fv
 
 
@@ -47,15 +53,28 @@ def test_require_ipv4_is_idempotent() -> None:
     assert CORE.data[KEY_REQUIRE_IPV4] is True
 
 
-def test_ipv4_dropped_when_unneeded_and_ipv6_enabled(
+def test_ipv4_dropped_when_explicitly_disabled(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Without any IPv4-requiring component and IPv6 enabled, IPv4 drops out of the build."""
-    generate_main(component_config_path("ipv6_only.yaml"))
+    """enable_ipv4 defaults to True; IPv4 only drops out of the build when the user
+    explicitly writes 'enable_ipv4: false' and nothing requires it."""
+    generate_main(component_config_path("ipv6_only_ipv4_explicit_disable.yaml"))
     define = next((d for d in CORE.defines if d.name == "USE_NETWORK_IPV4"), None)
     assert define is not None
     assert str(define.value) == "false"
+
+
+def test_ipv4_stays_on_with_ipv6_enabled_by_default(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Without an explicit 'enable_ipv4: false', IPv4 stays on even with IPv6 enabled --
+    the user must opt into dropping it, it is never selected for them."""
+    generate_main(component_config_path("ipv6_only.yaml"))
+    define = next((d for d in CORE.defines if d.name == "USE_NETWORK_IPV4"), None)
+    assert define is not None
+    assert str(define.value) == "true"
 
 
 def test_ipv4_stays_on_when_required(
@@ -80,17 +99,16 @@ def test_ipv4_stays_on_by_default(
     assert str(define.value) == "true"
 
 
-def test_ipv4_drops_when_ipv6_auto_enabled_by_requirement(
+def test_ipv4_stays_on_when_ipv6_auto_enabled_by_requirement(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The openthread component calls require_ipv6() with no explicit 'network:' block --
-    IPv6 auto-resolves to True, and IPv4 then auto-drops as a consequence, since
-    nothing requires it and IPv6 already provides an IP stack."""
+    IPv6 auto-resolves to True, but IPv4 stays on since it is opt-out, not automatic."""
     generate_main(component_config_path("openthread_no_explicit_network.yaml"))
     defines = {d.name: d for d in CORE.defines}
     assert str(defines["USE_NETWORK_IPV6"].value) == "true"
-    assert str(defines["USE_NETWORK_IPV4"].value) == "false"
+    assert str(defines["USE_NETWORK_IPV4"].value) == "true"
 
 
 def test_ipv4_turns_on_when_ipv6_explicitly_off_and_nothing_required(
@@ -130,51 +148,60 @@ def test_wake_on_lan_keeps_ipv4_under_openthread(
     assert str(define.value) == "true"
 
 
-def test_detect_explicit_ipv6_disable_records_explicit_false() -> None:
-    _detect_explicit_ipv6_disable({CONF_ENABLE_IPV6: False})
-    assert CORE.data[KEY_USER_DISABLED_IPV6] is True
-
-
-@pytest.mark.parametrize("value", ["false", "no", "off", "False", "NO"])
-def test_detect_explicit_ipv6_disable_catches_substitution_style_strings(
-    value: str,
-) -> None:
-    """A substitution like '${x}' or a quoted 'no'/'off' resolves to a string, not the
-    literal Python False -- must still be caught, not silently bypass the check."""
-    _detect_explicit_ipv6_disable({CONF_ENABLE_IPV6: value})
-    assert CORE.data[KEY_USER_DISABLED_IPV6] is True
-
-
-def test_detect_explicit_ipv6_disable_ignores_true_and_absent() -> None:
-    _detect_explicit_ipv6_disable({CONF_ENABLE_IPV6: True})
-    _detect_explicit_ipv6_disable({CONF_ENABLE_IPV6: "true"})
-    _detect_explicit_ipv6_disable({})
-    assert KEY_USER_DISABLED_IPV6 not in CORE.data
-
-
 def test_final_validate_rejects_explicit_ipv6_disable_when_required() -> None:
     """A component's require_ipv6() conflicting with an explicit 'enable_ipv6: false'
-    is a config violation, not a value to silently override."""
+    is a config violation, not a value to silently override. Once the schema no longer
+    defaults enable_ipv6 to False, an explicit False and an absent/defaulted value are
+    distinguishable directly on the config dict -- no separate raw-config detection pass
+    is needed."""
     CORE.data[KEY_REQUIRE_IPV6] = True
-    CORE.data[KEY_USER_DISABLED_IPV6] = True
     with pytest.raises(Invalid, match="explicitly disables it"):
-        _final_validate({})
+        _final_validate({CONF_ENABLE_IPV6: False})
 
 
 def test_final_validate_accepts_explicit_ipv6_disable_when_not_required() -> None:
     """An explicit 'enable_ipv6: false' is fine as long as nothing requires IPv6."""
-    CORE.data[KEY_USER_DISABLED_IPV6] = True
-    _final_validate({})  # must not raise
+    _final_validate({CONF_ENABLE_IPV6: False})  # must not raise
 
 
 def test_final_validate_resolves_ipv6_default_when_required() -> None:
     """Backstop for component validation order: a require_ipv6() call from a
-    component processed after 'network' still forces the effective value to True.
+    component processed after 'network' still forces the effective value to True
+    when the user never set 'enable_ipv6' at all (absent, not defaulted-false).
+
+    The flip re-runs the framework-version gate, which reads CORE.data[KEY_CORE] --
+    populate it with a platform/framework this feature is unconditionally
+    supported on, since that gate isn't what this test is checking.
     """
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_HOST,
+        KEY_TARGET_FRAMEWORK: "host",
+        KEY_FRAMEWORK_VERSION: Version(0, 0, 0),
+    }
     CORE.data[KEY_REQUIRE_IPV6] = True
-    config = {CONF_ENABLE_IPV6: False}
+    config = {}
     _final_validate(config)
     assert config[CONF_ENABLE_IPV6] is True
+
+
+def test_final_validate_rejects_explicit_ipv4_disable_when_required() -> None:
+    """A component's require_ipv4() conflicting with an explicit 'enable_ipv4: false'
+    is a config violation -- the user must opt into disabling IPv4, but that choice
+    still can't override an actual requirement."""
+    CORE.data[KEY_REQUIRE_IPV4] = True
+    with pytest.raises(Invalid, match="explicitly disables it"):
+        _final_validate({CONF_ENABLE_IPV4: False})
+
+
+def test_final_validate_accepts_explicit_ipv4_disable_when_not_required() -> None:
+    """An explicit 'enable_ipv4: false' is fine as long as nothing requires IPv4."""
+    _final_validate({CONF_ENABLE_IPV4: False})  # must not raise
+
+
+def test_final_validate_accepts_ipv4_default_when_required() -> None:
+    """The default 'enable_ipv4: true' never conflicts with a require_ipv4() call."""
+    CORE.data[KEY_REQUIRE_IPV4] = True
+    _final_validate({CONF_ENABLE_IPV4: True})  # must not raise
 
 
 # Every non-nRF52 platform this PR touches calls network.require_ipv4() unconditionally
@@ -239,11 +266,12 @@ def test_nrf52_defaults_to_ipv6_without_openthread(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """nrf52/require_ipv6() restores the platform's IPv6-only invariant without
-    depending on openthread specifically -- regression test for the review finding
-    that removing the old SplitDefault(nrf52=True) + validate_ipv6 left any nRF52
-    config without openthread getting the inverse of its actual capability."""
+    """nrf52/require_ipv6() restores the platform's IPv6 invariant without depending
+    on openthread specifically -- regression test for the review finding that removing
+    the old SplitDefault(nrf52=True) + validate_ipv6 left any nRF52 config without
+    openthread getting the inverse of its actual capability. IPv4 stays on by default
+    since dropping it is opt-out, not automatic."""
     generate_main(component_config_path("nrf52_network_no_openthread.yaml"))
     defines = {d.name: d for d in CORE.defines}
     assert str(defines["USE_NETWORK_IPV6"].value) == "true"
-    assert str(defines["USE_NETWORK_IPV4"].value) == "false"
+    assert str(defines["USE_NETWORK_IPV4"].value) == "true"
