@@ -5,9 +5,12 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import configparser
-import os
 import subprocess
-import threading
+
+from platformio.package.manager.library import LibraryPackageManager
+from platformio.package.manager.platform import PlatformPackageManager
+from platformio.package.manager.tool import ToolPackageManager
+from platformio.package.meta import PackageSpec
 
 config = configparser.ConfigParser(inline_comment_prefixes=(";",))
 
@@ -59,73 +62,69 @@ for section in config.sections():
 def spec_key(spec: str) -> str:
     """The destination identity of a spec: PlatformIO installs by package
     name, so two specs sharing a name share a directory."""
-    base = spec.split("@", 1)[0].strip()
-    if base.startswith(("http://", "https://", "file://")):
-        return spec.strip()
-    return base.split("/")[-1].lower()
+    name = PackageSpec(spec).name
+    return name.lower() if name else spec.strip()
 
 
 def parallel_install(manager_cls, specs: list[str]) -> None:
-    """Best-effort parallel top-level install, one extraction worker per core.
+    """Best-effort parallel top-level install.
 
     PlatformIO's own installer downloads and unpacks one package at a time
-    on one core. Each worker downloads (network bound, GIL released) and
-    unpacks (CPU bound), so the pool oversubscribes the cores to keep the
-    network busy while unpacks share them. Dependencies are skipped (two
-    packages sharing one must not extract into the same directory from two
-    threads) and any failure is left alone: the stock ``pkg install`` pass
-    below installs whatever is missing and is the authority on the final
-    state.
+    on one core. Each worker alternates a network bound download with a CPU
+    bound unpack, so the pool oversubscribes the cores to keep the network
+    busy while unpacks share them. Dependencies are skipped (two packages
+    sharing one must not extract into the same directory from two threads)
+    and failures are only reported: the stock ``pkg install`` pass below
+    installs whatever is missing and is the authority on the final state.
     """
+    if not specs:
+        return
     manager = manager_cls(None)
     # One spec per destination: platformio.ini repeats specs across env
     # sections, and two threads must not extract into the same directory.
-    # A second spec for the same name is left to the pkg install pass.
-    unique: dict[str, str] = {}
-    for spec in specs:
-        unique.setdefault(spec_key(spec), spec)
+    # Another spec for the same name is left to the pkg install pass.
+    unique = {spec_key(spec): spec for spec in specs}
     pending = [spec for spec in unique.values() if not manager.get_package(spec)]
     if not pending:
         return
-    local = threading.local()
 
-    def install_one(spec: str) -> None:
+    def install_one(spec: str) -> bool:
         try:
-            if (mgr := getattr(local, "mgr", None)) is None:
-                mgr = local.mgr = manager_cls(None)
-            mgr._install(spec, skip_dependencies=True)  # noqa: SLF001
-        except Exception:  # noqa: BLE001
-            pass
+            manager_cls(None)._install(spec, skip_dependencies=True)  # noqa: SLF001
+            return True
+        except Exception as err:  # noqa: BLE001
+            print(f"Pre-install of {spec} failed ({err!r})", flush=True)
+            return False
 
-    cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 4
-    workers = min(len(pending), max(8, 4 * cpus), 16)
-    print(f"Preinstalling {len(pending)} package(s) with {workers} workers")
+    workers = min(len(pending), 16)
+    print(f"Preinstalling {len(pending)} package(s) with {workers} workers", flush=True)
     manager.lock()
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            list(ex.map(install_one, pending))
+            results = list(ex.map(install_one, pending))
     finally:
         manager.unlock()
+    if not any(results):
+        # A systematic fault (e.g. a PlatformIO API change), not archive noise
+        print(
+            "Pre-install failed for every package; pkg install runs serially",
+            flush=True,
+        )
 
 
-if libs or platforms or tools:
-    from platformio.package.manager.library import LibraryPackageManager
-    from platformio.package.manager.platform import PlatformPackageManager
-    from platformio.package.manager.tool import ToolPackageManager
+for manager_cls, specs in (
+    (PlatformPackageManager, platforms),
+    (ToolPackageManager, tools),
+    (LibraryPackageManager, libs),
+):
+    parallel_install(manager_cls, specs)
 
-    for manager_cls, specs in (
-        (PlatformPackageManager, platforms),
-        (ToolPackageManager, tools),
-        (LibraryPackageManager, libs),
-    ):
-        if specs:
-            parallel_install(manager_cls, specs)
-
-cli_args = []
-for flag, specs in (("-l", libs), ("-p", platforms), ("-t", tools)):
-    for spec in specs:
-        cli_args.append(flag)
-        cli_args.append(spec)
+cli_args = [
+    arg
+    for flag, specs in (("-l", libs), ("-p", platforms), ("-t", tools))
+    for spec in specs
+    for arg in (flag, spec)
+]
 
 subprocess.check_call(
     ["platformio", "pkg", "install", "-g", *cli_args], close_fds=False
