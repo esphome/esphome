@@ -214,6 +214,10 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         "remote_transmitter_bk72xx.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
         },
+        "remote_transmitter_libretiny_isr.cpp": {
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
+        },
         "remote_transmitter.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,

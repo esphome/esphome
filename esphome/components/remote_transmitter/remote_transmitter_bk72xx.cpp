@@ -31,26 +31,11 @@ static constexpr uint32_t REG_PWM_GROUP_STRIDE = 0x40;       // one register gro
 static constexpr uint32_t REG_PWM_T_REGS[2] = {0x04, 0x14};  // T1..T4 offsets within a group
 static constexpr uint32_t PWM_INT_STATUS_MASK = 3UL << 30;   // write-1-clear -- always write as zero
 static constexpr uint8_t ENVELOPE_TIMER = BKTIMER1;
-// Margin past a transmission's expected duration before the chain is declared stalled
-static constexpr uint32_t STALL_MARGIN_MS = 1000;
-// Longest single one-shot armed; longer durations are chained (driver computes period_us * 26
-// in 32 bits, overflowing past ~165s)
-static constexpr uint32_t MAX_ONE_SHOT_US = 50000;
 
-// The bk_timer handler receives only the channel number, so the active instance is tracked
-// statically; it doubles as the cross-instance serialization token (MULTI_CONF).
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static RemoteTransmitterComponent *volatile s_active_transmitter = nullptr;
-// Deadline for the in-flight transmission (millis-based); only touched from the main task
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static uint32_t s_expected_end_ms = 0;
-
-// No IRAM_ATTR: hal.h makes it a no-op on BK72xx (the SDK masks IRQs around flash writes)
-static void envelope_timer_isr(UINT8 channel) {
-  auto *transmitter = s_active_transmitter;
-  if (transmitter != nullptr)
-    transmitter->advance_envelope_isr();
-}
+// The bk_timer handler receives only the channel number, so the chain resolves the instance
+// that owns the timer. No IRAM_ATTR: hal.h makes it a no-op on BK72xx (the SDK masks IRQs
+// around flash writes).
+static void envelope_timer_isr(UINT8 channel) { RemoteTransmitterComponent::advance_active_isr(); }
 
 // PWM channel per pin on the BK7231N-style block
 struct PwmPinChannel {
@@ -122,150 +107,13 @@ void RemoteTransmitterComponent::write_pwm_t1_(uint32_t t1_counts) {
   *ctrl = cfg | cfg_updata_bit;
 }
 
-// Arms the shared envelope timer, chaining durations longer than MAX_ONE_SHOT_US. ISR-safe.
-void RemoteTransmitterComponent::arm_envelope_timer_(uint32_t duration_us) {
-  // clamp to 1us (a zero-length one-shot never fires); the remainder must not underflow
-  const uint32_t chunk = std::max(uint32_t(1), std::min(duration_us, MAX_ONE_SHOT_US));
-  this->isr_wait_remaining_ = duration_us > chunk ? duration_us - chunk : 0;
-  timer_param_t param{};
-  param.channel = ENVELOPE_TIMER;
-  param.div = 1;
-  param.period = chunk;
-  param.t_Int_Handler = envelope_timer_isr;
-  sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_INIT_PARAM_US, &param);
-}
+// --- envelope chain hooks (see remote_transmitter_libretiny_isr.cpp) ---
 
-// Aborts a chain that stopped advancing: stop the timer, idle the pin, release the token.
-// Every step is a no-op if the chain completed meanwhile. Task context only.
-void RemoteTransmitterComponent::abort_stalled_chain_() {
-  // cleared first so a straggler one-shot bails at the ISR entry check
-  this->transmitting_ = false;
-  UINT32 channel = ENVELOPE_TIMER;
-  sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_UNIT_DISABLE, &channel);
-  this->write_pwm_t1_(this->isr_space_t1_);
-  s_active_transmitter = nullptr;
-  this->stall_aborted_ = true;
-  this->status_set_warning("envelope timer stalled");
-  ESP_LOGE(TAG, "Envelope timer stalled; transmission aborted");
-  delay(1);  // let any already-latched interrupt land while the chain state is safe
-}
+bool RemoteTransmitterComponent::envelope_ready_() const { return this->pwm_channel_ >= 0; }
 
-// Delivers one deferred completion with its status bookkeeping
-void RemoteTransmitterComponent::deliver_completion_() {
-  if (!this->stall_aborted_)
-    this->status_clear_warning();
-  this->complete_pending_ = false;
-  this->complete_trigger_.trigger();
-}
-
-void RemoteTransmitterComponent::start_isr_item_(size_t index) {
-  const int32_t item = this->isr_data_[index];
-  this->write_pwm_t1_(item > 0 ? this->isr_mark_t1_ : this->isr_space_t1_);
-  this->arm_envelope_timer_(uint32_t(item > 0 ? item : -item));
-}
-
-void RemoteTransmitterComponent::advance_envelope_isr() {
-  if (!this->transmitting_)
-    return;  // chain was aborted; this is a stale one-shot that was already latched
-  if (this->isr_wait_remaining_ > 0) {
-    // continue a duration longer than one hardware one-shot
-    this->arm_envelope_timer_(this->isr_wait_remaining_);
-    return;
-  }
-  if (this->isr_in_gap_) {
-    // inter-repeat gap elapsed; restart the item chain
-    this->isr_in_gap_ = false;
-    this->isr_index_ = 0;
-    this->start_isr_item_(0);
-    return;
-  }
-  this->isr_index_++;
-  if (this->isr_index_ < this->isr_data_.size()) {
-    this->start_isr_item_(this->isr_index_);
-    return;
-  }
-  // end of one repetition
-  this->write_pwm_t1_(this->isr_space_t1_);
-  if (this->isr_repeats_left_ > 1) {
-    this->isr_repeats_left_--;
-    this->isr_index_ = 0;
-    if (this->isr_send_wait_ > 0) {
-      this->isr_in_gap_ = true;
-      this->arm_envelope_timer_(this->isr_send_wait_);
-    } else {
-      this->start_isr_item_(0);
-    }
-    return;
-  }
-  UINT32 channel = ENVELOPE_TIMER;
-  sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_UNIT_DISABLE, &channel);
-  this->transmitting_ = false;
-  s_active_transmitter = nullptr;
-}
-
-void RemoteTransmitterComponent::digital_write(bool value) {
-  if (this->pwm_channel_ < 0)
-    return;
-  // serialize behind an in-flight chain, matching the ESP32/RMT non-blocking behavior
-  this->wait_until_idle_();
-  this->write_pwm_t1_((value != this->pin_->is_inverted()) ? this->isr_period_t4_ : 0);
-}
-
-// Waits until no chain is in flight, delivering any deferred completions; a completion
-// automation may start a new send, so repeat until truly idle. Bounded by the stall deadline.
-void RemoteTransmitterComponent::wait_until_idle_() {
-  while (true) {
-    while (true) {
-      // snapshot: the final ISR can clear the volatile pointer between a check and a use
-      auto *active = s_active_transmitter;
-      if (active == nullptr)
-        break;
-      if ((int32_t) (millis() - s_expected_end_ms) > 0) {
-        active->abort_stalled_chain_();
-        break;
-      }
-      App.feed_wdt();
-      delay(1);
-    }
-    if (!this->complete_pending_)
-      break;
-    this->deliver_completion_();
-  }
-}
-
-// Stages the repeat schedule and stall deadline, then starts the interrupt chain
-void RemoteTransmitterComponent::arm_chain_(uint32_t send_times, uint32_t send_wait) {
-  this->isr_repeats_left_ = send_times;
-  this->isr_send_wait_ = send_wait;
-  this->isr_index_ = 0;
-  this->isr_in_gap_ = false;
-  this->stall_aborted_ = false;
-  uint64_t frame_us = 0;
-  for (int32_t item : this->isr_data_)
-    frame_us += uint32_t(item > 0 ? item : -item);
-  const uint64_t total_us = frame_us * send_times + uint64_t(send_wait) * (send_times - 1);
-  s_expected_end_ms = millis() + uint32_t(total_us / 1000) + STALL_MARGIN_MS;
-  this->transmitting_ = true;
-  s_active_transmitter = this;
-  this->start_isr_item_(0);
-}
-
-void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
-  if (this->pwm_channel_ < 0) {
-    ESP_LOGW(TAG, "Cannot send: PWM not initialized");
-    return;
-  }
-  this->wait_until_idle_();
-  if (send_times == 0) {
-    // parity with the loop-based implementations: transmit nothing, but both triggers
-    // still fire so an on_complete-sequenced automation does not stall
-    this->transmit_trigger_.trigger();
-    this->deliver_completion_();
-    return;
-  }
-  ESP_LOGD(TAG, "Sending remote code");
-  const uint32_t carrier_frequency = this->temp_.get_carrier_frequency();
-  // period in 26MHz counts; unmodulated protocols drive the pin constantly during marks
+// Recomputes the carrier period in 26MHz counts and stages the per-item duties;
+// unmodulated protocols drive the pin constantly during marks
+void RemoteTransmitterComponent::prepare_carrier_(uint32_t carrier_frequency) {
   if (carrier_frequency > 0) {
     this->isr_period_t4_ = std::max(uint32_t(2), (26000000UL + carrier_frequency / 2) / carrier_frequency);
   }
@@ -277,55 +125,36 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     mark_t1 = this->isr_period_t4_ - mark_t1;
     space_t1 = this->isr_period_t4_;
   }
-  // own copy: with non_blocking the caller may re-encode temp_ while this frame is in flight
-  this->isr_data_.assign(this->temp_.get_data().begin(), this->temp_.get_data().end());
-  if (this->isr_data_.empty()) {
-    ESP_LOGW(TAG, "Empty data");
-    this->transmit_trigger_.trigger();
-    this->deliver_completion_();
-    return;
-  }
   this->isr_mark_t1_ = mark_t1;
   this->isr_space_t1_ = space_t1;
-  // trigger first: the deadline computed in arm_chain_ must not be charged for user code
-  this->transmit_trigger_.trigger();
-  // the automation may have started a send on another instance; let it finish before
-  // claiming the shared timer (a same-instance send remains unsupported here)
-  this->wait_until_idle_();
-  this->arm_chain_(send_times, send_wait);
-  if (this->non_blocking_) {
-    this->complete_pending_ = true;
-    this->enable_loop();
-    return;
-  }
-  // blocking mode: wait out the chain, bounded by the stall deadline
-  while (this->transmitting_) {
-    if ((int32_t) (millis() - s_expected_end_ms) > 0) {
-      this->abort_stalled_chain_();
-      break;
-    }
-    App.feed_wdt();
-    delay(1);
-  }
-  this->deliver_completion_();
 }
 
-void RemoteTransmitterComponent::loop() {
-  if (!this->complete_pending_) {
-    this->disable_loop();
+void RemoteTransmitterComponent::write_envelope_level_(bool mark) {
+  this->write_pwm_t1_(mark ? this->isr_mark_t1_ : this->isr_space_t1_);
+}
+
+// The driver's microsecond init path is register writes under a nested interrupt guard,
+// so it is safe to call from the chain's own interrupt
+void RemoteTransmitterComponent::arm_one_shot_(uint32_t duration_us) {
+  timer_param_t param{};
+  param.channel = ENVELOPE_TIMER;
+  param.div = 1;
+  param.period = duration_us;
+  param.t_Int_Handler = envelope_timer_isr;
+  sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_INIT_PARAM_US, &param);
+}
+
+void RemoteTransmitterComponent::stop_envelope_timer_() {
+  UINT32 channel = ENVELOPE_TIMER;
+  sddev_control((char *) TIMER_DEV_NAME, CMD_TIMER_UNIT_DISABLE, &channel);
+}
+
+void RemoteTransmitterComponent::digital_write(bool value) {
+  if (this->pwm_channel_ < 0)
     return;
-  }
-  if (this->transmitting_) {
-    // non-blocking stall recovery: without this, a dead chain would leave the carrier
-    // driven and on_complete unfired until the next send happened to abort it
-    if ((int32_t) (millis() - s_expected_end_ms) <= 0)
-      return;
-    this->abort_stalled_chain_();
-  }
-  // release the loop before user code runs: the automation may start a new non-blocking
-  // send, and its enable_loop() must be the last writer or its completion would strand
-  this->disable_loop();
-  this->deliver_completion_();
+  // serialize behind an in-flight chain, matching the ESP32/RMT non-blocking behavior
+  this->wait_until_idle_();
+  this->write_pwm_t1_((value != this->pin_->is_inverted()) ? this->isr_period_t4_ : 0);
 }
 
 #endif  // REMOTE_TRANSMITTER_BK_PWM
