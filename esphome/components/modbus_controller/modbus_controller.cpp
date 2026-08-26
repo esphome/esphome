@@ -10,6 +10,67 @@ static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() { this->create_polling_commands_(); }
 
+void WriterDevice::warn_write_buffer_deprecated_(const LogString *platform, uint16_t address) {
+  if (this->write_buffer_deprecated_warned_)
+    return;
+  this->write_buffer_deprecated_warned_ = true;
+  ESP_LOGW(TAG,
+           "Modbus %s (address 0x%X): filling the write_lambda buffer parameter is deprecated; call a write helper / "
+           "queue_pdu() on the entity (item) instead. The buffer parameter is removed in 2027.3.0",
+           LOG_STR_ARG(platform), address);
+}
+
+bool WriterDevice::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
+  if (frame.empty())
+    return false;
+  this->dispatched_ = true;
+  return this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
+}
+
+void ControllerDevice::set_controller_(ModbusController *controller) {
+  this->controller_ = controller;
+  this->set_parent(controller->hub());
+  this->set_address(controller->device_address());
+}
+
+void ControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ != nullptr)
+    this->controller_->set_online(true, fc_of(request_pdu), addr_of(request_pdu));
+}
+
+void ControllerDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  this->notify_online_(request_pdu);
+}
+
+void ControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
+  ESP_LOGW(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", fc_of(request_pdu),
+           addr_of(request_pdu), static_cast<uint8_t>(exception_code));
+  this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
+}
+
+// Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent trigger
+// reflects when the frame actually went out, not when it was queued.
+void ControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ != nullptr)
+    this->controller_->command_sent(fc_of(request_pdu), addr_of(request_pdu));
+}
+
+void ControllerDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
+  // Fires for intentionally superseded requests as well as frames retired when the device goes offline,
+  // so stay below WARN.
+  ESP_LOGD(TAG, "Request not sent: function 0x%X register 0x%X", fc_of(request_pdu), addr_of(request_pdu));
+}
+
+bool ControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
+  if (this->controller_ == nullptr)
+    return false;
+  this->controller_->increment_non_response_count();
+  if (this->controller_->can_send())
+    return true;  // the hub re-queues the frame it is holding; on_sent fires again on the retry
+  this->controller_->set_online(false, fc_of(request_pdu), addr_of(request_pdu));
+  return false;
+}
+
 ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
                                      RegisterRange &&range)
     : modbus::ModbusClientDevice(parent, address),

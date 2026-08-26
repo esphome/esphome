@@ -348,7 +348,10 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    # Await the hub first, so no entity can bind to a controller that doesn't have one yet.
+    hub = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
+    var = cg.new_Pvariable(config[CONF_ID], hub, config[CONF_ADDRESS])
+    await cg.register_component(var, config)
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     cg.add(
@@ -356,14 +359,7 @@ async def to_code(config):
             modbus.command_options_expression(config, direction="read")
         )
     )
-    await register_modbus_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
-
-
-async def register_modbus_device(var, config):
-    cg.add(var.set_address(config[CONF_ADDRESS]))
-    await cg.register_component(var, config)
-    return await modbus.register_modbus_client_device(var, config)
 
 
 def function_code_to_register(function_code):
