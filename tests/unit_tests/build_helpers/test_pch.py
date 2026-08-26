@@ -165,8 +165,11 @@ def test_include_closure_raises_when_identity_unknown(
     """An unreadable header propagates; callers compile without a pch."""
 
     class _BadFile:
-        def is_file(self) -> bool:
-            return True
+        def stat(self):  # noqa: ANN202 -- regular-file mode only
+            import os
+            import stat as stat_mod
+
+            return os.stat_result((stat_mod.S_IFREG | 0o644,) + (0,) * 9)
 
         def read_bytes(self) -> bytes:
             raise OSError("read failed")
