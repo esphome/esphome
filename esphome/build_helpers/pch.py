@@ -71,6 +71,9 @@ _CCACHE_PCH_ENV = {
 
 # Both include forms: an angle include resolving under src/ must enter the
 # digest too; ones that do not resolve simply end the walk
+# Compiler failures that clear on their own must not latch the .failed marker
+_TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
+
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 
 
@@ -379,6 +382,9 @@ def prepare_pch(
         # This path latches, so keep the full compiler output recoverable
         _LOGGER.debug("Full pch compile output: %s", error)
         discard_pch(build_dir)
+        if any(m in error for m in _TRANSIENT_ERRORS):
+            # Resource exhaustion clears on its own; retry next build
+            return
         # Skip retries until a header/flag/backend-identity/command change
         failed_marker.write_text(checksum + "\n", encoding="utf-8")
         os.utime(header)
