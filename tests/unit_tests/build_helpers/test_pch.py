@@ -175,3 +175,9 @@ def test_include_closure_survives_non_utf8_include_name(tmp_path: Path) -> None:
     (tmp_path / "b.h").write_text("")
     closure = pch._include_closure(tmp_path, ["a.h"])
     assert set(closure) == {"a.h", "b.h"}
+
+
+def test_pch_checksum_survives_surrogate_extra(tmp_path: Path) -> None:
+    """Install paths from non-UTF-8 filesystems carry surrogates; hashing
+    them must not raise past the caller's identity-unknown guard."""
+    assert pch.pch_checksum(tmp_path, [], ["/opt/bad\udcff/framework"])

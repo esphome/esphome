@@ -158,20 +158,25 @@ def _setup_pch() -> None:
     # -include entries, so an unguarded user header folded here would be
     # included twice. An unfolded header simply stays consumer-only and
     # ccache hashes it directly off the command line.
-    folded = [name for name in include_headers if (src_dir / name).is_file()]
+    folded = [
+        name
+        for name in include_headers
+        # An absolute name would sneak past src_dir /: keep it consumer-only
+        if not Path(name).is_absolute() and (src_dir / name).is_file()
+    ]
     if unfolded := [n for n in include_headers if n not in folded]:
         print(f"ESPHome: not precompiling non-src force-includes: {unfolded}")
     content = "".join(f'#include "{name}"\n' for name in (*folded, _CORE_HEADER))
 
     digest = hashlib.sha256()
-    digest.update(content.encode())
-    digest.update(cxx.encode())
+    digest.update(content.encode(errors="surrogateescape"))
+    digest.update(cxx.encode(errors="surrogateescape"))
     # Mirror CCACHE_BASEDIR: strip the per-device build path so identical
     # configs produce identical .sum files and share cache entries
     flags_id = " ".join(flags)
     if basedir := os.environ.get("CCACHE_BASEDIR"):
         flags_id = flags_id.replace(basedir, "")
-    digest.update(flags_id.encode())
+    digest.update(flags_id.encode(errors="surrogateescape"))
     # GCC never validates a .gch against its source headers, and PlatformIO
     # package paths carry no version, so a package bump must invalidate here
     platform = env.PioPlatform()  # noqa: F821

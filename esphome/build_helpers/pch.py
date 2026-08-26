@@ -170,7 +170,7 @@ def pch_checksum(
         digest.update(closure[name])
         digest.update(b"\0")
     for item in extra:
-        digest.update(item.encode())
+        digest.update(item.encode(errors="surrogateescape"))
         digest.update(b"\0")
     return digest.hexdigest()
 
@@ -317,7 +317,7 @@ def prepare_pch(
                 cmd_id,
             ),
         )
-    except OSError as err:
+    except (OSError, UnicodeError) as err:
         # Identity unknown: a stale cache entry must never be served
         _LOGGER.warning(
             "Could not establish the pch identity; compiling without it: %s", err
