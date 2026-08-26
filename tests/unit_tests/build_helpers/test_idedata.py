@@ -117,6 +117,27 @@ def test_parse_entry_keeps_search_chain_force_include(tmp_path: Path) -> None:
     assert cxx_flags[cxx_flags.index("-include") + 1] == "Arduino.h"
 
 
+def test_parse_entry_warns_on_vanished_force_include(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A build-dir force-include deleted by clean_build must leave a trail;
+    a name resolvable via the -I chain must not warn."""
+    inc = tmp_path / "inc"
+    inc.mkdir()
+    (inc / "Arduino.h").write_text("")
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        f"g++ -I{inc} -include Arduino.h -include esphome_pch.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    assert "Arduino.h" in cxx_flags
+    assert "esphome_pch.h" in caplog.text
+    assert "Arduino.h" not in caplog.text
+
+
 def test_parse_entry_drops_trailing_force_include(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:

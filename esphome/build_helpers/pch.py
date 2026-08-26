@@ -57,6 +57,14 @@ def ccache_pch_env() -> dict[str, str]:
     export these process-wide; only time_macros affects non-pch TUs."""
     if not pch_enabled():
         return {}
+    user_sloppiness = os.environ.get("CCACHE_SLOPPINESS")
+    if user_sloppiness is not None and "pch_defines" not in user_sloppiness:
+        # EXTSUM without pch_defines makes ccache silently decline every
+        # pch-consuming compile
+        _LOGGER.warning(
+            "CCACHE_SLOPPINESS lacks pch_defines; ccache will not cache "
+            "compiles that use the precompiled header"
+        )
     return {k: v for k, v in _CCACHE_PCH_ENV.items() if k not in os.environ}
 
 
@@ -96,10 +104,14 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
         try:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
-            # Hash a marker so an unreadable header invalidates instead of
-            # silently vanishing from the digest
+            # mtime/size keep a changed-but-unreadable header shifting the
+            # digest without device paths in it
             _LOGGER.warning("Could not read %s for the pch checksum: %s", rel, err)
-            data = b"<unreadable>"
+            try:
+                st = (src_dir / rel).stat()
+                data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
+            except OSError:
+                data = b"<unreadable>"
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
