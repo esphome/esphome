@@ -228,7 +228,10 @@ def test_registry_fetch_job_downloads_under_lock(tmp_path: Path) -> None:
     with (
         patch(
             "esphome.framework_helpers.download_with_resume",
-            side_effect=lambda url, dest, progress=None, **kw: order.append("fetch"),
+            side_effect=lambda url, dest, progress=None, **kw: (
+                order.append("fetch"),
+                Path(dest).write_bytes(b"data"),  # registration needs a real file
+            ),
         ),
         patch(
             "filelock.FileLock.acquire",
@@ -424,6 +427,23 @@ def test_lock_deadline_leaves_download_to_the_holder(tmp_path: Path) -> None:
     assert not dl_path.exists()
 
 
+def test_registry_lock_deadline_skips_registration(tmp_path: Path) -> None:
+    """A registry job that lost the download race to another process
+    must not stamp a nonexistent archive into pio's usage.db."""
+    manager = MagicMock()
+    dl_path = tmp_path / "archive"
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
+        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
+    ):
+        pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            lambda done: None
+        )
+    mock_download.assert_not_called()
+    manager.set_download_utime.assert_not_called()
+
+
 def test_main_interrupt_exits_quietly(tmp_path: Path) -> None:
     """Ctrl-C reaches the child via the shared process group; it must exit
     without a traceback."""
@@ -559,6 +579,11 @@ def test_uri_jobs_head_failure_counts_as_unresolved(
     with patch("esphome.net_retry.http_request", side_effect=OSError("no route")):
         assert pf._uri_jobs(m, spec, set()) == ([], 1)
     resp = MagicMock(ok=False, status_code=503)
+    resp.headers = {"content-length": "999"}
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        assert pf._uri_jobs(m, spec, set()) == ([], 1)
+    # 403 is how registries rate-limit; it must not be cached as warm
+    resp = MagicMock(ok=False, status_code=403)
     resp.headers = {"content-length": "999"}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(m, spec, set()) == ([], 1)
