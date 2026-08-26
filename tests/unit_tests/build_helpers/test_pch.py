@@ -45,11 +45,22 @@ def test_ccache_pch_env_disabled() -> None:
         assert pch.ccache_pch_env() == {}
 
 
-def test_ccache_pch_env_respects_user_values() -> None:
+def test_ccache_pch_env_respects_user_values(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A user CCACHE_SLOPPINESS wins, but one without pch_defines silently
+    stops ccache from caching pch consumers, so it must warn."""
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
         env = pch.ccache_pch_env()
     assert "CCACHE_SLOPPINESS" not in env
     assert env["CCACHE_PCH_EXTSUM"] == "true"
+    assert "lacks pch_defines" in caplog.text
+    caplog.clear()
+    with patch.dict(
+        os.environ, {"CCACHE_SLOPPINESS": "pch_defines,locale"}, clear=True
+    ):
+        pch.ccache_pch_env()
+    assert "lacks pch_defines" not in caplog.text
 
 
 def test_pch_header_text_preserves_order() -> None:
@@ -118,7 +129,9 @@ def test_include_closure_marks_unreadable(
         closure = pch._include_closure(tmp_path, ["a.h"])
     finally:
         locked.chmod(0o644)
-    assert closure["locked.h"] == b"<unreadable>"
+    # stat still works, so the marker varies with mtime/size and a later
+    # edit to the unreadable file still shifts the digest
+    assert closure["locked.h"].startswith(b"<unreadable:")
     assert "Could not read locked.h" in caplog.text
 
 
