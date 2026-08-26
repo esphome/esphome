@@ -100,6 +100,9 @@ def effective_ccache_basedir() -> str:
 
     raw = os.environ.get("CCACHE_BASEDIR")
     if raw is not None:
-        # An explicitly empty value disables ccache's rewriting; mirror it
-        return raw
+        # A degenerate value ("", "/", relative) must not be used for
+        # substring stripping; fall back to the resolved build path
+        if len(Path(raw).parts) > 1:
+            return raw
+        return str(Path(CORE.build_path).resolve())
     return str(Path(CORE.build_path).resolve())

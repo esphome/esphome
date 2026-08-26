@@ -129,3 +129,7 @@ def test_effective_ccache_basedir_prefers_user_value(tmp_path: Path) -> None:
         assert ccache.effective_ccache_basedir() == "/custom/base"
     with patch.dict(os.environ, {}, clear=True):
         assert ccache.effective_ccache_basedir() == str(tmp_path.resolve())
+    # Degenerate values would strip substrings ccache never rewrites
+    for bad in ("", "/"):
+        with patch.dict(os.environ, {"CCACHE_BASEDIR": bad}, clear=True):
+            assert ccache.effective_ccache_basedir() == str(tmp_path.resolve())

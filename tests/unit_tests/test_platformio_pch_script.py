@@ -352,6 +352,39 @@ def test_pch_script_unions_user_sloppiness(
     assert "adding pch_defines,time_macros" in capsys.readouterr().out
 
 
+def test_pch_script_unmodelable_flag_skips_pch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Unbalanced quotes and multi-token elements cannot be reproduced as
+    one argv; the pch is skipped rather than built with diverging flags."""
+    for bad in ("-DFOO='bar", "-DA=1\t-DB=2"):
+        scons_env = _run_script(tmp_path, flags=["-DX=1", bad])
+        assert scons_env.prepended == []
+        assert not (tmp_path / "dev" / "esphome_pch.h.gch").exists()
+    assert "unmodelable flag" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(
+    getattr(os, "geteuid", lambda: -1)() == 0, reason="root ignores file modes"
+)
+def test_pch_script_unlistable_include_dir_skips_pch(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An unlistable subtree must not silently drop out of the digest."""
+    proj = tmp_path / "dev"
+    override = proj / "lwip_override"
+    hidden = override / "hidden"
+    hidden.mkdir(parents=True)
+    (hidden / "gen.h").write_text("")
+    hidden.chmod(0)
+    try:
+        scons_env = _run_script(tmp_path, flags=["-DX=1", "-I", str(override)])
+    finally:
+        hidden.chmod(0o755)
+    assert scons_env.prepended == []
+    assert "skipping precompiled header" in capsys.readouterr().out
+
+
 def test_pch_script_nobuild_without_projenv_is_noop(tmp_path: Path) -> None:
     """-t nobuild never exports projenv; the script must not abort."""
     proj = tmp_path / "dev"
