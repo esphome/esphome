@@ -5,10 +5,13 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import configparser
-import shutil
 import subprocess
 import threading
 
+# esphome is not installed at this docker layer, so its rmtree helper is
+# out of reach; pio's fs.rmtree is the same chmod-on-readonly shape and
+# is what pio's own installer uses on these directories
+from platformio import fs
 from platformio.package.manager.library import LibraryPackageManager
 from platformio.package.manager.tool import ToolPackageManager
 from platformio.package.meta import PackageSpec
@@ -115,7 +118,7 @@ def parallel_install(manager_cls, specs: list) -> None:
                 # reset it cannot see the torn directory
                 mgr.memcache_reset()
                 if (pkg := mgr.get_package(spec)) is not None:
-                    shutil.rmtree(pkg.path)
+                    fs.rmtree(pkg.path)
             except Exception as cleanup_err:  # noqa: BLE001
                 print(
                     f"Cleanup after failed pre-install of {spec} "

@@ -138,7 +138,7 @@ def test_parallel_install_failure_cleans_torn_destination(capsys) -> None:
 
     cls.get_package = get_package
     try:
-        with patch.object(mod.shutil, "rmtree", side_effect=removed.append):
+        with patch.object(mod.fs, "rmtree", side_effect=removed.append):
             mod.parallel_install(cls, ["esphome/bad @ 1.0", "esphome/good @ 1.0"])
     finally:
         cls.get_package = orig_get
