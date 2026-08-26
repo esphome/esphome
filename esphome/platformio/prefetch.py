@@ -194,17 +194,15 @@ def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
     return config.get(f"env:{env}", "platform", None), config
 
 
-def _manager_kwargs(manager) -> dict[str, Any]:
-    """Constructor kwargs that keep a sibling manager equivalent to the
-    shared one (the compatibility qualifiers select which package a
-    library spec resolves to)."""
+def _manager_kwargs(manager: Any) -> dict[str, Any]:
+    """Constructor kwargs that make a sibling manager equivalent to the shared one."""
     if compatibility := getattr(manager, "compatibility", None):
         return {"compatibility": compatibility}
     return {}
 
 
 def _registry_jobs(
-    manager, specs, seen: set[str]
+    manager: Any, specs: list[Any], seen: set[str]
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Resolve registry specs to ``(name, size, fetch)`` batch jobs.
 
@@ -294,7 +292,7 @@ def _registry_jobs(
 
 
 def _uri_jobs(
-    manager, specs, seen: set[str]
+    manager: Any, specs: list[Any], seen: set[str]
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
@@ -398,11 +396,12 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
     return run
 
 
-def _dependency_entries(manager, entries, seen_names: set[str]) -> list:
+def _dependency_entries(
+    manager: Any, entries: list[tuple[str, Any]], seen_names: set[str]
+) -> list[tuple[str, Any]]:
     """Registry dependencies of the installed entries, one per new name.
 
-    Local manifest reads only; name-only platform libs (SPI, Hash) stay
-    with pio run's own installer.
+    Local manifest reads only; name-only platform libs stay with pio run.
     """
     from platformio.package.meta import PackageCompatibility
 
@@ -421,36 +420,25 @@ def _dependency_entries(manager, entries, seen_names: set[str]) -> list:
             dspec = manager.dependency_to_spec(dep)
             if (key := (dspec.name or "").lower()) and key not in seen_names:
                 if manager.get_package(dspec) is not None:
-                    continue  # a previous build installed it; keep it off
-                    # the destructive failure path
+                    continue  # already installed
                 deps.setdefault(key, (dspec.name, dspec))
     return list(deps.values())
 
 
-def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
-    """Install downloaded packages now, extracting in parallel.
+def _preinstall(
+    manager: Any, entries: list[tuple[str, Any]], seen_names: set[str] | None = None
+) -> None:
+    """Install downloaded packages in parallel via PlatformIO's own ``_install``.
 
-    pio run's installer unpacks one archive at a time on one core. With the
-    manager's inter-process lock held once and a per-thread manager driving
-    PlatformIO's own ``_install`` for each distinct package, extraction uses
-    every usable core and pio run finds the packages installed. ``entries``
-    are ``(name, spec)`` pairs, one per destination directory. Each wave
-    skips dependencies (two packages sharing one must not extract it into
-    the same directory from two threads); the installed manifests then feed
-    the next wave, deduped by name, until nothing new appears. Any failure
-    leaves that package to pio run's own installer; every install failing
-    (a PlatformIO API change would) warns once. The re-resolution
-    ``_install`` performs against the registry is the price of reusing
-    PlatformIO's metadata and postinstall handling.
+    ``entries`` are ``(name, spec)`` pairs, one per destination directory.
+    The manager's lock is held once; each wave skips dependencies, then the
+    installed manifests feed the next wave until nothing new appears. Any
+    failure leaves that package to pio run's serial installer.
     """
-    # Affinity-aware where the interpreter offers it; esphome.core.config's
-    # helper is identical but drags codegen into this latency-bound child
     cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 4
     workers = min(cpus, len(entries))
-    # One manager per worker thread: _install mutates per-instance state
-    # (memcache, install history, the registry client). Built serially,
-    # because every construction rewires the shared manager logger and
-    # concurrent handler swaps drop log lines.
+    # One manager per worker (_install mutates instance state); built
+    # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
     for _ in range(workers):
         managers.put(manager.__class__(manager.package_dir, **_manager_kwargs(manager)))
@@ -465,16 +453,13 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
                 mgr = manager.__class__(manager.package_dir, **_manager_kwargs(manager))
             local.mgr = mgr
         try:
-            # PlatformIO's real install (metadata, postinstall scripts);
-            # only the concurrency across packages is ours
             mgr._install(spec, skip_dependencies=True)  # pylint: disable=protected-access  # noqa: SLF001
             return True
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             _LOGGER.warning("Could not pre-install %s: %s", name, failure_reason(err))
             _LOGGER.debug("Pre-install failure detail", exc_info=True)
-            # A post-copy failure (a failing postinstall script, a torn
-            # copy) leaves a package pio run would trust; remove it so
-            # pio run genuinely reinstalls it
+            # A post-copy failure leaves a package pio run would trust;
+            # remove it so pio run genuinely reinstalls it
             try:
                 mgr.memcache_reset()
                 if (pkg := mgr.get_package(spec)) is not None:
@@ -495,10 +480,8 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
         workers,
         ", ".join(name for name, _ in entries),
     )
-    # Postinstall scripts chdir process-globally (pio's fs.cd); every
-    # path this child uses is absolute, and the cwd is restored after the
-    # pool. Interleaved click progress bars from concurrent unpacks are
-    # suppressed; pio's per-package install lines remain.
+    # Postinstall scripts chdir process-globally; the cwd is restored
+    # after the pool. Suppress interleaved click progress bars.
     os.environ.setdefault("PLATFORMIO_DISABLE_PROGRESSBAR", "true")
     cwd = Path.cwd()
     manager.lock()
@@ -507,13 +490,12 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
             try:
                 results = list(ex.map(_install_one, entries))
             except BaseException:
-                # An interrupt must not run the queued installs; in-flight
-                # ones finish so no package directory is left half copied
+                # Drop queued installs; in-flight ones finish so no
+                # package directory is left half copied
                 ex.shutdown(wait=True, cancel_futures=True)
                 raise
     finally:
-        # A cleanup failure must not replace the in-flight exception or
-        # skip the remaining cleanup
+        # Cleanup must not mask an in-flight exception or skip a step
         with suppress(Exception):
             manager.memcache_reset()
         try:
