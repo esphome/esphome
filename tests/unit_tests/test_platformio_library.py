@@ -998,8 +998,8 @@ def test_versionless_ignored_dependency_stays_quiet(
 def test_versionless_dependency_without_provider_warns(
     tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """When no backend tree can supply a version-less dependency, the drop
-    is a warning, not a debug line."""
+    """A backend whose tree could supply the name warns on the drop; one
+    without provides() can never act on it, so it stays at debug."""
     _patch_download_with_manifests(
         monkeypatch,
         tmp_path,
@@ -1011,13 +1011,24 @@ def test_versionless_dependency_without_provider_warns(
             }
         },
     )
-    convert_libraries([Library("esphome/A", None, None)], _backend())
+    convert_libraries(
+        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
+    )
     assert (
         caplog.text.count(
             "Hash of esphome/A has no version to resolve and nothing provides it"
         )
         == 1
     )
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG):
+        convert_libraries([Library("esphome/A", None, None)], _backend())
+    records = [
+        r
+        for r in caplog.records
+        if "has no version to resolve and nothing provides it" in r.message
+    ]
+    assert records and all(r.levelno == logging.DEBUG for r in records)
 
 
 def test_url_version_dependency_is_not_substituted_by_provides(
@@ -1117,7 +1128,9 @@ def test_versionless_url_ish_dependency_name_warns_cleanly(
         tmp_path,
         {"esphome/A": {"name": "A", "dependencies": [{"name": "file://"}]}},
     )
-    convert_libraries([Library("esphome/A", None, None)], _backend())
+    convert_libraries(
+        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
+    )
     assert (
         "file:// of esphome/A has no version to resolve and nothing provides it"
         in caplog.text
