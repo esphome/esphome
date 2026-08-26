@@ -10,6 +10,7 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from filelock import Timeout
 import pytest
 
 from esphome.core import CORE
@@ -455,8 +456,6 @@ def test_uri_fetch_job_no_discard_without_a_file(tmp_path: Path) -> None:
 
 def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
     """A lock freed within the deadline lets the job proceed normally."""
-    from filelock import Timeout
-
     dl_path = tmp_path / "archive"
 
     def fake_download(url, dest, progress=None, **kwargs):
@@ -476,8 +475,6 @@ def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
 def test_uri_fetch_job_lock_timeout_raises(tmp_path: Path) -> None:
     """A held lock is a counted, warned failure, and the tracker is polled
     between acquire slices so a parked worker observes cancellation."""
-    from filelock import Timeout
-
     dl_path = tmp_path / "archive"
     ticks: list[int] = []
     with (
