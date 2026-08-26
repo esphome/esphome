@@ -80,9 +80,9 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
 
     this->width_ = encode_uint32(buffer[21], buffer[20], buffer[19], buffer[18]);
     this->height_ = encode_uint32(buffer[25], buffer[24], buffer[23], buffer[22]);
-    if (this->width_ == 0 || this->height_ == 0) {
+    if (this->width_ <= 0 || this->height_ <= 0) {
       ESP_LOGE(TAG, "Invalid image dimensions: (%zux%zu)", this->width_, this->height_);
-      return DECODE_ERROR_INVALID_TYPE;
+      return DECODE_ERROR_UNSUPPORTED_FORMAT;
     }
     this->bits_per_pixel_ = encode_uint16(buffer[29], buffer[28]);
     this->compression_method_ = encode_uint32(buffer[33], buffer[32], buffer[31], buffer[30]);
