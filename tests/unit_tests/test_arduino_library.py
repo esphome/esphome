@@ -718,18 +718,18 @@ def test_bundled_dependency_dict_shorthand_prefers_bundled(tmp_path: Path) -> No
 
 def test_unfulfilled_provides_promise_raises(tmp_path: Path) -> None:
     """A provides()-skipped dependency nothing added can only surface as
-    undefined symbols at link, so it fails here by name, deduplicated;
-    satisfied ones pass silently."""
+    undefined symbols at link, so it fails here by name; satisfied ones
+    pass silently."""
     with pytest.raises(EsphomeError, match="Wire") as err:
         component._check_unfulfilled_provides(
-            ["Wire", "Wire", "Hash"], {"Hash"}, {"Wire", "Hash"}
+            {"Wire", "Hash"}, {"Hash"}, {"Wire", "Hash"}
         )
     assert str(err.value).count("Wire") == 1
     assert "Hash" not in str(err.value)
-    component._check_unfulfilled_provides(["Hash"], {"Hash"}, {"Hash"})
+    component._check_unfulfilled_provides({"Hash"}, {"Hash"}, {"Hash"})
     # A recording for a since-re-resolved manifest is stale walk state,
     # never a failure: no final manifest still requests Wire
-    component._check_unfulfilled_provides(["Wire"], set(), set())
+    component._check_unfulfilled_provides({"Wire"}, set(), set())
 
 
 def test_extra_script_link_flags_reach_the_library(tmp_path: Path) -> None:
@@ -988,9 +988,7 @@ def test_owner_qualified_dependency_is_silent(
     assert "malformed" not in caplog.text
 
 
-def test_bundled_dependency_string_list_form(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_bundled_dependency_string_list_form(tmp_path: Path) -> None:
     """The bare string-list dependency form (PIO-legal) resolves to the
     bundled library instead of vanishing in normalization."""
     framework = _make_framework(tmp_path)
