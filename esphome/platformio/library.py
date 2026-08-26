@@ -945,6 +945,7 @@ def _warn_unsatisfied_versionless(
             # Name-only evidence: any resolved component with this manifest
             # name counts, not just ones the requester can reach, so a
             # coincidental name collision must stay visible
+            warned.add(dep_name)
             _LOGGER.warning(
                 "Version-less dependency %s of %s assumed satisfied by a "
                 "resolved library's manifest name only",
@@ -959,10 +960,16 @@ def _warn_unsatisfied_versionless(
         ):
             # provides() only satisfies owner-less names: the walk's
             # backend-provided skip has the same owner guard, so an
-            # owner-qualified version-less dep was added by nobody
+            # owner-qualified version-less dep was added by nobody.
+            # Recorded so the backend's post-emit reconciliation covers
+            # this path like the versioned one
+            backend.provided_requests.append(dep_name)
             continue
         warned.add(dep_name)
-        _LOGGER.warning(
+        # A backend with no framework tree can never supply a bundled
+        # name, so for it this is unactionable noise
+        log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
+        log(
             "Dependency %s of %s has no version to resolve and nothing "
             "provides it; skipping",
             dep_name,
