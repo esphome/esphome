@@ -716,28 +716,34 @@ def test_bundled_dependency_dict_shorthand_prefers_bundled(tmp_path: Path) -> No
     assert "Wire" in [lib.name for lib in libs]
 
 
-def test_unfulfilled_provides_promise_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The walk records every provides()-skipped dependency; one nothing
-    added must warn instead of surfacing as link errors, while satisfied
-    ones stay silent."""
-    component._warn_unfulfilled_provides(["Wire", "Hash"], {"Hash"})
-    assert "provides() skipped dependency Wire but nothing added it" in caplog.text
-    assert "Hash" not in caplog.text
+def test_unfulfilled_provides_promise_raises(tmp_path: Path) -> None:
+    """A provides()-skipped dependency nothing added can only surface as
+    undefined symbols at link, so it fails here by name, deduplicated;
+    satisfied ones pass silently."""
+    with pytest.raises(EsphomeError, match="Wire") as err:
+        component._check_unfulfilled_provides(["Wire", "Wire", "Hash"], {"Hash"})
+    assert str(err.value).count("Wire") == 1
+    assert "Hash" not in str(err.value)
+    component._check_unfulfilled_provides(["Hash"], {"Hash"})
 
 
-def test_fulfilled_provides_promise_is_silent_end_to_end(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """The normal path: the walk records the skip and the backend adds the
-    bundled copy, so the reconciliation stays quiet."""
+def test_extra_script_link_flags_reach_the_library(tmp_path: Path) -> None:
+    """LINKFLAGS captured by an extra script travel outside build.flags and
+    must reach the library's link flags, matching the ESP-IDF backend."""
     framework = _make_framework(tmp_path)
-    converted = _webserver(tmp_path, {"build": {}, "dependencies": {"Wire": "*"}})
+    converted = _webserver(
+        tmp_path,
+        {
+            "build": {},
+            component.ESPHOME_DATA_KEY: {
+                component.ESPHOME_DATA_LINK_FLAGS_KEY: ["-Wl,--wrap=foo"]
+            },
+        },
+    )
     with _emitting_converter(converted):
         libs = _resolve(framework)
-    assert "Wire" in [lib.name for lib in libs]
-    assert "provides() skipped dependency" not in caplog.text
+    (webserver,) = (lib for lib in libs if "ESPAsyncWebServer" in lib.name)
+    assert "-Wl,--wrap=foo" in webserver.link_flags
 
 
 def test_bundled_dependency_platform_rejection_is_debug(
@@ -908,6 +914,8 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     names = [lib.name for lib in libs]
     assert "Wire" in names
     assert any("locallib" in n.lower() for n in names)
+    # The walk populated provided_requests for the skip; the backend added
+    # the bundled copy, so the reconciliation passed without raising
 
 
 @pytest.mark.parametrize(
