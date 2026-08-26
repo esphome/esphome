@@ -627,7 +627,10 @@ def test_stop_child_surviving_child_warns(caplog: pytest.LogCaptureFixture) -> N
     proc = MagicMock()
     proc.poll.return_value = None  # still running: the wait is announced
     proc.wait.side_effect = [timeout, timeout, timeout]
-    with patch.object(pf.sys, "platform", "linux"):
+    with (
+        patch.object(pf.sys, "platform", "linux"),
+        caplog.at_level(pf.logging.INFO),
+    ):
         pf._stop_child(proc)
     assert "Waiting for the prefetch child" in caplog.text
     assert "could not be confirmed stopped" in caplog.text
