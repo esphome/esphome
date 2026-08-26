@@ -31,8 +31,9 @@ class _FakeSpec(SimpleNamespace):
 def _fake_manager(tmp_path: Path) -> MagicMock:
     m = MagicMock()
     # _resolve and _preinstall construct same-class instances
-    m.__class__ = lambda package_dir=None: m
+    m.__class__ = lambda package_dir=None, **kwargs: m
     m.get_package.return_value = None
+    m.compatibility = None
     m.search_registry_packages.return_value = [{"any": 1}]
     m.find_best_registry_version.return_value = (
         {"name": "toolchain-xtensa"},
@@ -337,7 +338,8 @@ def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
 def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     """Heal runs first, then the subprocess spawns with pio run's libdeps
     dir and the parent's PYTHONPATH preserved (the child is esphome)."""
-    proc = MagicMock(returncode=0)
+    proc = MagicMock()
+    proc.wait.return_value = 0
     order = MagicMock()
     order.run.return_value = proc
     with (
@@ -345,7 +347,7 @@ def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
             "esphome.platformio.toolchain.heal_platformio_python_env",
             order.heal,
         ),
-        patch.object(pf.subprocess, "run", order.run) as mock_run,
+        patch.object(pf.subprocess, "Popen", order.run) as mock_run,
         patch.dict("os.environ", {"PYTHONPATH": "/leak"}),
     ):
         pf.prefetch_platformio_packages()
@@ -364,30 +366,110 @@ def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     # The child is esphome itself; PYTHONPATH must survive so it imports
     # the same tree (tests/integration pins the source tree through it)
     assert kwargs["env"]["PYTHONPATH"] == "/leak"
-    assert kwargs["timeout"] == pf._PREFETCH_TIMEOUT
+    proc.wait.assert_called_once_with(timeout=pf._PREFETCH_TIMEOUT)
+
+
+def _proc(wait_effect) -> MagicMock:
+    proc = MagicMock()
+    if isinstance(wait_effect, BaseException):
+        proc.wait.side_effect = [wait_effect, 0]
+    else:
+        proc.wait.return_value = wait_effect
+    return proc
 
 
 @pytest.mark.parametrize(
-    ("run_effect", "expected"),
+    ("popen_effect", "expected"),
     [
         (
-            {"side_effect": pf.subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT)},
+            {
+                "return_value": _proc(
+                    pf.subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT)
+                )
+            },
             "prefetch timed out",
         ),
-        ({"return_value": MagicMock(returncode=3)}, "prefetch skipped (exit 3)"),
+        ({"return_value": _proc(3)}, "prefetch skipped (exit 3)"),
         ({"side_effect": OSError("no exec")}, "PlatformIO package prefetch skipped"),
     ],
 )
 def test_prefetch_spawn_failures_warn_and_continue(
-    caplog: pytest.LogCaptureFixture, run_effect, expected
+    caplog: pytest.LogCaptureFixture, popen_effect, expected
 ) -> None:
-    """Timeouts, nonzero exits, and spawn failures each warn, never raise."""
+    """Timeouts, nonzero exits, and spawn failures each warn, never raise;
+    a timed-out child is stopped gracefully."""
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
-        patch.object(pf.subprocess, "run", **run_effect),
+        patch.object(pf.subprocess, "Popen", **popen_effect),
     ):
         pf.prefetch_platformio_packages()
     assert expected in caplog.text
+
+
+def test_stop_child_escalates_to_kill() -> None:
+    """A child ignoring SIGTERM is killed after the grace period."""
+    proc = MagicMock()
+    proc.wait.side_effect = [pf.subprocess.TimeoutExpired("cmd", 30), 0]
+    pf._stop_child(proc)
+    proc.terminate.assert_called_once_with()
+    proc.kill.assert_called_once_with()
+
+
+def test_preinstall_failure_removes_torn_destination(tmp_path: Path) -> None:
+    """A failed install removes whatever get_package can see so pio run
+    genuinely reinstalls it; a cleanup failure warns."""
+    m = _fake_manager(tmp_path)
+    m._install.side_effect = RuntimeError("postinstall failed")
+    # cleanup lookup first, then the dependency-wave lookup
+    m.get_package.side_effect = [SimpleNamespace(path=str(tmp_path / "torn")), None]
+    removed: list[str] = []
+    with patch.object(pf, "rmtree", side_effect=removed.append):
+        pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+    assert removed == [str(tmp_path / "torn")]
+
+
+def test_preinstall_cleanup_failure_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    m = _fake_manager(tmp_path)
+    m._install.side_effect = RuntimeError("boom")
+    m.get_package.side_effect = [OSError("scan failed"), None]
+    pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+    assert "Could not remove the failed install of bad@1" in caplog.text
+
+
+def test_dependency_entries_honor_compatibility(tmp_path: Path) -> None:
+    """A dependency pio's install_dependency would skip as incompatible is
+    not pre-installed either."""
+    from platformio.package.meta import PackageCompatibility
+
+    m = _fake_manager(tmp_path)
+    m.compatibility = PackageCompatibility(platforms=["espressif32"])
+    m.get_package.side_effect = lambda spec: SimpleNamespace(spec=spec)
+    m.get_pkg_dependencies.return_value = [
+        {"owner": "o", "name": "espdep", "version": "^1", "platforms": ["espressif32"]},
+        {"owner": "o", "name": "avrdep", "version": "^1", "platforms": ["atmelavr"]},
+    ]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    entries = pf._dependency_entries(
+        m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
+    )
+    assert [name for name, _ in entries] == ["espdep"]
+
+
+def test_prefetch_interrupt_stops_child_gracefully() -> None:
+    """A KeyboardInterrupt terminates the child (never SIGKILL first) and
+    re-raises."""
+    proc = MagicMock()
+    proc.wait.side_effect = [KeyboardInterrupt(), 0]
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(pf.subprocess, "Popen", return_value=proc),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        pf.prefetch_platformio_packages()
+    proc.terminate.assert_called_once_with()
+    proc.kill.assert_not_called()
 
 
 def test_main_guards_and_exits_zero(caplog: pytest.LogCaptureFixture) -> None:
@@ -431,7 +513,7 @@ def test_prefetch_no_platform_returns(tmp_path: Path) -> None:
 
 
 def _pio_modules(tmp_path: Path, fake_platform, fake_pm, config, lib_captures=None):
-    def fake_lib_manager(storage_dir):
+    def fake_lib_manager(storage_dir, **kwargs):
         if lib_captures is not None:
             lib_captures.append(storage_dir)
         return _fake_manager(tmp_path)
@@ -458,7 +540,8 @@ def _pio_modules(tmp_path: Path, fake_platform, fake_pm, config, lib_captures=No
         "platformio.package.meta": SimpleNamespace(
             PackageSpec=lambda *a, **kw: _FakeSpec(
                 uri=None, name=kw.get("name") or (a[0] if a else None)
-            )
+            ),
+            PackageCompatibility=SimpleNamespace,
         ),
         "platformio.platform": MagicMock(),
         "platformio.platform.factory": SimpleNamespace(
@@ -584,6 +667,7 @@ def test_prefetch_end_to_end_wiring(
         tmp_path,
         {
             "platform": "fake/platform@1.0",
+            "framework": "arduino",
             "lib_deps": ["esphome/noise-c@1.0", "${common.lib_deps}"],
         },
     )
@@ -680,7 +764,7 @@ def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
     assert sorted(installed) == ["a", "b"]
     m.lock.assert_called_once_with()
     m.unlock.assert_called_once_with()
-    m.memcache_reset.assert_called_once_with()
+    assert m.memcache_reset.call_count >= 1
 
 
 def test_preinstall_all_failed_warns_once(
@@ -764,13 +848,25 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
 
 
 def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
+    """A failure inside the pool cancels queued installs and releases the
+    lock; a constructor failure never acquires it."""
     m = _fake_manager(tmp_path)
+    boom = MagicMock()
+    boom.map.side_effect = RuntimeError("no threads")
     with (
-        patch.object(pf, "ThreadPoolExecutor", side_effect=RuntimeError("no threads")),
+        patch.object(pf, "ThreadPoolExecutor", return_value=boom),
         pytest.raises(RuntimeError),
     ):
         pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
     m.unlock.assert_called_once_with()
+    assert boom.shutdown.call_args_list[0][1].get("cancel_futures") is True
+    m.reset_mock()
+    with (
+        patch.object(pf, "ThreadPoolExecutor", side_effect=RuntimeError("no")),
+        pytest.raises(RuntimeError),
+    ):
+        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+    m.lock.assert_not_called()
 
 
 def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:

@@ -35,6 +35,7 @@ from esphome.framework_helpers import (
     run_batch_downloads,
     warn_prefetch_failures,
 )
+from esphome.helpers import rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,19 +134,40 @@ def prefetch_platformio_packages() -> None:
         CORE.name,
     ]
     try:
-        proc = subprocess.run(cmd, env=env, check=False, timeout=_PREFETCH_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        _LOGGER.warning("PlatformIO package prefetch timed out; continuing without it")
-        return
+        # Not a with-block: the lifetime spans the wait/terminate arms
+        proc = subprocess.Popen(cmd, env=env)  # pylint: disable=consider-using-with
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # The prefetch must never become a new way for the build to fail
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
         return
-    if proc.returncode != 0:
-        _LOGGER.warning(
-            "PlatformIO package prefetch skipped (exit %d)", proc.returncode
-        )
+    try:
+        returncode = proc.wait(timeout=_PREFETCH_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        _stop_child(proc)
+        _LOGGER.warning("PlatformIO package prefetch timed out; continuing without it")
+        return
+    except BaseException:
+        # SIGKILL (subprocess.run's choice on interrupt) could land inside
+        # a package-directory copy pio run would then trust; ask first
+        _stop_child(proc)
+        raise
+    if returncode != 0:
+        _LOGGER.warning("PlatformIO package prefetch skipped (exit %d)", returncode)
+
+
+def _stop_child(proc: subprocess.Popen) -> None:
+    """Terminate the child, escalating to kill only if it will not stop.
+
+    SIGTERM gives the child's in-flight package install time to finish or
+    unwind; the grace period covers one large archive extraction.
+    """
+    proc.terminate()
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
 
 
 def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
@@ -359,6 +381,9 @@ def _dependency_entries(manager, entries, seen_names: set[str]) -> list:
     Local manifest reads only; name-only platform libs (SPI, Hash) stay
     with pio run's own installer.
     """
+    from platformio.package.meta import PackageCompatibility
+
+    compatibility = getattr(manager, "compatibility", None)
     deps: dict[str, Any] = {}
     for _name, spec in entries:
         if (pkg := manager.get_package(spec)) is None:
@@ -366,6 +391,10 @@ def _dependency_entries(manager, entries, seen_names: set[str]) -> list:
         for dep in manager.get_pkg_dependencies(pkg) or []:
             if not (dep.get("owner") or dep.get("version")):
                 continue
+            if compatibility and not PackageCompatibility.from_dependency(
+                dep
+            ).is_compatible(compatibility):
+                continue  # pio's install_dependency would skip it too
             dspec = manager.dependency_to_spec(dep)
             if (key := (dspec.name or "").lower()) and key not in seen_names:
                 deps.setdefault(key, (dspec.name, dspec))
@@ -388,31 +417,49 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
     ``_install`` performs against the registry is the price of reusing
     PlatformIO's metadata and postinstall handling.
     """
-    from esphome.core.config import get_usable_cpu_count
-
-    workers = min(get_usable_cpu_count(), len(entries))
+    # Affinity-aware where the interpreter offers it; esphome.core.config's
+    # helper is identical but drags codegen into this latency-bound child
+    cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 4
+    workers = min(cpus, len(entries))
     # One manager per worker thread: _install mutates per-instance state
     # (memcache, install history, the registry client). Built serially,
     # because every construction rewires the shared manager logger and
     # concurrent handler swaps drop log lines.
+    mgr_kwargs = (
+        {"compatibility": manager.compatibility}
+        if getattr(manager, "compatibility", None)
+        else {}
+    )
     managers: SimpleQueue = SimpleQueue()
     for _ in range(workers):
-        managers.put(manager.__class__(manager.package_dir))
+        managers.put(manager.__class__(manager.package_dir, **mgr_kwargs))
     local = threading.local()
 
     def _install_one(entry) -> bool:
         name, spec = entry
+        if (mgr := getattr(local, "mgr", None)) is None:
+            mgr = local.mgr = managers.get_nowait()
         try:
             # PlatformIO's real install (metadata, postinstall scripts);
             # only the concurrency across packages is ours
-            if (mgr := getattr(local, "mgr", None)) is None:
-                mgr = local.mgr = managers.get_nowait()
             mgr._install(spec, skip_dependencies=True)  # pylint: disable=protected-access  # noqa: SLF001
             return True
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            # pio run installs it serially instead
-            _LOGGER.warning("Could not pre-install %s", name)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            _LOGGER.warning("Could not pre-install %s: %s", name, failure_reason(err))
             _LOGGER.debug("Pre-install failure detail", exc_info=True)
+            # A post-copy failure (a failing postinstall script, a torn
+            # copy) leaves a package pio run would trust; remove it so
+            # pio run genuinely reinstalls it
+            try:
+                mgr.memcache_reset()
+                if (pkg := mgr.get_package(spec)) is not None:
+                    rmtree(pkg.path)
+            except Exception as cleanup_err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                _LOGGER.warning(
+                    "Could not remove the failed install of %s: %s",
+                    name,
+                    failure_reason(cleanup_err),
+                )
             return False
 
     _LOGGER.info(
@@ -421,13 +468,26 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
         workers,
         ", ".join(name for name, _ in entries),
     )
+    # Postinstall scripts chdir process-globally (pio's fs.cd); every
+    # path this child uses is absolute, and the cwd is restored after the
+    # pool. Interleaved click progress bars from concurrent unpacks are
+    # suppressed; pio's per-package install lines remain.
+    os.environ.setdefault("PLATFORMIO_DISABLE_PROGRESSBAR", "true")
+    cwd = Path.cwd()
+    ex = ThreadPoolExecutor(max_workers=workers)
     manager.lock()
     try:
-        with ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(_install_one, entries))
+        results = list(ex.map(_install_one, entries))
+    except BaseException:
+        # An interrupt must not run the queued installs; in-flight ones
+        # finish so no package directory is left half copied
+        ex.shutdown(wait=True, cancel_futures=True)
+        raise
     finally:
+        ex.shutdown(wait=True)
         manager.unlock()
-    manager.memcache_reset()
+        manager.memcache_reset()
+        os.chdir(cwd)
     if not any(results):
         # A systematic fault, not one bad archive; pio run installs serially
         _LOGGER.warning(
@@ -480,10 +540,18 @@ def _prefetch(build_dir: Path, env: str) -> None:
             )
         )
     lib_deps = config.get(f"env:{env}", "lib_deps", [])
-    # pio run's storage dir for this env: installed libraries skip by
-    # disk lookup
+    # pio run's storage dir for this env, with its compatibility
+    # qualifiers: an unqualified library install could land a different
+    # owner's package pio run would then trust
+    from platformio.package.meta import PackageCompatibility
+
+    qualifiers: dict[str, Any] = {"platforms": [p.name]}
+    if framework := config.get(f"env:{env}", "framework", None):
+        qualifiers["frameworks"] = framework
     libdeps_dir = Path(config.get("platformio", "libdeps_dir")) / env
-    lm = LibraryPackageManager(str(libdeps_dir))
+    lm = LibraryPackageManager(
+        str(libdeps_dir), compatibility=PackageCompatibility(**qualifiers)
+    )
     lib_specs = [
         PackageSpec(dep) for dep in lib_deps if dep and not dep.startswith("$")
     ]
@@ -528,11 +596,16 @@ def _prefetch(build_dir: Path, env: str) -> None:
         )
 
     for mgr, entries in groups:
-        # One install per destination: duplicate names must not extract
-        # into the same package dir from two threads
-        to_install = {name: spec for name, spec in entries if name not in failed_names}
+        # One install per destination: pio derives the directory from the
+        # package name, so key on the name part (a registry entry's display
+        # name carries a version suffix)
+        to_install = {
+            name.split("@", 1)[0].lower(): (name, spec)
+            for name, spec in entries
+            if name not in failed_names
+        }
         if to_install:
-            _preinstall(mgr, list(to_install.items()))
+            _preinstall(mgr, list(to_install.values()))
 
 
 def main(argv: list[str]) -> int:
