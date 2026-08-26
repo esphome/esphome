@@ -10,7 +10,7 @@ static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() { this->create_polling_commands_(); }
 
-void WriterDevice::warn_write_buffer_deprecated_(const LogString *platform, uint16_t address) {
+void WriterDevice::warn_write_buffer_deprecated(const LogString *platform, uint16_t address) {
   if (this->write_buffer_deprecated_warned_)
     return;
   this->write_buffer_deprecated_warned_ = true;
@@ -27,7 +27,7 @@ bool WriterDevice::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
   return this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
 }
 
-void WriterDevice::set_controller_(ModbusController *controller) {
+void WriterDevice::set_controller(ModbusController *controller) {
   this->controller_ = controller;
   this->set_parent(controller->hub());
   this->set_address(controller->device_address());
