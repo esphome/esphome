@@ -46,7 +46,11 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
             print(f"ESPHome: could not read {rel} for the pch checksum: {err}")
-            data = b"<unreadable>"
+            try:
+                st = (src_dir / rel).stat()
+                data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
+            except OSError:
+                data = b"<unreadable>"
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
@@ -262,6 +266,8 @@ def _setup_pch() -> None:
 
     # Prepended so it is processed before the build_src_flags -include
     # entries: GCC only uses a .gch while no other tokens have been seen.
+    # The relative name also reaches "pio run -t idedata" output; external
+    # consumers replaying cxx_flags must run from the project dir.
     projenv.Prepend(CXXFLAGS=["-Winvalid-pch", "-include", header.name])  # noqa: F821
     print("ESPHome: Compiling with precompiled header")
 
