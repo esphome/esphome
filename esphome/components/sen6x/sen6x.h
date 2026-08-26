@@ -69,18 +69,18 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void read_measurements_();
   void parse_and_publish_measurements_();
 
+  std::string product_name_;
+  std::string serial_number_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
-  uint8_t setup_step_index_{0};
-  bool initialized_{false};
-  std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
-  std::string serial_number_;
   uint16_t read_cmd_{0};
+  uint8_t setup_step_index_{0};
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
   uint8_t poll_retries_remaining_{0};
   uint8_t read_words_{0};
+  bool initialized_{false};
   bool startup_complete_{false};
 };
 
