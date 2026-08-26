@@ -48,7 +48,7 @@ void MDNSComponent::start_polling_window_() {
     // packet then re-enters LEAmDNS from lwIP and corrupts shared UdpContext state.
     // Skip the tick while the radio cannot transmit (#18760).
     auto *wifi = wifi::global_wifi_component;
-    if (!wifi->is_connected() || wifi->is_roaming_scan_active())
+    if (!wifi->is_connected() || wifi->is_roaming())
       return;
 #endif
     MDNS.update();
