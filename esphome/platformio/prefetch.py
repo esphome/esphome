@@ -403,7 +403,8 @@ def _uri_jobs(
         if not resp.ok:
             # An error page's Content-Length is not a download size
             _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
-            if resp.status_code in (408, 429) or resp.status_code >= 500:
+            if resp.status_code in (401, 403, 408, 429) or resp.status_code >= 500:
+                # 401/403 included: registries rate-limit with them
                 errors.append(f"HTTP {resp.status_code}")
                 return -1  # transient; must not be cached as warm
             # Permanent (405/501 HEAD-unsupported, 401/403/404): a clean
@@ -447,9 +448,10 @@ def _serialized_fetch_job(
 
     Interleaved writers truncate each other's ``.part`` bytes (see
     registry.py). The bounded poll observes Ctrl-C via the tracker; a
-    blown deadline is a counted failure. On a lock-less filesystem a
-    sha256-verified body runs unlocked with one warning; a checksum-less
-    one (``unlocked_ok=False``) is a counted failure instead.
+    blown deadline is a clean skip (the holder's copy is what the build
+    needs). On a lock-less filesystem a sha256-verified body runs
+    unlocked with one warning; a checksum-less one
+    (``unlocked_ok=False``) is a counted failure instead.
     """
 
     def run(tracker: Any) -> None:
@@ -522,7 +524,9 @@ def _registry_fetch_job(
 
     def run(tracker: Any) -> None:
         fetch(tracker)
-        _register_download(manager, dl_path)
+        if dl_path.is_file():
+            # The deadline skip can end with no archive landed
+            _register_download(manager, dl_path)
 
     return run
 
@@ -534,7 +538,9 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
     runs; the rename makes the promotion atomic.
     """
     tmp = dl_path.with_name(f"{dl_path.name}.prefetch")
-    fetch = resume_fetch_job(url, tmp, size=size)
+    # attempts=2: the size is only a HEAD probe's word, and a HEAD/GET
+    # disagreement would otherwise re-download the archive five times
+    fetch = resume_fetch_job(url, tmp, size=size, attempts=2)
 
     def promote(tracker: Any) -> None:
         fetch(tracker)
