@@ -99,8 +99,8 @@ static const uint8_t QOI_EXPECTED_RGBA[3][3][4] = {
 /// Exposes the protected decoder machinery so reuse and eviction can be observed directly.
 class TestableRuntimeImage : public RuntimeImage {
  public:
-  explicit TestableRuntimeImage(ImageFormat format)
-      : RuntimeImage(format, image::IMAGE_TYPE_RGB, image::TRANSPARENCY_OPAQUE, nullptr, false, 0, 0) {}
+  explicit TestableRuntimeImage(ImageFormat format, image::Transparency transparency = image::TRANSPARENCY_OPAQUE)
+      : RuntimeImage(format, image::IMAGE_TYPE_RGB, transparency, nullptr, false, 0, 0) {}
 
   ImageDecoder *decoder() { return this->decoder_.get(); }
 };
@@ -377,7 +377,7 @@ TEST(RuntimeImageDecoder, JpegDecoderStaysWarmAcrossDecodes) {
 #endif  // USE_RUNTIME_IMAGE_JPEG
 
 TEST(RuntimeImageDecoder, QoiDecoderStaysWarmAcrossDecodes) {
-  TestableRuntimeImage img(QOI);
+  TestableRuntimeImage img(QOI, image::TRANSPARENCY_ALPHA_CHANNEL);
 
   ASSERT_TRUE(decode_all(img, QOI_RGBA, sizeof(QOI_RGBA)));
   expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
@@ -390,7 +390,7 @@ TEST(RuntimeImageDecoder, QoiDecoderStaysWarmAcrossDecodes) {
 }
 
 TEST(RuntimeImageDecoder, QoiChunkedFeedDecodesLikeDownloadLoop) {
-  TestableRuntimeImage img(QOI);
+  TestableRuntimeImage img(QOI, image::TRANSPARENCY_ALPHA_CHANNEL);
 
   ASSERT_TRUE(decode_chunked(img, QOI_RGBA, sizeof(QOI_RGBA), 10));
   expect_pixels_rgba(img, QOI_EXPECTED_RGBA);
