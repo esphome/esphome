@@ -93,7 +93,7 @@ def test_external_components_logs_built_in_override(
         do_external_components_pass(config)
 
     assert (
-        "External components source overrides the built-in component(s):\n"
+        "External components are overriding built-in components:\n"
         "  source: https://github.com/test/components\n"
         "  components: gpio" in caplog.text
     )
@@ -135,4 +135,4 @@ def test_external_components_no_override_no_log(
     with caplog.at_level(logging.INFO):
         do_external_components_pass(config)
 
-    assert "overrides the built-in component" not in caplog.text
+    assert "are overriding built-in components" not in caplog.text

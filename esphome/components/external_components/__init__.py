@@ -86,7 +86,7 @@ def _log_overridden_components(
     else:
         source = conf[CONF_URL] if conf[CONF_TYPE] == TYPE_GIT else conf[CONF_PATH]
     _LOGGER.info(
-        "External components source overrides the built-in component(s):\n"
+        "External components are overriding built-in components:\n"
         "  source: %s\n"
         "  components: %s",
         source,
