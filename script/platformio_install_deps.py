@@ -54,7 +54,14 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
                     split = tool.find("@")
                     tool = tool[split + 1 :]
                 tools.append(tool)
-    return libs, platforms, tools
+    # Exact-string duplicates only: each costs the pkg install pass a
+    # lock and rescan cycle. Name-level dedupe would change which version
+    # conflicts the pass reconciles, so it stays out of scope here.
+    return (
+        list(dict.fromkeys(libs)),
+        list(dict.fromkeys(platforms)),
+        list(dict.fromkeys(tools)),
+    )
 
 
 def spec_key(spec: str) -> str:

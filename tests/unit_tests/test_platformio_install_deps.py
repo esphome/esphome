@@ -47,12 +47,11 @@ def test_parse_specs_and_cli_args(tmp_path: Path) -> None:
     mod = _load_script()
     args = Namespace(libraries=True, platforms=True, tools=False)
     libs, platforms, tools = mod.parse_specs(str(ini), args)
-    assert libs == ["esphome/noise-c @ 0.1.21", "esphome/noise-c @ 0.1.21"]
+    # exact-string duplicates collapse; distinct version pins survive
+    assert libs == ["esphome/noise-c @ 0.1.21"]
     assert platforms == ["fake/platform@1"]
     assert tools == []
     assert mod.build_cli_args(libs, platforms, tools) == [
-        "-l",
-        "esphome/noise-c @ 0.1.21",
         "-l",
         "esphome/noise-c @ 0.1.21",
         "-p",
