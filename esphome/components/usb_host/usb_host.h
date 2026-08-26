@@ -107,9 +107,9 @@ enum ClientState {
   USB_CLIENT_CONNECTED,
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Isochronous stream types -- compiled only when USE_USB_ISOC_TRANSFERS is set.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 #ifdef USE_USB_ISOC_TRANSFERS
 
 struct IsocCbCtx {
@@ -128,13 +128,36 @@ struct IsocStream {
   uint8_t interface_num{0};
   uint8_t alt_setting{0};
   bool streaming{false};
+  // Set from the USB task when the last URB retires while streaming was still requested,
+  // i.e. the stream stopped on its own (device gone, or the periodic scheduler rejected
+  // every resubmission). Nothing is transferred any more, but no close() was asked for, so
+  // the owner has to notice and tear the stream down.
+  std::atomic<bool> died{false};
+  // UAC OUT pacing (isochronous sample clock). For an output stream each packet carries a
+  // sample-rate-derived byte count instead of a full mps: sending mps-sized packets is ~2x
+  // real time, overruns the device and, on the HS periodic scheduler (ESP32-P4), fails
+  // resubmission. Mirrors the packet-size accumulator in Espressif's usb_host_uac.
+  bool is_output{false};
+  uint32_t packet_size{0};       // floor bytes per service interval (frames_floor * frame_size)
+  uint32_t packet_size_frac{0};  // sample_rate % frac_div (remainder in frames per second)
+  uint32_t frac_div{1000};       // service intervals per second (FS frame 1000, HS uframe 8000)
+  uint32_t frac_accum{0};        // running fractional accumulator (0..frac_div-1)
+  uint32_t frame_size{0};        // bytes per audio frame (channels * subframe_size)
+  // Asynchronous OUT feedback: device-reported rate (samples per (micro)frame, Q10.14 at
+  // full speed / Q16.16 at high speed). 0 = no feedback yet, use the nominal pacing above.
+  std::atomic<uint32_t> fb_value{0};
+  uint8_t fb_shift{14};          // fractional bits of fb_value (14 FS, 16 HS)
+  uint32_t fb_accum{0};          // feedback fractional accumulator
+  // A feedback stream shares its AS interface with the data stream, so it must not claim
+  // or release that interface itself.
+  bool owns_interface{true};
 };
 
 #endif  // USE_USB_ISOC_TRANSFERS
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // USBClient -- device state machine + thin forwarding layer to USBHost.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 class USBClient : public Component {
   friend class USBHost;
 
@@ -158,19 +181,28 @@ class USBClient : public Component {
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
-  // ── Bulk / interrupt transfers ──────────────────────────────────────────────
+  // -- Bulk / interrupt transfers ----------------------------------------------
 #ifdef USE_USB_BULK_TRANSFERS
   bool transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
   bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
 #endif
 
-  // ── Control transfers ───────────────────────────────────────────────────────
+  // -- Control transfers -------------------------------------------------------
 #ifdef USE_USB_CONTROL_TRANSFERS
+  // w_length is what goes into the setup packet's wLength field, i.e. the number of bytes
+  // the request itself is defined to carry. It defaults to the size of data, which is what
+  // a request whose data stage is exactly its buffer wants.
+  //
+  // They are separate because the host controller sizes the data stage from the buffer and
+  // not from wLength (see the comment in the IDF's _buffer_fill_ctrl), and an IN data stage
+  // needs a buffer of whole endpoint packets. A control read therefore rounds its buffer up
+  // and passes the length the class defines here, so what goes on the wire stays the
+  // request the device expects. Negative means "take it from data".
   bool control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index, const transfer_cb_t &callback,
-                        const std::vector<uint8_t> &data = {});
+                        const std::vector<uint8_t> &data = {}, int32_t w_length = -1);
 #endif
 
-  // ── Interface claim / release / alt-setting ─────────────────────────────────
+  // -- Interface claim / release / alt-setting ---------------------------------
   bool claim_interface(uint8_t interface_num, uint8_t alt_setting = 0);
   bool release_interface(uint8_t interface_num);
 
@@ -178,7 +210,7 @@ class USBClient : public Component {
   bool set_interface(uint8_t interface_num, uint8_t alt_setting);
 #endif
 
-  // ── Isochronous support ─────────────────────────────────────────────────────
+  // -- Isochronous support -----------------------------------------------------
 #ifdef USE_USB_ISOC_TRANSFERS
   usb_transfer_t *isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets, usb_transfer_cb_t callback,
                              void *context);
@@ -222,20 +254,24 @@ class USBClient : public Component {
   const usb_device_desc_t *get_device_desc_() const { return this->device_desc_; }
   const usb_config_desc_t *get_config_desc_() const { return this->config_desc_; }
 };
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // USBHost -- USB host stack + stateless transfer submission engine.
 //
 // Acts as the Linux host controller driver: owns usb_host_install(), the lib
 // event loop, and all ESP-IDF transfer submission calls.  Never touches client
 // memory -- clients own their TransferRequest pools and hand filled slots here.
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 class USBHost final : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
   void setup() override;
 
-  // ── Submission engine (called by USBClient thin forwarders) ────────────────
+  // Enable simultaneous HS + FS USB host on ESP32-P4 (requires espressif/usb >= 1.4.0).
+  // peripheral_map = BIT0 | BIT1 -> both controllers; default BIT0 = HS only.
+  void set_dual_host(bool enable) { this->dual_host_ = enable; }
+
+  // -- Submission engine (called by USBClient thin forwarders) ----------------
 
   // Bulk / interrupt IN and OUT -- always compiled if any client uses them
   bool submit_transfer(TransferRequest *trq);
@@ -253,7 +289,7 @@ class USBHost final : public Component {
   bool do_release_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
                             uint8_t interface_num);
 
-  // ── Isochronous ─────────────────────────────────────────────────────────────
+  // -- Isochronous -------------------------------------------------------------
 #ifdef USE_USB_ISOC_TRANSFERS
   usb_transfer_t *do_isoc_alloc(uint8_t ep_addr, usb_device_handle_t device_handle, uint16_t mps, uint8_t num_packets,
                                 usb_transfer_cb_t callback, void *context);
@@ -271,6 +307,7 @@ class USBHost final : public Component {
 
  protected:
   std::vector<USBClient *> clients_{};
+  bool dual_host_{false};
 };
 
 // Returns the global USBHost singleton, set during USBHost::setup().

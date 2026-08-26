@@ -152,33 +152,31 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<c
   return buffer.data();
 }
 
-// ── Static transfer callbacks (USB task context) ──────────────────────────────
-
+// -- Static transfer callbacks (USB task context) ------------------------------
 // Shared completion logic: fill status, fire callback, release slot.
-static void complete_trq(TransferRequest *trq, const usb_transfer_t *xfer) {
+// setup_offset is the number of leading bytes in data_buffer that are not payload. For
+// control transfers the buffer starts with the 8 byte setup packet the host wrote, which is
+// the request header and not the device's answer; bulk and interrupt buffers hold payload
+// from byte 0.
+#if defined(USE_USB_BULK_TRANSFERS) || defined(USE_USB_CONTROL_TRANSFERS)
+static void complete_trq(TransferRequest *trq, const usb_transfer_t *xfer, size_t setup_offset) {
   trq->status.error_code = xfer->status;
   trq->status.success = xfer->status == USB_TRANSFER_STATUS_COMPLETED;
   trq->status.endpoint = xfer->bEndpointAddress;
-  trq->status.data = xfer->data_buffer;
-  trq->status.data_len = xfer->actual_num_bytes;
+  const size_t actual = (xfer->actual_num_bytes > 0) ? static_cast<size_t>(xfer->actual_num_bytes) : 0;
+  trq->status.data = xfer->data_buffer + setup_offset;
+  trq->status.data_len = (actual > setup_offset) ? (actual - setup_offset) : 0;
   if (trq->callback != nullptr)
     trq->callback(trq->status);
   trq->client->release_trq(trq);
 }
 
-#ifdef USE_USB_CONTROL_TRANSFERS
-static void control_callback(const usb_transfer_t *xfer) {
-  complete_trq(static_cast<TransferRequest *>(xfer->context), xfer);
-}
-#endif
-
-#if defined(USE_USB_BULK_TRANSFERS) || defined(USE_USB_CONTROL_TRANSFERS)
 static void transfer_callback(usb_transfer_t *xfer) {
   complete_trq(static_cast<TransferRequest *>(xfer->context), xfer);
 }
 #endif
 
-// ── USBClient event callback (USB task context) ───────────────────────────────
+// -- USBClient event callback (USB task context) -------------------------------
 
 void USBClient::client_event_cb(const usb_host_client_event_msg_t *event_msg, void *arg) {
   auto *client = static_cast<USBClient *>(arg);
@@ -208,7 +206,7 @@ void USBClient::client_event_cb(const usb_host_client_event_msg_t *event_msg, vo
   App.wake_loop_threadsafe();
 }
 
-// ── USBClient lifecycle ───────────────────────────────────────────────────────
+// -- USBClient lifecycle -------------------------------------------------------
 
 void USBClient::setup() {
   usb_host_client_config_t config{.is_synchronous = false,
@@ -370,7 +368,7 @@ void USBClient::dump_config() {
   ESP_LOGCONFIG(TAG, "USBClient\n  Vendor id %04X\n  Product id %04X", this->vid_, this->pid_);
 }
 
-// ── TransferRequest pool management (lock-free, thread-safe) ─────────────────
+// -- TransferRequest pool management (lock-free, thread-safe) -----------------
 
 TransferRequest *USBClient::get_trq_() {
   trq_bitmask_t mask = this->trq_in_use_.load(std::memory_order_acquire);
@@ -403,7 +401,7 @@ void USBClient::release_trq(TransferRequest *trq) {
   this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
-// ── Thin forwarders -- allocate trq, fill fields, delegate to USBHost ──────────
+// -- Thin forwarders -- allocate trq, fill fields, delegate to USBHost ----------
 
 #ifdef USE_USB_BULK_TRANSFERS
 
@@ -458,7 +456,7 @@ bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
 #ifdef USE_USB_CONTROL_TRANSFERS
 
 bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, uint16_t index,
-                                 const transfer_cb_t &callback, const std::vector<uint8_t> &data) {
+                                 const transfer_cb_t &callback, const std::vector<uint8_t> &data, int32_t w_length) {
   auto *trq = this->get_trq_();
   if (trq == nullptr)
     return false;
@@ -468,19 +466,27 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
     this->release_trq(trq);
     return false;
   }
+  const size_t setup_length = (w_length < 0) ? length : static_cast<size_t>(w_length);
+  if (setup_length > length) {
+    // The device is being told it may send or receive more than the buffer holds.
+    ESP_LOGE(TAG, "control_transfer: wLength %u exceeds the %u byte buffer", static_cast<unsigned>(setup_length),
+             static_cast<unsigned>(length));
+    this->release_trq(trq);
+    return false;
+  }
   auto control_packet = ByteBuffer(SETUP_PACKET_SIZE, LITTLE);
   control_packet.put_uint8(type);
   control_packet.put_uint8(request);
   control_packet.put_uint16(value);
   control_packet.put_uint16(index);
-  control_packet.put_uint16(length);
+  control_packet.put_uint16(setup_length);
   memcpy(trq->transfer->data_buffer, control_packet.get_data().data(), SETUP_PACKET_SIZE);
   if (length != 0 && !(type & USB_DIR_IN))
     memcpy(trq->transfer->data_buffer + SETUP_PACKET_SIZE, data.data(), length);
   trq->callback = callback;
   trq->transfer->bEndpointAddress = type & USB_DIR_MASK;
   trq->transfer->num_bytes = static_cast<int>(length + SETUP_PACKET_SIZE);
-  trq->transfer->callback = reinterpret_cast<usb_transfer_cb_t>(control_callback);
+  trq->transfer->callback = reinterpret_cast<usb_transfer_cb_t>(transfer_callback);
   if (!get_usb_host()->submit_control(this->handle_, trq)) {
     this->release_trq(trq);
     return false;
@@ -502,7 +508,7 @@ bool USBClient::release_interface(uint8_t interface_num) {
   return get_usb_host()->do_release_interface(this->handle_, this->device_handle_, interface_num);
 }
 
-// ── Isochronous thin forwarders ───────────────────────────────────────────────
+// -- Isochronous thin forwarders -----------------------------------------------
 #ifdef USE_USB_ISOC_TRANSFERS
 
 usb_transfer_t *USBClient::isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets, usb_transfer_cb_t callback,

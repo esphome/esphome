@@ -16,6 +16,14 @@ USBHost *get_usb_host() { return usb_host_ref(); }
 
 void USBHost::setup() {
   usb_host_config_t config{};
+#if defined(USE_ESP32_VARIANT_ESP32P4) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  if (this->dual_host_) {
+    // BIT0 = FS peripheral, BIT1 = HS peripheral -- both simultaneously.
+    // Requires espressif/usb >= 1.4.0 (peripheral_map field added in that release, IDF 6.0+).
+    config.peripheral_map = BIT(0) | BIT(1);
+    ESP_LOGI(TAG, "USB dual-host enabled (HS + FS)");
+  }
+#endif
   if (usb_host_install(&config) != ESP_OK) {
     this->status_set_error(LOG_STR("usb_host_install failed"));
     this->mark_failed();
@@ -36,7 +44,7 @@ void USBHost::loop() {
   }
 }
 
-// ── Submission engine ─────────────────────────────────────────────────────────
+// -- Submission engine ---------------------------------------------------------
 
 bool USBHost::submit_transfer(TransferRequest *trq) {
   esp_err_t err = usb_host_transfer_submit(trq->transfer);
@@ -47,7 +55,7 @@ bool USBHost::submit_transfer(TransferRequest *trq) {
   return true;
 }
 
-// ── Interface claim / release ─────────────────────────────────────────────────
+// -- Interface claim / release -------------------------------------------------
 
 bool USBHost::do_claim_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
                                  uint8_t interface_num, uint8_t alt_setting) {
@@ -69,7 +77,7 @@ bool USBHost::do_release_interface(usb_host_client_handle_t client_handle, usb_d
   return true;
 }
 
-// ── Control transfer submission ───────────────────────────────────────────────
+// -- Control transfer submission -----------------------------------------------
 #ifdef USE_USB_CONTROL_TRANSFERS
 
 bool USBHost::submit_control(usb_host_client_handle_t client_handle, TransferRequest *trq) {
@@ -143,7 +151,7 @@ bool USBHost::do_set_interface(usb_host_client_handle_t client_handle, usb_devic
 
 #endif  // USE_USB_CONTROL_TRANSFERS
 
-// ── Isochronous ───────────────────────────────────────────────────────────────
+// -- Isochronous ---------------------------------------------------------------
 #ifdef USE_USB_ISOC_TRANSFERS
 
 usb_transfer_t *USBHost::do_isoc_alloc(uint8_t ep_addr, usb_device_handle_t device_handle, uint16_t mps,
@@ -187,6 +195,35 @@ void USBHost::do_isoc_free(usb_transfer_t *xfer) {
     usb_host_transfer_free(xfer);
 }
 
+// Next OUT packet size for the sample-clock pacing: the floor plus one audio frame whenever
+// the fractional accumulator wraps (keeps non-integer frames-per-service-interval rates such
+// as 44.1 kHz frame-aligned). Clamped to mps as a safety net. Advances stream state.
+static uint32_t isoc_next_packet_size(IsocStream *stream) {
+  uint32_t psize;
+  const uint32_t fb = stream->fb_value.load(std::memory_order_relaxed);
+  if (fb != 0) {
+    // Asynchronous endpoint: the device-reported feedback (samples per service interval in
+    // Q10.14 / Q16.16) drives the rate instead of the nominal sample_rate.
+    const uint32_t one = 1u << stream->fb_shift;
+    psize = (fb >> stream->fb_shift) * stream->frame_size;
+    stream->fb_accum += fb & (one - 1);
+    if (stream->fb_accum >= one) {
+      stream->fb_accum -= one;
+      psize += stream->frame_size;
+    }
+  } else {
+    psize = stream->packet_size;
+    stream->frac_accum += stream->packet_size_frac;
+    if (stream->frac_div != 0 && stream->frac_accum >= stream->frac_div) {
+      stream->frac_accum -= stream->frac_div;
+      psize += stream->frame_size;
+    }
+  }
+  if (psize == 0 || psize > stream->mps)
+    psize = stream->mps;
+  return psize;
+}
+
 // CALLBACK CONTEXT: USB task
 void USBHost::isoc_cb(usb_transfer_t *xfer) {
   auto *ctx = static_cast<IsocCbCtx *>(xfer->context);
@@ -200,12 +237,21 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
   auto finish_urb = [xfer, stream, client_handle, device_handle]() {
     usb_host_transfer_free(xfer);
     if (stream->pending_urbs.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      // Last URB gone. If nobody asked for a close, the stream stopped by itself and is now
+      // silently dead: flag it so the owner can tear it down instead of writing into a
+      // buffer that is never drained again.
+      if (stream->streaming) {
+        stream->streaming = false;
+        stream->died.store(true, std::memory_order_release);
+      }
       get_usb_host()->defer([stream, client_handle, device_handle]() {
         stream->xfers.reset();
         stream->ctxs.reset();
-        if (stream->alt_setting != 0)
-          get_usb_host()->do_set_interface(client_handle, device_handle, stream->interface_num, 0);
-        get_usb_host()->do_release_interface(client_handle, device_handle, stream->interface_num);
+        if (stream->owns_interface) {
+          if (stream->alt_setting != 0)
+            get_usb_host()->do_set_interface(client_handle, device_handle, stream->interface_num, 0);
+          get_usb_host()->do_release_interface(client_handle, device_handle, stream->interface_num);
+        }
         ESP_LOGD(TAG, "stream_close deferred: ep=0x%02X", stream->ep_addr);
       });
     }
@@ -218,16 +264,35 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
 
   if (stream->streaming) {
     const uint8_t *payload = xfer->data_buffer;
+    uint32_t total_bytes = 0;
     for (int i = 0; i < xfer->num_isoc_packets; i++) {
-      const usb_isoc_packet_desc_t *desc = &xfer->isoc_packet_desc[i];
+      usb_isoc_packet_desc_t *desc = &xfer->isoc_packet_desc[i];
       const bool error = (desc->status != USB_TRANSFER_STATUS_COMPLETED && desc->status != USB_TRANSFER_STATUS_SKIPPED);
-      client->on_isoc_packet(xfer->bEndpointAddress, payload, desc->actual_num_bytes, error);
-      payload += desc->num_bytes;
+      // OUT: the sample clock decides how many bytes this packet may carry and on_isoc_packet
+      // fills exactly that many. IN: report what was actually received, and keep asking for a
+      // full mps.
+      //
+      // The payload stride is the packet size, not mps: the host controller lays the packets
+      // out back to back, advancing by isoc_packet_desc[].num_bytes (see _buffer_fill_isoc()
+      // in hcd_dwc.c), so a short packet moves every following packet down by that shortfall.
+      // Writing at an mps stride only matches while every packet happens to be exactly mps.
+      const uint32_t fill = stream->is_output ? isoc_next_packet_size(stream) : stream->mps;
+      client->on_isoc_packet(xfer->bEndpointAddress, payload, stream->is_output ? fill : desc->actual_num_bytes,
+                             error);
+      desc->num_bytes = fill;
+      payload += fill;
+      total_bytes += fill;
     }
-    for (int i = 0; i < xfer->num_isoc_packets; i++) {
-      xfer->isoc_packet_desc[i].num_bytes = stream->mps;
+    // Isochronous transfers are described by the packet list, but keep the transfer length
+    // consistent with it rather than leaving the allocation size behind.
+    xfer->num_bytes = static_cast<int>(total_bytes);
+    if (usb_host_transfer_submit(xfer) != ESP_OK) {
+      // Resubmission failed (e.g. periodic scheduler rejected it): retire this URB instead of
+      // leaving it dangling. The stream keeps running on the remaining URBs, and when the last
+      // one is retired finish_urb() tears the stream down cleanly rather than stalling silently.
+      ESP_LOGW(TAG, "isoc resubmit failed (ep=0x%02X), retiring URB", xfer->bEndpointAddress);
+      finish_urb();
     }
-    usb_host_transfer_submit(xfer);
   } else {
     // stream_close() set streaming=false -- free and defer cleanup when all URBs done.
     finish_urb();
@@ -241,13 +306,15 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
     return false;
   }
 
-  if (!this->do_claim_interface(client_handle, device_handle, stream.interface_num, stream.alt_setting))
-    return false;
-
-  if (stream.alt_setting != 0) {
-    if (!this->do_set_interface(client_handle, device_handle, stream.interface_num, stream.alt_setting)) {
-      this->do_release_interface(client_handle, device_handle, stream.interface_num);
+  if (stream.owns_interface) {
+    if (!this->do_claim_interface(client_handle, device_handle, stream.interface_num, stream.alt_setting))
       return false;
+
+    if (stream.alt_setting != 0) {
+      if (!this->do_set_interface(client_handle, device_handle, stream.interface_num, stream.alt_setting)) {
+        this->do_release_interface(client_handle, device_handle, stream.interface_num);
+        return false;
+      }
     }
   }
 
@@ -255,6 +322,7 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
   stream.ctxs = std::make_unique<IsocCbCtx[]>(stream.num_urbs);
   stream.pending_urbs.store(stream.num_urbs, std::memory_order_relaxed);
 
+  stream.died.store(false, std::memory_order_relaxed);
   stream.streaming = true;
   for (uint8_t i = 0; i < stream.num_urbs; i++) {
     stream.ctxs[i].client = cb;
@@ -271,6 +339,21 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
       this->do_set_interface(client_handle, device_handle, stream.interface_num, 0);
       this->do_release_interface(client_handle, device_handle, stream.interface_num);
       return false;
+    }
+  }
+
+  if (stream.is_output) {
+    // Seed the initial OUT URBs with silence sized to the sample clock, so the very first
+    // transfers already fit the negotiated bandwidth instead of a full mps.
+    for (uint8_t i = 0; i < stream.num_urbs; i++) {
+      memset(stream.xfers[i]->data_buffer, 0, static_cast<size_t>(stream.mps) * stream.packets_per_urb);
+      uint32_t total_bytes = 0;
+      for (uint8_t j = 0; j < stream.packets_per_urb; j++) {
+        const uint32_t fill = isoc_next_packet_size(&stream);
+        stream.xfers[i]->isoc_packet_desc[j].num_bytes = fill;
+        total_bytes += fill;
+      }
+      stream.xfers[i]->num_bytes = static_cast<int>(total_bytes);
     }
   }
 
