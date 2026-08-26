@@ -2338,3 +2338,18 @@ def test_strip_win_long_path_prefix(
     r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
     with patch("esphome.framework_helpers.sys.platform", platform):
         assert framework_helpers.strip_win_long_path_prefix(input_path) == expected
+
+
+def test_discard_partial_download_logs_undeletable(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unremovable staging file leaves a debug trace; the caller's
+    cache is never pruned, so silence would hide unbounded growth."""
+    dest = tmp_path / "archive"
+    dest.write_bytes(b"stale")
+    with (
+        patch.object(Path, "unlink", side_effect=OSError("busy")),
+        caplog.at_level(logging.DEBUG),
+    ):
+        framework_helpers.discard_partial_download(dest)
+    assert "Could not remove" in caplog.text
