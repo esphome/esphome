@@ -67,7 +67,6 @@ constexpr size_t RTU2_INVERTER_MODULE_TEMP = 93;     // length = 1
 
 class GrowattSolar final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
-  void loop() override;
   void update() override;
   void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                modbus::ResponseStatus status) override;
@@ -105,9 +104,6 @@ class GrowattSolar final : public PollingComponent, public modbus::ModbusClientD
   }
 
  protected:
-  bool waiting_to_update_{false};
-  uint32_t last_send_{0};
-
   struct GrowattPhase {
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};

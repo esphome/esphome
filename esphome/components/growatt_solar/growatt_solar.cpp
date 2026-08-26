@@ -1,5 +1,4 @@
 #include "growatt_solar.h"
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::growatt_solar {
@@ -8,34 +7,10 @@ static const char *const TAG = "growatt_solar";
 
 static const uint8_t MODBUS_REGISTER_COUNT[] = {33, 95};  // indexed with enum GrowattProtocolVersion
 
-void GrowattSolar::loop() {
-  // If update() was unable to send we retry until we can send.
-  if (!this->waiting_to_update_)
-    return;
-  update();
-}
-
-void GrowattSolar::update() {
-  // If our last send has had no reply yet, and it wasn't that long ago, do nothing.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_send_ < this->get_update_interval() / 2) {
-    return;
-  }
-
-  // The bus might be slow, or there might be other devices, or other components might be talking to our device.
-  if (!this->ready_for_immediate_send()) {
-    this->waiting_to_update_ = true;
-    return;
-  }
-
-  this->waiting_to_update_ = false;
-  this->read_input_registers(0, MODBUS_REGISTER_COUNT[this->protocol_version_]);
-  this->last_send_ = millis();
-}
+void GrowattSolar::update() { this->read_input_registers(0, MODBUS_REGISTER_COUNT[this->protocol_version_]); }
 
 void GrowattSolar::on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                            modbus::ResponseStatus status) {
-  this->last_send_ = 0;
   if (!modbus::succeeded(status))
     return;
 
