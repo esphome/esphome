@@ -416,6 +416,21 @@ def test_write_project_pch_identity_unknown_skips_pch(
     assert "Could not establish the pch identity" in caplog.text
 
 
+def test_write_project_pch_skipped_when_user_force_include_precedes(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A -include in build_flags lands ahead of the pch include, so GCC
+    would never load the .gch; skip it and say so."""
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-include foo.h"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "prevents the precompiled header" in caplog.text
+
+
 def test_write_project_pch_disabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
