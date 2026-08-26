@@ -958,6 +958,24 @@ class TestEsphomeCore:
         target.toolchain = const.Toolchain.ESP_IDF
         assert target.using_toolchain_sdk_nrf is False
 
+    def test_using_toolchain_arduino(self, target):
+        """A toolchain choice, distinct from the arduino target framework."""
+        target.toolchain = const.Toolchain.ARDUINO
+        assert target.using_toolchain_arduino is True
+        target.toolchain = const.Toolchain.PLATFORMIO
+        assert target.using_toolchain_arduino is False
+
+    def test_using_native_toolchain(self, target):
+        """True exactly for the toolchains that never read platformio.ini."""
+        target.toolchain = const.Toolchain.ESP_IDF
+        assert target.using_native_toolchain is True
+        target.toolchain = const.Toolchain.ARDUINO
+        assert target.using_native_toolchain is True
+        target.toolchain = const.Toolchain.PLATFORMIO
+        assert target.using_native_toolchain is False
+        target.toolchain = const.Toolchain.SDK_NRF
+        assert target.using_native_toolchain is False
+
     def test_add_library__extracts_short_name_from_path(self, target):
         """Test add_library extracts short name from library paths like owner/lib."""
         target.data[const.KEY_CORE] = {
