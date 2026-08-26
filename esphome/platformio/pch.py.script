@@ -25,6 +25,9 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
 # include-closure recipe, and the checksum/failed-marker stamp flow in sync
 # with build_helpers/pch.py.
 
+# Compiler failures that clear on their own must not latch the .failed marker
+_TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
+
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 _CORE_HEADER = "esphome/core/defines.h"
 
@@ -76,9 +79,12 @@ def _shell_arg(element) -> str:
     except ValueError as err:
         print(f"ESPHome: could not lex flag {arg!r} for the pch: {err}")
         return arg
-    # Anything but exactly one token means the model above is wrong for
-    # this element; pass it through untouched rather than dropping flags
-    return tokens[0] if len(tokens) == 1 else arg
+    if len(tokens) != 1:
+        # The shell-quoting model is wrong for this element; say so rather
+        # than surfacing only as downstream pch warnings
+        print(f"ESPHome: passing flag {arg!r} through unlexed for the pch")
+        return arg
+    return tokens[0]
 
 
 def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
@@ -280,6 +286,9 @@ def _setup_pch() -> None:
             print(error)
             gch.unlink(missing_ok=True)
             sum_path.unlink(missing_ok=True)
+            if any(m in error for m in _TRANSIENT_ERRORS):
+                # Resource exhaustion clears on its own; retry next build
+                return
             # Skip retries until a flag/header/platform change alters the checksum
             failed_marker.write_text(checksum + "\n", encoding="utf-8")
             return
