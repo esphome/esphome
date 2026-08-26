@@ -1,6 +1,5 @@
 #include "kuntze.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 
 namespace esphome::kuntze {
 
@@ -18,7 +17,6 @@ static constexpr uint16_t REGISTER[] = {REGISTER_PH,    REGISTER_TEMPERATURE, RE
 
 void Kuntze::on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                        modbus::ResponseStatus status) {
-  this->waiting_ = false;
   if (!modbus::succeeded(status) || registers.size() < 2)
     return;
 
@@ -64,25 +62,12 @@ void Kuntze::on_read_holding_registers(uint16_t start_address, std::span<const u
         this->oci_sensor_->publish_state(value);
       break;
   }
-  if (++this->state_ > 7)
-    this->state_ = 0;
 }
 
-void Kuntze::loop() {
-  uint32_t now = App.get_loop_component_start_time();
-  // timeout after 15 seconds
-  if (this->waiting_ && (now - this->last_send_ > 15000)) {
-    ESP_LOGW(TAG, "timed out waiting for response");
-    this->waiting_ = false;
-  }
-  if (this->waiting_ || (this->state_ == 0))
-    return;
-  this->last_send_ = now;
-  this->read_holding_registers(REGISTER[this->state_ - 1], 2);
-  this->waiting_ = true;
+void Kuntze::update() {
+  for (uint16_t reg : REGISTER)
+    this->read_holding_registers(reg, 2);
 }
-
-void Kuntze::update() { this->state_ = 1; }
 
 void Kuntze::dump_config() {
   ESP_LOGCONFIG(TAG,
