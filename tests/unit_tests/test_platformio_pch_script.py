@@ -175,6 +175,18 @@ def test_pch_script_preserves_spaced_flag_elements(tmp_path: Path) -> None:
     assert pch.splitlines()[0] == '#include "other.h"'
 
 
+def test_pch_script_leaves_absolute_force_includes_unfolded(
+    tmp_path: Path,
+) -> None:
+    """An absolute -include resolves through src_dir / name; it must still
+    stay consumer-only or the host path enters the .sum."""
+    outside = tmp_path / "outside.h"
+    outside.write_text("")
+    _run_script(tmp_path, flags=["-DX=1", "-include", str(outside)])
+    pch = (tmp_path / "dev" / "esphome_pch.h").read_text()
+    assert "outside.h" not in pch
+
+
 def test_pch_script_leaves_non_src_force_includes_unfolded(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
