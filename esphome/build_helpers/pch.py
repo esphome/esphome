@@ -160,11 +160,9 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
         try:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
-            # mtime/size still shift the digest; a stat failure propagates
-            # so callers compile without a pch
+            # A marker would truncate the transitive walk; fail closed
             _LOGGER.warning("Could not read %s for the pch checksum: %s", rel, err)
-            st = (src_dir / rel).stat()
-            data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
+            raise
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend(
