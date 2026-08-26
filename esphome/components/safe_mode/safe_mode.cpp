@@ -4,7 +4,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/components/logger/logger.h"
 
 #include <cerrno>
 #include <cinttypes>
@@ -258,26 +257,19 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 void SafeModeComponent::write_rtc_(uint32_t val) {
   bool ok = this->rtc_.save(&val);
   if (!ok) {
-    if (logger::global_logger != nullptr) {
-      ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
-    }
+    ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
   }
   return;
   ok = global_preferences->sync() && ok;
   if (!ok) {
-    if (logger::global_logger != nullptr) {
-      ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
-    }
+    ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
   }
 }
 
 uint32_t SafeModeComponent::read_rtc_() {
   uint32_t val;
   if (!this->rtc_.load(&val)) {
-    if (logger::global_logger != nullptr) {
-      ESP_LOGE(TAG, "Failed to read rtc value (%" PRIu32 ")", val);
-    }
-    return 0;
+    ESP_LOGE(TAG, "Failed to read rtc value (%" PRIu32 ")", val);
   }
   return val;
 }
@@ -290,9 +282,7 @@ void SafeModeComponent::clean_rtc() {
   uint32_t val = 0;
   bool ok = this->rtc_.save(&val);
   if (!ok) {
-    if (logger::global_logger != nullptr) {
-      ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
-    }
+    ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
   }
 }
 
