@@ -62,7 +62,9 @@ DsiDriverChip(
     color_order="RGB",
     # LCD_RST is GPIO0 on the JC1060P470C_I_W_Y schematic (FPC1 pin 4); the JD9165 needs 120 ms after reset
     # before it accepts the vendor table and 120 ms after SLPOUT before DISPON (Guition esp_lcd_jd9165.c).
+    # SLPOUT is in the init sequence with its own delay, so the framework must not append a second one.
     reset_pin=0,
+    no_slpout=True,
     initsequence=[
         delay(120),
         (0x30, 0x00), (0xF7, 0x49, 0x61, 0x02, 0x00), (0x30, 0x01), (0x04, 0x0C), (0x05, 0x08), (0x0B, 0x11),
