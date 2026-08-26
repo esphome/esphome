@@ -50,7 +50,7 @@ _RESOLVE_WORKERS = 8
 _PREFETCH_TIMEOUT = 20 * 60
 
 # Waiting on another process's URL download; past this, leave it to pio
-_URI_LOCK_TIMEOUT = 60
+_DOWNLOAD_LOCK_TIMEOUT = 60
 
 # Child exit for a handled, already-warned failure; 1 would collide with
 # the interpreter's own import-failure exit
@@ -458,7 +458,7 @@ def _serialized_fetch_job(
         # fallback_to_soft would leave a stale marker on lock-less
         # filesystems that blocks every later build (see git.py)
         lock = FileLock(lock_path, fallback_to_soft=False)
-        deadline = time.monotonic() + _URI_LOCK_TIMEOUT
+        deadline = time.monotonic() + _DOWNLOAD_LOCK_TIMEOUT
         while True:
             try:
                 lock.acquire(timeout=_URI_LOCK_POLL)
@@ -466,9 +466,11 @@ def _serialized_fetch_job(
             except Timeout:
                 tracker(0)  # raises when the batch is cancelled
                 if time.monotonic() >= deadline:
-                    raise TimeoutError(
-                        "timed out waiting for another download of the same file"
-                    ) from None
+                    # Another process is fetching this same file; its copy
+                    # is what the build needs (a large framework archive
+                    # can hold the lock far longer than this deadline)
+                    _LOGGER.debug("Leaving %s to its current downloader", dl_path.name)
+                    return
             except OSError as err:
                 if not unlocked_ok:
                     # A body with no checksum to catch interleaved corruption
