@@ -407,21 +407,31 @@ def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
     assert dl_path.read_bytes() == b"data"
 
 
-def test_uri_fetch_job_lock_timeout_raises(tmp_path: Path) -> None:
-    """A held lock is a counted, warned failure, and the tracker is polled
-    between acquire slices so a parked worker observes cancellation."""
+def test_lock_deadline_leaves_download_to_the_holder(tmp_path: Path) -> None:
+    """A lock held past the deadline means another process is fetching the
+    same file; skipping cleanly beats a misleading failure warning. The
+    tracker is still polled so a parked worker observes cancellation."""
     dl_path = tmp_path / "archive"
     ticks: list[int] = []
     with (
         patch("esphome.framework_helpers.download_with_resume") as mock_download,
         patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
-        patch.object(pf, "_URI_LOCK_TIMEOUT", 0),
-        pytest.raises(TimeoutError, match="another download"),
+        patch.object(pf, "_DOWNLOAD_LOCK_TIMEOUT", 0),
     ):
         pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
     mock_download.assert_not_called()
     assert ticks == [0]
     assert not dl_path.exists()
+
+
+def test_main_interrupt_exits_quietly(tmp_path: Path) -> None:
+    """Ctrl-C reaches the child via the shared process group; it must exit
+    without a traceback."""
+    with (
+        patch("esphome.log.setup_log"),
+        patch.object(pf, "_prefetch", side_effect=KeyboardInterrupt),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 130
 
 
 def test_main_bad_log_level_falls_back(tmp_path: Path) -> None:
@@ -727,6 +737,11 @@ def test_prefetch_no_platform_returns(tmp_path: Path) -> None:
 
 
 def _pio_modules(tmp_path: Path, fake_platform, fake_pm, config, lib_captures=None):
+    # A bare MagicMock's get_download_dir would fspath to '' and point the
+    # sidecar sweep at the process cwd
+    fake_pm.get_download_dir.return_value = str(tmp_path / "downloads")
+    fake_pm.DOWNLOAD_CACHE_EXPIRE = 86400 * 30
+
     def fake_lib_manager(storage_dir):
         if lib_captures is not None:
             lib_captures.append(storage_dir)
