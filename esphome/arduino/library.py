@@ -264,6 +264,10 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
         data = parse_library_json(manifest_json)
     else:
         manifest = lib_dir / "library.properties"
+        if not manifest.is_file():
+            # Defaults still build core libraries correctly, but a missing
+            # manifest can also mean a torn framework extraction
+            _LOGGER.debug("Bundled library %s has no manifest; using defaults", name)
         data = parse_library_properties(manifest) if manifest.is_file() else {}
     if isinstance(data, dict):
         # Bundled manifest deps are never walked; make the skip visible
@@ -384,6 +388,9 @@ def resolve_libraries(
     converted: list[ArduinoLibrary] = []
     bundled_names = {lib.name for lib in bundled}
     converted_manifest_names: set[str] = set()
+    # Bundled candidates skipped on purpose (platform filter); the
+    # provides() reconciliation must count them as satisfied
+    knowingly_skipped: set[str] = set()
     # Ordered set of bundled dependency names to add once conversion is done
     pending_bundled: dict[str, None] = {}
     # Deps matching a separately-requested external are already in the build
@@ -454,6 +461,9 @@ def resolve_libraries(
                 # which fails if the walk stops evaluating these deps.
                 check_library_data(dep, pio_platform, None)
             except InvalidLibrary as err:
+                # A knowing skip (platform filter), not a broken promise;
+                # the reconciliation must accept it as satisfied
+                knowingly_skipped.add(name)
                 _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
                 continue
             # Deferred: a later-emitted library's manifest name may satisfy
@@ -513,7 +523,10 @@ def resolve_libraries(
 
     _check_unfulfilled_provides(
         backend.provided_requests,
-        bundled_names | converted_manifest_names | external_short_names,
+        bundled_names
+        | converted_manifest_names
+        | external_short_names
+        | knowingly_skipped,
     )
 
     return bundled + converted
