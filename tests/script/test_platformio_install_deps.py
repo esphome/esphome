@@ -4,10 +4,18 @@ from argparse import Namespace
 import importlib.util
 import inspect
 from pathlib import Path
+import shutil
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from platformio import fs
+from platformio.cache import ContentCache
+from platformio.package.manager._install import PackageManagerInstallMixin
+from platformio.package.manager.base import BasePackageManager
+from platformio.package.manager.library import LibraryPackageManager
+from platformio.package.manager.tool import ToolPackageManager
+from platformio.package.meta import PackageCompatibility, PackageItem, PackageSpec
 import pytest
 
 _SCRIPT = Path(__file__).parents[2] / "script" / "platformio_install_deps.py"
@@ -116,9 +124,6 @@ class _FakeManager:
 
     def get_pkg_dependencies(self, pkg):
         return getattr(type(self), "deps", {}).get(pkg.spec)
-
-    # The real conversion: the fake must not drift from what pio does
-    from platformio.package.manager.base import BasePackageManager
 
     dependency_to_spec = staticmethod(BasePackageManager.dependency_to_spec)
 
@@ -381,8 +386,6 @@ def test_unparsable_torn_destination_is_removed(tmp_path: Path, capsys) -> None:
     (dest / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
 
     def real_rmtree(path):
-        import shutil
-
         shutil.rmtree(path)
 
     with patch.object(mod.fs, "rmtree", real_rmtree):
@@ -497,8 +500,6 @@ def test_piopm_match_removes_manifest_named_torn_dir(tmp_path: Path, capsys) -> 
     (torn / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
 
     def real_rmtree(path):
-        import shutil
-
         shutil.rmtree(path)
 
     with patch.object(mod.fs, "rmtree", real_rmtree):
@@ -586,8 +587,6 @@ def test_main_generic_failure_still_runs_serial_pass(tmp_path: Path) -> None:
 def test_content_cache_creates_its_dir(tmp_path: Path, monkeypatch) -> None:
     """The cold-cache hardening relies on ContentCache.__init__ creating
     the namespace dir; pin the side effect, not mere callability."""
-    from platformio.cache import ContentCache
-
     monkeypatch.setenv("PLATFORMIO_CACHE_DIR", str(tmp_path / "cache"))
     ContentCache("http")
     assert (tmp_path / "cache" / "http").is_dir()
@@ -598,8 +597,6 @@ def test_unresolvable_spec_stays_out_of_the_wave(tmp_path: Path, capsys) -> None
     string key would break the one-per-destination dedupe."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
-    from platformio.package.meta import PackageSpec
-
     nameless = PackageSpec(requirements="^1.0")
     mod.parallel_install(cls, [nameless])
     assert cls.calls == []
@@ -628,13 +625,6 @@ def test_parse_specs_unreadable_ini_fails_loudly(tmp_path: Path) -> None:
 def test_platformio_surface_for_install_deps_script() -> None:
     """A PlatformIO bump that changes these members must fail here, not
     silently turn the docker image's parallel preinstall into a no-op."""
-    from platformio import fs
-    from platformio.package.manager._install import PackageManagerInstallMixin
-    from platformio.package.manager.base import BasePackageManager
-    from platformio.package.manager.library import LibraryPackageManager
-    from platformio.package.manager.tool import ToolPackageManager
-    from platformio.package.meta import PackageCompatibility, PackageItem, PackageSpec
-
     # The script calls these positionally; pin the positions, not just
     # membership, so a parameter reorder trips the wire too
     params = inspect.signature(PackageManagerInstallMixin._install).parameters
