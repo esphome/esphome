@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.build_helpers.tools_cache import TOOLS_CACHE_SPECS
 from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
@@ -68,15 +69,12 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
     test_clean_all_partial_exists) install their own inner patch which
     stacks on top of this one and wins for the duration of their block.
 
-    Also pin ``ESPHOME_ESP_IDF_PREFIX`` and ``ESPHOME_SDK_NRF_PREFIX`` to
-    nonexistent tmp dirs, and patch ``platformdirs.user_cache_dir``, for the
-    same reason: ``clean_all`` removes the machine-global toolchain installs
+    Also pin every ``TOOLS_CACHE_SPECS`` env override to a nonexistent tmp
+    dir, and patch ``platformdirs.user_cache_dir``, for the same reason: ``clean_all`` removes the machine-global toolchain installs
     and their default cache root, which otherwise resolve to the real
     ``~/.cache/esphome``.
     """
     pio_root = tmp_path_factory.mktemp("isolated_pio") / "nonexistent"
-    idf_root = tmp_path_factory.mktemp("isolated_idf") / "nonexistent"
-    sdk_nrf_root = tmp_path_factory.mktemp("isolated_sdk_nrf") / "nonexistent"
     cache_root = tmp_path_factory.mktemp("isolated_cache") / "nonexistent"
     mock_cfg = MagicMock()
     mock_cfg.get.side_effect = lambda section, option: (
@@ -90,8 +88,12 @@ def _isolate_platformio_paths(tmp_path_factory: pytest.TempPathFactory) -> Any:
         patch.dict(
             "os.environ",
             {
-                "ESPHOME_ESP_IDF_PREFIX": str(idf_root),
-                "ESPHOME_SDK_NRF_PREFIX": str(sdk_nrf_root),
+                # Derived from the registry so a new backend's cache can
+                # never drift out of the sandbox and hit a real toolchain
+                env_var: str(
+                    tmp_path_factory.mktemp(f"isolated_{subdir}") / "nonexistent"
+                )
+                for env_var, subdir in TOOLS_CACHE_SPECS
             },
         ),
         patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
@@ -1055,6 +1057,28 @@ def test_clean_all_removes_global_sdk_nrf_install(
 
     assert not sdk_nrf_install.exists()
     assert str(sdk_nrf_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_removes_global_arduino8266_install(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the machine-global native arduino8266 install dir."""
+    arduino8266_install = tmp_path / "arduino8266_install"
+    (arduino8266_install / "frameworks").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_ARDUINO8266_PREFIX", str(arduino8266_install))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not arduino8266_install.exists()
+    assert str(arduino8266_install.resolve()) in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -2441,3 +2465,39 @@ def test_copy_src_tree_ignores_removed_generated_file(
     # file was removed and regenerated, not that it triggered sources_changed.
     new_json = json.loads(build_info_json_path.read_text())
     assert new_json["config_hash"] == 0xDEADBEEF
+
+
+@pytest.mark.parametrize(
+    ("case", "content", "expected"),
+    [
+        ("files missing", None, True),
+        ("json missing", "ABSENT", True),
+        ("json unreadable", "not json", True),
+        # Valid JSON that is not an object is stale, not an AttributeError
+        ("json not an object", "[]", True),
+        ("hash mismatch", {"config_hash": 2, "esphome_version": "CURRENT"}, True),
+        ("version mismatch", {"config_hash": 1, "esphome_version": "0.0.0"}, True),
+        ("matching record", {"config_hash": 1, "esphome_version": "CURRENT"}, False),
+    ],
+)
+def test_build_info_stale_branches(
+    tmp_path: Path, case: str, content, expected: bool
+) -> None:
+    """Missing files, an unreadable JSON, a hash or version mismatch each
+    regenerate; a matching record does not."""
+    from esphome.const import __version__
+    from esphome.writer import _build_info_stale
+
+    h = tmp_path / "build_info_data.h"
+    cpp = tmp_path / "build_info_data.cpp"
+    info = tmp_path / "build_info.json"
+    if content is not None:
+        h.write_text("")
+        cpp.write_text("")
+    if isinstance(content, dict):
+        if content.get("esphome_version") == "CURRENT":
+            content["esphome_version"] = __version__
+        info.write_text(json.dumps(content))
+    elif isinstance(content, str) and content != "ABSENT":
+        info.write_text(content)
+    assert _build_info_stale(h, cpp, info, 1) is expected, case
