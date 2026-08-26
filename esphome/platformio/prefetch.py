@@ -15,7 +15,6 @@ under a stable name and promote with an atomic rename.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
 import errno
 import hashlib
 import json
@@ -48,6 +47,10 @@ _PREFETCH_TIMEOUT = 20 * 60
 
 # Waiting on another process's URL download; past this, leave it to pio
 _URI_LOCK_TIMEOUT = 60
+
+# Child exit for a handled, already-warned failure; 1 would collide with
+# the interpreter's own import-failure exit
+_EXIT_HANDLED = 3
 
 # Short lock-acquire slices so a waiting worker still observes Ctrl-C
 _URI_LOCK_POLL = 1
@@ -163,11 +166,12 @@ def prefetch_platformio_packages() -> None:
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
         return
-    if proc.returncode == 1:
+    if proc.returncode == _EXIT_HANDLED:
         # The child already warned with the reason; a second line is noise
         _LOGGER.debug("Prefetch child reported a handled failure")
     elif proc.returncode != 0:
-        # Codes the child cannot emit itself (signal deaths, bad wiring)
+        # Exit 1 stays here: the interpreter exits 1 for import/module
+        # failures before main() ever runs, a wiring break worth a warning
         _LOGGER.warning(
             "PlatformIO package prefetch skipped (exit %d)", proc.returncode
         )
@@ -399,11 +403,20 @@ def _serialized_fetch_job(
     return run
 
 
+# usage.db is a whole-file read-modify-write behind pio's self-unlinking
+# LockFile; concurrent writers could reset every recorded entry
+_REGISTER_LOCK = threading.Lock()
+
+
 def _register_download(manager: Any, dl_path: Path) -> None:
     """Hand the archive to pio's usage.db pruner; without an entry an
     archive nothing ever consumes would be stranded at any age."""
-    with suppress(Exception):
-        manager.set_download_utime(str(dl_path))
+    try:
+        with _REGISTER_LOCK:
+            manager.set_download_utime(str(dl_path))
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Unregistered archives are never pruned; leave a trace
+        _LOGGER.debug("Could not register %s with pio's cache: %s", dl_path, err)
 
 
 def _registry_fetch_job(
@@ -582,7 +595,7 @@ def main(argv: list[str]) -> int:
         # any prefetch exit as warn-and-continue, never a failed build
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
-        return 1
+        return _EXIT_HANDLED
     return 0
 
 

@@ -191,11 +191,14 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     def fake_download(url, dest, progress=None, **kwargs):
         Path(dest).write_bytes(b"data")
 
+    manager = MagicMock()
     with patch(
         "esphome.framework_helpers.download_with_resume", side_effect=fake_download
     ):
-        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job(manager, "https://x/a.zip", dl_path, 4)(lambda done: None)
     assert dl_path.read_bytes() == b"data"
+    # The archive is handed to pio's usage.db pruner
+    manager.set_download_utime.assert_called_once_with(str(dl_path))
     # no orphaned staging file; the lock file may or may not persist
     # (filelock removes it on release on some platforms)
     leftovers = {f.name for f in tmp_path.iterdir()}
@@ -233,12 +236,14 @@ def test_registry_fetch_job_downloads_under_lock(tmp_path: Path) -> None:
             side_effect=lambda *a, **k: order.append("unlock"),
         ),
     ):
-        pf._registry_fetch_job(
-            MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
-        )(lambda done: None)
+        manager = MagicMock()
+        pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            lambda done: None
+        )
     # FileLock.__del__ may add a trailing release; the contract is the order
     assert order[:2] == ["lock", "fetch"]
     assert "unlock" in order[2:]
+    manager.set_download_utime.assert_called_once_with(str(dl_path))
 
 
 def test_lockless_filesystem_downloads_unlocked(
@@ -335,6 +340,18 @@ def test_sweep_stale_sidecars(tmp_path: Path) -> None:
     assert fresh.exists()
     assert keep.exists()
     pf._sweep_stale_sidecars(tmp_path / "missing")  # tolerated
+
+
+def test_register_download_failure_leaves_a_trace(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed usage.db registration is traced; an unregistered archive
+    is never pruned, so silence would hide the leak coming back."""
+    manager = MagicMock()
+    manager.set_download_utime.side_effect = RuntimeError("db locked")
+    with caplog.at_level(pf.logging.DEBUG):
+        pf._register_download(manager, tmp_path / "a.tar.gz")
+    assert "Could not register" in caplog.text
 
 
 def test_sweep_logs_unprunable_files(
@@ -632,7 +649,7 @@ def test_prefetch_passes_dashboard_flag(tmp_path: Path) -> None:
             {"side_effect": pf.subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT)},
             "prefetch timed out",
         ),
-        ({"return_value": MagicMock(returncode=3)}, "prefetch skipped (exit 3)"),
+        ({"return_value": MagicMock(returncode=4)}, "prefetch skipped (exit 4)"),
         ({"side_effect": OSError("no exec")}, "PlatformIO package prefetch skipped"),
     ],
 )
@@ -655,7 +672,9 @@ def test_prefetch_child_handled_failure_is_quiet(
     adds no second warning."""
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
-        patch.object(pf.subprocess, "run", return_value=MagicMock(returncode=1)),
+        patch.object(
+            pf.subprocess, "run", return_value=MagicMock(returncode=pf._EXIT_HANDLED)
+        ),
     ):
         pf.prefetch_platformio_packages()
     assert "prefetch skipped" not in caplog.text
@@ -665,7 +684,7 @@ def test_main_guards_and_exits_nonzero(caplog: pytest.LogCaptureFixture) -> None
     """A swallowed failure still reaches the parent as a nonzero exit; the
     parent warns and continues, never failing the build."""
     with patch.object(pf, "_prefetch", side_effect=RuntimeError("boom")):
-        assert pf.main(["/b", "testenv"]) == 1
+        assert pf.main(["/b", "testenv"]) == pf._EXIT_HANDLED
     assert "PlatformIO package prefetch skipped" in caplog.text
 
 
