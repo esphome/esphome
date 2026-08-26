@@ -201,7 +201,9 @@ def parse_entry(
     for tok in it:
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
-        elif tok == "-include" or tok.startswith("-include"):
+        elif tok == "-include" or (
+            tok.startswith("-include") and not tok.startswith("-include-")
+        ):
             # Re-anchor only names next to the compile (the pch); a name
             # meant for the -I chain must stay untouched
             raw = next(it, "") if tok == "-include" else tok[len("-include") :]

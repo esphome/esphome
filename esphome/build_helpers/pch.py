@@ -81,6 +81,10 @@ def ccache_pch_env() -> dict[str, str]:
     non-pch TUs."""
     if not (pch_enabled() and _pch_data().emitted):
         return {}
+    extsum = os.environ.get("CCACHE_PCH_EXTSUM")
+    if extsum is not None and extsum.strip().lower() not in ("1", "true", "yes", "on"):
+        # ccache then hashes the non-reproducible .gch bytes: permanent misses
+        _LOGGER.warning("CCACHE_PCH_EXTSUM=%s disables pch caching", extsum)
     env = {k: v for k, v in _CCACHE_PCH_ENV.items() if k not in os.environ}
     user_sloppiness = os.environ.get("CCACHE_SLOPPINESS")
     if user_sloppiness is not None and (
