@@ -210,8 +210,8 @@ TEST(MS8607Test, Category3HumidityTemperatureCompensation) {
 
   // Highest humidity, without temperature compensation
   {
-    // bottom two bits are status bits, and get stripped
-    float const humidity = MS8607Component::compensated_humidity(0xFFFB, 20.0f);
+    // bottom two bits are status bits, and are stripped by the caller
+    float const humidity = MS8607Component::compensated_humidity(0xFFFC, 20.0f);
     EXPECT_NEAR(humidity, 118.99f, 1e-2f);
   }
 
