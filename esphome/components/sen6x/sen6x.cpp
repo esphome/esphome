@@ -164,24 +164,22 @@ void SEN6XComponent::setup() {
 
 // One configuration write per invocation, spaced by CMD_EXEC_DELAY. Cases without a
 // configured value fall through; each taken case must advance setup_step_index_ so the
-// next invocation resumes at the following step. A failed write marks the component
-// failed and abandons the chain.
+// next invocation resumes at the following step. These writes are optional, so a failure
+// only warns and the chain continues to the mandatory start-measurements write.
 void SEN6XComponent::run_next_setup_step_() {
   switch (this->setup_step_index_) {
     // Tuning writes are skipped when setup() disabled the sensor for this variant
     case 0:
       this->setup_step_index_++;
       if (this->voc_sensor_ != nullptr && this->voc_tuning_params_.has_value()) {
-        if (!this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value()))
-          return;
+        this->write_tuning_parameters_(SEN6X_CMD_VOC_ALGORITHM_TUNING, this->voc_tuning_params_.value());
         break;
       }
       [[fallthrough]];
     case 1:
       this->setup_step_index_++;
       if (this->nox_sensor_ != nullptr && this->nox_tuning_params_.has_value()) {
-        if (!this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value()))
-          return;
+        this->write_tuning_parameters_(SEN6X_CMD_NOX_ALGORITHM_TUNING, this->nox_tuning_params_.value());
         break;
       }
       [[fallthrough]];
@@ -205,25 +203,22 @@ void SEN6XComponent::run_next_setup_step_() {
     case 4:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->co2_asc_.has_value()) {
-        if (!this->write_setup_register_(SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL, this->co2_asc_.value() ? 1 : 0))
-          return;
+        this->write_setup_register_(SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL, this->co2_asc_.value() ? 1 : 0);
         break;
       }
       [[fallthrough]];
     case 5:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->altitude_compensation_.has_value()) {
-        if (!this->write_setup_register_(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_.value()))
-          return;
+        this->write_setup_register_(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_.value());
         break;
       }
       [[fallthrough]];
     case 6:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->ambient_pressure_.has_value()) {
-        if (!this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, this->ambient_pressure_.value()))
-          return;
-        this->last_ambient_pressure_ = this->ambient_pressure_;
+        if (this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, this->ambient_pressure_.value()))
+          this->last_ambient_pressure_ = this->ambient_pressure_;
         break;
       }
       [[fallthrough]];
@@ -264,7 +259,7 @@ bool SEN6XComponent::write_setup_register_(uint16_t i2c_command, uint16_t value)
 
 void SEN6XComponent::finish_setup_() {
   if (!this->write_command(SEN6X_CMD_START_MEASUREMENTS)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
+    ESP_LOGE(TAG, "Write 0x%04X failed, error %d", SEN6X_CMD_START_MEASUREMENTS, this->last_error_);
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
@@ -274,11 +269,12 @@ void SEN6XComponent::finish_setup_() {
   ESP_LOGD(TAG, "Initialized");
 }
 
-// Writes one configuration command; on failure marks the component failed and returns false
+// Writes one optional configuration command. A failure warns and returns false; setup
+// continues so the sensor still measures with that setting left at its default.
 bool SEN6XComponent::write_config_words_(uint16_t i2c_command, const uint16_t *data, uint8_t len) {
   if (!this->write_command(i2c_command, data, len)) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    ESP_LOGE(TAG, "Write 0x%04X failed, error %d", i2c_command, this->last_error_);
+    this->status_set_warning();
     return false;
   }
   return true;

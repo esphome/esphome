@@ -274,9 +274,9 @@ async def to_code(config: ConfigType) -> None:
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, func_name)(sens))
 
-    for key, setter, has_std_initial in (
-        (CONF_VOC_INDEX, "set_voc_algorithm_tuning", True),
-        (CONF_NOX_INDEX, "set_nox_algorithm_tuning", False),
+    for key, setter in (
+        (CONF_VOC_INDEX, "set_voc_algorithm_tuning"),
+        (CONF_NOX_INDEX, "set_nox_algorithm_tuning"),
     ):
         if (tuning := config.get(key, {}).get(CONF_ALGORITHM_TUNING)) is not None:
             args = [
@@ -285,8 +285,9 @@ async def to_code(config: ConfigType) -> None:
                 tuning[CONF_LEARNING_TIME_GAIN_HOURS],
                 tuning[CONF_GATING_MAX_DURATION_MINUTES],
             ]
-            if has_std_initial:
-                args.append(tuning[CONF_STD_INITIAL])
+            # std_initial is in the schema for VOC only
+            if (std_initial := tuning.get(CONF_STD_INITIAL)) is not None:
+                args.append(std_initial)
             args.append(tuning[CONF_GAIN_FACTOR])
             cg.add(getattr(var, setter)(*args))
     if co2_cfg := config.get(CONF_CO2):
