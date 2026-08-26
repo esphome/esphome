@@ -267,9 +267,10 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     elif (manifest := lib_dir / "library.properties").is_file():
         data = parse_library_properties(manifest)
     else:
-        # Visible: core libraries all ship a manifest, so an absent one
-        # most likely means a torn framework extraction
-        _LOGGER.warning("Bundled library %s has no manifest; using defaults", name)
+        # Debug, not warning: the legacy manifest-less layout is legal and
+        # the 3.1.2 core ships one such library (FSTools), so a warning
+        # would be unactionable noise on every build using it
+        _LOGGER.debug("Bundled library %s has no manifest; using defaults", name)
         data = {}
     if isinstance(data, dict):
         # Bundled manifest deps are never walked; make the skip visible
