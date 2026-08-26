@@ -362,6 +362,18 @@ async def to_code(config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
+async def register_modbus_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj:
+    # Remove before 2027.3.0
+    _LOGGER.warning(
+        "'modbus_controller.register_modbus_device' is deprecated, use "
+        "'modbus.register_modbus_client_device' and set the address on your own "
+        "class instead. Will be removed in 2027.3.0"
+    )
+    cg.add(var.set_address(config[CONF_ADDRESS]))
+    await cg.register_component(var, config)
+    return await modbus.register_modbus_client_device(var, config)
+
+
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
         "read_coils": EntityType.COIL,
