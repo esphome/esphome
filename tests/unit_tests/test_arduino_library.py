@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 import json
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -898,6 +899,18 @@ def test_bundled_library_non_dict_manifest_skips_probes_and_raises(
     (wire / "library.json").write_text('["not", "a", "manifest"]')
     with pytest.raises(EsphomeError, match="Library Wire has a malformed manifest"):
         component._bundled_library(framework, "Wire")
+
+
+def test_bundled_missing_manifest_is_debug_only(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The legacy manifest-less layout is legal (the core ships FSTools
+    without one), so the diagnostic must stay below warning level."""
+    framework = _make_framework(tmp_path)
+    with caplog.at_level(logging.DEBUG):
+        component._bundled_library(framework, "Wire")
+    record = next(r for r in caplog.records if "has no manifest" in r.message)
+    assert record.levelno == logging.DEBUG
 
 
 def test_bundled_corrupt_library_json_fails_by_name(tmp_path: Path) -> None:
