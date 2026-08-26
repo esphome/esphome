@@ -16,6 +16,8 @@ def _load_script():
     spec = importlib.util.spec_from_file_location("platformio_install_deps", _SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    # The real ContentCache would create dirs under the user's core dir
+    module.ContentCache = lambda *_: None
     return module
 
 
@@ -85,6 +87,12 @@ class _FakeManager:
 
     def memcache_reset(self) -> None:
         type(self).resets = getattr(type(self), "resets", 0) + 1
+
+    def get_download_dir(self) -> str:
+        return "/tmp/fake-downloads"
+
+    def get_tmp_dir(self) -> str:
+        return "/tmp/fake-tmp"
 
     def lock(self) -> None:
         type(self).lock_events.append("lock")
@@ -209,6 +217,70 @@ def test_dependency_wave_excludes_url_specs() -> None:
     assert {mod.spec_key(c) for c in cls.calls} == {"noise-c"}
 
 
+def test_success_without_package_prints_anomaly(capsys) -> None:
+    """An install that reported success but resolves to nothing prints the
+    anomaly instead of silently pruning its dependency subtree."""
+    mod = _load_script()
+    cls = _reset_fake()
+    real_get = cls.get_package
+    cls.get_package = lambda self, spec: None  # never resolvable
+    mod.parallel_install(cls, ["esphome/ghost @ 1.0"])
+    cls.get_package = real_get
+    assert "not resolvable afterwards" in capsys.readouterr().out
+
+
+def test_wave_limit_prints_truncation(capsys) -> None:
+    """Hitting the cycle backstop announces what is left to pkg install."""
+    mod = _load_script()
+    cls = _reset_fake()
+    cls.deps = {
+        "esphome/noise-c @ 0.1.21": [
+            {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
+        ],
+    }
+    prior = {f"seen{i}" for i in range(200)}
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"], prior)
+    out = capsys.readouterr().out
+    assert "Dependency wave limit reached; 1 spec(s) left to pkg install" in out
+
+
+def test_failed_cleanup_fails_the_build() -> None:
+    """A torn destination that cannot be removed must fail the build; the
+    serial pass would trust it and bake a corrupt image."""
+    mod = _load_script()
+    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+
+    def get_package(self, spec):
+        if getattr(cls, "resets", 0):
+            return SimpleNamespace(path="/tmp/torn-pkg", spec=spec)
+        return None
+
+    cls.get_package = get_package  # throwaway subclass; nothing to restore
+
+    def broken_rmtree(path):
+        raise OSError("read-only")
+
+    with (
+        patch.object(mod.fs, "rmtree", broken_rmtree),
+        pytest.raises(mod.CleanupError, match="could not remove"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert cls.lock_events == ["lock", "unlock"]  # still released
+
+
+def test_unresolvable_spec_stays_out_of_the_wave(capsys) -> None:
+    """A spec with no derivable name is left to the serial pass; a raw
+    string key would break the one-per-destination dedupe."""
+    mod = _load_script()
+    cls = _reset_fake()
+    from platformio.package.meta import PackageSpec
+
+    nameless = PackageSpec(requirements="^1.0")
+    mod.parallel_install(cls, [nameless])
+    assert cls.calls == []
+    assert "Skipping unresolvable spec" in capsys.readouterr().out
+
+
 def test_parallel_install_unlocks_when_pool_fails() -> None:
     mod = _load_script()
     cls = _reset_fake()
@@ -253,6 +325,8 @@ def test_platformio_surface_for_install_deps_script() -> None:
         "memcache_reset",
         "get_pkg_dependencies",
         "dependency_to_spec",
+        "get_download_dir",
+        "get_tmp_dir",
     ):
         assert callable(getattr(BasePackageManager, name))
     assert PackageSpec("owner/name @ ^1.0").name == "name"
@@ -260,3 +334,6 @@ def test_platformio_surface_for_install_deps_script() -> None:
     assert callable(fs.rmtree)
     assert PackageItem("pkg-dir").path == "pkg-dir"
     assert callable(PackageCompatibility.from_dependency)
+    from platformio.cache import ContentCache
+
+    assert callable(ContentCache)

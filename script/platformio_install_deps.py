@@ -15,6 +15,7 @@ import traceback
 # out of reach; pio's fs.rmtree is the same chmod-on-readonly shape and
 # is what pio's own installer uses on these directories
 from platformio import fs
+from platformio.cache import ContentCache
 from platformio.package.manager.library import LibraryPackageManager
 from platformio.package.manager.tool import ToolPackageManager
 from platformio.package.meta import PackageCompatibility, PackageSpec
@@ -23,6 +24,11 @@ from platformio.package.meta import PackageCompatibility, PackageSpec
 # a fixed pool well past the core count keeps the network busy while
 # unpacks share the cores.
 MAX_WORKERS = 16
+
+
+class CleanupError(RuntimeError):
+    """A torn destination could not be removed; the serial pass would
+    trust it, so the build must fail rather than bake a corrupt image."""
 
 
 def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
@@ -73,20 +79,24 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
     )
 
 
-def spec_key(spec) -> str:
+def spec_key(spec) -> str | None:
     """The destination identity of a spec: PlatformIO installs by package
-    name, so two specs sharing a name share a directory."""
+    name, so two specs sharing a name share a directory. ``None`` means
+    the name could not be derived; such a spec must stay out of the wave
+    (a raw-string key would break the one-per-destination guarantee)."""
     name = spec.name if isinstance(spec, PackageSpec) else PackageSpec(spec).name
-    return name.lower() if name else str(spec).strip()
+    return name.lower() if name else None
 
 
 def dependency_specs(manager, specs: list, installed_ok: set) -> list:
     """``(spec, compatibility)`` registry dependencies of installed packages.
 
     Local manifest reads only. Name-only dependencies (platform-bundled
-    libs like SPI) are left to the ``pkg install`` pass. The compatibility
-    qualifiers mirror pio's install_dependency, so a qualified dep resolves
-    to the same package the serial pass would have picked."""
+    libs like SPI) are left to the ``pkg install`` pass; a *versioned*
+    built-in name cannot be recognized here (no platforms are installed
+    at wave time), so it may be installed from the registry. The
+    compatibility qualifiers mirror pio's install_dependency, so a
+    qualified dep resolves to the same package the serial pass picks."""
     deps = []
     for spec in specs:
         if (pkg := manager.get_package(spec)) is None:
@@ -130,11 +140,15 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     seen_names: set = prior_names if prior_names is not None else set()
     # Wave-1 items are strings; dependency waves carry (spec, compatibility)
     pairs = [item if isinstance(item, tuple) else (item, None) for item in specs]
-    unique = {
-        spec_key(spec): (spec, compat)
-        for spec, compat in pairs
-        if not (spec.uri if isinstance(spec, PackageSpec) else "://" in spec)
-    }
+    unique = {}
+    for spec, compat in pairs:
+        if spec.uri if isinstance(spec, PackageSpec) else "://" in spec:
+            continue
+        if (key := spec_key(spec)) is None:
+            # No name, no destination identity; leave it to the serial pass
+            print(f"Skipping unresolvable spec {spec!r} in the wave", flush=True)
+            continue
+        unique[key] = (spec, compat)
     pending = [
         (spec, compat)
         for spec, compat in unique.values()
@@ -161,6 +175,10 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
                 spec, skip_dependencies=True, compatibility=compat
             )
             return True
+        except (AttributeError, TypeError):
+            # A PlatformIO API break, not a flaky package; surface it so
+            # total degradation reads differently from a network blip
+            raise
         except Exception as err:  # noqa: BLE001
             print(f"Pre-install of {spec} failed ({err!r})", flush=True)
             # A torn copy into the destination can carry valid metadata the
@@ -171,15 +189,21 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
                 mgr.memcache_reset()
                 if (pkg := mgr.get_package(spec)) is not None:
                     fs.rmtree(pkg.path)
-            except Exception as cleanup_err:  # noqa: BLE001
-                print(
-                    f"Cleanup after failed pre-install of {spec} "
-                    f"failed ({cleanup_err!r})",
-                    flush=True,
-                )
+            except Exception as cleanup_err:
+                # A torn destination the serial pass would trust cannot be
+                # removed; failing the build beats baking a corrupt image
+                raise CleanupError(
+                    f"could not remove the failed pre-install of {spec}: "
+                    f"{cleanup_err!r}"
+                ) from cleanup_err
             return False
 
     print(f"Preinstalling {len(pending)} package(s) with {workers} workers", flush=True)
+    # PlatformIO creates these lazily with a bare isdir/makedirs; touch
+    # them once serially so cold-cache workers never race the creation
+    manager.get_download_dir()
+    manager.get_tmp_dir()
+    ContentCache("http")
     manager.lock()
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -256,6 +280,9 @@ def main() -> None:
     ):
         try:
             parallel_install(manager_cls, specs)
+        except CleanupError:
+            # A torn package the serial pass would trust is still on disk
+            raise
         except Exception:  # noqa: BLE001
             # The wave is an optimization; it must never stop the real
             # pass, but a persistent break must read as a failure in logs
