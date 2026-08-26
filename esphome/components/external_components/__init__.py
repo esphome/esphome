@@ -71,7 +71,30 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
     return components_dir
 
 
-def _process_single_config(config: dict[str, Any]) -> None:
+def _log_overridden_components(
+    conf: dict[str, Any], component_names: list[str], raw_source: Any
+) -> None:
+    overridden = [
+        name
+        for name in component_names
+        if (loader.CORE_COMPONENTS_PATH / name / "__init__.py").is_file()
+    ]
+    if not overridden:
+        return
+    if isinstance(raw_source, str):
+        source = raw_source
+    else:
+        source = conf[CONF_URL] if conf[CONF_TYPE] == TYPE_GIT else conf[CONF_PATH]
+    _LOGGER.info(
+        "External components source overrides the built-in component(s):\n"
+        "  source: %s\n"
+        "  components: %s",
+        source,
+        ", ".join(sorted(overridden)),
+    )
+
+
+def _process_single_config(config: dict[str, Any], raw_source: Any = None) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
         with cv.prepend_path([CONF_SOURCE]):
@@ -84,8 +107,8 @@ def _process_single_config(config: dict[str, Any]) -> None:
         raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
-        num_components = len(list(components_dir.glob("*/__init__.py")))
-        if num_components > 100:
+        component_names = [p.parent.name for p in components_dir.glob("*/__init__.py")]
+        if len(component_names) > 100:
             # Prevent accidentally including all components from an esphome fork/branch
             # In this case force the user to manually specify which components they want to include
             raise cv.Invalid(
@@ -102,6 +125,9 @@ def _process_single_config(config: dict[str, Any]) -> None:
                     [CONF_COMPONENTS, i],
                 )
         allowed_components = config[CONF_COMPONENTS]
+        component_names = allowed_components
+
+    _log_overridden_components(conf, component_names, raw_source)
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
@@ -110,8 +136,13 @@ def do_external_components_pass(config: dict[str, Any]) -> None:
     conf = config.get(DOMAIN)
     if conf is None:
         return
+    raw_conf = conf if isinstance(conf, list) else [conf]
     with cv.prepend_path(DOMAIN):
         conf = CONFIG_SCHEMA(conf)
         for i, c in enumerate(conf):
+            raw_entry = raw_conf[i] if i < len(raw_conf) else None
+            raw_source = (
+                raw_entry.get(CONF_SOURCE) if isinstance(raw_entry, dict) else None
+            )
             with cv.prepend_path(i):
-                _process_single_config(c)
+                _process_single_config(c, raw_source)

@@ -1,8 +1,11 @@
 """Tests for the external_components skip-update behavior driven by CORE.skip_external_update."""
 
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
+
+import pytest
 
 from esphome.components.external_components import do_external_components_pass
 from esphome.const import (
@@ -69,3 +72,67 @@ def test_external_components_normal_refresh(
     mock_clone_or_update.assert_called_once()
     call_args = mock_clone_or_update.call_args
     assert call_args.kwargs["refresh"] == TimePeriodSeconds(days=1)
+
+
+def test_external_components_logs_built_in_override(
+    tmp_path: Path,
+    mock_clone_or_update: MagicMock,
+    mock_install_meta_finder: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A source that provides a component with the same name as a built-in one logs an info message."""
+    mock_clone_or_update.return_value = (tmp_path, None)
+    config = _make_config(tmp_path)
+
+    for name in ("gpio", "some_custom_component"):
+        component_dir = tmp_path / "components" / name
+        component_dir.mkdir()
+        (component_dir / "__init__.py").write_text("# Test component")
+
+    with caplog.at_level(logging.INFO):
+        do_external_components_pass(config)
+
+    assert (
+        "External components source overrides the built-in component(s):\n"
+        "  source: https://github.com/test/components\n"
+        "  components: gpio" in caplog.text
+    )
+    assert "some_custom_component" not in caplog.text
+
+
+def test_external_components_override_log_shows_shorthand_source(
+    tmp_path: Path,
+    mock_clone_or_update: MagicMock,
+    mock_install_meta_finder: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A shorthand source is logged as written in the yaml, not as the normalized git url."""
+    mock_clone_or_update.return_value = (tmp_path, None)
+    config = _make_config(tmp_path)
+    config[CONF_EXTERNAL_COMPONENTS][0][CONF_SOURCE] = "github://test/components@main"
+
+    component_dir = tmp_path / "components" / "gpio"
+    component_dir.mkdir()
+    (component_dir / "__init__.py").write_text("# Test component")
+
+    with caplog.at_level(logging.INFO):
+        do_external_components_pass(config)
+
+    assert "  source: github://test/components@main\n" in caplog.text
+    assert "github.com" not in caplog.text
+
+
+def test_external_components_no_override_no_log(
+    tmp_path: Path,
+    mock_clone_or_update: MagicMock,
+    mock_install_meta_finder: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A source that only provides components not shipped with ESPHome logs nothing."""
+    mock_clone_or_update.return_value = (tmp_path, None)
+    config = _make_config(tmp_path)
+
+    with caplog.at_level(logging.INFO):
+        do_external_components_pass(config)
+
+    assert "overrides the built-in component" not in caplog.text
