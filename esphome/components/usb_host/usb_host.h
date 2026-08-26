@@ -336,11 +336,11 @@ class USBHost final : public Component {
   // Second half of the open sequence: allocate the URBs, seed an OUT stream with silence
   // and submit. Split out so it can run either straight from stream_open() or from the
   // SET_INTERFACE completion.
-  bool stream_start_urbs_(IsocStream &stream, USBClient *cb, usb_device_handle_t device_handle);
+  bool stream_start_urbs(IsocStream &stream, USBClient *cb, usb_device_handle_t device_handle);
   // Give back whatever the stream holds of its interface. Does nothing for a stream that
   // shares its interface with another one, and skips the alt-setting reset when there is
   // nothing to reset.
-  void stream_release_(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
+  void stream_release(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
                        usb_device_handle_t device_handle);
 
   // Static trampoline stored as xfer->callback for every ISOC URB.

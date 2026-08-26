@@ -177,7 +177,7 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
       get_usb_host()->defer([stream, client, client_handle, device_handle] {
         stream->xfers.reset();
         stream->ctxs.reset();
-        get_usb_host()->stream_release_(*stream, client, client_handle, device_handle);
+        get_usb_host()->stream_release(*stream, client, client_handle, device_handle);
         stream->open_state.store(IsocOpenState::CLOSED, std::memory_order_release);
         ESP_LOGD(TAG, "stream_close deferred: ep=0x%02X", stream->ep_addr);
       });
@@ -232,7 +232,7 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
   }
 }
 
-bool USBHost::stream_start_urbs_(IsocStream &stream, USBClient *cb, usb_device_handle_t device_handle) {
+bool USBHost::stream_start_urbs(IsocStream &stream, USBClient *cb, usb_device_handle_t device_handle) {
   stream.xfers = std::make_unique<usb_transfer_t *[]>(stream.num_urbs);
   stream.ctxs = std::make_unique<IsocCbCtx[]>(stream.num_urbs);
   stream.pending_urbs.store(stream.num_urbs, std::memory_order_relaxed);
@@ -299,7 +299,7 @@ bool USBHost::stream_start_urbs_(IsocStream &stream, USBClient *cb, usb_device_h
   return true;
 }
 
-void USBHost::stream_release_(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
+void USBHost::stream_release(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
                               usb_device_handle_t device_handle) {
   if (!stream.owns_interface)
     return;
@@ -330,7 +330,7 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
   if (!stream.owns_interface) {
     // Shares an already selected interface with the stream that owns it, so there is
     // nothing to claim and nothing to switch.
-    const bool ok = this->stream_start_urbs_(stream, cb, device_handle);
+    const bool ok = this->stream_start_urbs(stream, cb, device_handle);
     stream.open_state.store(ok ? IsocOpenState::RUNNING : IsocOpenState::CLOSED, std::memory_order_release);
     cb->on_stream_open(stream, ok);
     return ok;
@@ -340,11 +340,11 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
     return false;
 
   if (stream.alt_setting == 0) {
-    const bool ok = this->stream_start_urbs_(stream, cb, device_handle);
+    const bool ok = this->stream_start_urbs(stream, cb, device_handle);
     // Only give the interface back when nothing is draining: if URBs did go out, the last
     // one to retire runs the same teardown and doing it twice releases it twice.
     if (!ok && stream.pending_urbs.load(std::memory_order_acquire) == 0)
-      this->stream_release_(stream, cb, client_handle, device_handle);
+      this->stream_release(stream, cb, client_handle, device_handle);
     stream.open_state.store(ok ? IsocOpenState::RUNNING : IsocOpenState::CLOSED, std::memory_order_release);
     cb->on_stream_open(stream, ok);
     return ok;
@@ -364,7 +364,7 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
           // The owner may have closed the stream while the device was being switched. Give
           // the interface back rather than starting URBs nobody asked for any more.
           if (stream.open_state.load(std::memory_order_acquire) != IsocOpenState::SELECTING_ALT) {
-            this->stream_release_(stream, cb, client_handle, device_handle);
+            this->stream_release(stream, cb, client_handle, device_handle);
             cb->on_stream_open(stream, false);
             return;
           }
@@ -372,11 +372,11 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
           if (!ok) {
             ESP_LOGE(TAG, "stream_open: SET_INTERFACE %u alt %u failed", stream.interface_num, stream.alt_setting);
           } else {
-            ok = this->stream_start_urbs_(stream, cb, device_handle);
+            ok = this->stream_start_urbs(stream, cb, device_handle);
           }
           if (!ok) {
             if (stream.pending_urbs.load(std::memory_order_acquire) == 0)
-              this->stream_release_(stream, cb, client_handle, device_handle);
+              this->stream_release(stream, cb, client_handle, device_handle);
             stream.open_state.store(IsocOpenState::CLOSED, std::memory_order_release);
           } else {
             stream.open_state.store(IsocOpenState::RUNNING, std::memory_order_release);
@@ -386,7 +386,7 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
       });
   if (!submitted) {
     ESP_LOGE(TAG, "stream_open: SET_INTERFACE %u alt %u not submitted", stream.interface_num, stream.alt_setting);
-    this->stream_release_(stream, cb, client_handle, device_handle);
+    this->stream_release(stream, cb, client_handle, device_handle);
     stream.open_state.store(IsocOpenState::CLOSED, std::memory_order_release);
     cb->on_stream_open(stream, false);
     return false;
