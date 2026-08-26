@@ -156,7 +156,12 @@ def test_pch_script_builds_and_prepends_relative_include(tmp_path: Path) -> None
     assert (proj / "esphome_pch.h.gch").is_file()
     assert len((proj / "esphome_pch.h.gch.sum").read_text().strip()) == 64
     # Relative include: an absolute path would poison ccache keys
-    assert scons_env.prepended == ["-Winvalid-pch", "-include", "esphome_pch.h"]
+    assert scons_env.prepended == [
+        "-Winvalid-pch",
+        "-Wno-error=invalid-pch",
+        "-include",
+        "esphome_pch.h",
+    ]
     # In production projenv["ENV"] aliases os.environ; only the -include
     # flags are genuinely scoped to projenv (src compiles)
     assert scons_env["ENV"]["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
