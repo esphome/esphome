@@ -171,7 +171,6 @@ template<typename... Args> void enqueue_zb_event(Args... args) {
   global_zigbee->zb_events_.push(event);
   // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
   global_zigbee->enable_loop_soon_any_context();
-  App.wake_loop_threadsafe();
 }
 
 // Explicit template instantiations for the friend function
@@ -205,8 +204,9 @@ static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, voi
 }
 
 void ZigbeeComponent::handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
-  if (this->attributes_.contains({info.dst_ep, info.cluster_id, EZB_ZCL_CLUSTER_SERVER, attribute.id})) {
-    this->attributes_[{info.dst_ep, info.cluster_id, EZB_ZCL_CLUSTER_SERVER, attribute.id}]->on_value(attribute);
+  auto it = this->attributes_.find({info.dst_ep, info.cluster_id, info.cluster_role, attribute.id});
+  if (it != this->attributes_.end()) {
+    it->second->on_value(attribute);
   }
 }
 
