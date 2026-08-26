@@ -296,11 +296,11 @@ class WriterDevice final : protected modbus::ModbusClientDevice {
 
   // Entity plumbing, public because the owning WriterEntity holds the only reachable instance (device_ is
   // protected there and the hub sees just the masked base) - reachability is the access gate, not a friend.
-  void set_controller_(ModbusController *controller);
-  void clear_dispatched_() { this->dispatched_ = false; }
+  void set_controller(ModbusController *controller);
+  void clear_dispatched() { this->dispatched_ = false; }
   /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
   /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
-  void warn_write_buffer_deprecated_(const LogString *platform, uint16_t address);
+  void warn_write_buffer_deprecated(const LogString *platform, uint16_t address);
 };
 
 /// Gives a writer entity the write API of the WriterDevice it owns. The device is a member, not a base:
@@ -329,13 +329,13 @@ class WriterEntity {
   void clear_tx_queue_for_device() { this->device_.clear_tx_queue_for_device(); }
 
  protected:
-  bool send_raw_frame_deprecated(std::span<const uint8_t> frame) {
+  bool send_raw_frame_deprecated_(std::span<const uint8_t> frame) {
     return this->device_.send_raw_frame_deprecated(frame);
   }
-  void set_controller_(ModbusController *controller) { this->device_.set_controller_(controller); }
-  void clear_dispatched_() { this->device_.clear_dispatched_(); }
+  void set_controller_(ModbusController *controller) { this->device_.set_controller(controller); }
+  void clear_dispatched_() { this->device_.clear_dispatched(); }
   void warn_write_buffer_deprecated_(const LogString *platform, uint16_t address) {
-    this->device_.warn_write_buffer_deprecated_(platform, address);
+    this->device_.warn_write_buffer_deprecated(platform, address);
   }
 
   WriterDevice device_;

@@ -111,7 +111,7 @@ void ModbusBinaryOutput::write_state(bool state) {
       ESP_LOGV(TAG, "Modbus binary output write raw: %s",
                format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
       // The lambda filled a legacy raw frame (device address + function code + data).
-      if (!this->send_raw_frame_deprecated(data)) {
+      if (!this->send_raw_frame_deprecated_(data)) {
         ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->write_address());
       }
       return;
