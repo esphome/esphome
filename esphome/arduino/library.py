@@ -267,8 +267,9 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     elif (manifest := lib_dir / "library.properties").is_file():
         data = parse_library_properties(manifest)
     else:
-        # Defaults build core libraries; can also mean a torn extraction
-        _LOGGER.debug("Bundled library %s has no manifest; using defaults", name)
+        # Visible: core libraries all ship a manifest, so an absent one
+        # most likely means a torn framework extraction
+        _LOGGER.warning("Bundled library %s has no manifest; using defaults", name)
         data = {}
     if isinstance(data, dict):
         # Bundled manifest deps are never walked; make the skip visible
