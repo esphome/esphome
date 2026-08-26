@@ -184,25 +184,22 @@ void SEN6XComponent::run_next_setup_step_() {
     case 2:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->co2_asc_.has_value()) {
-        if (!this->write_setup_register_(SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL, this->co2_asc_.value() ? 1 : 0))
-          return;
+        this->write_setup_register_(SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL, this->co2_asc_.value() ? 1 : 0);
         break;
       }
       [[fallthrough]];
     case 3:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->altitude_compensation_.has_value()) {
-        if (!this->write_setup_register_(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_.value()))
-          return;
+        this->write_setup_register_(SEN6X_CMD_SENSOR_ALTITUDE, this->altitude_compensation_.value());
         break;
       }
       [[fallthrough]];
     case 4:
       this->setup_step_index_++;
       if (this->co2_sensor_ != nullptr && this->ambient_pressure_.has_value()) {
-        if (!this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, this->ambient_pressure_.value()))
-          return;
-        this->last_ambient_pressure_ = this->ambient_pressure_;
+        if (this->write_setup_register_(SEN6X_CMD_AMBIENT_PRESSURE, this->ambient_pressure_.value()))
+          this->last_ambient_pressure_ = this->ambient_pressure_;
         break;
       }
       [[fallthrough]];
