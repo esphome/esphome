@@ -82,6 +82,7 @@ class _FakeSConsEnv(dict):
 def _fake_cxx(
     tmp_path: Path,
     fail: bool = False,
+    fail_msg: str | None = None,
     reject_pch: bool = False,
     probe_exit: int = 0,
 ) -> Path:
@@ -96,7 +97,7 @@ def _fake_cxx(
         'printf -- ---call---\\\\n >> "$0.argv"; printf \'%s\\n\' "$@" >> "$0.argv"\n'
     )
     if fail:
-        body += "echo boom >&2\nexit 1\n"
+        body += f"echo {fail_msg or 'boom'} >&2\nexit 1\n"
     else:
         # Only the c++-header compile has a -o; the load probe has none
         body += 'out=""; prev=""\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done\n'
@@ -113,6 +114,7 @@ def _run_script(
     tmp_path: Path,
     flags: list[str] | None = None,
     fail: bool = False,
+    fail_msg: str | None = None,
     reject_pch: bool = False,
     probe_exit: int = 0,
     missing_cxx: bool = False,
@@ -124,7 +126,13 @@ def _run_script(
     src = proj / "src"
     (src / "esphome" / "core").mkdir(parents=True, exist_ok=True)
     (src / "esphome" / "core" / "defines.h").write_text("#define USE_X\n")
-    cxx = _fake_cxx(tmp_path, fail=fail, reject_pch=reject_pch, probe_exit=probe_exit)
+    cxx = _fake_cxx(
+        tmp_path,
+        fail=fail,
+        fail_msg=fail_msg,
+        reject_pch=reject_pch,
+        probe_exit=probe_exit,
+    )
     if missing_cxx:
         cxx = tmp_path / "no-such-gxx"
     args = (proj, src, str(cxx), flags or ["-DX=1"], platform_cls)
@@ -215,6 +223,16 @@ def test_pch_script_sum_is_device_independent(tmp_path: Path) -> None:
         (tmp_path / "fake-gxx").unlink()
         (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
     assert sums[0] == sums[1]
+
+
+def test_pch_script_transient_compiler_failure_does_not_latch(
+    tmp_path: Path,
+) -> None:
+    """ENOSPC-style failures clear on their own; no .failed marker."""
+    scons_env = _run_script(tmp_path, fail=True, fail_msg="No space left on device")
+    proj = tmp_path / "dev"
+    assert not (proj / "esphome_pch.h.gch.failed").exists()
+    assert scons_env.prepended == []
 
 
 def test_pch_script_failure_marker_suppresses_retry(
