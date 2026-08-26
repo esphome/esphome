@@ -204,6 +204,30 @@ def run_command(
         return False, None, None
 
 
+def tool_version_runs(binary: str, warning: str) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+
+    ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
+    shims, stale package-manager shims).
+    """
+    try:
+        subprocess.run(
+            [binary, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            # Repo-wide convention (posix_spawn fast path)
+            close_fds=False,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        # The cause (permission denied, missing DLL, timeout) is the one
+        # detail the user needs to fix it
+        _LOGGER.warning("%s (%s)", warning % binary, err)
+        return False
+    return True
+
+
 def run_command_ok(*args, **kwargs) -> bool:
     """
     Execute a command and return only the success status.
@@ -1284,3 +1308,37 @@ def download_from_mirrors(
             f"No mirror URL template matched the provided substitutions:{details}"
         )
     raise ValueError("download_from_mirrors called with an empty mirrors list")
+
+
+def strip_win_long_path_prefix(path: str) -> str:
+    r"""Strip the Windows extended-length path prefix from ``path``.
+
+    Handles both forms documented at
+    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
+
+    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
+    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
+
+    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
+    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
+    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
+    the environment, falling back to ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such
+    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
+    the ``\\?\`` prefix, so the build fails with
+    "The system cannot find the path specified." Stripping the prefix early
+    keeps the path shell-quotable.
+
+    Also applied to the ccache path exported by the ccache helpers, which
+    ``shutil.which`` can return with the same prefix.
+
+    No-op on non-Windows platforms.
+    """
+    if sys.platform != "win32":
+        return path
+    if path.startswith("\\\\?\\UNC\\"):
+        # \\?\UNC\server\share\... -> \\server\share\...
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
+    if path.startswith("\\\\?\\"):
+        return path[len("\\\\?\\") :]
+    return path
