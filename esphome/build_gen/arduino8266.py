@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.arduino8266.framework import toolchain_tool
 from esphome.build_helpers.ccache import effective_ccache_basedir
+from esphome.build_helpers.idedata import is_joined_include
 from esphome.build_helpers.ninja import (
     escape as _e,
     quote_path as _q,
@@ -1211,9 +1212,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                     "build_src_flags has a trailing '-include' with no header"
                 )
             src_includes.append(header)
-        elif tok.startswith("-include") and not tok.startswith("-include-"):
-            # Joined spelling; left in src_other it would precede the pch
-            # include and silently defeat the .gch
+        elif is_joined_include(tok):
+            # Left in src_other it would precede the pch include and
+            # silently defeat the .gch
             src_includes.append(tok[len("-include") :])
         else:
             src_other.append(_shell_token(tok))
