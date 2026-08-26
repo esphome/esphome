@@ -195,6 +195,7 @@ def parse_entry(
     defines: list[str] = []
     includes: list[str] = []
     cxx_flags: list[str] = []
+    unresolved_force_includes: list[str] = []
 
     it = iter(tokens[1:])
     for tok in it:
@@ -207,11 +208,11 @@ def parse_entry(
             raw = next(it, "")
             if not raw:
                 _LOGGER.warning("Dropping -include with no argument")
+            elif Path(resolved := _include(raw)).is_file():
+                cxx_flags.extend(("-include", resolved))
             else:
-                resolved = _include(raw)
-                cxx_flags.extend(
-                    ("-include", resolved if Path(resolved).is_file() else raw)
-                )
+                unresolved_force_includes.append(raw)
+                cxx_flags.extend(("-include", raw))
         elif tok.startswith("-D"):
             # ``.strip()`` handles tokens like ``-D CONFIGURED=1`` (a single
             # quoted arg with a space after -D) that some flags arrive as.
@@ -230,6 +231,15 @@ def parse_entry(
             pass  # input/output files
         else:
             cxx_flags.append(tok)
+    for raw in unresolved_force_includes:
+        # A deleted build artifact (clean_build removes esphome_pch.h) would
+        # otherwise surface only as an opaque downstream tooling error
+        if not any((Path(inc) / raw).is_file() for inc in includes):
+            _LOGGER.warning(
+                "-include %s found neither next to the compile nor on the "
+                "include path; cached idedata may not resolve it",
+                raw,
+            )
     return cxx_path, defines, includes, cxx_flags
 
 
