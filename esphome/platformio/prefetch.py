@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
+import errno
 import hashlib
 import json
 import logging
@@ -58,6 +59,28 @@ _URI_LOCK_POLL = 1
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
+
+# Sidecars older than pio's own 30-day download expiry cannot be resumed
+# by anything and are invisible to its usage.db-driven pruner
+_SIDECAR_EXPIRE_SECONDS = 30 * 24 * 3600
+
+
+def _sweep_stale_sidecars(download_dir: Path) -> None:
+    """Prune abandoned resume/lock files pio's cache pruner cannot see.
+
+    A version bump changes the cache key, stranding an aborted archive's
+    sidecars forever; anything past pio's own expiry is dead weight.
+    """
+    cutoff = time.time() - _SIDECAR_EXPIRE_SECONDS
+    try:
+        for f in download_dir.iterdir():
+            if f.suffix not in (".part", ".meta", ".prefetch", ".lock"):
+                continue
+            with suppress(OSError):
+                if f.stat().st_mtime < cutoff:
+                    f.unlink()
+    except OSError:
+        _LOGGER.debug("Could not sweep %s", download_dir, exc_info=True)
 
 
 class _Resolved(NamedTuple):
@@ -414,6 +437,10 @@ def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
                         "timed out waiting for another download of the same file"
                     ) from None
             except OSError as err:
+                if err.errno not in (errno.ENOSYS, errno.EPERM, errno.EROFS):
+                    # EACCES/ENOSPC/EMFILE are real faults; an unlocked
+                    # write of a shared destination is not a safe fallback
+                    raise
                 lock = None
                 _LOGGER.warning(
                     "Could not lock %s (%s); downloading unlocked",
@@ -434,9 +461,11 @@ def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
 
 def _registry_fetch_job(url: str, dl_path: Path, checksum: str, size: int) -> Any:
     """A locked fetch straight to the cache path; sha256 verifies it."""
+    # .esphome.lock: pio's own LockFile(dl_path) owns <dl_path>.lock and
+    # deletes it on release, which would unlink a held filelock
     return _serialized_fetch_job(
         dl_path,
-        f"{dl_path}.lock",
+        f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
     )
 
@@ -453,6 +482,11 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
 
     def promote(tracker: Any) -> None:
         fetch(tracker)
+        if (actual := tmp.stat().st_size) != size:
+            # No checksum on URL archives: a wrong-length body must not be
+            # published under a cache key pio never re-validates
+            discard_partial_download(tmp)
+            raise ValueError(f"expected {size} bytes, fetched {actual}")
         tmp.replace(dl_path)
 
     def run(tracker: Any) -> None:
@@ -666,6 +700,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
     # setup does); restore it so later imports here still resolve.
     saved_sys_path = list(sys.path)
     pm = PlatformPackageManager()
+    _sweep_stale_sidecars(Path(pm.get_download_dir()))
     pkg = pm.install(platform_spec, skip_dependencies=True)
     p = PlatformFactory.new(pkg)
     p.configure_project_packages(env, ["run"])
@@ -808,9 +843,11 @@ def main(argv: list[str]) -> int:
         _LOGGER.debug("Prefetch interrupted", exc_info=True)
         return 130
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Exit 0: the parent must not treat a failed prefetch as a failed build
+        # Nonzero so the parent's exit-code warning stays live; it treats
+        # any prefetch exit as warn-and-continue, never a failed build
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
+        return 1
     return 0
 
 
