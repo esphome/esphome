@@ -95,28 +95,28 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void read_measurements_();
   void parse_and_publish_measurements_();
 
+  std::string product_name_;
+  std::string serial_number_;
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
-  optional<bool> co2_asc_;
+  optional<TemperatureAcceleration> temperature_acceleration_;
+  optional<TemperatureCompensation> temperature_compensation_;
+  sensor::Sensor *ambient_pressure_source_{nullptr};
+  uint32_t startup_delay_ms_{60000};
+  Sen6xType sen6x_type_{UNKNOWN};
   optional<uint16_t> altitude_compensation_;
   optional<uint16_t> ambient_pressure_;
   // Last pressure written to the device, used to skip redundant writes
   optional<uint16_t> last_ambient_pressure_;
-  sensor::Sensor *ambient_pressure_source_{nullptr};
-  bool pressure_range_warned_{false};
-  optional<TemperatureCompensation> temperature_compensation_;
-  optional<TemperatureAcceleration> temperature_acceleration_;
-  uint32_t startup_delay_ms_{60000};
-  uint8_t setup_step_index_{0};
-  bool initialized_{false};
-  std::string product_name_;
-  Sen6xType sen6x_type_{UNKNOWN};
-  std::string serial_number_;
   uint16_t read_cmd_{0};
+  optional<bool> co2_asc_;
+  uint8_t setup_step_index_{0};
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
   uint8_t poll_retries_remaining_{0};
   uint8_t read_words_{0};
+  bool initialized_{false};
+  bool pressure_range_warned_{false};
   bool startup_complete_{false};
 };
 
