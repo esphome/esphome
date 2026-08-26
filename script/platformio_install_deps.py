@@ -103,13 +103,24 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
     matches: list[Path] = []
     try:
         entries = list(Path(package_dir).iterdir())
-    except OSError:
+    except FileNotFoundError:
         return matches
+    except OSError as err:
+        # Cannot look means cannot verify; the serial pass could trust
+        # whatever is in here
+        raise CleanupError(
+            f"could not scan {package_dir} while cleaning up {spec}: {err!r}"
+        ) from err
     for d in entries:
         try:
             meta = json.loads((d / ".piopm").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except FileNotFoundError:
             continue  # no metadata means pio does not trust it either
+        except (OSError, ValueError) as err:
+            # Half-written metadata: pio re-synthesizes and overwrites such
+            # a dir, but the refused judgment must be named in the log
+            print(f"Skipping unreadable metadata in {d} ({err!r})", flush=True)
+            continue
         mspec = meta.get("spec") or {}
         name = (mspec.get("name") or meta.get("name") or "").lower()
         owner = (mspec.get("owner") or "").lower()
@@ -130,15 +141,31 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
 
 
 def remove_dir(spec, dest: Path) -> None:
-    # fs.rmtree never raises (errors go to a printing onexc handler);
-    # only the destination's absence proves the cleanup worked
+    # fs.rmtree never raises (errors go to a printing onexc handler), and
+    # Path.exists suppresses stat errors; only a confirmed ENOENT proves
+    # the cleanup worked
     fs.rmtree(str(dest))
-    if dest.exists():
-        # Failing the build beats baking a corrupt image
+    try:
+        os.lstat(dest)
+    except FileNotFoundError:
+        print(f"Removed torn destination {dest}", flush=True)
+        return
+    except OSError as err:
         raise CleanupError(
-            f"could not remove the failed pre-install of {spec} at {dest}"
-        )
-    print(f"Removed torn destination {dest}", flush=True)
+            f"could not verify removal of {spec} at {dest} ({err!r})"
+        ) from err
+    # Failing the build beats baking a corrupt image
+    raise CleanupError(f"could not remove the failed pre-install of {spec} at {dest}")
+
+
+def cleanup_or_die(mgr, spec) -> None:
+    """Cleanup that did not demonstrably succeed must fail the build."""
+    try:
+        clean_torn(mgr, spec)
+    except CleanupError:
+        raise
+    except Exception as err:  # noqa: BLE001
+        raise CleanupError(f"cleanup failed for {spec}: {err!r}") from err
 
 
 def clean_torn(mgr, spec) -> None:
@@ -276,16 +303,16 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         except (AttributeError, TypeError) as err:
             # A pio API break, not a flaky package; clean, then surface it
             print(f"Pre-install of {spec} hit an API break ({err!r})", flush=True)
-            clean_torn(mgr, spec)
+            cleanup_or_die(mgr, spec)
             raise
         except Exception as err:  # noqa: BLE001
             print(f"Pre-install of {spec} failed ({err!r})", flush=True)
-            clean_torn(mgr, spec)
+            cleanup_or_die(mgr, spec)
             return False
         except BaseException:
             # A worker SystemExit (main() guards against it) must not skip
             # the cleanup and leave a torn dir the serial pass trusts
-            clean_torn(mgr, spec)
+            cleanup_or_die(mgr, spec)
             raise
 
     print(f"Preinstalling {len(pending)} package(s) with {workers} workers", flush=True)

@@ -548,6 +548,66 @@ def test_chdir_failure_defers_to_pending_lock_fault(
     assert any("working dir" in n for n in err.value.__cause__.__notes__)
 
 
+def test_unscannable_package_dir_fails_the_build(tmp_path: Path) -> None:
+    """A storage dir the cleanup cannot scan is not proof of cleanliness."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    real_iterdir = Path.iterdir
+
+    def broken_iterdir(self):
+        if self.name == "packages":
+            raise PermissionError("denied")
+        return real_iterdir(self)
+
+    with (
+        patch.object(Path, "iterdir", broken_iterdir),
+        pytest.raises(mod.CleanupError, match="could not scan"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+
+
+def test_unreadable_piopm_is_named(tmp_path: Path, capsys) -> None:
+    """A half-written .piopm the cleanup refuses to judge is named."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    weird = tmp_path / "packages" / "weird"
+    weird.mkdir(parents=True)
+    (weird / ".piopm").write_text("{not json")
+    mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert "Skipping unreadable metadata" in capsys.readouterr().out
+    assert weird.exists()
+
+
+def test_unverifiable_removal_fails_the_build(tmp_path: Path) -> None:
+    """A stat error after rmtree is not proof of removal."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    torn = tmp_path / "packages" / "bad"
+    torn.mkdir(parents=True)
+    (torn / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
+    with (
+        patch.object(mod.fs, "rmtree", lambda path: None),
+        patch.object(mod.os, "lstat", MagicMock(side_effect=PermissionError("denied"))),
+        pytest.raises(mod.CleanupError, match="could not verify removal"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+
+
+def test_unexpected_cleanup_class_becomes_cleanup_error(tmp_path: Path) -> None:
+    """Cleanup failures of any class fail the build; nothing may be
+    downgraded to the serial fallback over a torn directory."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+
+    with (
+        patch.object(
+            mod, "piopm_matches", MagicMock(side_effect=ValueError("bad spec"))
+        ),
+        pytest.raises(mod.CleanupError, match="cleanup failed"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+
+
 def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> None:
     """A CleanupError must escape main's serial fallback: the clause order
     decides whether a stuck torn package fails the image build."""
