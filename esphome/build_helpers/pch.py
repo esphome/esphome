@@ -3,8 +3,9 @@
 Safe by construction when the prefix header mirrors what the TUs already
 include first (ESP8266); a backend may instead inject a curated set of
 self-contained core headers (ESP-IDF). User sources from ``esphome:
-includes:`` also receive the prefix, so they now see defines.h (and
-Arduino.h on Arduino platforms) even when they did not include it.
+includes:`` also receive the prefix; the Arduino.h visibility this gives
+them on Arduino platforms is intended behavior (see esphome#8693, which
+made defines.h -> macros.h include it everywhere).
 """
 
 from __future__ import annotations
