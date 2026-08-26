@@ -6,7 +6,7 @@ import inspect
 from pathlib import Path
 import sys
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -385,6 +385,59 @@ def test_unparsable_torn_destination_is_removed(tmp_path: Path, capsys) -> None:
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert not dest.exists()
     assert "Removed torn destination" in capsys.readouterr().out
+
+
+def test_worker_system_exit_still_cleans(tmp_path: Path, capsys) -> None:
+    """A worker SystemExit runs the torn cleanup before propagating; the
+    serial pass must never trust its leftovers."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path))
+    torn = tmp_path / "torn-pkg"
+    torn.mkdir()
+
+    def exiting_install(self, spec, skip_dependencies, compatibility=None):
+        raise SystemExit(0)
+
+    def get_package(self, spec):
+        if getattr(cls, "resets", 0):
+            return SimpleNamespace(path=str(torn), spec=spec)
+        return None
+
+    cls._install = exiting_install
+    cls.get_package = get_package
+
+    def real_rmtree(path):
+        Path(path).rmdir()
+
+    with (
+        patch.object(mod.fs, "rmtree", real_rmtree),
+        pytest.raises(SystemExit),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert not torn.exists()
+
+
+def test_unlock_failure_after_wave_error_is_fatal(tmp_path: Path) -> None:
+    """A plain wave error plus a failed unlock must not fall back to a
+    serial pass that would block on the held flock."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+
+    def bad_unlock(self):
+        type(self).lock_events.append("unlock")
+        raise OSError("flock broke")
+
+    cls.unlock = bad_unlock
+    # make the wave error non-Cleanup: plain install failure raises nothing,
+    # so force an error out of the drain via a broken executor
+    boom = MagicMock()
+    boom.__enter__.return_value = boom
+    boom.submit.side_effect = RuntimeError("no threads")
+    with (
+        patch.object(mod, "ThreadPoolExecutor", return_value=boom),
+        pytest.raises(mod.LockReleaseError, match="after a wave failure"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
 
 
 def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> None:

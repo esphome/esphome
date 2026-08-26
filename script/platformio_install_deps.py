@@ -254,6 +254,11 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             print(f"Pre-install of {spec} failed ({err!r})", flush=True)
             clean_torn(mgr, spec)
             return False
+        except BaseException:
+            # A worker SystemExit (main() guards against it) must not skip
+            # the cleanup and leave a torn dir the serial pass trusts
+            clean_torn(mgr, spec)
+            raise
 
     print(f"Preinstalling {len(pending)} package(s) with {workers} workers", flush=True)
     # pio creates these lazily without exist_ok; touch them serially so
@@ -263,6 +268,7 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     ContentCache("http")
     cwd = Path.cwd()
     unlock_error = None
+    body_error: BaseException | None = None
     manager.lock()
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -279,6 +285,9 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         if errors:
             raise errors[0]
         results = [f.result() for f in futures]
+    except BaseException as err:
+        body_error = err
+        raise
     finally:
         # Neither cleanup may replace an in-flight CleanupError
         try:
@@ -286,6 +295,20 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         except Exception as err:  # noqa: BLE001
             unlock_error = err
             print(f"Could not release the manager lock ({err!r})", flush=True)
+            if isinstance(body_error, Exception) and not isinstance(
+                body_error, CleanupError
+            ):
+                # A plain wave error would fall back to a serial pass that
+                # blocks on the held flock; the held lock is worse
+                raise LockReleaseError(
+                    f"could not release the manager lock ({err!r}) after "
+                    f"a wave failure ({body_error!r})"
+                ) from err
+            if body_error is not None:
+                # Fatal classes stay in flight; record the second fault
+                body_error.add_note(
+                    f"also: could not release the manager lock ({err!r})"
+                )
         # Worker postinstall scripts chdir process-wide (pio's fs.cd);
         # restore between waves, not only for the final subprocess
         try:
