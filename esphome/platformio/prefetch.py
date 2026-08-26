@@ -188,10 +188,16 @@ def prefetch_platformio_packages() -> None:
         _stop_child(proc)
         _LOGGER.warning("PlatformIO package prefetch timed out; continuing without it")
         return
-    except BaseException:
+    except BaseException as err:
         # SIGKILL (subprocess.run's choice on interrupt) could land inside
         # a package-directory copy pio run would then trust; ask first
         _stop_child(proc)
+        if isinstance(err, Exception):
+            # An unexpected wait() failure must degrade, not fail the build
+            _LOGGER.warning(
+                "PlatformIO package prefetch skipped: %s", failure_reason(err)
+            )
+            return
         raise
     if returncode == _EXIT_HANDLED:
         # The child already warned with the reason; a second line is noise
@@ -227,15 +233,16 @@ def _stop_child(proc: subprocess.Popen) -> None:
         proc.kill()
         proc.wait(timeout=5)
     except KeyboardInterrupt:
-        # A second interrupt mid-stop must not escape and orphan the child;
-        # best-effort kill so it cannot keep writing package directories
-        # (BaseException: a third interrupt must not escape either)
+        # Best-effort kill so an interrupted stop cannot orphan a child
+        # still writing package directories; the interrupt then re-raises
+        # (BaseException: a further interrupt must not skip the kill)
         with suppress(BaseException):
             proc.kill()
             proc.wait(timeout=5)
         if proc.poll() is None:
             _LOGGER.warning("The prefetch child could not be confirmed stopped")
-        _LOGGER.debug("Interrupted while stopping the prefetch child", exc_info=True)
+        # The user asked to stop; the build must not proceed into pio run
+        raise
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # A child that outlives kill() may still be writing packages that
         # pio run will trust; that must be visible, not a debug line
@@ -262,8 +269,9 @@ def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
 def _manager_kwargs(manager: Any) -> dict[str, Any]:
     """Constructor kwargs that make a sibling manager equivalent to the shared one."""
     # Hard read: a renamed attribute must fail loudly, not silently drop
-    # the qualifiers wave-1 installs resolve with
-    if compatibility := manager.compatibility:
+    # the qualifiers wave-1 installs resolve with; is-not-None so a falsy
+    # PackageCompatibility still propagates
+    if (compatibility := manager.compatibility) is not None:
         return {"compatibility": compatibility}
     return {}
 
@@ -293,7 +301,8 @@ def _registry_jobs(
         try:
             packages = mgr.search_registry_packages(spec)
             if not packages:
-                return None  # unknown to the registry; let PlatformIO report it
+                _LOGGER.debug("%s is unknown to the registry", spec)
+                return None  # let PlatformIO report it
             package, version = mgr.find_best_registry_version(packages, spec)
             if not package or not version:
                 return None
@@ -306,7 +315,8 @@ def _registry_jobs(
             cached = dl_path.is_file()  # fetched by an earlier run
             size = pkgfile.get("size")
             if not cached and not size:
-                return None  # no size, no bar share; PlatformIO fetches it
+                _LOGGER.debug("%s has no size; PlatformIO fetches it", spec)
+                return None  # no size, no bar share
             name = f"{package['name']}@{version['name']}"
             return _Resolved(spec, name, size or 0, url, dl_path, checksum, cached)
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
@@ -511,6 +521,20 @@ def _serialized_fetch_job(
 # LockFile; concurrent writers could reset every recorded entry
 _REGISTER_LOCK = threading.Lock()
 
+# Registration failures this run; systematic ones deserve one warning
+# (the child is a fresh process, so module state is per-run)
+_REGISTER_FAILURES: list[str] = []
+
+
+def _warn_register_failures() -> None:
+    if _REGISTER_FAILURES:
+        # Unregistered archives are never pruned; a systematic failure
+        # (usage.db corruption, a pio API change) must be visible once
+        _LOGGER.warning(
+            "%d archive(s) could not be registered with PlatformIO's cache pruner",
+            len(_REGISTER_FAILURES),
+        )
+
 
 def _register_download(manager: Any, dl_path: Path) -> None:
     """Hand the archive to pio's usage.db pruner; without an entry an
@@ -521,6 +545,7 @@ def _register_download(manager: Any, dl_path: Path) -> None:
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Unregistered archives are never pruned; leave a trace
         _LOGGER.debug("Could not register %s with pio's cache: %s", dl_path, err)
+        _REGISTER_FAILURES.append(dl_path.name)
 
 
 def _registry_fetch_job(
@@ -607,9 +632,9 @@ def _dependency_entries(
         for key, entry in deps_of:
             if key not in seen_names:
                 deps.setdefault(key, entry)
-    if skipped and (skipped * 2 >= len(entries) or not deps):
-        # A systematic fault (a pio API break), not one bad manifest;
-        # without this the dependency waves vanish with no trace
+    if skipped:
+        # Visible at default verbosity: a dropped subtree silently
+        # degrades the wave; per-entry detail stays at debug
         _LOGGER.warning(
             "Could not read dependencies of %d of %d package(s)",
             skipped,
@@ -625,6 +650,9 @@ def _entry_dependencies(
 
     out: list[tuple[str, _Entry]] = []
     if (pkg := manager.get_package(spec)) is None:
+        # Failed installs land here routinely; a *successful* install the
+        # manager cannot resolve would silently drop its subtree
+        _LOGGER.debug("No installed package for %s; skipping its dependencies", spec)
         return out
     for dep in manager.get_pkg_dependencies(pkg) or []:
         if not (dep.get("owner") or dep.get("version")):
@@ -695,13 +723,16 @@ def _preinstall(
                 mgr.memcache_reset()
                 if (pkg := mgr.get_package(spec)) is not None:
                     rmtree(pkg.path)
-                else:
-                    # A torn dir without a readable manifest is invisible
-                    # to this cleanup; make the uncertainty visible
+                elif Path(manager.package_dir, name.split("@", 1)[0]).exists():
+                    # A leftover that this cleanup cannot resolve is
+                    # exactly the shape pio run would trust
                     _LOGGER.warning(
-                        "Failed install of %s left nothing resolvable to remove",
+                        "Failed install of %s left an unresolvable directory",
                         name,
                     )
+                else:
+                    # Nothing was moved into place; the common failure shape
+                    _LOGGER.debug("No on-disk install of %s to remove", name)
             except Exception as cleanup_err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.warning(
                     "Could not remove the failed install of %s: %s",
@@ -872,6 +903,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         # PlatformIO retries failed packages itself, without resume
         failures = run_batch_downloads("Downloading PlatformIO packages", jobs)
         warn_prefetch_failures(failures)
+        _warn_register_failures()
         failed_names = {name for name, _ in failures}
     elif not groups and not unresolved:
         # Record the no-work run so the parent skips the next spawn.
@@ -920,14 +952,20 @@ def main(argv: list[str]) -> int:
     from esphome.log import setup_log
 
     signal.signal(signal.SIGTERM, _sigterm)
+    raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
+    malformed = False
     try:
-        level = int(os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL", logging.INFO))
+        level = int(raw_level) if raw_level is not None else logging.INFO
     except ValueError:
+        malformed = True
         level = logging.INFO
     # Mirror the parent's log setup: warnings keep their level prefix and
     # color, and the download bar still draws under the dashboard
     CORE.dashboard = get_bool_env("ESPHOME_PREFETCH_DASHBOARD")
     setup_log(level)
+    if malformed:
+        # A wiring break would otherwise silently drop -v propagation
+        _LOGGER.warning("Ignoring malformed prefetch log level %r", raw_level)
     # pio's managers attach their own handler and still propagate; without
     # this every manager line also prints through the root handler
     for cls_name in (

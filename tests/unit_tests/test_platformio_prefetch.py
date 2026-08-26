@@ -380,6 +380,32 @@ def test_register_download_failure_leaves_a_trace(
     assert "Could not register" in caplog.text
 
 
+def test_register_failures_warn_once(caplog: pytest.LogCaptureFixture) -> None:
+    """Systematic registration failures surface once per run."""
+    pf._REGISTER_FAILURES.clear()
+    pf._warn_register_failures()
+    assert "could not be registered" not in caplog.text
+    pf._REGISTER_FAILURES.extend(["a.tar.gz", "b.tar.gz"])
+    try:
+        pf._warn_register_failures()
+    finally:
+        pf._REGISTER_FAILURES.clear()
+    assert "2 archive(s) could not be registered" in caplog.text
+
+
+def test_main_malformed_log_level_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A wiring break must not silently drop -v propagation."""
+    with (
+        patch.dict("os.environ", {"ESPHOME_PREFETCH_LOG_LEVEL": "verbose"}),
+        patch("esphome.log.setup_log"),
+        patch.object(pf, "_prefetch"),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    assert "malformed prefetch log level" in caplog.text
+
+
 def test_sweep_logs_unprunable_files(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -766,15 +792,43 @@ def test_preinstall_memcache_failure_leaves_a_trace(
     assert "memcache reset failed" in caplog.text
 
 
+def test_prefetch_wait_failure_degrades(caplog: pytest.LogCaptureFixture) -> None:
+    """An unexpected wait() failure warns and continues; the prefetch must
+    never become a new way for the build to fail."""
+    proc = MagicMock()
+    proc.wait.side_effect = [RuntimeError("wait broke"), 0]
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(pf.subprocess, "Popen", return_value=proc),
+    ):
+        pf.prefetch_platformio_packages()
+    assert "prefetch skipped" in caplog.text
+
+
+def test_preinstall_unresolvable_leftover_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed install whose destination dir exists but cannot be
+    resolved is exactly the shape pio run would trust."""
+    m = _fake_manager(tmp_path)
+    m.package_dir = str(tmp_path)
+    (tmp_path / "bad").mkdir()
+    m._install.side_effect = RuntimeError("boom")
+    m.get_package.return_value = None
+    pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+    assert "left an unresolvable directory" in caplog.text
+
+
 def test_stop_child_interrupted_and_still_alive_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A second interrupt triggers a best-effort kill; a child that still
-    cannot be confirmed dead is warned about."""
+    """An interrupt triggers a best-effort kill, warns when the child
+    cannot be confirmed dead, and re-raises so the build aborts."""
     proc = MagicMock()
     proc.wait.side_effect = KeyboardInterrupt()
     proc.poll.return_value = None
-    pf._stop_child(proc)
+    with pytest.raises(KeyboardInterrupt):
+        pf._stop_child(proc)
     proc.kill.assert_called_once_with()
     assert "could not be confirmed stopped" in caplog.text
 
@@ -887,6 +941,8 @@ def test_prefetch_passes_dashboard_flag(tmp_path: Path) -> None:
     [
         ("timeout", None, "prefetch timed out"),
         (4, None, "prefetch skipped (exit 4)"),
+        # Exit 1 is the interpreter's own import-failure code, never quiet
+        (1, None, "prefetch skipped (exit 1)"),
         (None, OSError("no exec"), "PlatformIO package prefetch skipped"),
     ],
 )
@@ -936,10 +992,11 @@ def test_stop_child_waits_terminates_then_kills() -> None:
     proc.wait.side_effect = [timeout, timeout, 0]
     pf._stop_child(proc)
     proc.kill.assert_called_once_with()
-    # A second interrupt mid-stop must not escape
+    # An interrupt mid-stop re-raises so the build aborts
     proc = MagicMock()
     proc.wait.side_effect = KeyboardInterrupt()
-    pf._stop_child(proc)
+    with pytest.raises(KeyboardInterrupt):
+        pf._stop_child(proc)
 
 
 def test_preinstall_failure_removes_torn_destination(tmp_path: Path) -> None:
@@ -1026,8 +1083,8 @@ def test_prefetch_interrupt_stops_child_gracefully() -> None:
 def test_prefetch_child_handled_failure_is_quiet(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A handled exit means the child already warned with the reason; the
-    parent adds no second warning."""
+    """Exit _EXIT_HANDLED (3) means the child already warned with the
+    reason; the parent adds no second warning."""
     proc = MagicMock()
     proc.wait.return_value = pf._EXIT_HANDLED
     with (
