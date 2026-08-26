@@ -146,8 +146,8 @@ struct IsocStream {
   // Asynchronous OUT feedback: device-reported rate (samples per (micro)frame, Q10.14 at
   // full speed / Q16.16 at high speed). 0 = no feedback yet, use the nominal pacing above.
   std::atomic<uint32_t> fb_value{0};
-  uint8_t fb_shift{14};  // fractional bits of fb_value (14 FS, 16 HS)
-  uint32_t fb_accum{0};  // feedback fractional accumulator
+  uint8_t fb_shift{14};          // fractional bits of fb_value (14 FS, 16 HS)
+  uint32_t fb_accum{0};          // feedback fractional accumulator
   // A feedback stream shares its AS interface with the data stream, so it must not claim
   // or release that interface itself.
   bool owns_interface{true};

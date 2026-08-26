@@ -86,7 +86,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
-            cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(64, 512, int=True),
+            cv.Optional(
+                CONF_MAX_PACKET_SIZE, default=64
+            ): cv.one_of(64, 512, int=True),
             cv.Optional(CONF_DUAL_HOST, default=False): _dual_host_validator,
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }

@@ -152,13 +152,13 @@ static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<c
   return buffer.data();
 }
 
+#if defined(USE_USB_BULK_TRANSFERS) || defined(USE_USB_CONTROL_TRANSFERS)
 // -- Static transfer callbacks (USB task context) ------------------------------
 // Shared completion logic: fill status, fire callback, release slot.
 // setup_offset is the number of leading bytes in data_buffer that are not payload. For
 // control transfers the buffer starts with the 8 byte setup packet the host wrote, which is
 // the request header and not the device's answer; bulk and interrupt buffers hold payload
 // from byte 0.
-#if defined(USE_USB_BULK_TRANSFERS) || defined(USE_USB_CONTROL_TRANSFERS)
 static void complete_trq(TransferRequest *trq, const usb_transfer_t *xfer, size_t setup_offset) {
   trq->status.error_code = xfer->status;
   trq->status.success = xfer->status == USB_TRANSFER_STATUS_COMPLETED;
@@ -170,9 +170,17 @@ static void complete_trq(TransferRequest *trq, const usb_transfer_t *xfer, size_
     trq->callback(trq->status);
   trq->client->release_trq(trq);
 }
+#endif
 
+#ifdef USE_USB_CONTROL_TRANSFERS
+static void control_callback(const usb_transfer_t *xfer) {
+  complete_trq(static_cast<TransferRequest *>(xfer->context), xfer, SETUP_PACKET_SIZE);
+}
+#endif
+
+#if defined(USE_USB_BULK_TRANSFERS)
 static void transfer_callback(usb_transfer_t *xfer) {
-  complete_trq(static_cast<TransferRequest *>(xfer->context), xfer);
+  complete_trq(static_cast<TransferRequest *>(xfer->context), xfer, 0);
 }
 #endif
 
@@ -486,7 +494,7 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
   trq->callback = callback;
   trq->transfer->bEndpointAddress = type & USB_DIR_MASK;
   trq->transfer->num_bytes = static_cast<int>(length + SETUP_PACKET_SIZE);
-  trq->transfer->callback = reinterpret_cast<usb_transfer_cb_t>(transfer_callback);
+  trq->transfer->callback = reinterpret_cast<usb_transfer_cb_t>(control_callback);
   if (!get_usb_host()->submit_control(this->handle_, trq)) {
     this->release_trq(trq);
     return false;
