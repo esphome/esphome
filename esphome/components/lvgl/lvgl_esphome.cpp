@@ -551,10 +551,10 @@ std::string LvSelectable::get_selected_text() {
   return this->options_[selected];
 }
 
-static std::string join_string(std::vector<std::string> options) {
+static std::string join_string(const FixedVector<const char *> &options) {
   return std::accumulate(
       options.begin(), options.end(), std::string(),
-      [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
+      [](const std::string &a, const char *b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
 }
 
 void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
@@ -565,7 +565,7 @@ void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t a
   }
 }
 
-void LvSelectable::set_options(std::vector<std::string> options) {
+void LvSelectable::set_options(FixedVector<const char *> options) {
   auto index = this->get_selected_index();
   if (index >= options.size())
     index = options.size() - 1;
