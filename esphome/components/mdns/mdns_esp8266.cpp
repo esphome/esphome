@@ -46,9 +46,10 @@ void MDNSComponent::start_polling_window_() {
     // MDNS.update() can suspend the loop in UdpContext::sendTimeout() while a send is
     // failing (radio off-channel during a roam scan, or mid reconnect); an incoming
     // packet then re-enters LEAmDNS from lwIP and corrupts shared UdpContext state.
-    // Skip the tick while the radio cannot transmit (#18760).
+    // Skip the tick while the radio cannot transmit (#18760), but keep polling while
+    // the AP is serving clients (AP-only or fallback AP with the STA down).
     auto *wifi = wifi::global_wifi_component;
-    if (!wifi->is_connected() || wifi->is_roaming())
+    if (wifi->is_roaming() || (!wifi->is_connected() && !wifi->is_ap_active()))
       return;
 #endif
     MDNS.update();
