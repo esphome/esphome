@@ -8,7 +8,6 @@
 
 #include "esphome/components/runtime_image/image_decoder.h"
 #include "esphome/components/runtime_image/runtime_image.h"
-#include "esphome/core/defines.h"
 
 namespace esphome::runtime_image::testing {
 
