@@ -440,6 +440,69 @@ def test_unlock_failure_after_wave_error_is_fatal(tmp_path: Path) -> None:
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
 
 
+def test_unlock_failure_after_system_exit_is_fatal(tmp_path: Path) -> None:
+    """A worker SystemExit plus a failed unlock must not fall through to a
+    serial pass that would block on the held flock."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path))
+
+    def exiting_install(self, spec, skip_dependencies, compatibility=None):
+        raise SystemExit(0)
+
+    def bad_unlock(self):
+        raise OSError("flock broke")
+
+    cls._install = exiting_install
+    cls.unlock = bad_unlock
+    with pytest.raises(mod.LockReleaseError, match="after a wave failure"):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+
+
+def test_unlock_failure_with_cleanup_error_stays_fatal(tmp_path: Path) -> None:
+    """A CleanupError body stays in flight; the unlock fault becomes a note."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    torn = tmp_path / "packages" / "bad"
+    torn.mkdir(parents=True)
+
+    def get_package(self, spec):
+        if getattr(cls, "resets", 0):
+            return SimpleNamespace(path=str(torn), spec=spec)
+        return None
+
+    def bad_unlock(self):
+        raise OSError("flock broke")
+
+    cls.get_package = get_package
+    cls.unlock = bad_unlock
+    with (
+        patch.object(mod.fs, "rmtree", lambda path: None),  # leaves torn
+        pytest.raises(mod.CleanupError) as err,
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert any("manager lock" in n for n in err.value.__notes__)
+
+
+def test_piopm_match_removes_manifest_named_torn_dir(tmp_path: Path, capsys) -> None:
+    """A torn dir named by its manifest (not the registry spec) is found
+    through its .piopm and removed."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    torn = tmp_path / "packages" / "ManifestName"
+    torn.mkdir(parents=True)
+    (torn / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
+
+    def real_rmtree(path):
+        import shutil
+
+        shutil.rmtree(path)
+
+    with patch.object(mod.fs, "rmtree", real_rmtree):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert not torn.exists()
+    assert "Removed torn destination" in capsys.readouterr().out
+
+
 def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> None:
     """A CleanupError must escape main's serial fallback: the clause order
     decides whether a stuck torn package fails the image build."""

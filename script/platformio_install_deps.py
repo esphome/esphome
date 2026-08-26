@@ -5,6 +5,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import configparser
+import json
 import os
 from pathlib import Path
 import queue
@@ -24,10 +25,11 @@ try:
     from platformio.package.meta import PackageCompatibility
 
     PARALLEL_AVAILABLE = True
-except ImportError:  # pragma: no cover
+except ImportError as err:  # pragma: no cover
     # A moved pio module must degrade to the serial pass, not kill the
     # image build; the tripwire test makes the drift loud in CI
     PARALLEL_AVAILABLE = False
+    IMPORT_ERROR = repr(err)
 
 # Network-bound downloads release the GIL, so the pool oversubscribes
 # the cores. This bypasses pio's 500ms registry throttle and races its
@@ -92,6 +94,33 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
     )
 
 
+def piopm_matches(package_dir: str, spec) -> list[Path]:
+    """Dirs whose .piopm metadata names this spec; a positive match beats
+    guessing the manifest-derived dirname from the registry name."""
+    parsed = BasePackageManager.ensure_spec(spec)
+    want = (parsed.name or "").lower()
+    matches: list[Path] = []
+    try:
+        entries = list(Path(package_dir).iterdir())
+    except OSError:
+        return matches
+    for d in entries:
+        try:
+            meta = json.loads((d / ".piopm").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue  # no metadata means pio does not trust it either
+        mspec = meta.get("spec") or {}
+        name = (mspec.get("name") or meta.get("name") or "").lower()
+        owner = (mspec.get("owner") or "").lower()
+        if (
+            want
+            and name == want
+            and (not parsed.owner or owner == parsed.owner.lower())
+        ):
+            matches.append(d)
+    return matches
+
+
 def predicted_dest(mgr, spec) -> Path | None:
     """The spec's likely install dir; a best-effort fallback only.
 
@@ -136,11 +165,16 @@ def clean_torn(mgr, spec) -> None:
         remove_dir(spec, Path(pkg.path))
         return
     # The scan verdict depends on the whole storage tree (or the manifest
-    # is unparsable); judge by this spec's own destination so an innocent
-    # worker's in-flight copy cannot fail the build naming the wrong spec
-    dest = predicted_dest(mgr, spec)
-    if dest is not None and dest.exists():
-        remove_dir(spec, dest)
+    # is unparsable); judge by this spec's own footprint so an innocent
+    # worker's in-flight copy cannot fail the build naming the wrong spec.
+    # A .piopm naming this spec is the exact shape the serial pass trusts.
+    dests = piopm_matches(mgr.package_dir, spec)
+    guess = predicted_dest(mgr, spec)
+    if guess is not None and guess.exists() and guess not in dests:
+        dests.append(guess)
+    if dests:
+        for dest in dests:
+            remove_dir(spec, dest)
     elif scan_err is not None:
         print(
             f"Could not inspect failed pre-install of {spec} "
@@ -295,17 +329,18 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         except Exception as err:  # noqa: BLE001
             unlock_error = err
             print(f"Could not release the manager lock ({err!r})", flush=True)
-            if isinstance(body_error, Exception) and not isinstance(
-                body_error, CleanupError
+            if body_error is not None and not isinstance(
+                body_error, (CleanupError, KeyboardInterrupt)
             ):
-                # A plain wave error would fall back to a serial pass that
-                # blocks on the held flock; the held lock is worse
+                # Any body error main() would swallow (SystemExit included)
+                # falls back to a serial pass that blocks on the held
+                # flock for its full timeout; the held lock is worse
                 raise LockReleaseError(
                     f"could not release the manager lock ({err!r}) after "
                     f"a wave failure ({body_error!r})"
                 ) from err
             if body_error is not None:
-                # Fatal classes stay in flight; record the second fault
+                # Build-fatal classes stay in flight; record the second fault
                 body_error.add_note(
                     f"also: could not release the manager lock ({err!r})"
                 )
@@ -315,6 +350,13 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             os.chdir(cwd)
         except OSError as chdir_err:
             print(f"Could not restore the working dir ({chdir_err!r})", flush=True)
+            if body_error is None:
+                # Further waves cannot run from an unknown cwd; the serial
+                # pass is safe either way (its cwd is pinned)
+                raise
+            body_error.add_note(
+                f"also: could not restore the working dir ({chdir_err!r})"
+            )
     if unlock_error is not None:
         # A held flock would hang the serial pass in another process;
         # failing loudly beats an unexplained stuck docker build
@@ -387,7 +429,10 @@ def main() -> None:
         wave_groups = [(ToolPackageManager, tools), (LibraryPackageManager, libs)]
     else:  # pragma: no cover
         wave_groups = []
-        print("PlatformIO layout changed; serial install only", flush=True)
+        print(
+            f"PlatformIO layout changed ({IMPORT_ERROR}); serial install only",
+            flush=True,
+        )
     for manager_cls, specs in wave_groups:
         try:
             parallel_install(manager_cls, specs)
