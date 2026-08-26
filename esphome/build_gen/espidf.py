@@ -8,6 +8,7 @@ from esphome.build_helpers import pch
 from esphome.build_helpers.pch import (
     PCH_DEFAULT_HEADERS,
     PCH_HEADER_NAME,
+    mark_pch_emitted,
     pch_enabled,
     pch_header_text,
 )
@@ -371,6 +372,8 @@ def write_project(
             CORE.relative_build_path("build", PCH_HEADER_NAME),
             pch_header_text(PCH_DEFAULT_HEADERS),
         )
+        # Consumers carry the -include; gate the ccache relaxation on it
+        mark_pch_emitted()
 
     # Snapshot the exclusion set so has_outdated_files() can trigger a
     # discovery reconfigure when it changes. Excluded components never
