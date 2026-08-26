@@ -125,8 +125,10 @@ def test_parse_enable_env_spelling_tables(
 
 def test_effective_ccache_basedir_prefers_user_value(tmp_path: Path) -> None:
     CORE.build_path = tmp_path
-    with patch.dict(os.environ, {"CCACHE_BASEDIR": "/custom/base"}, clear=True):
-        assert ccache.effective_ccache_basedir() == "/custom/base"
+    # Drive-qualified on Windows: "/custom/base" is not absolute there
+    base = "C:\\custom\\base" if os.name == "nt" else "/custom/base"
+    with patch.dict(os.environ, {"CCACHE_BASEDIR": base}, clear=True):
+        assert ccache.effective_ccache_basedir() == base
     with patch.dict(os.environ, {}, clear=True):
         assert ccache.effective_ccache_basedir() == str(tmp_path.resolve())
     # Degenerate values would strip substrings ccache never rewrites
