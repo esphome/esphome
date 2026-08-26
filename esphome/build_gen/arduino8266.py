@@ -1271,6 +1271,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             )
             write_file_if_changed(pch_header, pch_text)
             if checksum is not None:
+                # Valid only for a ninja run started by write_project: a
+                # direct ninja invocation can rebuild the .gch via its
+                # depfile while this generate-time .sum lags behind
                 write_file_if_changed(
                     build_dir / f"{PCH_HEADER_NAME}.gch.sum", checksum + "\n"
                 )
