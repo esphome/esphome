@@ -10,12 +10,12 @@ namespace esphome::modbus_controller {
 
 using value_to_data_t = std::function<float>(float);
 
-class ModbusNumber final : public number::Number, public Component, public SensorItem, public WriterDevice {
+class ModbusNumber final : public number::Number, public Component, public SensorItem, public WriterEntity {
  public:
   ModbusNumber(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                SensorValueType value_type, int register_count, bool force_new_range) {
     this->register_type = register_type;
-    this->SensorItem::set_address(start_address);
+    this->set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = value_type;

@@ -232,10 +232,14 @@ struct RegisterRange {
   SensorSet sensors;  // all sensors of this range
 };
 
-/// A hub device owned by a ModbusController. Centralises the feedback to the controller: online/offline
-/// tracking, retry counting and the on_command_sent trigger. The hub base is inherited protected, so a
-/// subclass chooses exactly what request API it exposes.
-class ControllerDevice : protected modbus::ModbusClientDevice {
+/// A hub device owned by a writer entity (switch/number/select/output) through WriterEntity.
+/// Centralises the feedback to the controller - online/offline tracking, retry counting and the
+/// on_command_sent trigger - and records every dispatch, so a write lambda can tell "I sent it myself"
+/// from "use the default write". The hub base is inherited protected, so the public members below are
+/// the entity's whole request API and nothing can bypass the recording or re-target the device.
+class WriterDevice final : protected modbus::ModbusClientDevice {
+  friend class WriterEntity;
+
  protected:
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
@@ -251,14 +255,14 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
     return pdu.size() >= 3 ? modbus::helpers::get_data<uint16_t>(pdu.data(), 1) : 0;
   }
 
+  /// Declared before controller_ so they land in the padding after ModbusClientDevice::custom_response_warned_
+  /// instead of adding a word to every entity that owns a device.
+  /// dispatched_: a frame was queued since the last clear_dispatched_().
+  /// write_buffer_deprecated_warned_: warn-once for the legacy write_lambda buffer parameter.
+  bool dispatched_{false};
+  bool write_buffer_deprecated_warned_{false};
   ModbusController *controller_{nullptr};
-};
 
-/// The write side of a ControllerDevice, subclassed by the writer entities (switch/number/etc.).
-/// The public members are the entity's whole request API (and the write_lambda's `item` API): every
-/// dispatch is recorded, so a write lambda can tell "I sent it myself" from "use the default write",
-/// and nothing can bypass the recording or re-target the device.
-class WriterDevice : public ControllerDevice {
  public:
   /// Whether a frame was queued to the hub since the last clear_dispatched_().
   bool dispatched() const { return this->dispatched_; }
@@ -298,9 +302,44 @@ class WriterDevice : public ControllerDevice {
   /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
   /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
   void warn_write_buffer_deprecated_(const LogString *platform, uint16_t address);
+};
 
-  bool dispatched_{false};
-  bool write_buffer_deprecated_warned_{false};
+/// Gives a writer entity the write API of the WriterDevice it owns. The device is a member, not a base:
+/// the mixin declares no virtual function, so an entity mixing it in gains no second vtable and all the
+/// writer platforms share the single WriterDevice vtable instead of each emitting its own copy.
+/// The forwarders keep `item->write_*()` working unchanged inside a write_lambda.
+class WriterEntity {
+ public:
+  bool dispatched() const { return this->device_.dispatched(); }
+  bool write_single_register(uint16_t address, uint16_t value) {
+    return this->device_.write_single_register(address, value);
+  }
+  bool write_single_coil(uint16_t address, bool value) { return this->device_.write_single_coil(address, value); }
+  bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
+    return this->device_.write_multiple_registers(address, values);
+  }
+  bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
+    return this->device_.write_multiple_coils(address, values);
+  }
+  bool write_multiple_coils(uint16_t address, modbus::PackedBits bits) {
+    return this->device_.write_multiple_coils(address, bits);
+  }
+  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
+    return this->device_.queue_pdu(pdu, options);
+  }
+  void clear_tx_queue_for_device() { this->device_.clear_tx_queue_for_device(); }
+
+ protected:
+  bool send_raw_frame_deprecated(std::span<const uint8_t> frame) {
+    return this->device_.send_raw_frame_deprecated(frame);
+  }
+  void set_controller_(ModbusController *controller) { this->device_.set_controller_(controller); }
+  void clear_dispatched_() { this->device_.clear_dispatched_(); }
+  void warn_write_buffer_deprecated_(const LogString *platform, uint16_t address) {
+    this->device_.warn_write_buffer_deprecated_(platform, address);
+  }
+
+  WriterDevice device_;
 };
 
 /// A single modbus command. Each command is its own ModbusClientDevice: it sends its frame to the hub
