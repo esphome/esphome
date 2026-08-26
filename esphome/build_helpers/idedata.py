@@ -161,6 +161,15 @@ def is_launcher(token: str) -> bool:
     return Path(token).stem.lower() in _LAUNCHER_STEMS
 
 
+def is_joined_include(tok: str) -> bool:
+    """The joined ``-includefoo.h`` spelling; excludes clang's -include-pch."""
+    return (
+        tok.startswith("-include")
+        and tok != "-include"
+        and not tok.startswith("-include-")
+    )
+
+
 def parse_entry(
     entry: dict, launcher: str | None = None
 ) -> tuple[str, list[str], list[str], list[str]]:
@@ -201,9 +210,7 @@ def parse_entry(
     for tok in it:
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
-        elif tok == "-include" or (
-            tok.startswith("-include") and not tok.startswith("-include-")
-        ):
+        elif tok == "-include" or is_joined_include(tok):
             # Re-anchor only names next to the compile (the pch); a name
             # meant for the -I chain must stay untouched
             raw = next(it, "") if tok == "-include" else tok[len("-include") :]
