@@ -625,9 +625,11 @@ def test_stop_child_surviving_child_warns(caplog: pytest.LogCaptureFixture) -> N
     trusts; that must be visible at default verbosity."""
     timeout = pf.subprocess.TimeoutExpired("cmd", 5)
     proc = MagicMock()
+    proc.poll.return_value = None  # still running: the wait is announced
     proc.wait.side_effect = [timeout, timeout, timeout]
     with patch.object(pf.sys, "platform", "linux"):
         pf._stop_child(proc)
+    assert "Waiting for the prefetch child" in caplog.text
     assert "could not be confirmed stopped" in caplog.text
 
 
@@ -866,6 +868,21 @@ def test_prefetch_interrupt_stops_child_gracefully() -> None:
     # the stop sequence's first wait saw the child exit on its own
     proc.terminate.assert_not_called()
     proc.kill.assert_not_called()
+
+
+def test_prefetch_child_handled_failure_is_quiet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Exit 1 means the child already warned with the reason; the parent
+    adds no second warning."""
+    proc = MagicMock()
+    proc.wait.return_value = 1
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(pf.subprocess, "Popen", return_value=proc),
+    ):
+        pf.prefetch_platformio_packages()
+    assert "prefetch skipped" not in caplog.text
 
 
 def test_main_guards_and_exits_nonzero(caplog: pytest.LogCaptureFixture) -> None:

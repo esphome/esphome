@@ -186,7 +186,11 @@ def prefetch_platformio_packages() -> None:
         # a package-directory copy pio run would then trust; ask first
         _stop_child(proc)
         raise
-    if returncode != 0:
+    if returncode == 1:
+        # The child already warned with the reason; a second line is noise
+        _LOGGER.debug("Prefetch child reported a handled failure")
+    elif returncode != 0:
+        # Codes the child cannot emit itself (signal deaths, bad wiring)
         _LOGGER.warning("PlatformIO package prefetch skipped (exit %d)", returncode)
 
 
@@ -201,7 +205,8 @@ def _stop_child(proc: subprocess.Popen) -> None:
     Windows terminate() is TerminateProcess (no signal reaches the
     handler), so the graceful arm becomes a longer plain wait.
     """
-    _LOGGER.info("Waiting for the prefetch child to finish its current install")
+    if proc.poll() is None:
+        _LOGGER.info("Waiting for the prefetch child to finish its current install")
     try:
         with suppress(subprocess.TimeoutExpired):
             proc.wait(timeout=5)
@@ -577,9 +582,9 @@ def _preinstall(
 
     ``entries`` are ``_Entry`` tuples, one per destination directory.
     The manager's lock is held around each wave's pool; a wave skips
-    dependencies, then the
-    installed manifests feed the next wave until nothing new appears. Any
-    failure leaves that package to pio run's serial installer.
+    dependencies, then the installed manifests feed the next wave until
+    nothing new appears. Any failure leaves that package to pio run's
+    serial installer.
     """
     workers = min(get_usable_cpu_count(), len(entries))
     # One manager per worker (_install mutates instance state); built
@@ -797,7 +802,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
                 # Each group degrades independently; pio run installs
                 # whatever this one did not
                 _LOGGER.warning(
-                    "Pre-install failed for a package group: %s",
+                    "Pre-install failed for the %s group: %s",
+                    mgr.__class__.__name__,
                     failure_reason(err),
                 )
                 _LOGGER.debug("Pre-install group failure detail", exc_info=True)
