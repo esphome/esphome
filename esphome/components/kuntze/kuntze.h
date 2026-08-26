@@ -21,7 +21,8 @@ class Kuntze final : public PollingComponent, public modbus::ModbusClientDevice 
   void loop() override;
   void update() override;
 
-  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+  void on_read_holding_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                 modbus::ResponseStatus status) override;
 
   void dump_config() override;
 
