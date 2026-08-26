@@ -2304,3 +2304,37 @@ def test_warn_prefetch_failures_names_each_failure(
     assert "Could not prefetch toolchain-x@1: down" in caplog.text
     warn_prefetch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
     assert "Prefetch of lib failed: gone" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("platform", "input_path", "expected"),
+    [
+        # win32: drive-letter extended-length prefix is stripped
+        (
+            "win32",
+            "\\\\?\\C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # win32: UNC extended-length prefix is translated to a regular UNC path
+        (
+            "win32",
+            "\\\\?\\UNC\\server\\share\\python.exe",
+            "\\\\server\\share\\python.exe",
+        ),
+        # win32: paths without the prefix are returned unchanged
+        (
+            "win32",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # non-win32: prefix is left alone (no-op)
+        ("linux", "\\\\?\\C:\\python.exe", "\\\\?\\C:\\python.exe"),
+        ("darwin", "/usr/bin/python3", "/usr/bin/python3"),
+    ],
+)
+def test_strip_win_long_path_prefix(
+    platform: str, input_path: str, expected: str
+) -> None:
+    r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
+    with patch("esphome.framework_helpers.sys.platform", platform):
+        assert framework_helpers.strip_win_long_path_prefix(input_path) == expected
