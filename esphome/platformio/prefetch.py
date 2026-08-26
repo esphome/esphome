@@ -5,9 +5,10 @@ Downloads the archives concurrently into PlatformIO's own download cache
 them already cached. Runs in a subprocess like all PlatformIO execution:
 loading a platform executes its code (pioarduino's penv setup rewrites
 ``sys.path``). A sentinel in the build dir lets warm builds skip the
-spawn. Best-effort: any failure logs and PlatformIO downloads as before;
-concurrent esphome processes sharing a core dir may race a ``.part`` file,
-which the sha256 check catches at the cost of one wasted download.
+spawn. Best-effort: any failure logs and PlatformIO downloads as before.
+Across processes sharing a core dir, registry downloads share the cache
+key and rely on sha256 verification; URL downloads carry no checksum, so
+they are serialized by a file lock and promoted with an atomic rename.
 """
 
 from __future__ import annotations
@@ -38,6 +39,9 @@ _RESOLVE_WORKERS = 8
 
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
+
+# Waiting on another process's URL download; past this, leave it to pio
+_URI_LOCK_TIMEOUT = 60
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
@@ -101,6 +105,9 @@ def prefetch_platformio_packages() -> None:
     # Must match run_platformio_cli's default or warm builds re-resolve
     # every library
     env.setdefault("PLATFORMIO_LIBDEPS_DIR", default_libdeps_dir())
+    # -v/-vv must reach the child's debug logging or the swallowed
+    # failure detail is undiagnosable in the field
+    env["ESPHOME_PREFETCH_LOG_LEVEL"] = str(logging.getLogger().getEffectiveLevel())
     cmd = [
         sys.executable,
         "-m",
@@ -205,12 +212,13 @@ def _registry_jobs(
         jobs.append(
             (name, size, resume_fetch_job(url, dl_path, sha256=checksum, size=size))
         )
-    if failed == len(pending):
-        # A systematic fault (outage, proxy), not one flaky package
+    if failed:
+        # Visible once per build; per-spec detail stays at debug
         _LOGGER.warning(
-            "Could not resolve any of %d PlatformIO package(s); "
+            "Could not resolve %d of %d PlatformIO package(s); "
             "PlatformIO will download them serially",
             failed,
+            len(pending),
         )
     return jobs, failed
 
@@ -246,10 +254,13 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
             _LOGGER.debug("HEAD %s failed", url, exc_info=True)
             return -1
         if not resp.ok:
-            # An error page's Content-Length is not a download size, and a
-            # failing URL must not feed the warm sentinel
+            # An error page's Content-Length is not a download size
             _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
-            return -1
+            if resp.status_code in (408, 429) or resp.status_code >= 500:
+                return -1  # transient; must not be cached as warm
+            # Permanent (e.g. a host that 405s HEAD but serves GET): a clean
+            # skip, or the sentinel would never be written again
+            return 0
         return content_length(resp)
 
     if not candidates:
@@ -263,6 +274,13 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
             failed += 1
         elif size:
             jobs.append((name, size, _uri_fetch_job(url, dl_path, size)))
+    if failed:
+        _LOGGER.warning(
+            "Could not size %d of %d PlatformIO package URL(s); "
+            "PlatformIO will download them serially",
+            failed,
+            len(candidates),
+        )
     return jobs, failed
 
 
@@ -279,13 +297,24 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
     fetch = resume_fetch_job(url, tmp, size=size)
 
     def run(tracker: Any) -> None:
-        from filelock import FileLock
+        from filelock import FileLock, Timeout
 
-        with FileLock(f"{tmp}.lock"):
+        # fallback_to_soft would leave a stale marker on lock-less
+        # filesystems that blocks every later build (see git.py); a bounded
+        # wait plus a skip keeps the job best-effort either way
+        lock = FileLock(f"{tmp}.lock", fallback_to_soft=False)
+        try:
+            lock.acquire(timeout=_URI_LOCK_TIMEOUT)
+        except (Timeout, OSError):
+            _LOGGER.debug("Could not lock %s; leaving it to PlatformIO", dl_path)
+            return
+        try:
             if dl_path.is_file():
                 return  # another process finished it while we waited
             fetch(tracker)
             tmp.replace(dl_path)
+        finally:
+            lock.release()
 
     return run
 
@@ -372,7 +401,11 @@ def _prefetch(build_dir: Path, env: str) -> None:
 
 def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    try:
+        level = int(os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL", logging.INFO))
+    except ValueError:
+        level = logging.INFO
+    logging.basicConfig(level=level, format="%(message)s")
     if len(argv) != 2:
         # A wiring bug, not a network failure; make it distinguishable
         _LOGGER.warning("prefetch usage: <build_dir> <env_name>")

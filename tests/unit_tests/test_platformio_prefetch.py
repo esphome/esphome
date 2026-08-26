@@ -164,11 +164,12 @@ def test_registry_jobs_all_failed_warns_once(
             set(),
         )
     assert (jobs, failed) == ([], 2)
-    assert "Could not resolve any of 2" in caplog.text
+    assert "Could not resolve 2 of 2" in caplog.text
 
 
 def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
-    """Checksum-less URL archives land via a process-unique rename."""
+    """Checksum-less URL archives land via a locked staging file and an
+    atomic rename (the stable name is what keeps .part resume working)."""
     dl_path = tmp_path / "archive"
 
     def fake_download(url, dest, progress=None, **kwargs):
@@ -183,6 +184,30 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     # (filelock removes it on release on some platforms)
     leftovers = {f.name for f in tmp_path.iterdir()}
     assert leftovers - {f"{dl_path.name}.prefetch.lock"} == {dl_path.name}
+
+
+def test_uri_fetch_job_lock_timeout_skips(tmp_path: Path) -> None:
+    """A held or unavailable lock skips the job; pio downloads it later."""
+    from filelock import Timeout
+
+    dl_path = tmp_path / "archive"
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=Timeout("held")),
+    ):
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+    mock_download.assert_not_called()
+    assert not dl_path.exists()
+
+
+def test_main_bad_log_level_falls_back(tmp_path: Path) -> None:
+    with (
+        patch.dict("os.environ", {"ESPHOME_PREFETCH_LOG_LEVEL": "verbose"}),
+        patch.object(pf.logging, "basicConfig") as mock_config,
+        patch.object(pf, "_prefetch"),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    assert mock_config.call_args[1]["level"] == pf.logging.INFO
 
 
 def test_uri_fetch_job_skips_when_another_process_won(tmp_path: Path) -> None:
@@ -238,20 +263,21 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_head_failure_counts_as_unresolved(tmp_path: Path) -> None:
-    """HEAD errors and error responses both count as unresolved."""
+    """Network errors and transient statuses count as unresolved (and warn);
+    a permanent error status is a clean skip so the sentinel can still be
+    written."""
     m = _fake_manager(tmp_path)
+    spec = [_FakeSpec(uri="https://x/a.zip", name="a")]
     with patch("esphome.net_retry.http_request", side_effect=OSError("no route")):
-        assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == (
-            [],
-            1,
-        )
-    resp = MagicMock(ok=False, status_code=404)
+        assert pf._uri_jobs(m, spec, set()) == ([], 1)
+    resp = MagicMock(ok=False, status_code=503)
     resp.headers = {"content-length": "999"}
     with patch("esphome.net_retry.http_request", return_value=resp):
-        assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/a.zip", name="a")], set()) == (
-            [],
-            1,
-        )
+        assert pf._uri_jobs(m, spec, set()) == ([], 1)
+    resp = MagicMock(ok=False, status_code=405)
+    resp.headers = {"content-length": "999"}
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        assert pf._uri_jobs(m, spec, set()) == ([], 0)
 
 
 def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
