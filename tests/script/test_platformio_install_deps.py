@@ -4,6 +4,7 @@ from argparse import Namespace
 from concurrent.futures import Future
 import importlib.util
 import inspect
+import os
 from pathlib import Path
 import shutil
 import sys
@@ -23,6 +24,7 @@ from platformio.package.meta import (
     PackageType,
 )
 import pytest
+from semantic_version import Version
 
 _SCRIPT = Path(__file__).parents[2] / "script" / "platformio_install_deps.py"
 
@@ -712,12 +714,62 @@ def test_manifest_stat_error_is_unverifiable(tmp_path: Path) -> None:
         '{"spec": {"owner": "esphome", "name": "bad"}, "version": "2.0.0"}'
     )
     (other / "library.json").write_text("{}")
+    real_lstat = os.lstat
+
+    def manifest_lstat_denied(path, *args, **kwargs):
+        if Path(path).name in mod._MANIFEST_NAMES:
+            raise PermissionError("denied")
+        return real_lstat(path, *args, **kwargs)
+
     with (
-        patch.object(mod.os, "lstat", MagicMock(side_effect=PermissionError("denied"))),
+        patch.object(mod.os, "lstat", manifest_lstat_denied),
         pytest.raises(mod.CleanupError, match="could not check for a manifest"),
     ):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert other.exists()
+
+
+def test_unstattable_entry_fails_the_build(tmp_path: Path) -> None:
+    """An entry the scan cannot stat may be the torn destination itself;
+    silently dropping it would hand the serial pass an unverified dir."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    shady = tmp_path / "packages" / "shady"
+    shady.mkdir(parents=True)
+    real_lstat = os.lstat
+
+    def entry_lstat_denied(path, *args, **kwargs):
+        if Path(path).name == "shady":
+            raise PermissionError("denied")
+        return real_lstat(path, *args, **kwargs)
+
+    with (
+        patch.object(mod.os, "lstat", entry_lstat_denied),
+        pytest.raises(mod.CleanupError, match="could not stat"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+
+
+def test_refuses_to_remove_the_store_itself(tmp_path: Path, capsys) -> None:
+    """is_relative_to is reflexive; a destination resolving to the store
+    itself must be refused, not handed to the script's only rmtree."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    store = tmp_path / "packages"
+    store.mkdir(parents=True)
+
+    def get_package(self, spec):
+        if spec == "esphome/bad @ 1.0" and getattr(cls, "resets", 0):
+            return SimpleNamespace(path=str(store), spec=spec)
+        return _FakeManager.get_package(self, spec)
+
+    cls.get_package = get_package  # throwaway subclass; nothing to restore
+    removed = []
+    with patch.object(mod.fs, "rmtree", side_effect=removed.append):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert removed == []
+    assert store.exists()
+    assert "Refusing to remove" in capsys.readouterr().out
 
 
 def test_refuses_to_remove_outside_the_store(tmp_path: Path, capsys) -> None:
@@ -748,7 +800,13 @@ def test_unverifiable_removal_fails_the_build(tmp_path: Path) -> None:
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     torn = tmp_path / "packages" / "bad"
     torn.mkdir(parents=True)
-    (torn / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
+
+    def get_package(self, spec):
+        if getattr(cls, "resets", 0):
+            return SimpleNamespace(path=str(torn), spec=spec)
+        return None
+
+    cls.get_package = get_package  # throwaway subclass; nothing to restore
     with (
         patch.object(mod.fs, "rmtree", lambda path: None),
         patch.object(mod.os, "lstat", MagicMock(side_effect=PermissionError("denied"))),
@@ -868,12 +926,24 @@ def test_platformio_surface_for_install_deps_script() -> None:
         "get_tmp_dir",
     ):
         assert callable(getattr(BasePackageManager, name))
-    assert PackageSpec("owner/name @ ^1.0").name == "name"
+    # Losing any of these turns the wave into main()'s silent serial
+    # fallback: ensure_spec runs in the coordinator, the spec attributes
+    # feed the dedupe, cleanup, and dependency filters
+    assert callable(BasePackageManager.ensure_spec)
+    spec = PackageSpec("owner/name @ ^1.0")
+    assert spec.name == "name"
+    assert spec.owner == "owner"
+    assert spec.uri is None
+    assert spec.external is False
+    assert Version("1.5.0") in spec.requirements
     # The failure-cleanup path degrades to a single line if these vanish
     assert callable(fs.rmtree)
     assert PackageItem("pkg-dir").path == "pkg-dir"
     assert callable(PackageCompatibility.from_dependency)
-    assert callable(LibraryPackageManager.is_builtin_lib)
+    # dependency_specs calls it with one positional argument
+    assert list(inspect.signature(LibraryPackageManager.is_builtin_lib).parameters) == [
+        "name"
+    ]
 
     mod = _load_script()
     # The intact-dir heuristic hand-copies pio's manifest map

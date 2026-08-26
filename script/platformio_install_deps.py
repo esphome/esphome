@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import stat
 import subprocess
 import threading
 import time
@@ -139,7 +140,17 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
             f"could not scan {package_dir} while cleaning up {spec}: {err!r}"
         ) from err
     for d in entries:
-        if not d.is_dir():
+        try:
+            entry_stat = os.lstat(d)
+        except FileNotFoundError:
+            continue  # vanished mid-scan; nothing left to clean
+        except OSError as err:
+            # Path.is_dir would read this as skippable; unverifiable
+            # entries must fail the build like everywhere else
+            raise CleanupError(
+                f"could not stat {d} while cleaning up {spec}: {err!r}"
+            ) from err
+        if not stat.S_ISDIR(entry_stat.st_mode):
             continue  # pio's get_installed skips files and *.pio-link too
         meta = None
         last_err = None
@@ -239,9 +250,11 @@ def clean_torn(mgr, spec) -> None:
     if pkg is not None:
         dest = Path(pkg.path)
         store = Path(os.path.realpath(mgr.package_dir))
-        if not Path(os.path.realpath(dest)).is_relative_to(store):
+        resolved = Path(os.path.realpath(dest))
+        if resolved == store or not resolved.is_relative_to(store):
             # A symlinked (.pio-link) package resolves to its external
-            # source dir; this script only ever removes inside the store
+            # source dir; this script only removes strictly inside the
+            # store, never the store itself
             print(f"Refusing to remove {dest} outside {store}", flush=True)
             return
         remove_dir(spec, dest)
