@@ -311,6 +311,7 @@ def test_unverifiable_torn_destination_fails_the_build(tmp_path: Path) -> None:
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     dest = Path(cls.base_dir) / "packages" / "bad"
     dest.mkdir(parents=True)
+    (dest / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
 
     def bad_reset(self):
         raise OSError("scan broken")
@@ -371,12 +372,13 @@ def test_unresolvable_torn_destination_is_printed(tmp_path: Path, capsys) -> Non
 
 
 def test_unparsable_torn_destination_is_removed(tmp_path: Path, capsys) -> None:
-    """A torn dir get_package cannot resolve is removed via the predicted
-    destination instead of surviving into the serial pass."""
+    """A torn dir get_package cannot resolve but whose .piopm names the
+    spec is removed instead of surviving into the serial pass."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     dest = Path(cls.base_dir) / "packages" / "bad"
     dest.mkdir(parents=True)
+    (dest / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
 
     def real_rmtree(path):
         Path(path).rmdir()
@@ -540,7 +542,7 @@ def test_chdir_failure_defers_to_pending_lock_fault(
             mod.parallel_install(cls, ["esphome/a @ 1.0"])
     finally:
         monkeypatch.setattr(mod.os, "chdir", real_chdir)
-    assert any("working dir" in n for n in err.value.__notes__)
+    assert any("working dir" in n for n in err.value.__cause__.__notes__)
 
 
 def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> None:

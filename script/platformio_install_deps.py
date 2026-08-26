@@ -129,17 +129,6 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
     return matches
 
 
-def predicted_dest(mgr, spec) -> Path | None:
-    """The spec's likely install dir; a best-effort fallback only.
-
-    pio installs into safe_dirname(manifest name), which can differ from
-    the registry spec name; a miss here degrades to a printed line and
-    the serial pass, never a wrong deletion.
-    """
-    name = BasePackageManager.ensure_spec(spec).name
-    return Path(mgr.package_dir, name) if name else None
-
-
 def remove_dir(spec, dest: Path) -> None:
     # fs.rmtree never raises (errors go to a printing onexc handler);
     # only the destination's absence proves the cleanup worked
@@ -175,12 +164,9 @@ def clean_torn(mgr, spec) -> None:
     # The scan verdict depends on the whole storage tree (or the manifest
     # is unparsable); judge by this spec's own footprint so an innocent
     # worker's in-flight copy cannot fail the build naming the wrong spec.
-    # A .piopm naming this spec is the exact shape the serial pass trusts.
-    dests = piopm_matches(mgr.package_dir, spec)
-    guess = predicted_dest(mgr, spec)
-    if guess is not None and guess.exists() and guess not in dests:
-        dests.append(guess)
-    if dests:
+    # A .piopm naming this spec is the exact shape the serial pass trusts;
+    # a dir without one is overwritten by pio's own install either way.
+    if dests := piopm_matches(mgr.package_dir, spec):
         for dest in dests:
             remove_dir(spec, dest)
     elif scan_err is not None:
