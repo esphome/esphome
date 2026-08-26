@@ -1428,25 +1428,37 @@ def humanize_error(config, validation_error):
     return validation_error
 
 
-def _get_parent_name(path, config):
+def _get_parent_name(path, config) -> tuple[str, bool]:
+    """Return the name of the parent of the given path, and whether that name is a
+    genuine component domain (a registered output path) rather than an arbitrary
+    nested config key (e.g. `filters`, `then`) that a sub-item error fell back to."""
     if not path:
-        return "<root>"
+        return "<root>", False
     for domain_path, domain in config.output_paths:
         if _path_begins_with(path, domain_path):
             if len(path) > len(domain_path):
                 # Sub-item
                 break
-            return domain
+            return domain, True
     # When processing a list, skip back over the index
     while len(path) > 1 and isinstance(path[-1], int):
         path = path[:-1]
-    return path[-1]
+    return path[-1], False
+
+
+def _manifest_for_domain(domain: Any) -> ComponentManifest | None:
+    if not isinstance(domain, str) or domain == "<root>":
+        return None
+    if "." in domain:
+        parent, platform = domain.split(".", 1)
+        return get_platform(parent, platform)
+    return get_component(domain)
 
 
 def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
     message = ""
 
-    paren = _get_parent_name(ex.path[:-1], config)
+    paren, paren_is_domain = _get_parent_name(ex.path[:-1], config)
 
     if isinstance(ex, ExtraKeysInvalid):
         if ex.candidates:
@@ -1463,6 +1475,13 @@ def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
             message += ex.msg
     else:
         message += humanize_error(config, ex)
+
+    if (
+        paren_is_domain
+        and (manifest := _manifest_for_domain(paren)) is not None
+        and manifest.doc_url
+    ):
+        message += f" See {manifest.doc_url} for documentation."
 
     return message
 

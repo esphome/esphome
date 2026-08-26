@@ -14,7 +14,7 @@ import pytest
 from esphome import helpers
 from esphome.address_cache import AddressCache
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import ProgressBar, format_ip_url
+from esphome.helpers import ProgressBar, external_component_doc_url, format_ip_url
 
 
 @pytest.mark.parametrize(
@@ -228,6 +228,32 @@ def test_add_git_ceiling_directory_skips_duplicate():
     env = {"GIT_CEILING_DIRECTORIES": str(directory)}
     helpers.add_git_ceiling_directory(env, directory)
     assert env["GIT_CEILING_DIRECTORIES"] == str(directory)
+
+
+def test_external_component_doc_url_plain_component():
+    """A plain (non-platform) component links to components/<name>/."""
+    url = external_component_doc_url(
+        "https://example.com/docs", "esphome.components.foo"
+    )
+    assert url == "https://example.com/docs/components/foo/"
+
+
+def test_external_component_doc_url_platform_component():
+    """A platform component links to components/<platform>/<name>/, mirroring
+    esphome.io's own doc layout."""
+    url = external_component_doc_url(
+        "https://example.com/docs", "esphome.components.foo.switch"
+    )
+    assert url == "https://example.com/docs/components/switch/foo/"
+
+
+def test_external_component_doc_url_none_for_shallow_module_name():
+    """A module name with fewer than 3 dotted parts isn't a component -> None,
+    rather than raising IndexError."""
+    assert external_component_doc_url("https://example.com/docs", "esphome") is None
+    assert (
+        external_component_doc_url("https://example.com/docs", "esphome.core") is None
+    )
 
 
 def test_walk_files(fixture_path):

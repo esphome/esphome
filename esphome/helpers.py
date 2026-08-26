@@ -771,3 +771,22 @@ def docs_url(path: str) -> str:
 
     path = path.removeprefix("/")
     return docs_format.format(path=path)
+
+
+def external_component_doc_url(base_url: str, module_name: str) -> str | None:
+    """Build a documentation link for a component loaded via `external_components:`.
+
+    Mirrors ESPHome's own docs layout convention (see `docs_url` above):
+    platform components (`esphome.components.<name>.<platform>`) link to
+    `components/<platform>/<name>/`; plain components link to `components/<name>/`.
+    Returns None if `module_name` is not a component or platform module name
+    (i.e. has fewer than 3 dotted parts, like `esphome` or `esphome.core`).
+    """
+    parts = module_name.split(".")
+    if len(parts) < 3:
+        return None
+    base = base_url.rstrip("/")
+    if len(parts) >= 4:
+        component_name, platform_name = parts[2], parts[3]
+        return f"{base}/components/{platform_name}/{component_name}/"
+    return f"{base}/components/{parts[2]}/"

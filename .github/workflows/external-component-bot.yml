@@ -2,7 +2,7 @@ name: Add External Component Comment
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, edited]
 
 # All API calls (pulls.listFiles + issues.{list,create,update}Comment) are performed with
 # the App token minted below, so the workflow's GITHUB_TOKEN does not need any scopes.
@@ -28,20 +28,40 @@ jobs:
         with:
           github-token: ${{ steps.generate-token.outputs.token }}
           script: |
+            // Find a linked esphome.io documentation PR in the PR description, if any, and
+            // return the base URL of its Netlify deploy preview. Supports both the shorthand
+            // the PR template asks for (esphome/esphome.io#1234) and a full PR URL. `doc_url`
+            // is used as a documentation *base* URL (ESPHome appends /components/<name>/ to
+            // it), so this must be a link to rendered docs, not the GitHub PR page itself.
+            // Returns null if no such link is present (e.g. the PR template's unfilled
+            // placeholder, which has no digits and won't match).
+            function extractDocsPreviewUrl(body) {
+                if (!body)
+                    return null;
+                const shorthand = body.match(/esphome\/esphome\.io#(\d+)/);
+                const full = body.match(/https:\/\/github\.com\/esphome\/esphome\.io\/pull\/(\d+)/);
+                const prNumber = shorthand ? shorthand[1] : full ? full[1] : null;
+                return prNumber ? `https://deploy-preview-${prNumber}--esphome.netlify.app/` : null;
+            }
+
             // Generate external component usage instructions
-            function generateExternalComponentInstructions(prNumber, componentNames, owner, repo) {
+            function generateExternalComponentInstructions(prNumber, componentNames, owner, repo, docUrl) {
                 let source;
                 if (owner === 'esphome' && repo === 'esphome')
                     source = `github://pr#${prNumber}`;
                 else
                     source = `github://${owner}/${repo}@pull/${prNumber}/head`;
+                // Note: this literal is not subject to the workflow YAML's block-scalar
+                // dedent (that only strips the raw source layout), so it must already be
+                // written at the post-dedent indentation the surrounding lines end up at.
+                const docUrlLine = docUrl ? `\n    doc_url: ${docUrl}` : '';
                 return `To use the changes from this PR as an external component, add the following to your ESPHome configuration YAML file:
 
             \`\`\`yaml
             external_components:
               - source: ${source}
                 components: [${componentNames.join(', ')}]
-                refresh: 1h
+                refresh: 1h${docUrlLine}
             \`\`\``;
             }
 
@@ -69,12 +89,12 @@ jobs:
             `;
             }
 
-            async function createComment(octokit, owner, repo, prNumber, esphomeChanges, componentChanges) {
+            async function createComment(octokit, owner, repo, prNumber, esphomeChanges, componentChanges, docUrl) {
                 const commentMarker = "<!-- This comment was generated automatically by the external-component-bot workflow. -->";
                 const legacyCommentMarker = "<!-- This comment was generated automatically by a GitHub workflow. -->";
                 let commentBody;
                 if (esphomeChanges.length === 1) {
-                    commentBody = generateExternalComponentInstructions(prNumber, componentChanges, owner, repo);
+                    commentBody = generateExternalComponentInstructions(prNumber, componentChanges, owner, repo, docUrl);
                 } else {
                     commentBody = generateRepoInstructions(prNumber, owner, repo, context.payload.pull_request.head.ref);
                 }
@@ -161,6 +181,7 @@ jobs:
             const {owner, repo} = context.repo;
 
             const {esphomeChanges, componentChanges} = await getEsphomeAndComponentChanges(github, owner, repo, prNumber);
+            const docUrl = extractDocsPreviewUrl(context.payload.pull_request.body);
             if (componentChanges.length !== 0) {
-                await createComment(github, owner, repo, prNumber, esphomeChanges, componentChanges);
+                await createComment(github, owner, repo, prNumber, esphomeChanges, componentChanges, docUrl);
             }

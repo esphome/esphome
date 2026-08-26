@@ -20,6 +20,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriodSeconds
 
+CONF_DOC_URL = "doc_url"
+
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_EXTERNAL_COMPONENTS
@@ -32,6 +34,7 @@ CONFIG_SCHEMA = cv.ensure_list(
         cv.Optional(CONF_COMPONENTS, default="all"): cv.Any(
             "all", cv.ensure_list(cv.string)
         ),
+        cv.Optional(CONF_DOC_URL): cv.url,
     }
 )
 
@@ -84,8 +87,10 @@ def _process_single_config(config: dict[str, Any]) -> None:
         raise NotImplementedError
 
     if config[CONF_COMPONENTS] == "all":
-        num_components = len(list(components_dir.glob("*/__init__.py")))
-        if num_components > 100:
+        all_component_names = [
+            p.parent.name for p in components_dir.glob("*/__init__.py")
+        ]
+        if len(all_component_names) > 100:
             # Prevent accidentally including all components from an esphome fork/branch
             # In this case force the user to manually specify which components they want to include
             raise cv.Invalid(
@@ -102,6 +107,22 @@ def _process_single_config(config: dict[str, Any]) -> None:
                     [CONF_COMPONENTS, i],
                 )
         allowed_components = config[CONF_COMPONENTS]
+        all_component_names = None
+
+    if (base_url := config.get(CONF_DOC_URL)) is not None:
+        names = (
+            allowed_components
+            if allowed_components is not None
+            else all_component_names
+        )
+        for name in names:
+            loader.register_external_component_doc_url(name, base_url)
+        _LOGGER.info(
+            "External component source '%s' provides documentation at %s for components: %s",
+            conf.get(CONF_URL) or conf.get(CONF_PATH),
+            base_url,
+            ", ".join(names),
+        )
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
