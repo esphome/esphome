@@ -24,7 +24,6 @@ import logging
 import os
 from pathlib import Path, PurePosixPath
 import re
-import tempfile
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import url2pathname
@@ -32,8 +31,7 @@ from urllib.request import url2pathname
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import (
-    archive_extract_all,
-    download_from_mirrors,
+    download_and_extract,
     failure_reason,
     rmdir,
     run_batch_downloads,
@@ -55,8 +53,9 @@ DEFAULT_BUILD_SRC_DIRS = "src"
 DEFAULT_BUILD_INCLUDE_DIR = "include"
 DEFAULT_BUILD_FLAGS = []
 # Suffix -> compiler kind (PlatformIO's CSUFFIXES/CXXSUFFIXES/ASSUFFIXES);
-# "asm" merges SCons's AS and ASPP sets. Per CXXSUFFIXES .C/.C++ are C++
-# here, even where SCons demotes .C on case-insensitive filesystems.
+# "aspp" is SCons's preprocessed-assembly set, "asm" its plain-assembler
+# set (no preprocessor, defines, or includes). Per CXXSUFFIXES .C/.C++ are
+# C++ here, even where SCons demotes .C on case-insensitive filesystems.
 SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c": "c",
     ".cpp": "cxx",
@@ -65,10 +64,10 @@ SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".c++": "cxx",
     ".C": "cxx",
     ".C++": "cxx",
-    ".S": "asm",
-    ".spp": "asm",
-    ".SPP": "asm",
-    ".sx": "asm",
+    ".S": "aspp",
+    ".spp": "aspp",
+    ".SPP": "aspp",
+    ".sx": "aspp",
     ".s": "asm",
     ".asm": "asm",
     ".ASM": "asm",
@@ -146,18 +145,21 @@ class URLSource(Source):
         if not extracted_marker.is_file() or force:
             rmdir(path, msg=f"Clean up library directory {path}")
 
-            # Download in temporary file
-            with tempfile.NamedTemporaryFile() as tmp:
-                if progress is None:
-                    # A batch caller draws one combined bar and logs the list
-                    _LOGGER.info("Downloading %s ...", self.url)
-                _LOGGER.debug("Location: %s", path)
+            if progress is None:
+                # A batch caller draws one combined bar and logs the list
+                _LOGGER.info("Downloading %s ...", self.url)
+            _LOGGER.debug("Location: %s", path)
 
-                download_from_mirrors([self.url], {}, tmp.file, progress=progress)
-
-                _LOGGER.debug("Extracting archive to %s ...", path)
-                archive_extract_all(tmp.file, path)
-                extracted_marker.touch()
+            # The sibling archive path lets an interrupted download's .part
+            # file survive and resume on the next esphome run.
+            download_and_extract(
+                [self.url],
+                {},
+                path.with_name(f"{path.name}.archive"),
+                path,
+                progress=progress,
+            )
+            extracted_marker.touch()
         return path
 
     def __str__(self):
