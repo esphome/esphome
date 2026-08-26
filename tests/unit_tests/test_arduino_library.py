@@ -900,6 +900,15 @@ def test_bundled_library_non_dict_manifest_skips_probes_and_raises(
         component._bundled_library(framework, "Wire")
 
 
+def test_bundled_corrupt_library_json_fails_by_name(tmp_path: Path) -> None:
+    """A truncated bundled library.json fails with the library name and the
+    clean-all hint, not a raw JSONDecodeError."""
+    framework = _make_framework(tmp_path)
+    (framework / "libraries" / "Wire" / "library.json").write_text("{truncated")
+    with pytest.raises(EsphomeError, match="Wire has a corrupt library.json"):
+        component._bundled_library(framework, "Wire")
+
+
 def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -931,7 +940,12 @@ def test_versionless_provides_skip_is_reconciled_through_real_converter(
     framework = _make_framework(tmp_path)
     _local_lib(tmp_path, ["Wire"])
     monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
-    libs = _resolve(framework)
+    with patch.object(
+        pio_library,
+        "_resolve_registry_version",
+        side_effect=AssertionError("registry touched"),
+    ):
+        libs = _resolve(framework)
     assert "Wire" in [lib.name for lib in libs]
 
 
@@ -943,7 +957,12 @@ def test_platform_filtered_bundled_candidate_does_not_break_reconciliation(
     framework = _make_framework(tmp_path)
     _local_lib(tmp_path, [{"name": "Wire", "platforms": ["espressif32"]}])
     monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
-    libs = _resolve(framework)
+    with patch.object(
+        pio_library,
+        "_resolve_registry_version",
+        side_effect=AssertionError("registry touched"),
+    ):
+        libs = _resolve(framework)
     assert "Wire" not in [lib.name for lib in libs]
 
 
