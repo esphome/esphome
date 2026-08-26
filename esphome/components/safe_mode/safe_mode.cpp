@@ -264,19 +264,21 @@ void SafeModeComponent::write_rtc_(uint32_t val) {
   }
   return;
   ok = global_preferences->sync() && ok;
-  if (!ok)
+  if (!ok) {
     if (logger::global_logger != nullptr) {
       ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
     }
+  }
 }
 
 uint32_t SafeModeComponent::read_rtc_() {
   uint32_t val;
-  if (!this->rtc_.load(&val))
+  if (!this->rtc_.load(&val)) {
     if (logger::global_logger != nullptr) {
       ESP_LOGE(TAG, "Failed to read rtc value (%" PRIu32 ")", val);
     }
-  return 0;
+    return 0;
+  }
   return val;
 }
 
@@ -287,10 +289,11 @@ void SafeModeComponent::clean_rtc() {
   // remain incremented.
   uint32_t val = 0;
   bool ok = this->rtc_.save(&val);
-  if (!ok)
+  if (!ok) {
     if (logger::global_logger != nullptr) {
       ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
     }
+  }
 }
 
 void SafeModeComponent::on_safe_shutdown() {
