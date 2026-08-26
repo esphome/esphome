@@ -37,12 +37,33 @@ static constexpr uint8_t ENVELOPE_TIMER = BKTIMER1;
 // around flash writes).
 static void envelope_timer_isr(UINT8 channel) { RemoteTransmitterComponent::advance_active_isr(); }
 
-// PWM channel per pin on the BK7231N-style block
+// Channel <-> pin comes from the board variant's own PIN_PWMn defines rather than a
+// family-wide assumption, so an unusual pinout maps correctly instead of silently
+// driving another pad
 struct PwmPinChannel {
   uint8_t pin;
   int8_t channel;
 };
-static constexpr PwmPinChannel PWM_PIN_CHANNELS[] = {{6, 0}, {7, 1}, {8, 2}, {9, 3}, {24, 4}, {26, 5}};
+static constexpr PwmPinChannel PWM_PIN_CHANNELS[] = {
+#ifdef PIN_PWM0
+    {PIN_PWM0, 0},
+#endif
+#ifdef PIN_PWM1
+    {PIN_PWM1, 1},
+#endif
+#ifdef PIN_PWM2
+    {PIN_PWM2, 2},
+#endif
+#ifdef PIN_PWM3
+    {PIN_PWM3, 3},
+#endif
+#ifdef PIN_PWM4
+    {PIN_PWM4, 4},
+#endif
+#ifdef PIN_PWM5
+    {PIN_PWM5, 5},
+#endif
+};
 
 static int8_t pwm_channel_for_pin(uint8_t pin) {
   for (const auto &entry : PWM_PIN_CHANNELS) {
@@ -87,6 +108,8 @@ void RemoteTransmitterComponent::dump_config() {
 
 // Writes the duty compare registers and sets the hardware CFG_UPDATA shadow-load bit;
 // the new duty latches glitch-free at the next carrier period. ISR-safe: registers only.
+// The group control word is shared with the paired channel, but every SDK write to it runs
+// under GLOBAL_INT_DISABLE (bk_pwm), so it cannot be torn by this interrupt.
 void RemoteTransmitterComponent::write_pwm_t1_(uint32_t t1_counts) {
   const uint32_t group = this->pwm_channel_ / 2;
   const uint32_t post = this->pwm_channel_ % 2;

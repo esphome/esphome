@@ -15,8 +15,7 @@
 // The BK7231N-style PWM block (hardware shadow-load duty updates) enables the ISR-driven
 // transmitter on these families; family-level proxy for the SDK's CFG_SOC_NAME gate.
 // See remote_transmitter_bk72xx.cpp.
-#if defined(USE_LIBRETINY_VARIANT_BK7231N) || defined(USE_LIBRETINY_VARIANT_BK7238) || \
-    defined(USE_LIBRETINY_VARIANT_BK7252N)
+#if defined(USE_LIBRETINY_VARIANT_BK7231N) || defined(USE_LIBRETINY_VARIANT_BK7238)
 #define REMOTE_TRANSMITTER_BK_PWM
 #endif
 
@@ -88,7 +87,8 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
   void await_target_time_();
   uint32_t target_time_{0};
 #endif
-#if defined(USE_ESP8266) || (defined(USE_LIBRETINY) && !defined(USE_RTL87XX)) || defined(USE_RP2) || \
+#if defined(USE_ESP8266) || \
+    (defined(USE_LIBRETINY) && !defined(USE_RTL87XX) && !defined(REMOTE_TRANSMITTER_BK_PWM)) || defined(USE_RP2) || \
     (defined(USE_ESP32) && !SOC_RMT_SUPPORTED)
   void calculate_on_off_time_(uint32_t carrier_frequency, uint32_t *on_time_period, uint32_t *off_time_period);
 

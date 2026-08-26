@@ -84,6 +84,8 @@ void IRAM_ATTR RemoteTransmitterComponent::advance_envelope_isr() {
     }
     return;
   }
+  // required on Beken (its timer reloads); on Realtek this only clears the enable bit of a
+  // one-shot that has already fired
   this->stop_envelope_timer_();
   this->transmitting_ = false;
   s_active_transmitter = nullptr;
@@ -152,7 +154,10 @@ void RemoteTransmitterComponent::arm_chain_(uint32_t send_times, uint32_t send_w
 
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (!this->envelope_ready_()) {
+    // both triggers still fire, so an on_complete-sequenced automation does not stall
     ESP_LOGW(TAG, "Cannot send: PWM not initialized");
+    this->transmit_trigger_.trigger();
+    this->deliver_completion_();
     return;
   }
   this->wait_until_idle_();
