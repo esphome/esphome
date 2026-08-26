@@ -200,17 +200,15 @@ def _collect_lib_sources(
     src_dir: str,
     src_filter: list[str],
 ) -> None:
-    root = read_path / src_dir
-    resolved_root = root.resolve()
     sources: list[Path] = []
     dropped: list[str] = []
     saw_header = False
-    for f in collect_filtered_files(root, src_filter):
+    for f in collect_filtered_files(read_path / src_dir, src_filter):
         path = Path(f)
         suffix = path.suffix
         if suffix in SRC_FILE_EXTENSIONS:
-            # Re-root on the resolved dir instead of a realpath() per file
-            sources.append(resolved_root / path.relative_to(root))
+            # resolve() per file: srcFilter patterns may escape src_dir
+            sources.append(path.resolve())
         elif suffix.lower() in _UNMAPPED_SOURCE_SUFFIXES:
             # A source-like suffix the case-sensitive map rejects (.CPP,
             # .ino) is a dropped compilation unit; headers fall through
