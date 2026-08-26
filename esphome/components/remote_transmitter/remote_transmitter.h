@@ -124,10 +124,10 @@ class RemoteTransmitterComponent final : public remote_base::RemoteTransmitterBa
 #endif
 #ifdef REMOTE_TRANSMITTER_BK_PWM
   void write_pwm_t1_(uint32_t t1_counts);
-  int8_t pwm_channel_{-1};
   uint32_t isr_mark_t1_{0};
   uint32_t isr_space_t1_{0};
   uint32_t isr_period_t4_{684};  // 26MHz counts; ~38kHz default until a send sets the real carrier
+  int8_t pwm_channel_{-1};
 #endif
 
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
