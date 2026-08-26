@@ -80,7 +80,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Validate the provisioning setup once every component has been processed.
 
     Sources register during their own config validation, so by final validation
@@ -109,7 +109,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             "closes, so if it is the device's only network connection, the device "
             "will be unreachable until it is power-cycled."
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

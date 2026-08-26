@@ -4,13 +4,23 @@
 #include "esphome/core/log.h"
 
 #include <array>
+#include <cinttypes>
+#include <cstring>
 
 namespace esphome::ufm01 {
 
 static const char *const TAG = "ufm01";
 
 static constexpr uint8_t COMMAND_ACK = 0xE5;
-static constexpr uint32_t COMMAND_ACK_TIMEOUT_MS = 200;
+static constexpr uint32_t COMMAND_ACK_TIMEOUT_MS = 500;
+static constexpr uint32_t STARTUP_DELAY_MS = 2000;
+static constexpr uint32_t POST_RESET_DELAY_MS = 2000;
+static constexpr uint32_t RESET_RETRY_DELAY_MS = 800;
+static constexpr uint32_t STARTUP_RETRY_MS = 3000;
+static constexpr uint32_t PASSIVE_POLL_INTERVAL_MS = 1000;
+static constexpr uint32_t ACTIVE_STALE_MS = 5000;
+static constexpr uint32_t PASSIVE_READ_TIMEOUT_MS = 1000;
+static constexpr uint32_t ACTIVE_FRAME_TIMEOUT_MS = 3000;
 
 static constexpr float L_PER_M3 = 1000.0f;
 static constexpr float M3_PER_L = 1.0f / L_PER_M3;
@@ -18,12 +28,14 @@ static constexpr float M3_PER_L = 1.0f / L_PER_M3;
 static constexpr std::array<uint8_t, 7> ACTIVE_MODE = {0xFE, 0xFE, 0x11, 0x5C, 0x00, 0x5C, 0x16};
 static constexpr std::array<uint8_t, 7> CLEAR_ACCUMULATED_FLOW = {0xFE, 0xFE, 0x11, 0x5A, 0xFD, 0x57, 0x16};
 static constexpr std::array<uint8_t, 7> RESET_DEVICE = {0xFE, 0xFE, 0x11, 0x5D, 0xCB, 0x28, 0x16};
+static constexpr std::array<uint8_t, 7> READ_SENSOR_DATA_NO_ID = {0xFE, 0xFE, 0x11, 0x5B, 0x0F, 0x6A, 0x16};
 
 // Active-mode frame layout (datasheet Table 7)
 static constexpr size_t FRAME_CHECKSUM_INDEX = 30;
 static constexpr size_t FRAME_STOP_INDEX = 31;
 static constexpr uint8_t FRAME_START_BYTE_1 = 0x3C;
 static constexpr uint8_t FRAME_START_BYTE_2 = 0x32;
+static constexpr uint8_t PASSIVE_START_BYTE_2 = 0x64;
 static constexpr uint8_t FRAME_STOP_BYTE = 0x16;
 static constexpr uint8_t FRAME_INDEX_INSTANT_FLOW_FLAG = 15;
 static constexpr uint8_t FRAME_INDEX_RESERVED_SECTION = 21;
@@ -55,7 +67,7 @@ static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t exp
   return false;
 }
 
-static bool validate_data(uint8_t data[FRAME_SIZE]) {
+static bool validate_active_frame(const uint8_t data[FRAME_SIZE]) {
   uint8_t sum = 0;
   for (size_t i = 0; i < FRAME_CHECKSUM_INDEX; ++i)
     sum += data[i];
@@ -68,13 +80,43 @@ static bool validate_data(uint8_t data[FRAME_SIZE]) {
          check_byte(data, FRAME_STOP_INDEX, FRAME_STOP_BYTE, "stop byte");
 }
 
-static float read_accumulated_flow(uint8_t data[FRAME_SIZE]) {
+static bool validate_passive_frame(const uint8_t data[PASSIVE_FRAME_SIZE]) {
+  if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2 || data[22] != FRAME_STOP_BYTE)
+    return false;
+  uint8_t sum = 0;
+  for (size_t i = 0; i < 21; ++i)
+    sum += data[i];
+  return data[21] == (sum & 0xFF);
+}
+
+static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SIZE], uint8_t active[FRAME_SIZE]) {
+  std::memset(active, 0, FRAME_SIZE);
+  active[0] = FRAME_START_BYTE_1;
+  active[1] = FRAME_START_BYTE_2;
+  active[7] = 0x01;
+  active[8] = passive[2];
+  for (size_t i = 0; i < 6; ++i)
+    active[9 + i] = passive[3 + i];
+  active[15] = passive[9];
+  for (size_t i = 0; i < 5; ++i)
+    active[16 + i] = passive[10 + i];
+  active[21] = FRAME_FLAG_RESERVED_SECTION;
+  active[24] = passive[15];
+  for (size_t i = 0; i < 3; ++i)
+    active[25 + i] = passive[16 + i];
+  active[28] = passive[19];
+  active[29] = passive[20];
+  active[30] = passive[21];
+  active[31] = FRAME_STOP_BYTE;
+}
+
+static float read_accumulated_flow(const uint8_t data[FRAME_SIZE]) {
   return (data[FRAME_ACC_FLOW_FLAG_INDEX] == ACC_FLOW_M3_FLAG ? L_PER_M3 : 1.0f) *
          (to_float(data[14]) * 10000000.0f + to_float(data[13]) * 100000.0f + to_float(data[12]) * 1000.0f +
           to_float(data[11]) * 10.0f + to_float(data[10]) * 0.1f + to_float(data[9]) * 0.001f);
 }
 
-static float read_flow(uint8_t data[FRAME_SIZE]) {
+static float read_flow(const uint8_t data[FRAME_SIZE]) {
   return (data[FRAME_FLOW_SIGN_INDEX] == FLOW_NEGATIVE_SIGN ? -1.0f : 1.0f) *
          (to_float(data[19]) * 10000.0f + to_float(data[18]) * 100.0f + to_float(data[17]) +
           to_float(data[16]) * 0.01f) *
@@ -86,7 +128,7 @@ static void log_hex(const uint8_t *data, size_t len) {
   ESP_LOGD(TAG, "%s", format_hex_pretty_to(hex_buf, data, len, ' '));
 }
 
-static float read_temperature(uint8_t data[FRAME_SIZE]) {
+static float read_temperature(const uint8_t data[FRAME_SIZE]) {
   // happens sometimes before getting a real reading
   if (data[27] == 0x00 && (data[26] == 0x00 || data[26] == 0x70) && data[25] == 0x00) {
     return NAN;
@@ -106,19 +148,39 @@ static bool read_flow_rate_out_of_range(const uint8_t data[FRAME_SIZE]) {
   return data[FRAME_ST2_INDEX] & ST2_FLOW_RATE_OUT_OF_RANGE_MASK;
 }
 
-bool UFM01Component::send_command_(const std::array<uint8_t, 7> &command) {
+void UFM01Component::flush_rx_() {
+  while (this->available()) {
+    uint8_t byte;
+    this->read_byte(&byte);
+  }
+  this->read_index_ = 0;
+}
+
+void UFM01Component::send_command_no_wait_(const std::array<uint8_t, 7> &command) {
+  this->flush_rx_();
   this->write_array(command);
   this->flush();
+}
+
+// Drains whatever is currently in the RX buffer, looking for a command ACK.
+bool UFM01Component::consume_ack_() {
+  while (this->available()) {
+    uint8_t byte;
+    if (!this->read_byte(&byte))
+      return false;
+    if (byte == COMMAND_ACK)
+      return true;
+    ESP_LOGV(TAG, "Unexpected byte while waiting for command ACK: 0x%02X", byte);
+  }
+  return false;
+}
+
+bool UFM01Component::send_command_(const std::array<uint8_t, 7> &command) {
+  this->send_command_no_wait_(command);
   const uint32_t start = millis();
   while (millis() - start < COMMAND_ACK_TIMEOUT_MS) {
-    if (this->available()) {
-      uint8_t byte;
-      if (this->read_byte(&byte)) {
-        if (byte == COMMAND_ACK)
-          return true;
-        ESP_LOGV(TAG, "Unexpected byte while waiting for command ACK: 0x%02X", byte);
-      }
-    }
+    if (this->consume_ack_())
+      return true;
     delay(1);
   }
   return false;
@@ -130,14 +192,12 @@ bool UFM01Component::clear_accumulated_flow_() { return this->send_command_(CLEA
 
 bool UFM01Component::set_active_mode_() { return this->send_command_(ACTIVE_MODE); }
 
-float UFM01Component::get_setup_priority() const { return setup_priority::IO; }
+float UFM01Component::get_setup_priority() const { return setup_priority::LATE; }
 
 void UFM01Component::setup() {
   ESP_LOGI(TAG, "Setting up UFM-01...");
-  if (!this->set_active_mode_()) {
-    ESP_LOGW(TAG, "Failed to set active mode (no ACK from device)");
-    this->mark_failed();
-  }
+  this->startup_wait_ms_ = STARTUP_DELAY_MS;
+  this->set_startup_phase_(StartupPhase::WAIT);
 }
 
 void UFM01Component::dump_config() {
@@ -154,12 +214,9 @@ void UFM01Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
 #endif
   this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
-  if (this->is_failed()) {
-    ESP_LOGW(TAG, "Setup failed: active mode not acknowledged by device");
-  }
 }
 
-void UFM01Component::on_data_(uint8_t data[FRAME_SIZE]) {
+void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
   if (this->ufc_chip_error_binary_sensor_ != nullptr)
@@ -189,10 +246,14 @@ void UFM01Component::on_data_(uint8_t data[FRAME_SIZE]) {
       this->temperature_sensor_->publish_state(read_temperature(data));
   }
 #endif
+  this->last_valid_frame_ms_ = millis();
+  this->status_clear_warning();
+  this->status_clear_error();
 }
 
-void UFM01Component::loop() {
-  // Drain the UART buffer each loop, reading one byte at a time into the frame
+bool UFM01Component::process_active_stream_() {
+  bool got_valid_frame = false;
+
   while (this->available()) {
     if (!this->read_byte(&this->data_[this->read_index_])) {
       ESP_LOGW(TAG, "unable to read byte");
@@ -201,23 +262,22 @@ void UFM01Component::loop() {
     }
     if ((this->read_index_ == 0 && this->data_[0] != FRAME_START_BYTE_1) ||
         (this->read_index_ == 1 && this->data_[1] != FRAME_START_BYTE_2)) {
-      ESP_LOGW(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
+      ESP_LOGD(TAG, "not start of data at %d (is 0x%02X)", this->read_index_, this->data_[this->read_index_]);
       this->read_index_ = 0;
       continue;
     }
     if (++this->read_index_ < static_cast<int32_t>(FRAME_SIZE))
       continue;
 
-    // Full frame received
-    if (validate_data(this->data_)) {
-      this->on_data_(this->data_);
+    if (validate_active_frame(this->data_)) {
+      this->on_active_frame_(this->data_);
       this->read_index_ = 0;
+      got_valid_frame = true;
       continue;
     }
 
-    // Invalid frame: try to resync on the next start marker within the buffer
     log_hex(this->data_, sizeof(this->data_));
-    ESP_LOGE(TAG, "unable to read data");
+    ESP_LOGW(TAG, "unable to read data");
     for (int32_t i = 2;
          i < static_cast<int32_t>(FRAME_STOP_INDEX) && this->read_index_ == static_cast<int32_t>(FRAME_SIZE); ++i) {
       if ((this->data_[i] == FRAME_START_BYTE_1) && (this->data_[i + 1] == FRAME_START_BYTE_2)) {
@@ -228,6 +288,190 @@ void UFM01Component::loop() {
     }
     if (this->read_index_ == static_cast<int32_t>(FRAME_SIZE))
       this->read_index_ = 0;
+  }
+
+  return got_valid_frame;
+}
+
+void UFM01Component::set_startup_phase_(StartupPhase phase) {
+  this->startup_phase_ = phase;
+  this->phase_start_ms_ = millis();
+}
+
+void UFM01Component::enter_active_stream_(const char *reason) {
+  ESP_LOGI(TAG, "UFM-01 active stream %s", reason);
+  this->operating_mode_ = OperatingMode::ACTIVE_STREAM;
+  this->passive_read_pending_ = false;
+}
+
+void UFM01Component::start_passive_read_() {
+  this->send_command_no_wait_(READ_SENSOR_DATA_NO_ID);
+  this->passive_index_ = 0;
+  this->passive_start_ms_ = millis();
+}
+
+// Accumulates the reply to a passive read request across loop iterations.
+PassiveReadResult UFM01Component::continue_passive_read_() {
+  while (this->available() && this->passive_index_ < PASSIVE_FRAME_SIZE) {
+    uint8_t byte;
+    if (!this->read_byte(&byte))
+      break;
+
+    if (this->passive_index_ == 0 && byte != FRAME_START_BYTE_1)
+      continue;
+    if (this->passive_index_ == 1 && byte != PASSIVE_START_BYTE_2) {
+      // The mismatched byte may itself be the start of the real frame
+      this->passive_index_ = (byte == FRAME_START_BYTE_1) ? 1 : 0;
+      continue;
+    }
+    this->passive_frame_[this->passive_index_++] = byte;
+  }
+
+  if (this->passive_index_ < PASSIVE_FRAME_SIZE) {
+    if (millis() - this->passive_start_ms_ < PASSIVE_READ_TIMEOUT_MS)
+      return PassiveReadResult::PASSIVE_READ_RESULT_PENDING;
+    ESP_LOGD(TAG, "passive read timeout (%zu/%zu bytes)", this->passive_index_, PASSIVE_FRAME_SIZE);
+    return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
+  }
+
+  if (!validate_passive_frame(this->passive_frame_)) {
+    log_hex(this->passive_frame_, PASSIVE_FRAME_SIZE);
+    ESP_LOGW(TAG, "invalid passive frame");
+    return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
+  }
+
+  uint8_t active_frame[FRAME_SIZE];
+  passive_no_id_to_active_frame(this->passive_frame_, active_frame);
+  this->on_active_frame_(active_frame);
+  return PassiveReadResult::PASSIVE_READ_RESULT_SUCCESS;
+}
+
+void UFM01Component::loop_startup_() {
+  const uint32_t elapsed = millis() - this->phase_start_ms_;
+
+  switch (this->startup_phase_) {
+    case StartupPhase::WAIT:
+      // Pick up an already-streaming device without resetting it
+      if (this->process_active_stream_()) {
+        this->enter_active_stream_("started");
+        return;
+      }
+      if (elapsed < this->startup_wait_ms_)
+        return;
+      ESP_LOGD(TAG, "Running startup sequence");
+      this->status_set_warning("initializing UFM-01");
+      this->reset_retried_ = false;
+      this->send_command_no_wait_(RESET_DEVICE);
+      this->set_startup_phase_(StartupPhase::RESET_WAIT_ACK);
+      return;
+
+    case StartupPhase::RESET_WAIT_ACK:
+      if (this->consume_ack_()) {
+        this->set_startup_phase_(StartupPhase::POST_RESET_WAIT);
+        return;
+      }
+      if (elapsed < COMMAND_ACK_TIMEOUT_MS)
+        return;
+      if (!this->reset_retried_) {
+        ESP_LOGW(TAG, "Reset not acknowledged, retrying in %" PRIu32 " ms", RESET_RETRY_DELAY_MS);
+        this->set_startup_phase_(StartupPhase::RESET_RETRY_WAIT);
+      } else {
+        ESP_LOGW(TAG, "Reset failed during startup");
+        this->set_startup_phase_(StartupPhase::POST_RESET_WAIT);
+      }
+      return;
+
+    case StartupPhase::RESET_RETRY_WAIT:
+      if (elapsed < RESET_RETRY_DELAY_MS)
+        return;
+      this->reset_retried_ = true;
+      this->send_command_no_wait_(RESET_DEVICE);
+      this->set_startup_phase_(StartupPhase::RESET_WAIT_ACK);
+      return;
+
+    case StartupPhase::POST_RESET_WAIT:
+      if (elapsed < POST_RESET_DELAY_MS)
+        return;
+      this->send_command_no_wait_(ACTIVE_MODE);
+      this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME);
+      return;
+
+    case StartupPhase::ACTIVE_WAIT_FRAME:
+      // The command ACK (0xE5) is consumed by the frame parser as noise
+      if (this->process_active_stream_()) {
+        this->enter_active_stream_("started");
+        return;
+      }
+      if (elapsed < ACTIVE_FRAME_TIMEOUT_MS)
+        return;
+      this->start_passive_read_();
+      this->set_startup_phase_(StartupPhase::PASSIVE_WAIT_REPLY);
+      return;
+
+    case StartupPhase::PASSIVE_WAIT_REPLY:
+      switch (this->continue_passive_read_()) {
+        case PassiveReadResult::PASSIVE_READ_RESULT_PENDING:
+          return;
+        case PassiveReadResult::PASSIVE_READ_RESULT_SUCCESS:
+          ESP_LOGI(TAG, "UFM-01 using passive polling");
+          this->operating_mode_ = OperatingMode::PASSIVE_POLL;
+          this->passive_read_pending_ = false;
+          this->last_poll_ms_ = millis();
+          return;
+        case PassiveReadResult::PASSIVE_READ_RESULT_FAILURE:
+          ESP_LOGW(TAG, "Startup failed, retrying in %" PRIu32 " ms", STARTUP_RETRY_MS);
+          this->startup_wait_ms_ = STARTUP_RETRY_MS;
+          this->set_startup_phase_(StartupPhase::WAIT);
+          return;
+      }
+  }
+}
+
+void UFM01Component::loop_active_stream_() {
+  this->process_active_stream_();
+  if (this->last_valid_frame_ms_ != 0 && millis() - this->last_valid_frame_ms_ > ACTIVE_STALE_MS) {
+    ESP_LOGW(TAG, "Active stream stale, switching to passive polling");
+    this->operating_mode_ = OperatingMode::PASSIVE_POLL;
+    this->passive_read_pending_ = false;
+    this->last_poll_ms_ = 0;
+    this->status_set_warning("UFM-01 passive poll");
+  }
+}
+
+void UFM01Component::loop_passive_poll_() {
+  if (this->passive_read_pending_) {
+    const PassiveReadResult result = this->continue_passive_read_();
+    if (result == PassiveReadResult::PASSIVE_READ_RESULT_PENDING)
+      return;
+    this->passive_read_pending_ = false;
+    if (result == PassiveReadResult::PASSIVE_READ_RESULT_FAILURE)
+      this->status_set_warning("UFM-01 passive poll failed");
+    return;
+  }
+
+  if (this->process_active_stream_()) {
+    this->enter_active_stream_("resumed");
+    return;
+  }
+
+  if (millis() - this->last_poll_ms_ >= PASSIVE_POLL_INTERVAL_MS) {
+    this->last_poll_ms_ = millis();
+    this->start_passive_read_();
+    this->passive_read_pending_ = true;
+  }
+}
+
+void UFM01Component::loop() {
+  switch (this->operating_mode_) {
+    case OperatingMode::STARTUP:
+      this->loop_startup_();
+      return;
+    case OperatingMode::ACTIVE_STREAM:
+      this->loop_active_stream_();
+      return;
+    case OperatingMode::PASSIVE_POLL:
+      this->loop_passive_poll_();
+      return;
   }
 }
 
