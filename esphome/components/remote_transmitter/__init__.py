@@ -3,6 +3,8 @@ import logging
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.components.libretiny import get_libretiny_family
+from esphome.components.libretiny.const import FAMILY_RTL8720C
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -18,7 +20,9 @@ from esphome.const import (
     CONF_VALUE,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +43,16 @@ DigitalWriteAction = remote_transmitter_ns.class_(
     automation.Action,
     cg.Parented.template(RemoteTransmitterComponent),
 )
+
+
+def _validate_non_blocking_platform(value: bool) -> bool:
+    # non_blocking requires hardware transmission: RMT on ESP32, the gtimer
+    # envelope chain on RTL8720C. Reject everywhere else at config time.
+    if CORE.is_esp32:
+        return cv.boolean(value)
+    if CORE.is_libretiny and get_libretiny_family() == FAMILY_RTL8720C:
+        return cv.boolean(value)
+    raise cv.Invalid("non_blocking is only supported on ESP32 and RTL8720C")
 
 
 MULTI_CONF = True
@@ -74,7 +88,7 @@ CONFIG_SCHEMA = (
                 esp32_s2=64,
                 esp32_s3=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
-            cv.Optional(CONF_NON_BLOCKING): cv.All(cv.only_on_esp32, cv.boolean),
+            cv.Optional(CONF_NON_BLOCKING): _validate_non_blocking_platform,
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
         }
@@ -94,7 +108,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def _validate_non_blocking(config):
+def _validate_non_blocking(config: ConfigType) -> None:
     if (
         CORE.is_esp32
         and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT
@@ -125,7 +139,12 @@ DIGITAL_WRITE_ACTION_SCHEMA = cv.maybe_simple_value(
     DIGITAL_WRITE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def digital_write_action_to_code(config, action_id, template_arg, args):
+async def digital_write_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_TRANSMITTER_ID])
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.bool_)
@@ -133,7 +152,7 @@ async def digital_write_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
         # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
@@ -157,6 +176,8 @@ async def to_code(config):
             )
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
+        if (non_blocking := config.get(CONF_NON_BLOCKING)) is not None:
+            cg.add(var.set_non_blocking(non_blocking))
     await cg.register_component(var, config)
 
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
@@ -178,12 +199,14 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        "remote_transmitter_rtl87xx.cpp": {
+            PlatformFramework.RTL87XX_ARDUINO,
+        },
         "remote_transmitter.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
-            PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
             PlatformFramework.RP2_ARDUINO,
         },

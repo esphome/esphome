@@ -19,6 +19,9 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_SECOND,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CONF_LAST_TIME = "last_time"
 
@@ -66,7 +69,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     cg.add(var.set_restore(config[CONF_RESTORE]))
@@ -93,7 +96,12 @@ DUTY_TIME_ID_SCHEMA = maybe_simple_id(
 @register_action(
     "sensor.duty_time.start", StartAction, DUTY_TIME_ID_SCHEMA, synchronous=True
 )
-async def sensor_runtime_start_to_code(config, action_id, template_arg, args):
+async def sensor_runtime_start_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -102,7 +110,12 @@ async def sensor_runtime_start_to_code(config, action_id, template_arg, args):
 @register_action(
     "sensor.duty_time.stop", StopAction, DUTY_TIME_ID_SCHEMA, synchronous=True
 )
-async def sensor_runtime_stop_to_code(config, action_id, template_arg, args):
+async def sensor_runtime_stop_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -111,7 +124,12 @@ async def sensor_runtime_stop_to_code(config, action_id, template_arg, args):
 @register_action(
     "sensor.duty_time.reset", ResetAction, DUTY_TIME_ID_SCHEMA, synchronous=True
 )
-async def sensor_runtime_reset_to_code(config, action_id, template_arg, args):
+async def sensor_runtime_reset_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -120,7 +138,12 @@ async def sensor_runtime_reset_to_code(config, action_id, template_arg, args):
 @register_condition(
     "sensor.duty_time.is_running", RunningCondition, DUTY_TIME_ID_SCHEMA
 )
-async def duty_time_is_running_to_code(config, condition_id, template_arg, args):
+async def duty_time_is_running_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren, True)
 
@@ -128,6 +151,11 @@ async def duty_time_is_running_to_code(config, condition_id, template_arg, args)
 @register_condition(
     "sensor.duty_time.is_not_running", RunningCondition, DUTY_TIME_ID_SCHEMA
 )
-async def duty_time_is_not_running_to_code(config, condition_id, template_arg, args):
+async def duty_time_is_not_running_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren, False)
