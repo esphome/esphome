@@ -1,6 +1,7 @@
 """Tests for script/platformio_install_deps.py."""
 
 from argparse import Namespace
+from concurrent.futures import Future
 import importlib.util
 import inspect
 from pathlib import Path
@@ -15,7 +16,12 @@ from platformio.package.manager._install import PackageManagerInstallMixin
 from platformio.package.manager.base import BasePackageManager
 from platformio.package.manager.library import LibraryPackageManager
 from platformio.package.manager.tool import ToolPackageManager
-from platformio.package.meta import PackageCompatibility, PackageItem, PackageSpec
+from platformio.package.meta import (
+    PackageCompatibility,
+    PackageItem,
+    PackageSpec,
+    PackageType,
+)
 import pytest
 
 _SCRIPT = Path(__file__).parents[2] / "script" / "platformio_install_deps.py"
@@ -173,7 +179,7 @@ def test_parallel_install_failure_cleans_torn_destination(
 
     removed = []
 
-    torn = str(tmp_path / "torn-pkg")  # never created; only rmtree'd
+    torn = str(tmp_path / "packages" / "torn-pkg")  # never created; only rmtree'd
 
     def get_package(self, spec):
         if spec == "esphome/bad @ 1.0" and getattr(cls, "resets", 0):
@@ -188,6 +194,8 @@ def test_parallel_install_failure_cleans_torn_destination(
     out = capsys.readouterr().out
     assert "Pre-install of esphome/bad @ 1.0 failed" in out
     assert "Pre-install failed for 1 of 2 package(s)" in out
+    # A failed install is expected to be unresolvable; no anomaly print
+    assert "not resolvable afterwards" not in out
 
 
 def test_parallel_install_runs_dependency_waves(tmp_path: Path) -> None:
@@ -238,6 +246,38 @@ def test_success_without_package_prints_anomaly(tmp_path: Path, capsys) -> None:
     assert "not resolvable afterwards" in capsys.readouterr().out
 
 
+def test_warm_spec_lost_after_reset_prints_anomaly(tmp_path: Path, capsys) -> None:
+    """A warm-store spec that stops resolving after the memcache reset
+    prints the anomaly instead of silently dropping its subtree."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), installed={"esphome/warm @ 1.0"})
+
+    def get_package(self, spec):
+        if getattr(cls, "resets", 0):
+            return None
+        return _FakeManager.get_package(self, spec)
+
+    cls.get_package = get_package  # throwaway subclass; nothing to restore
+    mod.parallel_install(cls, ["esphome/warm @ 1.0"])
+    assert "not resolvable afterwards" in capsys.readouterr().out
+
+
+def test_dependency_wave_skips_known_builtins(tmp_path: Path) -> None:
+    """A versioned owner-less dep the manager recognizes as built-in is
+    skipped like pio's install_dependency skips it."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path))
+    cls.deps = {
+        "esphome/noise-c @ 0.1.21": [
+            {"name": "SPI", "version": "^1.0"},
+            {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
+        ],
+    }
+    cls.is_builtin_lib = staticmethod(lambda name: name == "SPI")
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"])
+    assert {mod.spec_key(c) for c in cls.calls} == {"noise-c", "libsodium"}
+
+
 def test_wave_limit_prints_truncation(tmp_path: Path, capsys) -> None:
     """Hitting the cycle backstop announces what is left to pkg install."""
     mod = _load_script()
@@ -259,8 +299,8 @@ def test_failed_cleanup_fails_the_build(tmp_path: Path) -> None:
     destination's absence proves the cleanup worked."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    torn = tmp_path / "torn-pkg"
-    torn.mkdir()
+    torn = tmp_path / "packages" / "torn-pkg"
+    torn.mkdir(parents=True)
 
     def get_package(self, spec):
         if getattr(cls, "resets", 0):
@@ -281,8 +321,8 @@ def test_api_break_cleans_before_surfacing(tmp_path: Path) -> None:
     before propagating to the logged serial fallback."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
-    torn = tmp_path / "torn-pkg"
-    torn.mkdir()
+    torn = tmp_path / "packages" / "torn-pkg"
+    torn.mkdir(parents=True)
 
     def bad_install(self, spec, skip_dependencies, compatibility=None):
         raise AttributeError("_install went away")
@@ -432,8 +472,6 @@ def test_warm_store_still_walks_dependencies(tmp_path: Path) -> None:
 def test_partial_submission_still_drains_cleanup_errors(tmp_path: Path) -> None:
     """A submit failure partway must not drop an already-running worker's
     CleanupError; the serial pass would trust its torn directory."""
-    from concurrent.futures import Future
-
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
     done: Future = Future()
@@ -454,8 +492,8 @@ def test_worker_system_exit_still_cleans(tmp_path: Path, capsys) -> None:
     serial pass must never trust its leftovers."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
-    torn = tmp_path / "torn-pkg"
-    torn.mkdir()
+    torn = tmp_path / "packages" / "torn-pkg"
+    torn.mkdir(parents=True)
 
     def exiting_install(self, spec, skip_dependencies, compatibility=None):
         raise SystemExit(0)
@@ -635,17 +673,73 @@ def test_stray_file_in_package_dir_is_ignored(tmp_path: Path) -> None:
 
 
 def test_unreadable_piopm_dir_is_removed(tmp_path: Path, capsys) -> None:
-    """A persistently corrupt .piopm would crash pio's own storage scan;
-    the dir is removed rather than left to break the serial pass."""
+    """A persistently corrupt .piopm under this spec's own name would
+    crash pio's storage scan; the dir is removed rather than left to
+    break the serial pass."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    weird = tmp_path / "packages" / "weird"
-    weird.mkdir(parents=True)
-    (weird / ".piopm").write_text("{not json")
+    torn = tmp_path / "packages" / "bad"
+    torn.mkdir(parents=True)
+    (torn / ".piopm").write_text("{not json")
     with patch.object(mod.time, "sleep", lambda s: None):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert "Removing unreadable-metadata dir" in capsys.readouterr().out
-    assert not weird.exists()
+    assert not torn.exists()
+
+
+def test_unreadable_piopm_under_other_name_survives(tmp_path: Path, capsys) -> None:
+    """A corrupt .piopm in another package's dir may be a worker mid-copy;
+    a failing spec must not remove a directory it does not own."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    other = tmp_path / "packages" / "innocent"
+    other.mkdir(parents=True)
+    (other / ".piopm").write_text("{not json")
+    with patch.object(mod.time, "sleep", lambda s: None):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert "Removing unreadable-metadata dir" not in capsys.readouterr().out
+    assert other.exists()
+
+
+def test_manifest_stat_error_is_unverifiable(tmp_path: Path) -> None:
+    """A stat error on a spared dir's manifest is not proof of absence;
+    judging it half-deleted would remove an intact other version."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    other = tmp_path / "packages" / "bad"
+    other.mkdir(parents=True)
+    (other / ".piopm").write_text(
+        '{"spec": {"owner": "esphome", "name": "bad"}, "version": "2.0.0"}'
+    )
+    (other / "library.json").write_text("{}")
+    with (
+        patch.object(mod.os, "lstat", MagicMock(side_effect=PermissionError("denied"))),
+        pytest.raises(mod.CleanupError, match="could not check for a manifest"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert other.exists()
+
+
+def test_refuses_to_remove_outside_the_store(tmp_path: Path, capsys) -> None:
+    """A .pio-link package resolves to its external source dir; cleanup
+    must never rmtree beyond the store it owns."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    external = tmp_path / "elsewhere" / "bad-src"
+    external.mkdir(parents=True)
+
+    def get_package(self, spec):
+        if spec == "esphome/bad @ 1.0" and getattr(cls, "resets", 0):
+            return SimpleNamespace(path=str(external), spec=spec)
+        return _FakeManager.get_package(self, spec)
+
+    cls.get_package = get_package  # throwaway subclass; nothing to restore
+    removed = []
+    with patch.object(mod.fs, "rmtree", side_effect=removed.append):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert removed == []
+    assert external.exists()
+    assert "Refusing to remove" in capsys.readouterr().out
 
 
 def test_unverifiable_removal_fails_the_build(tmp_path: Path) -> None:
@@ -779,7 +873,7 @@ def test_platformio_surface_for_install_deps_script() -> None:
     assert callable(fs.rmtree)
     assert PackageItem("pkg-dir").path == "pkg-dir"
     assert callable(PackageCompatibility.from_dependency)
-    from platformio.package.meta import PackageType
+    assert callable(LibraryPackageManager.is_builtin_lib)
 
     mod = _load_script()
     # The intact-dir heuristic hand-copies pio's manifest map

@@ -106,6 +106,22 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
     )
 
 
+def manifest_present(d: Path) -> bool:
+    """Whether the dir carries one of pio's manifest files. Path.is_file
+    reads any OSError as "absent"; a stat error is unverifiable instead."""
+    for m in _MANIFEST_NAMES:
+        try:
+            os.lstat(d / m)
+        except FileNotFoundError:
+            continue
+        except OSError as err:
+            raise CleanupError(
+                f"could not check for a manifest in {d}: {err!r}"
+            ) from err
+        return True
+    return False
+
+
 def piopm_matches(package_dir: str, spec) -> list[Path]:
     """Dirs whose .piopm metadata names this spec; a positive match beats
     guessing the manifest-derived dirname from the registry name."""
@@ -141,9 +157,11 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
                 if attempt < 2:
                     time.sleep(0.1 * (2**attempt))
         if meta is None:
-            if last_err is not None:
+            if last_err is not None and d.name.lower() == want:
                 # A corrupt .piopm crashes pio's own storage scan, so the
-                # serial pass could not even run over it; remove it
+                # serial pass could not even run over it; remove it, but
+                # only under this spec's own name (an innocent worker may
+                # be mid-copy of another package's metadata)
                 print(
                     f"Removing unreadable-metadata dir {d} ({last_err!r})", flush=True
                 )
@@ -164,7 +182,7 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
                 )
             except ValueError:
                 other_version = False  # unparsable version stays a candidate
-            if other_version and any((d / m).is_file() for m in _MANIFEST_NAMES):
+            if other_version and manifest_present(d):
                 # An intact other version this run never tried to write
                 continue
             # An other-version dir without a manifest is a half-deleted
@@ -219,7 +237,14 @@ def clean_torn(mgr, spec) -> None:
             if attempt < 4:
                 time.sleep(0.2 * (2**attempt))
     if pkg is not None:
-        remove_dir(spec, Path(pkg.path))
+        dest = Path(pkg.path)
+        store = Path(os.path.realpath(mgr.package_dir))
+        if not Path(os.path.realpath(dest)).is_relative_to(store):
+            # A symlinked (.pio-link) package resolves to its external
+            # source dir; this script only ever removes inside the store
+            print(f"Refusing to remove {dest} outside {store}", flush=True)
+            return
+        remove_dir(spec, dest)
         return
     # The scan verdict depends on the whole storage tree (or the manifest
     # is unparsable); judge by this spec's own footprint so an innocent
@@ -248,35 +273,42 @@ def spec_key(spec) -> str | None:
     return name.lower() if name else None
 
 
-def dependency_specs(manager, specs: list, installed_ok: set) -> list:
+def dependency_specs(manager, specs: list, failed: set) -> list:
     """``(spec, compatibility)`` registry dependencies of installed packages.
 
     Local manifest reads only. Name-only dependencies (platform-bundled
-    libs like SPI) are left to the ``pkg install`` pass; a *versioned*
-    built-in name cannot be recognized here (no platforms are installed
-    at wave time), so it may be installed from the registry. The
-    compatibility qualifiers mirror pio's install_dependency, so a
-    qualified dep resolves to the same package the serial pass picks."""
+    libs like SPI) are left to the ``pkg install`` pass, and a versioned
+    owner-less name is skipped when the manager recognizes it as built-in,
+    exactly like pio's install_dependency (built-ins only resolve once
+    platforms are in the store, e.g. on a warm run). The compatibility
+    qualifiers mirror install_dependency, so a qualified dep resolves to
+    the same package the serial pass picks."""
     deps = []
+    is_builtin = getattr(manager, "is_builtin_lib", None)
     for spec in specs:
         if (pkg := manager.get_package(spec)) is None:
-            if spec_key(spec) in installed_ok:
-                # A reported-success install that resolves to nothing is an
-                # anomaly; its subtree quietly falls to the serial pass
+            if spec_key(spec) not in failed:
+                # Everything but a failed install resolved moments ago;
+                # losing it now is an anomaly, and its subtree quietly
+                # falls to the serial pass
                 print(
                     f"Installed {spec} is not resolvable afterwards; its "
                     "dependencies are left to pkg install",
                     flush=True,
                 )
             continue
-        deps.extend(
-            (
-                manager.dependency_to_spec(dep),
-                PackageCompatibility.from_dependency(dep),
-            )
-            for dep in manager.get_pkg_dependencies(pkg) or []
-            if dep.get("owner") or dep.get("version")
-        )
+        for dep in manager.get_pkg_dependencies(pkg) or []:
+            if not dep.get("owner") and not dep.get("version"):
+                continue  # bare platform-bundled names stay with pkg install
+            dspec = manager.dependency_to_spec(dep)
+            if (
+                is_builtin is not None
+                and not dspec.external
+                and not dspec.owner
+                and is_builtin(dspec.name)
+            ):
+                continue  # pio's install_dependency skips known built-ins
+            deps.append((dspec, PackageCompatibility.from_dependency(dep)))
     return deps
 
 
@@ -455,13 +487,13 @@ def _next_wave(
     seen_names.update(unique)
     # The pre-wave get_package calls memoized an empty storage snapshot
     manager.memcache_reset()
-    installed_ok = {
-        spec_key(spec) for (spec, _), ok in zip(pending, results, strict=True) if ok
+    failed = {
+        spec_key(spec) for (spec, _), ok in zip(pending, results, strict=True) if not ok
     }
     next_specs = [
         item
         for item in dependency_specs(
-            manager, [spec for spec, _ in unique.values()], installed_ok
+            manager, [spec for spec, _ in unique.values()], failed
         )
         if spec_key(item[0]) not in seen_names
     ]
