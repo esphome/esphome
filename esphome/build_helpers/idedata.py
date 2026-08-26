@@ -202,9 +202,8 @@ def parse_entry(
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
         elif tok == "-include":
-            # -include searches the compile cwd first, then the -I chain, so
-            # only re-anchor paths that really live next to the compile (the
-            # pch); a name meant for the -I chain must stay untouched
+            # Re-anchor only names next to the compile (the pch); a name
+            # meant for the -I chain must stay untouched
             raw = next(it, "")
             if not raw:
                 _LOGGER.warning("Dropping -include with no argument")
@@ -232,8 +231,7 @@ def parse_entry(
         else:
             cxx_flags.append(tok)
     for raw in unresolved_force_includes:
-        # A deleted build artifact (clean_build removes esphome_pch.h) would
-        # otherwise surface only as an opaque downstream tooling error
+        # A deleted build artifact would otherwise surface only downstream
         if not any((Path(inc) / raw).is_file() for inc in includes):
             _LOGGER.warning(
                 "-include %s found neither next to the compile nor on the "
