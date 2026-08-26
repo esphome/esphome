@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import posixpath
 import re
+import stat
 
 from esphome.build_helpers.ccache import parse_enable_env
 
@@ -110,6 +111,15 @@ def pch_header_text(include_headers: Iterable[str]) -> str:
     return "".join(f'#include "{name}"\n' for name in include_headers)
 
 
+def _resolves(path: Path) -> bool:
+    """False when missing; other stat failures propagate (identity unknown,
+    unlike is_file(), which would silently drop the header)."""
+    try:
+        return stat.S_ISREG(path.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+
+
 def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
     """Include closure of ``roots``: src-relative name -> contents.
 
@@ -123,7 +133,7 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
         name, from_dir = stack.pop()
         for candidate in (f"{from_dir}/{name}" if from_dir else name, name):
             rel = posixpath.normpath(candidate)
-            if not rel.startswith("..") and (src_dir / rel).is_file():
+            if not rel.startswith("..") and _resolves(src_dir / rel):
                 break
         else:
             continue
