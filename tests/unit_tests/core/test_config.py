@@ -719,7 +719,7 @@ def test_get_usable_cpu_count_with_process_cpu_count() -> None:
 
     mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
 
-    with patch("esphome.core.config.os", mock_os):
+    with patch("esphome.helpers.os", mock_os):
         # When process_cpu_count exists, it should be used
         count = config.get_usable_cpu_count()
         assert count == 8
@@ -727,7 +727,7 @@ def test_get_usable_cpu_count_with_process_cpu_count() -> None:
     # Test fallback to cpu_count when process_cpu_count not available
     mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
 
-    with patch("esphome.core.config.os", mock_os_no_process):
+    with patch("esphome.helpers.os", mock_os_no_process):
         count = config.get_usable_cpu_count()
         assert count == 4
 
