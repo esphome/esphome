@@ -208,21 +208,21 @@ void LvglComponent::esphome_lvgl_init() {
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
 }
 
-void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
-  lv_obj_add_event_cb(obj, callback, event, nullptr);
+void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event, void *user_data) {
+  lv_obj_add_event_cb(obj, callback, event, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
+                                 lv_event_code_t event2, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,
-                                 lv_event_code_t event2, lv_event_code_t event3) {
-  add_event_cb(obj, callback, event1);
-  add_event_cb(obj, callback, event2);
-  add_event_cb(obj, callback, event3);
+                                 lv_event_code_t event2, lv_event_code_t event3, void *user_data) {
+  add_event_cb(obj, callback, event1, user_data);
+  add_event_cb(obj, callback, event2, user_data);
+  add_event_cb(obj, callback, event3, user_data);
 }
 
 void LvglComponent::add_page(LvPageType *page) {
@@ -524,6 +524,52 @@ void IndicatorLine::update_length_() {
   lv_obj_invalidate(this->obj);
 }
 #endif
+
+#ifdef USE_LVGL_TABLE
+uint32_t lv_table_get_selected_row(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return row;
+}
+
+uint32_t lv_table_get_selected_column(lv_obj_t *obj) {
+  uint32_t row;
+  uint32_t column;
+  lv_table_get_selected_cell(obj, &row, &column);
+  return column;
+}
+
+void LvTableType::set_obj(lv_obj_t *lv_obj) {
+  LvCompound::set_obj(lv_obj);
+  lv_obj_add_event_cb(
+      lv_obj,
+      [](lv_event_t *e) {
+        auto *table = static_cast<LvTableType *>(lv_event_get_user_data(e));
+        table->update_column_widths_();
+      },
+      LV_EVENT_SIZE_CHANGED, this);
+}
+
+void LvTableType::add_column_width_pct(uint32_t col, uint8_t pct) {
+  for (auto &i : this->column_pct_) {
+    if (i.col == col) {
+      i.pct = pct;
+      this->update_column_widths_();
+      return;
+    }
+  }
+  this->column_pct_.push_back({col, pct});
+  this->update_column_widths_();
+}
+
+void LvTableType::update_column_widths_() {
+  auto content_width = lv_obj_get_content_width(this->obj);
+  for (const auto &col : this->column_pct_) {
+    lv_table_set_column_width(this->obj, col.col, content_width * col.pct / 100);
+  }
+}
+#endif  // USE_LVGL_TABLE
 
 #ifdef USE_LVGL_KEY_LISTENER
 LVEncoderListener::LVEncoderListener(lv_indev_type_t type, uint16_t long_press_time, uint16_t long_press_repeat_time) {
@@ -963,6 +1009,25 @@ lv_obj_t *lv_container_create(lv_obj_t *parent) {
   lv_obj_class_init_obj(obj);
   return obj;
 }
+
+#ifdef USE_LVGL_LIST
+int lv_list_get_row_index(lv_obj_t *list, lv_obj_t *child) {
+  for (lv_obj_t *obj = child; obj != nullptr; obj = lv_obj_get_parent(obj)) {
+    if (lv_obj_get_parent(obj) == list)
+      return lv_obj_get_index(obj);
+  }
+  ESP_LOGW(TAG, "lvgl.list: entry is not inside the list it was added to");
+  return -1;
+}
+
+lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index) {
+  lv_obj_t *child = index < 0 ? nullptr : lv_obj_get_child(list, index);
+  if (child == nullptr) {
+    ESP_LOGW(TAG, "lvgl.list.remove: index %d is out of range, ignoring", index);
+  }
+  return child;
+}
+#endif  // USE_LVGL_LIST
 }  // namespace esphome::lvgl
 
 lv_result_t lv_mem_test_core() { return LV_RESULT_OK; }

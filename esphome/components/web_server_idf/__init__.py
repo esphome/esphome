@@ -20,6 +20,7 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable esp-tls (excluded by default to save compile time);
     # web_server_idf.cpp includes <esp_tls_crypto.h> for digest auth
     include_builtin_idf_component("esp-tls")
+    include_builtin_idf_component("esp_http_server")
 
 
 # multipart.cpp is fully #ifdef'd on USE_WEBSERVER_OTA (set by the

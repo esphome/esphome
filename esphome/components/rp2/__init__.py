@@ -312,6 +312,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
     _detect_variant,
+    cv.require_platformio_toolchain("RP2"),
     set_core_data,
 )
 

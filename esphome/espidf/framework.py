@@ -17,8 +17,8 @@ import platformdirs
 from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
-    archive_extract_all,
     create_venv,
+    download_and_extract,
     download_from_mirrors,
     download_with_resume,
     failure_reason,
@@ -909,20 +909,13 @@ def _check_esphome_idf_framework_install(
             # a temp file) so an interrupted download resumes on the next
             # run; the cache is pruned after a successful install anyway.
             tarball_path = get_idf_tools_path() / "dist" / f"esp-idf-{version}.tar.xz"
-            download_from_mirrors(mirrors, substitutions, tarball_path)
-
-            _LOGGER.info("Extracting ESP-IDF %s framework ...", version)
-            try:
-                with tarball_path.open("rb") as tarball:
-                    archive_extract_all(
-                        tarball, framework_path, progress_header="Extracting"
-                    )
-            finally:
-                # Success: drop the archive rather than caching ~70MB twice.
-                # Failure: a corrupt archive (e.g. torn by an unclean
-                # shutdown) must not be reused — without a checksum only a
-                # failed extraction can expose it, so force a re-download.
-                tarball_path.unlink(missing_ok=True)
+            download_and_extract(
+                mirrors,
+                substitutions,
+                tarball_path,
+                framework_path,
+                progress_header="Extracting",
+            )
         extracted_marker.touch()
 
     # Idempotent post-extract patch: written every invocation so a build
