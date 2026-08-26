@@ -354,6 +354,32 @@ def test_register_download_failure_leaves_a_trace(
     assert "Could not register" in caplog.text
 
 
+def test_register_failures_warn_once(caplog: pytest.LogCaptureFixture) -> None:
+    """Systematic registration failures surface once per run."""
+    pf._REGISTER_FAILURES.clear()
+    pf._warn_register_failures()
+    assert "could not be registered" not in caplog.text
+    pf._REGISTER_FAILURES.extend(["a.tar.gz", "b.tar.gz"])
+    try:
+        pf._warn_register_failures()
+    finally:
+        pf._REGISTER_FAILURES.clear()
+    assert "2 archive(s) could not be registered" in caplog.text
+
+
+def test_main_malformed_log_level_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A wiring break must not silently drop -v propagation."""
+    with (
+        patch.dict("os.environ", {"ESPHOME_PREFETCH_LOG_LEVEL": "verbose"}),
+        patch("esphome.log.setup_log"),
+        patch.object(pf, "_prefetch"),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    assert "malformed prefetch log level" in caplog.text
+
+
 def test_sweep_logs_unprunable_files(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -650,6 +676,8 @@ def test_prefetch_passes_dashboard_flag(tmp_path: Path) -> None:
             "prefetch timed out",
         ),
         ({"return_value": MagicMock(returncode=4)}, "prefetch skipped (exit 4)"),
+        # Exit 1 is the interpreter's own import-failure code, never quiet
+        ({"return_value": MagicMock(returncode=1)}, "prefetch skipped (exit 1)"),
         ({"side_effect": OSError("no exec")}, "PlatformIO package prefetch skipped"),
     ],
 )
@@ -668,8 +696,8 @@ def test_prefetch_spawn_failures_warn_and_continue(
 def test_prefetch_child_handled_failure_is_quiet(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Exit 1 means the child already warned with the reason; the parent
-    adds no second warning."""
+    """Exit _EXIT_HANDLED (3) means the child already warned with the
+    reason; the parent adds no second warning."""
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
         patch.object(

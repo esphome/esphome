@@ -211,7 +211,8 @@ def _registry_jobs(
         try:
             packages = mgr.search_registry_packages(spec)
             if not packages:
-                return None  # unknown to the registry; let PlatformIO report it
+                _LOGGER.debug("%s is unknown to the registry", spec)
+                return None  # let PlatformIO report it
             package, version = mgr.find_best_registry_version(packages, spec)
             if not package or not version:
                 return None
@@ -225,7 +226,8 @@ def _registry_jobs(
                 return None  # cached from an earlier run
             size = pkgfile.get("size")
             if not size:
-                return None  # no size, no bar share; PlatformIO fetches it
+                _LOGGER.debug("%s has no size; PlatformIO fetches it", spec)
+                return None  # no size, no bar share
             return f"{package['name']}@{version['name']}", size, url, dl_path, checksum
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # One flaky spec must not discard the rest of the batch
@@ -407,6 +409,20 @@ def _serialized_fetch_job(
 # LockFile; concurrent writers could reset every recorded entry
 _REGISTER_LOCK = threading.Lock()
 
+# Registration failures this run; systematic ones deserve one warning
+# (the child is a fresh process, so module state is per-run)
+_REGISTER_FAILURES: list[str] = []
+
+
+def _warn_register_failures() -> None:
+    if _REGISTER_FAILURES:
+        # Unregistered archives are never pruned; a systematic failure
+        # (usage.db corruption, a pio API change) must be visible once
+        _LOGGER.warning(
+            "%d archive(s) could not be registered with PlatformIO's cache pruner",
+            len(_REGISTER_FAILURES),
+        )
+
 
 def _register_download(manager: Any, dl_path: Path) -> None:
     """Hand the archive to pio's usage.db pruner; without an entry an
@@ -417,6 +433,7 @@ def _register_download(manager: Any, dl_path: Path) -> None:
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Unregistered archives are never pruned; leave a trace
         _LOGGER.debug("Could not register %s with pio's cache: %s", dl_path, err)
+        _REGISTER_FAILURES.append(dl_path.name)
 
 
 def _registry_fetch_job(
@@ -560,6 +577,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
     )
     # PlatformIO retries failed packages itself, without resume
     warn_prefetch_failures(run_batch_downloads("Downloading PlatformIO packages", jobs))
+    _warn_register_failures()
 
 
 def main(argv: list[str]) -> int:
@@ -567,14 +585,20 @@ def main(argv: list[str]) -> int:
     from esphome.core import CORE
     from esphome.log import setup_log
 
+    raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
+    malformed = False
     try:
-        level = int(os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL", logging.INFO))
+        level = int(raw_level) if raw_level is not None else logging.INFO
     except ValueError:
+        malformed = True
         level = logging.INFO
     # Mirror the parent's log setup: warnings keep their level prefix and
     # color, and the download bar still draws under the dashboard
     CORE.dashboard = get_bool_env("ESPHOME_PREFETCH_DASHBOARD")
     setup_log(level)
+    if malformed:
+        # A wiring break would otherwise silently drop -v propagation
+        _LOGGER.warning("Ignoring malformed prefetch log level %r", raw_level)
     # pio's managers attach their own handler and still propagate; without
     # this every manager line also prints through the root handler
     for cls_name in (
