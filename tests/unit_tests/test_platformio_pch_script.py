@@ -161,6 +161,8 @@ def test_pch_script_preserves_spaced_flag_elements(tmp_path: Path) -> None:
     stripped from the .gch compile."""
     spaced = tmp_path / "My Configs"
     spaced.mkdir()
+    (tmp_path / "dev" / "src").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "dev" / "src" / "other.h").write_text("")
     flags = ['-DUSB_PRODUCT=\\"Pico 2W\\"', "-I", str(spaced), "-include", "other.h"]
     _run_script(tmp_path, flags=flags)
     calls = (tmp_path / "fake-gxx.argv").read_text().split("---call---\n")
@@ -168,9 +170,22 @@ def test_pch_script_preserves_spaced_flag_elements(tmp_path: Path) -> None:
     assert '-DUSB_PRODUCT="Pico 2W"' in gch_call
     assert str(spaced) in gch_call
     assert "-include" not in gch_call
-    # The stripped -include header is folded into the prefix header instead
+    # The stripped src-resolvable -include is folded into the prefix header
     pch = (tmp_path / "dev" / "esphome_pch.h").read_text()
     assert pch.splitlines()[0] == '#include "other.h"'
+
+
+def test_pch_script_leaves_non_src_force_includes_unfolded(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A user -include outside src/ must not enter the prefix header:
+    consumers keep their own copy, so folding an unguarded header would
+    include it twice."""
+    _run_script(tmp_path, flags=["-DX=1", "-include", "user_extra.h"])
+    pch = (tmp_path / "dev" / "esphome_pch.h").read_text()
+    assert "user_extra.h" not in pch
+    assert pch.splitlines()[-1] == '#include "esphome/core/defines.h"'
+    assert "not precompiling non-src force-includes" in capsys.readouterr().out
 
 
 def test_pch_script_sum_is_device_independent(tmp_path: Path) -> None:
