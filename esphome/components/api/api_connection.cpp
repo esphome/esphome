@@ -2246,6 +2246,9 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
   }
   auto &shared_buf = this->parent_->get_shared_buffer_ref();
   size_t write_start = shared_buf.size();
+#ifdef ESPHOME_DEBUG_API
+  assert(shared_buf.capacity() >= write_start + payload_size);
+#endif
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
@@ -2386,10 +2389,11 @@ void APIConnection::process_batch_() {
       this->log_batch_item_(item);
 #endif
       this->clear_batch_();
-    } else if (payload_size == 0 && !this->flags_.remove) {
-      // Message too large to fit in available space (payload_size == 0 with
-      // remove set means encoding hit OOM and the connection is being dropped)
-      ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
+    } else if (payload_size == 0) {
+      // payload_size == 0 with remove set means encoding hit OOM and the
+      // connection is being dropped; warn only for a genuinely oversized message
+      if (!this->flags_.remove)
+        ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
       this->clear_batch_();
     }
     return;

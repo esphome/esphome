@@ -42,6 +42,7 @@ class APIBuffer {
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
   size_t size() const { return this->size_; }
+  size_t capacity() const { return this->capacity_; }
   bool empty() const { return this->size_ == 0; }
   uint8_t &operator[](size_t i) { return this->data_[i]; }
   const uint8_t &operator[](size_t i) const { return this->data_[i]; }
