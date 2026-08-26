@@ -110,7 +110,20 @@ enum ClientState {
 // -----------------------------------------------------------------------------
 // Isochronous stream types -- compiled only when USE_USB_ISOC_TRANSFERS is set.
 // -----------------------------------------------------------------------------
+#if defined(USE_USB_ISOC_TRANSFERS) && !defined(USE_USB_CONTROL_TRANSFERS)
+#error "USE_USB_ISOC_TRANSFERS requires USE_USB_CONTROL_TRANSFERS (alt-setting selection)"
+#endif
+
 #ifdef USE_USB_ISOC_TRANSFERS
+
+// Where a stream is in its open sequence. Selecting the alt-setting is a control transfer
+// and therefore asynchronous, so a stream is not usable the moment stream_open() returns:
+// it is usable when the state reaches RUNNING, which USBClient::on_stream_open() reports.
+enum class IsocOpenState : uint8_t {
+  CLOSED,         // nothing claimed, no URBs, safe to open
+  SELECTING_ALT,  // SET_INTERFACE submitted, waiting for the device to answer
+  RUNNING,        // URBs submitted
+};
 
 struct IsocCbCtx {
   USBClient *client;  // vtable dispatch target for on_isoc_packet()
@@ -127,7 +140,11 @@ struct IsocStream {
   uint8_t packets_per_urb{0};
   uint8_t interface_num{0};
   uint8_t alt_setting{0};
-  bool streaming{false};
+  // Written by the main loop (stream_open/stream_close), read and written by the USB task
+  // (isoc_cb). It carries the whole stop protocol, so it is atomic like every other field
+  // shared between those two.
+  std::atomic<bool> streaming{false};
+  std::atomic<IsocOpenState> open_state{IsocOpenState::CLOSED};
   // Set from the USB task when the last URB retires while streaming was still requested,
   // i.e. the stream stopped on its own (device gone, or the periodic scheduler rejected
   // every resubmission). Nothing is transferred any more, but no close() was asked for, so
@@ -146,11 +163,20 @@ struct IsocStream {
   // Asynchronous OUT feedback: device-reported rate (samples per (micro)frame, Q10.14 at
   // full speed / Q16.16 at high speed). 0 = no feedback yet, use the nominal pacing above.
   std::atomic<uint32_t> fb_value{0};
-  uint8_t fb_shift{14};  // fractional bits of fb_value (14 FS, 16 HS)
-  uint32_t fb_accum{0};  // feedback fractional accumulator
+  uint8_t fb_shift{14};          // fractional bits of fb_value (14 FS, 16 HS)
+  uint32_t fb_accum{0};          // feedback fractional accumulator
   // A feedback stream shares its AS interface with the data stream, so it must not claim
   // or release that interface itself.
   bool owns_interface{true};
+
+  // True once the URBs are in flight. Between stream_open() and this, the device is still
+  // being switched to the alt-setting and the endpoint does not exist yet.
+  bool is_running() const { return this->open_state.load(std::memory_order_acquire) == IsocOpenState::RUNNING; }
+  // True when nothing is claimed and no URB is left, i.e. the stream may be opened again.
+  bool is_closed() const {
+    return this->open_state.load(std::memory_order_acquire) == IsocOpenState::CLOSED &&
+           this->pending_urbs.load(std::memory_order_acquire) == 0;
+  }
 };
 
 #endif  // USE_USB_ISOC_TRANSFERS
@@ -207,7 +233,7 @@ class USBClient : public Component {
   bool release_interface(uint8_t interface_num);
 
 #ifdef USE_USB_CONTROL_TRANSFERS
-  bool set_interface(uint8_t interface_num, uint8_t alt_setting);
+  bool set_interface(uint8_t interface_num, uint8_t alt_setting, const transfer_cb_t &callback);
 #endif
 
   // -- Isochronous support -----------------------------------------------------
@@ -217,12 +243,22 @@ class USBClient : public Component {
   bool isoc_submit(usb_transfer_t *xfer);
   void isoc_free(usb_transfer_t *xfer);
 
+  // Starts the open sequence. A true return only means it started: an owning stream has to
+  // select its alt-setting first, which is a control transfer. on_stream_open() reports the
+  // outcome, and is_running() tells whether the stream is carrying data.
   bool stream_open(IsocStream &stream, USBClient *cb);
   void stream_close(IsocStream &stream);
 
-  // Override in subclass to process one isochronous packet.
+  // Override in subclass to consume one received isochronous packet (IN endpoints).
   // Called from USB-task context -- must be fast and non-blocking.
   virtual void on_isoc_packet(uint8_t ep_addr, const uint8_t *data, size_t len, bool error) {}
+  // Override in subclass to produce one isochronous packet (OUT endpoints). max_len is what
+  // the sample clock allows this packet to carry; return how many bytes were written. The
+  // rest of the packet is zero filled, so a short return is silence rather than stale audio.
+  // Called from USB-task context -- must be fast and non-blocking.
+  virtual size_t on_isoc_fill(uint8_t ep_addr, uint8_t *data, size_t max_len) { return 0; }
+  // Called on the main loop once the open sequence finished, successfully or not.
+  virtual void on_stream_open(IsocStream &stream, bool ok) {}
 #endif
 
  protected:
@@ -250,6 +286,9 @@ class USBClient : public Component {
   uint16_t pid_{};
   bool match_any_interface_class_{true};
   uint8_t required_interface_class_{0};
+  // Resolved once in setup(); the forwarders below would otherwise dereference the global
+  // accessor unchecked on every call, including on the RX hot path.
+  USBHost *host_{nullptr};
 
   const usb_device_desc_t *get_device_desc_() const { return this->device_desc_; }
   const usb_config_desc_t *get_config_desc_() const { return this->config_desc_; }
@@ -275,8 +314,6 @@ class USBHost final : public Component {
   // Control transfer submission -- guarded
 #ifdef USE_USB_CONTROL_TRANSFERS
   bool submit_control(usb_host_client_handle_t client_handle, TransferRequest *trq);
-  bool do_set_interface(usb_host_client_handle_t client_handle, usb_device_handle_t device_handle,
-                        uint8_t interface_num, uint8_t alt_setting);
 #endif
 
   // Interface claim / release -- always needed
@@ -294,7 +331,17 @@ class USBHost final : public Component {
 
   bool stream_open(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
                    usb_device_handle_t device_handle);
-  void stream_close(IsocStream &stream, usb_host_client_handle_t client_handle, usb_device_handle_t device_handle);
+  void stream_close(IsocStream &stream);
+
+  // Second half of the open sequence: allocate the URBs, seed an OUT stream with silence
+  // and submit. Split out so it can run either straight from stream_open() or from the
+  // SET_INTERFACE completion.
+  bool stream_start_urbs_(IsocStream &stream, USBClient *cb, usb_device_handle_t device_handle);
+  // Give back whatever the stream holds of its interface. Does nothing for a stream that
+  // shares its interface with another one, and skips the alt-setting reset when there is
+  // nothing to reset.
+  void stream_release_(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
+                       usb_device_handle_t device_handle);
 
   // Static trampoline stored as xfer->callback for every ISOC URB.
   // Iterates isoc_packet_desc[], calls client->on_isoc_packet() per packet, resubmits.
