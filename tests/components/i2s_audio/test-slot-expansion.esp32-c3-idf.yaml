@@ -1,0 +1,7 @@
+substitutions:
+  i2s_dout_pin_24: GPIO3
+  i2s_dout_pin_32: GPIO4
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-c3-idf.yaml
+  slot_expansion: !include common-slot-expansion.yaml
