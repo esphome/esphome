@@ -235,6 +235,9 @@ def _stop_child(proc: subprocess.Popen) -> None:
             return
         proc.kill()
         proc.wait(timeout=5)
+        # The kill can land mid-copy; pio run re-verifies via get_package,
+        # but the uncertainty must be visible
+        _LOGGER.warning("Prefetch child killed; a package install may be incomplete")
     except KeyboardInterrupt:
         # Best-effort kill so an interrupted stop cannot orphan a child
         # still writing package directories; the interrupt then re-raises
@@ -658,10 +661,10 @@ def _entry_dependencies(
 
     out: list[tuple[str, _Entry]] = []
     if (pkg := manager.get_package(spec)) is None:
-        # Failed installs land here routinely; a *successful* install the
-        # manager cannot resolve would silently drop its subtree
-        _LOGGER.debug("No installed package for %s; skipping its dependencies", spec)
-        return out
+        # Only successful installs are walked, so this is a real anomaly
+        # (stale memcache, name/dir mismatch, a pio API change); raising
+        # folds it into the caller's aggregate dropped-subtree warning
+        raise RuntimeError(f"just-installed {spec} is not resolvable")
     for dep in manager.get_pkg_dependencies(pkg) or []:
         if not (dep.get("owner") or dep.get("version")):
             continue
@@ -697,10 +700,12 @@ def _preinstall(
     """Install downloaded packages in parallel via PlatformIO's own ``_install``.
 
     ``entries`` are ``_Entry`` tuples, one per destination directory.
-    The manager's lock is held around each wave's pool; a wave skips
-    dependencies, then the installed manifests feed the next wave until
-    nothing new appears. Any failure leaves that package to pio run's
-    serial installer.
+    The manager's lock is held around each wave's pool; that is safe only
+    because pio's private ``_install`` never re-acquires it (locking lives
+    in the public ``install()``, and a same-process re-lock would hang,
+    not fail). A wave skips dependencies, then the installed manifests
+    feed the next wave until nothing new appears. Any failure leaves that
+    package to pio run's serial installer.
     """
     workers = min(get_usable_cpu_count(), len(entries))
     # One manager per worker (_install mutates instance state); built
@@ -786,8 +791,15 @@ def _preinstall(
             _LOGGER.debug("memcache reset failed", exc_info=True)
         try:
             manager.unlock()
-        finally:
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # Must not displace the in-flight exception (SIGTERM's
+            # SystemExit included) with a downgradeable one
+            _LOGGER.warning("Could not release the manager lock")
+            _LOGGER.debug("Unlock detail", exc_info=True)
+        try:
             os.chdir(cwd)
+        except OSError:
+            _LOGGER.debug("Could not restore the working dir", exc_info=True)
     if not any(results):
         # A systematic fault, not one bad archive; pio run installs serially
         _LOGGER.warning(
@@ -795,7 +807,10 @@ def _preinstall(
         )
 
     seen = seen_names if seen_names is not None else set()
+    # All entries join seen (a failed package must not be re-queued by a
+    # later wave), but only successful installs feed the dependency walk
     seen.update(name.split("@", 1)[0].lower() for name, *_ in entries)
+    installed = [e for e, ok in zip(entries, results, strict=True) if ok]
     if stale_cache:
         # The wave decides installed-vs-missing from that cache; running
         # on stale answers could queue or skip the wrong packages
@@ -805,7 +820,7 @@ def _preinstall(
     # sys.path (see _prefetch); restore it for later imports
     saved_sys_path = list(sys.path)
     try:
-        next_entries = _dependency_entries(manager, entries, seen)
+        next_entries = _dependency_entries(manager, installed, seen)
     finally:
         sys.path[:] = saved_sys_path
     if not next_entries:

@@ -787,6 +787,24 @@ def test_dependency_entries_filter_seen_names(tmp_path: Path) -> None:
     )
 
 
+def test_preinstall_cleanup_cannot_displace_the_inflight_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failing unlock or cwd restore must not replace the pool's own
+    exception (SIGTERM's SystemExit included) with a downgradeable one."""
+    m = _fake_manager(tmp_path)
+    m._install.side_effect = SystemExit(143)
+    m.unlock.side_effect = RuntimeError("flock broke")
+    real_chdir = pf.os.chdir
+    monkeypatch.setattr(pf.os, "chdir", MagicMock(side_effect=OSError("cwd removed")))
+    try:
+        with pytest.raises(SystemExit):
+            pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+    finally:
+        monkeypatch.setattr(pf.os, "chdir", real_chdir)
+    assert "Could not release the manager lock" in caplog.text
+
+
 def test_preinstall_memcache_failure_leaves_a_trace(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1644,6 +1662,11 @@ def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:
 def test_platformio_private_api_contract() -> None:
     """The pinned PlatformIO still exposes what the pre-install drives.
 
+    Also load-bearing but unpinnable by introspection: pio's private
+    _install must never re-acquire the manager's inter-process lock
+    (locking lives in the public install()); a re-lock would hang the
+    child for the full prefetch timeout, so re-check it on any bump.
+
     Everything else in this module mocks the managers, so this is the one
     test that fails loudly when a requirements bump changes the private
     surface instead of silently degrading the prefetch to a no-op.
@@ -1677,9 +1700,11 @@ def test_platformio_private_api_contract() -> None:
     # The pre-install passes these positionally / by keyword
     assert "compatibility" in inspect.signature(BasePackageManager.__init__).parameters
     lib_params = inspect.signature(LibraryPackageManager.__init__).parameters
-    assert any(
+    # Capability, not implementation: an explicit compatibility= parameter
+    # would serve the call site just as well as **kwargs forwarding
+    assert "compatibility" in lib_params or any(
         p.kind is inspect.Parameter.VAR_KEYWORD for p in lib_params.values()
-    )  # forwards compatibility=
+    )
     from platformio.package.meta import PackageCompatibility
 
     assert callable(PackageCompatibility.from_dependency)
