@@ -191,7 +191,7 @@ ModbusItemBaseSchema = cv.Schema(
 )
 
 
-def validate_modbus_register(config):
+def validate_modbus_register(config: ConfigType) -> ConfigType:
     # custom_command is the deprecated alias for custom_pdu (migrated later in final validate); treat
     # either as "a custom frame is configured" so the address/register_type rules match.
     has_custom = CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config
@@ -278,7 +278,7 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def modbus_calc_properties(config):
+def modbus_calc_properties(config: ConfigType) -> tuple[int, int]:
     byte_offset = 0
     reg_count = 0
     if CONF_OFFSET in config:
@@ -307,8 +307,12 @@ def modbus_calc_properties(config):
 
 
 async def add_modbus_base_properties(
-    var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
-):
+    var: cg.MockObj,
+    config: ConfigType,
+    sensor_type: cg.MockObjClass,
+    lambda_param_type: cg.MockObj = cg.float_,
+    lambda_return_type: Any = float,
+) -> None:
     if CONF_CUSTOM_PDU in config:
         cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
 
@@ -347,7 +351,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Await the hub first, so no entity can bind to a controller that doesn't have one yet.
     hub = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub, config[CONF_ADDRESS])
@@ -374,7 +378,7 @@ async def register_modbus_device(var: cg.MockObj, config: ConfigType) -> cg.Mock
     return await modbus.register_modbus_client_device(var, config)
 
 
-def function_code_to_register(function_code):
+def function_code_to_register(function_code: str) -> cg.MockObj:
     FUNCTION_CODE_TYPE_MAP = {
         "read_coils": EntityType.COIL,
         "read_discrete_inputs": EntityType.DISCRETE_INPUT,
