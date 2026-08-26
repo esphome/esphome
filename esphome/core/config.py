@@ -555,12 +555,24 @@ def _add_library_str(lib: str) -> None:
         cg.add_library(lib, None)
 
 
+# platformio_options keys the native ESP8266 Arduino generator (a later PR
+# in this chain) will honor; its ignored-option warning will consume the same
+# list so the two cannot drift
+NATIVE_ARDUINO_PIO_OPTIONS = frozenset({"board_build.f_cpu", "board_build.ldscript"})
+# The full set that survives into CORE.platformio_options under the native
+# arduino toolchain: lib_ignore is the only specially-translated key below
+# that is stored rather than translated away. Consumed by the esp8266 native
+# backend (later in this chain) for its ignored-option warning; defined here
+# so it stays adjacent to the routing.
+NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS = NATIVE_ARDUINO_PIO_OPTIONS | {"lib_ignore"}
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> None:
-    if CORE.using_toolchain_esp_idf:
-        # The native ESP-IDF build doesn't read platformio.ini; honor the
-        # options with a native equivalent and warn about the rest, which
-        # would otherwise be silently ignored.
+    if CORE.using_native_toolchain:
+        # The native builds don't read platformio.ini; honor the options
+        # with a native equivalent and warn about the rest, which would
+        # otherwise be silently ignored.
         for key, val in pio_options.items():
             vals = [val] if isinstance(val, str) else val
             if key == CONF_BUILD_FLAGS:
@@ -573,23 +585,41 @@ async def _add_platformio_options(pio_options: dict[str, str | list[str]]) -> No
                 )
                 for flag in vals:
                     cg.add_build_flag(flag)
+            elif key == "build_unflags":
+                # Native equivalent: add_build_unflag (honored token-level by
+                # the arduino generator; the IDF generator warns there)
+                for flag in vals:
+                    CORE.add_build_unflag(flag)
             elif key == "lib_deps":
-                # Routed through the regular library mechanism so the libraries
-                # are converted to IDF components like any other PIO library
+                # Routed through the regular library mechanism so the
+                # libraries reach the native backend's converter (IDF
+                # components, or the ESP8266 native library resolution)
                 for lib in vals:
                     _add_library_str(lib)
             elif key == "lib_ignore":
-                # Read by the PIO-library-to-IDF-component conversion
-                # (generate_idf_components); filters both top-level libraries
-                # and dependencies discovered during conversion
+                # Read by the shared library conversion (lib_ignore_set in
+                # platformio/library.py); filters top-level libraries and
+                # discovered dependencies
                 cg.add_platformio_option(key, vals)
+            elif (
+                key in NATIVE_ARDUINO_PIO_OPTIONS
+                and CORE.using_toolchain_arduino
+                and vals
+            ):
+                # The esp8266 native generator reads these as scalars; the
+                # schema also permits the list form, where the last value
+                # wins like a later platformio.ini line (an empty list falls
+                # through to the ignored-option warning). Other native
+                # toolchains have no equivalent and fall through too.
+                cg.add_platformio_option(key, vals[-1])
             elif key != "upload_speed":
                 # upload_speed needs no handling: it is read from the raw
                 # config at upload time (upload_using_esptool)
                 _LOGGER.warning(
                     "esphome->platformio_options->%s is ignored when building with "
-                    "the native ESP-IDF toolchain",
+                    "the native '%s' toolchain",
                     key,
+                    CORE.toolchain.value,
                 )
         return
     # Add includes at the very end, so that they override everything
