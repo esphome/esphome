@@ -238,8 +238,6 @@ struct RegisterRange {
 /// from "use the default write". The hub base is inherited protected, so the public members below are
 /// the entity's whole request API and nothing can bypass the recording or re-target the device.
 class WriterDevice final : protected modbus::ModbusClientDevice {
-  friend class WriterEntity;
-
  protected:
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
@@ -247,7 +245,6 @@ class WriterDevice final : protected modbus::ModbusClientDevice {
   void on_not_sent(std::span<const uint8_t> request_pdu) override;
   bool on_no_response(std::span<const uint8_t> request_pdu) override;
 
-  void set_controller_(ModbusController *controller);
   void notify_online_(std::span<const uint8_t> request_pdu);
   /// Function code / register address decoded from a request PDU ([fc, addr_hi, addr_lo, ...]).
   static int fc_of(std::span<const uint8_t> pdu) { return pdu.empty() ? 0 : (pdu[0] & modbus::FUNCTION_CODE_MASK); }
@@ -297,7 +294,9 @@ class WriterDevice final : protected modbus::ModbusClientDevice {
 
   void clear_tx_queue_for_device() { modbus::ModbusClientDevice::clear_tx_queue_for_device(); }
 
- protected:
+  // Entity plumbing, public because the owning WriterEntity holds the only reachable instance (device_ is
+  // protected there and the hub sees just the masked base) - reachability is the access gate, not a friend.
+  void set_controller_(ModbusController *controller);
   void clear_dispatched_() { this->dispatched_ = false; }
   /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
   /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
