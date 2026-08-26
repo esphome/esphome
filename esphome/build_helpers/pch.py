@@ -294,16 +294,24 @@ def prepare_pch(
         .replace(effective_ccache_basedir(), "")
         .replace(str(CORE.build_path), "")
     )
-    checksum = pch_checksum(
-        CORE.relative_src_path(),
-        include_headers,
-        (
-            # The closure is sorted, so root order only enters via the text
-            pch_header_text(include_headers),
-            *extra,
-            cmd_id,
-        ),
-    )
+    try:
+        checksum = pch_checksum(
+            CORE.relative_src_path(),
+            include_headers,
+            (
+                # The closure is sorted, so root order only enters via the text
+                pch_header_text(include_headers),
+                *extra,
+                cmd_id,
+            ),
+        )
+    except OSError as err:
+        # Identity unknown: a stale cache entry must never be served
+        _LOGGER.warning(
+            "Could not establish the pch identity; compiling without it: %s", err
+        )
+        discard_pch(build_dir)
+        return
     if (
         gch.is_file()
         and sum_path.is_file()
