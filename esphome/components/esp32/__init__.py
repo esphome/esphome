@@ -665,8 +665,8 @@ def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> 
     if isinstance(raw, bool):
         return raw
     return str(getattr(raw, "value", raw)).strip().lower() in ("y", "true", "1")
-  
-  
+
+
 def is_idf_sdkconfig_option_enabled(name: str) -> bool:
     """Return True when a bool sdkconfig option resolves to ``y``.
 
