@@ -10,6 +10,7 @@ from esphome.components.image import (
     validate_transparency,
     validate_type,
 )
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_FORMAT, CONF_ID, CONF_RESIZE, CONF_TYPE
 from esphome.core import CORE
@@ -123,6 +124,15 @@ IMAGE_FORMATS = {
     "JPG": _JPEG_FORMAT,  # Alias for JPEG
     "PNG": PNGFormat(),
 }
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "bmp_decoder.cpp": "USE_RUNTIME_IMAGE_BMP",
+        "jpeg_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG",
+        "png_decoder.cpp": "USE_RUNTIME_IMAGE_PNG",
+        "qoi_decoder.cpp": "USE_RUNTIME_IMAGE_QOI",
+    }
+)
 
 AUTO_FORMAT = AUTOFormat()
 
