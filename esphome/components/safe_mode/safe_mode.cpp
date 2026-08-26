@@ -280,7 +280,7 @@ void SafeModeComponent::clean_rtc() {
   uint32_t val = 0;
   bool ok = this->rtc_.save(&val);
   if (!ok) {
-    ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
+    ESP_LOGE(TAG, "Failed to clear boot loop counter", val);
   }
 }
 
