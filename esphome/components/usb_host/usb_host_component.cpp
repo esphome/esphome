@@ -277,8 +277,7 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
       // in hcd_dwc.c), so a short packet moves every following packet down by that shortfall.
       // Writing at an mps stride only matches while every packet happens to be exactly mps.
       const uint32_t fill = stream->is_output ? isoc_next_packet_size(stream) : stream->mps;
-      client->on_isoc_packet(xfer->bEndpointAddress, payload, stream->is_output ? fill : desc->actual_num_bytes,
-                             error);
+      client->on_isoc_packet(xfer->bEndpointAddress, payload, stream->is_output ? fill : desc->actual_num_bytes, error);
       desc->num_bytes = fill;
       payload += fill;
       total_bytes += fill;
