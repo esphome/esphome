@@ -4,6 +4,9 @@ the ISR paths, so this gate is the only CI-reachable coverage for the platform m
 import pytest
 
 from esphome.components.libretiny.const import (
+    FAMILY_BK7231N,
+    FAMILY_BK7231T,
+    FAMILY_BK7238,
     FAMILY_RTL8710B,
     FAMILY_RTL8720C,
     KEY_FAMILY,
@@ -23,6 +26,9 @@ from ..types import SetCoreConfigCallable
         (PlatformFramework.ESP32_IDF, None, True),
         (PlatformFramework.RTL87XX_ARDUINO, FAMILY_RTL8720C, True),
         (PlatformFramework.RTL87XX_ARDUINO, FAMILY_RTL8710B, False),
+        (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7231N, True),
+        (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7238, True),
+        (PlatformFramework.BK72XX_ARDUINO, FAMILY_BK7231T, False),
         (PlatformFramework.ESP8266_ARDUINO, None, False),
     ],
 )
