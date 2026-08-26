@@ -205,3 +205,14 @@ def test_include_closure_walks_angle_includes_under_src(tmp_path: Path) -> None:
     (tmp_path / "local.h").write_text("")
     closure = pch._include_closure(tmp_path, ["a.h"])
     assert set(closure) == {"a.h", "local.h"}
+
+
+def test_ccache_pch_env_warns_on_falsy_extsum(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A user CCACHE_PCH_EXTSUM=false makes ccache hash the .gch bytes."""
+    pch.mark_pch_emitted()
+    with patch.dict(os.environ, {"CCACHE_PCH_EXTSUM": "false"}, clear=True):
+        env = pch.ccache_pch_env()
+    assert "CCACHE_PCH_EXTSUM" not in env
+    assert "disables pch caching" in caplog.text
