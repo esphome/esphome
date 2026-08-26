@@ -1005,3 +1005,24 @@ def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
     cmd, _ = pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
     assert "user.h" in cmd
     assert "esphome_pch.h" not in " ".join(cmd[:-3])
+
+
+def test_prepare_pch_identity_unknown_discards(tmp_path: Path) -> None:
+    """An OSError from the checksum discards artifacts and skips the pch."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_i")
+    CORE.build_path = dev
+    stale = dev / "build" / "esphome_pch.h.gch"
+    stale.write_bytes(b"stale")
+    with (
+        patch.object(CORE, "name", "test"),
+        patch(
+            "esphome.build_helpers.pch.pch_checksum",
+            side_effect=OSError("stat failed"),
+        ),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
+    ):
+        prepare_pch()
+    assert not stale.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
