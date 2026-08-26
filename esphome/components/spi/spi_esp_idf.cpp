@@ -14,10 +14,8 @@ static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 
 #ifdef USE_SPI_PSRAM_DMA
 static uint32_t get_psram_dma_flags(bool enabled, const void *tx_buffer) {
-#if SOC_PSRAM_DMA_CAPABLE
   if (enabled && tx_buffer != nullptr && esp_ptr_dma_ext_capable(tx_buffer))
     return SPI_TRANS_DMA_USE_PSRAM;
-#endif
   return 0;
 }
 #endif
