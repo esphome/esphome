@@ -50,7 +50,10 @@ class LVGLSelect final : public select::Select, public Component {
  protected:
   void control(size_t index) override {
     this->widget_->set_selected_index(index, this->anim_);
-    this->publish();
+    // Sending the update event (rather than calling publish() directly) also fires the widget's
+    // own on_value/on_update triggers, matching documented LVGL behaviour for programmatic
+    // changes. The event listener registered in setup() calls publish() for us.
+    lv_obj_send_event(this->widget_->obj, lv_update_event, nullptr);
   }
   void set_options_() {
     // Widget uses std::vector<std::string>, SelectTraits uses FixedVector<const char*>
