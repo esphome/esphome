@@ -3,6 +3,7 @@ from esphome.components import number
 from esphome.components.modbus.helpers import (
     MODBUS_WRITE_REGISTER_TYPE,
     SENSOR_VALUE_TYPE,
+    RegisterValues,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -124,7 +125,7 @@ async def to_code(config):
             [
                 (ModbusNumber.operator("ptr"), "item"),
                 (cg.float_, "x"),
-                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                (RegisterValues.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(float),
         )

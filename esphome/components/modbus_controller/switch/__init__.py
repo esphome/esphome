@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import switch
-from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE
+from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE, PduBuffer
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ASSUMED_STATE, CONF_ID
 
@@ -74,7 +74,7 @@ async def to_code(config):
             [
                 (ModbusSwitch.operator("ptr"), "item"),
                 (cg.bool_, "x"),
-                (cg.std_vector.template(cg.uint8).operator("ref"), "payload"),
+                (PduBuffer.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(bool),
         )
