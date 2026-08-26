@@ -317,7 +317,7 @@ def prepare_pch(
                 cmd_id,
             ),
         )
-    except OSError as err:
+    except (OSError, UnicodeError) as err:
         # Identity unknown: a stale cache entry must never be served
         _LOGGER.warning(
             "Could not establish the pch identity; compiling without it: %s", err
