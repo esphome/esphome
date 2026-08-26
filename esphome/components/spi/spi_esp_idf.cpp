@@ -3,7 +3,6 @@
 
 #ifdef USE_SPI_PSRAM_DMA
 #include <esp_memory_utils.h>
-#include <soc/soc_caps.h>
 #endif
 
 namespace esphome::spi {
