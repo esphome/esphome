@@ -257,7 +257,13 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     lib_dir = framework_path / "libraries" / name
     manifest_json = lib_dir / "library.json"
     if manifest_json.is_file():
-        data = parse_library_json(manifest_json)
+        try:
+            data = parse_library_json(manifest_json)
+        except ValueError as err:  # JSONDecodeError
+            raise EsphomeError(
+                f"Bundled library {name} has a corrupt library.json ({err}); "
+                "the framework install may be incomplete (run 'esphome clean-all')"
+            ) from err
     elif (manifest := lib_dir / "library.properties").is_file():
         data = parse_library_properties(manifest)
     else:

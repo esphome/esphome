@@ -924,13 +924,15 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
-def _warn_unsatisfied_versionless(
+def _reconcile_versionless_skips(
     skipped_versionless: list[tuple[Any, Any, str]],
     components: dict[str, ConvertedLibrary],
     backend: LibraryBackend,
 ) -> None:
-    """Warn for version-less deps nothing satisfied; a silent drop
-    surfaces as link errors far from the cause."""
+    """Warn for version-less deps nothing satisfied, and record the
+    backend-provided ones in ``backend.provided_requests`` for its
+    post-emit reconciliation; a silent drop surfaces as link errors far
+    from the cause."""
     resolved_manifest_names = {c.data.get("name") for c in components.values()}
     # A treeless backend can never supply a bundled name; noise for it
     log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
@@ -1355,6 +1357,6 @@ def convert_libraries(
     for component in components.values():
         backend.emit(component)
 
-    _warn_unsatisfied_versionless(skipped_versionless, components, backend)
+    _reconcile_versionless_skips(skipped_versionless, components, backend)
 
     return [components[key] for key in top_level if key in components]
