@@ -85,6 +85,8 @@ def _log_overridden_components(
         source = conf[CONF_URL]
         if ref := conf.get(CONF_REF):
             source = f"{source}@{ref}"
+        if path := conf.get(CONF_PATH):
+            source = f"{source} ({path})"
     else:
         source = conf[CONF_PATH]
     _LOGGER.info(
