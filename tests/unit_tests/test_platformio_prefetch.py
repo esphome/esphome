@@ -17,7 +17,12 @@ def _core(tmp_path: Path):
     CORE.reset()
     CORE.build_path = str(tmp_path)
     CORE.name = "testenv"
+    pio_loggers = ("Tool Manager", "Library Manager", "Platform Manager")
+    saved_propagate = {n: pf.logging.getLogger(n).propagate for n in pio_loggers}
     yield
+    # main() flips these process-wide; keep the suite hermetic
+    for n, flag in saved_propagate.items():
+        pf.logging.getLogger(n).propagate = flag
     CORE.reset()
 
 
@@ -240,6 +245,15 @@ def test_main_bad_log_level_falls_back(tmp_path: Path) -> None:
     ):
         assert pf.main([str(tmp_path), "testenv"]) == 0
     assert mock_setup.call_args[0][0] == pf.logging.INFO
+
+
+def test_main_silences_pio_manager_propagation(tmp_path: Path) -> None:
+    """The pio manager loggers carry their own handler; propagation to
+    the root handler would print every install line twice."""
+    with patch("esphome.log.setup_log"), patch.object(pf, "_prefetch"):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    for name in ("Tool Manager", "Library Manager", "Platform Manager"):
+        assert pf.logging.getLogger(name).propagate is False
 
 
 def test_main_mirrors_parent_log_setup(tmp_path: Path) -> None:

@@ -14,7 +14,6 @@ they are serialized by a file lock and promoted with an atomic rename.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
 import hashlib
 import json
 import logging
@@ -28,11 +27,13 @@ from typing import Any
 
 from esphome.framework_helpers import (
     content_length,
+    discard_partial_download,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
     warn_prefetch_failures,
 )
+from esphome.helpers import get_bool_env
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -208,12 +209,8 @@ def _registry_jobs(
     with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(pending))) as ex:
         results = list(ex.map(_resolve, pending))
     jobs: list[tuple[str, int, Any]] = []
-    failed = 0
     for res in results:
-        if res is None:
-            continue
-        if res is _RESOLVE_FAILED:
-            failed += 1
+        if res is None or res is _RESOLVE_FAILED:
             continue
         name, size, url, dl_path, checksum = res
         if str(dl_path) in seen:
@@ -222,7 +219,7 @@ def _registry_jobs(
         jobs.append(
             (name, size, resume_fetch_job(url, dl_path, sha256=checksum, size=size))
         )
-    if failed:
+    if failed := len(errors):
         # Visible once per build, naming a cause so an API break does not
         # read as an outage; per-spec detail stays at debug
         _LOGGER.warning(
@@ -230,7 +227,7 @@ def _registry_jobs(
             "PlatformIO will download them serially",
             failed,
             len(pending),
-            errors[0] if errors else "unknown error",
+            errors[0],
         )
     return jobs, failed
 
@@ -337,7 +334,7 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
             if dl_path.is_file():
                 # Another process finished it while we waited; the staging
                 # files are dead weight PlatformIO's cache never prunes
-                _discard_staging(tmp)
+                discard_partial_download(tmp)
                 return
             fetch(tracker)
             tmp.replace(dl_path)
@@ -345,13 +342,6 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
             lock.release()
 
     return run
-
-
-def _discard_staging(tmp: Path) -> None:
-    part = tmp.with_name(tmp.name + ".part")
-    for stale in (tmp, part, part.with_name(part.name + ".meta")):
-        with suppress(OSError):
-            stale.unlink()
 
 
 def _prefetch(build_dir: Path, env: str) -> None:
@@ -451,8 +441,16 @@ def main(argv: list[str]) -> int:
         level = logging.INFO
     # Mirror the parent's log setup: warnings keep their level prefix and
     # color, and the download bar still draws under the dashboard
-    CORE.dashboard = bool(os.environ.get("ESPHOME_PREFETCH_DASHBOARD"))
+    CORE.dashboard = get_bool_env("ESPHOME_PREFETCH_DASHBOARD")
     setup_log(level)
+    # pio's managers attach their own handler and still propagate; without
+    # this every manager line also prints through the root handler
+    for cls_name in (
+        "ToolPackageManager",
+        "LibraryPackageManager",
+        "PlatformPackageManager",
+    ):
+        logging.getLogger(cls_name.replace("Package", " ")).propagate = False
     if len(argv) != 2:
         # A wiring bug, not a network failure; make it distinguishable
         _LOGGER.warning("prefetch usage: <build_dir> <env_name>")
