@@ -238,10 +238,6 @@ def _stop_child(proc: subprocess.Popen) -> None:
         # A surviving child may still be writing packages pio run trusts
         _LOGGER.warning("The prefetch child could not be confirmed stopped")
         _LOGGER.debug("Stop detail", exc_info=True)
-    except BaseException:
-        # SystemExit/GeneratorExit must not be absorbed into a warning
-        _LOGGER.warning("The prefetch child could not be confirmed stopped")
-        raise
 
 
 def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
@@ -256,14 +252,14 @@ def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
     return config.get(f"env:{env}", "platform", None), config
 
 
-def _manager_kwargs(manager: Any) -> dict[str, Any]:
-    """Constructor kwargs that make a sibling manager equivalent to the shared one."""
+def _sibling_manager(manager: Any) -> Any:
+    """A same-store manager equivalent to the shared one."""
     # Hard read: a renamed attribute must fail loudly, not silently drop
     # the qualifiers wave-1 installs resolve with; is-not-None so a falsy
     # PackageCompatibility still propagates
     if (compatibility := manager.compatibility) is not None:
-        return {"compatibility": compatibility}
-    return {}
+        return manager.__class__(manager.package_dir, compatibility=compatibility)
+    return manager.__class__(manager.package_dir)
 
 
 def _registry_jobs(
@@ -285,9 +281,7 @@ def _registry_jobs(
         # One manager (and registry HTTP session) per worker thread;
         # installed-state was already checked on the shared manager
         if (mgr := getattr(local, "mgr", None)) is None:
-            mgr = local.mgr = manager.__class__(
-                manager.package_dir, **_manager_kwargs(manager)
-            )
+            mgr = local.mgr = _sibling_manager(manager)
         try:
             packages = mgr.search_registry_packages(spec)
             if not packages:
@@ -651,25 +645,12 @@ def _clean_failed_install(mgr: Any, name: str, spec: Any) -> None:
     try:
         mgr.memcache_reset()
         if (pkg := mgr.get_package(spec)) is not None:
-            try:
+            # Dropping the metadata is the invariant: pio's own install
+            # overwrites a metadata-less dir, so a stuck tree cannot be
+            # trusted. The rmtree is best-effort tidiness.
+            (Path(pkg.path) / ".piopm").unlink(missing_ok=True)
+            with suppress(OSError):
                 rmtree(pkg.path)
-            except OSError:
-                # Without its metadata the dir is one pio's own install
-                # overwrites; a stuck tree with a valid .piopm would be
-                # trusted forever
-                (Path(pkg.path) / ".piopm").unlink(missing_ok=True)
-                _LOGGER.warning(
-                    "Could not fully remove the failed install of %s; "
-                    "dropped its metadata so pio run reinstalls it",
-                    name,
-                )
-        elif (base := name.split("@", 1)[0]) and (
-            Path(mgr.package_dir, base).exists()
-            or any(Path(mgr.package_dir).glob(f"{base}@*"))
-        ):
-            # A leftover this cleanup cannot resolve (bare or in pio's
-            # name@version form) is exactly the shape pio run would trust
-            _LOGGER.warning("Failed install of %s left an unresolvable directory", name)
         else:
             # Nothing was moved into place; the common failure shape
             _LOGGER.debug("No on-disk install of %s to remove", name)
@@ -697,7 +678,7 @@ def _preinstall(
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
     for _ in range(workers):
-        managers.put(manager.__class__(manager.package_dir, **_manager_kwargs(manager)))
+        managers.put(_sibling_manager(manager))
     local = threading.local()
 
     def _install_one(entry) -> bool:
@@ -752,31 +733,22 @@ def _preinstall(
                 raise
     finally:
         # Cleanup must not mask an in-flight exception or skip a step
-        stale_cache = False
-        try:
-            manager.memcache_reset()
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            stale_cache = True
-            _LOGGER.debug("memcache reset failed", exc_info=True)
-        lock_stuck = False
-        try:
-            manager.unlock()
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            # Must not displace the in-flight exception (SIGTERM's
-            # SystemExit included) with a downgradeable one
-            lock_stuck = True
-            _LOGGER.warning("Could not release the manager lock")
-            _LOGGER.debug("Unlock detail", exc_info=True)
-        cwd_lost = False
-        try:
-            os.chdir(cwd)
-        except OSError:
-            # Process-global state loss: everything after this runs from
-            # an unknown directory
-            cwd_lost = True
-            _LOGGER.warning("Could not restore the working dir")
-            _LOGGER.debug("Restore detail", exc_info=True)
-    if not any(results):
+        # Each step runs even if an earlier one fails, and none may
+        # displace the in-flight exception (SIGTERM's SystemExit
+        # included) with a downgradeable one
+        wave_ok = True
+        for step, label in (
+            (manager.memcache_reset, "reset the storage cache"),
+            (manager.unlock, "release the manager lock"),
+            (lambda: os.chdir(cwd), "restore the working dir"),
+        ):
+            try:
+                step()
+            except Exception:  # noqa: BLE001,PERF203  # pylint: disable=broad-exception-caught
+                wave_ok = False
+                _LOGGER.warning("Could not %s", label)
+                _LOGGER.debug("Teardown detail", exc_info=True)
+    if len(entries) > 1 and not any(results):
         # A systematic fault, not one bad archive; pio run installs serially
         _LOGGER.warning(
             "Could not pre-install any of %d PlatformIO package(s)", len(entries)
@@ -787,15 +759,9 @@ def _preinstall(
     # successful installs feed the dependency walk
     seen.update(name.split("@", 1)[0].lower() for name, *_ in entries)
     installed = [e for e, ok in zip(entries, results, strict=True) if ok]
-    if stale_cache:
-        # The wave decides installed-vs-missing from that cache; running
-        # on stale answers could queue or skip the wrong packages
-        _LOGGER.warning("Skipping the dependency wave after a failed cache reset")
-        return
-    if lock_stuck or cwd_lost:
-        # A failed unlock leaves _lockfile set, so the recursive wave's
-        # lock() would no-op on an unknown lock state; a lost cwd breaks
-        # relative paths. pio run installs the rest from a clean process.
+    if not wave_ok:
+        # A stale cache, an unknown lock state, or a lost cwd would
+        # poison the next wave; pio run installs the rest cleanly
         _LOGGER.warning("Skipping the dependency wave")
         return
     # The builtin probe may construct platforms whose setup rewrites
@@ -805,16 +771,10 @@ def _preinstall(
         next_entries = _dependency_entries(manager, installed, seen)
     finally:
         sys.path[:] = saved_sys_path
-    if not next_entries:
-        return
-    if len(seen) < 200:  # cycle backstop
+    if next_entries:
+        # Terminates without a cap: every wave admits only never-seen
+        # names, so a cycle yields an empty next wave
         _preinstall(manager, next_entries, seen)
-    else:
-        # A cycle or an unexpectedly large graph must not look finished
-        _LOGGER.warning(
-            "Dependency wave limit reached; %d package(s) left to pio run",
-            len(next_entries),
-        )
 
 
 def _prefetch(build_dir: Path, env: str) -> None:

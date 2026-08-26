@@ -56,6 +56,7 @@ class _FakeSpec(SimpleNamespace):
     def __init__(
         self,
         *,
+        uri=None,
         owner=None,
         requirements=None,
         external=False,
@@ -63,7 +64,7 @@ class _FakeSpec(SimpleNamespace):
         **kwargs,
     ) -> None:
         super().__init__(
-            owner=owner, requirements=requirements, external=external, **kwargs
+            uri=uri, owner=owner, requirements=requirements, external=external, **kwargs
         )
         self._custom_name = custom_name
 
@@ -117,7 +118,7 @@ def test_registry_jobs_resolves_like_platformio(tmp_path: Path) -> None:
     m = _fake_manager(tmp_path)
     with _mirror_patch():
         jobs, failed, installable = pf._registry_jobs(
-            m, [_FakeSpec(uri=None, name="toolchain-xtensa")], set()
+            m, [_FakeSpec(name="toolchain-xtensa")], set()
         )
     assert failed == 0
     assert len(jobs) == 1
@@ -145,7 +146,7 @@ def test_registry_jobs_skips(tmp_path: Path, method, attr, value) -> None:
     m = _fake_manager(tmp_path)
     setattr(getattr(m, method), attr, value)
     with _mirror_patch():
-        assert pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set()) == (
+        assert pf._registry_jobs(m, [_FakeSpec(name="x")], set()) == (
             [],
             0,
             [],
@@ -160,15 +161,13 @@ def test_registry_jobs_skips_cached_and_sizeless(tmp_path: Path) -> None:
     dl.parent.mkdir(parents=True, exist_ok=True)
     dl.touch()
     with _mirror_patch():
-        jobs, failed, installable = pf._registry_jobs(
-            m, [_FakeSpec(uri=None, name="x")], set()
-        )
+        jobs, failed, installable = pf._registry_jobs(m, [_FakeSpec(name="x")], set())
     assert (jobs, failed) == ([], 0)
     assert [n for n, _ in installable] == ["toolchain-xtensa@2.0.0"]
     dl.unlink()
     m.find_best_registry_version.return_value[1]["files"][0]["size"] = 0
     with _mirror_patch():
-        assert pf._registry_jobs(m, [_FakeSpec(uri=None, name="x")], set()) == (
+        assert pf._registry_jobs(m, [_FakeSpec(name="x")], set()) == (
             [],
             0,
             [],
@@ -180,8 +179,8 @@ def test_registry_jobs_dedupes_download_paths(tmp_path: Path) -> None:
     workers must never share a .part); nine specs against eight workers
     also exercise the thread-local manager reuse."""
     m = _fake_manager(tmp_path)
-    specs = [_FakeSpec(uri=None, name="dup"), _FakeSpec(uri=None, name="dup")]
-    specs += [_FakeSpec(uri=None, name=f"n{i}") for i in range(8)]
+    specs = [_FakeSpec(name="dup"), _FakeSpec(name="dup")]
+    specs += [_FakeSpec(name=f"n{i}") for i in range(8)]
     with _mirror_patch():
         jobs, failed, _installable = pf._registry_jobs(m, specs, set())
     # the fake resolves every spec to the same mirror URL and checksum
@@ -203,8 +202,8 @@ def test_registry_jobs_dedup_keeps_distinct_owners(tmp_path: Path) -> None:
     """platformio/x and pioarduino/x are different packages."""
     m = _fake_manager(tmp_path)
     specs = [
-        _FakeSpec(uri=None, name="framework-x", owner="platformio"),
-        _FakeSpec(uri=None, name="framework-x", owner="pioarduino"),
+        _FakeSpec(name="framework-x", owner="platformio"),
+        _FakeSpec(name="framework-x", owner="pioarduino"),
     ]
     with _mirror_patch():
         pf._registry_jobs(m, specs, set())
@@ -220,7 +219,7 @@ def test_registry_jobs_all_failed_warns_once(
     with _mirror_patch():
         jobs, failed, installable = pf._registry_jobs(
             m,
-            [_FakeSpec(uri=None, name="a"), _FakeSpec(uri=None, name="b")],
+            [_FakeSpec(name="a"), _FakeSpec(name="b")],
             set(),
         )
     assert (jobs, failed, installable) == ([], 2, [])
@@ -549,7 +548,7 @@ def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
     with _mirror_patch():
         jobs, failed, installable = pf._registry_jobs(
             m,
-            [_FakeSpec(uri=None, name="flaky"), _FakeSpec(uri=None, name="good")],
+            [_FakeSpec(name="flaky"), _FakeSpec(name="good")],
             set(),
         )
     assert failed == 1
@@ -569,7 +568,7 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
                 _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
                 _FakeSpec(uri="git+https://x/repo.git", name="repo"),
                 _FakeSpec(uri="https://x/repo.git#v1", name="barevcs"),
-                _FakeSpec(uri=None, name="registry"),
+                _FakeSpec(name="registry"),
             ],
             set(),
         )
@@ -734,12 +733,12 @@ def test_dependency_entries_isolate_a_bad_manifest(tmp_path: Path) -> None:
         return [{"owner": "o", "name": "dep", "version": "^1"}]
 
     m.get_pkg_dependencies.side_effect = deps_for
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
     entries = pf._dependency_entries(
         m,
         [
-            ("bad@1", _FakeSpec(uri=None, name="bad")),
-            ("good@1", _FakeSpec(uri=None, name="good")),
+            ("bad@1", _FakeSpec(name="bad")),
+            ("good@1", _FakeSpec(name="good")),
         ],
         set(),
     )
@@ -756,13 +755,10 @@ def test_dependency_entries_skip_nameless_spec(
         SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
     )
     m.get_pkg_dependencies.return_value = [{"owner": "o", "version": "^1"}]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=None)
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=None)
     with caplog.at_level(logging.DEBUG):
         assert (
-            pf._dependency_entries(
-                m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
-            )
-            == []
+            pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], set()) == []
         )
     assert "has no name; left to pio run" in caplog.text
 
@@ -776,11 +772,8 @@ def test_dependency_entries_filter_seen_names(tmp_path: Path) -> None:
     m.get_pkg_dependencies.return_value = [
         {"owner": "o", "name": "dep", "version": "^1"}
     ]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
-    assert (
-        pf._dependency_entries(m, [("top@1", _FakeSpec(uri=None, name="top"))], {"dep"})
-        == []
-    )
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
+    assert pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], {"dep"}) == []
 
 
 def test_preinstall_cleanup_cannot_displace_the_inflight_error(
@@ -795,7 +788,7 @@ def test_preinstall_cleanup_cannot_displace_the_inflight_error(
     monkeypatch.setattr(pf.os, "chdir", MagicMock(side_effect=OSError("cwd removed")))
     try:
         with pytest.raises(SystemExit):
-            pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+            pf._preinstall(m, [("a@1", _FakeSpec(name="a"))])
     finally:
         monkeypatch.setattr(pf.os, "chdir", real_chdir)
     assert "Could not release the manager lock" in caplog.text
@@ -804,12 +797,14 @@ def test_preinstall_cleanup_cannot_displace_the_inflight_error(
 def test_preinstall_memcache_failure_leaves_a_trace(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A failing cache reset is logged; the wave still completes."""
+    """A failing cache reset warns and skips the dependency wave; the
+    wave itself still completes."""
     m = _fake_manager(tmp_path)
     m.memcache_reset.side_effect = RuntimeError("cache broken")
-    with caplog.at_level(pf.logging.DEBUG):
-        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
-    assert "memcache reset failed" in caplog.text
+    pf._preinstall(m, [("a@1", _FakeSpec(name="a"))])
+    assert "Could not reset the storage cache" in caplog.text
+    assert "Skipping the dependency wave" in caplog.text
+    m.get_pkg_dependencies.assert_not_called()
 
 
 def test_prefetch_wait_failure_degrades(caplog: pytest.LogCaptureFixture) -> None:
@@ -825,33 +820,6 @@ def test_prefetch_wait_failure_degrades(caplog: pytest.LogCaptureFixture) -> Non
     assert "prefetch skipped" in caplog.text
 
 
-def test_preinstall_unresolvable_leftover_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A failed install whose destination dir exists but cannot be
-    resolved is exactly the shape pio run would trust."""
-    m = _fake_manager(tmp_path)
-    m.package_dir = str(tmp_path)
-    (tmp_path / "bad").mkdir()
-    m._install.side_effect = RuntimeError("boom")
-    m.get_package.return_value = None
-    pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
-    assert "left an unresolvable directory" in caplog.text
-
-
-def test_preinstall_versioned_leftover_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A leftover in pio's name@version dir form is probed too."""
-    m = _fake_manager(tmp_path)
-    m.package_dir = str(tmp_path)
-    (tmp_path / "bad@1.2.3").mkdir()
-    m._install.side_effect = RuntimeError("boom")
-    m.get_package.return_value = None
-    pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
-    assert "left an unresolvable directory" in caplog.text
-
-
 def test_preinstall_stuck_lock_skips_dependency_wave(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -859,7 +827,7 @@ def test_preinstall_stuck_lock_skips_dependency_wave(
     would install under a lock() that silently no-ops."""
     m = _fake_manager(tmp_path)
     m.unlock.side_effect = RuntimeError("flock broke")
-    pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+    pf._preinstall(m, [("a@1", _FakeSpec(name="a"))])
     assert "Skipping the dependency wave" in caplog.text
     m.get_pkg_dependencies.assert_not_called()
 
@@ -871,7 +839,7 @@ def test_preinstall_lost_cwd_warns_and_skips_wave(
     the rest is left to pio run from a clean process."""
     m = _fake_manager(tmp_path)
     with patch.object(pf.os, "chdir", side_effect=OSError("cwd gone")):
-        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+        pf._preinstall(m, [("a@1", _FakeSpec(name="a"))])
     assert "Could not restore the working dir" in caplog.text
     assert "Skipping the dependency wave" in caplog.text
     m.get_pkg_dependencies.assert_not_called()
@@ -888,17 +856,6 @@ def test_stop_child_interrupted_and_still_alive_warns(
     with pytest.raises(KeyboardInterrupt):
         pf._stop_child(proc)
     proc.kill.assert_called_once_with()
-    assert "could not be confirmed stopped" in caplog.text
-
-
-def test_stop_child_reraises_system_exit(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A SystemExit mid-stop must not be absorbed into a warning."""
-    proc = MagicMock()
-    proc.wait.side_effect = SystemExit(143)
-    with pytest.raises(SystemExit):
-        pf._stop_child(proc)
     assert "could not be confirmed stopped" in caplog.text
 
 
@@ -927,28 +884,6 @@ def test_uri_derived_name_spec_downloads_but_never_installs(tmp_path: Path) -> N
     )
 
 
-def test_preinstall_wave_limit_warns(tmp_path: Path) -> None:
-    """Hitting the cycle backstop must not look like a completed run."""
-    m = _fake_manager(tmp_path)
-    m.get_package.side_effect = lambda spec: (
-        SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
-    )
-    m.get_pkg_dependencies.return_value = [
-        {"owner": "o", "name": "dep", "version": "^1"}
-    ]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
-    prior = {f"seen{i}" for i in range(200)}
-    records: list = []
-    handler = logging.Handler()
-    handler.emit = records.append
-    pf._LOGGER.addHandler(handler)
-    try:
-        pf._preinstall(m, [("top@1", _FakeSpec(uri=None, name="top"))], prior)
-    finally:
-        pf._LOGGER.removeHandler(handler)
-    assert any("wave limit reached" in r.getMessage() for r in records)
-
-
 def test_dependency_entries_warn_when_all_reads_fail(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -961,8 +896,8 @@ def test_dependency_entries_warn_when_all_reads_fail(
         pf._dependency_entries(
             m,
             [
-                ("a@1", _FakeSpec(uri=None, name="a")),
-                ("b@1", _FakeSpec(uri=None, name="b")),
+                ("a@1", _FakeSpec(name="a")),
+                ("b@1", _FakeSpec(name="b")),
             ],
             set(),
         )
@@ -1065,7 +1000,7 @@ def test_preinstall_failure_removes_torn_destination(tmp_path: Path) -> None:
     m.get_package.side_effect = [SimpleNamespace(path=str(tmp_path / "torn")), None]
     removed: list[str] = []
     with patch.object(pf, "rmtree", side_effect=removed.append):
-        pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+        pf._preinstall(m, [("bad@1", _FakeSpec(name="bad"))])
     assert removed == [str(tmp_path / "torn")]
 
 
@@ -1079,15 +1014,15 @@ def test_preinstall_system_exit_still_cleans(tmp_path: Path) -> None:
         patch.object(pf, "rmtree", side_effect=removed.append),
         pytest.raises(SystemExit),
     ):
-        pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+        pf._preinstall(m, [("bad@1", _FakeSpec(name="bad"))])
     assert removed == [str(tmp_path / "torn")]
 
 
 def test_preinstall_stuck_tree_drops_metadata(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An unremovable torn tree loses its .piopm so pio run reinstalls it
-    instead of trusting it forever."""
+    """An unremovable torn tree loses its .piopm so pio run reinstalls
+    it instead of trusting it forever."""
     m = _fake_manager(tmp_path)
     m._install.side_effect = RuntimeError("boom")
     torn = tmp_path / "torn"
@@ -1095,9 +1030,9 @@ def test_preinstall_stuck_tree_drops_metadata(
     (torn / ".piopm").write_text("{}")
     m.get_package.side_effect = [SimpleNamespace(path=str(torn)), None]
     with patch.object(pf, "rmtree", side_effect=OSError("busy")):
-        pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+        pf._preinstall(m, [("bad@1", _FakeSpec(name="bad"))])
     assert not (torn / ".piopm").exists()
-    assert "dropped its metadata" in caplog.text
+    assert torn.exists()  # tidiness is best-effort; metadata is the invariant
 
 
 def test_preinstall_cleanup_failure_warns(
@@ -1106,7 +1041,7 @@ def test_preinstall_cleanup_failure_warns(
     m = _fake_manager(tmp_path)
     m._install.side_effect = RuntimeError("boom")
     m.get_package.side_effect = [OSError("scan failed"), None]
-    pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+    pf._preinstall(m, [("bad@1", _FakeSpec(name="bad"))])
     assert "Could not remove the failed install of bad@1" in caplog.text
 
 
@@ -1123,10 +1058,8 @@ def test_dependency_entries_honor_compatibility(tmp_path: Path) -> None:
         {"owner": "o", "name": "espdep", "version": "^1", "platforms": ["espressif32"]},
         {"owner": "o", "name": "avrdep", "version": "^1", "platforms": ["atmelavr"]},
     ]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
-    entries = pf._dependency_entries(
-        m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
-    )
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
+    entries = pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], set())
     assert [name for name, *_ in entries] == ["espdep"]
 
 
@@ -1143,10 +1076,8 @@ def test_dependency_entries_skip_builtin_libs(tmp_path: Path) -> None:
         {"name": "SPI", "version": "*"},
         {"name": "realdep", "version": "^1"},
     ]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
-    entries = pf._dependency_entries(
-        m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
-    )
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
+    entries = pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], set())
     assert [name for name, *_ in entries] == ["realdep"]
 
 
@@ -1437,7 +1368,7 @@ def test_prefetch_installs_cached_archives_without_downloads(
     fake_platform.packages = {}
     config = _fake_config(tmp_path, {"platform": "fake/p@1"})
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    spec = _FakeSpec(uri=None, name="cachedpkg")
+    spec = _FakeSpec(name="cachedpkg")
     with (
         patch.dict("sys.modules", modules),
         patch.object(
@@ -1472,9 +1403,9 @@ def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
 
     m._install.side_effect = fake_install
     entries = [
-        ("a@1", _FakeSpec(uri=None, name="a")),
-        ("bad@1", _FakeSpec(uri=None, name="bad")),
-        ("b@1", _FakeSpec(uri=None, name="b")),
+        ("a@1", _FakeSpec(name="a")),
+        ("bad@1", _FakeSpec(name="bad")),
+        ("b@1", _FakeSpec(name="b")),
     ]
     pf._preinstall(m, entries)
     assert sorted(installed) == ["a", "b"]
@@ -1492,8 +1423,8 @@ def test_preinstall_all_failed_warns_once(
     pf._preinstall(
         m,
         [
-            ("a@1", _FakeSpec(uri=None, name="a")),
-            ("b@1", _FakeSpec(uri=None, name="b")),
+            ("a@1", _FakeSpec(name="a")),
+            ("b@1", _FakeSpec(name="b")),
         ],
     )
     assert "Could not pre-install a@1" in caplog.text
@@ -1507,8 +1438,8 @@ def test_preinstall_dedupes_names_across_entries(tmp_path: Path) -> None:
     fake_platform.packages = {}
     config = _fake_config(tmp_path, {"platform": "fake/p@1"})
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    s1 = _FakeSpec(uri=None, name="dup")
-    s2 = _FakeSpec(uri=None, name="dup")
+    s1 = _FakeSpec(name="dup")
+    s2 = _FakeSpec(name="dup")
     with (
         patch.dict("sys.modules", modules),
         patch.object(
@@ -1521,7 +1452,9 @@ def test_preinstall_dedupes_names_across_entries(tmp_path: Path) -> None:
     ):
         pf._prefetch(tmp_path, "testenv")
     mock_install.assert_called_once()
-    assert mock_install.call_args[0][1] == [("pkg@1", s1)]
+    (entry,) = mock_install.call_args[0][1]
+    assert entry[0] == "pkg@1"
+    assert entry[1] is s2  # the dict comprehension keeps the last duplicate
 
 
 def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
@@ -1541,8 +1474,8 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
         {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
         {"name": "SPI"},
     ]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
-    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(uri=None, name="noise-c"))])
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
+    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
     # The dep wave carries its compatibility so _install searches qualified
     dep_call = m._install.call_args_list[-1]
@@ -1557,12 +1490,12 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     m.get_pkg_dependencies.return_value = [
         {"owner": "esphome", "name": "noise-c", "version": "^0.1"},
     ]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
     installed: list[str] = []
     m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
         installed.append(getattr(spec, "name", str(spec)))
     )
-    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(uri=None, name="noise-c"))])
+    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(name="noise-c"))])
     assert installed == ["noise-c"]
 
 
@@ -1610,20 +1543,23 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
         pf._preinstall(
             seed,
             [
-                ("a@1", _FakeSpec(uri=None, name="a")),
-                ("b@1", _FakeSpec(uri=None, name="b")),
+                ("a@1", _FakeSpec(name="a")),
+                ("b@1", _FakeSpec(name="b")),
             ],
         )
     assert len(used) == 2
     assert id(seed) not in used
 
 
-def test_manager_kwargs_and_sigterm() -> None:
+def test_sibling_manager_and_sigterm() -> None:
     """Sibling managers inherit compatibility; SIGTERM raises SystemExit."""
-    assert pf._manager_kwargs(SimpleNamespace(compatibility="qual")) == {
-        "compatibility": "qual"
-    }
-    assert pf._manager_kwargs(SimpleNamespace(compatibility=None)) == {}
+    calls = []
+    m = MagicMock(package_dir="p", compatibility="qual")
+    m.__class__ = lambda package_dir, **kw: calls.append((package_dir, kw))
+    pf._sibling_manager(m)
+    m.compatibility = None
+    pf._sibling_manager(m)
+    assert calls == [("p", {"compatibility": "qual"}), ("p", {})]
     with pytest.raises(SystemExit):
         pf._sigterm(15, None)
 
@@ -1636,11 +1572,8 @@ def test_dependency_entries_skip_installed(tmp_path: Path) -> None:
     m.get_pkg_dependencies.return_value = [
         {"owner": "o", "name": "already", "version": "^1"},
     ]
-    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
-    assert (
-        pf._dependency_entries(m, [("top@1", _FakeSpec(uri=None, name="top"))], set())
-        == []
-    )
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(name=dep["name"])
+    assert pf._dependency_entries(m, [("top@1", _FakeSpec(name="top"))], set()) == []
 
 
 def test_group_failure_does_not_skip_other_groups(tmp_path: Path) -> None:
@@ -1650,8 +1583,8 @@ def test_group_failure_does_not_skip_other_groups(tmp_path: Path) -> None:
     fake_platform.packages = {}
     config = _fake_config(tmp_path, {"platform": "fake/p@1"})
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    s1 = _FakeSpec(uri=None, name="toolpkg")
-    s2 = _FakeSpec(uri=None, name="libpkg")
+    s1 = _FakeSpec(name="toolpkg")
+    s2 = _FakeSpec(name="libpkg")
     with (
         patch.dict("sys.modules", modules),
         patch.object(
@@ -1682,7 +1615,7 @@ def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
         patch.object(pf, "ThreadPoolExecutor", return_value=boom),
         pytest.raises(RuntimeError),
     ):
-        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+        pf._preinstall(m, [("a@1", _FakeSpec(name="a"))])
     m.unlock.assert_called_once_with()
     assert boom.shutdown.call_args_list[0][1].get("cancel_futures") is True
     m.reset_mock()
@@ -1691,7 +1624,7 @@ def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
         patch.object(pf, "ThreadPoolExecutor", side_effect=RuntimeError("no")),
         pytest.raises(RuntimeError),
     ):
-        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+        pf._preinstall(m, [("a@1", _FakeSpec(name="a"))])
     m.unlock.assert_called_once_with()
 
 
