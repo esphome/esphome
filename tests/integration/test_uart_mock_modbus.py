@@ -1017,6 +1017,8 @@ async def test_uart_mock_modbus_register_offset(
         # address (0x16); the server answers ILLEGAL_DATA_ADDRESS there and the switch never publishes.
         read_switch = find_entity(entities, "read_offset_switch", SwitchInfo)
         assert read_switch is not None, "read_offset_switch not found"
+        # The ON transition happened at the first poll and switch states are deduped, so this relies on
+        # wait_for_state's fresh subscribe_states re-dumping every entity's current state.
         await wait_for_state(
             client,
             lambda s: (
