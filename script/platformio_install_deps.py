@@ -189,7 +189,11 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         except Exception as scan_err:  # noqa: BLE001
             # A transient read of another worker's in-flight copy must not
             # hard-fail the build blaming this spec
-            print(f"Could not inspect failed pre-install of {spec} ({scan_err!r})")
+            print(
+                f"Could not inspect failed pre-install of {spec} ({scan_err!r}); "
+                "a torn destination may remain",
+                flush=True,
+            )
             return
         if pkg is None:
             # Visible: an unresolvable torn directory is indistinguishable
@@ -215,10 +219,11 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
                 spec, skip_dependencies=True, compatibility=compat
             )
             return True
-        except (AttributeError, TypeError):
+        except (AttributeError, TypeError) as err:
             # A PlatformIO API break, not a flaky package; clean the torn
             # destination, then surface it so total degradation reads
             # differently from a network blip
+            print(f"Pre-install of {spec} hit an API break ({err!r})", flush=True)
             clean_torn(mgr, spec)
             raise
         except Exception as err:  # noqa: BLE001
@@ -241,6 +246,10 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         # All futures are done (the with-block joins); drain every one so
         # a concurrent CleanupError is never dropped by iteration order
         errors = [err for f in futures if (err := f.exception()) is not None]
+        for err in errors[1:] if errors else []:
+            # Every sibling failure is part of the record, not just the
+            # one that wins the raise
+            print(f"Additional wave failure: {err!r}", flush=True)
         for err in errors:
             if isinstance(err, CleanupError):
                 raise err
@@ -250,8 +259,12 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     finally:
         manager.unlock()
         # Worker postinstall scripts chdir process-wide (pio's fs.cd);
-        # restore between waves, not only for the final subprocess
-        os.chdir(cwd)
+        # restore between waves, not only for the final subprocess. A
+        # restore failure must not replace an in-flight CleanupError.
+        try:
+            os.chdir(cwd)
+        except OSError as chdir_err:
+            print(f"Could not restore the working dir ({chdir_err!r})", flush=True)
     if failures := len(results) - sum(results):
         # Visible once per wave. The stock pass retries CLI specs and,
         # for already-installed packages, re-walks their dependencies

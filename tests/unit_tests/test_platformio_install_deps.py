@@ -326,6 +326,25 @@ def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> Non
         mod.main()
 
 
+def test_main_generic_failure_still_runs_serial_pass(tmp_path: Path) -> None:
+    """A non-CleanupError wave failure prints, dumps the traceback, and
+    still reaches the authoritative serial pass with the pinned cwd."""
+    mod = _load_script()
+    ini = tmp_path / "platformio.ini"
+    ini.write_text("[env:t]\nlib_deps =\n    esphome/x @ 1.0\n")
+    with (
+        patch.object(mod, "parallel_install", side_effect=RuntimeError("boom")),
+        patch.object(mod.subprocess, "check_call") as mock_call,
+        patch.object(sys, "argv", ["platformio_install_deps.py", str(ini), "-l"]),
+    ):
+        mod.main()
+    mock_call.assert_called_once()
+    args, kwargs = mock_call.call_args
+    assert args[0][:4] == ["platformio", "pkg", "install", "-g"]
+    assert "esphome/x @ 1.0" in args[0]
+    assert kwargs["cwd"] == Path.cwd()
+
+
 def test_content_cache_creates_its_dir(tmp_path: Path, monkeypatch) -> None:
     """The cold-cache hardening relies on ContentCache.__init__ creating
     the namespace dir; pin the side effect, not mere callability."""
