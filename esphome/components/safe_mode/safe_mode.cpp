@@ -267,7 +267,7 @@ void SafeModeComponent::write_rtc_(uint32_t val) {
 }
 
 uint32_t SafeModeComponent::read_rtc_() {
-  uint32_t val = 0;  
+  uint32_t val = 0;
   this->rtc_.load(&val));
   return val;
 }
