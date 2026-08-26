@@ -1210,6 +1210,10 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                     "build_src_flags has a trailing '-include' with no header"
                 )
             src_includes.append(header)
+        elif tok.startswith("-include"):
+            # Joined spelling; left in src_other it would precede the pch
+            # include and silently defeat the .gch
+            src_includes.append(tok[len("-include") :])
         else:
             src_other.append(_shell_token(tok))
     include_flags = [f"-include {_q(src_dir / h)}" for h in src_includes]
