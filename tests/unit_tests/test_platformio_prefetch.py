@@ -549,6 +549,17 @@ def test_prefetch_spawns_isolated_subprocess(tmp_path: Path) -> None:
     proc.wait.assert_called_once_with(timeout=pf._PREFETCH_TIMEOUT)
 
 
+def test_stop_child_windows_never_terminates() -> None:
+    """The Windows TerminateProcess cannot reach the SIGTERM handler, so
+    the graceful arm becomes a plain longer wait."""
+    proc = MagicMock()
+    proc.wait.side_effect = [pf.subprocess.TimeoutExpired("x", 1), 0]
+    with patch.object(pf.sys, "platform", "win32"):
+        pf._stop_child(proc)
+    proc.terminate.assert_not_called()
+    proc.kill.assert_not_called()
+
+
 def _proc(wait_effect) -> MagicMock:
     proc = MagicMock()
     if isinstance(wait_effect, BaseException):
@@ -667,7 +678,7 @@ def test_dependency_entries_honor_compatibility(tmp_path: Path) -> None:
     entries = pf._dependency_entries(
         m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
     )
-    assert [name for name, _ in entries] == ["espdep"]
+    assert [name for name, *_ in entries] == ["espdep"]
 
 
 def test_dependency_entries_skip_builtin_libs(tmp_path: Path) -> None:
@@ -687,7 +698,7 @@ def test_dependency_entries_skip_builtin_libs(tmp_path: Path) -> None:
     entries = pf._dependency_entries(
         m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
     )
-    assert [name for name, _ in entries] == ["realdep"]
+    assert [name for name, *_ in entries] == ["realdep"]
 
 
 def test_prefetch_interrupt_stops_child_gracefully() -> None:
@@ -986,7 +997,7 @@ def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
     m = _fake_manager(tmp_path)
     installed: list[str] = []
 
-    def fake_install(spec, skip_dependencies):
+    def fake_install(spec, skip_dependencies, compatibility=None):
         # Dependencies must be skipped: a shared dep extracted from two
         # threads would race one destination dir
         assert skip_dependencies is True
@@ -1053,8 +1064,8 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
     deduped by name; name-only platform libs stay with pio run."""
     m = _fake_manager(tmp_path)
     installed: list[str] = []
-    m._install.side_effect = lambda spec, skip_dependencies: installed.append(
-        spec.name if hasattr(spec, "name") else str(spec)
+    m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
+        installed.append(spec.name if hasattr(spec, "name") else str(spec))
     )
     pkg = SimpleNamespace(spec="noise-c")
     m.get_package.side_effect = lambda spec: (
@@ -1068,6 +1079,9 @@ def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
     pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(uri=None, name="noise-c"))])
     assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
+    # The dep wave carries its compatibility so _install searches qualified
+    dep_call = m._install.call_args_list[-1]
+    assert dep_call.kwargs["compatibility"] is not None
 
 
 def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
@@ -1080,8 +1094,8 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
     installed: list[str] = []
-    m._install.side_effect = lambda spec, skip_dependencies: installed.append(
-        getattr(spec, "name", str(spec))
+    m._install.side_effect = lambda spec, skip_dependencies, compatibility=None: (
+        installed.append(getattr(spec, "name", str(spec)))
     )
     pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(uri=None, name="noise-c"))])
     assert installed == ["noise-c"]
@@ -1089,13 +1103,14 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
 
 def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
     """Each worker thread gets its own pre-built manager and installs
-    genuinely overlap (the barrier deadlocks a serial pool)."""
+    genuinely overlap (the barrier deadlocks a serial pool). The worker
+    count is pinned so a 1-CPU host cannot serialize the pool."""
     barrier = threading.Barrier(2, timeout=5)
+    used: set = set()
 
     class _WaveManager:
         package_dir = str(tmp_path)
         compatibility = None
-        used: set = set()
 
         def __init__(self, package_dir, **kwargs) -> None:
             assert package_dir == str(tmp_path)
@@ -1109,26 +1124,33 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
         def memcache_reset(self) -> None:
             pass
 
+        def get_tmp_dir(self) -> str:
+            return str(tmp_path)
+
+        def get_download_dir(self) -> str:
+            return str(tmp_path)
+
         def get_package(self, spec):
             return None
 
         def get_pkg_dependencies(self, pkg):
             return None
 
-        def _install(self, spec, skip_dependencies) -> None:
-            type(self).used.add(id(self))
+        def _install(self, spec, skip_dependencies, compatibility=None) -> None:
+            used.add(id(self))
             barrier.wait()
 
     seed = _WaveManager(str(tmp_path))
-    pf._preinstall(
-        seed,
-        [
-            ("a@1", _FakeSpec(uri=None, name="a")),
-            ("b@1", _FakeSpec(uri=None, name="b")),
-        ],
-    )
-    assert len(_WaveManager.used) == 2
-    assert id(seed) not in _WaveManager.used
+    with patch.object(pf, "get_usable_cpu_count", return_value=2):
+        pf._preinstall(
+            seed,
+            [
+                ("a@1", _FakeSpec(uri=None, name="a")),
+                ("b@1", _FakeSpec(uri=None, name="b")),
+            ],
+        )
+    assert len(used) == 2
+    assert id(seed) not in used
 
 
 def test_manager_kwargs_and_sigterm() -> None:
@@ -1252,6 +1274,7 @@ def test_platformio_private_api_contract() -> None:
     params = inspect.signature(PackageManagerInstallMixin._install).parameters
     assert "spec" in params
     assert "skip_dependencies" in params
+    assert "compatibility" in params
     for cls in (ToolPackageManager, LibraryPackageManager, PlatformPackageManager):
         assert "package_dir" in inspect.signature(cls.__init__).parameters
     for name in (

@@ -173,15 +173,17 @@ def _stop_child(proc: subprocess.Popen) -> None:
     On a terminal interrupt the child shares the process group and is
     already unwinding from its own SIGINT, so wait briefly first. SIGTERM
     then triggers the handler main() installs (a clean unwind through the
-    pool's cancellation); the grace period covers one large extraction.
-    Kill only a child that will not stop, with a bounded reap, and never
-    let a second interrupt escape and orphan the child mid-copy.
+    pool's cancellation); the grace period covers one large extraction,
+    though a copy outlasting it is still cut short by the final kill. On
+    Windows terminate() is TerminateProcess (no signal reaches the
+    handler), so the graceful arm becomes a longer plain wait.
     """
     try:
         with suppress(subprocess.TimeoutExpired):
             proc.wait(timeout=5)
             return
-        proc.terminate()
+        if sys.platform != "win32":
+            proc.terminate()
         with suppress(subprocess.TimeoutExpired):
             proc.wait(timeout=30)
             return
@@ -461,14 +463,16 @@ def _dependency_entries(
 ) -> list[tuple[str, Any]]:
     """Registry dependencies of the installed entries, one per new name.
 
-    Local manifest reads only; name-only platform libs stay with pio run.
+    Mostly local manifest reads; the builtin probe walks installed
+    platforms (each may run platform code). Name-only platform libs stay
+    with pio run.
     """
     from platformio.package.meta import PackageCompatibility
 
     compatibility = getattr(manager, "compatibility", None)
     is_builtin = getattr(manager, "is_builtin_lib", None)
     deps: dict[str, Any] = {}
-    for _name, spec in entries:
+    for _name, spec, *_ in entries:
         if (pkg := manager.get_package(spec)) is None:
             continue
         for dep in manager.get_pkg_dependencies(pkg) or []:
@@ -491,7 +495,12 @@ def _dependency_entries(
             if (key := (dspec.name or "").lower()) and key not in seen_names:
                 if manager.get_package(dspec) is not None:
                     continue  # already installed
-                deps.setdefault(key, (dspec.name, dspec))
+                # Carry the dep's compatibility so _install searches the
+                # registry qualified, exactly like pio's install_dependency
+                deps.setdefault(
+                    key,
+                    (dspec.name, dspec, PackageCompatibility.from_dependency(dep)),
+                )
     return list(deps.values())
 
 
@@ -505,7 +514,7 @@ def _preinstall(
     installed manifests feed the next wave until nothing new appears. Any
     failure leaves that package to pio run's serial installer.
     """
-    workers = min(get_usable_cpu_count() or 4, len(entries))
+    workers = min(get_usable_cpu_count(), len(entries))
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -514,12 +523,16 @@ def _preinstall(
     local = threading.local()
 
     def _install_one(entry) -> bool:
-        name, spec = entry
+        # Wave-1 entries are (name, spec); dependency waves add compatibility
+        name, spec, *rest = entry
+        compat = rest[0] if rest else None
         if (mgr := getattr(local, "mgr", None)) is None:
             # at most `workers` pool threads, one dequeue each
             mgr = local.mgr = managers.get_nowait()
         try:
-            mgr._install(spec, skip_dependencies=True)  # pylint: disable=protected-access  # noqa: SLF001
+            mgr._install(  # pylint: disable=protected-access  # noqa: SLF001
+                spec, skip_dependencies=True, compatibility=compat
+            )
             return True
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             _LOGGER.warning("Could not pre-install %s: %s", name, failure_reason(err))
@@ -544,13 +557,18 @@ def _preinstall(
         "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
         len(entries),
         workers,
-        ", ".join(name for name, _ in entries),
+        ", ".join(name for name, *_ in entries),
     )
     # Postinstall scripts chdir process-globally; the cwd is restored
     # after the pool. Concurrent postinstalls can still race pio's
     # non-reentrant fs.cd mid-pool; that install fails, warns, and is
     # redone serially by pio run. Suppress interleaved progress bars.
     os.environ.setdefault("PLATFORMIO_DISABLE_PROGRESSBAR", "true")
+    # get_tmp_dir/get_download_dir create without exist_ok; racing workers
+    # would FileExistsError, so create them serially first. Concurrent
+    # usage.db updates can drop download bookkeeping; never a bad build.
+    manager.get_tmp_dir()
+    manager.get_download_dir()
     cwd = Path.cwd()
     manager.lock()
     try:
@@ -577,8 +595,14 @@ def _preinstall(
         )
 
     seen = seen_names if seen_names is not None else set()
-    seen.update(name.split("@", 1)[0].lower() for name, _ in entries)
-    next_entries = _dependency_entries(manager, entries, seen)
+    seen.update(name.split("@", 1)[0].lower() for name, *_ in entries)
+    # The builtin probe may construct platforms whose setup rewrites
+    # sys.path (see _prefetch); restore it for later imports
+    saved_sys_path = list(sys.path)
+    try:
+        next_entries = _dependency_entries(manager, entries, seen)
+    finally:
+        sys.path[:] = saved_sys_path
     if next_entries and len(seen) < 200:  # cycle backstop
         _preinstall(manager, next_entries, seen)
 
