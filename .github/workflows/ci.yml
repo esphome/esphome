@@ -68,9 +68,10 @@ jobs:
           uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
           uv pip install -e .
       - name: Save Python virtual environment
-        # Pull request saves land in per-PR scopes nothing else can
-        # reuse; dev pushes seed the shared copy instead.
-        if: github.event_name != 'pull_request' && steps.cache-venv.outputs.cache-hit != 'true'
+        # Saves from PR and merge-queue runs land in temporary ref
+        # scopes nothing else can reuse, and dev (the default branch)
+        # is readable from every ref - so only dev seeds the copy.
+        if: github.ref == 'refs/heads/dev' && steps.cache-venv.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: venv
@@ -410,9 +411,10 @@ jobs:
           uv pip install -r requirements.txt -r requirements_test.txt
           uv pip install -e .
       - name: Save Python virtual environment
-        # Pull request saves land in per-PR scopes nothing else can
-        # reuse; dev pushes seed the shared copy instead.
-        if: github.event_name != 'pull_request' && steps.cache-venv.outputs.cache-hit != 'true'
+        # Saves from PR and merge-queue runs land in temporary ref
+        # scopes nothing else can reuse, and dev (the default branch)
+        # is readable from every ref - so only dev seeds the copy.
+        if: github.ref == 'refs/heads/dev' && steps.cache-venv.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: venv
