@@ -1,6 +1,9 @@
 import logging
 from pathlib import Path
+import time
 from typing import Any
+
+import requests
 
 from esphome import git, loader
 import esphome.config_validation as cv
@@ -17,6 +20,7 @@ from esphome.const import (
     CONF_USERNAME,
     TYPE_GIT,
     TYPE_LOCAL,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, TimePeriodSeconds
 
@@ -71,6 +75,59 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
     return components_dir
 
 
+def _check_for_merged_prs(srcs: list[tuple]):
+    cache_file = CORE.relative_internal_path(".merged_prs_cache")
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    merged_prs = []
+    if cache_file.is_file():
+        with cache_file.open(encoding="utf-8") as f:
+            merged_prs = f.read().splitlines()
+        stale = (time.time() - cache_file.stat().st_mtime) > 3600
+    else:
+        cache_file.touch()
+        stale = True
+    check_numbers = [n for n, _ in srcs if n not in merged_prs]
+    if stale and check_numbers:
+        url = "https://pr-check.control-j.com"
+
+        payload = {
+            "release_tag": ESPHOME_VERSION,
+            "pr_numbers": check_numbers,
+            "repo_owner": "esphome",
+            "repo_name": "esphome",
+        }
+        headers = {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        if response.status_code != 200:
+            return
+        result_data = response.json()
+        new_merged_prs = [
+            pr for pr, data in result_data.items() if data["status"] == "merged"
+        ]
+        if new_merged_prs:
+            merged_prs.extend(new_merged_prs)
+            with cache_file.open("w", encoding="utf-8") as f:
+                f.write("\n".join(set(merged_prs)))
+        else:
+            cache_file.touch()
+    for pr_number, components in srcs:
+        if pr_number in merged_prs:
+            # Use lazy % formatting to prevent unnecessary string concat if not logging
+            _LOGGER.warning(
+                "The git reference 'github://PR#%s' "
+                "for components %s\n"
+                "is a pull request that has been merged and released.\n"
+                "You should remove the external_components configuration for this source.",
+                pr_number,
+                ", ".join(components),
+            )
+
+
 def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
@@ -78,6 +135,7 @@ def _process_single_config(config: dict[str, Any]) -> None:
             components_dir = _process_git_config(
                 config[CONF_SOURCE], config[CONF_REFRESH]
             )
+
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         components_dir = Path(CORE.relative_config_path(conf[CONF_PATH]))
     else:
@@ -112,6 +170,16 @@ def do_external_components_pass(config: dict[str, Any]) -> None:
         return
     with cv.prepend_path(DOMAIN):
         conf = CONFIG_SCHEMA(conf)
+        pr_srcs = []
         for i, c in enumerate(conf):
             with cv.prepend_path(i):
                 _process_single_config(c)
+                source = c[CONF_SOURCE]
+                if (
+                    source[CONF_TYPE] == TYPE_GIT
+                    and "github.com/esphome/esphome" in source[CONF_URL]
+                    and "pull" in source.get(CONF_REF, "")
+                ):
+                    pr_number = source[CONF_REF].split("/")[1]
+                    pr_srcs.append((pr_number, c[CONF_COMPONENTS]))
+        _check_for_merged_prs(pr_srcs)
