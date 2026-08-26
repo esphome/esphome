@@ -20,6 +20,8 @@ class PZEMDC final : public PollingComponent, public modbus::ModbusClientDevice 
 
   void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                modbus::ResponseStatus status) override;
+  void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          modbus::ResponseStatus status) override;
 
   void dump_config() override;
 
