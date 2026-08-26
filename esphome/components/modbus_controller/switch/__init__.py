@@ -3,6 +3,7 @@ from esphome.components import switch
 from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE, PduBuffer
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ASSUMED_STATE, CONF_ID
+from esphome.types import ConfigType
 
 from .. import (
     ModbusItemBaseSchema,
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     byte_offset, _ = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
