@@ -967,13 +967,6 @@ async def test_uart_mock_modbus_client_read_write(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Byte-accurate register-offset writes land in the follow-up offset fix; "
-    "until then the byte offset is folded into the address (writes 0x12 instead of "
-    "0x11). The write and read assertions both flip via the same switch-constructor "
-    "fold. Remove this marker when that change merges.",
-)
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_register_offset(
     yaml_config: str,

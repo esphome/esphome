@@ -12,8 +12,10 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
  public:
   ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = modbus::EntityType::HOLDING;
-    this->SensorItem::set_address(start_address + offset);
-    this->set_offset_from_start_address(0);
+    // Byte offset applied byte-accurately: fold the whole-register shift into the address (write-only, so
+    // the residual byte only matters if this entity is ever read back).
+    this->SensorItem::set_address(start_address + offset / 2);
+    this->set_offset_from_start_address(offset % 2);
     this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
     this->sensor_value_type = value_type;
