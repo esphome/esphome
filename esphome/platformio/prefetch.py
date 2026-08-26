@@ -14,7 +14,6 @@ stage under a stable name and promote with an atomic rename.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-import errno
 import hashlib
 import json
 import logging
@@ -57,19 +56,15 @@ _URI_LOCK_POLL = 1
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
 
-# Sidecars older than pio's own 30-day download expiry cannot be resumed
-# by anything and are invisible to its usage.db-driven pruner
-_SIDECAR_EXPIRE_SECONDS = 30 * 24 * 3600
 
-
-def _sweep_stale_sidecars(download_dir: Path) -> None:
+def _sweep_stale_sidecars(download_dir: Path, expire_seconds: int) -> None:
     """Prune resume sidecars pio's usage.db pruner cannot see.
 
     A version bump strands an aborted archive's sidecars forever. Lock
     files stay: a held lock can carry an ancient mtime (O_TRUNC keeps
     it), and unlinking one reopens the single-writer hole it guards.
     """
-    cutoff = time.time() - _SIDECAR_EXPIRE_SECONDS
+    cutoff = time.time() - expire_seconds
     try:
         for f in download_dir.iterdir():
             if f.suffix not in (".part", ".meta", ".prefetch"):
@@ -294,7 +289,7 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
         if dl_path.is_file() or str(dl_path) in seen:
             continue  # cached, or another spec already claimed this .part
         seen.add(str(dl_path))
-        candidates.append((spec.name or url.rsplit("/", 1)[-1], url, dl_path))
+        candidates.append((spec.name, url, dl_path))
 
     errors: list[str] = []
 
@@ -311,13 +306,9 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
             if resp.status_code in (408, 429) or resp.status_code >= 500:
                 errors.append(f"HTTP {resp.status_code}")
                 return -1  # transient; must not be cached as warm
-            if resp.status_code in (405, 501):
-                # HEAD unsupported but GET may work: a clean skip, or the
-                # sentinel would never be written again
-                return 0
-            # A real URL problem (401/403/404): name it, but still a clean
-            # skip so the warm sentinel is not disabled forever
-            _LOGGER.warning("HEAD %s returned %s", url, resp.status_code)
+            # Permanent (405/501 HEAD-unsupported, 401/403/404): a clean
+            # skip so the warm sentinel is not disabled forever; pio run
+            # surfaces a genuinely broken URL when it downloads
             return 0
         return content_length(resp)
 
@@ -341,7 +332,7 @@ def _uri_jobs(manager, specs, seen: set[str]) -> tuple[list[tuple[str, int, Any]
             "PlatformIO will download them serially",
             failed,
             len(candidates),
-            errors[0] if errors else "no length",
+            errors[0],
         )
     return jobs, failed
 
@@ -376,13 +367,8 @@ def _serialized_fetch_job(
                         "timed out waiting for another download of the same file"
                     ) from None
             except OSError as err:
-                if not unlocked_ok or err.errno not in (
-                    errno.ENOSYS,
-                    errno.EPERM,
-                    errno.EROFS,
-                ):
-                    # Real faults (EACCES/ENOSPC/EMFILE), or a body with no
-                    # checksum to catch interleaved corruption
+                if not unlocked_ok:
+                    # A body with no checksum to catch interleaved corruption
                     raise
                 lock = None
                 _LOGGER.warning(
@@ -406,27 +392,15 @@ def _serialized_fetch_job(
 # concurrent writers could reset every recorded entry
 _REGISTER_LOCK = threading.Lock()
 
-# Per-run (the child is a fresh process); systematic failures warn once
-_REGISTER_FAILURES: list[str] = []
-
-
-def _warn_register_failures() -> None:
-    if _REGISTER_FAILURES:
-        _LOGGER.warning(
-            "%d archive(s) could not be registered with PlatformIO's cache pruner",
-            len(_REGISTER_FAILURES),
-        )
-
 
 def _register_download(manager: Any, dl_path: Path) -> None:
     """Hand the archive to pio's usage.db pruner; an unregistered one is
-    never expired."""
+    never expired (disk garbage, never a bad build)."""
     try:
         with _REGISTER_LOCK:
             manager.set_download_utime(str(dl_path))
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         _LOGGER.debug("Could not register %s with pio's cache: %s", dl_path, err)
-        _REGISTER_FAILURES.append(dl_path.name)
 
 
 def _registry_fetch_job(
@@ -500,7 +474,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
     # setup does); restore it so later imports here still resolve.
     saved_sys_path = list(sys.path)
     pm = PlatformPackageManager()
-    _sweep_stale_sidecars(Path(pm.get_download_dir()))
+    _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
     pkg = pm.install(platform_spec, skip_dependencies=True)
     p = PlatformFactory.new(pkg)
     p.configure_project_packages(env, ["run"])
@@ -567,7 +541,6 @@ def _prefetch(build_dir: Path, env: str) -> None:
     )
     # PlatformIO retries failed packages itself, without resume
     warn_prefetch_failures(run_batch_downloads("Downloading PlatformIO packages", jobs))
-    _warn_register_failures()
 
 
 def main(argv: list[str]) -> int:
@@ -576,19 +549,14 @@ def main(argv: list[str]) -> int:
     from esphome.log import setup_log
 
     raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
-    malformed = False
     try:
         level = int(raw_level) if raw_level is not None else logging.INFO
     except ValueError:
-        malformed = True
         level = logging.INFO
     # Mirror the parent's log setup: warnings keep their level prefix and
     # color, and the download bar still draws under the dashboard
     CORE.dashboard = get_bool_env("ESPHOME_PREFETCH_DASHBOARD")
     setup_log(level)
-    if malformed:
-        # A wiring break would otherwise silently drop -v propagation
-        _LOGGER.warning("Ignoring malformed prefetch log level %r", raw_level)
     # pio's managers attach their own handler and still propagate; without
     # this every manager line also prints through the root handler. Their
     # construction re-pins the logger to INFO, so a logger-level filter

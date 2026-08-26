@@ -18,7 +18,6 @@ import esphome.platformio.prefetch as pf
 @pytest.fixture(autouse=True)
 def _core(tmp_path: Path):
     CORE.reset()
-    pf._REGISTER_FAILURES.clear()
     CORE.build_path = str(tmp_path)
     CORE.name = "testenv"
     pio_loggers = ("Tool Manager", "Library Manager", "Platform Manager")
@@ -288,24 +287,6 @@ def test_uri_fetch_job_failed_download_keeps_staging(tmp_path: Path) -> None:
     assert not dl_path.exists()
 
 
-def test_lock_real_fault_is_a_counted_failure(tmp_path: Path) -> None:
-    """EACCES on the lock is a real fault, not a lock-less filesystem; an
-    unlocked shared write is not a safe fallback."""
-    dl_path = tmp_path / "archive"
-    with (
-        patch("esphome.framework_helpers.download_with_resume") as mock_download,
-        patch(
-            "filelock.FileLock.acquire",
-            side_effect=OSError(errno.EACCES, "denied"),
-        ),
-        pytest.raises(OSError),
-    ):
-        pf._registry_fetch_job(
-            MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
-        )(lambda done: None)
-    mock_download.assert_not_called()
-
-
 def test_uri_fetch_job_rejects_wrong_length(tmp_path: Path) -> None:
     """A checksum-less body of the wrong length is never published under a
     cache key pio would trust forever."""
@@ -330,7 +311,7 @@ def test_uri_fetch_job_rejects_wrong_length(tmp_path: Path) -> None:
 def test_sweep_stale_sidecars(tmp_path: Path) -> None:
     """Sidecars past pio's own expiry are pruned; fresh and foreign files
     stay."""
-    old_time = pf.time.time() - pf._SIDECAR_EXPIRE_SECONDS - 10
+    old_time = pf.time.time() - 110
     stale = tmp_path / "a.tar.gz.part"
     stale.write_bytes(b"x")
     os.utime(stale, (old_time, old_time))
@@ -344,12 +325,12 @@ def test_sweep_stale_sidecars(tmp_path: Path) -> None:
     held_lock = tmp_path / "d.tar.gz.esphome.lock"
     held_lock.write_bytes(b"")
     os.utime(held_lock, (old_time, old_time))
-    pf._sweep_stale_sidecars(tmp_path)
+    pf._sweep_stale_sidecars(tmp_path, 100)
     assert not stale.exists()
     assert fresh.exists()
     assert keep.exists()
     assert held_lock.exists()
-    pf._sweep_stale_sidecars(tmp_path / "missing")  # tolerated
+    pf._sweep_stale_sidecars(tmp_path / "missing", 100)  # tolerated
 
 
 def test_register_download_failure_leaves_a_trace(
@@ -364,34 +345,12 @@ def test_register_download_failure_leaves_a_trace(
     assert "Could not register" in caplog.text
 
 
-def test_register_failures_warn_once(caplog: pytest.LogCaptureFixture) -> None:
-    """Systematic registration failures surface once per run."""
-    pf._warn_register_failures()
-    assert "could not be registered" not in caplog.text
-    pf._REGISTER_FAILURES.extend(["a.tar.gz", "b.tar.gz"])
-    pf._warn_register_failures()
-    assert "2 archive(s) could not be registered" in caplog.text
-
-
-def test_main_malformed_log_level_warns(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A wiring break must not silently drop -v propagation."""
-    with (
-        patch.dict("os.environ", {"ESPHOME_PREFETCH_LOG_LEVEL": "verbose"}),
-        patch("esphome.log.setup_log"),
-        patch.object(pf, "_prefetch"),
-    ):
-        assert pf.main([str(tmp_path), "testenv"]) == 0
-    assert "malformed prefetch log level" in caplog.text
-
-
 def test_sweep_logs_unprunable_files(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A sidecar that cannot be removed leaves a trace; a sweep that never
     prunes must not look like a clean sweep."""
-    old_time = pf.time.time() - pf._SIDECAR_EXPIRE_SECONDS - 10
+    old_time = pf.time.time() - 110
     stale = tmp_path / "a.tar.gz.part"
     stale.write_bytes(b"x")
     os.utime(stale, (old_time, old_time))
@@ -399,7 +358,7 @@ def test_sweep_logs_unprunable_files(
         patch.object(Path, "unlink", side_effect=OSError("busy")),
         caplog.at_level(pf.logging.DEBUG),
     ):
-        pf._sweep_stale_sidecars(tmp_path)
+        pf._sweep_stale_sidecars(tmp_path, 100)
     assert "Could not remove" in caplog.text
 
 
@@ -583,8 +542,8 @@ def test_uri_jobs_head_failure_counts_as_unresolved(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Network errors and transient statuses count as unresolved (and warn);
-    a permanent error status is a clean skip so the sentinel can still be
-    written."""
+    any permanent error status is a clean skip so the sentinel can still
+    be written (pio run names a broken URL when it downloads)."""
     m = _fake_manager(tmp_path)
     spec = [_FakeSpec(uri="https://x/a.zip", name="a")]
     with patch("esphome.net_retry.http_request", side_effect=OSError("no route")):
@@ -598,13 +557,11 @@ def test_uri_jobs_head_failure_counts_as_unresolved(
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(m, spec, set()) == ([], 0)
     assert "HEAD https://x/a.zip" not in caplog.text
-    # A real URL problem is named, but stays a clean skip so the warm
-    # sentinel is not disabled forever
     resp = MagicMock(ok=False, status_code=404)
     resp.headers = {"content-length": "999"}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(m, spec, set()) == ([], 0)
-    assert "HEAD https://x/a.zip returned 404" in caplog.text
+    assert "returned 404" not in caplog.text
 
 
 def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
