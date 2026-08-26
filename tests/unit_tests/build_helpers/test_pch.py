@@ -166,3 +166,12 @@ def test_include_closure_raises_when_identity_unknown(
     with pytest.raises(OSError, match="stat failed"):
         pch._include_closure(_FakeSrcDir(), ["a.h"])
     assert "Could not read a.h" in caplog.text
+
+
+def test_include_closure_survives_non_utf8_include_name(tmp_path: Path) -> None:
+    """A non-UTF-8 quoted include must not abort the build; it simply does
+    not resolve and ends the walk."""
+    (tmp_path / "a.h").write_bytes(b'#include "bad\xff.h"\n#include "b.h"\n')
+    (tmp_path / "b.h").write_text("")
+    closure = pch._include_closure(tmp_path, ["a.h"])
+    assert set(closure) == {"a.h", "b.h"}

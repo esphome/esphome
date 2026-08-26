@@ -54,7 +54,10 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
             data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
         seen[rel] = data
         parent = posixpath.dirname(rel)
-        stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
+        stack.extend(
+            (inc.decode(errors="surrogateescape"), parent)
+            for inc in _INCLUDE_RE.findall(data)
+        )
     return seen
 
 
@@ -264,6 +267,14 @@ def _setup_pch() -> None:
     ):
         if key not in os.environ:
             projenv["ENV"][key] = value  # noqa: F821
+    sloppiness = os.environ.get("CCACHE_SLOPPINESS")
+    if sloppiness is not None:
+        missing = [t for t in ("pch_defines", "time_macros") if t not in sloppiness]
+        if missing:
+            # Without these ccache declines every pch-consuming compile;
+            # union rather than override so the user's own tokens survive
+            projenv["ENV"]["CCACHE_SLOPPINESS"] = ",".join((sloppiness, *missing))  # noqa: F821
+            print(f"ESPHome: adding {','.join(missing)} to CCACHE_SLOPPINESS for the pch")
 
     # Prepended so it is processed before the build_src_flags -include
     # entries: GCC only uses a .gch while no other tokens have been seen.
