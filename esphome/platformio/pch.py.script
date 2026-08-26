@@ -25,7 +25,7 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
 # include-closure recipe, and the checksum/failed-marker stamp flow in sync
 # with build_helpers/pch.py.
 
-_INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
+_INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 _CORE_HEADER = "esphome/core/defines.h"
 
 
@@ -120,6 +120,14 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
     if probe.returncode != 0 or ".gch" in probe.stderr:
         return f"toolchain cannot load the pch: {probe.stderr.strip()}"
     return None
+
+
+def _read_stamp(path: Path) -> str:
+    """A corrupt sidecar must read as stale, not kill the pch forever."""
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return ""
 
 
 def _setup_pch() -> None:
@@ -249,13 +257,10 @@ def _setup_pch() -> None:
         not header.is_file()
         or not gch.is_file()
         or not sum_path.is_file()
-        or (sum_path.read_text(encoding="utf-8").strip() != checksum)
+        or (_read_stamp(sum_path) != checksum)
     ):
         failed_marker = Path(f"{gch}.failed")
-        if (
-            failed_marker.is_file()
-            and failed_marker.read_text(encoding="utf-8").strip() == checksum
-        ):
+        if _read_stamp(failed_marker) == checksum:
             print(
                 "ESPHome: skipping precompiled header (previous attempt "
                 f"failed); delete {failed_marker.name} to retry"
@@ -292,7 +297,8 @@ def _setup_pch() -> None:
             projenv["ENV"][key] = value  # noqa: F821
     sloppiness = os.environ.get("CCACHE_SLOPPINESS")
     if sloppiness is not None:
-        missing = [t for t in ("pch_defines", "time_macros") if t not in sloppiness]
+        tokens = {tok.strip() for tok in sloppiness.split(",")}
+        missing = [t for t in ("pch_defines", "time_macros") if t not in tokens]
         if missing:
             # Without these ccache declines every pch-consuming compile;
             # union rather than override so the user's own tokens survive

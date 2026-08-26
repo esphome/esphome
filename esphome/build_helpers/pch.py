@@ -69,7 +69,9 @@ _CCACHE_PCH_ENV = {
     "CCACHE_PCH_EXTSUM": "true",
 }
 
-_INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
+# Both include forms: an angle include resolving under src/ must enter the
+# digest too; ones that do not resolve simply end the walk
+_INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 
 
 def pch_enabled() -> bool:
@@ -87,7 +89,11 @@ def ccache_pch_env() -> dict[str, str]:
     user_sloppiness = os.environ.get("CCACHE_SLOPPINESS")
     if user_sloppiness is not None and (
         missing := [
-            t for t in ("pch_defines", "time_macros") if t not in user_sloppiness
+            t
+            for t in ("pch_defines", "time_macros")
+            # Set membership: substring matching could be fooled by a token
+            # that merely contains one of ours
+            if t not in {tok.strip() for tok in user_sloppiness.split(",")}
         ]
     ):
         # Without these ccache declines every pch-consuming compile; union
