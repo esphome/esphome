@@ -123,6 +123,8 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
             f"could not scan {package_dir} while cleaning up {spec}: {err!r}"
         ) from err
     for d in entries:
+        if not d.is_dir():
+            continue  # pio's get_installed skips files and *.pio-link too
         meta = None
         last_err = None
         for attempt in range(3):
@@ -364,7 +366,10 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         submit_error = None
         with ThreadPoolExecutor(max_workers=workers) as ex:
             try:
-                futures.extend(ex.submit(install_one, item) for item in pending)
+                for item in pending:
+                    # An explicit append: every submitted future must be
+                    # drained even when a later submit raises
+                    futures.append(ex.submit(install_one, item))  # noqa: PERF401
             except BaseException as err:  # noqa: BLE001
                 # Already-submitted workers run to completion in __exit__;
                 # their CleanupErrors must still be drained below

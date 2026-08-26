@@ -622,6 +622,18 @@ def test_unscannable_package_dir_fails_the_build(tmp_path: Path) -> None:
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
 
 
+def test_stray_file_in_package_dir_is_ignored(tmp_path: Path) -> None:
+    """A plain file (or a pio-link) beside the packages is skipped by
+    pio's own scan and must never hard-fail the build."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    (tmp_path / "packages").mkdir(parents=True)
+    (tmp_path / "packages" / "stray.pio-link").write_text("x")
+    with patch.object(mod.time, "sleep", lambda s: None):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert (tmp_path / "packages" / "stray.pio-link").exists()
+
+
 def test_unreadable_piopm_dir_is_removed(tmp_path: Path, capsys) -> None:
     """A persistently corrupt .piopm would crash pio's own storage scan;
     the dir is removed rather than left to break the serial pass."""
@@ -767,3 +779,8 @@ def test_platformio_surface_for_install_deps_script() -> None:
     assert callable(fs.rmtree)
     assert PackageItem("pkg-dir").path == "pkg-dir"
     assert callable(PackageCompatibility.from_dependency)
+    from platformio.package.meta import PackageType
+
+    mod = _load_script()
+    # The intact-dir heuristic hand-copies pio's manifest map
+    assert set(mod._MANIFEST_NAMES) == set(PackageType.get_manifest_map().values())
