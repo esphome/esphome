@@ -690,6 +690,17 @@ def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
     _, cmd_dir = pch_compile_command(build, header, gch)
     assert cmd_dir == build
 
+    # Corrupted entries with null fields must skip, not raise
+    db.write_text(
+        json.dumps(
+            [
+                {"file": None, "command": "g++ -c x.cpp", "directory": None},
+                {"file": src_file, "command": None, "directory": None},
+            ]
+        )
+    )
+    assert pch_compile_command(build, header, gch) is None
+
     # arguments-style entry (allowed by the spec, unused by CMake)
     db.write_text(
         json.dumps([{"arguments": ["g++", "-c", src_file], "file": src_file}])
