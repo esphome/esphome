@@ -244,28 +244,78 @@ def test_wave_limit_prints_truncation(capsys) -> None:
     assert "Dependency wave limit reached; 1 spec(s) left to pkg install" in out
 
 
-def test_failed_cleanup_fails_the_build() -> None:
-    """A torn destination that cannot be removed must fail the build; the
-    serial pass would trust it and bake a corrupt image."""
+def test_failed_cleanup_fails_the_build(tmp_path: Path) -> None:
+    """A torn destination still on disk after rmtree must fail the build:
+    fs.rmtree never raises (its onexc handler prints), so only the
+    destination's absence proves the cleanup worked."""
     mod = _load_script()
     cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    torn = tmp_path / "torn-pkg"
+    torn.mkdir()
 
     def get_package(self, spec):
         if getattr(cls, "resets", 0):
-            return SimpleNamespace(path="/tmp/torn-pkg", spec=spec)
+            return SimpleNamespace(path=str(torn), spec=spec)
         return None
 
     cls.get_package = get_package  # throwaway subclass; nothing to restore
-
-    def broken_rmtree(path):
-        raise OSError("read-only")
-
     with (
-        patch.object(mod.fs, "rmtree", broken_rmtree),
+        patch.object(mod.fs, "rmtree", lambda path: None),  # onexc swallowed
         pytest.raises(mod.CleanupError, match="could not remove"),
     ):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert cls.lock_events == ["lock", "unlock"]  # still released
+
+
+def test_api_break_cleans_before_surfacing(tmp_path: Path) -> None:
+    """An AttributeError from _install still removes the torn destination
+    before propagating to the logged serial fallback."""
+    mod = _load_script()
+    cls = _reset_fake()
+    torn = tmp_path / "torn-pkg"
+    torn.mkdir()
+
+    def bad_install(self, spec, skip_dependencies, compatibility=None):
+        raise AttributeError("_install went away")
+
+    def get_package(self, spec):
+        if getattr(cls, "resets", 0):
+            return SimpleNamespace(path=str(torn), spec=spec)
+        return None
+
+    cls._install = bad_install
+    cls.get_package = get_package
+    removed: list[str] = []
+
+    def fake_rmtree(path):
+        removed.append(path)
+        Path(path).rmdir()
+
+    with (
+        patch.object(mod.fs, "rmtree", fake_rmtree),
+        pytest.raises(AttributeError),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert removed == [str(torn)]
+
+
+def test_unresolvable_torn_destination_is_printed(capsys) -> None:
+    """A failed install with no resolvable package prints, so an invisible
+    torn directory is at least traceable."""
+    mod = _load_script()
+    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert "No resolvable destination to clean" in capsys.readouterr().out
+
+
+def test_content_cache_creates_its_dir(tmp_path: Path, monkeypatch) -> None:
+    """The cold-cache hardening relies on ContentCache.__init__ creating
+    the namespace dir; pin the side effect, not mere callability."""
+    from platformio.cache import ContentCache
+
+    monkeypatch.setenv("PLATFORMIO_CACHE_DIR", str(tmp_path / "cache"))
+    ContentCache("http")
+    assert (tmp_path / "cache" / "http").is_dir()
 
 
 def test_unresolvable_spec_stays_out_of_the_wave(capsys) -> None:
@@ -334,6 +384,3 @@ def test_platformio_surface_for_install_deps_script() -> None:
     assert callable(fs.rmtree)
     assert PackageItem("pkg-dir").path == "pkg-dir"
     assert callable(PackageCompatibility.from_dependency)
-    from platformio.cache import ContentCache
-
-    assert callable(ContentCache)

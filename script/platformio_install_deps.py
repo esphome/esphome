@@ -14,11 +14,18 @@ import traceback
 # esphome is not installed at this docker layer, so its rmtree helper is
 # out of reach; pio's fs.rmtree is the same chmod-on-readonly shape and
 # is what pio's own installer uses on these directories
-from platformio import fs
-from platformio.cache import ContentCache
-from platformio.package.manager.library import LibraryPackageManager
-from platformio.package.manager.tool import ToolPackageManager
-from platformio.package.meta import PackageCompatibility, PackageSpec
+try:
+    from platformio import fs
+    from platformio.cache import ContentCache
+    from platformio.package.manager.library import LibraryPackageManager
+    from platformio.package.manager.tool import ToolPackageManager
+    from platformio.package.meta import PackageCompatibility, PackageSpec
+
+    PARALLEL_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    # A moved pio module must degrade to the serial pass, not kill the
+    # image build; the tripwire test makes the drift loud in CI
+    PARALLEL_AVAILABLE = False
 
 # Downloads are network bound and release the GIL, unpacks are CPU bound;
 # a fixed pool well past the core count keeps the network busy while
@@ -148,7 +155,7 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             # No name, no destination identity; leave it to the serial pass
             print(f"Skipping unresolvable spec {spec!r} in the wave", flush=True)
             continue
-        unique[key] = (spec, compat)
+        unique.setdefault(key, (spec, compat))  # first-wins, like pio's walk
     pending = [
         (spec, compat)
         for spec, compat in unique.values()
@@ -166,6 +173,34 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         managers.put(manager_cls(None))
     local = threading.local()
 
+    def clean_torn(mgr, spec) -> None:
+        # A torn copy into the destination can carry valid metadata the
+        # pkg install pass would trust; remove it so that pass redoes it
+        try:
+            # get_package memoizes a pre-install snapshot; without a
+            # reset it cannot see the torn directory
+            mgr.memcache_reset()
+            pkg = mgr.get_package(spec)
+        except Exception as scan_err:  # noqa: BLE001
+            # A transient read of another worker's in-flight copy must not
+            # hard-fail the build blaming this spec
+            print(f"Could not inspect failed pre-install of {spec} ({scan_err!r})")
+            return
+        if pkg is None:
+            # Visible: an unresolvable torn directory is indistinguishable
+            # from nothing-to-clean without this line
+            print(f"No resolvable destination to clean for {spec}", flush=True)
+            return
+        # fs.rmtree never raises (errors go to a printing onexc handler);
+        # only the destination's absence proves the cleanup worked
+        fs.rmtree(pkg.path)
+        if Path(pkg.path).exists():
+            # The serial pass would trust this directory; failing the
+            # build beats baking a corrupt image
+            raise CleanupError(
+                f"could not remove the failed pre-install of {spec} at {pkg.path}"
+            )
+
     def install_one(item) -> bool:
         spec, compat = item
         if (mgr := getattr(local, "mgr", None)) is None:
@@ -176,38 +211,36 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             )
             return True
         except (AttributeError, TypeError):
-            # A PlatformIO API break, not a flaky package; surface it so
-            # total degradation reads differently from a network blip
+            # A PlatformIO API break, not a flaky package; clean the torn
+            # destination, then surface it so total degradation reads
+            # differently from a network blip
+            clean_torn(mgr, spec)
             raise
         except Exception as err:  # noqa: BLE001
             print(f"Pre-install of {spec} failed ({err!r})", flush=True)
-            # A torn copy into the destination can carry valid metadata the
-            # pkg install pass would trust; remove it so that pass redoes it
-            try:
-                # get_package memoizes a pre-install snapshot; without a
-                # reset it cannot see the torn directory
-                mgr.memcache_reset()
-                if (pkg := mgr.get_package(spec)) is not None:
-                    fs.rmtree(pkg.path)
-            except Exception as cleanup_err:
-                # A torn destination the serial pass would trust cannot be
-                # removed; failing the build beats baking a corrupt image
-                raise CleanupError(
-                    f"could not remove the failed pre-install of {spec}: "
-                    f"{cleanup_err!r}"
-                ) from cleanup_err
+            clean_torn(mgr, spec)
             return False
 
     print(f"Preinstalling {len(pending)} package(s) with {workers} workers", flush=True)
     # PlatformIO creates these lazily with a bare isdir/makedirs; touch
-    # them once serially so cold-cache workers never race the creation
-    manager.get_download_dir()
-    manager.get_tmp_dir()
+    # them once serially so cold-cache workers never race the creation,
+    # and re-create with exist_ok in case pio moves the side effect
+    for lazy_dir in (manager.get_download_dir(), manager.get_tmp_dir()):
+        Path(lazy_dir).mkdir(parents=True, exist_ok=True)
     ContentCache("http")
     manager.lock()
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            results = list(ex.map(install_one, pending))
+            futures = [ex.submit(install_one, item) for item in pending]
+        # All futures are done (the with-block joins); drain every one so
+        # a concurrent CleanupError is never dropped by iteration order
+        errors = [err for f in futures if (err := f.exception()) is not None]
+        for err in errors:
+            if isinstance(err, CleanupError):
+                raise err
+        if errors:
+            raise errors[0]
+        results = [f.result() for f in futures]
     finally:
         manager.unlock()
     if failures := len(results) - sum(results):
@@ -274,10 +307,14 @@ def main() -> None:
 
     # Platforms stay serial: PlatformPackageManager.install runs an
     # on_installed hook the private _install path would skip
-    for manager_cls, specs in (
-        (ToolPackageManager, tools),
-        (LibraryPackageManager, libs),
-    ):
+    wave_groups = (
+        [(ToolPackageManager, tools), (LibraryPackageManager, libs)]
+        if PARALLEL_AVAILABLE
+        else []
+    )
+    if not PARALLEL_AVAILABLE:  # pragma: no cover
+        print("PlatformIO layout changed; serial install only", flush=True)
+    for manager_cls, specs in wave_groups:
         try:
             parallel_install(manager_cls, specs)
         except CleanupError:
