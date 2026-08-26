@@ -969,10 +969,10 @@ async def test_uart_mock_modbus_client_read_write(
 
 @pytest.mark.xfail(
     strict=True,
-    reason="Byte-accurate register-offset writes require the modbus_controller "
-    "entity-device change; on dev the byte offset is folded into the address "
-    "(writes 0x12 instead of 0x11). The write and read assertions both flip via "
-    "the same switch-constructor fold. Remove this marker when that change merges.",
+    reason="Byte-accurate register-offset writes land in the follow-up offset fix; "
+    "until then the byte offset is folded into the address (writes 0x12 instead of "
+    "0x11). The write and read assertions both flip via the same switch-constructor "
+    "fold. Remove this marker when that change merges.",
 )
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_register_offset(
@@ -1029,14 +1029,42 @@ async def test_uart_mock_modbus_register_offset(
         )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="The deprecated write buffer requires the modbus_controller "
-    "entity-device change; on dev a nullopt-returning write_lambda early-returns "
-    "before the buffer is used, so the write never happens. The warn-once "
-    "assertion matches the log substring 'write_lambda buffer'. Remove this "
-    "marker when that change merges.",
-)
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_lambda_write(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test a write_lambda that drives the write through the entity itself (item is the command).
+
+    `cross_switch` is a coil-type switch whose write_lambda ignores its own type and calls
+    item->write_single_register(0x30, ...) - a register write issued from a coil entity. The lambda
+    returns an empty optional, so the write path detects the lambda already dispatched a frame and does
+    not fall back to the default coil write. Success is reg_30 reading back the value the lambda wrote,
+    which proves both the new item->write_* path and cross-type flexibility.
+    """
+
+    tracker = SensorTracker(["reg_30"])
+    initial = tracker.expect("reg_30", 0)
+    wrote_30 = tracker.expect("reg_30", 1234)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(initial, "reg_30", timeout=4.0)
+
+        switch = find_entity(entities, "cross_switch", SwitchInfo)
+        assert switch is not None, "cross_switch not found"
+        client.switch_command(switch.key, True)
+
+        # The coil switch's lambda wrote register 0x30 via item->write_single_register(); reg_30 must
+        # read back 1234. If the entity-as-command dispatch were broken, no register write would go out
+        # and this would time out.
+        await tracker.await_change(wrote_30, "reg_30", timeout=4.0)
+
+
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_deprecated_write_buffer(
     yaml_config: str,
@@ -1046,9 +1074,9 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
     """Test the deprecated write_lambda buffer path still works, and warns once per entity.
 
     buf_number's write_lambda fills the old `payload` buffer with a legacy raw frame as words (device
-    address + function code + data) instead of calling item->write_*. Two writes must both land with the
-    legacy raw-frame semantics, and the one-time deprecation warning must fire exactly once per entity
-    regardless of how many writes happen.
+    address + function code + data) and returns {} instead of calling item->write_*. Both writes must
+    land - a filled buffer is sent, as the docs have always described - and the one-time deprecation
+    warning must fire exactly once per entity regardless of how many writes happen.
     """
 
     warn_count = 0
