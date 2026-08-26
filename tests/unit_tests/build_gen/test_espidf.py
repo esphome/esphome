@@ -675,6 +675,21 @@ def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
     db.write_text(json.dumps(["just a string"]))
     assert pch_compile_command(build, header, gch) is None
 
+    # An empty-string directory must fall back to the build dir, not cwd
+    db.write_text(
+        json.dumps(
+            [
+                {
+                    "directory": "",
+                    "command": f"g++ -DX=1 -o a.obj -c {src_file}",
+                    "file": src_file,
+                }
+            ]
+        )
+    )
+    _, cmd_dir = pch_compile_command(build, header, gch)
+    assert cmd_dir == build
+
     # arguments-style entry (allowed by the spec, unused by CMake)
     db.write_text(
         json.dumps([{"arguments": ["g++", "-c", src_file], "file": src_file}])

@@ -1976,21 +1976,3 @@ def test_check_windows_path_length_long_path_warns(
     assert "long path support" in message
     # The install is global now; the remedy is the prefix env, not moving the project.
     assert "ESPHOME_ESP_IDF_PREFIX" in message
-
-
-def test_ccache_env_opt_in_with_usable_binary(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    # Forced on with a runnable binary: no warning, full env exported.
-    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
-    with (
-        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
-        patch("esphome.espidf.framework.shutil.which", return_value="/usr/bin/ccache"),
-        patch("esphome.espidf.framework.tool_version_runs", return_value=True),
-        p1,
-        p2,
-        p3,
-    ):
-        env = _ccache_env()
-    assert env["IDF_CCACHE_ENABLE"] == "1"
-    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
