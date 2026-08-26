@@ -11,8 +11,8 @@
 namespace esphome::api {
 
 /// Allocate a buffer without zero-fill. Returns nullptr on allocation failure;
-/// nothrow is required so OOM is reportable — ESP8266 Arduino's plain new
-/// returns nullptr when out of memory, ESP-IDF's aborts.
+/// nothrow is required so OOM is reportable — plain new aborts instead
+/// (NEW_OOM_ABORT on ESP8266 Arduino, exception stub on ESP-IDF).
 inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
   return std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[n]);
 }

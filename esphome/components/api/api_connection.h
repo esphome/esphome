@@ -854,6 +854,9 @@ class APIConnection final : public APIServerConnectionBase {
     this->on_fatal_error();
     this->log_warning_(message, err);
   }
+  // Shared cold path for buffer allocation failures — noinline keeps the
+  // OOM handling out of the hot send paths
+  void __attribute__((noinline)) fatal_out_of_memory_();
 };
 
 }  // namespace esphome::api
