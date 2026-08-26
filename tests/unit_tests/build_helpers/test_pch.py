@@ -45,6 +45,15 @@ def test_ccache_pch_env_disabled() -> None:
         assert pch.ccache_pch_env() == {}
 
 
+def test_ccache_pch_env_token_check_is_membership_not_substring(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A token merely containing ours must not suppress the union."""
+    with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "pch_defines_extra"}, clear=True):
+        env = pch.ccache_pch_env()
+    assert env["CCACHE_SLOPPINESS"] == "pch_defines_extra,pch_defines,time_macros"
+
+
 def test_ccache_pch_env_unions_user_sloppiness(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -181,3 +190,12 @@ def test_pch_checksum_survives_surrogate_extra(tmp_path: Path) -> None:
     """Install paths from non-UTF-8 filesystems carry surrogates; hashing
     them must not raise past the caller's identity-unknown guard."""
     assert pch.pch_checksum(tmp_path, [], ["/opt/bad\udcff/framework"])
+
+
+def test_include_closure_walks_angle_includes_under_src(tmp_path: Path) -> None:
+    """An angle include resolving under src/ must enter the digest; one
+    that does not simply ends the walk."""
+    _write(tmp_path, "a.h", "#include <local.h>\n#include <Arduino.h>\n")
+    (tmp_path / "local.h").write_text("")
+    closure = pch._include_closure(tmp_path, ["a.h"])
+    assert set(closure) == {"a.h", "local.h"}

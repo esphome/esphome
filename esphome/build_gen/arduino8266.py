@@ -1217,7 +1217,15 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
     src_cxx_override = None
-    if pch_enabled():
+    if pch_enabled() and "-include" in cxxflags:
+        # GCC only loads a .gch while no tokens precede it, and the cxx rule
+        # expands $cxxflags before $flags: a user -include in build_flags
+        # means every TU would silently skip the .gch
+        _LOGGER.warning(
+            "A -include in build_flags prevents the precompiled header from "
+            "loading; compiling without it"
+        )
+    elif pch_enabled():
         # C++ src edges swap the force-includes for one precompiled prefix
         # header holding the same content plus defines.h; C and assembly
         # edges keep srcflags (a .gch is a C++ artifact)
@@ -1233,7 +1241,12 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 # depfile handles staleness. Mirror CCACHE_BASEDIR: strip the
                 # per-device build path so identically-configured devices
                 # produce identical .sum files and share cache entries
-                flags_id = " ".join(cxxflags).replace(effective_ccache_basedir(), "")
+                # Raw path too: a symlinked build dir resolves differently
+                flags_id = (
+                    " ".join(cxxflags)
+                    .replace(effective_ccache_basedir(), "")
+                    .replace(str(CORE.build_path), "")
+                )
                 # The header text covers include order, which the sorted
                 # closure alone does not
                 checksum = pch_checksum(
