@@ -28,6 +28,7 @@ from esphome.platformio.library import (
     LIBRARY_HEADER_SUFFIXES,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
+    IncompatiblePlatform,
     InvalidLibrary,
     LibraryBackend,
     _url_or_none,
@@ -457,10 +458,15 @@ def resolve_libraries(
                 # causes; debug keeps one fault from warning twice (pinned
                 # by test_nonplatform_rejection_warns_once_through_real_converter)
                 check_library_data(dep, pio_platform, None)
-            except InvalidLibrary as err:
+            except IncompatiblePlatform as err:
                 # A knowing skip (platform filter), not a broken promise
                 knowingly_skipped.add(name)
                 _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
+                continue
+            except InvalidLibrary as err:
+                # Malformed manifest data never counts as satisfied; the
+                # walk owns the warning (see the warns-once test above)
+                _LOGGER.debug("Skip malformed bundled candidate %s: %s", name, err)
                 continue
             # Deferred: a later manifest name may satisfy this
             pending_bundled.setdefault(name)
