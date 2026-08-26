@@ -66,7 +66,7 @@ void IRAM_ATTR RemoteTransmitterComponent::advance_envelope_isr() {
     this->start_isr_item_(0);
     return;
   }
-  this->isr_index_++;
+  this->isr_index_ = this->isr_index_ + 1;
   if (this->isr_index_ < this->isr_data_.size()) {
     this->start_isr_item_(this->isr_index_);
     return;
@@ -74,7 +74,7 @@ void IRAM_ATTR RemoteTransmitterComponent::advance_envelope_isr() {
   // end of one repetition
   this->write_envelope_level_(false);
   if (this->isr_repeats_left_ > 1) {
-    this->isr_repeats_left_--;
+    this->isr_repeats_left_ = this->isr_repeats_left_ - 1;
     this->isr_index_ = 0;
     if (this->isr_send_wait_ > 0) {
       this->isr_in_gap_ = true;
