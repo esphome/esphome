@@ -55,8 +55,8 @@ def test_ccache_pch_env_disabled() -> None:
 def test_ccache_pch_env_token_check_is_membership_not_substring(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    pch.mark_pch_emitted()
     """A token merely containing ours must not suppress the union."""
+    pch.mark_pch_emitted()
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "pch_defines_extra"}, clear=True):
         env = pch.ccache_pch_env()
     assert env["CCACHE_SLOPPINESS"] == "pch_defines_extra,pch_defines,time_macros"
@@ -65,9 +65,9 @@ def test_ccache_pch_env_token_check_is_membership_not_substring(
 def test_ccache_pch_env_unions_user_sloppiness(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    pch.mark_pch_emitted()
     """Without pch_defines/time_macros ccache declines every pch-consuming
     compile, so missing tokens are unioned onto the user's value."""
+    pch.mark_pch_emitted()
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
         env = pch.ccache_pch_env()
     assert env["CCACHE_SLOPPINESS"] == "locale,pch_defines,time_macros"
@@ -135,22 +135,20 @@ def test_pch_checksum_tracks_closure_content(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     os.name == "nt" or os.geteuid() == 0, reason="chmod is ineffective here"
 )
-def test_include_closure_marks_unreadable(
+def test_include_closure_fails_closed_on_unreadable(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An unreadable header warns and hashes as a marker, so it still
-    invalidates instead of silently vanishing from the digest."""
+    """A marker would truncate the transitive walk; the OSError propagates
+    so callers compile without a pch."""
     _write(tmp_path, "a.h", '#include "locked.h"\n')
     locked = tmp_path / "locked.h"
     locked.write_text("")
     locked.chmod(0)
     try:
-        closure = pch._include_closure(tmp_path, ["a.h"])
+        with pytest.raises(OSError):
+            pch._include_closure(tmp_path, ["a.h"])
     finally:
         locked.chmod(0o644)
-    # stat still works, so the marker varies with mtime/size and a later
-    # edit to the unreadable file still shifts the digest
-    assert closure["locked.h"].startswith(b"<unreadable:")
     assert "Could not read locked.h" in caplog.text
 
 
@@ -164,8 +162,7 @@ def test_pch_extra_scripts_gated(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_include_closure_raises_when_identity_unknown(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Read AND stat failing means no marker can vouch for the header, so
-    the OSError propagates and callers compile without a pch."""
+    """An unreadable header propagates; callers compile without a pch."""
 
     class _BadFile:
         def is_file(self) -> bool:
@@ -174,14 +171,11 @@ def test_include_closure_raises_when_identity_unknown(
         def read_bytes(self) -> bytes:
             raise OSError("read failed")
 
-        def stat(self) -> None:
-            raise OSError("stat failed")
-
     class _FakeSrcDir:
         def __truediv__(self, rel: str) -> _BadFile:
             return _BadFile()
 
-    with pytest.raises(OSError, match="stat failed"):
+    with pytest.raises(OSError, match="read failed"):
         pch._include_closure(_FakeSrcDir(), ["a.h"])
     assert "Could not read a.h" in caplog.text
 
