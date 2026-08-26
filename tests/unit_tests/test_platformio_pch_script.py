@@ -273,6 +273,16 @@ def test_copy_pch_script(tmp_path: Path) -> None:
     assert (tmp_path / "pch.py").read_text() == _SCRIPT.read_text()
 
 
+def test_pch_script_unions_user_sloppiness(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A user CCACHE_SLOPPINESS without the pch tokens gets them unioned on,
+    mirroring ccache_pch_env, or every src TU is a permanent miss."""
+    scons_env = _run_script(tmp_path, env_vars={"CCACHE_SLOPPINESS": "locale"})
+    assert scons_env["ENV"]["CCACHE_SLOPPINESS"] == "locale,pch_defines,time_macros"
+    assert "adding pch_defines,time_macros" in capsys.readouterr().out
+
+
 def test_pch_script_nobuild_without_projenv_is_noop(tmp_path: Path) -> None:
     """-t nobuild never exports projenv; the script must not abort."""
     proj = tmp_path / "dev"
