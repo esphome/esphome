@@ -22,7 +22,10 @@ MAX_WORKERS = 16
 def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
     """Extract lib/platform/tool specs from every section of a platformio.ini."""
     config = configparser.ConfigParser(inline_comment_prefixes=(";",))
-    config.read(path)
+    if not config.read(path):
+        # ConfigParser silently ignores unreadable files; an empty spec
+        # list would build an image with no dependencies at all
+        raise SystemExit(f"Could not read {path}")
     libs = []
     tools = []
     platforms = []
@@ -86,7 +89,10 @@ def parallel_install(manager_cls, specs: list) -> None:
     # One spec per destination: platformio.ini repeats specs across env
     # sections, and two threads must not extract into the same directory.
     # Another spec for the same name is left to the pkg install pass.
-    unique = {spec_key(spec): spec for spec in specs}
+    unique = {
+        spec_key(spec): spec for spec in specs if "://" not in spec
+    }  # URL specs install into a manifest-named dir the spec cannot predict;
+    # only the serial pass may handle them
     pending = [spec for spec in unique.values() if not manager.get_package(spec)]
     if not pending:
         return
@@ -105,10 +111,17 @@ def parallel_install(manager_cls, specs: list) -> None:
             # A torn copy into the destination can carry valid metadata the
             # pkg install pass would trust; remove it so that pass redoes it
             try:
+                # get_package memoizes a pre-install snapshot; without a
+                # reset it cannot see the torn directory
+                mgr.memcache_reset()
                 if (pkg := mgr.get_package(spec)) is not None:
-                    shutil.rmtree(pkg.path, ignore_errors=True)
-            except Exception:  # noqa: BLE001
-                pass
+                    shutil.rmtree(pkg.path)
+            except Exception as cleanup_err:  # noqa: BLE001
+                print(
+                    f"Cleanup after failed pre-install of {spec} "
+                    f"failed ({cleanup_err!r})",
+                    flush=True,
+                )
             return False
 
     workers = min(len(pending), MAX_WORKERS)
@@ -119,10 +132,11 @@ def parallel_install(manager_cls, specs: list) -> None:
             results = list(ex.map(install_one, pending))
     finally:
         manager.unlock()
-    if not any(results):
-        # A systematic fault (e.g. a PlatformIO API change), not archive noise
+    if failures := len(results) - sum(results):
+        # Visible once per wave; pkg install retries every failed spec
         print(
-            "Pre-install failed for every package; pkg install runs serially",
+            f"Pre-install failed for {failures} of {len(results)} package(s); "
+            "pkg install retries them serially",
             flush=True,
         )
 
@@ -147,7 +161,7 @@ def main() -> None:
     )
     parser.add_argument("-t", "--tools", help="Install tools", action="store_true")
     args = parser.parse_args()
-    libs, platforms, tools = parse_specs(args.file, args)
+    libs, platforms, tools = parse_specs(args.file[0], args)
 
     # Platforms stay serial: PlatformPackageManager.install runs an
     # on_installed hook the private _install path would skip

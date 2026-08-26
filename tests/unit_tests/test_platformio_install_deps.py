@@ -4,6 +4,10 @@ from argparse import Namespace
 import importlib.util
 import inspect
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
+
+import pytest
 
 _SCRIPT = Path(__file__).parents[2] / "script" / "platformio_install_deps.py"
 
@@ -57,6 +61,111 @@ def test_parse_specs_and_cli_args(tmp_path: Path) -> None:
         "-p",
         "fake/platform@1",
     ]
+
+
+class _FakeManager:
+    """Scripted manager_cls: records installs, raises on demand."""
+
+    installed: set = set()
+    fail: set = set()
+    calls: list = []
+    lock_events: list = []
+
+    def __init__(self, package_dir) -> None:
+        assert package_dir is None
+
+    def get_package(self, spec):
+        if spec in self.installed:
+            return SimpleNamespace(path="/tmp/fake-pkg")
+        return None
+
+    def memcache_reset(self) -> None:
+        type(self).calls.append("memcache_reset")
+
+    def lock(self) -> None:
+        type(self).lock_events.append("lock")
+
+    def unlock(self) -> None:
+        type(self).lock_events.append("unlock")
+
+    def _install(self, spec, skip_dependencies):
+        assert skip_dependencies is True
+        if spec in self.fail:
+            raise RuntimeError("boom")
+        type(self).calls.append(spec)
+
+
+def _reset_fake(**kwargs) -> type:
+    cls = _FakeManager
+    cls.installed = kwargs.get("installed", set())
+    cls.fail = kwargs.get("fail", set())
+    cls.calls = []
+    cls.lock_events = []
+    return cls
+
+
+def test_parallel_install_behavior() -> None:
+    """Duplicates collapse to one install, installed specs are filtered,
+    URL specs stay out of the wave, and the lock wraps the pool."""
+    mod = _load_script()
+    cls = _reset_fake(installed={"esphome/already @ 1.0"})
+    mod.parallel_install(
+        cls,
+        [
+            "esphome/noise-c @ 0.1.21",
+            "esphome/noise-c @ 0.1.21",
+            "esphome/already @ 1.0",
+            "https://x/framework.tar.xz",
+        ],
+    )
+    assert cls.calls == ["esphome/noise-c @ 0.1.21"]
+    assert cls.lock_events == ["lock", "unlock"]
+
+
+def test_parallel_install_failure_cleans_torn_destination(capsys) -> None:
+    """A failed install resets the memcache, removes what get_package can
+    see, and reports; the others still install."""
+    mod = _load_script()
+    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+
+    removed = []
+    orig_get = cls.get_package
+
+    def get_package(self, spec):
+        if spec == "esphome/bad @ 1.0" and "memcache_reset" in cls.calls:
+            return SimpleNamespace(path="/tmp/torn-pkg")
+        return orig_get(self, spec)
+
+    cls.get_package = get_package
+    try:
+        with patch.object(mod.shutil, "rmtree", side_effect=removed.append):
+            mod.parallel_install(cls, ["esphome/bad @ 1.0", "esphome/good @ 1.0"])
+    finally:
+        cls.get_package = orig_get
+    assert "esphome/good @ 1.0" in cls.calls
+    assert removed == ["/tmp/torn-pkg"]
+    out = capsys.readouterr().out
+    assert "Pre-install of esphome/bad @ 1.0 failed" in out
+    assert "Pre-install failed for 1 of 2 package(s)" in out
+
+
+def test_parallel_install_unlocks_when_pool_fails() -> None:
+    mod = _load_script()
+    cls = _reset_fake()
+    with (
+        patch.object(mod, "ThreadPoolExecutor", side_effect=RuntimeError("no")),
+        pytest.raises(RuntimeError),
+    ):
+        mod.parallel_install(cls, ["esphome/a @ 1.0"])
+    assert cls.lock_events == ["lock", "unlock"]
+
+
+def test_parse_specs_unreadable_ini_fails_loudly(tmp_path: Path) -> None:
+    """A bad path must not silently build an image with no dependencies."""
+    mod = _load_script()
+    args = Namespace(libraries=True, platforms=False, tools=False)
+    with pytest.raises(SystemExit):
+        mod.parse_specs(str(tmp_path / "missing.ini"), args)
 
 
 def test_platformio_surface_for_install_deps_script() -> None:
