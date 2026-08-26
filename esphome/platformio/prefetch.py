@@ -390,10 +390,11 @@ def _uri_jobs(
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
-            if spec.name:
-                # A nameless URL spec's destination comes from the archive
-                # manifest; its dedupe key could collide with a registry
-                # name and race one directory, so pio run installs it
+            if spec.has_custom_name():
+                # Only a custom name (Foo=https://...) is the destination
+                # dir; a URI-derived name's destination comes from the
+                # archive manifest, so its dedupe key could collide with
+                # another name and race one directory. pio run installs it.
                 installable.append((name, spec))  # fetched by an earlier run
             continue
         if str(dl_path) in seen:
@@ -437,8 +438,8 @@ def _uri_jobs(
             failed += 1
         elif size:
             jobs.append((name, size, _uri_fetch_job(manager, url, dl_path, size)))
-            if spec.name:
-                # See above: nameless specs stay with pio run's installer
+            if spec.has_custom_name():
+                # See above: derived-name specs stay with pio run's installer
                 installable.append((name, spec))
         else:
             # Missing or unusable Content-Length; visible under -v
@@ -658,6 +659,7 @@ def _entry_dependencies(
             # builtins; a registry copy would shadow the bundled one
             continue
         if not (key := (dspec.name or "").lower()):
+            _LOGGER.debug("Dependency %r of %s has no name; left to pio run", dep, spec)
             continue
         if manager.get_package(dspec) is not None:
             continue  # already installed
@@ -687,9 +689,12 @@ def _clean_failed_install(mgr: Any, name: str, spec: Any) -> None:
                     "dropped its metadata so pio run reinstalls it",
                     name,
                 )
-        elif Path(mgr.package_dir, name.split("@", 1)[0]).exists():
-            # A leftover this cleanup cannot resolve is exactly the
-            # shape pio run would trust
+        elif (base := name.split("@", 1)[0]) and (
+            Path(mgr.package_dir, base).exists()
+            or any(Path(mgr.package_dir).glob(f"{base}@*"))
+        ):
+            # A leftover this cleanup cannot resolve (bare or in pio's
+            # name@version form) is exactly the shape pio run would trust
             _LOGGER.warning("Failed install of %s left an unresolvable directory", name)
         else:
             # Nothing was moved into place; the common failure shape
@@ -779,17 +784,24 @@ def _preinstall(
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             stale_cache = True
             _LOGGER.debug("memcache reset failed", exc_info=True)
+        lock_stuck = False
         try:
             manager.unlock()
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # Must not displace the in-flight exception (SIGTERM's
             # SystemExit included) with a downgradeable one
+            lock_stuck = True
             _LOGGER.warning("Could not release the manager lock")
             _LOGGER.debug("Unlock detail", exc_info=True)
+        cwd_lost = False
         try:
             os.chdir(cwd)
         except OSError:
-            _LOGGER.debug("Could not restore the working dir", exc_info=True)
+            # Process-global state loss: everything after this runs from
+            # an unknown directory
+            cwd_lost = True
+            _LOGGER.warning("Could not restore the working dir")
+            _LOGGER.debug("Restore detail", exc_info=True)
     if not any(results):
         # A systematic fault, not one bad archive; pio run installs serially
         _LOGGER.warning(
@@ -805,6 +817,12 @@ def _preinstall(
         # The wave decides installed-vs-missing from that cache; running
         # on stale answers could queue or skip the wrong packages
         _LOGGER.warning("Skipping the dependency wave after a failed cache reset")
+        return
+    if lock_stuck or cwd_lost:
+        # A failed unlock leaves _lockfile set, so the recursive wave's
+        # lock() would no-op on an unknown lock state; a lost cwd breaks
+        # relative paths. pio run installs the rest from a clean process.
+        _LOGGER.warning("Skipping the dependency wave")
         return
     # The builtin probe may construct platforms whose setup rewrites
     # sys.path (see _prefetch); restore it for later imports

@@ -731,6 +731,12 @@ def test_get_usable_cpu_count_with_process_cpu_count() -> None:
         count = config.get_usable_cpu_count()
         assert count == 4
 
+    # An undeterminable count degrades to one worker, never zero
+    mock_os_unknown = types.SimpleNamespace(cpu_count=lambda: None)
+
+    with patch("esphome.helpers.os", mock_os_unknown):
+        assert config.get_usable_cpu_count() == 1
+
 
 def test_list_target_platforms(tmp_path: Path) -> None:
     """Test _list_target_platforms returns available platforms."""

@@ -18,7 +18,7 @@ from platformio.package.manager.base import BasePackageManager
 from platformio.package.manager.library import LibraryPackageManager
 from platformio.package.manager.platform import PlatformPackageManager
 from platformio.package.manager.tool import ToolPackageManager
-from platformio.package.meta import PackageCompatibility
+from platformio.package.meta import PackageCompatibility, PackageSpec
 import pytest
 
 from esphome.core import CORE
@@ -55,11 +55,21 @@ class _FakeSpec(SimpleNamespace):
     """PackageSpec stand-in for the attributes the prefetch reads."""
 
     def __init__(
-        self, *, owner=None, requirements=None, external=False, **kwargs
+        self,
+        *,
+        owner=None,
+        requirements=None,
+        external=False,
+        custom_name=False,
+        **kwargs,
     ) -> None:
         super().__init__(
             owner=owner, requirements=requirements, external=external, **kwargs
         )
+        self._custom_name = custom_name
+
+    def has_custom_name(self) -> bool:
+        return self._custom_name
 
 
 def _fake_manager(tmp_path: Path) -> MagicMock:
@@ -597,7 +607,7 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
         jobs, failed, installable = pf._uri_jobs(
             m,
             [
-                _FakeSpec(uri="https://x/big.zip", name="big"),
+                _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
                 _FakeSpec(uri="git+https://x/repo.git", name="repo"),
                 _FakeSpec(uri="https://x/repo.git#v1", name="barevcs"),
                 _FakeSpec(uri=None, name="registry"),
@@ -665,7 +675,7 @@ def test_uri_jobs_dedupes_duplicate_urls(tmp_path: Path) -> None:
 def test_uri_jobs_skips_installed_cached_and_seen(tmp_path: Path) -> None:
     m = _fake_manager(tmp_path)
     m.get_package.return_value = object()
-    spec = [_FakeSpec(uri="https://x/a.zip", name="a")]
+    spec = [_FakeSpec(uri="https://x/a.zip", name="a", custom_name=True)]
     assert pf._uri_jobs(m, spec, set()) == ([], 0, [])
     m.get_package.return_value = None
     dl = Path(m.compute_download_path("https://x/a.zip", ""))
@@ -779,18 +789,25 @@ def test_dependency_entries_isolate_a_bad_manifest(tmp_path: Path) -> None:
     assert [name for name, *_ in entries] == ["dep"]
 
 
-def test_dependency_entries_skip_nameless_spec(tmp_path: Path) -> None:
-    """A dependency whose spec has no name has no destination identity."""
+def test_dependency_entries_skip_nameless_spec(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A dependency whose spec has no name has no destination identity;
+    the drop is diagnosable under -v."""
     m = _fake_manager(tmp_path)
     m.get_package.side_effect = lambda spec: (
         SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
     )
     m.get_pkg_dependencies.return_value = [{"owner": "o", "version": "^1"}]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=None)
-    assert (
-        pf._dependency_entries(m, [("top@1", _FakeSpec(uri=None, name="top"))], set())
-        == []
-    )
+    with caplog.at_level(logging.DEBUG):
+        assert (
+            pf._dependency_entries(
+                m, [("top@1", _FakeSpec(uri=None, name="top"))], set()
+            )
+            == []
+        )
+    assert "has no name; left to pio run" in caplog.text
 
 
 def test_dependency_entries_filter_seen_names(tmp_path: Path) -> None:
@@ -865,6 +882,44 @@ def test_preinstall_unresolvable_leftover_warns(
     assert "left an unresolvable directory" in caplog.text
 
 
+def test_preinstall_versioned_leftover_warns(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A leftover in pio's name@version dir form is probed too."""
+    m = _fake_manager(tmp_path)
+    m.package_dir = str(tmp_path)
+    (tmp_path / "bad@1.2.3").mkdir()
+    m._install.side_effect = RuntimeError("boom")
+    m.get_package.return_value = None
+    pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+    assert "left an unresolvable directory" in caplog.text
+
+
+def test_preinstall_stuck_lock_skips_dependency_wave(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed unlock leaves the lock state unknown; the recursive wave
+    would install under a lock() that silently no-ops."""
+    m = _fake_manager(tmp_path)
+    m.unlock.side_effect = RuntimeError("flock broke")
+    pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+    assert "Skipping the dependency wave" in caplog.text
+    m.get_pkg_dependencies.assert_not_called()
+
+
+def test_preinstall_lost_cwd_warns_and_skips_wave(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed cwd restore is process-global state loss: it warns and
+    the rest is left to pio run from a clean process."""
+    m = _fake_manager(tmp_path)
+    with patch.object(pf.os, "chdir", side_effect=OSError("cwd gone")):
+        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+    assert "Could not restore the working dir" in caplog.text
+    assert "Skipping the dependency wave" in caplog.text
+    m.get_pkg_dependencies.assert_not_called()
+
+
 def test_stop_child_interrupted_and_still_alive_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -890,24 +945,25 @@ def test_stop_child_reraises_system_exit(
     assert "could not be confirmed stopped" in caplog.text
 
 
-def test_uri_nameless_spec_downloads_but_never_installs(tmp_path: Path) -> None:
-    """A nameless URL spec has no destination identity; its archive is
+def test_uri_derived_name_spec_downloads_but_never_installs(tmp_path: Path) -> None:
+    """A URL spec whose name is derived from the URI installs into a dir
+    named by the archive manifest, not the derived name; its archive is
     prefetched, but the install stays with pio run."""
     m = _fake_manager(tmp_path)
     resp = MagicMock(ok=True)
     resp.headers = {"content-length": "4"}
     with patch("esphome.net_retry.http_request", return_value=resp):
         jobs, failed, installable = pf._uri_jobs(
-            m, [_FakeSpec(uri="https://x/v1.zip", name=None)], set()
+            m, [_FakeSpec(uri="https://x/v1.zip", name="v1")], set()
         )
     assert failed == 0
     assert len(jobs) == 1  # still prefetched
     assert installable == []
-    # Cached-from-an-earlier-run nameless archives are skipped the same way
+    # Cached-from-an-earlier-run archives are skipped the same way
     dl = Path(m.compute_download_path("https://x/v1.zip", ""))
     dl.parent.mkdir(parents=True, exist_ok=True)
     dl.touch()
-    assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/v1.zip", name=None)], set()) == (
+    assert pf._uri_jobs(m, [_FakeSpec(uri="https://x/v1.zip", name="v1")], set()) == (
         [],
         0,
         [],
@@ -1748,3 +1804,8 @@ def test_platformio_private_api_contract() -> None:
     )
     assert callable(PackageCompatibility.from_dependency)
     assert callable(PackageCompatibility.is_compatible)
+    # Every URL spec derives a name from the URI; only a custom name
+    # (Foo=https://...) is also the destination dir the wave installs into
+    derived = PackageSpec("https://x/y/archive/master.zip")
+    assert derived.name and not derived.has_custom_name()
+    assert PackageSpec("Foo=https://x/y/archive/master.zip").has_custom_name()
