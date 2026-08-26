@@ -66,6 +66,11 @@ class ArduinoLibrary:
     link_flags: list[str] = field(default_factory=list)
 
 
+# Source-like suffixes the case-sensitive suffix map rejects
+_UNMAPPED_SOURCE_SUFFIXES = frozenset(
+    {s.lower() for s in SRC_FILE_EXTENSIONS} | {".ino"}
+)
+
 # Filename-plain names: an allowlist excludes separators, drive colons,
 # and dot-only names by shape
 _SAFE_LIBRARY_NAME_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_. +-]*\Z")
@@ -195,30 +200,32 @@ def _collect_lib_sources(
     src_dir: str,
     src_filter: list[str],
 ) -> None:
-    matched = collect_filtered_files(read_path / src_dir, src_filter)
-    lib.sources = sorted(
-        path.resolve()
-        for f in matched
-        if (path := Path(f)).suffix in SRC_FILE_EXTENSIONS
-    )
-    # A source-like suffix the case-sensitive map rejects (.CPP, .ino)
-    # is a dropped compilation unit; headers fall through silently
-    source_like = {s.lower() for s in SRC_FILE_EXTENSIONS} | {".ino"}
-    if dropped := [
-        Path(f).name
-        for f in matched
-        if Path(f).suffix not in SRC_FILE_EXTENSIONS
-        and Path(f).suffix.lower() in source_like
-    ]:
+    root = read_path / src_dir
+    resolved_root = root.resolve()
+    sources: list[Path] = []
+    dropped: list[str] = []
+    saw_header = False
+    for f in collect_filtered_files(root, src_filter):
+        path = Path(f)
+        suffix = path.suffix
+        if suffix in SRC_FILE_EXTENSIONS:
+            # Re-root on the resolved dir instead of a realpath() per file
+            sources.append(resolved_root / path.relative_to(root))
+        elif suffix.lower() in _UNMAPPED_SOURCE_SUFFIXES:
+            # A source-like suffix the case-sensitive map rejects (.CPP,
+            # .ino) is a dropped compilation unit; headers fall through
+            dropped.append(path.name)
+        elif suffix.lower() in LIBRARY_HEADER_SUFFIXES:
+            saw_header = True
+    lib.sources = sorted(sources)
+    if dropped:
         _LOGGER.warning(
             "Library %s: %d file(s) with unmapped source suffixes are not compiled: %s",
             name,
             len(dropped),
             ", ".join(sorted(dropped)),
         )
-    if not lib.sources and not any(
-        Path(f).suffix.lower() in LIBRARY_HEADER_SUFFIXES for f in matched
-    ):
+    if not lib.sources and not saw_header:
         # Matched headers mean header-only; a filter matching nothing is
         # a manifest/tree problem (a truly empty tree raises elsewhere)
         _LOGGER.warning("Library %s: no source files matched", name)
@@ -253,12 +260,12 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     manifest_json = lib_dir / "library.json"
     if manifest_json.is_file():
         data = parse_library_json(manifest_json)
+    elif (manifest := lib_dir / "library.properties").is_file():
+        data = parse_library_properties(manifest)
     else:
-        manifest = lib_dir / "library.properties"
-        if not manifest.is_file():
-            # Defaults build core libraries; can also mean a torn extraction
-            _LOGGER.debug("Bundled library %s has no manifest; using defaults", name)
-        data = parse_library_properties(manifest) if manifest.is_file() else {}
+        # Defaults build core libraries; can also mean a torn extraction
+        _LOGGER.debug("Bundled library %s has no manifest; using defaults", name)
+        data = {}
     if isinstance(data, dict):
         # Bundled manifest deps are never walked; make the skip visible
         if data.get("dependencies"):
@@ -312,7 +319,7 @@ def _external_short_name(name: str) -> str:
 
 
 def _check_unfulfilled_provides(
-    provided_requests: list[str], satisfied: set[str], still_requested: set[str]
+    provided_requests: set[str], satisfied: set[str], still_requested: set[str]
 ) -> None:
     """Fail by name when a walk-skipped dependency was never added.
 
@@ -320,7 +327,7 @@ def _check_unfulfilled_provides(
     at link. The walk records across re-resolutions, so a name no final
     manifest still requests is stale state, never a failure.
     """
-    if missing := sorted((set(provided_requests) & still_requested) - satisfied):
+    if missing := sorted((provided_requests & still_requested) - satisfied):
         raise EsphomeError(
             "provides() skipped these dependencies but nothing added them: "
             f"{', '.join(missing)}; the build is missing libraries"
@@ -395,10 +402,10 @@ def resolve_libraries(
         for dep in normalize_dependencies(
             component.data.get("dependencies"), component.name
         ):
-            name = dep.get("name")
-            if isinstance(name, str):
-                final_dep_names.add(name)
-            if isinstance(name, str) and "/" in name:
+            # normalize_dependencies guarantees a non-empty str name
+            name = dep["name"]
+            final_dep_names.add(name)
+            if "/" in name:
                 owner, _, pkg = name.partition("/")
                 if _is_safe_library_name(owner) and _is_safe_library_name(pkg):
                     # Owner-qualified; the converter resolves it from the registry
