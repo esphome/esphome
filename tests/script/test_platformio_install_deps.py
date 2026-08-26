@@ -381,7 +381,9 @@ def test_unparsable_torn_destination_is_removed(tmp_path: Path, capsys) -> None:
     (dest / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
 
     def real_rmtree(path):
-        Path(path).rmdir()
+        import shutil
+
+        shutil.rmtree(path)
 
     with patch.object(mod.fs, "rmtree", real_rmtree):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
