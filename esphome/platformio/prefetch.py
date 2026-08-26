@@ -74,11 +74,14 @@ def _sweep_stale_sidecars(download_dir: Path) -> None:
 
     A version bump changes the cache key, stranding an aborted archive's
     sidecars forever; anything past pio's own expiry is dead weight.
+    Lock files are excluded: O_TRUNC does not refresh mtime, so a held
+    lock can look ancient, and unlinking it would reopen the
+    interleaved-writer hole it guards (they are a few bytes anyway).
     """
     cutoff = time.time() - _SIDECAR_EXPIRE_SECONDS
     try:
         for f in download_dir.iterdir():
-            if f.suffix not in (".part", ".meta", ".prefetch", ".lock"):
+            if f.suffix not in (".part", ".meta", ".prefetch"):
                 continue
             try:
                 if f.stat().st_mtime < cutoff:
@@ -305,9 +308,11 @@ def _registry_jobs(
                 return None  # let PlatformIO report it
             package, version = mgr.find_best_registry_version(packages, spec)
             if not package or not version:
+                _LOGGER.debug("%s has no matching registry version", spec)
                 return None
             pkgfile = mgr.pick_compatible_pkg_file(version["files"])
             if not pkgfile:
+                _LOGGER.debug("%s has no file for this systype", spec)
                 return None
             url, checksum = next(RegistryFileMirrorIterator(pkgfile["download_url"]))
             checksum = checksum or pkgfile["checksum"]["sha256"]
@@ -443,6 +448,9 @@ def _uri_jobs(
             if spec.name:
                 # See above: nameless specs stay with pio run's installer
                 installable.append((name, spec))
+        else:
+            # Missing or unusable Content-Length; visible under -v
+            _LOGGER.debug("%s reports no usable length; PlatformIO fetches it", url)
     if failed:
         _LOGGER.warning(
             "Could not size %d of %d PlatformIO package URL(s) (%s); "

@@ -361,10 +361,16 @@ def test_sweep_stale_sidecars(tmp_path: Path) -> None:
     keep = tmp_path / "c.tar.gz"
     keep.write_bytes(b"x")
     os.utime(keep, (old_time, old_time))
+    # A held lock can carry an ancient mtime (O_TRUNC keeps it); locks
+    # must never be swept or the single-writer guarantee reopens
+    held_lock = tmp_path / "d.tar.gz.esphome.lock"
+    held_lock.write_bytes(b"")
+    os.utime(held_lock, (old_time, old_time))
     pf._sweep_stale_sidecars(tmp_path)
     assert not stale.exists()
     assert fresh.exists()
     assert keep.exists()
+    assert held_lock.exists()
     pf._sweep_stale_sidecars(tmp_path / "missing")  # tolerated
 
 
