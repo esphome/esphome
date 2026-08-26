@@ -96,12 +96,18 @@ class _FakeManager:
 
 
 def _reset_fake(**kwargs) -> type:
-    cls = _FakeManager
-    cls.installed = kwargs.get("installed", set())
-    cls.fail = kwargs.get("fail", set())
-    cls.calls = []
-    cls.lock_events = []
-    return cls
+    # A fresh subclass per test: nothing leaks between tests through the
+    # class-level scripted state
+    return type(
+        "_ScriptedManager",
+        (_FakeManager,),
+        {
+            "installed": kwargs.get("installed", set()),
+            "fail": kwargs.get("fail", set()),
+            "calls": [],
+            "lock_events": [],
+        },
+    )
 
 
 def test_parallel_install_behavior() -> None:
@@ -129,19 +135,15 @@ def test_parallel_install_failure_cleans_torn_destination(capsys) -> None:
     cls = _reset_fake(fail={"esphome/bad @ 1.0"})
 
     removed = []
-    orig_get = cls.get_package
 
     def get_package(self, spec):
         if spec == "esphome/bad @ 1.0" and "memcache_reset" in cls.calls:
             return SimpleNamespace(path="/tmp/torn-pkg")
-        return orig_get(self, spec)
+        return _FakeManager.get_package(self, spec)
 
-    cls.get_package = get_package
-    try:
-        with patch.object(mod.fs, "rmtree", side_effect=removed.append):
-            mod.parallel_install(cls, ["esphome/bad @ 1.0", "esphome/good @ 1.0"])
-    finally:
-        cls.get_package = orig_get
+    cls.get_package = get_package  # throwaway subclass; nothing to restore
+    with patch.object(mod.fs, "rmtree", side_effect=removed.append):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0", "esphome/good @ 1.0"])
     assert "esphome/good @ 1.0" in cls.calls
     assert removed == ["/tmp/torn-pkg"]
     out = capsys.readouterr().out
@@ -177,11 +179,13 @@ def test_platformio_surface_for_install_deps_script() -> None:
     from platformio.package.manager.tool import ToolPackageManager
     from platformio.package.meta import PackageSpec
 
+    # The script calls these positionally; pin the positions, not just
+    # membership, so a parameter reorder trips the wire too
     params = inspect.signature(PackageManagerInstallMixin._install).parameters
-    assert "spec" in params
+    assert list(params)[1] == "spec"
     assert "skip_dependencies" in params
     for cls in (ToolPackageManager, LibraryPackageManager):
-        assert "package_dir" in inspect.signature(cls.__init__).parameters
+        assert list(inspect.signature(cls.__init__).parameters)[1] == "package_dir"
     for name in ("lock", "unlock", "get_package"):
         assert callable(getattr(BasePackageManager, name))
     assert PackageSpec("owner/name @ ^1.0").name == "name"

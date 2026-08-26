@@ -5,6 +5,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import configparser
+import queue
 import subprocess
 import threading
 
@@ -99,13 +100,19 @@ def parallel_install(manager_cls, specs: list) -> None:
     pending = [spec for spec in unique.values() if not manager.get_package(spec)]
     if not pending:
         return
-    # One manager per worker thread: each construction rewires the
-    # process-global manager logger, which drops lines under concurrency
+    workers = min(len(pending), MAX_WORKERS)
+    # One manager per worker thread: _install mutates per-instance state
+    # (_MEMORY_CACHE, _INSTALL_HISTORY, the registry client). Built
+    # serially, because every construction rewires the shared manager
+    # logger and concurrent handler swaps drop log lines.
+    managers: queue.Queue = queue.Queue()
+    for _ in range(workers):
+        managers.put(manager_cls(None))
     local = threading.local()
 
     def install_one(spec: str) -> bool:
         if (mgr := getattr(local, "mgr", None)) is None:
-            mgr = local.mgr = manager_cls(None)
+            mgr = local.mgr = managers.get_nowait()
         try:
             mgr._install(spec, skip_dependencies=True)  # noqa: SLF001
             return True
@@ -127,7 +134,6 @@ def parallel_install(manager_cls, specs: list) -> None:
                 )
             return False
 
-    workers = min(len(pending), MAX_WORKERS)
     print(f"Preinstalling {len(pending)} package(s) with {workers} workers", flush=True)
     manager.lock()
     try:
