@@ -478,6 +478,9 @@ class WiFiComponent final : public Component {
 
   bool is_connected() const { return this->connected_; }
 
+  /// True while a post-connect roaming scan holds the radio off-channel.
+  bool is_roaming_scan_active() const { return this->roaming_state_ == RoamingState::SCANNING; }
+
 #ifdef USE_ESP32
   /// esp_netif handle of the station interface, used by network for default-route
   /// arbitration. nullptr until wifi_lazy_init_() has run.
