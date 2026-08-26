@@ -724,6 +724,45 @@ def test_preinstall_dedupes_names_across_entries(tmp_path: Path) -> None:
     assert mock_install.call_args[0][1] == [("pkg@1", s1)]
 
 
+def test_preinstall_runs_dependency_waves(tmp_path: Path) -> None:
+    """Dependencies of installed packages install in a follow-up wave,
+    deduped by name; name-only platform libs stay with pio run."""
+    m = _fake_manager(tmp_path)
+    installed: list[str] = []
+    m._install.side_effect = lambda spec, skip_dependencies: installed.append(
+        spec.name if hasattr(spec, "name") else str(spec)
+    )
+    pkg = SimpleNamespace(spec="noise-c")
+    m.get_package.side_effect = lambda spec: (
+        pkg if getattr(spec, "name", None) == "noise-c" else None
+    )
+    m.get_pkg_dependencies.return_value = [
+        {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
+        {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
+        {"name": "SPI"},
+    ]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(uri=None, name="noise-c"))])
+    assert installed == ["noise-c", "libsodium"]  # dep deduped, SPI left out
+
+
+def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
+    """A dependency whose name matches an already-waved entry is not
+    reinstalled."""
+    m = _fake_manager(tmp_path)
+    m.get_package.side_effect = lambda spec: SimpleNamespace(spec=spec)
+    m.get_pkg_dependencies.return_value = [
+        {"owner": "esphome", "name": "noise-c", "version": "^0.1"},
+    ]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    installed: list[str] = []
+    m._install.side_effect = lambda spec, skip_dependencies: installed.append(
+        getattr(spec, "name", str(spec))
+    )
+    pf._preinstall(m, [("noise-c@0.1.21", _FakeSpec(uri=None, name="noise-c"))])
+    assert installed == ["noise-c"]
+
+
 def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
     m = _fake_manager(tmp_path)
     with (

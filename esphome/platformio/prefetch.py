@@ -22,6 +22,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from queue import SimpleQueue
 import subprocess
 import sys
 import threading
@@ -352,23 +353,51 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
     return run
 
 
-def _preinstall(manager, entries) -> None:
+def _dependency_entries(manager, entries, seen_names: set[str]) -> list:
+    """Registry dependencies of the installed entries, one per new name.
+
+    Local manifest reads only; name-only platform libs (SPI, Hash) stay
+    with pio run's own installer.
+    """
+    deps: dict[str, Any] = {}
+    for _name, spec in entries:
+        if (pkg := manager.get_package(spec)) is None:
+            continue
+        for dep in manager.get_pkg_dependencies(pkg) or []:
+            if not (dep.get("owner") or dep.get("version")):
+                continue
+            dspec = manager.dependency_to_spec(dep)
+            if (key := (dspec.name or "").lower()) and key not in seen_names:
+                deps.setdefault(key, (dspec.name, dspec))
+    return list(deps.values())
+
+
+def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
     """Install downloaded packages now, extracting in parallel.
 
     pio run's installer unpacks one archive at a time on one core. With the
     manager's inter-process lock held once and a per-thread manager driving
     PlatformIO's own ``_install`` for each distinct package, extraction uses
     every usable core and pio run finds the packages installed. ``entries``
-    are ``(name, spec)`` pairs, one per destination directory. Dependencies
-    are skipped: two packages sharing one dependency must not extract it
-    into the same directory from two threads, and pio run installs any
-    missing dependency itself. Any failure leaves that package to pio run's
-    own installer; every install failing (a PlatformIO API change would)
-    warns once. The re-resolution ``_install`` performs against the registry
-    is the price of reusing PlatformIO's metadata and postinstall handling.
+    are ``(name, spec)`` pairs, one per destination directory. Each wave
+    skips dependencies (two packages sharing one must not extract it into
+    the same directory from two threads); the installed manifests then feed
+    the next wave, deduped by name, until nothing new appears. Any failure
+    leaves that package to pio run's own installer; every install failing
+    (a PlatformIO API change would) warns once. The re-resolution
+    ``_install`` performs against the registry is the price of reusing
+    PlatformIO's metadata and postinstall handling.
     """
     from esphome.core.config import get_usable_cpu_count
 
+    workers = min(get_usable_cpu_count(), len(entries))
+    # One manager per worker thread: _install mutates per-instance state
+    # (memcache, install history, the registry client). Built serially,
+    # because every construction rewires the shared manager logger and
+    # concurrent handler swaps drop log lines.
+    managers: SimpleQueue = SimpleQueue()
+    for _ in range(workers):
+        managers.put(manager.__class__(manager.package_dir))
     local = threading.local()
 
     def _install_one(entry) -> bool:
@@ -377,7 +406,7 @@ def _preinstall(manager, entries) -> None:
             # PlatformIO's real install (metadata, postinstall scripts);
             # only the concurrency across packages is ours
             if (mgr := getattr(local, "mgr", None)) is None:
-                mgr = local.mgr = manager.__class__(manager.package_dir)
+                mgr = local.mgr = managers.get_nowait()
             mgr._install(spec, skip_dependencies=True)  # pylint: disable=protected-access  # noqa: SLF001
             return True
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
@@ -386,7 +415,6 @@ def _preinstall(manager, entries) -> None:
             _LOGGER.debug("Pre-install failure detail", exc_info=True)
             return False
 
-    workers = min(get_usable_cpu_count(), len(entries))
     _LOGGER.info(
         "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
         len(entries),
@@ -405,6 +433,12 @@ def _preinstall(manager, entries) -> None:
         _LOGGER.warning(
             "Could not pre-install any of %d PlatformIO package(s)", len(entries)
         )
+
+    seen = seen_names if seen_names is not None else set()
+    seen.update(name.split("@", 1)[0].lower() for name, _ in entries)
+    next_entries = _dependency_entries(manager, entries, seen)
+    if next_entries and len(seen) < 200:  # cycle backstop
+        _preinstall(manager, next_entries, seen)
 
 
 def _prefetch(build_dir: Path, env: str) -> None:
