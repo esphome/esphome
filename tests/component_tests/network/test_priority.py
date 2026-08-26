@@ -9,6 +9,7 @@ from voluptuous import Invalid
 
 from esphome.components.network import (
     _SETUP_PRIORITY_AFTER_WIFI,
+    CONF_ENABLE_IPV4,
     KEY_NETWORK_PRIORITY,
     NETWORK_PRIORITY_BASE,
     NETWORK_PRIORITY_STEP,
@@ -117,7 +118,10 @@ def test_final_validate_rejects_priority_iface_without_component() -> None:
     """An interface named in 'priority' with no matching component block is rejected."""
     # priority lists wifi, but only ethernet is present in the full config.
     fv.full_config.set({"ethernet": {}})
-    config = {CONF_PRIORITY: _validate_priority_list(["ethernet", "wifi"])}
+    config = {
+        CONF_ENABLE_IPV4: True,
+        CONF_PRIORITY: _validate_priority_list(["ethernet", "wifi"]),
+    }
     with pytest.raises(
         Invalid, match=r"'wifi' is listed in 'network: priority:' but no 'wifi:'"
     ):
@@ -127,14 +131,17 @@ def test_final_validate_rejects_priority_iface_without_component() -> None:
 def test_final_validate_accepts_when_all_priority_ifaces_present() -> None:
     """No error when every interface in 'priority' has a matching component block."""
     fv.full_config.set({"ethernet": {}, "wifi": {}})
-    config = {CONF_PRIORITY: _validate_priority_list(["ethernet", "wifi"])}
+    config = {
+        CONF_ENABLE_IPV4: True,
+        CONF_PRIORITY: _validate_priority_list(["ethernet", "wifi"]),
+    }
     _final_validate(config)  # must not raise
 
 
 def test_final_validate_noop_without_priority_list() -> None:
     """A network config without a 'priority' list imposes no component requirements."""
     fv.full_config.set({})
-    _final_validate({})  # must not raise
+    _final_validate({CONF_ENABLE_IPV4: True})  # must not raise
 
 
 def test_final_validate_rejects_unsupported_arbitration_interface(
@@ -148,7 +155,10 @@ def test_final_validate_rejects_unsupported_arbitration_interface(
     """
     set_core_config(PlatformFramework.ESP32_IDF)
     fv.full_config.set({"openthread": {}, "wifi": {}})
-    config = {CONF_PRIORITY: [{"interface": "openthread"}, {"interface": "wifi"}]}
+    config = {
+        CONF_ENABLE_IPV4: True,
+        CONF_PRIORITY: [{"interface": "openthread"}, {"interface": "wifi"}],
+    }
     with pytest.raises(Invalid, match="arbitration does not support: openthread"):
         _final_validate(config)
 

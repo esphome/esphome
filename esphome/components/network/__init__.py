@@ -382,11 +382,21 @@ def _final_validate(config: ConfigType) -> None:
         # Flipping to True must not bypass the version gate cv.Any() enforces.
         _ENABLE_IPV6_FRAMEWORK_VERSION_VALIDATOR(True)
         config[CONF_ENABLE_IPV6] = True
+    else:
+        # Normalize the defaulted/absent case to a real bool -- to_code() reads this
+        # unconditionally, matching enable_ipv4's default=True schema entry.
+        config.setdefault(CONF_ENABLE_IPV6, False)
 
     if has_ipv4_requirement() and not config[CONF_ENABLE_IPV4]:
         raise cv.Invalid(
             "IPv4 is required by at least 1 component in this configuration, but "
             "'network: enable_ipv4: false' explicitly disables it"
+        )
+
+    if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
+        raise cv.Invalid(
+            "'enable_ipv4: false' requires 'enable_ipv6: true' -- disabling both "
+            "leaves no IP stack"
         )
 
     # Check that every interface named in 'priority' has a corresponding component block.
@@ -426,10 +436,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK")
     # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
-    # enable_ipv6 is user-settable, but CONFIG_SCHEMA/_final_validate() have already resolved
-    # it to True here if any component called require_ipv6() -- an automatic default instead
-    # of failing validation and asking the user to type it in.
-    enable_ipv6 = config.get(CONF_ENABLE_IPV6, None)
+    # enable_ipv6 is user-settable, but _final_validate() has already resolved it to a real
+    # bool -- True if any component called require_ipv6(), False if defaulted/absent.
+    enable_ipv6 = config[CONF_ENABLE_IPV6]
 
     # enable_ipv4 is user-settable (default True); _final_validate() has already
     # rejected an explicit 'enable_ipv4: false' that conflicts with a component's
@@ -567,28 +576,24 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
         zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
 
-    if enable_ipv6 is not None:
-        cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
-        if enable_ipv6:
-            cg.add_define(
-                "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-            )
-        if CORE.is_esp32:
-            if CORE.using_arduino:
-                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", True)
-                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", True)
-            else:
-                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
-                add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
-        elif enable_ipv6:
-            cg.add_build_flag("-DCONFIG_LWIP_IPV6")
-            cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
-            if CORE.is_bk72xx:
-                cg.add_build_flag("-DCONFIG_IPV6")
-            if CORE.is_esp8266:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
-            if CORE.is_rp2:
-                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+    cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
+    if enable_ipv6:
+        cg.add_define(
+            "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
+        )
+    # esp32-arduino enable_ipv6 is always true
+    if CORE.is_esp32:
+        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
+        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
+    elif enable_ipv6:
+        cg.add_build_flag("-DCONFIG_LWIP_IPV6")
+        cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
+        if CORE.is_bk72xx:
+            cg.add_build_flag("-DCONFIG_IPV6")
+        if CORE.is_esp8266:
+            cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+        if CORE.is_rp2:
+            cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
     # (above) separate from C++ object lifecycle and allows wiring in interface

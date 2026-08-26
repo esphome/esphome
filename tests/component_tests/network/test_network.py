@@ -160,8 +160,9 @@ def test_final_validate_rejects_explicit_ipv6_disable_when_required() -> None:
 
 
 def test_final_validate_accepts_explicit_ipv6_disable_when_not_required() -> None:
-    """An explicit 'enable_ipv6: false' is fine as long as nothing requires IPv6."""
-    _final_validate({CONF_ENABLE_IPV6: False})  # must not raise
+    """An explicit 'enable_ipv6: false' is fine as long as nothing requires IPv6 and
+    IPv4 is still on -- otherwise disabling both leaves no IP stack."""
+    _final_validate({CONF_ENABLE_IPV4: True, CONF_ENABLE_IPV6: False})  # must not raise
 
 
 def test_final_validate_resolves_ipv6_default_when_required() -> None:
@@ -179,7 +180,7 @@ def test_final_validate_resolves_ipv6_default_when_required() -> None:
         KEY_FRAMEWORK_VERSION: Version(0, 0, 0),
     }
     CORE.data[KEY_REQUIRE_IPV6] = True
-    config = {}
+    config = {CONF_ENABLE_IPV4: True}
     _final_validate(config)
     assert config[CONF_ENABLE_IPV6] is True
 
@@ -194,14 +195,29 @@ def test_final_validate_rejects_explicit_ipv4_disable_when_required() -> None:
 
 
 def test_final_validate_accepts_explicit_ipv4_disable_when_not_required() -> None:
-    """An explicit 'enable_ipv4: false' is fine as long as nothing requires IPv4."""
-    _final_validate({CONF_ENABLE_IPV4: False})  # must not raise
+    """An explicit 'enable_ipv4: false' is fine as long as nothing requires IPv4 and
+    IPv6 is on -- otherwise disabling both leaves no IP stack."""
+    _final_validate({CONF_ENABLE_IPV4: False, CONF_ENABLE_IPV6: True})  # must not raise
 
 
 def test_final_validate_accepts_ipv4_default_when_required() -> None:
     """The default 'enable_ipv4: true' never conflicts with a require_ipv4() call."""
     CORE.data[KEY_REQUIRE_IPV4] = True
     _final_validate({CONF_ENABLE_IPV4: True})  # must not raise
+
+
+def test_final_validate_rejects_both_address_families_disabled() -> None:
+    """'enable_ipv4: false' with IPv6 off (defaulted or explicit) leaves no IP stack --
+    the previous auto-derived design guaranteed at least one family survived; the
+    opt-in redesign must reject the combination explicitly instead of validating it."""
+    with pytest.raises(Invalid, match="leaves no IP stack"):
+        _final_validate({CONF_ENABLE_IPV4: False})
+
+
+def test_final_validate_rejects_both_address_families_explicitly_disabled() -> None:
+    """Same rejection when the user explicitly writes 'enable_ipv6: false' too."""
+    with pytest.raises(Invalid, match="leaves no IP stack"):
+        _final_validate({CONF_ENABLE_IPV4: False, CONF_ENABLE_IPV6: False})
 
 
 # Every non-nRF52 platform this PR touches calls network.require_ipv4() unconditionally
@@ -239,7 +255,7 @@ def test_esp32_arduino_keeps_ipv4_with_network_and_no_requirement(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """CONFIG_LWIP_IPV4 has no Arduino override the way CONFIG_LWIP_IPV6 does, so
-    esp32/_require_ipv4_on_arduino() must keep IPv4 on even with nothing else
+    esp32/_require_ip_on_arduino() must keep IPv4 on even with nothing else
     requiring it -- regression test for the review finding that this used to break
     ip_address.h's Arduino-only conversion operators."""
     generate_main(component_config_path("esp32_arduino_ipv6_no_ipv4_requirement.yaml"))

@@ -4,6 +4,7 @@ esp32:
 
 network:
   enable_ipv6: true
+  enable_ipv4: false
 
 api:
 
