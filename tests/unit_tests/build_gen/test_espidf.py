@@ -1052,3 +1052,29 @@ def test_prepare_pch_identity_unknown_discards(tmp_path: Path) -> None:
         prepare_pch()
     assert not stale.exists()
     assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+
+
+def test_prepare_pch_transient_compiler_failure_does_not_latch(
+    tmp_path: Path,
+) -> None:
+    """ENOSPC-style failures clear on their own; no .failed marker."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_e")
+    CORE.build_path = dev
+    calls = []
+
+    def enospc(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(
+            cmd, 1, "", "fatal error: No space left on device"
+        )
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=enospc),
+    ):
+        prepare_pch()
+        prepare_pch()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+    assert len(calls) == 2
