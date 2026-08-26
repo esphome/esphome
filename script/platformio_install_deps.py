@@ -5,9 +5,11 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import configparser
+from pathlib import Path
 import queue
 import subprocess
 import threading
+import traceback
 
 # esphome is not installed at this docker layer, so its rmtree helper is
 # out of reach; pio's fs.rmtree is the same chmod-on-readonly shape and
@@ -15,7 +17,7 @@ import threading
 from platformio import fs
 from platformio.package.manager.library import LibraryPackageManager
 from platformio.package.manager.tool import ToolPackageManager
-from platformio.package.meta import PackageSpec
+from platformio.package.meta import PackageCompatibility, PackageSpec
 
 # Downloads are network bound and release the GIL, unpacks are CPU bound;
 # a fixed pool well past the core count keeps the network busy while
@@ -78,17 +80,30 @@ def spec_key(spec) -> str:
     return name.lower() if name else str(spec).strip()
 
 
-def dependency_specs(manager, specs) -> list:
-    """The registry dependency specs of the given installed packages.
+def dependency_specs(manager, specs: list, installed_ok: set) -> list:
+    """``(spec, compatibility)`` registry dependencies of installed packages.
 
     Local manifest reads only. Name-only dependencies (platform-bundled
-    libs like SPI) are left to the ``pkg install`` pass."""
+    libs like SPI) are left to the ``pkg install`` pass. The compatibility
+    qualifiers mirror pio's install_dependency, so a qualified dep resolves
+    to the same package the serial pass would have picked."""
     deps = []
     for spec in specs:
         if (pkg := manager.get_package(spec)) is None:
+            if spec_key(spec) in installed_ok:
+                # A reported-success install that resolves to nothing is an
+                # anomaly; its subtree quietly falls to the serial pass
+                print(
+                    f"Installed {spec} is not resolvable afterwards; its "
+                    "dependencies are left to pkg install",
+                    flush=True,
+                )
             continue
         deps.extend(
-            manager.dependency_to_spec(dep)
+            (
+                manager.dependency_to_spec(dep),
+                PackageCompatibility.from_dependency(dep),
+            )
             for dep in manager.get_pkg_dependencies(pkg) or []
             if dep.get("owner") or dep.get("version")
         )
@@ -113,12 +128,18 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     # manifest-named dir the spec cannot predict), are left to the pkg
     # install pass; a dependency's URL version surfaces as spec.uri.
     seen_names: set = prior_names if prior_names is not None else set()
+    # Wave-1 items are strings; dependency waves carry (spec, compatibility)
+    pairs = [item if isinstance(item, tuple) else (item, None) for item in specs]
     unique = {
-        spec_key(spec): spec
-        for spec in specs
+        spec_key(spec): (spec, compat)
+        for spec, compat in pairs
         if not (spec.uri if isinstance(spec, PackageSpec) else "://" in spec)
     }
-    pending = [spec for spec in unique.values() if not manager.get_package(spec)]
+    pending = [
+        (spec, compat)
+        for spec, compat in unique.values()
+        if not manager.get_package(spec)
+    ]
     if not pending:
         return
     workers = min(len(pending), MAX_WORKERS)
@@ -131,11 +152,14 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         managers.put(manager_cls(None))
     local = threading.local()
 
-    def install_one(spec: str) -> bool:
+    def install_one(item) -> bool:
+        spec, compat = item
         if (mgr := getattr(local, "mgr", None)) is None:
             mgr = local.mgr = managers.get_nowait()
         try:
-            mgr._install(spec, skip_dependencies=True)  # noqa: SLF001
+            mgr._install(  # noqa: SLF001
+                spec, skip_dependencies=True, compatibility=compat
+            )
             return True
         except Exception as err:  # noqa: BLE001
             print(f"Pre-install of {spec} failed ({err!r})", flush=True)
@@ -178,13 +202,27 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     seen_names.update(unique)
     # The pre-wave get_package calls memoized an empty storage snapshot
     manager.memcache_reset()
+    installed_ok = {
+        spec_key(spec) for (spec, _), ok in zip(pending, results, strict=True) if ok
+    }
     next_specs = [
-        dep
-        for dep in dependency_specs(manager, pending)
-        if spec_key(dep) not in seen_names
+        item
+        for item in dependency_specs(
+            manager, [spec for spec, _ in pending], installed_ok
+        )
+        if spec_key(item[0]) not in seen_names
     ]
-    if next_specs and len(seen_names) < 200:  # cycle backstop
+    if not next_specs:
+        return
+    if len(seen_names) < 200:  # cycle backstop
         parallel_install(manager_cls, next_specs, seen_names)
+    else:
+        # Truncation must be visible, not an unexplained slow serial pass
+        print(
+            f"Dependency wave limit reached; {len(next_specs)} spec(s) "
+            "left to pkg install",
+            flush=True,
+        )
 
 
 def build_cli_args(libs: list, platforms: list, tools: list) -> list:
@@ -207,6 +245,7 @@ def main() -> None:
     )
     parser.add_argument("-t", "--tools", help="Install tools", action="store_true")
     args = parser.parse_args()
+    start_cwd = Path.cwd()
     libs, platforms, tools = parse_specs(args.file[0], args)
 
     # Platforms stay serial: PlatformPackageManager.install runs an
@@ -217,13 +256,18 @@ def main() -> None:
     ):
         try:
             parallel_install(manager_cls, specs)
-        except Exception as err:  # noqa: BLE001
-            # The wave is an optimization; it must never stop the real pass
-            print(f"Parallel preinstall skipped ({err!r})", flush=True)
+        except Exception:  # noqa: BLE001
+            # The wave is an optimization; it must never stop the real
+            # pass, but a persistent break must read as a failure in logs
+            print("Parallel preinstall failed, falling back to serial", flush=True)
+            traceback.print_exc()
 
+    # Postinstall scripts chdir process-wide (pio's fs.cd captures its
+    # restore path at construction); pin the authoritative pass's cwd
     subprocess.check_call(
         ["platformio", "pkg", "install", "-g", *build_cli_args(libs, platforms, tools)],
         close_fds=False,
+        cwd=start_cwd,
     )
 
 

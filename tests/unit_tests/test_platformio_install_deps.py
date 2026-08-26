@@ -92,11 +92,12 @@ class _FakeManager:
     def unlock(self) -> None:
         type(self).lock_events.append("unlock")
 
-    def _install(self, spec, skip_dependencies):
+    def _install(self, spec, skip_dependencies, compatibility=None):
         assert skip_dependencies is True
         if self._key(spec) in self.fail:
             raise RuntimeError("boom")
         type(self).calls.append(spec)
+        type(self).compat_calls.append((self._key(spec), compatibility))
         type(self).installed = type(self).installed | {self._key(spec)}
 
     def get_pkg_dependencies(self, pkg):
@@ -123,6 +124,7 @@ def _reset_fake(**kwargs) -> type:
             "installed": kwargs.get("installed", set()),
             "fail": kwargs.get("fail", set()),
             "calls": [],
+            "compat_calls": [],
             "lock_events": [],
         },
     )
@@ -186,6 +188,11 @@ def test_parallel_install_runs_dependency_waves() -> None:
     mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21", "esphome/wg @ 1.0"])
     assert len(cls.calls) == 3  # the shared dep installs exactly once
     assert {mod.spec_key(c) for c in cls.calls} == {"noise-c", "wg", "libsodium"}
+    # Wave-1 strings carry no compatibility; the dependency wave does
+    compats = dict(cls.compat_calls)
+    assert compats["esphome/noise-c @ 0.1.21"] is None
+    dep_compat = next(v for k, v in cls.compat_calls if "libsodium" in k)
+    assert dep_compat is not None  # mirrors pio's install_dependency
 
 
 def test_dependency_wave_excludes_url_specs() -> None:
@@ -224,17 +231,19 @@ def test_parse_specs_unreadable_ini_fails_loudly(tmp_path: Path) -> None:
 def test_platformio_surface_for_install_deps_script() -> None:
     """A PlatformIO bump that changes these members must fail here, not
     silently turn the docker image's parallel preinstall into a no-op."""
+    from platformio import fs
     from platformio.package.manager._install import PackageManagerInstallMixin
     from platformio.package.manager.base import BasePackageManager
     from platformio.package.manager.library import LibraryPackageManager
     from platformio.package.manager.tool import ToolPackageManager
-    from platformio.package.meta import PackageSpec
+    from platformio.package.meta import PackageCompatibility, PackageItem, PackageSpec
 
     # The script calls these positionally; pin the positions, not just
     # membership, so a parameter reorder trips the wire too
     params = inspect.signature(PackageManagerInstallMixin._install).parameters
     assert list(params)[1] == "spec"
     assert "skip_dependencies" in params
+    assert "compatibility" in params
     for cls in (ToolPackageManager, LibraryPackageManager):
         assert list(inspect.signature(cls.__init__).parameters)[1] == "package_dir"
     for name in (
@@ -247,3 +256,7 @@ def test_platformio_surface_for_install_deps_script() -> None:
     ):
         assert callable(getattr(BasePackageManager, name))
     assert PackageSpec("owner/name @ ^1.0").name == "name"
+    # The failure-cleanup path degrades to a single line if these vanish
+    assert callable(fs.rmtree)
+    assert PackageItem("pkg-dir").path == "pkg-dir"
+    assert callable(PackageCompatibility.from_dependency)
