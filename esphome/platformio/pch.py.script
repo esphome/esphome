@@ -69,7 +69,16 @@ def _shell_arg(element) -> str:
     arg = str(element)
     if " " in arg or os.name == "nt":
         return arg.replace('\\"', '"')
-    return shlex.split(arg)[0] if arg.strip() else arg
+    if not arg.strip():
+        return arg
+    try:
+        tokens = shlex.split(arg)
+    except ValueError as err:
+        print(f"ESPHome: could not lex flag {arg!r} for the pch: {err}")
+        return arg
+    # Anything but exactly one token means the model above is wrong for
+    # this element; pass it through untouched rather than dropping flags
+    return tokens[0] if len(tokens) == 1 else arg
 
 
 def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
@@ -83,6 +92,10 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
         capture_output=True,
         text=True,
     )
+    if result.returncode < 0:
+        # Signal-killed (OOM, ^C) is environmental; raising OSError routes
+        # it to the transient no-marker path
+        raise OSError(f"compiler killed by signal {-result.returncode}")
     if result.returncode != 0:
         return result.stderr
     probe = subprocess.run(  # noqa: PLW1510
@@ -141,9 +154,14 @@ def _setup_pch() -> None:
     if any(not name for name in include_headers):
         print("ESPHome: build_src_flags has a trailing -include; skipping pch")
         return
-    content = "".join(
-        f'#include "{name}"\n' for name in (*include_headers, _CORE_HEADER)
-    )
+    # Fold only names that resolve under src/: consumers keep their own
+    # -include entries, so an unguarded user header folded here would be
+    # included twice. An unfolded header simply stays consumer-only and
+    # ccache hashes it directly off the command line.
+    folded = [name for name in include_headers if (src_dir / name).is_file()]
+    if unfolded := [n for n in include_headers if n not in folded]:
+        print(f"ESPHome: not precompiling non-src force-includes: {unfolded}")
+    content = "".join(f'#include "{name}"\n' for name in (*folded, _CORE_HEADER))
 
     digest = hashlib.sha256()
     digest.update(content.encode())
@@ -174,9 +192,9 @@ def _setup_pch() -> None:
             return
         digest.update(f"{package}={version}".encode())
         digest.update(b"\0")
-    closure = _include_closure(src_dir, [*include_headers, _CORE_HEADER])
+    closure = _include_closure(src_dir, [*folded, _CORE_HEADER])
     for rel in sorted(closure):
-        digest.update(rel.encode())
+        digest.update(rel.encode(errors="surrogateescape"))
         digest.update(closure[rel])
         digest.update(b"\0")
     # Project-local include dirs outside src (e.g. rp2's lwip_override)
@@ -287,5 +305,6 @@ def _setup_pch() -> None:
 try:
     _setup_pch()
 except Exception:  # noqa: BLE001 -- a speedup must never break the build
-    print("ESPHome: precompiled header setup failed; compiling without it")
+    # Stable marker: an unexpected error, unlike the expected skip prints
+    print("ESPHome: pch internal error; compiling without it")
     traceback.print_exc()
