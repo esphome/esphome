@@ -4,6 +4,7 @@ from pathlib import Path
 import posixpath
 import re
 import shlex
+import stat
 import subprocess
 import traceback
 
@@ -28,6 +29,14 @@ _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 _CORE_HEADER = "esphome/core/defines.h"
 
 
+def _resolves(path: Path) -> bool:
+    """False when missing; other stat failures propagate (identity unknown)."""
+    try:
+        return stat.S_ISREG(path.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+
+
 def _include_closure(src_dir: Path, roots: list) -> dict:
     """Quoted-include closure: src-relative name -> contents (mirror of
     build_helpers/pch.py)."""
@@ -37,7 +46,7 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
         name, from_dir = stack.pop()
         for candidate in (f"{from_dir}/{name}" if from_dir else name, name):
             rel = posixpath.normpath(candidate)
-            if not rel.startswith("..") and (src_dir / rel).is_file():
+            if not rel.startswith("..") and _resolves(src_dir / rel):
                 break
         else:
             continue
@@ -71,11 +80,11 @@ def _shell_arg(element) -> str:
         tokens = shlex.split(arg)
     except ValueError as err:
         print(f"ESPHome: could not lex flag {arg!r} for the pch: {err}")
-        return arg
+        return None
     if len(tokens) != 1:
-        # The quoting model is wrong for this element; leave a trail
-        print(f"ESPHome: passing flag {arg!r} through unlexed for the pch")
-        return arg
+        # A flag the model cannot reproduce would diverge the .gch's flags
+        print(f"ESPHome: cannot model flag {arg!r} for the pch")
+        return None
     return tokens[0]
 
 
@@ -149,10 +158,14 @@ def _setup_pch() -> None:
     # not see them; consumers keep theirs, which the .gch then satisfies.
     flags = []
     include_headers = []
-    flag_it = iter(
+    raw_args = [
         _shell_arg(element)
         for element in projenv.subst_list("$CXXFLAGS $CCFLAGS $_CCCOMCOM")[0]  # noqa: F821
-    )
+    ]
+    if any(arg is None for arg in raw_args):
+        print("ESPHome: skipping precompiled header: unmodelable flag")
+        return
+    flag_it = iter(raw_args)
     for tok in flag_it:
         if tok == "-include":
             include_headers.append(next(flag_it, ""))
@@ -166,11 +179,15 @@ def _setup_pch() -> None:
     # Fold only relative names resolving under src/: consumers keep their
     # own -include entries, so folding an unguarded user header would
     # include it twice; unfolded ones stay consumer-only.
-    folded = [
-        name
-        for name in include_headers
-        if not Path(name).is_absolute() and (src_dir / name).is_file()
-    ]
+    try:
+        folded = [
+            name
+            for name in include_headers
+            if not Path(name).is_absolute() and _resolves(src_dir / name)
+        ]
+    except OSError as err:
+        print(f"ESPHome: skipping precompiled header: {err}")
+        return
     if unfolded := [n for n in include_headers if n not in folded]:
         print(f"ESPHome: not precompiling non-src force-includes: {unfolded}")
     content = "".join(f'#include "{name}"\n' for name in (*folded, _CORE_HEADER))
@@ -202,7 +219,11 @@ def _setup_pch() -> None:
             return
         digest.update(f"{package}={version}".encode())
         digest.update(b"\0")
-    closure = _include_closure(src_dir, [*folded, _CORE_HEADER])
+    try:
+        closure = _include_closure(src_dir, [*folded, _CORE_HEADER])
+    except OSError as err:
+        print(f"ESPHome: skipping precompiled header: {err}")
+        return
     for rel in sorted(closure):
         digest.update(rel.encode(errors="surrogateescape"))
         digest.update(closure[rel])
@@ -237,10 +258,8 @@ def _setup_pch() -> None:
             try:
                 data = local.read_bytes()
             except OSError as err:
-                # mtime/size still shift the digest; stat failure skips the pch
-                print(f"ESPHome: could not read {local} for the pch checksum: {err}")
-                st = local.stat()
-                data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
+                print(f"ESPHome: skipping precompiled header: {local}: {err}")
+                return
             digest.update(str(local.relative_to(proj_dir)).encode())
             digest.update(data)
             digest.update(b"\0")

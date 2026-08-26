@@ -188,6 +188,15 @@ def test_pch_script_preserves_spaced_flag_elements(tmp_path: Path) -> None:
     assert pch.splitlines()[0] == '#include "other.h"'
 
 
+def test_pch_script_folds_joined_force_include_spelling(tmp_path: Path) -> None:
+    """-includefoo.h folds like the separated form, matching the native path."""
+    (tmp_path / "dev" / "src").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "dev" / "src" / "other.h").write_text("")
+    _run_script(tmp_path, flags=["-DX=1", "-includeother.h"])
+    pch = (tmp_path / "dev" / "esphome_pch.h").read_text()
+    assert pch.splitlines()[0] == '#include "other.h"'
+
+
 def test_pch_script_leaves_absolute_force_includes_unfolded(
     tmp_path: Path,
 ) -> None:
@@ -400,21 +409,17 @@ def test_pch_script_hashes_project_local_include_dirs(tmp_path: Path) -> None:
 @pytest.mark.skipif(
     getattr(os, "geteuid", lambda: -1)() == 0, reason="root ignores file modes"
 )
-def test_pch_script_unreadable_local_header_warns_and_varies(
+def test_pch_script_unreadable_local_header_skips_pch(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An unreadable generated header still shifts the digest via mtime/size."""
+    """An unreadable generated header means unknown identity: no pch."""
     proj = tmp_path / "dev"
     override = proj / "lwip_override"
     override.mkdir(parents=True)
     secret = override / "lwipopts.h"
     secret.write_text("#define TCP_MSS 1460\n")
     secret.chmod(0)
-    flags = ["-DX=1", "-I", str(override)]
-    _run_script(tmp_path, flags=flags)
-    first = (proj / "esphome_pch.h.gch.sum").read_text()
-    assert "could not read" in capsys.readouterr().out
-    os.utime(secret, (1, 1))
-    (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
-    _run_script(tmp_path, flags=flags)
-    assert (proj / "esphome_pch.h.gch.sum").read_text() != first
+    scons_env = _run_script(tmp_path, flags=["-DX=1", "-I", str(override)])
+    assert not (proj / "esphome_pch.h.gch.sum").exists()
+    assert scons_env.prepended == []
+    assert "skipping precompiled header" in capsys.readouterr().out

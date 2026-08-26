@@ -201,10 +201,10 @@ def parse_entry(
     for tok in it:
         if tok in ("-c", "-o"):
             next(it, None)  # drop the flag and its argument (input/output)
-        elif tok == "-include":
+        elif tok == "-include" or tok.startswith("-include"):
             # Re-anchor only names next to the compile (the pch); a name
             # meant for the -I chain must stay untouched
-            raw = next(it, "")
+            raw = next(it, "") if tok == "-include" else tok[len("-include") :]
             if not raw:
                 _LOGGER.warning("Dropping -include with no argument")
             elif Path(resolved := _include(raw)).is_file():

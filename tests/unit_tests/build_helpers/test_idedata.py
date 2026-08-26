@@ -103,6 +103,21 @@ def test_parse_entry_resolves_force_include_path(tmp_path: Path) -> None:
     assert resolved == str(tmp_path / "esphome_pch.h").replace("\\", "/")
 
 
+def test_parse_entry_resolves_joined_force_include(tmp_path: Path) -> None:
+    """The joined -includefoo.h spelling takes the same resolve path."""
+    (tmp_path / "esphome_pch.h").write_text("")
+    entry = _entry(
+        str(tmp_path),
+        f"{tmp_path}/src/esphome/x.cpp",
+        "g++ -includeesphome_pch.h -c x.cpp",
+    )
+
+    _, _, _, cxx_flags = idedata.parse_entry(entry)
+
+    resolved = cxx_flags[cxx_flags.index("-include") + 1]
+    assert resolved == str(tmp_path / "esphome_pch.h").replace("\\", "/")
+
+
 def test_parse_entry_keeps_search_chain_force_include(tmp_path: Path) -> None:
     """-include names resolved via the -I chain (libretiny's Arduino.h) must
     not be re-anchored to a nonexistent build-dir path."""
