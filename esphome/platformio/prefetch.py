@@ -210,13 +210,9 @@ def prefetch_platformio_packages() -> None:
 def _stop_child(proc: subprocess.Popen) -> None:
     """Stop the child without cutting an in-flight package install short.
 
-    On a terminal interrupt the child shares the process group and is
-    already unwinding from its own SIGINT, so wait briefly first. SIGTERM
-    then triggers the handler main() installs (a clean unwind through the
-    pool's cancellation); the grace period covers one large extraction,
-    though a copy outlasting it is still cut short by the final kill. On
-    Windows terminate() is TerminateProcess (no signal reaches the
-    handler), so the graceful arm becomes a longer plain wait.
+    Wait first (a terminal interrupt already unwinds the child), then
+    SIGTERM for the clean unwind main() installs, then kill. On Windows
+    terminate() cannot reach the handler, so its arm is a plain wait.
     """
     if proc.poll() is None:
         _LOGGER.info("Waiting for the prefetch child to finish its current install")
@@ -231,23 +227,20 @@ def _stop_child(proc: subprocess.Popen) -> None:
             return
         proc.kill()
         proc.wait(timeout=5)
-        # The kill can land mid-copy; pio run re-verifies via get_package,
-        # but the uncertainty must be visible
+        # The kill can land mid-copy; the uncertainty must be visible
         _LOGGER.warning("Prefetch child killed; a package install may be incomplete")
     except KeyboardInterrupt:
-        # Best-effort kill so an interrupted stop cannot orphan a child
-        # still writing package directories; the interrupt then re-raises
-        # (BaseException: a further interrupt must not skip the kill)
+        # Kill so an interrupted stop cannot orphan a still-writing child
+        # (BaseException: a further interrupt must not skip the kill),
+        # then re-raise so the build aborts
         with suppress(BaseException):
             proc.kill()
             proc.wait(timeout=5)
         if proc.poll() is None:
             _LOGGER.warning("The prefetch child could not be confirmed stopped")
-        # The user asked to stop; the build must not proceed into pio run
         raise
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # A child that outlives kill() may still be writing packages that
-        # pio run will trust; that must be visible, not a debug line
+        # A surviving child may still be writing packages pio run trusts
         _LOGGER.warning("The prefetch child could not be confirmed stopped")
         _LOGGER.debug("Stop detail", exc_info=True)
     except BaseException:
@@ -607,11 +600,10 @@ def _dependency_entries(
     with pio run.
     """
 
-    # A hard attribute read: silently losing this filter would let the
-    # wave pre-install incompatible packages pio run then trusts
+    # Hard read: losing this filter would pre-install incompatible
+    # packages pio run then trusts
     compatibility = manager.compatibility
-    # Tool managers legitimately lack a builtin table; the contract test
-    # pins the library-side name against renames
+    # Tool managers have no builtin table; the contract test pins the name
     is_builtin = getattr(manager, "is_builtin_lib", None)
     deps: dict[str, Any] = {}
     skipped = 0
@@ -680,15 +672,13 @@ def _entry_dependencies(
 def _preinstall(
     manager: Any, entries: list[_Entry], seen_names: set[str] | None = None
 ) -> None:
-    """Install downloaded packages in parallel via PlatformIO's own ``_install``.
+    """Install downloaded packages in parallel via pio's own ``_install``.
 
     ``entries`` are ``_Entry`` tuples, one per destination directory.
-    The manager's lock is held around each wave's pool; that is safe only
-    because pio's private ``_install`` never re-acquires it (locking lives
-    in the public ``install()``, and a same-process re-lock would hang,
-    not fail). A wave skips dependencies, then the installed manifests
-    feed the next wave until nothing new appears. Any failure leaves that
-    package to pio run's serial installer.
+    The lock is held around each wave's pool, safe only because pio's
+    private ``_install`` never re-acquires it (a same-process re-lock
+    would hang, not fail). Waves skip dependencies; the installed
+    manifests feed the next wave. Any failure falls back to pio run.
     """
     workers = min(get_usable_cpu_count(), len(entries))
     # One manager per worker (_install mutates instance state); built
@@ -790,8 +780,8 @@ def _preinstall(
         )
 
     seen = seen_names if seen_names is not None else set()
-    # All entries join seen (a failed package must not be re-queued by a
-    # later wave), but only successful installs feed the dependency walk
+    # All entries join seen (failures must not be re-queued); only
+    # successful installs feed the dependency walk
     seen.update(name.split("@", 1)[0].lower() for name, *_ in entries)
     installed = [e for e, ok in zip(entries, results, strict=True) if ok]
     if stale_cache:
@@ -923,9 +913,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
         )
 
     for mgr, entries in groups:
-        # One install per destination: pio derives the directory from the
-        # package name, so key on the name part (a registry entry's display
-        # name carries a version suffix)
+        # One install per destination: pio derives the directory from
+        # the package name, so key on the name part
         to_install = {
             name.split("@", 1)[0].lower(): (name, spec)
             for name, spec in entries
