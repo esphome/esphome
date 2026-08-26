@@ -5,6 +5,7 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import configparser
+import os
 from pathlib import Path
 import queue
 import subprocess
@@ -29,7 +30,9 @@ except ImportError:  # pragma: no cover
 
 # Downloads are network bound and release the GIL, unpacks are CPU bound;
 # a fixed pool well past the core count keeps the network busy while
-# unpacks share the cores.
+# unpacks share the cores. This bypasses pio's 500ms registry throttle
+# and races its self-unlinking usage.db/http-cache LockFiles; both are
+# cache-only bookkeeping and self-healing.
 MAX_WORKERS = 16
 
 
@@ -149,9 +152,11 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     pairs = [item if isinstance(item, tuple) else (item, None) for item in specs]
     unique = {}
     for spec, compat in pairs:
-        if spec.uri if isinstance(spec, PackageSpec) else "://" in spec:
+        # Normalize once: a dependency's URL version surfaces as spec.uri
+        parsed = spec if isinstance(spec, PackageSpec) else PackageSpec(spec)
+        if parsed.uri:
             continue
-        if (key := spec_key(spec)) is None:
+        if (key := spec_key(parsed)) is None:
             # No name, no destination identity; leave it to the serial pass
             print(f"Skipping unresolvable spec {spec!r} in the wave", flush=True)
             continue
@@ -228,6 +233,7 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     for lazy_dir in (manager.get_download_dir(), manager.get_tmp_dir()):
         Path(lazy_dir).mkdir(parents=True, exist_ok=True)
     ContentCache("http")
+    cwd = Path.cwd()
     manager.lock()
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -243,6 +249,9 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         results = [f.result() for f in futures]
     finally:
         manager.unlock()
+        # Worker postinstall scripts chdir process-wide (pio's fs.cd);
+        # restore between waves, not only for the final subprocess
+        os.chdir(cwd)
     if failures := len(results) - sum(results):
         # Visible once per wave. The stock pass retries CLI specs and,
         # for already-installed packages, re-walks their dependencies

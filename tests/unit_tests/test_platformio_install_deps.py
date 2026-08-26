@@ -4,6 +4,7 @@ from argparse import Namespace
 import importlib.util
 import inspect
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -306,6 +307,23 @@ def test_unresolvable_torn_destination_is_printed(capsys) -> None:
     cls = _reset_fake(fail={"esphome/bad @ 1.0"})
     mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert "No resolvable destination to clean" in capsys.readouterr().out
+
+
+def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> None:
+    """A CleanupError must escape main's serial fallback: the clause order
+    decides whether a stuck torn package fails the image build."""
+    mod = _load_script()
+    ini = tmp_path / "platformio.ini"
+    ini.write_text("[env:t]\nlib_deps =\n    esphome/x @ 1.0\n")
+    with (
+        patch.object(
+            mod, "parallel_install", side_effect=mod.CleanupError("stuck torn pkg")
+        ),
+        patch.object(mod.subprocess, "check_call"),
+        patch.object(sys, "argv", ["platformio_install_deps.py", str(ini), "-l"]),
+        pytest.raises(mod.CleanupError),
+    ):
+        mod.main()
 
 
 def test_content_cache_creates_its_dir(tmp_path: Path, monkeypatch) -> None:
