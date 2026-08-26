@@ -266,6 +266,14 @@ def _log_pch_in_use() -> None:
     )
 
 
+def _read_stamp(path: Path) -> str:
+    """A corrupt sidecar must read as stale, not kill the pch forever."""
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except (OSError, UnicodeDecodeError):
+        return ""
+
+
 def discard_pch(build_dir: Path) -> None:
     """Remove the pch sidecars so a stale .gch is never consumed.
 
@@ -330,18 +338,11 @@ def prepare_pch(
         )
         discard_pch(build_dir)
         return
-    if (
-        gch.is_file()
-        and sum_path.is_file()
-        and sum_path.read_text(encoding="utf-8").strip() == checksum
-    ):
+    if gch.is_file() and _read_stamp(sum_path) == checksum:
         _log_pch_in_use()
         return
     failed_marker = Path(f"{gch}.failed")
-    if (
-        failed_marker.is_file()
-        and failed_marker.read_text(encoding="utf-8").strip() == checksum
-    ):
+    if _read_stamp(failed_marker) == checksum:
         _LOGGER.info(
             "Precompiled header disabled after an earlier failure; delete %s to retry",
             failed_marker,
