@@ -7,7 +7,6 @@ namespace esphome::growatt_solar {
 
 static const char *const TAG = "growatt_solar";
 
-static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT[] = {33, 95};  // indexed with enum GrowattProtocolVersion
 
 void GrowattSolar::loop() {
@@ -31,11 +30,12 @@ void GrowattSolar::update() {
   }
 
   this->waiting_to_update_ = false;
-  this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT[this->protocol_version_]);
+  this->read_input_registers(0, MODBUS_REGISTER_COUNT[this->protocol_version_]);
   this->last_send_ = millis();
 }
 
-void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
+void GrowattSolar::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
   // Other components might be sending commands to our device. But we don't get called with enough
   // context to know what is what. So if we didn't do a send, we ignore the data.
   if (!this->last_send_)

@@ -93,7 +93,7 @@ enum VerticalDirection {
 const float TEMP_MIN = 0;    // Celsius
 const float TEMP_MAX = 100;  // Celsius
 
-class HeatpumpIRClimate : public climate_ir::ClimateIR {
+class HeatpumpIRClimate final : public climate_ir::ClimateIR {
  public:
   HeatpumpIRClimate()
       : climate_ir::ClimateIR(TEMP_MIN, TEMP_MAX, 1.0f, true, true,

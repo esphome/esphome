@@ -10,7 +10,7 @@
 
 namespace esphome::mqtt_subscribe {
 
-class MQTTSubscribeSensor : public sensor::Sensor, public Component {
+class MQTTSubscribeSensor final : public sensor::Sensor, public Component {
  public:
   void set_parent(mqtt::MQTTClientComponent *parent) { parent_ = parent; }
   void set_topic(const std::string &topic) { topic_ = topic; }

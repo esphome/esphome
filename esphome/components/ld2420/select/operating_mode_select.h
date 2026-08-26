@@ -5,7 +5,7 @@
 
 namespace esphome::ld2420 {
 
-class LD2420Select : public Component, public select::Select, public Parented<LD2420Component> {
+class LD2420Select final : public Component, public select::Select, public Parented<LD2420Component> {
  public:
   LD2420Select() = default;
 

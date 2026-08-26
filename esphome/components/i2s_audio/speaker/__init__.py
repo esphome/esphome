@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import audio, esp32, speaker
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -13,6 +14,7 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TIMEOUT,
 )
+from esphome.types import ConfigType
 
 from .. import (
     CONF_I2S_DOUT_PIN,
@@ -78,7 +80,7 @@ I2C_COMM_FMT_OPTIONS = {
 INTERNAL_DAC_VARIANTS = [esp32.VARIANT_ESP32]
 
 
-def _set_num_channels_from_config(config):
+def _set_num_channels_from_config(config: ConfigType) -> ConfigType:
     if config[CONF_CHANNEL] in (CONF_MONO, CONF_LEFT, CONF_RIGHT):
         config[CONF_NUM_CHANNELS] = 1
     else:
@@ -87,7 +89,7 @@ def _set_num_channels_from_config(config):
     return config
 
 
-def _set_stream_limits(config):
+def _set_stream_limits(config: ConfigType) -> ConfigType:
     if config.get(CONF_SPDIF_MODE, False):
         # SPDIF mode: 16/24/32-bit audio and stereo at configured sample rate
         audio.set_stream_limits(
@@ -104,23 +106,26 @@ def _set_stream_limits(config):
     # stream it accepts is 16-bit (see start_i2s_driver); the other variants handle 8-bit.
     min_bits_per_sample = 16 if esp32.get_esp32_variant() == esp32.VARIANT_ESP32 else 8
 
+    # The configured bits per sample sets the I2S slot width, but the speaker narrows wider streams down to it
+    # in place before clocking them out (see start_i2s_driver). Advertise up to 32-bit so those wider streams
+    # are accepted rather than forcing an upstream conversion.
+    max_bits_per_sample = 32
+
     if config[CONF_I2S_MODE] == CONF_PRIMARY:
-        # Primary mode can reconfigure the bus to the incoming sample rate and channel count, but the
-        # configured bits per sample is a hard ceiling: the speaker rejects any stream that exceeds the
-        # slot bit width it was set up with (see start_i2s_driver), so advertise that as the maximum.
+        # Primary mode can reconfigure the bus to the incoming sample rate and channel count.
         audio.set_stream_limits(
             min_bits_per_sample=min_bits_per_sample,
-            max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+            max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
             min_sample_rate=16000,
             max_sample_rate=48000,
         )(config)
     else:
-        # Secondary mode has unmodifiable max bits per sample and min/max sample rates
+        # Secondary mode has unmodifiable min/max sample rates
         audio.set_stream_limits(
             min_bits_per_sample=min_bits_per_sample,
-            max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+            max_bits_per_sample=max_bits_per_sample,
             min_channels=1,
             max_channels=2,
             min_sample_rate=config.get(CONF_SAMPLE_RATE),
@@ -130,14 +135,14 @@ def _set_stream_limits(config):
     return config
 
 
-def _select_speaker_class(config):
+def _select_speaker_class(config: ConfigType) -> ConfigType:
     """Override ID type when SPDIF mode is enabled."""
     if config.get(CONF_SPDIF_MODE, False):
         config[CONF_ID].type = I2SAudioSpeakerSPDIF
     return config
 
 
-def _validate_esp32_variant(config):
+def _validate_esp32_variant(config: ConfigType) -> ConfigType:
     variant = esp32.get_esp32_variant()
     if config[CONF_DAC_TYPE] == "internal":
         if variant not in INTERNAL_DAC_VARIANTS:
@@ -204,7 +209,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     if config[CONF_DAC_TYPE] == "internal":
         raise cv.Invalid(
             "Internal DAC is no longer supported. Use an external I2S DAC instead."
@@ -235,7 +240,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await register_i2s_audio_component(var, config)
@@ -257,3 +262,13 @@ async def to_code(config):
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
+
+
+# The SPDIF encoder and speaker are fully #ifdef'd on USE_I2S_AUDIO_SPDIF_MODE,
+# set only when spdif_mode is enabled.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "spdif_encoder.cpp": "USE_I2S_AUDIO_SPDIF_MODE",
+        "i2s_audio_spdif.cpp": "USE_I2S_AUDIO_SPDIF_MODE",
+    }
+)

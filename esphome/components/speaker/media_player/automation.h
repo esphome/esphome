@@ -9,7 +9,8 @@
 
 namespace esphome::speaker {
 
-template<typename... Ts> class PlayOnDeviceMediaAction : public Action<Ts...>, public Parented<SpeakerMediaPlayer> {
+template<typename... Ts>
+class PlayOnDeviceMediaAction final : public Action<Ts...>, public Parented<SpeakerMediaPlayer> {
   TEMPLATABLE_VALUE(audio::AudioFile *, audio_file)
   TEMPLATABLE_VALUE(bool, announcement)
   TEMPLATABLE_VALUE(bool, enqueue)

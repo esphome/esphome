@@ -134,7 +134,8 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   void apply_software_volume_(uint8_t *data, size_t bytes_read);
 
   /// @brief Swap adjacent 16-bit mono samples for ESP32 (non-variant) hardware quirk.
-  /// Only applies when running on original ESP32 with 16-bit mono audio.
+  /// Only applies when running on original ESP32 with 16-bit mono output. Operates on the data that is
+  /// handed to the I2S peripheral, so the check uses the output (post-narrowing) stream info.
   /// @param data Pointer to audio sample data (modified in place)
   /// @param bytes_read Number of bytes of audio data
   void swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read);
@@ -156,7 +157,11 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
 
   int32_t q31_volume_factor_{INT32_MAX};
 
-  audio::AudioStreamInfo current_stream_info_;  // The currently loaded driver's stream info
+  audio::AudioStreamInfo current_stream_info_;  // Format of the audio in the ring buffer (the I2S input)
+  // Format actually clocked out of the I2S peripheral. Same channel count and sample rate as
+  // current_stream_info_, but the bits per sample may be narrower when the incoming stream is wider than
+  // the speaker's configured slot bit width. Set by start_i2s_driver before the speaker task starts.
+  audio::AudioStreamInfo output_stream_info_;
 
   gpio_num_t dout_pin_;
   i2s_chan_handle_t tx_handle_{nullptr};

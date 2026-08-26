@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class CustomUnmanTimeNumber : public number::Number, public Parented<MR24HPC1Component> {
+class CustomUnmanTimeNumber final : public number::Number, public Parented<MR24HPC1Component> {
  public:
   CustomUnmanTimeNumber() = default;
 

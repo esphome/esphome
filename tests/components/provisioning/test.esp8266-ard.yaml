@@ -1,0 +1,16 @@
+# Provisioning window on ESP8266 (no BLE Improv): api as a provisioning source
+# and the wifi reboot guard. improv_serial is present and intentionally NOT gated.
+provisioning:
+  timeout: 1min
+  on_timeout:
+    then:
+      - logger.log: "Provisioning window expired"
+
+api:
+  encryption:
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+improv_serial:

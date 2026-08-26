@@ -6,7 +6,7 @@
 
 namespace esphome::gpio {
 
-class GPIOOneWireBus : public one_wire::OneWireBus, public Component {
+class GPIOOneWireBus final : public one_wire::OneWireBus, public Component {
  public:
   void setup() override;
   void dump_config() override;

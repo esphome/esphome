@@ -13,11 +13,11 @@
 
 using SPIInterface = spi_host_device_t;
 
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
 
 #include <SPI.h>
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 using SPIInterface = SPIClassRP2040 *;
 #else
 using SPIInterface = SPIClass *;
@@ -334,7 +334,7 @@ class SPIBus {
 
 class SPIClient;
 
-class SPIComponent : public Component {
+class SPIComponent final : public Component {
  public:
   SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                GPIOPin *cs_pin, bool release_device, bool write_only);
@@ -351,6 +351,8 @@ class SPIComponent : public Component {
     this->interface_ = interface;
     this->using_hw_ = true;
   }
+
+  SPIInterface get_interface() const { return this->interface_; }
 
   void set_interface_name(const char *name) { this->interface_name_ = name; }
 

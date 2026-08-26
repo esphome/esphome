@@ -9,7 +9,7 @@ struct device;  // NOLINT(readability-identifier-naming) - forward decl of Zephy
 
 namespace esphome::i2c {
 
-class ZephyrI2CBus : public InternalI2CBus, public Component {
+class ZephyrI2CBus final : public InternalI2CBus, public Component {
  public:
   explicit ZephyrI2CBus(const device *i2c_dev) : i2c_dev_(i2c_dev) {}
   void setup() override;

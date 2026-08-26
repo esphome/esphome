@@ -3,52 +3,64 @@ sensor:
     name: "BMI270 Temperature"
 
   - platform: motion
+    motion_id: bmi270_motion
     type: acceleration_x
-    name: "Accel X"
+    name: "BMI270 Accel X"
     accuracy_decimals: 4
     filters:
       - sliding_window_moving_average:
           window_size: 4
           send_every: 1
   - platform: motion
+    motion_id: bmi270_motion
     type: acceleration_y
-    name: "Accel Y"
+    name: "BMI270 Accel Y"
     accuracy_decimals: 4
   - platform: motion
+    motion_id: bmi270_motion
     type: acceleration_z
-    name: "Accel Z"
+    name: "BMI270 Accel Z"
     accuracy_decimals: 4
 
     # Gyroscope axes (unit: °/s)
   - platform: motion
+    motion_id: bmi270_motion
     type: gyroscope_x
-    name: "Gyro X"
+    name: "BMI270 Gyro X"
   - platform: motion
+    motion_id: bmi270_motion
     type: gyroscope_y
-    name: "Gyro Y"
+    name: "BMI270 Gyro Y"
   - platform: motion
+    motion_id: bmi270_motion
     type: gyroscope_z
-    name: "Gyro Z"
+    name: "BMI270 Gyro Z"
 
   - platform: motion
+    motion_id: bmi270_motion
     type: angular_rate_x
-    name: "Angular Rate X"
+    name: "BMI270 Angular Rate X"
   - platform: motion
+    motion_id: bmi270_motion
     type: angular_rate_y
-    name: "Angular Rate Y"
+    name: "BMI270 Angular Rate Y"
   - platform: motion
+    motion_id: bmi270_motion
     type: angular_rate_z
-    name: "Angular Rate Z"
+    name: "BMI270 Angular Rate Z"
 
   - platform: motion
+    motion_id: bmi270_motion
     type: pitch
-    name: "Pitch"
+    name: "BMI270 Pitch"
   - platform: motion
+    motion_id: bmi270_motion
     type: roll
-    name: "Roll"
+    name: "BMI270 Roll"
 
 motion:
   - platform: bmi270
+    id: bmi270_motion
   # Accelerometer full-scale range: 2G | 4G | 8G | 16G
     accelerometer_range: 4G
 

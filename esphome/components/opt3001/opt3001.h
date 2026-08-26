@@ -7,7 +7,7 @@
 namespace esphome::opt3001 {
 
 /// This class implements support for the i2c-based OPT3001 ambient light sensor.
-class OPT3001Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class OPT3001Sensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void dump_config() override;
   void update() override;

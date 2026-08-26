@@ -6,7 +6,7 @@
 
 namespace esphome::esp_ldo {
 
-class EspLdo : public Component {
+class EspLdo final : public Component {
  public:
   EspLdo(int channel) : channel_(channel) {}
 
@@ -27,7 +27,7 @@ class EspLdo : public Component {
   esp_ldo_channel_handle_t handle_{};
 };
 
-template<typename... Ts> class AdjustAction : public Action<Ts...> {
+template<typename... Ts> class AdjustAction final : public Action<Ts...> {
  public:
   explicit AdjustAction(EspLdo *ldo) : ldo_(ldo) {}
 

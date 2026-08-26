@@ -22,10 +22,10 @@ enum MAX31865ConfigFilter {
   FILTER_50HZ = 1,
 };
 
-class MAX31865Sensor : public sensor::Sensor,
-                       public PollingComponent,
-                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                             spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_4MHZ> {
+class MAX31865Sensor final : public sensor::Sensor,
+                             public PollingComponent,
+                             public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                   spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_4MHZ> {
  public:
   void set_reference_resistance(float reference_resistance) { reference_resistance_ = reference_resistance; }
   void set_nominal_resistance(float nominal_resistance) { rtd_nominal_resistance_ = nominal_resistance; }

@@ -27,7 +27,7 @@ class Sm10BitBase : public Component {
   void dump_config() override;
   void loop() override;
 
-  class Channel : public output::FloatOutput {
+  class Channel final : public output::FloatOutput {
    public:
     void set_parent(Sm10BitBase *parent) { parent_ = parent; }
     void set_channel(uint8_t channel) { channel_ = channel; }

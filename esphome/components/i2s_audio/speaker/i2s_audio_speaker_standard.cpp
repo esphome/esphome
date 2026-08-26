@@ -13,6 +13,9 @@
 
 #include "esp_timer.h"
 
+// esp-audio-libs
+#include <pcm_convert.h>
+
 namespace esphome::i2s_audio {
 
 static const char *const TAG = "i2s_audio.speaker.std";
@@ -62,6 +65,12 @@ void I2SAudioSpeaker::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  Communication format: %s", fmt_str);
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    // The width of each I2S slot. It is also the narrowing ceiling: streams wider than this are narrowed to
+    // it. A stream narrower than the slot is left at its own width and clocked into the wider slot, so this
+    // is not necessarily the sample data width (which depends on the incoming stream).
+    ESP_LOGCONFIG(TAG, "  Slot bit width: %u", (unsigned) static_cast<uint32_t>(this->slot_bit_width_));
+  }
 }
 
 void I2SAudioSpeaker::run_speaker_task() {
@@ -71,12 +80,19 @@ void I2SAudioSpeaker::run_speaker_task() {
   // Ensure ring buffer duration is at least the duration of all DMA buffers
   const uint32_t ring_buffer_duration = std::max(dma_buffers_duration_ms, this->buffer_duration_ms_);
 
-  // The DMA buffers may have more bits per sample, so calculate buffer sizes based on the input audio stream info
+  // The ring buffer holds input-format audio (what play() receives), so size it from the input stream info.
   const size_t bytes_per_frame = this->current_stream_info_.frames_to_bytes(1);
   // Round the ring buffer size down to a multiple of bytes_per_frame so the wrap boundary stays frame-aligned and
   // avoids unnecessary single-frame splices.
   const size_t ring_buffer_size =
       (this->current_stream_info_.ms_to_bytes(ring_buffer_duration) / bytes_per_frame) * bytes_per_frame;
+
+  // Per-frame byte widths and whether the task must narrow the bit depth before writing to the I2S peripheral.
+  const uint8_t channels = this->current_stream_info_.get_channels();
+  const uint8_t input_bytes_per_sample = this->current_stream_info_.get_bits_per_sample() / 8;
+  const uint8_t output_bytes_per_sample = this->output_stream_info_.get_bits_per_sample() / 8;
+  const bool narrowing = input_bytes_per_sample != output_bytes_per_sample;
+
   // ESP-IDF may allocate smaller (or cache-line-rounded) DMA buffers than dma_buffer_frames() requested: it
   // clamps each descriptor to the max DMA descriptor size and, on targets that route internal memory through
   // the L1 cache (e.g. ESP32-P4), rounds the buffer to the cache line. Read the size the driver actually
@@ -89,9 +105,12 @@ void I2SAudioSpeaker::run_speaker_task() {
     dma_buffer_bytes = chan_info.total_dma_buf_size / DMA_BUFFERS_COUNT;
   } else {
     // Should not happen for a READY channel; fall back to the requested size.
-    dma_buffer_bytes = this->current_stream_info_.frames_to_bytes(dma_buffer_frames(this->current_stream_info_));
+    dma_buffer_bytes = this->output_stream_info_.frames_to_bytes(dma_buffer_frames(this->output_stream_info_));
   }
-  const uint32_t frames_per_dma_buffer = this->current_stream_info_.bytes_to_frames(dma_buffer_bytes);
+  // dma_buffer_bytes counts output-format bytes; convert with the output stream info.
+  const uint32_t frames_per_dma_buffer = this->output_stream_info_.bytes_to_frames(dma_buffer_bytes);
+  // Soft cap for each source read: enough input-format bytes to fill one DMA buffer's worth of frames.
+  const size_t dma_buffer_input_bytes = this->current_stream_info_.frames_to_bytes(frames_per_dma_buffer);
 
   bool successful_setup = false;
 
@@ -105,8 +124,8 @@ void I2SAudioSpeaker::run_speaker_task() {
     memset(silence_buffer, 0, dma_buffer_bytes);
 
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
-    audio_source =
-        audio::RingBufferAudioSource::create(temp_ring_buffer, dma_buffer_bytes, static_cast<uint8_t>(bytes_per_frame));
+    audio_source = audio::RingBufferAudioSource::create(temp_ring_buffer, dma_buffer_input_bytes,
+                                                        static_cast<uint8_t>(bytes_per_frame));
 
     if (audio_source != nullptr) {
       // audio_source is nullptr if the ring buffer fails to allocate
@@ -237,42 +256,61 @@ void I2SAudioSpeaker::run_speaker_task() {
       // Compose exactly one DMA buffer's worth: drain as much real audio as the source currently
       // exposes (may take multiple fill() calls when crossing a ring buffer wrap), then pad any
       // remainder with silence. All writes pack into the next free DMA descriptor in order, so the
-      // descriptor ends up holding [real audio][silence padding].
+      // descriptor ends up holding [real audio][silence padding]. ``bytes_written_total`` counts
+      // output-format bytes so it tracks how full the DMA buffer is regardless of any narrowing.
       size_t bytes_written_total = 0;
-      size_t real_bytes_total = 0;
+      uint32_t real_frames_total = 0;
       bool partial_write_failure = false;
 
       if (!this->pause_state_) {
         while (bytes_written_total < dma_buffer_bytes) {
           size_t bytes_read = audio_source->fill(pdMS_TO_TICKS(DMA_BUFFER_DURATION_MS) / 2, false);
           if (bytes_read > 0) {
+            // Apply volume at the input bit depth, before any narrowing, so the full precision is scaled.
             uint8_t *new_data = audio_source->mutable_data() + audio_source->available() - bytes_read;
             this->apply_software_volume_(new_data, bytes_read);
-            this->swap_esp32_mono_samples_(new_data, bytes_read);
           }
 
-          const size_t to_write = std::min(audio_source->available(), dma_buffer_bytes - bytes_written_total);
-          if (to_write == 0) {
+          // Convert as many whole frames as fit in the remaining DMA space, bounded by what the source
+          // currently exposes. Frame counts are shared between input and output; only the byte widths differ.
+          const uint32_t frames_available = this->current_stream_info_.bytes_to_frames(audio_source->available());
+          const uint32_t frames_room =
+              this->output_stream_info_.bytes_to_frames(dma_buffer_bytes - bytes_written_total);
+          const uint32_t frames_to_write = std::min(frames_available, frames_room);
+          if (frames_to_write == 0) {
             // Ring buffer has nothing more to hand over right now; pad the rest of this DMA buffer
             // with silence so the lockstep invariant (one write per iteration) is preserved.
             break;
           }
 
+          const size_t input_bytes = this->current_stream_info_.frames_to_bytes(frames_to_write);
+          const size_t output_bytes = this->output_stream_info_.frames_to_bytes(frames_to_write);
+
+          uint8_t *chunk = audio_source->mutable_data();
+          if (narrowing) {
+            // Narrow the bit depth in place: output exactly aliases input with the same channel count and a
+            // smaller width, which copy_frames handles as a single forward pass. Only the frames about to be
+            // consumed are overwritten, so any unprocessed tail stays intact for the next iteration.
+            esp_audio_libs::pcm_convert::copy_frames(chunk, chunk, input_bytes_per_sample, channels,
+                                                     output_bytes_per_sample, channels, frames_to_write);
+          }
+          this->swap_esp32_mono_samples_(chunk, output_bytes);
+
           size_t bw = 0;
-          i2s_channel_write(this->tx_handle_, audio_source->data(), to_write, &bw, WRITE_TIMEOUT_TICKS);
-          if (bw != to_write) {
+          i2s_channel_write(this->tx_handle_, chunk, output_bytes, &bw, WRITE_TIMEOUT_TICKS);
+          if (bw != output_bytes) {
             // A short real-audio write breaks DMA descriptor alignment for every subsequent event;
             // the only safe recovery is to restart the task.
-            ESP_LOGV(TAG, "Partial real audio write: %u of %u bytes", (unsigned) bw, (unsigned) to_write);
+            ESP_LOGV(TAG, "Partial real audio write: %u of %u bytes", (unsigned) bw, (unsigned) output_bytes);
             xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_PARTIAL_WRITE);
             partial_write_failure = true;
             break;
           }
-          audio_source->consume(bw);
-          bytes_written_total += bw;
-          real_bytes_total += bw;
+          audio_source->consume(input_bytes);
+          bytes_written_total += output_bytes;
+          real_frames_total += frames_to_write;
         }
-        if (real_bytes_total > 0) {
+        if (real_frames_total > 0) {
           last_data_received_time = millis();
         }
       }
@@ -293,16 +331,15 @@ void I2SAudioSpeaker::run_speaker_task() {
         }
       }
 
-      const uint32_t real_frames_in_buffer = this->current_stream_info_.bytes_to_frames(real_bytes_total);
       // Push the matching write record. Capacity headroom in I2S_EVENT_QUEUE_COUNT guarantees this
       // succeeds even with a transient backlog of unprocessed events; if it ever fails the lockstep
       // invariant is broken and every subsequent timestamp would be silently wrong, so bail.
-      if (xQueueSend(this->write_records_queue_, &real_frames_in_buffer, 0) != pdTRUE) {
+      if (xQueueSend(this->write_records_queue_, &real_frames_total, 0) != pdTRUE) {
         ESP_LOGV(TAG, "Exiting: write records queue full");
         xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::ERR_LOCKSTEP_DESYNC);
         break;
       }
-      if (real_frames_in_buffer > 0) {
+      if (real_frames_total > 0) {
         pending_real_buffers++;
       }
     }
@@ -334,21 +371,28 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_NOT_SUPPORTED;
   }
 
-  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO &&
-      (i2s_slot_bit_width_t) audio_stream_info.get_bits_per_sample() > this->slot_bit_width_) {
-    // Currently can't handle the case when the incoming audio has more bits per sample than the configured value
-    ESP_LOGE(TAG, "Stream bits per sample must be less than or equal to the speaker's configuration");
-    return ESP_ERR_NOT_SUPPORTED;
+  // When the stream is wider than the configured slot bit width, the speaker task narrows each frame in place
+  // before handing it to the I2S peripheral. Compute the output format here so the driver, DMA buffers, and
+  // the task's conversion all agree on the clocked-out width. A stream no wider than the slot width is passed
+  // through unchanged (the slot may still be wider than the data, the existing behavior).
+  uint8_t output_bits_per_sample = audio_stream_info.get_bits_per_sample();
+  if (this->slot_bit_width_ != I2S_SLOT_BIT_WIDTH_AUTO) {
+    const uint8_t configured_bits = static_cast<uint8_t>(this->slot_bit_width_);
+    if (output_bits_per_sample > configured_bits) {
+      output_bits_per_sample = configured_bits;
+    }
   }
+  this->output_stream_info_ = audio::AudioStreamInfo(output_bits_per_sample, audio_stream_info.get_channels(),
+                                                     audio_stream_info.get_sample_rate());
 
 #ifdef USE_ESP32_VARIANT_ESP32
   // The original ESP32 I2S peripheral stores each sample in a whole number of 16-bit words (a 24-bit sample
   // occupies 4 bytes in the DMA buffer, an 8-bit sample 2 bytes), but ESPHome's audio pipeline packs samples
   // tightly (3 bytes for 24-bit, 1 for 8-bit). The two layouts only line up when the bit depth is a multiple
-  // of 16, so reject anything else rather than emit corrupted audio.
-  if (audio_stream_info.get_bits_per_sample() % 16 != 0) {
-    ESP_LOGE(TAG, "ESP32 supports only 16- or 32-bit audio, got %u-bit",
-             (unsigned) audio_stream_info.get_bits_per_sample());
+  // of 16. The check is on the output width since that is what reaches the peripheral; a wider input is fine
+  // as long as it narrows to a 16- or 32-bit slot.
+  if (output_bits_per_sample % 16 != 0) {
+    ESP_LOGE(TAG, "ESP32 supports only 16- or 32-bit output, got %u-bit", (unsigned) output_bits_per_sample);
     return ESP_ERR_NOT_SUPPORTED;
   }
 #endif  // USE_ESP32_VARIANT_ESP32
@@ -358,7 +402,8 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     return ESP_ERR_INVALID_STATE;
   }
 
-  uint32_t dma_buffer_length = dma_buffer_frames(audio_stream_info);
+  // The DMA buffers hold output-format (post-narrowing) samples, so size them from the output stream info.
+  uint32_t dma_buffer_length = dma_buffer_frames(this->output_stream_info_);
 
   i2s_role_t i2s_role = this->i2s_role_;
   i2s_clock_src_t clk_src = I2S_CLK_SRC_DEFAULT;
@@ -398,19 +443,18 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
     slot_mask = I2S_STD_SLOT_BOTH;
   }
 
+  // Configure the data bit width from the output (post-narrowing) format, which is what is clocked out.
+  const i2s_data_bit_width_t data_bit_width = (i2s_data_bit_width_t) this->output_stream_info_.get_bits_per_sample();
   i2s_std_slot_config_t slot_cfg;
   switch (this->i2s_comm_fmt_) {
     case I2SCommFmt::PCM:
-      slot_cfg =
-          I2S_STD_PCM_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
+      slot_cfg = I2S_STD_PCM_SLOT_DEFAULT_CONFIG(data_bit_width, slot_mode);
       break;
     case I2SCommFmt::MSB:
-      slot_cfg =
-          I2S_STD_MSB_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
+      slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(data_bit_width, slot_mode);
       break;
     default:
-      slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(),
-                                                     slot_mode);
+      slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(data_bit_width, slot_mode);
       break;
   }
 

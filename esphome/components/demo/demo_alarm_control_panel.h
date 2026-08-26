@@ -13,7 +13,7 @@ enum class DemoAlarmControlPanelType {
   TYPE_3,
 };
 
-class DemoAlarmControlPanel : public AlarmControlPanel, public Component {
+class DemoAlarmControlPanel final : public AlarmControlPanel, public Component {
  public:
   void setup() override {}
 

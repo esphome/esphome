@@ -319,7 +319,7 @@ bool MQTTComponent::send_discovery_() {
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
 #if defined(USE_ESP8266) || defined(USE_ESP32)
         device_info[MQTT_DEVICE_MANUFACTURER] = "Espressif";
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
         device_info[MQTT_DEVICE_MANUFACTURER] = "Raspberry Pi";
 #elif defined(USE_BK72XX)
         device_info[MQTT_DEVICE_MANUFACTURER] = "Beken";
@@ -339,10 +339,6 @@ bool MQTTComponent::send_discovery_() {
       this->qos_, discovery_info.retain);
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
-
-uint8_t MQTTComponent::get_qos() const { return this->qos_; }
-
-bool MQTTComponent::get_retain() const { return this->retain_; }
 
 bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
