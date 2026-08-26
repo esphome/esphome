@@ -33,7 +33,14 @@ def test_pch_enabled(value: str | None, expected: bool) -> None:
         assert pch.pch_enabled() is expected
 
 
+def test_ccache_pch_env_empty_until_emitted() -> None:
+    """No sloppiness relaxation for a build that skipped the pch."""
+    with patch.dict(os.environ, {}, clear=True):
+        assert pch.ccache_pch_env() == {}
+
+
 def test_ccache_pch_env_enabled() -> None:
+    pch.mark_pch_emitted()
     with patch.dict(os.environ, {}, clear=True):
         env = pch.ccache_pch_env()
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
@@ -48,6 +55,7 @@ def test_ccache_pch_env_disabled() -> None:
 def test_ccache_pch_env_token_check_is_membership_not_substring(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    pch.mark_pch_emitted()
     """A token merely containing ours must not suppress the union."""
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "pch_defines_extra"}, clear=True):
         env = pch.ccache_pch_env()
@@ -57,6 +65,7 @@ def test_ccache_pch_env_token_check_is_membership_not_substring(
 def test_ccache_pch_env_unions_user_sloppiness(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    pch.mark_pch_emitted()
     """Without pch_defines/time_macros ccache declines every pch-consuming
     compile, so missing tokens are unioned onto the user's value."""
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):

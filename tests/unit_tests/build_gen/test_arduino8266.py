@@ -386,6 +386,10 @@ def test_write_project_pch(tmp_path: Path) -> None:
         '#include "esphome/core/defines.h"',
     ]
     assert (build_dir / "esphome_pch.h.gch.sum").read_text().strip()
+    # Emission recorded so the framework env exports the ccache settings
+    from esphome.build_helpers.pch import ccache_pch_env
+
+    assert "CCACHE_PCH_EXTSUM" in ccache_pch_env()
 
 
 def test_write_project_pch_sum_only_with_ccache(tmp_path: Path) -> None:
@@ -456,6 +460,10 @@ def test_write_project_pch_skipped_when_user_force_include_precedes(
     assert "esphome_pch" not in content
     assert "srccxxflags" not in content
     assert "prevents the precompiled header" in caplog.text
+    # No pch emitted: the ccache relaxation must stay off
+    from esphome.build_helpers.pch import ccache_pch_env
+
+    assert ccache_pch_env() == {}
 
 
 def test_write_project_pch_disabled(

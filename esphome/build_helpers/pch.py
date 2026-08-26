@@ -8,6 +8,7 @@ it too; Arduino.h visibility there is intended (esphome#8693).
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 import hashlib
 import logging
 import os
@@ -16,6 +17,27 @@ import posixpath
 import re
 
 from esphome.build_helpers.ccache import parse_enable_env
+
+_DOMAIN = "pch"
+
+
+@dataclass
+class _PCHData:
+    emitted: bool = False
+
+
+def _pch_data() -> _PCHData:
+    from esphome.core import CORE
+
+    if _DOMAIN not in CORE.data:
+        CORE.data[_DOMAIN] = _PCHData()
+    return CORE.data[_DOMAIN]
+
+
+def mark_pch_emitted() -> None:
+    """Record that this build's consumers reference the pch."""
+    _pch_data().emitted = True
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,9 +75,10 @@ def pch_enabled() -> bool:
 
 def ccache_pch_env() -> dict[str, str]:
     """Settings ccache needs to cache compiles that consume the .gch;
-    empty when the pch is disabled. User-set values win. Native backends
-    export these process-wide; only time_macros affects non-pch TUs."""
-    if not pch_enabled():
+    empty unless this build actually emitted one. User-set values win.
+    Native backends export these process-wide; only time_macros affects
+    non-pch TUs."""
+    if not (pch_enabled() and _pch_data().emitted):
         return {}
     env = {k: v for k, v in _CCACHE_PCH_ENV.items() if k not in os.environ}
     user_sloppiness = os.environ.get("CCACHE_SLOPPINESS")

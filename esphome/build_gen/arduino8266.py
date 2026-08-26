@@ -36,6 +36,7 @@ from esphome.build_helpers.ninja import (
 from esphome.build_helpers.pch import (
     PCH_CORE_HEADER,
     PCH_HEADER_NAME,
+    mark_pch_emitted,
     pch_checksum,
     pch_enabled,
     pch_header_text,
@@ -1284,6 +1285,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             ]
             lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
             src_cxx_override = ("$srccxxflags", gch)
+            mark_pch_emitted()
     src_objs = _ninja_compile_edges(
         lines,
         _collect_sources(src_dir),
