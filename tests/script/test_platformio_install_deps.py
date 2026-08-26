@@ -1,10 +1,8 @@
 """Tests for script/platformio_install_deps.py."""
 
 from argparse import Namespace
-from concurrent.futures import Future
 import importlib.util
 import inspect
-import os
 from pathlib import Path
 import shutil
 import sys
@@ -17,12 +15,7 @@ from platformio.package.manager._install import PackageManagerInstallMixin
 from platformio.package.manager.base import BasePackageManager
 from platformio.package.manager.library import LibraryPackageManager
 from platformio.package.manager.tool import ToolPackageManager
-from platformio.package.meta import (
-    PackageCompatibility,
-    PackageItem,
-    PackageSpec,
-    PackageType,
-)
+from platformio.package.meta import PackageCompatibility, PackageItem, PackageSpec
 import pytest
 from semantic_version import Version
 
@@ -153,6 +146,13 @@ def _reset_fake(base_dir: str = "", **kwargs) -> type:
     )
 
 
+def test_parallel_install_empty_specs_is_a_no_op(tmp_path: Path) -> None:
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path))
+    mod.parallel_install(cls, [])
+    assert cls.calls == [] and cls.lock_events == []
+
+
 def test_parallel_install_behavior(tmp_path: Path) -> None:
     """Duplicates collapse to one install, installed specs are filtered,
     URL specs stay out of the wave, and the lock wraps the pool."""
@@ -196,8 +196,6 @@ def test_parallel_install_failure_cleans_torn_destination(
     out = capsys.readouterr().out
     assert "Pre-install of esphome/bad @ 1.0 failed" in out
     assert "Pre-install failed for 1 of 2 package(s)" in out
-    # A failed install is expected to be unresolvable; no anomaly print
-    assert "not resolvable afterwards" not in out
 
 
 def test_parallel_install_runs_dependency_waves(tmp_path: Path) -> None:
@@ -238,63 +236,6 @@ def test_dependency_wave_excludes_url_specs(tmp_path: Path) -> None:
     assert {mod.spec_key(c) for c in cls.calls} == {"noise-c"}
 
 
-def test_success_without_package_prints_anomaly(tmp_path: Path, capsys) -> None:
-    """An install that reported success but resolves to nothing prints the
-    anomaly instead of silently pruning its dependency subtree."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path))
-    cls.get_package = lambda self, spec: None  # throwaway subclass
-    mod.parallel_install(cls, ["esphome/ghost @ 1.0"])
-    assert "not resolvable afterwards" in capsys.readouterr().out
-
-
-def test_warm_spec_lost_after_reset_prints_anomaly(tmp_path: Path, capsys) -> None:
-    """A warm-store spec that stops resolving after the memcache reset
-    prints the anomaly instead of silently dropping its subtree."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), installed={"esphome/warm @ 1.0"})
-
-    def get_package(self, spec):
-        if getattr(cls, "resets", 0):
-            return None
-        return _FakeManager.get_package(self, spec)
-
-    cls.get_package = get_package  # throwaway subclass; nothing to restore
-    mod.parallel_install(cls, ["esphome/warm @ 1.0"])
-    assert "not resolvable afterwards" in capsys.readouterr().out
-
-
-def test_dependency_wave_skips_known_builtins(tmp_path: Path) -> None:
-    """A versioned owner-less dep the manager recognizes as built-in is
-    skipped like pio's install_dependency skips it."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path))
-    cls.deps = {
-        "esphome/noise-c @ 0.1.21": [
-            {"name": "SPI", "version": "^1.0"},
-            {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
-        ],
-    }
-    cls.is_builtin_lib = staticmethod(lambda name: name == "SPI")
-    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"])
-    assert {mod.spec_key(c) for c in cls.calls} == {"noise-c", "libsodium"}
-
-
-def test_wave_limit_prints_truncation(tmp_path: Path, capsys) -> None:
-    """Hitting the cycle backstop announces what is left to pkg install."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path))
-    cls.deps = {
-        "esphome/noise-c @ 0.1.21": [
-            {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
-        ],
-    }
-    prior = {f"seen{i}" for i in range(200)}
-    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"], prior)
-    out = capsys.readouterr().out
-    assert "Dependency wave limit reached; 1 spec(s) left to pkg install" in out
-
-
 def test_failed_cleanup_fails_the_build(tmp_path: Path) -> None:
     """A torn destination still on disk after rmtree must fail the build:
     fs.rmtree never raises (its onexc handler prints), so only the
@@ -318,42 +259,9 @@ def test_failed_cleanup_fails_the_build(tmp_path: Path) -> None:
     assert cls.lock_events == ["lock", "unlock"]  # still released
 
 
-def test_api_break_cleans_before_surfacing(tmp_path: Path) -> None:
-    """An AttributeError from _install still removes the torn destination
-    before propagating to the logged serial fallback."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path))
-    torn = tmp_path / "packages" / "torn-pkg"
-    torn.mkdir(parents=True)
-
-    def bad_install(self, spec, skip_dependencies, compatibility=None):
-        raise AttributeError("_install went away")
-
-    def get_package(self, spec):
-        if getattr(cls, "resets", 0):
-            return SimpleNamespace(path=str(torn), spec=spec)
-        return None
-
-    cls._install = bad_install
-    cls.get_package = get_package
-    removed: list[str] = []
-
-    def fake_rmtree(path):
-        removed.append(path)
-        Path(path).rmdir()
-
-    with (
-        patch.object(mod.fs, "rmtree", fake_rmtree),
-        pytest.raises(AttributeError),
-    ):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert removed == [str(torn)]
-
-
 def test_unverifiable_torn_destination_fails_the_build(tmp_path: Path) -> None:
-    """When the scan keeps failing, the spec's own predicted destination
-    decides: an unremovable leftover fails the build; no leftover means
-    an innocent worker's in-flight copy cannot fail it."""
+    """When the scan fails, the spec's own .piopm decides: an unremovable
+    leftover fails the build."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     dest = Path(cls.base_dir) / "packages" / "bad"
@@ -365,7 +273,6 @@ def test_unverifiable_torn_destination_fails_the_build(tmp_path: Path) -> None:
 
     cls.memcache_reset = bad_reset
     with (
-        patch.object(mod.time, "sleep", lambda s: None),
         patch.object(mod.fs, "rmtree", lambda path: None),  # onexc swallowed
         pytest.raises(mod.CleanupError, match="could not remove"),
     ):
@@ -373,39 +280,20 @@ def test_unverifiable_torn_destination_fails_the_build(tmp_path: Path) -> None:
 
 
 def test_unverifiable_scan_without_leftover_degrades(tmp_path: Path, capsys) -> None:
-    """A persistently failing scan with no destination on disk is another
-    worker's problem, never a build failure blaming this spec."""
+    """A failing scan with no destination on disk is never a build
+    failure blaming this spec."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     resets = {"n": 0}
 
     def bad_reset(self):
-        # Exhaust clean_torn's retries; the coordinator's later reset works
+        # Fail clean_torn's reset; the coordinator's later reset works
         resets["n"] += 1
-        if resets["n"] <= 5:
+        if resets["n"] <= 1:
             raise OSError("scan broken")
 
     cls.memcache_reset = bad_reset
-    with patch.object(mod.time, "sleep", lambda s: None):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert "no destination to clean" in capsys.readouterr().out
-
-
-def test_transient_inspect_failure_retries(tmp_path: Path, capsys) -> None:
-    """A transient read of another worker's copy is retried, not fatal."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    attempts: list[int] = []
-
-    def flaky_reset(self):
-        attempts.append(1)
-        if len(attempts) < 2:
-            raise OSError("mid-copy read")
-
-    cls.memcache_reset = flaky_reset
-    with patch.object(mod.time, "sleep", lambda s: None):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert len(attempts) >= 2
+    mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert "No resolvable destination to clean" in capsys.readouterr().out
 
 
@@ -427,10 +315,7 @@ def test_unparsable_torn_destination_is_removed(tmp_path: Path, capsys) -> None:
     dest.mkdir(parents=True)
     (dest / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
 
-    def real_rmtree(path):
-        shutil.rmtree(path)
-
-    with patch.object(mod.fs, "rmtree", real_rmtree):
+    with patch.object(mod.fs, "rmtree", shutil.rmtree):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert not dest.exists()
     assert "Removed torn destination" in capsys.readouterr().out
@@ -444,6 +329,7 @@ def test_parse_specs_tools_branch(tmp_path: Path) -> None:
     ini.write_text(
         "[env:t]\n"
         "platform_packages =\n"
+        "    ${common.platform_packages}\n"
         "    platformio/tool-scons@~4.40801.0\n"
         "    framework-arduinopico@https://github.com/earlephilhower/arduino-pico/releases/download/6.0.0/rp2040-6.0.0.zip\n"
     )
@@ -469,24 +355,6 @@ def test_warm_store_still_walks_dependencies(tmp_path: Path) -> None:
     }
     mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"])
     assert [mod.spec_key(c) for c in cls.calls] == ["libsodium"]
-
-
-def test_partial_submission_still_drains_cleanup_errors(tmp_path: Path) -> None:
-    """A submit failure partway must not drop an already-running worker's
-    CleanupError; the serial pass would trust its torn directory."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path))
-    done: Future = Future()
-    done.set_exception(mod.CleanupError("torn dir stuck"))
-    boom = MagicMock()
-    boom.__enter__.return_value = boom
-    boom.__exit__.return_value = False
-    boom.submit.side_effect = [done, RuntimeError("no threads")]
-    with (
-        patch.object(mod, "ThreadPoolExecutor", return_value=boom),
-        pytest.raises(mod.CleanupError, match="torn dir stuck"),
-    ):
-        mod.parallel_install(cls, ["esphome/a @ 1.0", "esphome/b @ 1.0"])
 
 
 def test_worker_system_exit_still_cleans(tmp_path: Path, capsys) -> None:
@@ -519,49 +387,23 @@ def test_worker_system_exit_still_cleans(tmp_path: Path, capsys) -> None:
     assert not torn.exists()
 
 
-def test_unlock_failure_after_wave_error_is_fatal(tmp_path: Path) -> None:
-    """A plain wave error plus a failed unlock must not fall back to a
-    serial pass that would block on the held flock."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-
-    def bad_unlock(self):
-        type(self).lock_events.append("unlock")
-        raise OSError("flock broke")
-
-    cls.unlock = bad_unlock
-    # make the wave error non-Cleanup: plain install failure raises nothing,
-    # so force an error out of the drain via a broken executor
-    boom = MagicMock()
-    boom.__enter__.return_value = boom
-    boom.submit.side_effect = RuntimeError("no threads")
-    with (
-        patch.object(mod, "ThreadPoolExecutor", return_value=boom),
-        pytest.raises(mod.LockReleaseError, match="after a wave failure"),
-    ):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-
-
-def test_unlock_failure_after_system_exit_is_fatal(tmp_path: Path) -> None:
-    """A worker SystemExit plus a failed unlock must not fall through to a
-    serial pass that would block on the held flock."""
+def test_unlock_failure_is_fatal(tmp_path: Path) -> None:
+    """A failed unlock must fail the build: the serial pass in another
+    process would block on the held flock."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
 
-    def exiting_install(self, spec, skip_dependencies, compatibility=None):
-        raise SystemExit(0)
-
     def bad_unlock(self):
         raise OSError("flock broke")
 
-    cls._install = exiting_install
     cls.unlock = bad_unlock
-    with pytest.raises(mod.LockReleaseError, match="after a wave failure"):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    with pytest.raises(mod.LockReleaseError, match="manager lock"):
+        mod.parallel_install(cls, ["esphome/good @ 1.0"])
 
 
-def test_unlock_failure_with_cleanup_error_stays_fatal(tmp_path: Path) -> None:
-    """A CleanupError body stays in flight; the unlock fault becomes a note."""
+def test_unlock_failure_keeps_inflight_error_as_context(tmp_path: Path) -> None:
+    """An in-flight CleanupError stays attached when the unlock fault
+    takes over the raise."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     torn = tmp_path / "packages" / "bad"
@@ -579,10 +421,20 @@ def test_unlock_failure_with_cleanup_error_stays_fatal(tmp_path: Path) -> None:
     cls.unlock = bad_unlock
     with (
         patch.object(mod.fs, "rmtree", lambda path: None),  # leaves torn
-        pytest.raises(mod.CleanupError) as err,
+        pytest.raises(mod.LockReleaseError) as err,
     ):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert any("manager lock" in n for n in err.value.__notes__)
+    assert isinstance(err.value.__cause__.__context__, mod.CleanupError)
+
+
+def test_chdir_failure_does_not_fail_the_wave(tmp_path: Path, monkeypatch) -> None:
+    """A lost cwd is suppressed: further waves may misbehave and fall to
+    the serial pass, whose cwd is pinned."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path))
+    monkeypatch.setattr(mod.os, "chdir", MagicMock(side_effect=OSError("gone")))
+    mod.parallel_install(cls, ["esphome/good @ 1.0"])
+    assert cls.calls == ["esphome/good @ 1.0"]
 
 
 def test_piopm_match_removes_manifest_named_torn_dir(tmp_path: Path, capsys) -> None:
@@ -593,55 +445,14 @@ def test_piopm_match_removes_manifest_named_torn_dir(tmp_path: Path, capsys) -> 
     torn = tmp_path / "packages" / "ManifestName"
     torn.mkdir(parents=True)
     (torn / ".piopm").write_text('{"spec": {"owner": "esphome", "name": "bad"}}')
-
-    def real_rmtree(path):
-        shutil.rmtree(path)
-
-    with patch.object(mod.fs, "rmtree", real_rmtree):
+    innocent = tmp_path / "packages" / "innocent"
+    innocent.mkdir()
+    (innocent / ".piopm").write_text('{"spec": {"owner": "o", "name": "other"}}')
+    with patch.object(mod.fs, "rmtree", shutil.rmtree):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert not torn.exists()
+    assert innocent.exists()  # another package's valid metadata survives
     assert "Removed torn destination" in capsys.readouterr().out
-
-
-def test_piopm_match_spares_other_versions(tmp_path: Path) -> None:
-    """A healthy install of another version is never a cleanup casualty."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ ^2.0"})
-    healthy = tmp_path / "packages" / "bad"
-    healthy.mkdir(parents=True)
-    (healthy / ".piopm").write_text(
-        '{"version": "1.0.0", "spec": {"owner": "esphome", "name": "bad"}}'
-    )
-    (healthy / "library.json").write_text("{}")  # intact, not half-deleted
-    removed: list[str] = []
-    with patch.object(mod.fs, "rmtree", removed.append):
-        mod.parallel_install(cls, ["esphome/bad @ ^2.0"])
-    assert removed == []
-    assert healthy.exists()
-
-
-def test_chdir_failure_defers_to_pending_lock_fault(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """An unlock fault plus a failed cwd restore must still raise the
-    LockReleaseError; the OSError must not displace it."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path))
-
-    def bad_unlock(self):
-        raise OSError("flock broke")
-
-    cls.unlock = bad_unlock
-    real_chdir = mod.os.chdir
-    monkeypatch.setattr(
-        mod.os, "chdir", lambda path: (_ for _ in ()).throw(OSError("cwd gone"))
-    )
-    try:
-        with pytest.raises(mod.LockReleaseError) as err:
-            mod.parallel_install(cls, ["esphome/a @ 1.0"])
-    finally:
-        monkeypatch.setattr(mod.os, "chdir", real_chdir)
-    assert any("working dir" in n for n in err.value.__cause__.__notes__)
 
 
 def test_unscannable_package_dir_fails_the_build(tmp_path: Path) -> None:
@@ -657,7 +468,7 @@ def test_unscannable_package_dir_fails_the_build(tmp_path: Path) -> None:
 
     with (
         patch.object(Path, "iterdir", broken_iterdir),
-        pytest.raises(mod.CleanupError, match="could not scan"),
+        pytest.raises(mod.CleanupError, match="cleanup failed"),
     ):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
 
@@ -669,12 +480,13 @@ def test_stray_file_in_package_dir_is_ignored(tmp_path: Path) -> None:
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     (tmp_path / "packages").mkdir(parents=True)
     (tmp_path / "packages" / "stray.pio-link").write_text("x")
-    with patch.object(mod.time, "sleep", lambda s: None):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    (tmp_path / "packages" / "no-metadata").mkdir()  # pio overwrites these
+    mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert (tmp_path / "packages" / "stray.pio-link").exists()
+    assert (tmp_path / "packages" / "no-metadata").exists()
 
 
-def test_unreadable_piopm_dir_is_removed(tmp_path: Path, capsys) -> None:
+def test_unreadable_piopm_dir_is_removed(tmp_path: Path) -> None:
     """A persistently corrupt .piopm under this spec's own name would
     crash pio's storage scan; the dir is removed rather than left to
     break the serial pass."""
@@ -683,13 +495,11 @@ def test_unreadable_piopm_dir_is_removed(tmp_path: Path, capsys) -> None:
     torn = tmp_path / "packages" / "bad"
     torn.mkdir(parents=True)
     (torn / ".piopm").write_text("{not json")
-    with patch.object(mod.time, "sleep", lambda s: None):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert "Removing unreadable-metadata dir" in capsys.readouterr().out
+    mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert not torn.exists()
 
 
-def test_unreadable_piopm_under_other_name_survives(tmp_path: Path, capsys) -> None:
+def test_unreadable_piopm_under_other_name_survives(tmp_path: Path) -> None:
     """A corrupt .piopm in another package's dir may be a worker mid-copy;
     a failing spec must not remove a directory it does not own."""
     mod = _load_script()
@@ -697,122 +507,8 @@ def test_unreadable_piopm_under_other_name_survives(tmp_path: Path, capsys) -> N
     other = tmp_path / "packages" / "innocent"
     other.mkdir(parents=True)
     (other / ".piopm").write_text("{not json")
-    with patch.object(mod.time, "sleep", lambda s: None):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert "Removing unreadable-metadata dir" not in capsys.readouterr().out
+    mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert other.exists()
-
-
-def test_manifest_stat_error_is_unverifiable(tmp_path: Path) -> None:
-    """A stat error on a spared dir's manifest is not proof of absence;
-    judging it half-deleted would remove an intact other version."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    other = tmp_path / "packages" / "bad"
-    other.mkdir(parents=True)
-    (other / ".piopm").write_text(
-        '{"spec": {"owner": "esphome", "name": "bad"}, "version": "2.0.0"}'
-    )
-    (other / "library.json").write_text("{}")
-    real_lstat = os.lstat
-
-    def manifest_lstat_denied(path, *args, **kwargs):
-        if Path(path).name in mod._MANIFEST_NAMES:
-            raise PermissionError("denied")
-        return real_lstat(path, *args, **kwargs)
-
-    with (
-        patch.object(mod.os, "lstat", manifest_lstat_denied),
-        pytest.raises(mod.CleanupError, match="could not check for a manifest"),
-    ):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert other.exists()
-
-
-def test_unstattable_entry_fails_the_build(tmp_path: Path) -> None:
-    """An entry the scan cannot stat may be the torn destination itself;
-    silently dropping it would hand the serial pass an unverified dir."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    shady = tmp_path / "packages" / "shady"
-    shady.mkdir(parents=True)
-    real_lstat = os.lstat
-
-    def entry_lstat_denied(path, *args, **kwargs):
-        if Path(path).name == "shady":
-            raise PermissionError("denied")
-        return real_lstat(path, *args, **kwargs)
-
-    with (
-        patch.object(mod.os, "lstat", entry_lstat_denied),
-        pytest.raises(mod.CleanupError, match="could not stat"),
-    ):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-
-
-def test_refuses_to_remove_the_store_itself(tmp_path: Path, capsys) -> None:
-    """is_relative_to is reflexive; a destination resolving to the store
-    itself must be refused, not handed to the script's only rmtree."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    store = tmp_path / "packages"
-    store.mkdir(parents=True)
-
-    def get_package(self, spec):
-        if spec == "esphome/bad @ 1.0" and getattr(cls, "resets", 0):
-            return SimpleNamespace(path=str(store), spec=spec)
-        return _FakeManager.get_package(self, spec)
-
-    cls.get_package = get_package  # throwaway subclass; nothing to restore
-    removed = []
-    with patch.object(mod.fs, "rmtree", side_effect=removed.append):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert removed == []
-    assert store.exists()
-    assert "Refusing to remove" in capsys.readouterr().out
-
-
-def test_refuses_to_remove_outside_the_store(tmp_path: Path, capsys) -> None:
-    """A .pio-link package resolves to its external source dir; cleanup
-    must never rmtree beyond the store it owns."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    external = tmp_path / "elsewhere" / "bad-src"
-    external.mkdir(parents=True)
-
-    def get_package(self, spec):
-        if spec == "esphome/bad @ 1.0" and getattr(cls, "resets", 0):
-            return SimpleNamespace(path=str(external), spec=spec)
-        return _FakeManager.get_package(self, spec)
-
-    cls.get_package = get_package  # throwaway subclass; nothing to restore
-    removed = []
-    with patch.object(mod.fs, "rmtree", side_effect=removed.append):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert removed == []
-    assert external.exists()
-    assert "Refusing to remove" in capsys.readouterr().out
-
-
-def test_unverifiable_removal_fails_the_build(tmp_path: Path) -> None:
-    """A stat error after rmtree is not proof of removal."""
-    mod = _load_script()
-    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
-    torn = tmp_path / "packages" / "bad"
-    torn.mkdir(parents=True)
-
-    def get_package(self, spec):
-        if getattr(cls, "resets", 0):
-            return SimpleNamespace(path=str(torn), spec=spec)
-        return None
-
-    cls.get_package = get_package  # throwaway subclass; nothing to restore
-    with (
-        patch.object(mod.fs, "rmtree", lambda path: None),
-        patch.object(mod.os, "lstat", MagicMock(side_effect=PermissionError("denied"))),
-        pytest.raises(mod.CleanupError, match="could not verify removal"),
-    ):
-        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
 
 
 def test_unexpected_cleanup_class_becomes_cleanup_error(tmp_path: Path) -> None:
@@ -872,6 +568,12 @@ def test_content_cache_creates_its_dir(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("PLATFORMIO_CACHE_DIR", str(tmp_path / "cache"))
     ContentCache("http")
     assert (tmp_path / "cache" / "http").is_dir()
+
+
+def test_piopm_matches_without_name_matches_nothing(tmp_path: Path) -> None:
+    """A spec with no derivable name can never match a directory."""
+    mod = _load_script()
+    assert mod.piopm_matches(str(tmp_path), "") == []
 
 
 def test_unresolvable_spec_stays_out_of_the_wave(tmp_path: Path, capsys) -> None:
@@ -938,15 +640,6 @@ def test_platformio_surface_for_install_deps_script() -> None:
     assert Version("1.5.0") in spec.requirements
     # The failure-cleanup path degrades to a single line if these vanish
     assert callable(fs.rmtree)
+    assert callable(fs.load_json)
     assert PackageItem("pkg-dir").path == "pkg-dir"
     assert callable(PackageCompatibility.from_dependency)
-    # dependency_specs calls it with one positional argument
-    assert list(inspect.signature(LibraryPackageManager.is_builtin_lib).parameters) == [
-        "name"
-    ]
-
-    mod = _load_script()
-    # The intact-dir heuristic hand-copies pio's manifest map
-    assert set(mod._MANIFEST_NAMES) == {
-        name for names in PackageType.get_manifest_map().values() for name in names
-    }
