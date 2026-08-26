@@ -324,14 +324,16 @@ def _external_short_name(name: str) -> str:
 
 
 def _check_unfulfilled_provides(
-    provided_requests: list[str], satisfied: set[str]
+    provided_requests: list[str], satisfied: set[str], still_requested: set[str]
 ) -> None:
     """Reconcile the provides() promise: every dependency the walk skipped
     on the backend's word must have been added from the framework tree (or
     knowingly satisfied by a converted/external library). An unfulfilled
     promise can only surface as undefined symbols at link, so it fails
-    here by name like the other can-never-link checks in this module."""
-    if missing := sorted(set(provided_requests) - satisfied):
+    here by name like the other can-never-link checks in this module. The
+    walk records across re-resolutions, so a name no final manifest still
+    requests is stale state, never a failure."""
+    if missing := sorted((set(provided_requests) & still_requested) - satisfied):
         raise EsphomeError(
             "provides() skipped these dependencies but nothing added them: "
             f"{', '.join(missing)}; the build is missing libraries"
@@ -391,6 +393,9 @@ def resolve_libraries(
     # Bundled candidates skipped on purpose (platform filter); the
     # provides() reconciliation must count them as satisfied
     knowingly_skipped: set[str] = set()
+    # Dependency names of the manifests actually emitted; a walk recording
+    # for a since-re-resolved manifest must not fail the reconciliation
+    final_dep_names: set[str] = set()
     # Ordered set of bundled dependency names to add once conversion is done
     pending_bundled: dict[str, None] = {}
     # Deps matching a separately-requested external are already in the build
@@ -407,6 +412,8 @@ def resolve_libraries(
             component.data.get("dependencies"), component.name
         ):
             name = dep.get("name")
+            if isinstance(name, str):
+                final_dep_names.add(name)
             if isinstance(name, str) and "/" in name:
                 owner, _, pkg = name.partition("/")
                 if _is_safe_library_name(owner) and _is_safe_library_name(pkg):
@@ -527,6 +534,7 @@ def resolve_libraries(
         | converted_manifest_names
         | external_short_names
         | knowingly_skipped,
+        final_dep_names,
     )
 
     return bundled + converted
