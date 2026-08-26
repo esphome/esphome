@@ -95,6 +95,8 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
     result = subprocess.run(  # noqa: PLW1510
         [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
         cwd=proj_dir,
+        # C locale keeps diagnostics matchable by _TRANSIENT_ERRORS
+        env={**os.environ, "LC_ALL": "C"},
         capture_output=True,
         text=True,
     )
@@ -318,7 +320,11 @@ def _setup_pch() -> None:
     # entries: GCC only uses a .gch while no other tokens have been seen.
     # The relative name also reaches "pio run -t idedata" output; external
     # consumers replaying cxx_flags must run from the project dir.
-    projenv.Prepend(CXXFLAGS=["-Winvalid-pch", "-include", header.name])  # noqa: F821
+    projenv.Prepend(  # noqa: F821
+        # -Wno-error: the probe is per-process, so a later cc1plus can still
+        # reject the .gch; that must stay a warning under user -Werror
+        CXXFLAGS=["-Winvalid-pch", "-Wno-error=invalid-pch", "-include", header.name]
+    )
     print("ESPHome: Compiling with precompiled header")
 
 

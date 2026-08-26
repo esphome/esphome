@@ -354,7 +354,14 @@ def prepare_pch(
     _log_pch_in_use()
     try:
         result = subprocess.run(
-            cmd, cwd=cmd_dir, capture_output=True, text=True, check=False, timeout=300
+            cmd,
+            cwd=cmd_dir,
+            # C locale keeps diagnostics matchable by _TRANSIENT_ERRORS
+            env={**os.environ, "LC_ALL": "C"},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
         )
         error = None
         if result.returncode < 0:
