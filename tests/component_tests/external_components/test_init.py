@@ -100,13 +100,13 @@ def test_external_components_logs_built_in_override(
     assert "some_custom_component" not in caplog.text
 
 
-def test_external_components_override_log_shows_shorthand_source(
+def test_external_components_override_log_includes_ref(
     tmp_path: Path,
     mock_clone_or_update: MagicMock,
     mock_install_meta_finder: MagicMock,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A shorthand source is logged as written in the yaml, not as the normalized git url."""
+    """A git source with a ref logs the ref appended to the url."""
     mock_clone_or_update.return_value = (tmp_path, None)
     config = _make_config(tmp_path)
     config[CONF_EXTERNAL_COMPONENTS][0][CONF_SOURCE] = "github://test/components@main"
@@ -118,8 +118,7 @@ def test_external_components_override_log_shows_shorthand_source(
     with caplog.at_level(logging.INFO):
         do_external_components_pass(config)
 
-    assert "  source: github://test/components@main\n" in caplog.text
-    assert "github.com" not in caplog.text
+    assert "  source: https://github.com/test/components.git@main\n" in caplog.text
 
 
 def test_external_components_no_override_no_log(

@@ -72,7 +72,7 @@ def _process_git_config(config: dict[str, Any], refresh: TimePeriodSeconds) -> P
 
 
 def _log_overridden_components(
-    conf: dict[str, Any], component_names: list[str], raw_source: Any
+    conf: dict[str, Any], component_names: list[str]
 ) -> None:
     overridden = [
         name
@@ -81,10 +81,12 @@ def _log_overridden_components(
     ]
     if not overridden:
         return
-    if isinstance(raw_source, str):
-        source = raw_source
+    if conf[CONF_TYPE] == TYPE_GIT:
+        source = conf[CONF_URL]
+        if ref := conf.get(CONF_REF):
+            source = f"{source}@{ref}"
     else:
-        source = conf[CONF_URL] if conf[CONF_TYPE] == TYPE_GIT else conf[CONF_PATH]
+        source = conf[CONF_PATH]
     _LOGGER.info(
         "External components are overriding built-in components:\n"
         "  source: %s\n"
@@ -94,7 +96,7 @@ def _log_overridden_components(
     )
 
 
-def _process_single_config(config: dict[str, Any], raw_source: Any = None) -> None:
+def _process_single_config(config: dict[str, Any]) -> None:
     conf = config[CONF_SOURCE]
     if conf[CONF_TYPE] == TYPE_GIT:
         with cv.prepend_path([CONF_SOURCE]):
@@ -127,7 +129,7 @@ def _process_single_config(config: dict[str, Any], raw_source: Any = None) -> No
         allowed_components = config[CONF_COMPONENTS]
         component_names = allowed_components
 
-    _log_overridden_components(conf, component_names, raw_source)
+    _log_overridden_components(conf, component_names)
 
     loader.install_meta_finder(components_dir, allowed_components=allowed_components)
 
@@ -136,13 +138,8 @@ def do_external_components_pass(config: dict[str, Any]) -> None:
     conf = config.get(DOMAIN)
     if conf is None:
         return
-    raw_conf = conf if isinstance(conf, list) else [conf]
     with cv.prepend_path(DOMAIN):
         conf = CONFIG_SCHEMA(conf)
         for i, c in enumerate(conf):
-            raw_entry = raw_conf[i] if i < len(raw_conf) else None
-            raw_source = (
-                raw_entry.get(CONF_SOURCE) if isinstance(raw_entry, dict) else None
-            )
             with cv.prepend_path(i):
-                _process_single_config(c, raw_source)
+                _process_single_config(c)
