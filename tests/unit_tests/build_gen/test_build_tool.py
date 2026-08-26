@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 from unittest.mock import MagicMock, patch
@@ -31,7 +30,7 @@ def test_ar_removes_stale_archive(tmp_path: Path) -> None:
         assert build_tool.main() == 0
     assert not archive.exists()
     # The rspfile is expanded by the shim (GNU ar would escape backslashes)
-    assert mock_run.call_args[0][0] == ["ar-bin", "rc", str(archive), "a.o"]
+    assert mock_run.call_args[0][0] == ["ar-bin", "rcs", str(archive), "a.o"]
 
 
 def test_copy(tmp_path: Path) -> None:
@@ -83,7 +82,7 @@ def test_ar_expands_rspfile_without_escaping(tmp_path) -> None:
         assert build_tool.main() == 0
     assert mock_run.call_args[0][0] == [
         "ar-bin",
-        "rc",
+        "rcs",
         str(tmp_path / "lib.a"),
         "obj/a.o",
         "sub\\b.o",
@@ -106,7 +105,7 @@ def test_ar_unquotes_ninja_escaped_paths(tmp_path: Path) -> None:
     assert rc == 0
     assert mock_run.call_args.args[0] == [
         "/usr/bin/ar",
-        "rc",
+        "rcs",
         "lib.a",
         "obj/a b.o",
         "obj/c.o",
@@ -129,7 +128,7 @@ def test_ar_empty_object_list_fails(
 
 def test_ar_batches_long_object_lists(tmp_path: Path) -> None:
     """The expanded argv must stay under the Windows 32767-char limit: a
-    long object list creates with rc, then appends with q."""
+    long object list creates with rcs, then appends with qs."""
     archive = tmp_path / "lib.a"
     rsp = tmp_path / "lib.a.rsp"
     objects = [f"dir/{'x' * 120}_{i}.o" for i in range(400)]
@@ -147,8 +146,8 @@ def test_ar_batches_long_object_lists(tmp_path: Path) -> None:
         assert build_tool.main() == 0
     calls = [c[0][0] for c in mock_run.call_args_list]
     assert len(calls) > 1
-    assert calls[0][1] == "rc"
-    assert all(c[1] == "q" for c in calls[1:])
+    assert calls[0][1] == "rcs"
+    assert all(c[1] == "qs" for c in calls[1:])
     assert [o for c in calls for o in c[3:]] == objects
     assert all(sum(len(a) + 1 for a in c) < 32000 for c in calls)
 
@@ -215,18 +214,19 @@ def test_surplus_arguments_error(capsys: pytest.CaptureFixture[str]) -> None:
     assert "expected 2 arguments, got 3" in capsys.readouterr().err
 
 
-def test_copy_same_file_keeps_the_input(tmp_path: Path) -> None:
-    """A same-file copy (dst IS src) must not unlink the input."""
+def test_copy_same_file_keeps_the_input(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A same-file copy (dst IS src) must not unlink the input, and fails
+    with a message and exit code like the other shim paths."""
     src = tmp_path / "firmware.bin"
     src.write_bytes(b"image")
-    with (
-        patch.object(
-            build_tool.sys, "argv", ["build_tool", "copy", str(src), str(src)]
-        ),
-        pytest.raises(shutil.SameFileError),
+    with patch.object(
+        build_tool.sys, "argv", ["build_tool", "copy", str(src), str(src)]
     ):
-        build_tool.main()
+        assert build_tool.main() == 1
     assert src.read_bytes() == b"image"
+    assert "failed" in capsys.readouterr().err
 
 
 def test_copy_failure_leaves_no_partial_output(tmp_path: Path) -> None:
@@ -241,7 +241,6 @@ def test_copy_failure_leaves_no_partial_output(tmp_path: Path) -> None:
             "argv",
             ["build_tool", "copy", str(tmp_path / "src.bin"), str(dst)],
         ),
-        pytest.raises(OSError),
     ):
-        build_tool.main()
+        assert build_tool.main() == 1
     assert not dst.exists()

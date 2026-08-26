@@ -943,6 +943,17 @@ def _reconcile_versionless_skips(
         if dep_name in components:
             # A version-less dep's request key is the name itself
             continue
+        if (
+            not dep_owner
+            and backend.provides is not None
+            and backend.provides(dep_name)
+        ):
+            # provides() only satisfies owner-less names (same guard as
+            # the walk's skip); record for the post-emit reconciliation.
+            # Checked before the manifest-name evidence so the overlap
+            # case warns once, in the backend's own suppression loop
+            backend.provided_requests.add(dep_name)
+            continue
         if dep_name in resolved_manifest_names:
             # Name-only evidence: a coincidental collision must stay
             # visible where the user could pin it
@@ -953,15 +964,6 @@ def _reconcile_versionless_skips(
                 dep_name,
                 requester,
             )
-            continue
-        if (
-            not dep_owner
-            and backend.provides is not None
-            and backend.provides(dep_name)
-        ):
-            # provides() only satisfies owner-less names (same guard as
-            # the walk's skip); record for the post-emit reconciliation
-            backend.provided_requests.add(dep_name)
             continue
         warned.add(dep_name)
         log(
