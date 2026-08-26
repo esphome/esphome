@@ -590,13 +590,17 @@ def main(argv: list[str]) -> int:
         # A wiring break would otherwise silently drop -v propagation
         _LOGGER.warning("Ignoring malformed prefetch log level %r", raw_level)
     # pio's managers attach their own handler and still propagate; without
-    # this every manager line also prints through the root handler
+    # this every manager line also prints through the root handler. Their
+    # construction re-pins the logger to INFO, so a logger-level filter
+    # (which survives pio's handler reset) enforces a quiet level instead.
     for cls_name in (
         "ToolPackageManager",
         "LibraryPackageManager",
         "PlatformPackageManager",
     ):
-        logging.getLogger(cls_name.replace("Package", " ")).propagate = False
+        manager_logger = logging.getLogger(cls_name.replace("Package", " "))
+        manager_logger.propagate = False
+        manager_logger.addFilter(lambda record: record.levelno >= level)
     if len(argv) != 2:
         # A wiring bug, not a network failure; make it distinguishable
         _LOGGER.warning("prefetch usage: <build_dir> <env_name>")
