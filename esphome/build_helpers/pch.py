@@ -121,7 +121,12 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
             data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
         seen[rel] = data
         parent = posixpath.dirname(rel)
-        stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
+        stack.extend(
+            # surrogateescape: a non-UTF-8 include name must not abort the
+            # build; it simply will not resolve and ends the walk
+            (inc.decode(errors="surrogateescape"), parent)
+            for inc in _INCLUDE_RE.findall(data)
+        )
     return seen
 
 
