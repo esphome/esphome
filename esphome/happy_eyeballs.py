@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import socket
+import threading
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -27,20 +28,27 @@ HAPPY_EYEBALLS_DELAY = 0.25
 _THREAD_WAIT_BUFFER = 5.0
 
 
+# Serialises the check-then-patch so concurrent first calls (download worker
+# threads fanning out) build the replacement exactly once.
+_PATCH_LOCK = threading.Lock()
+
+
 def ensure_happy_eyeballs() -> None:
     """Make urllib3 (and therefore requests) connect with Happy Eyeballs.
 
-    Idempotent; call before performing requests-based downloads.
+    Idempotent and thread-safe; call before performing requests-based
+    downloads.
     """
     stock: Callable[..., socket.socket] | None = None
     try:
         import urllib3.util.connection
 
-        stock = urllib3.util.connection.create_connection
-        if getattr(stock, "_esphome_patched", False):
-            return
+        with _PATCH_LOCK:
+            stock = urllib3.util.connection.create_connection
+            if getattr(stock, "_esphome_patched", False):
+                return
 
-        urllib3.util.connection.create_connection = _make_create_connection()
+            urllib3.util.connection.create_connection = _make_create_connection()
     except (ImportError, AttributeError) as err:  # urllib3 internals moved
         # WARNING: degraded mode brings back the stalls this module prevents.
         _LOGGER.warning(
