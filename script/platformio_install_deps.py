@@ -105,7 +105,7 @@ def parallel_install(manager_cls, specs: list) -> None:
     # (_MEMORY_CACHE, _INSTALL_HISTORY, the registry client). Built
     # serially, because every construction rewires the shared manager
     # logger and concurrent handler swaps drop log lines.
-    managers: queue.Queue = queue.Queue()
+    managers: queue.SimpleQueue = queue.SimpleQueue()
     for _ in range(workers):
         managers.put(manager_cls(None))
     local = threading.local()
