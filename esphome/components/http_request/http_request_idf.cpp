@@ -142,12 +142,13 @@ std::shared_ptr<HttpContainer> HttpRequestIDF::perform(const std::string &url, c
     const char *buf = body.c_str();
     while (write_left > 0) {
       int written = esp_http_client_write(client, buf + write_index, write_left);
-      if (written < 0) {
+      if (written <= 0) {
         err = ESP_FAIL;
         break;
       }
       write_left -= written;
       write_index += written;
+      container->feed_wdt();
     }
   }
 
