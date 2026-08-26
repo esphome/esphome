@@ -2297,27 +2297,34 @@ bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message
   return this->schedule_batch_();
 }
 
+bool APIConnection::try_send_immediately_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
+                                          uint8_t aux_data_index) {
+  auto &shared_buf = this->parent_->get_shared_buffer_ref();
+  if (!this->prepare_first_message_buffer(shared_buf, estimated_size)) [[unlikely]] {
+    this->fatal_out_of_memory_();
+    return false;
+  }
+  DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
+  if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
+      this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    this->log_batch_item_(item);
+#endif
+    return true;
+  }
+  return false;
+}
+
 bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
-    auto &shared_buf = this->parent_->get_shared_buffer_ref();
-    if (!this->prepare_first_message_buffer(shared_buf, estimated_size)) [[unlikely]] {
-      this->fatal_out_of_memory_();
-      return false;
-    }
-    DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
-    if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
-        this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_batch_item_(item);
-#endif
+    if (this->try_send_immediately_(entity, message_type, estimated_size, aux_data_index))
       return true;
-    }
+    // An OOM during the immediate attempt marks the connection for removal;
+    // don't queue more work (schedule_message_'s push_back may allocate again)
+    if (this->flags_.remove) [[unlikely]]
+      return false;
   }
-  // An OOM during the immediate attempt marks the connection for removal;
-  // don't queue more work (schedule_message_'s push_back may allocate again)
-  if (this->flags_.remove) [[unlikely]]
-    return false;
   return this->schedule_message_(entity, message_type, estimated_size, aux_data_index);
 }
 

@@ -834,6 +834,11 @@ class APIConnection final : public APIServerConnectionBase {
   bool send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                            uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED);
 
+  // The immediate-send attempt for send_message_smart_; noinline keeps the
+  // common batching path small so the compiler can keep it fully inlined
+  bool __attribute__((noinline))
+  try_send_immediately_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size, uint8_t aux_data_index);
+
   // Helper function to schedule a deferred message with known message type
   bool schedule_message_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                          uint8_t aux_data_index = DeferredBatch::AUX_DATA_UNUSED) {
