@@ -416,6 +416,20 @@ def test_write_project_pch_identity_unknown_skips_pch(
     assert "Could not establish the pch identity" in caplog.text
 
 
+def test_write_project_pch_folds_joined_src_force_include(
+    tmp_path: Path,
+) -> None:
+    """-includefoo.h in build_src_flags must fold into the pch like the
+    separated spelling, not precede and defeat it."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    CORE.platformio_options["build_src_flags"] = "-includeesphome/core/defines.h"
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "build esphome_pch.h.gch: pch" in content
+    assert "srccxxflags" in content
+    assert "-includeesphome" not in content
+
+
 def test_write_project_pch_skipped_for_joined_force_include_spelling(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
