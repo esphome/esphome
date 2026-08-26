@@ -53,6 +53,21 @@ void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uin
   publish_1_register(this->power_factor_sensor_, PZEM_REGISTER_POWER_FACTOR, 100.0f);
 }
 
+void PZEMAC::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                                modbus::ResponseStatus status) {
+  // The only custom request this component sends is the energy reset; acknowledge its echo here so
+  // the default unhandled-response warning stays meaningful.
+  if (!request_pdu.empty() && request_pdu[0] == PZEM_CMD_RESET_ENERGY) {
+    if (modbus::succeeded(status)) {
+      ESP_LOGD(TAG, "Energy reset acknowledged");
+    } else {
+      ESP_LOGW(TAG, "Energy reset rejected");
+    }
+    return;
+  }
+  modbus::ModbusClientDevice::on_custom_response(request_pdu, response_pdu, status);
+}
+
 void PZEMAC::update() { this->read_input_registers(0, PZEM_REGISTER_COUNT); }
 void PZEMAC::dump_config() {
   ESP_LOGCONFIG(TAG,
