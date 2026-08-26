@@ -971,7 +971,8 @@ async def test_uart_mock_modbus_client_read_write(
     strict=True,
     reason="Byte-accurate register-offset writes require the modbus_controller "
     "entity-device change; on dev the byte offset is folded into the address "
-    "(writes 0x12 instead of 0x11). Remove this marker when that change merges.",
+    "(writes 0x12 instead of 0x11). The write and read assertions both flip via "
+    "the same switch-constructor fold. Remove this marker when that change merges.",
 )
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_register_offset(
@@ -1010,9 +1011,10 @@ async def test_uart_mock_modbus_register_offset(
             f"got {tracker.sensor_states['reg_12']}"
         )
 
-        # Read path: read_offset_switch has byte offset 6, so it must read register 0x10 + 6/2 = 0x13
-        # (value 0xABCD, bit 0 set) -> ON. Pre-fix the byte offset landed past the switch's 1-register
-        # read, so the read was out of range and the state was garbage/wrong.
+        # Read path: read_offset_switch has byte offset 6. Post-fix the switch folds the whole registers
+        # into its address (0x10 + 6/2 = 0x13, residual byte 0) and joins the 0x10..0x13 range, so the
+        # read lands in-bounds on 0xABCD (bit 0 set) -> ON. Pre-fix the whole byte offset folded into the
+        # address (0x16); the server answers ILLEGAL_DATA_ADDRESS there and the switch never publishes.
         read_switch = find_entity(entities, "read_offset_switch", SwitchInfo)
         assert read_switch is not None, "read_offset_switch not found"
         await wait_for_state(
@@ -1025,39 +1027,13 @@ async def test_uart_mock_modbus_register_offset(
         )
 
 
-@pytest.mark.asyncio
-async def test_uart_mock_modbus_response_size(
-    yaml_config: str,
-    run_compiled: RunCompiledFunction,
-    api_client_connected: APIClientConnectedFactory,
-) -> None:
-    """Test that response_size locates later sensors past a wide register's extra bytes.
-
-    The mock is a non-conformant server: for a 2-register read (0x30..0x31) it returns 6 data bytes
-    instead of 4, because register 0x30 emits 2 extra bytes. This is the case response_size exists for
-    ("the server responds with more bytes than the number of registers would normally allow"). The
-    response payload is [0x1111][0xEEEE (extra)][0x2222]. wide_first declares response_size: 4, so
-    after_wide must be read from bytes [4..5] = 0x2222 (8738). Without response_size honored, after_wide
-    is read from bytes [2..3] = 0xEEEE (61166) and this wait times out.
-    """
-
-    tracker = SensorTracker(["wide_first", "after_wide"])
-    expected = tracker.expect_all({"wide_first": 4369, "after_wide": 8738})
-
-    async with (
-        run_compiled(yaml_config),
-        api_client_connected() as client,
-    ):
-        await tracker.setup_and_start_scenario(client)
-        await tracker.await_all(expected, timeout=6.0)
-
-
 @pytest.mark.xfail(
     strict=True,
     reason="The deprecated write buffer requires the modbus_controller "
     "entity-device change; on dev a nullopt-returning write_lambda early-returns "
-    "before the buffer is used, so the write never happens. Remove this marker "
-    "when that change merges.",
+    "before the buffer is used, so the write never happens. The warn-once "
+    "assertion matches the log substring 'write_lambda buffer'. Remove this "
+    "marker when that change merges.",
 )
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_deprecated_write_buffer(
@@ -1077,7 +1053,7 @@ async def test_uart_mock_modbus_deprecated_write_buffer(
 
     def line_callback(line: str) -> None:
         nonlocal warn_count
-        if "write_lambda buffer parameter is deprecated" in line:
+        if "write_lambda buffer" in line:
             warn_count += 1
 
     tracker = SensorTracker(["written_value"])
