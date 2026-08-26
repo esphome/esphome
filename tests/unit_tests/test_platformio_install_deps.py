@@ -300,6 +300,41 @@ def test_api_break_cleans_before_surfacing(tmp_path: Path) -> None:
     assert removed == [str(torn)]
 
 
+def test_unverifiable_torn_destination_fails_the_build() -> None:
+    """An inspect that keeps failing cannot prove the destination is
+    clean; the serial pass would trust it, so the build fails."""
+    mod = _load_script()
+    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+
+    def bad_reset(self):
+        raise OSError("scan broken")
+
+    cls.memcache_reset = bad_reset
+    with (
+        patch.object(mod.time, "sleep", lambda s: None),
+        pytest.raises(mod.CleanupError, match="could not verify"),
+    ):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+
+
+def test_transient_inspect_failure_retries(capsys) -> None:
+    """A transient read of another worker's copy is retried, not fatal."""
+    mod = _load_script()
+    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    attempts: list[int] = []
+
+    def flaky_reset(self):
+        attempts.append(1)
+        if len(attempts) < 2:
+            raise OSError("mid-copy read")
+
+    cls.memcache_reset = flaky_reset
+    with patch.object(mod.time, "sleep", lambda s: None):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert len(attempts) >= 2
+    assert "No resolvable destination to clean" in capsys.readouterr().out
+
+
 def test_unresolvable_torn_destination_is_printed(capsys) -> None:
     """A failed install with no resolvable package prints, so an invisible
     torn directory is at least traceable."""

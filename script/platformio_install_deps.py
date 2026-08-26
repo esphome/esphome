@@ -10,6 +10,7 @@ from pathlib import Path
 import queue
 import subprocess
 import threading
+import time
 import traceback
 
 # esphome is not installed at this docker layer, so its rmtree helper is
@@ -181,20 +182,27 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     def clean_torn(mgr, spec) -> None:
         # A torn copy into the destination can carry valid metadata the
         # pkg install pass would trust; remove it so that pass redoes it
-        try:
-            # get_package memoizes a pre-install snapshot; without a
-            # reset it cannot see the torn directory
-            mgr.memcache_reset()
-            pkg = mgr.get_package(spec)
-        except Exception as scan_err:  # noqa: BLE001
-            # A transient read of another worker's in-flight copy must not
-            # hard-fail the build blaming this spec
-            print(
-                f"Could not inspect failed pre-install of {spec} ({scan_err!r}); "
-                "a torn destination may remain",
-                flush=True,
-            )
-            return
+        scan_err = None
+        pkg = None
+        for _attempt in range(3):
+            try:
+                # get_package memoizes a pre-install snapshot; without a
+                # reset it cannot see the torn directory
+                mgr.memcache_reset()
+                pkg = mgr.get_package(spec)
+                scan_err = None
+                break
+            except Exception as err:  # noqa: BLE001
+                # Likely a transient read of another worker's in-flight
+                # copy; retry before deciding anything destructive
+                scan_err = err
+                time.sleep(0.2)
+        if scan_err is not None:
+            # Persistently unverifiable: a torn destination the serial
+            # pass would trust may remain, so the build must fail
+            raise CleanupError(
+                f"could not verify the failed pre-install of {spec}: {scan_err!r}"
+            ) from scan_err
         if pkg is None:
             # Visible: an unresolvable torn directory is indistinguishable
             # from nothing-to-clean without this line
@@ -246,10 +254,9 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         # All futures are done (the with-block joins); drain every one so
         # a concurrent CleanupError is never dropped by iteration order
         errors = [err for f in futures if (err := f.exception()) is not None]
-        for err in errors[1:] if errors else []:
-            # Every sibling failure is part of the record, not just the
-            # one that wins the raise
-            print(f"Additional wave failure: {err!r}", flush=True)
+        for err in errors:
+            # Every failure is on the record; the raised one is a summary
+            print(f"Wave failure: {err!r}", flush=True)
         for err in errors:
             if isinstance(err, CleanupError):
                 raise err
@@ -257,10 +264,13 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             raise errors[0]
         results = [f.result() for f in futures]
     finally:
-        manager.unlock()
+        # Neither cleanup may replace an in-flight CleanupError
+        try:
+            manager.unlock()
+        except Exception as unlock_err:  # noqa: BLE001
+            print(f"Could not release the manager lock ({unlock_err!r})", flush=True)
         # Worker postinstall scripts chdir process-wide (pio's fs.cd);
-        # restore between waves, not only for the final subprocess. A
-        # restore failure must not replace an in-flight CleanupError.
+        # restore between waves, not only for the final subprocess
         try:
             os.chdir(cwd)
         except OSError as chdir_err:
