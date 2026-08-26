@@ -28,6 +28,7 @@ import signal
 import subprocess
 import sys
 import threading
+import time
 from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
@@ -49,6 +50,9 @@ _PREFETCH_TIMEOUT = 20 * 60
 
 # Waiting on another process's URL download; past this, leave it to pio
 _URI_LOCK_TIMEOUT = 60
+
+# Short lock-acquire slices so a waiting worker still observes Ctrl-C
+_URI_LOCK_POLL = 1
 
 # Resolution errored (vs a clean skip); suppresses the warm sentinel
 _RESOLVE_FAILED = object()
@@ -128,6 +132,9 @@ def prefetch_platformio_packages() -> None:
     # -v/-vv must reach the child's debug logging or the swallowed
     # failure detail is undiagnosable in the field
     env["ESPHOME_PREFETCH_LOG_LEVEL"] = str(logging.getLogger().getEffectiveLevel())
+    if CORE.dashboard:
+        # The child's progress bar and log escaping key off CORE.dashboard
+        env["ESPHOME_PREFETCH_DASHBOARD"] = "1"
     cmd = [
         sys.executable,
         "-m",
@@ -214,6 +221,7 @@ def _registry_jobs(
     from platformio.registry.mirror import RegistryFileMirrorIterator
 
     local = threading.local()
+    errors: list[str] = []
 
     def _resolve(spec) -> _Resolved | object | None:
         # One manager (and registry HTTP session) per worker thread;
@@ -241,9 +249,10 @@ def _registry_jobs(
                 return None  # no size, no bar share; PlatformIO fetches it
             name = f"{package['name']}@{version['name']}"
             return _Resolved(spec, name, size or 0, url, dl_path, checksum, cached)
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # One flaky spec must not discard the rest of the batch
             _LOGGER.debug("Could not resolve %s", spec, exc_info=True)
+            errors.append(failure_reason(err))
             return _RESOLVE_FAILED
 
     # Serial disk lookups on the shared manager: a fully warm build
@@ -281,12 +290,14 @@ def _registry_jobs(
             )
         )
     if failed:
-        # Visible once per build; per-spec detail stays at debug
+        # Visible once per build, naming a cause so an API break does not
+        # read as an outage; per-spec detail stays at debug
         _LOGGER.warning(
-            "Could not resolve %d of %d PlatformIO package(s); "
+            "Could not resolve %d of %d PlatformIO package(s) (%s); "
             "PlatformIO will download them serially",
             failed,
             len(pending),
+            errors[0] if errors else "unknown error",
         )
     return jobs, failed, installable
 
@@ -334,8 +345,13 @@ def _uri_jobs(
             _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
             if resp.status_code in (408, 429) or resp.status_code >= 500:
                 return -1  # transient; must not be cached as warm
-            # Permanent (e.g. a host that 405s HEAD but serves GET): a clean
-            # skip, or the sentinel would never be written again
+            if resp.status_code in (405, 501):
+                # HEAD unsupported but GET may work: a clean skip, or the
+                # sentinel would never be written again
+                return 0
+            # A real URL problem (401/403/404): name it, but still a clean
+            # skip so the warm sentinel is not disabled forever
+            _LOGGER.warning("HEAD %s returned %s", url, resp.status_code)
             return 0
         return content_length(resp)
 
@@ -377,23 +393,41 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
         from filelock import FileLock, Timeout
 
         # fallback_to_soft would leave a stale marker on lock-less
-        # filesystems that blocks every later build (see git.py); a bounded
-        # wait plus a skip keeps the job best-effort either way
+        # filesystems that blocks every later build (see git.py)
         lock = FileLock(f"{tmp}.lock", fallback_to_soft=False)
-        try:
-            lock.acquire(timeout=_URI_LOCK_TIMEOUT)
-        except (Timeout, OSError):
-            _LOGGER.debug("Could not lock %s; leaving it to PlatformIO", dl_path)
-            return
+        deadline = time.monotonic() + _URI_LOCK_TIMEOUT
+        while True:
+            try:
+                lock.acquire(timeout=_URI_LOCK_POLL)
+                break
+            except Timeout:
+                # The tracker raises when the batch is cancelled, so a
+                # parked worker still observes Ctrl-C; a raise past the
+                # deadline makes the skip a counted, warned failure
+                tracker(0)
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(
+                        "timed out waiting for another download of the same file"
+                    ) from None
         try:
             if dl_path.is_file():
-                return  # another process finished it while we waited
+                # Another process finished it while we waited; the staging
+                # files are dead weight PlatformIO's cache never prunes
+                _discard_staging(tmp)
+                return
             fetch(tracker)
             tmp.replace(dl_path)
         finally:
             lock.release()
 
     return run
+
+
+def _discard_staging(tmp: Path) -> None:
+    part = tmp.with_name(tmp.name + ".part")
+    for stale in (tmp, part, part.with_name(part.name + ".meta")):
+        with suppress(OSError):
+            stale.unlink()
 
 
 def _dependency_entries(
@@ -645,12 +679,18 @@ def _sigterm(_signum, _frame) -> None:
 
 def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
+    from esphome.core import CORE
+    from esphome.log import setup_log
+
     signal.signal(signal.SIGTERM, _sigterm)
     try:
         level = int(os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL", logging.INFO))
     except ValueError:
         level = logging.INFO
-    logging.basicConfig(level=level, format="%(message)s")
+    # Mirror the parent's log setup: warnings keep their level prefix and
+    # color, and the download bar still draws under the dashboard
+    CORE.dashboard = bool(os.environ.get("ESPHOME_PREFETCH_DASHBOARD"))
+    setup_log(level)
     if len(argv) != 2:
         # A wiring bug, not a network failure; make it distinguishable
         _LOGGER.warning("prefetch usage: <build_dir> <env_name>")
