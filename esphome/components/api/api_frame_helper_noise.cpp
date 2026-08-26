@@ -486,16 +486,15 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuf
   assert(this->state_ == State::DATA);
 #endif
 
+  APIBuffer *buf = buffer.get_buffer();
   // Resize buffer to include footer space for Noise MAC
-  if (this->frame_footer_size_ && !buffer.get_buffer()->resize(buffer.get_buffer()->size() + this->frame_footer_size_))
-      [[unlikely]] {
+  if (this->frame_footer_size_ && !buf->resize(buf->size() + this->frame_footer_size_)) [[unlikely]] {
     state_ = State::FAILED;
     return APIError::OUT_OF_MEMORY;
   }
 
-  uint16_t payload_size =
-      static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - this->frame_footer_size_);
-  uint8_t *buf_start = buffer.get_buffer()->data();
+  uint16_t payload_size = static_cast<uint16_t>(buf->size() - HEADER_PADDING - this->frame_footer_size_);
+  uint8_t *buf_start = buf->data();
   uint16_t encrypted_len;
   APIError aerr = this->encrypt_noise_message_(buf_start, payload_size, type, encrypted_len);
   if (aerr != APIError::OK)

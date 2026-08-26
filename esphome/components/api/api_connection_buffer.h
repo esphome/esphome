@@ -3,8 +3,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 
-// Inline APIConnection methods that need APIServer complete. Include this
-// instead of api_connection.h when calling encode_to_buffer or get_batch_delay_ms_.
+// Inline APIConnection members that need APIServer complete. Include this
+// instead of api_connection.h when calling them.
 
 #include "api_connection.h"
 #include "api_server.h"
@@ -52,6 +52,23 @@ inline uint16_t ESPHOME_ALWAYS_INLINE APIConnection::encode_to_buffer(uint32_t c
 }
 
 inline uint32_t APIConnection::get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
+
+inline bool APIConnection::prepare_first_message_buffer(size_t header_padding, size_t total_size) {
+  auto &shared_buf = this->parent_->get_shared_buffer_ref();
+  shared_buf.clear();
+  // Reserve space for header padding + message + footer
+  // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
+  // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
+  // Reserve full size but only set initial size to header padding
+  // so message encoding starts at the correct position
+  return shared_buf.reserve_and_resize(total_size, header_padding);
+}
+
+inline bool APIConnection::prepare_first_message_buffer(size_t payload_size) {
+  const uint8_t header_padding = this->helper_->frame_header_padding();
+  const uint8_t footer_size = this->helper_->frame_footer_size();
+  return this->prepare_first_message_buffer(header_padding, payload_size + header_padding + footer_size);
+}
 
 }  // namespace esphome::api
 #endif

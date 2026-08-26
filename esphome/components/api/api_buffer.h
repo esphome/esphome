@@ -3,19 +3,11 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
-#include <new>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::api {
-
-/// Allocate a buffer without zero-fill. Returns nullptr on allocation failure;
-/// nothrow is required so OOM is reportable — plain new aborts instead
-/// (NEW_OOM_ABORT on ESP8266 Arduino, exception stub on ESP-IDF).
-inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
-  return std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[n]);
-}
 
 /// Byte buffer that skips zero-initialization on resize().
 ///
@@ -36,13 +28,8 @@ class APIBuffer {
   void clear() { this->size_ = 0; }
   /// Returns false if allocation fails; the buffer is left unchanged.
   [[nodiscard]] inline bool reserve(size_t n) ESPHOME_ALWAYS_INLINE { return n <= this->capacity_ || this->grow_(n); }
-  /// Returns false if allocation fails; the buffer is left unchanged.
-  [[nodiscard]] inline bool resize(size_t n) ESPHOME_ALWAYS_INLINE {
-    if (!this->reserve(n))
-      return false;
-    this->size_ = n;  // no zero-fill
-    return true;
-  }
+  /// Returns false if allocation fails; the buffer is left unchanged. No zero-fill.
+  [[nodiscard]] inline bool resize(size_t n) ESPHOME_ALWAYS_INLINE { return this->reserve_and_resize(n, n); }
   /// Reserve capacity for max(reserve_size, new_size) bytes, then set size to new_size.
   /// Single grow_ check regardless of argument order.
   /// Returns false if allocation fails; the buffer is left unchanged.

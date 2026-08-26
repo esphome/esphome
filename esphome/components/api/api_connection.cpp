@@ -1,6 +1,6 @@
 #include "api_connection.h"
 #ifdef USE_API
-#include "api_connection_buffer.h"  // for encode_to_buffer / get_batch_delay_ms_ inlines
+#include "api_connection_buffer.h"  // for the APIServer-dependent APIConnection inlines
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
 #endif
@@ -2240,11 +2240,11 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
     this->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
   }
 #endif
-  auto &shared_buf = this->parent_->get_shared_buffer_ref();
-  if (!this->prepare_first_message_buffer(shared_buf, payload_size)) [[unlikely]] {
+  if (!this->prepare_first_message_buffer(payload_size)) [[unlikely]] {
     this->fatal_out_of_memory_();
     return false;
   }
+  auto &shared_buf = this->parent_->get_shared_buffer_ref();
   size_t write_start = shared_buf.size();
   // Capacity reserved above, cannot fail
   (void) shared_buf.resize(write_start + payload_size);
@@ -2300,15 +2300,14 @@ bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message
 bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
-    auto &shared_buf = this->parent_->get_shared_buffer_ref();
-    if (!this->prepare_first_message_buffer(shared_buf, estimated_size)) [[unlikely]] {
+    // No local for the shared buffer here: keeping it live across
+    // dispatch_message_ costs a register and spills message_type into the
+    // batching path's dedup loop (measured on x86 GCC -Os)
+    if (!this->prepare_first_message_buffer(estimated_size)) [[unlikely]] {
       this->fatal_out_of_memory_();
       return false;
     }
     DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
-    // Re-fetch the shared buffer here instead of reusing the local: keeping it
-    // live across dispatch_message_ costs a register and spills message_type
-    // into the batching path's dedup loop (measured on x86 GCC -Os)
     if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
         this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2369,7 +2368,7 @@ void APIConnection::process_batch_() {
     total_estimated_size = MAX_BATCH_PACKET_SIZE;
   }
 
-  if (!this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size)) [[unlikely]] {
+  if (!this->prepare_first_message_buffer(header_padding, total_estimated_size)) [[unlikely]] {
     this->fatal_out_of_memory_();
     this->clear_batch_();
     return;
