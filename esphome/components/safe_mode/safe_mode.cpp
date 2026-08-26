@@ -4,6 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include "esphome/components/logger/logger.h"
 
 #include <cerrno>
 #include <cinttypes>
