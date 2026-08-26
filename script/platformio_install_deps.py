@@ -111,12 +111,12 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     # sections, and two threads must not extract into the same directory.
     # Another spec for the same name, and URL specs (which install into a
     # manifest-named dir the spec cannot predict), are left to the pkg
-    # install pass.
+    # install pass; a dependency's URL version surfaces as spec.uri.
     seen_names: set = prior_names if prior_names is not None else set()
     unique = {
         spec_key(spec): spec
         for spec in specs
-        if isinstance(spec, PackageSpec) or "://" not in spec
+        if not (spec.uri if isinstance(spec, PackageSpec) else "://" in spec)
     }
     pending = [spec for spec in unique.values() if not manager.get_package(spec)]
     if not pending:
@@ -163,7 +163,9 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     finally:
         manager.unlock()
     if failures := len(results) - sum(results):
-        # Visible once per wave; pkg install retries every failed spec
+        # Visible once per wave. The stock pass retries CLI specs and,
+        # for already-installed packages, re-walks their dependencies
+        # (_install without skip_dependencies), so failed deps retry too
         print(
             f"Pre-install failed for {failures} of {len(results)} package(s); "
             "pkg install retries them serially",

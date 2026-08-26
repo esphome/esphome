@@ -188,6 +188,20 @@ def test_parallel_install_runs_dependency_waves() -> None:
     assert {mod.spec_key(c) for c in cls.calls} == {"noise-c", "wg", "libsodium"}
 
 
+def test_dependency_wave_excludes_url_specs() -> None:
+    """A dependency pinned to a URL surfaces as spec.uri; it must stay out
+    of the wave like string URL specs do."""
+    mod = _load_script()
+    cls = _reset_fake()
+    cls.deps = {
+        "esphome/noise-c @ 0.1.21": [
+            {"name": "vendored", "version": "https://github.com/x/y.git"},
+        ],
+    }
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"])
+    assert {mod.spec_key(c) for c in cls.calls} == {"noise-c"}
+
+
 def test_parallel_install_unlocks_when_pool_fails() -> None:
     mod = _load_script()
     cls = _reset_fake()
@@ -223,6 +237,13 @@ def test_platformio_surface_for_install_deps_script() -> None:
     assert "skip_dependencies" in params
     for cls in (ToolPackageManager, LibraryPackageManager):
         assert list(inspect.signature(cls.__init__).parameters)[1] == "package_dir"
-    for name in ("lock", "unlock", "get_package"):
+    for name in (
+        "lock",
+        "unlock",
+        "get_package",
+        "memcache_reset",
+        "get_pkg_dependencies",
+        "dependency_to_spec",
+    ):
         assert callable(getattr(BasePackageManager, name))
     assert PackageSpec("owner/name @ ^1.0").name == "name"
