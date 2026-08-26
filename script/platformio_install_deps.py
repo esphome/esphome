@@ -93,8 +93,12 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
 
 
 def predicted_dest(mgr, spec) -> Path | None:
-    """The spec's own install dir; a fallback (case/safe-dirname quirks),
-    not the primary lookup."""
+    """The spec's likely install dir; a best-effort fallback only.
+
+    pio installs into safe_dirname(manifest name), which can differ from
+    the registry spec name; a miss here degrades to a printed line and
+    the serial pass, never a wrong deletion.
+    """
     name = BasePackageManager.ensure_spec(spec).name
     return Path(mgr.package_dir, name) if name else None
 
@@ -126,7 +130,8 @@ def clean_torn(mgr, spec) -> None:
         except Exception as err:  # noqa: BLE001
             # Likely another worker's in-flight copy; back off and retry
             scan_err = err
-            time.sleep(0.2 * (2**attempt))
+            if attempt < 4:
+                time.sleep(0.2 * (2**attempt))
     if pkg is not None:
         remove_dir(spec, Path(pkg.path))
         return

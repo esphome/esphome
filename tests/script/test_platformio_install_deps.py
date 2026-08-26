@@ -168,16 +168,18 @@ def test_parallel_install_failure_cleans_torn_destination(
 
     removed = []
 
+    torn = str(tmp_path / "torn-pkg")  # never created; only rmtree'd
+
     def get_package(self, spec):
         if spec == "esphome/bad @ 1.0" and getattr(cls, "resets", 0):
-            return SimpleNamespace(path="/tmp/torn-pkg", spec=spec)
+            return SimpleNamespace(path=torn, spec=spec)
         return _FakeManager.get_package(self, spec)
 
     cls.get_package = get_package  # throwaway subclass; nothing to restore
     with patch.object(mod.fs, "rmtree", side_effect=removed.append):
         mod.parallel_install(cls, ["esphome/bad @ 1.0", "esphome/good @ 1.0"])
     assert "esphome/good @ 1.0" in cls.calls
-    assert removed == ["/tmp/torn-pkg"]
+    assert removed == [torn]
     out = capsys.readouterr().out
     assert "Pre-install of esphome/bad @ 1.0 failed" in out
     assert "Pre-install failed for 1 of 2 package(s)" in out
