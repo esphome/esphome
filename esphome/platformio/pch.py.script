@@ -46,10 +46,9 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
         try:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
-            # A stat failure propagates and the outer handler skips the pch
+            # A marker would truncate the transitive walk; fail closed
             print(f"ESPHome: could not read {rel} for the pch checksum: {err}")
-            st = (src_dir / rel).stat()
-            data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
+            raise
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend(
@@ -112,10 +111,13 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
             "-",
         ],
         cwd=proj_dir,
+        env={**os.environ, "LC_ALL": "C"},
         input="",
         capture_output=True,
         text=True,
     )
+    if probe.returncode < 0:
+        raise OSError(f"probe killed by signal {-probe.returncode}")
     if probe.returncode != 0 or ".gch" in probe.stderr:
         return f"toolchain cannot load the pch: {probe.stderr.strip()}"
     return None
@@ -154,6 +156,8 @@ def _setup_pch() -> None:
     for tok in flag_it:
         if tok == "-include":
             include_headers.append(next(flag_it, ""))
+        elif tok.startswith("-include"):
+            include_headers.append(tok[len("-include") :])
         else:
             flags.append(tok)
     if any(not name for name in include_headers):

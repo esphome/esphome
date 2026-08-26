@@ -633,8 +633,8 @@ def test_get_idedata_accepts_preresolved_ccache() -> None:
 
 
 def test_ccache_env_includes_pch_settings() -> None:
-    mark_pch_emitted()
     """The native build exports the ccache settings the pch needs."""
+    mark_pch_emitted()
     with patch.dict(os.environ, {}, clear=True):
         env = framework.ccache_env("/usr/bin/ccache")
     assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
