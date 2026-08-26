@@ -329,12 +329,14 @@ def prepare_pch() -> None:
     try:
         sdkconfig = sdkconfig_path.read_text(encoding="utf-8")
     except OSError as err:
-        # Path-independent marker: str(err) embeds the per-device path and
-        # would defeat cross-device .sum sharing
+        # Fail closed: the sdkconfig is the only config-awareness the .sum
+        # has for options that surface via sdkconfig.h, and any stand-in
+        # marker would collide across devices
         _LOGGER.warning(
-            "Could not read %s for the pch checksum: %s", sdkconfig_path, err
+            "Could not read %s; compiling without the pch: %s", sdkconfig_path, err
         )
-        sdkconfig = f"unreadable:{type(err).__name__}:{err.errno}"
+        pch.discard_pch(CORE.relative_build_path("build"))
+        return
     pch.prepare_pch(
         CORE.relative_build_path("build"),
         PCH_DEFAULT_HEADERS,
