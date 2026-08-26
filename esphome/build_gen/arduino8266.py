@@ -1218,37 +1218,30 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
     src_cxx_override = None
     if pch_enabled() and any(tok.startswith("-include") for tok in cxxflags):
-        # GCC only loads a .gch while no tokens precede it, and the cxx rule
-        # expands $cxxflags before $flags: a user -include in build_flags
-        # means every TU would silently skip the .gch
+        # $cxxflags expands first, so a user -include there means GCC would
+        # never load the .gch
         _LOGGER.warning(
             "A -include in build_flags prevents the precompiled header from "
             "loading; compiling without it"
         )
     elif pch_enabled():
         # C++ src edges swap the force-includes for one precompiled prefix
-        # header holding the same content plus defines.h; C and assembly
-        # edges keep srcflags (a .gch is a C++ artifact)
-        # The opt-out hint matters when a toolchain rejects its own .gch:
-        # the build stays correct but every TU warns via -Winvalid-pch
+        # header (same content plus defines.h); C/assembly keep srcflags
         pch_header = build_dir / PCH_HEADER_NAME
         pch_includes = (*src_includes, PCH_CORE_HEADER)
         pch_text = pch_header_text(pch_includes)
         checksum = None
         try:
             if ccache:
-                # The .sum sidecar only exists for CCACHE_PCH_EXTSUM; ninja's
-                # depfile handles staleness. Mirror CCACHE_BASEDIR: strip the
-                # per-device build path so identically-configured devices
-                # produce identical .sum files and share cache entries
-                # Raw path too: a symlinked build dir resolves differently
+                # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
+                # handles staleness. Strip resolved and raw build paths
+                # (symlinks) so identical configs share cache entries
                 flags_id = (
                     " ".join(cxxflags)
                     .replace(effective_ccache_basedir(), "")
                     .replace(str(CORE.build_path), "")
                 )
-                # The header text covers include order, which the sorted
-                # closure alone does not
+                # The header text covers include order
                 checksum = pch_checksum(
                     src_dir,
                     pch_includes,
@@ -1271,9 +1264,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             )
             write_file_if_changed(pch_header, pch_text)
             if checksum is not None:
-                # Valid only for a ninja run started by write_project: a
-                # direct ninja invocation can rebuild the .gch via its
-                # depfile while this generate-time .sum lags behind
+                # Generate-time stamp: a hand-run ninja can rebuild the .gch
+                # while this .sum lags
                 write_file_if_changed(
                     build_dir / f"{PCH_HEADER_NAME}.gch.sum", checksum + "\n"
                 )
@@ -1281,9 +1273,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             lines.append(f"build {gch}: pch {_e(pch_header)}")
             if src_other:
                 lines.append(f"  flags = {' '.join(src_other)}")
-            # Relative -include (resolved from the ninja cwd, where the header
-            # lives): an absolute path would put the per-device build path on
-            # every compile command and defeat cross-device ccache sharing
+            # Relative -include: absolute would break cross-device ccache.
             # -Wno-error keeps a rejected .gch a warning under user -Werror
             cxx_parts = src_other + [
                 f"-Winvalid-pch -Wno-error=invalid-pch -include {PCH_HEADER_NAME}"

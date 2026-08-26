@@ -16,14 +16,10 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
     projenv = None
     _projenv_error = err
 
-# Precompile the src force-includes plus defines.h (which pulls in
-# Arduino.h on Arduino platforms) and force-include the result into C++ src
-# compiles only; those TUs already include this content first, so their
-# preprocessed output is unchanged. Post script: the final src flags exist,
-# nothing compiled yet. Registration is gated host-side (the platform's
-# __init__.py, pch_enabled()). Keep the header tail, ccache values,
-# include-closure recipe, and the checksum/failed-marker stamp flow in sync
-# with build_helpers/pch.py.
+# Precompile the src force-includes plus defines.h and force-include the
+# result into C++ src compiles only; their preprocessed output is unchanged.
+# Registration is gated host-side (pch_enabled()). Keep the closure, ccache
+# values, and stamp flow in sync with build_helpers/pch.py.
 
 # Compiler failures that clear on their own must not latch the .failed marker
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
@@ -50,8 +46,7 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
         try:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
-            # If stat also fails the identity is unknown: the OSError
-            # propagates to the outer handler, which skips the pch
+            # A stat failure propagates and the outer handler skips the pch
             print(f"ESPHome: could not read {rel} for the pch checksum: {err}")
             st = (src_dir / rel).stat()
             data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
@@ -66,9 +61,8 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
 
 def _shell_arg(element) -> str:
     """One compiler argv from one SCons element, matching the real spawn:
-    SCons whole-quotes spaced elements, the shell unquotes the rest. On
-    Windows there is no POSIX shell pass and shlex would eat path
-    backslashes."""
+    spaced elements pass whole, the rest get one shell unquote (skipped on
+    Windows, where shlex would eat path backslashes)."""
     arg = str(element)
     if " " in arg or os.name == "nt":
         return arg.replace('\\"', '"')
@@ -80,8 +74,7 @@ def _shell_arg(element) -> str:
         print(f"ESPHome: could not lex flag {arg!r} for the pch: {err}")
         return arg
     if len(tokens) != 1:
-        # The shell-quoting model is wrong for this element; say so rather
-        # than surfacing only as downstream pch warnings
+        # The quoting model is wrong for this element; leave a trail
         print(f"ESPHome: passing flag {arg!r} through unlexed for the pch")
         return arg
     return tokens[0]
@@ -89,9 +82,8 @@ def _shell_arg(element) -> str:
 
 def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
     """Compile the .gch, then probe that the toolchain can load it back
-    (GCC 10 on macOS arm64 builds one it then rejects per-process: "had
-    text segment at different address"). Returns a deterministic error
-    string or None; OSError propagates for transient handling."""
+    (GCC 10 on macOS arm64 rejects its own per-process). Returns an error
+    string or None; OSError propagates as transient."""
     result = subprocess.run(  # noqa: PLW1510
         [cxx, "-x", "c++-header", *flags, "-c", str(header), "-o", str(gch)],
         cwd=proj_dir,
@@ -101,8 +93,7 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
         text=True,
     )
     if result.returncode < 0:
-        # Signal-killed (OOM, ^C) is environmental; raising OSError routes
-        # it to the transient no-marker path
+        # Signal-killed (OOM, ^C): route to the transient no-marker path
         raise OSError(f"compiler killed by signal {-result.returncode}")
     if result.returncode != 0:
         return result.stderr
@@ -143,10 +134,8 @@ def _setup_pch() -> None:
         # Expected under -t nobuild; anything else must leave a trail
         print(f"ESPHome: projenv unavailable ({_projenv_error}); skipping pch")
         return
-    # Project root, not $BUILD_DIR: SCons compiles run with the project dir
-    # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
-    # An absolute path would put the per-device build path on every compile
-    # command and defeat cross-device ccache sharing.
+    # Project root: SCons compiles run here, so the relative -include
+    # resolves; an absolute path would break cross-device ccache sharing.
     proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
     src_dir = Path(env.subst("$PROJECT_SRC_DIR"))  # noqa: F821
     header = proj_dir / "esphome_pch.h"
@@ -170,14 +159,12 @@ def _setup_pch() -> None:
     if any(not name for name in include_headers):
         print("ESPHome: build_src_flags has a trailing -include; skipping pch")
         return
-    # Fold only names that resolve under src/: consumers keep their own
-    # -include entries, so an unguarded user header folded here would be
-    # included twice. An unfolded header simply stays consumer-only and
-    # ccache hashes it directly off the command line.
+    # Fold only relative names resolving under src/: consumers keep their
+    # own -include entries, so folding an unguarded user header would
+    # include it twice; unfolded ones stay consumer-only.
     folded = [
         name
         for name in include_headers
-        # An absolute name would sneak past src_dir /: keep it consumer-only
         if not Path(name).is_absolute() and (src_dir / name).is_file()
     ]
     if unfolded := [n for n in include_headers if n not in folded]:
@@ -200,15 +187,13 @@ def _setup_pch() -> None:
         try:
             version = platform.get_package_version(package)
         except KeyError:
-            # Only trust KeyError as "absent" when the package really is not
-            # installed; an unresolved manifest must not hash as a constant
+            # An unresolved manifest must not hash as a constant
             if platform.get_package(package) is not None:
                 print(f"ESPHome: skipping precompiled header: no version for {package}")
                 return
             version = None  # absent optional package
         except Exception as err:  # noqa: BLE001
-            # Without trustworthy package identity a stale .gch could be
-            # reused across upgrades; skip the pch instead
+            # No trustworthy package identity: a stale .gch could survive
             print(f"ESPHome: skipping precompiled header: {err}")
             return
         digest.update(f"{package}={version}".encode())
@@ -218,9 +203,8 @@ def _setup_pch() -> None:
         digest.update(rel.encode(errors="surrogateescape"))
         digest.update(closure[rel])
         digest.update(b"\0")
-    # Project-local include dirs outside src (e.g. rp2's lwip_override)
-    # hold generated headers the src closure cannot see; hash them so an
-    # ESPHome-side change invalidates an existing build dir
+    # Project-local -I dirs (e.g. rp2's lwip_override) hold generated
+    # headers the src closure cannot see; hash them too
     prev = ""
     for tok in flags:
         inc = tok[2:] if tok.startswith("-I") and len(tok) > 2 else ""
@@ -234,9 +218,8 @@ def _setup_pch() -> None:
             inc_dir.is_dir()
             and inc_dir.is_relative_to(proj_dir)
             and not inc_dir.is_relative_to(src_dir)
-            # lib_deps trees are not part of the prefix closure today (the
-            # roots resolve under src/ only); walking them would read every
-            # library file on every build for nothing
+            # Library trees never enter the prefix closure; walking them
+            # would read every library file each build
             and not inc_dir.is_relative_to(proj_dir / ".piolibdeps")
             and not inc_dir.is_relative_to(proj_dir / ".pioenvs")
         ):
@@ -250,8 +233,7 @@ def _setup_pch() -> None:
             try:
                 data = local.read_bytes()
             except OSError as err:
-                # mtime/size keep a changed-but-unreadable header shifting
-                # the digest; a stat failure propagates and skips the pch
+                # mtime/size still shift the digest; stat failure skips the pch
                 print(f"ESPHome: could not read {local} for the pch checksum: {err}")
                 st = local.stat()
                 data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
@@ -297,9 +279,8 @@ def _setup_pch() -> None:
         failed_marker.unlink(missing_ok=True)
         sum_path.write_text(checksum + "\n", encoding="utf-8")
 
-    # projenv["ENV"] aliases os.environ under PlatformIO, so these reach
-    # framework/library TUs too; only time_macros affects non-pch TUs (the
-    # trade-off ccache_pch_env documents). User-set values win.
+    # projenv["ENV"] aliases os.environ, so these reach all TUs; only
+    # time_macros affects non-pch TUs. User-set values win.
     for key, value in (
         ("CCACHE_SLOPPINESS", "pch_defines,time_macros"),
         ("CCACHE_PCH_EXTSUM", "true"),
@@ -311,18 +292,15 @@ def _setup_pch() -> None:
         tokens = {tok.strip() for tok in sloppiness.split(",")}
         missing = [t for t in ("pch_defines", "time_macros") if t not in tokens]
         if missing:
-            # Without these ccache declines every pch-consuming compile;
-            # union rather than override so the user's own tokens survive
+            # Without these ccache declines every pch-consuming compile
             projenv["ENV"]["CCACHE_SLOPPINESS"] = ",".join((sloppiness, *missing))  # noqa: F821
             print(f"ESPHome: adding {','.join(missing)} to CCACHE_SLOPPINESS for the pch")
 
-    # Prepended so it is processed before the build_src_flags -include
-    # entries: GCC only uses a .gch while no other tokens have been seen.
-    # The relative name also reaches "pio run -t idedata" output; external
-    # consumers replaying cxx_flags must run from the project dir.
+    # Prepended: GCC only uses a .gch while no other tokens precede it.
+    # The relative name also reaches "pio run -t idedata" output.
+    # -Wno-error: the per-process probe can pass while a later cc1plus
+    # rejects the .gch; that must stay a warning under user -Werror.
     projenv.Prepend(  # noqa: F821
-        # -Wno-error: the probe is per-process, so a later cc1plus can still
-        # reject the .gch; that must stay a warning under user -Werror
         CXXFLAGS=["-Winvalid-pch", "-Wno-error=invalid-pch", "-include", header.name]
     )
     print("ESPHome: Compiling with precompiled header")
@@ -331,6 +309,5 @@ def _setup_pch() -> None:
 try:
     _setup_pch()
 except Exception:  # noqa: BLE001 -- a speedup must never break the build
-    # Stable marker: an unexpected error, unlike the expected skip prints
     print("ESPHome: pch internal error; compiling without it")
     traceback.print_exc()
