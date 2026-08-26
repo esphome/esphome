@@ -32,8 +32,12 @@ def _core(tmp_path: Path):
 class _FakeSpec(SimpleNamespace):
     """PackageSpec stand-in for the attributes the prefetch reads."""
 
-    def __init__(self, *, owner=None, requirements=None, **kwargs) -> None:
-        super().__init__(owner=owner, requirements=requirements, **kwargs)
+    def __init__(
+        self, *, owner=None, requirements=None, external=False, **kwargs
+    ) -> None:
+        super().__init__(
+            owner=owner, requirements=requirements, external=external, **kwargs
+        )
 
 
 def _fake_manager(tmp_path: Path) -> MagicMock:
@@ -568,7 +572,11 @@ def _pio_modules(tmp_path: Path, fake_platform, fake_pm, config, lib_captures=No
         ),
         "platformio.package.meta": SimpleNamespace(
             PackageSpec=lambda *a, **kw: _FakeSpec(
-                uri=None, name=kw.get("name") or (a[0] if a else None)
+                uri=None,
+                name=kw.get("name") or (a[0] if a else None),
+                owner=kw.get("owner")
+                or (str(a[0]).split("/")[0] if a and "/" in str(a[0]) else None),
+                external=bool(a and "://" in str(a[0])),
             ),
             PackageCompatibility=SimpleNamespace,
         ),
@@ -697,7 +705,9 @@ def test_prefetch_end_to_end_wiring(
         {
             "platform": "fake/platform@1.0",
             "framework": "arduino",
-            "lib_deps": ["esphome/noise-c@1.0", "${common.lib_deps}"],
+            # the bare built-in name and the interpolation are skipped;
+            # only the owner-qualified library resolves
+            "lib_deps": ["esphome/noise-c@1.0", "WiFi", "${common.lib_deps}"],
         },
     )
     lib_dirs: list[str] = []

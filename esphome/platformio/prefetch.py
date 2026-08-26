@@ -584,8 +584,14 @@ def _prefetch(build_dir: Path, env: str) -> None:
     lm = LibraryPackageManager(
         str(libdeps_dir), compatibility=PackageCompatibility(**qualifiers)
     )
+    # pio run skips owner-less non-external lib_deps entirely (a bare
+    # name like WiFi is a framework built-in or private library);
+    # resolving one from the registry would shadow the bundled copy
     lib_specs = [
-        PackageSpec(dep) for dep in lib_deps if dep and not dep.startswith("$")
+        spec
+        for dep in lib_deps
+        if dep and not dep.startswith("$")
+        if (spec := PackageSpec(dep)).external or spec.owner
     ]
 
     seen: set[str] = set()
