@@ -54,6 +54,10 @@ _PREFETCH_TIMEOUT = 20 * 60
 # Waiting on another process's URL download; past this, leave it to pio
 _URI_LOCK_TIMEOUT = 60
 
+# Child exit for a handled, already-warned failure; 1 would collide with
+# the interpreter's own import-failure exit
+_EXIT_HANDLED = 3
+
 # Short lock-acquire slices so a waiting worker still observes Ctrl-C
 _URI_LOCK_POLL = 1
 
@@ -189,11 +193,12 @@ def prefetch_platformio_packages() -> None:
         # a package-directory copy pio run would then trust; ask first
         _stop_child(proc)
         raise
-    if returncode == 1:
+    if returncode == _EXIT_HANDLED:
         # The child already warned with the reason; a second line is noise
         _LOGGER.debug("Prefetch child reported a handled failure")
     elif returncode != 0:
-        # Codes the child cannot emit itself (signal deaths, bad wiring)
+        # Exit 1 stays here: the interpreter exits 1 for import/module
+        # failures before main() ever runs, a wiring break worth a warning
         _LOGGER.warning("PlatformIO package prefetch skipped (exit %d)", returncode)
 
 
@@ -378,7 +383,11 @@ def _uri_jobs(
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
-            installable.append((name, spec))  # fetched by an earlier run
+            if spec.name:
+                # A nameless URL spec's destination comes from the archive
+                # manifest; its dedupe key could collide with a registry
+                # name and race one directory, so pio run installs it
+                installable.append((name, spec))  # fetched by an earlier run
             continue
         if str(dl_path) in seen:
             continue  # another spec already claimed this .part
@@ -421,7 +430,9 @@ def _uri_jobs(
             failed += 1
         elif size:
             jobs.append((name, size, _uri_fetch_job(manager, url, dl_path, size)))
-            installable.append((name, spec))
+            if spec.name:
+                # See above: nameless specs stay with pio run's installer
+                installable.append((name, spec))
     if failed:
         _LOGGER.warning(
             "Could not size %d of %d PlatformIO package URL(s) (%s); "
@@ -496,11 +507,20 @@ def _serialized_fetch_job(
     return run
 
 
+# usage.db is a whole-file read-modify-write behind pio's self-unlinking
+# LockFile; concurrent writers could reset every recorded entry
+_REGISTER_LOCK = threading.Lock()
+
+
 def _register_download(manager: Any, dl_path: Path) -> None:
     """Hand the archive to pio's usage.db pruner; without an entry an
     archive nothing ever consumes would be stranded at any age."""
-    with suppress(Exception):
-        manager.set_download_utime(str(dl_path))
+    try:
+        with _REGISTER_LOCK:
+            manager.set_download_utime(str(dl_path))
+    except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Unregistered archives are never pruned; leave a trace
+        _LOGGER.debug("Could not register %s with pio's cache: %s", dl_path, err)
 
 
 def _registry_fetch_job(
@@ -587,11 +607,13 @@ def _dependency_entries(
         for key, entry in deps_of:
             if key not in seen_names:
                 deps.setdefault(key, entry)
-    if skipped and skipped == len(entries):
+    if skipped and (skipped * 2 >= len(entries) or not deps):
         # A systematic fault (a pio API break), not one bad manifest;
         # without this the dependency waves vanish with no trace
         _LOGGER.warning(
-            "Could not read dependencies of any of %d package(s)", len(entries)
+            "Could not read dependencies of %d of %d package(s)",
+            skipped,
+            len(entries),
         )
     return list(deps.values())
 
@@ -674,7 +696,12 @@ def _preinstall(
                 if (pkg := mgr.get_package(spec)) is not None:
                     rmtree(pkg.path)
                 else:
-                    _LOGGER.debug("No on-disk install of %s to remove", name)
+                    # A torn dir without a readable manifest is invisible
+                    # to this cleanup; make the uncertainty visible
+                    _LOGGER.warning(
+                        "Failed install of %s left nothing resolvable to remove",
+                        name,
+                    )
             except Exception as cleanup_err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.warning(
                     "Could not remove the failed install of %s: %s",
@@ -742,8 +769,16 @@ def _preinstall(
         next_entries = _dependency_entries(manager, entries, seen)
     finally:
         sys.path[:] = saved_sys_path
-    if next_entries and len(seen) < 200:  # cycle backstop
+    if not next_entries:
+        return
+    if len(seen) < 200:  # cycle backstop
         _preinstall(manager, next_entries, seen)
+    else:
+        # A cycle or an unexpectedly large graph must not look finished
+        _LOGGER.warning(
+            "Dependency wave limit reached; %d package(s) left to pio run",
+            len(next_entries),
+        )
 
 
 def _prefetch(build_dir: Path, env: str) -> None:
@@ -917,7 +952,7 @@ def main(argv: list[str]) -> int:
         # any prefetch exit as warn-and-continue, never a failed build
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
-        return 1
+        return _EXIT_HANDLED
     return 0
 
 

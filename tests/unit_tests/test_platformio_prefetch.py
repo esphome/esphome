@@ -217,11 +217,14 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     def fake_download(url, dest, progress=None, **kwargs):
         Path(dest).write_bytes(b"data")
 
+    manager = MagicMock()
     with patch(
         "esphome.framework_helpers.download_with_resume", side_effect=fake_download
     ):
-        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job(manager, "https://x/a.zip", dl_path, 4)(lambda done: None)
     assert dl_path.read_bytes() == b"data"
+    # The archive is handed to pio's usage.db pruner
+    manager.set_download_utime.assert_called_once_with(str(dl_path))
     # no orphaned staging file; the lock file may or may not persist
     # (filelock removes it on release on some platforms)
     leftovers = {f.name for f in tmp_path.iterdir()}
@@ -259,12 +262,14 @@ def test_registry_fetch_job_downloads_under_lock(tmp_path: Path) -> None:
             side_effect=lambda *a, **k: order.append("unlock"),
         ),
     ):
-        pf._registry_fetch_job(
-            MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
-        )(lambda done: None)
+        manager = MagicMock()
+        pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            lambda done: None
+        )
     # FileLock.__del__ may add a trailing release; the contract is the order
     assert order[:2] == ["lock", "fetch"]
     assert "unlock" in order[2:]
+    manager.set_download_utime.assert_called_once_with(str(dl_path))
 
 
 def test_lockless_filesystem_downloads_unlocked(
@@ -361,6 +366,18 @@ def test_sweep_stale_sidecars(tmp_path: Path) -> None:
     assert fresh.exists()
     assert keep.exists()
     pf._sweep_stale_sidecars(tmp_path / "missing")  # tolerated
+
+
+def test_register_download_failure_leaves_a_trace(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed usage.db registration is traced; an unregistered archive
+    is never pruned, so silence would hide the leak coming back."""
+    manager = MagicMock()
+    manager.set_download_utime.side_effect = RuntimeError("db locked")
+    with caplog.at_level(pf.logging.DEBUG):
+        pf._register_download(manager, tmp_path / "a.tar.gz")
+    assert "Could not register" in caplog.text
 
 
 def test_sweep_logs_unprunable_files(
@@ -773,6 +790,45 @@ def test_stop_child_reraises_system_exit(
     assert "could not be confirmed stopped" in caplog.text
 
 
+def test_uri_nameless_spec_downloads_but_never_installs(tmp_path: Path) -> None:
+    """A nameless URL spec has no destination identity; its archive is
+    prefetched, but the install stays with pio run."""
+    m = _fake_manager(tmp_path)
+    resp = MagicMock(ok=True)
+    resp.headers = {"content-length": "4"}
+    with patch("esphome.net_retry.http_request", return_value=resp):
+        jobs, failed, installable = pf._uri_jobs(
+            m, [_FakeSpec(uri="https://x/v1.zip", name=None)], set()
+        )
+    assert failed == 0
+    assert len(jobs) == 1  # still prefetched
+    assert installable == []
+
+
+def test_preinstall_wave_limit_warns(tmp_path: Path) -> None:
+    """Hitting the cycle backstop must not look like a completed run."""
+    m = _fake_manager(tmp_path)
+    m.get_package.side_effect = lambda spec: (
+        SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
+    )
+    m.get_pkg_dependencies.return_value = [
+        {"owner": "o", "name": "dep", "version": "^1"}
+    ]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    prior = {f"seen{i}" for i in range(200)}
+    import logging as _logging
+
+    records: list = []
+    handler = _logging.Handler()
+    handler.emit = records.append
+    pf._LOGGER.addHandler(handler)
+    try:
+        pf._preinstall(m, [("top@1", _FakeSpec(uri=None, name="top"))], prior)
+    finally:
+        pf._LOGGER.removeHandler(handler)
+    assert any("wave limit reached" in r.getMessage() for r in records)
+
+
 def test_dependency_entries_warn_when_all_reads_fail(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -792,7 +848,7 @@ def test_dependency_entries_warn_when_all_reads_fail(
         )
         == []
     )
-    assert "Could not read dependencies of any of 2" in caplog.text
+    assert "Could not read dependencies of 2 of 2" in caplog.text
 
 
 def _proc(wait_effect) -> MagicMock:
@@ -821,7 +877,7 @@ def test_prefetch_passes_dashboard_flag(tmp_path: Path) -> None:
     ("wait_effect", "spawn_error", "expected"),
     [
         ("timeout", None, "prefetch timed out"),
-        (3, None, "prefetch skipped (exit 3)"),
+        (4, None, "prefetch skipped (exit 4)"),
         (None, OSError("no exec"), "PlatformIO package prefetch skipped"),
     ],
 )
@@ -961,10 +1017,10 @@ def test_prefetch_interrupt_stops_child_gracefully() -> None:
 def test_prefetch_child_handled_failure_is_quiet(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Exit 1 means the child already warned with the reason; the parent
-    adds no second warning."""
+    """A handled exit means the child already warned with the reason; the
+    parent adds no second warning."""
     proc = MagicMock()
-    proc.wait.return_value = 1
+    proc.wait.return_value = pf._EXIT_HANDLED
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
         patch.object(pf.subprocess, "Popen", return_value=proc),
@@ -977,7 +1033,7 @@ def test_main_guards_and_exits_nonzero(caplog: pytest.LogCaptureFixture) -> None
     """A swallowed failure still reaches the parent as a nonzero exit; the
     parent warns and continues, never failing the build."""
     with patch.object(pf, "_prefetch", side_effect=RuntimeError("boom")):
-        assert pf.main(["/b", "testenv"]) == 1
+        assert pf.main(["/b", "testenv"]) == pf._EXIT_HANDLED
     assert "PlatformIO package prefetch skipped" in caplog.text
 
 
