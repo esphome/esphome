@@ -721,10 +721,15 @@ def test_unfulfilled_provides_promise_raises(tmp_path: Path) -> None:
     undefined symbols at link, so it fails here by name, deduplicated;
     satisfied ones pass silently."""
     with pytest.raises(EsphomeError, match="Wire") as err:
-        component._check_unfulfilled_provides(["Wire", "Wire", "Hash"], {"Hash"})
+        component._check_unfulfilled_provides(
+            ["Wire", "Wire", "Hash"], {"Hash"}, {"Wire", "Hash"}
+        )
     assert str(err.value).count("Wire") == 1
     assert "Hash" not in str(err.value)
-    component._check_unfulfilled_provides(["Hash"], {"Hash"})
+    component._check_unfulfilled_provides(["Hash"], {"Hash"}, {"Hash"})
+    # A recording for a since-re-resolved manifest is stale walk state,
+    # never a failure: no final manifest still requests Wire
+    component._check_unfulfilled_provides(["Wire"], set(), set())
 
 
 def test_extra_script_link_flags_reach_the_library(tmp_path: Path) -> None:
