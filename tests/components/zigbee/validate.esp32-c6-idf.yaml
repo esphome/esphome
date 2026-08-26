@@ -34,3 +34,4 @@ sensor:
     unit_of_measurement: hPa
     device_class: atmospheric_pressure
     cluster: default
+
