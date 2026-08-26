@@ -2734,10 +2734,14 @@ def run_esphome(argv):
     # Skipped when -s overrides are passed, since the cache was written
     # against the previous substitution set.
     config: ConfigType | None = None
-    cache_eligible = (
+    cache_write_eligible = (
         args.command in ("upload", "logs") and not command_line_substitutions
     )
-    if cache_eligible:
+    # An explicit --toolchain must re-run the per-platform validators, so
+    # gate only the cache read; the refresh below saves the result unless
+    # the sidecar records a different toolchain.
+    cache_read_eligible = cache_write_eligible and args.toolchain is None
+    if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
 
         config = load_compiled_config(conf_path)
@@ -2761,17 +2765,14 @@ def run_esphome(argv):
             return 2
     CORE.config = config
 
-    # Fallback for platforms whose validators didn't set the toolchain
-    # (only the esp32 component reads esp32.framework.toolchain). All
-    # other platforms only support PlatformIO today. Must run before the
-    # cache refresh below so its sidecar records the same toolchain a
-    # compile would.
+    # The cache fast path skips validation, and legacy sidecars lack the
+    # toolchain field. Must run before the cache refresh below.
     if CORE.toolchain is None:
         CORE.toolchain = Toolchain.PLATFORMIO
 
     # Refresh the cache so the next upload/logs hits the fast path
     # instead of re-running read_config.
-    if cache_eligible and cache_missed:
+    if cache_write_eligible and cache_missed:
         from esphome.compiled_config import save_compiled_config_and_sidecar
 
         save_compiled_config_and_sidecar(config)

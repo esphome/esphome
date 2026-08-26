@@ -1105,19 +1105,11 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(
-        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ESP_IDF, lower=True)(value)
-    )
-
-
-def _resolve_toolchain(value: ConfigType) -> ConfigType:
-    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
-    # Runs before _detect_variant so downstream validators can rely on
-    # CORE.toolchain instead of re-resolving it from the config dict.
-    if CORE.toolchain is None:
-        CORE.toolchain = value.get(CONF_TOOLCHAIN, Toolchain.ESP_IDF)
-    return value
+_TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.ESP_IDF)
+_validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
+# Runs before _detect_variant so downstream validators can rely on
+# CORE.toolchain instead of re-resolving it from the config dict.
+_resolve_toolchain = cv.resolve_toolchain("ESP32", _TOOLCHAINS, Toolchain.ESP_IDF)
 
 
 def _check_versions(config: ConfigType) -> ConfigType:
