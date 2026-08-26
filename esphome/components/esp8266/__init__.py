@@ -137,7 +137,16 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
         return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
     if ver <= cv.Version(2, 6, 2):
         return f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-    return f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+    # Same encoding the native toolchain uses for its package download, so a
+    # version bump cannot drift between the two paths.
+    from esphome.arduino8266.framework import framework_package_version
+
+    try:
+        return f"~{framework_package_version(ver)}"
+    except EsphomeError as err:
+        # Anchor the 4.x rejection to the framework version line instead of
+        # aborting with a bare traceback-level error
+        raise cv.Invalid(str(err), path=[CONF_VERSION]) from err
 
 
 # NOTE: Keep this in mind when updating the recommended version:

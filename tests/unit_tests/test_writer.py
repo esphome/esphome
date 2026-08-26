@@ -1060,6 +1060,28 @@ def test_clean_all_removes_global_sdk_nrf_install(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_all_removes_global_arduino8266_install(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """clean_all removes the machine-global native arduino8266 install dir."""
+    arduino8266_install = tmp_path / "arduino8266_install"
+    (arduino8266_install / "frameworks").mkdir(parents=True)
+    monkeypatch.setenv("ESPHOME_ARDUINO8266_PREFIX", str(arduino8266_install))
+
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    with caplog.at_level("INFO"):
+        clean_all([str(config_dir)])
+
+    assert not arduino8266_install.exists()
+    assert str(arduino8266_install.resolve()) in caplog.text
+
+
+@patch("esphome.writer.CORE")
 def test_clean_all_removes_default_cache_root(
     mock_core: MagicMock,
     tmp_path: Path,
