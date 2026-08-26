@@ -669,6 +669,39 @@ def _entry_dependencies(
     return out
 
 
+def _clean_failed_install(mgr: Any, name: str, spec: Any) -> None:
+    # A post-copy failure leaves a package pio run would trust; remove it
+    # so pio run genuinely reinstalls it
+    try:
+        mgr.memcache_reset()
+        if (pkg := mgr.get_package(spec)) is not None:
+            try:
+                rmtree(pkg.path)
+            except OSError:
+                # Without its metadata the dir is one pio's own install
+                # overwrites; a stuck tree with a valid .piopm would be
+                # trusted forever
+                (Path(pkg.path) / ".piopm").unlink(missing_ok=True)
+                _LOGGER.warning(
+                    "Could not fully remove the failed install of %s; "
+                    "dropped its metadata so pio run reinstalls it",
+                    name,
+                )
+        elif Path(mgr.package_dir, name.split("@", 1)[0]).exists():
+            # A leftover this cleanup cannot resolve is exactly the
+            # shape pio run would trust
+            _LOGGER.warning("Failed install of %s left an unresolvable directory", name)
+        else:
+            # Nothing was moved into place; the common failure shape
+            _LOGGER.debug("No on-disk install of %s to remove", name)
+    except Exception as cleanup_err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        _LOGGER.warning(
+            "Could not remove the failed install of %s: %s",
+            name,
+            failure_reason(cleanup_err),
+        )
+
+
 def _preinstall(
     manager: Any, entries: list[_Entry], seen_names: set[str] | None = None
 ) -> None:
@@ -703,29 +736,13 @@ def _preinstall(
         except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             _LOGGER.warning("Could not pre-install %s: %s", name, failure_reason(err))
             _LOGGER.debug("Pre-install failure detail", exc_info=True)
-            # A post-copy failure leaves a package pio run would trust;
-            # remove it so pio run genuinely reinstalls it
-            try:
-                mgr.memcache_reset()
-                if (pkg := mgr.get_package(spec)) is not None:
-                    rmtree(pkg.path)
-                elif Path(manager.package_dir, name.split("@", 1)[0]).exists():
-                    # A leftover that this cleanup cannot resolve is
-                    # exactly the shape pio run would trust
-                    _LOGGER.warning(
-                        "Failed install of %s left an unresolvable directory",
-                        name,
-                    )
-                else:
-                    # Nothing was moved into place; the common failure shape
-                    _LOGGER.debug("No on-disk install of %s to remove", name)
-            except Exception as cleanup_err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-                _LOGGER.warning(
-                    "Could not remove the failed install of %s: %s",
-                    name,
-                    failure_reason(cleanup_err),
-                )
+            _clean_failed_install(mgr, name, spec)
             return False
+        except BaseException:
+            # A SystemExit from a postinstall must not skip the cleanup
+            # and leave a torn dir pio run trusts
+            _clean_failed_install(mgr, name, spec)
+            raise
 
     _LOGGER.info(
         "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",

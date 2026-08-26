@@ -1036,6 +1036,37 @@ def test_preinstall_failure_removes_torn_destination(tmp_path: Path) -> None:
     assert removed == [str(tmp_path / "torn")]
 
 
+def test_preinstall_system_exit_still_cleans(tmp_path: Path) -> None:
+    """A worker SystemExit runs the torn cleanup before propagating."""
+    m = _fake_manager(tmp_path)
+    m._install.side_effect = SystemExit(143)
+    m.get_package.side_effect = [SimpleNamespace(path=str(tmp_path / "torn")), None]
+    removed: list[str] = []
+    with (
+        patch.object(pf, "rmtree", side_effect=removed.append),
+        pytest.raises(SystemExit),
+    ):
+        pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+    assert removed == [str(tmp_path / "torn")]
+
+
+def test_preinstall_stuck_tree_drops_metadata(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unremovable torn tree loses its .piopm so pio run reinstalls it
+    instead of trusting it forever."""
+    m = _fake_manager(tmp_path)
+    m._install.side_effect = RuntimeError("boom")
+    torn = tmp_path / "torn"
+    torn.mkdir()
+    (torn / ".piopm").write_text("{}")
+    m.get_package.side_effect = [SimpleNamespace(path=str(torn)), None]
+    with patch.object(pf, "rmtree", side_effect=OSError("busy")):
+        pf._preinstall(m, [("bad@1", _FakeSpec(uri=None, name="bad"))])
+    assert not (torn / ".piopm").exists()
+    assert "dropped its metadata" in caplog.text
+
+
 def test_preinstall_cleanup_failure_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
