@@ -9,9 +9,10 @@ subprocess like all PlatformIO execution: loading a platform executes its
 code (pioarduino's penv setup rewrites ``sys.path``). A sentinel in the
 build dir lets warm builds skip the spawn. Best-effort: any failure logs
 and PlatformIO downloads and installs as before. Across processes sharing
-a core dir, registry downloads share the cache key and rely on sha256
-verification; URL downloads carry no checksum, so they are serialized by
-a file lock and promoted with an atomic rename.
+a core dir every download destination is serialized by a file lock
+(interleaved writers truncate each other's bytes); URL downloads carry
+no checksum, so they additionally stage under a stable name and promote
+with an atomic rename.
 """
 
 from __future__ import annotations
@@ -281,9 +282,7 @@ def _registry_jobs(
             (
                 res.name,
                 res.size,
-                resume_fetch_job(
-                    res.url, res.dl_path, sha256=res.checksum, size=res.size
-                ),
+                _registry_fetch_job(res.url, res.dl_path, res.checksum, res.size),
             )
         )
     if failed := len(errors):
@@ -374,24 +373,23 @@ def _uri_jobs(
     return jobs, failed, installable
 
 
-def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
-    """Fetch to a locked staging path, then rename into the cache.
+def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
+    """Wrap ``body`` so the shared destination is single-writer.
 
-    URL specs carry no checksum, so a shared destination could let two
-    processes interleave a same-length corrupt file into the cache. The
-    lock makes the staging file single-writer (a stable name keeps the
-    resume machinery working across interrupted runs) and the rename
-    makes the promotion atomic.
+    Any download landing in PlatformIO's shared core dir can race a
+    sibling esphome process writing the same ``.part``; interleaved
+    writers truncate each other's bytes (see registry.py). A bounded
+    poll keeps a parked worker observing Ctrl-C via the tracker, a
+    blown deadline is a counted failure, and a lock-less filesystem
+    (git.py's ENOSYS/EPERM case) proceeds unlocked with one warning.
     """
-    tmp = dl_path.with_name(f"{dl_path.name}.prefetch")
-    fetch = resume_fetch_job(url, tmp, size=size)
 
     def run(tracker: Any) -> None:
         from filelock import FileLock, Timeout
 
         # fallback_to_soft would leave a stale marker on lock-less
         # filesystems that blocks every later build (see git.py)
-        lock = FileLock(f"{tmp}.lock", fallback_to_soft=False)
+        lock = FileLock(lock_path, fallback_to_soft=False)
         deadline = time.monotonic() + _URI_LOCK_TIMEOUT
         while True:
             try:
@@ -406,16 +404,54 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
                     raise TimeoutError(
                         "timed out waiting for another download of the same file"
                     ) from None
+            except OSError as err:
+                lock = None
+                _LOGGER.warning(
+                    "Could not lock %s (%s); downloading unlocked",
+                    dl_path.name,
+                    err,
+                )
+                break
         try:
             if dl_path.is_file():
-                # Another process finished it while we waited; the staging
-                # files are dead weight PlatformIO's cache never prunes
-                discard_partial_download(tmp)
-                return
-            fetch(tracker)
-            tmp.replace(dl_path)
+                return  # another process finished it while we waited
+            body(tracker)
         finally:
-            lock.release()
+            if lock is not None:
+                lock.release()
+
+    return run
+
+
+def _registry_fetch_job(url: str, dl_path: Path, checksum: str, size: int) -> Any:
+    """A locked fetch straight to the cache path; sha256 verifies it."""
+    return _serialized_fetch_job(
+        dl_path,
+        f"{dl_path}.lock",
+        resume_fetch_job(url, dl_path, sha256=checksum, size=size),
+    )
+
+
+def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
+    """Fetch to a locked staging path, then rename into the cache.
+
+    URL specs carry no checksum, so a same-length corrupt file could be
+    interleaved undetected; the stable staging name keeps resume working
+    across interrupted runs and the rename makes the promotion atomic.
+    """
+    tmp = dl_path.with_name(f"{dl_path.name}.prefetch")
+    fetch = resume_fetch_job(url, tmp, size=size)
+
+    def promote(tracker: Any) -> None:
+        fetch(tracker)
+        tmp.replace(dl_path)
+
+    def run(tracker: Any) -> None:
+        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote)(tracker)
+        if dl_path.is_file():
+            # Won or lost, the race is over; staging files left behind
+            # are dead weight PlatformIO's cache never prunes
+            discard_partial_download(tmp)
 
     return run
 
@@ -558,6 +594,11 @@ def _prefetch(build_dir: Path, env: str) -> None:
         build_dir / "platformio.ini", env
     )
     if not platform_spec:
+        # Visible under -v: an env-name mismatch or an unreadable ini
+        # would otherwise disable the feature with no trace
+        _LOGGER.debug(
+            "No platform for env %s in %s; nothing to prefetch", env, build_dir
+        )
         return
 
     # The platform (manifest plus build scripts) installs first and
@@ -596,9 +637,9 @@ def _prefetch(build_dir: Path, env: str) -> None:
     lm = LibraryPackageManager(
         str(libdeps_dir), compatibility=PackageCompatibility(**qualifiers)
     )
-    # pio run skips owner-less non-external lib_deps entirely (a bare
-    # name like WiFi is a framework built-in or private library);
-    # resolving one from the registry would shadow the bundled copy
+    # A bare name is usually a framework built-in (WiFi, SPI); with no
+    # lib builders here to tell built-in from registry, skip it. The only
+    # cost is that an owner-less user library is not prefetched
     lib_specs = [
         spec
         for dep in lib_deps

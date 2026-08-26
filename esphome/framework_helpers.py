@@ -913,8 +913,13 @@ def discard_partial_download(dest: Path) -> None:
     """Remove ``dest`` and the resume sidecars of an abandoned download."""
     part = _part_path(dest)
     for stale in (dest, part, part.with_name(part.name + ".meta")):
-        with suppress(OSError):
+        try:
             stale.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError as err:
+            # The caller's cache is never pruned; leave a trace
+            _LOGGER.debug("Could not remove %s: %s", stale, err)
 
 
 def _cancellable_sleep(
