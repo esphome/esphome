@@ -268,9 +268,6 @@ void SafeModeComponent::write_rtc_(uint32_t val) {
 
 uint32_t SafeModeComponent::read_rtc_() {
   uint32_t val;
-  if (!this->rtc_.load(&val)) {
-    ESP_LOGE(TAG, "Failed to read rtc value (%" PRIu32 ")", val);
-  }
   return val;
 }
 
