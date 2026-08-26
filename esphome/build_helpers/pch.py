@@ -165,7 +165,8 @@ def pch_checksum(
     digest = hashlib.sha256()
     closure = _include_closure(src_dir, include_headers)
     for name in sorted(closure):
-        digest.update(name.encode())
+        # surrogateescape round-trips names from non-UTF-8 filesystems
+        digest.update(name.encode(errors="surrogateescape"))
         digest.update(closure[name])
         digest.update(b"\0")
     for item in extra:
