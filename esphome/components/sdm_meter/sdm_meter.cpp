@@ -7,7 +7,7 @@ namespace esphome::sdm_meter {
 
 static const char *const TAG = "sdm_meter";
 
-static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 74 x 16-bit registers
+static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 80 x 16-bit registers (40 float values)
 
 void SDMMeter::on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
                                        modbus::ResponseStatus status) {
