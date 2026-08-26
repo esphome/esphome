@@ -4,18 +4,6 @@
 
 namespace esphome::ms8607::testing {
 
-class TestableMS8607Component : public MS8607Component {
- public:
-  using MS8607Component::MS8607Component;
-
-  using CalibrationValues = MS8607Component::CalibrationValues;
-  using CompensatedTemperature = MS8607Component::CompensatedTemperature;
-
-  using MS8607Component::compensated_temperature;
-  using MS8607Component::compensated_pressure;
-  using MS8607Component::compensated_humidity;
-};
-
 /// Create a CalibrationValues object with provided values, defaults to the
 /// "Example / Typical" values from datasheet:
 /// https://www.te.com/commerce/DocumentDelivery/DDEController?Action=showdoc&DocId=Data+Sheet%7FMS8607-02BA01%7FB3%7Fpdf%7FEnglish%7FENG_DS_MS8607-02BA01_B3.pdf%7FCAT-BLPS0018
@@ -28,10 +16,10 @@ Pressure Offset Temperature Coefficient: 0x6DC3 == 28009
 Reference Temperature: 0x7691 == 30353
 Temperature Coefficient of Temperature: 0x6B04 == 27396
 */
-static TestableMS8607Component::CalibrationValues create_calibration_values(uint16_t c1 = 46372, uint16_t c2 = 43981,
-                                                                            uint16_t c3 = 29059, uint16_t c4 = 27842,
-                                                                            uint16_t c5 = 31553, uint16_t c6 = 28165) {
-  TestableMS8607Component::CalibrationValues values;
+static MS8607Component::CalibrationValues create_calibration_values(uint16_t c1 = 46372, uint16_t c2 = 43981,
+                                                                    uint16_t c3 = 29059, uint16_t c4 = 27842,
+                                                                    uint16_t c5 = 31553, uint16_t c6 = 28165) {
+  MS8607Component::CalibrationValues values;
   values.pressure_sensitivity = c1;
   values.pressure_offset = c2;
   values.pressure_sensitivity_temperature_coefficient = c3;
@@ -48,7 +36,7 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   // Exact Reference Temperature (20°C Standard Baseline)
   {
     uint32_t const d2_raw_temperature = reference_temperature;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    auto res = MS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, 0);
     EXPECT_EQ(res.first_order_temperature, 2000);
     EXPECT_NEAR(res.temperature_float, 20.0f, 1e-3f);
@@ -57,7 +45,7 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   // Just Above Crossover (20.01°C)
   {
     uint32_t const d2_raw_temperature = reference_temperature + 2000;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    auto res = MS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, 2000);
     EXPECT_EQ(res.first_order_temperature, 2006);
     EXPECT_NEAR(res.temperature_float, 20.06f, 1e-3f);
@@ -66,7 +54,7 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   // Just Below Crossover (19.99°C)
   {
     uint32_t const d2_raw_temperature = reference_temperature - 2000;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    auto res = MS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, -2000);
     EXPECT_EQ(res.first_order_temperature, 1993);
     EXPECT_NEAR(res.temperature_float, 19.93f, 1e-3f);
@@ -75,7 +63,7 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   // Maximum Specified Temperature Before 2nd Order (+84.32°C)
   {
     uint32_t const d2_raw_temperature = 10013516;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    auto res = MS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, 1935948);
     EXPECT_EQ(res.first_order_temperature, 8500);
     EXPECT_NEAR(res.temperature_float, 84.32f, 1e-3f);
@@ -84,7 +72,7 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   // Maximum Specified Temperature (+85°C)
   {
     uint32_t const d2_raw_temperature = 10034215;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    auto res = MS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, 1956647);
     EXPECT_EQ(res.first_order_temperature, 8569);
     EXPECT_NEAR(res.temperature_float, 85.00f, 1e-3f);
@@ -93,7 +81,7 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   // Minimum Specified Temperature (-40°C)
   {
     uint32_t const d2_raw_temperature = 6537387;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    auto res = MS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, -1540181);
     EXPECT_EQ(res.first_order_temperature, -3172);
     EXPECT_NEAR(res.temperature_float, -40.00f, 1e-3f);
@@ -103,7 +91,7 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
   // Note: I suspect this is out of range
   {
     uint32_t const d2_raw_temperature = 6290732;
-    auto res = TestableMS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
+    auto res = MS8607Component::compensated_temperature(d2_raw_temperature, calibration_values);
     EXPECT_EQ(res.d_t, -1786836);
     EXPECT_EQ(res.first_order_temperature, -4000);
     EXPECT_NEAR(res.temperature_float, -51.15f, 1e-3f);
@@ -111,9 +99,9 @@ TEST(MS8607Test, Category1TemperatureCriticalBoundaries) {
 }
 
 float test_pressure_helper(const uint32_t d1, const uint32_t d2,
-                           const TestableMS8607Component::CalibrationValues &calibration_values) {
-  auto temp_res = TestableMS8607Component::compensated_temperature(d2, calibration_values);
-  return TestableMS8607Component::compensated_pressure(d1, calibration_values, temp_res);
+                           const MS8607Component::CalibrationValues &calibration_values) {
+  auto temp_res = MS8607Component::compensated_temperature(d2, calibration_values);
+  return MS8607Component::compensated_pressure(d1, calibration_values, temp_res);
 }
 
 TEST(MS8607Test, Category2PressureCompensationMath) {
@@ -198,56 +186,56 @@ TEST(MS8607Test, Category2PressureCompensationMath) {
 TEST(MS8607Test, Category3HumidityTemperatureCompensation) {
   // Datasheet example: 0x7C80 (i.e. 31872) @ 20°C is 54.80%
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(0x7C80, 20.0f);
+    float const humidity = MS8607Component::compensated_humidity(0x7C80, 20.0f);
     EXPECT_NEAR(humidity, 54.80f, 1e-2f);
   }
 
   // Datasheet example at lower temperature (0x7C80 @ 0°C)
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(0x7C80, 0.0f);
+    float const humidity = MS8607Component::compensated_humidity(0x7C80, 0.0f);
     EXPECT_NEAR(humidity, 54.80f - 3.6f, 1e-2f);
   }
 
   // Datasheet example at higher temperature (0x7C80 @ 40°C)
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(0x7C80, 40.0f);
+    float const humidity = MS8607Component::compensated_humidity(0x7C80, 40.0f);
     EXPECT_NEAR(humidity, 54.80f + 3.6f, 1e-2f);
   }
 
   // Lowest humidity, without temperature compensation
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(0, 20.0f);
+    float const humidity = MS8607Component::compensated_humidity(0, 20.0f);
     EXPECT_NEAR(humidity, -6.0f, 1e-2f);
   }
 
   // Highest humidity, without temperature compensation
   {
     // bottom two bits are status bits, and get stripped
-    float const humidity = TestableMS8607Component::compensated_humidity(0xFFFB, 20.0f);
+    float const humidity = MS8607Component::compensated_humidity(0xFFFB, 20.0f);
     EXPECT_NEAR(humidity, 118.99f, 1e-2f);
   }
 
   // 100% humidity at 20°
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(55575, 20.0f);
+    float const humidity = MS8607Component::compensated_humidity(55575, 20.0f);
     EXPECT_NEAR(humidity, 100.00f, 1e-2f);
   }
 
   // Humidity Compensation at High Temperature (100% RH @ +85°C)
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(55575, 85.0f);
+    float const humidity = MS8607Component::compensated_humidity(55575, 85.0f);
     EXPECT_NEAR(humidity, 111.70f, 1e-2f);
   }
 
   // Humidity Compensation at Extreme Low Temp (100% RH @ -40°C)
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(55575, -40.0f);
+    float const humidity = MS8607Component::compensated_humidity(55575, -40.0f);
     EXPECT_NEAR(humidity, 89.20f, 1e-2f);
   }
 
   // Low Humidity at Extreme Low Temp (0% RH @ -40°C)
   {
-    float const humidity = TestableMS8607Component::compensated_humidity(0, -40.0f);
+    float const humidity = MS8607Component::compensated_humidity(0, -40.0f);
     EXPECT_NEAR(humidity, -16.80f, 1e-2f);
   }
 }
@@ -258,9 +246,9 @@ TEST(MS8607Test, Category4MathematicalEdgeCases) {
   // Minimum value accepted by read_* methods
   {
     // these values are below what the data sheet accepts, but should avoid Undefined Behavior
-    auto temp_res = TestableMS8607Component::compensated_temperature(6315741, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(3961087, calibration_values, temp_res);
-    float const humidity = TestableMS8607Component::compensated_humidity(0, temp_res.temperature_float);
+    auto temp_res = MS8607Component::compensated_temperature(6315741, calibration_values);
+    float const pressure = MS8607Component::compensated_pressure(3961087, calibration_values, temp_res);
+    float const humidity = MS8607Component::compensated_humidity(0, temp_res.temperature_float);
 
     EXPECT_NEAR(temp_res.temperature_float, -50.0f, 1e-2f);
     EXPECT_NEAR(pressure, 0.0f, 1e-2f);
@@ -277,9 +265,9 @@ TEST(MS8607Test, Category4MathematicalEdgeCases) {
   // Maximum values accepted by read_* methods
   {
     // these values are above what the data sheet accepts, but should avoid Undefined Behavior
-    auto temp_res = TestableMS8607Component::compensated_temperature(10491904, calibration_values);
-    float const pressure = TestableMS8607Component::compensated_pressure(6857823, calibration_values, temp_res);
-    float const hum = TestableMS8607Component::compensated_humidity(0xFFFB, temp_res.temperature_float);
+    auto temp_res = MS8607Component::compensated_temperature(10491904, calibration_values);
+    float const pressure = MS8607Component::compensated_pressure(6857823, calibration_values, temp_res);
+    float const hum = MS8607Component::compensated_humidity(0xFFFB, temp_res.temperature_float);
 
     EXPECT_NEAR(temp_res.temperature_float, 100.0f, 1e-2f);
     EXPECT_NEAR(pressure, 1500.0f, 1e-2f);
