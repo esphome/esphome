@@ -41,6 +41,15 @@ static float decode_float(std::span<const uint8_t> data, size_t i, float unit, b
   return (f * unit);
 }
 
+// One measurement's sensor, register offset, and unit multiplier -- lets decode_em2m_()/decode_em4m_()
+// drive their (near-identical) decode-and-publish loops off a table instead of a repeated if-block
+// per field.
+struct FloatFieldSpec {
+  sensor::Sensor *sensor;
+  uint16_t reg;
+  float unit;
+};
+
 ReadState SelecMeter::next_read_state_after_main_block_() {
 #ifdef USE_TEXT_SENSOR
   if (this->serial_number_sensor_ != nullptr && !this->serial_number_published_ && !this->serial_number_disabled_)
@@ -233,74 +242,38 @@ bool SelecMeter::decode_em2m_(std::span<const uint8_t> data) {
     return false;
   }
 
-  bool all_finite = true;
-  auto selec_meter_get_float = [&](size_t i, float unit) -> float {
-    float value = decode_float(data, i, unit, this->word_swap_);
-    if (!std::isfinite(value))
-      all_finite = false;
-    return value;
+  const FloatFieldSpec fields[] = {
+      {this->total_active_energy_sensor_, SELEC_TOTAL_ACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->import_active_energy_sensor_, SELEC_IMPORT_ACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->export_active_energy_sensor_, SELEC_EXPORT_ACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->total_reactive_energy_sensor_, SELEC_TOTAL_REACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->import_reactive_energy_sensor_, SELEC_IMPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->export_reactive_energy_sensor_, SELEC_EXPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->apparent_energy_sensor_, SELEC_APPARENT_ENERGY, NO_DEC_UNIT},
+      {this->active_power_sensor_, SELEC_ACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->reactive_power_sensor_, SELEC_REACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->apparent_power_sensor_, SELEC_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->voltage_sensor_, SELEC_VOLTAGE, NO_DEC_UNIT},
+      {this->current_sensor_, SELEC_CURRENT, NO_DEC_UNIT},
+      {this->power_factor_sensor_, SELEC_POWER_FACTOR, NO_DEC_UNIT},
+      {this->frequency_sensor_, SELEC_FREQUENCY, NO_DEC_UNIT},
+      {this->maximum_demand_active_power_sensor_, SELEC_MAXIMUM_DEMAND_ACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->maximum_demand_reactive_power_sensor_, SELEC_MAXIMUM_DEMAND_REACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->maximum_demand_apparent_power_sensor_, SELEC_MAXIMUM_DEMAND_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT},
   };
 
-  float total_active_energy = selec_meter_get_float(SELEC_TOTAL_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float import_active_energy = selec_meter_get_float(SELEC_IMPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float export_active_energy = selec_meter_get_float(SELEC_EXPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float total_reactive_energy = selec_meter_get_float(SELEC_TOTAL_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float import_reactive_energy = selec_meter_get_float(SELEC_IMPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float export_reactive_energy = selec_meter_get_float(SELEC_EXPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float apparent_energy = selec_meter_get_float(SELEC_APPARENT_ENERGY * 2, NO_DEC_UNIT);
-  float active_power = selec_meter_get_float(SELEC_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float reactive_power = selec_meter_get_float(SELEC_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float apparent_power = selec_meter_get_float(SELEC_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float voltage = selec_meter_get_float(SELEC_VOLTAGE * 2, NO_DEC_UNIT);
-  float current = selec_meter_get_float(SELEC_CURRENT * 2, NO_DEC_UNIT);
-  float power_factor = selec_meter_get_float(SELEC_POWER_FACTOR * 2, NO_DEC_UNIT);
-  float frequency = selec_meter_get_float(SELEC_FREQUENCY * 2, NO_DEC_UNIT);
-  float maximum_demand_active_power =
-      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float maximum_demand_reactive_power =
-      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float maximum_demand_apparent_power =
-      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-
-  if (!all_finite) {
-    ESP_LOGW(TAG, "Non-finite value(s) decoded, check byte_order setting");
-    return false;
+  // A wrong byte_order corrupts every value the same way, so check all of them (independent of each
+  // field's unit multiplier) before publishing any -- an all-or-nothing block, same as decode_em4m_().
+  for (const auto &f : fields) {
+    if (!std::isfinite(decode_float(data, f.reg * 2, NO_DEC_UNIT, this->word_swap_))) {
+      ESP_LOGW(TAG, "Non-finite value(s) decoded, check byte_order setting");
+      return false;
+    }
   }
-
-  if (this->total_active_energy_sensor_ != nullptr)
-    this->total_active_energy_sensor_->publish_state(total_active_energy);
-  if (this->import_active_energy_sensor_ != nullptr)
-    this->import_active_energy_sensor_->publish_state(import_active_energy);
-  if (this->export_active_energy_sensor_ != nullptr)
-    this->export_active_energy_sensor_->publish_state(export_active_energy);
-  if (this->total_reactive_energy_sensor_ != nullptr)
-    this->total_reactive_energy_sensor_->publish_state(total_reactive_energy);
-  if (this->import_reactive_energy_sensor_ != nullptr)
-    this->import_reactive_energy_sensor_->publish_state(import_reactive_energy);
-  if (this->export_reactive_energy_sensor_ != nullptr)
-    this->export_reactive_energy_sensor_->publish_state(export_reactive_energy);
-  if (this->apparent_energy_sensor_ != nullptr)
-    this->apparent_energy_sensor_->publish_state(apparent_energy);
-  if (this->active_power_sensor_ != nullptr)
-    this->active_power_sensor_->publish_state(active_power);
-  if (this->reactive_power_sensor_ != nullptr)
-    this->reactive_power_sensor_->publish_state(reactive_power);
-  if (this->apparent_power_sensor_ != nullptr)
-    this->apparent_power_sensor_->publish_state(apparent_power);
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(current);
-  if (this->power_factor_sensor_ != nullptr)
-    this->power_factor_sensor_->publish_state(power_factor);
-  if (this->frequency_sensor_ != nullptr)
-    this->frequency_sensor_->publish_state(frequency);
-  if (this->maximum_demand_active_power_sensor_ != nullptr)
-    this->maximum_demand_active_power_sensor_->publish_state(maximum_demand_active_power);
-  if (this->maximum_demand_reactive_power_sensor_ != nullptr)
-    this->maximum_demand_reactive_power_sensor_->publish_state(maximum_demand_reactive_power);
-  if (this->maximum_demand_apparent_power_sensor_ != nullptr)
-    this->maximum_demand_apparent_power_sensor_->publish_state(maximum_demand_apparent_power);
+  for (const auto &f : fields) {
+    if (f.sensor != nullptr)
+      f.sensor->publish_state(decode_float(data, f.reg * 2, f.unit, this->word_swap_));
+  }
   return true;
 }
 
@@ -319,131 +292,71 @@ bool SelecMeter::decode_em4m_(std::span<const uint8_t> data) {
     }
   }
 
-  auto get_float = [&](size_t i, float unit) -> float { return decode_float(data, i, unit, this->word_swap_); };
-
-  // Common quantities, shared sensor keys with EM2M
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(get_float(EM4M_VOLTAGE * 2, NO_DEC_UNIT));
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(get_float(EM4M_CURRENT * 2, NO_DEC_UNIT));
-  if (this->active_power_sensor_ != nullptr)
-    this->active_power_sensor_->publish_state(get_float(EM4M_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->reactive_power_sensor_ != nullptr)
-    this->reactive_power_sensor_->publish_state(get_float(EM4M_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->apparent_power_sensor_ != nullptr)
-    this->apparent_power_sensor_->publish_state(get_float(EM4M_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->power_factor_sensor_ != nullptr)
-    this->power_factor_sensor_->publish_state(get_float(EM4M_POWER_FACTOR * 2, NO_DEC_UNIT));
-  if (this->frequency_sensor_ != nullptr)
-    this->frequency_sensor_->publish_state(get_float(EM4M_FREQUENCY * 2, NO_DEC_UNIT));
-  if (this->maximum_demand_active_power_sensor_ != nullptr) {
-    this->maximum_demand_active_power_sensor_->publish_state(
-        get_float(EM4M_MAXIMUM_DEMAND_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT));
+  const FloatFieldSpec fields[] = {
+      // Common quantities, shared sensor keys with EM2M
+      {this->voltage_sensor_, EM4M_VOLTAGE, NO_DEC_UNIT},
+      {this->current_sensor_, EM4M_CURRENT, NO_DEC_UNIT},
+      {this->active_power_sensor_, EM4M_ACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->reactive_power_sensor_, EM4M_REACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->apparent_power_sensor_, EM4M_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->power_factor_sensor_, EM4M_POWER_FACTOR, NO_DEC_UNIT},
+      {this->frequency_sensor_, EM4M_FREQUENCY, NO_DEC_UNIT},
+      {this->maximum_demand_active_power_sensor_, EM4M_MAXIMUM_DEMAND_ACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->maximum_demand_reactive_power_sensor_, EM4M_MAXIMUM_DEMAND_REACTIVE_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->maximum_demand_apparent_power_sensor_, EM4M_MAXIMUM_DEMAND_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT},
+      {this->import_active_energy_sensor_, EM4M_IMPORT_ACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->export_active_energy_sensor_, EM4M_EXPORT_ACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->import_reactive_energy_sensor_, EM4M_IMPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
+      {this->export_reactive_energy_sensor_, EM4M_EXPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
+      // Per-phase quantities
+      {this->voltage_l1_sensor_, EM4M_VOLTAGE_L1, NO_DEC_UNIT},
+      {this->voltage_l2_sensor_, EM4M_VOLTAGE_L2, NO_DEC_UNIT},
+      {this->voltage_l3_sensor_, EM4M_VOLTAGE_L3, NO_DEC_UNIT},
+      {this->voltage_l12_sensor_, EM4M_VOLTAGE_L12, NO_DEC_UNIT},
+      {this->voltage_l23_sensor_, EM4M_VOLTAGE_L23, NO_DEC_UNIT},
+      {this->voltage_l31_sensor_, EM4M_VOLTAGE_L31, NO_DEC_UNIT},
+      {this->current_l1_sensor_, EM4M_CURRENT_L1, NO_DEC_UNIT},
+      {this->current_l2_sensor_, EM4M_CURRENT_L2, NO_DEC_UNIT},
+      {this->current_l3_sensor_, EM4M_CURRENT_L3, NO_DEC_UNIT},
+      {this->active_power_l1_sensor_, EM4M_ACTIVE_POWER_L1, MULTIPLY_THOUSAND_UNIT},
+      {this->active_power_l2_sensor_, EM4M_ACTIVE_POWER_L2, MULTIPLY_THOUSAND_UNIT},
+      {this->active_power_l3_sensor_, EM4M_ACTIVE_POWER_L3, MULTIPLY_THOUSAND_UNIT},
+      {this->reactive_power_l1_sensor_, EM4M_REACTIVE_POWER_L1, MULTIPLY_THOUSAND_UNIT},
+      {this->reactive_power_l2_sensor_, EM4M_REACTIVE_POWER_L2, MULTIPLY_THOUSAND_UNIT},
+      {this->reactive_power_l3_sensor_, EM4M_REACTIVE_POWER_L3, MULTIPLY_THOUSAND_UNIT},
+      {this->apparent_power_l1_sensor_, EM4M_APPARENT_POWER_L1, MULTIPLY_THOUSAND_UNIT},
+      {this->apparent_power_l2_sensor_, EM4M_APPARENT_POWER_L2, MULTIPLY_THOUSAND_UNIT},
+      {this->apparent_power_l3_sensor_, EM4M_APPARENT_POWER_L3, MULTIPLY_THOUSAND_UNIT},
+      {this->power_factor_l1_sensor_, EM4M_POWER_FACTOR_L1, NO_DEC_UNIT},
+      {this->power_factor_l2_sensor_, EM4M_POWER_FACTOR_L2, NO_DEC_UNIT},
+      {this->power_factor_l3_sensor_, EM4M_POWER_FACTOR_L3, NO_DEC_UNIT},
+      {this->import_active_energy_l1_sensor_, EM4M_IMPORT_ACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {this->import_active_energy_l2_sensor_, EM4M_IMPORT_ACTIVE_ENERGY_L2, NO_DEC_UNIT},
+      {this->import_active_energy_l3_sensor_, EM4M_IMPORT_ACTIVE_ENERGY_L3, NO_DEC_UNIT},
+      {this->export_active_energy_l1_sensor_, EM4M_EXPORT_ACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {this->export_active_energy_l2_sensor_, EM4M_EXPORT_ACTIVE_ENERGY_L2, NO_DEC_UNIT},
+      {this->export_active_energy_l3_sensor_, EM4M_EXPORT_ACTIVE_ENERGY_L3, NO_DEC_UNIT},
+      {this->import_reactive_energy_l1_sensor_, EM4M_IMPORT_REACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {this->import_reactive_energy_l2_sensor_, EM4M_IMPORT_REACTIVE_ENERGY_L2, NO_DEC_UNIT},
+      {this->import_reactive_energy_l3_sensor_, EM4M_IMPORT_REACTIVE_ENERGY_L3, NO_DEC_UNIT},
+      {this->export_reactive_energy_l1_sensor_, EM4M_EXPORT_REACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {this->export_reactive_energy_l2_sensor_, EM4M_EXPORT_REACTIVE_ENERGY_L2, NO_DEC_UNIT},
+      {this->export_reactive_energy_l3_sensor_, EM4M_EXPORT_REACTIVE_ENERGY_L3, NO_DEC_UNIT},
+      {this->apparent_energy_l1_sensor_, EM4M_APPARENT_ENERGY_L1, NO_DEC_UNIT},
+      {this->apparent_energy_l2_sensor_, EM4M_APPARENT_ENERGY_L2, NO_DEC_UNIT},
+      {this->apparent_energy_l3_sensor_, EM4M_APPARENT_ENERGY_L3, NO_DEC_UNIT},
+      {this->average_voltage_ll_sensor_, EM4M_AVERAGE_VOLTAGE_LL, NO_DEC_UNIT},
+      {this->net_active_energy_mains_sensor_, EM4M_NET_ACTIVE_ENERGY_MAINS, NO_DEC_UNIT},
+      {this->net_reactive_energy_mains_sensor_, EM4M_NET_REACTIVE_ENERGY_MAINS, NO_DEC_UNIT},
+      {this->net_apparent_energy_mains_sensor_, EM4M_NET_APPARENT_ENERGY_MAINS, NO_DEC_UNIT},
+      {this->net_active_energy_dg_sensor_, EM4M_NET_ACTIVE_ENERGY_DG, NO_DEC_UNIT},
+      {this->net_reactive_energy_dg_sensor_, EM4M_NET_REACTIVE_ENERGY_DG, NO_DEC_UNIT},
+      {this->net_apparent_energy_dg_sensor_, EM4M_NET_APPARENT_ENERGY_DG, NO_DEC_UNIT},
+  };
+  for (const auto &f : fields) {
+    if (f.sensor != nullptr)
+      f.sensor->publish_state(decode_float(data, f.reg * 2, f.unit, this->word_swap_));
   }
-  if (this->maximum_demand_reactive_power_sensor_ != nullptr) {
-    this->maximum_demand_reactive_power_sensor_->publish_state(
-        get_float(EM4M_MAXIMUM_DEMAND_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT));
-  }
-  if (this->maximum_demand_apparent_power_sensor_ != nullptr) {
-    this->maximum_demand_apparent_power_sensor_->publish_state(
-        get_float(EM4M_MAXIMUM_DEMAND_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT));
-  }
-  if (this->import_active_energy_sensor_ != nullptr)
-    this->import_active_energy_sensor_->publish_state(get_float(EM4M_IMPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT));
-  if (this->export_active_energy_sensor_ != nullptr)
-    this->export_active_energy_sensor_->publish_state(get_float(EM4M_EXPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT));
-  if (this->import_reactive_energy_sensor_ != nullptr)
-    this->import_reactive_energy_sensor_->publish_state(get_float(EM4M_IMPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT));
-  if (this->export_reactive_energy_sensor_ != nullptr)
-    this->export_reactive_energy_sensor_->publish_state(get_float(EM4M_EXPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT));
-
-  // Per-phase quantities
-  if (this->voltage_l1_sensor_ != nullptr)
-    this->voltage_l1_sensor_->publish_state(get_float(EM4M_VOLTAGE_L1 * 2, NO_DEC_UNIT));
-  if (this->voltage_l2_sensor_ != nullptr)
-    this->voltage_l2_sensor_->publish_state(get_float(EM4M_VOLTAGE_L2 * 2, NO_DEC_UNIT));
-  if (this->voltage_l3_sensor_ != nullptr)
-    this->voltage_l3_sensor_->publish_state(get_float(EM4M_VOLTAGE_L3 * 2, NO_DEC_UNIT));
-  if (this->voltage_l12_sensor_ != nullptr)
-    this->voltage_l12_sensor_->publish_state(get_float(EM4M_VOLTAGE_L12 * 2, NO_DEC_UNIT));
-  if (this->voltage_l23_sensor_ != nullptr)
-    this->voltage_l23_sensor_->publish_state(get_float(EM4M_VOLTAGE_L23 * 2, NO_DEC_UNIT));
-  if (this->voltage_l31_sensor_ != nullptr)
-    this->voltage_l31_sensor_->publish_state(get_float(EM4M_VOLTAGE_L31 * 2, NO_DEC_UNIT));
-  if (this->current_l1_sensor_ != nullptr)
-    this->current_l1_sensor_->publish_state(get_float(EM4M_CURRENT_L1 * 2, NO_DEC_UNIT));
-  if (this->current_l2_sensor_ != nullptr)
-    this->current_l2_sensor_->publish_state(get_float(EM4M_CURRENT_L2 * 2, NO_DEC_UNIT));
-  if (this->current_l3_sensor_ != nullptr)
-    this->current_l3_sensor_->publish_state(get_float(EM4M_CURRENT_L3 * 2, NO_DEC_UNIT));
-  if (this->active_power_l1_sensor_ != nullptr)
-    this->active_power_l1_sensor_->publish_state(get_float(EM4M_ACTIVE_POWER_L1 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->active_power_l2_sensor_ != nullptr)
-    this->active_power_l2_sensor_->publish_state(get_float(EM4M_ACTIVE_POWER_L2 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->active_power_l3_sensor_ != nullptr)
-    this->active_power_l3_sensor_->publish_state(get_float(EM4M_ACTIVE_POWER_L3 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->reactive_power_l1_sensor_ != nullptr)
-    this->reactive_power_l1_sensor_->publish_state(get_float(EM4M_REACTIVE_POWER_L1 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->reactive_power_l2_sensor_ != nullptr)
-    this->reactive_power_l2_sensor_->publish_state(get_float(EM4M_REACTIVE_POWER_L2 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->reactive_power_l3_sensor_ != nullptr)
-    this->reactive_power_l3_sensor_->publish_state(get_float(EM4M_REACTIVE_POWER_L3 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->apparent_power_l1_sensor_ != nullptr)
-    this->apparent_power_l1_sensor_->publish_state(get_float(EM4M_APPARENT_POWER_L1 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->apparent_power_l2_sensor_ != nullptr)
-    this->apparent_power_l2_sensor_->publish_state(get_float(EM4M_APPARENT_POWER_L2 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->apparent_power_l3_sensor_ != nullptr)
-    this->apparent_power_l3_sensor_->publish_state(get_float(EM4M_APPARENT_POWER_L3 * 2, MULTIPLY_THOUSAND_UNIT));
-  if (this->power_factor_l1_sensor_ != nullptr)
-    this->power_factor_l1_sensor_->publish_state(get_float(EM4M_POWER_FACTOR_L1 * 2, NO_DEC_UNIT));
-  if (this->power_factor_l2_sensor_ != nullptr)
-    this->power_factor_l2_sensor_->publish_state(get_float(EM4M_POWER_FACTOR_L2 * 2, NO_DEC_UNIT));
-  if (this->power_factor_l3_sensor_ != nullptr)
-    this->power_factor_l3_sensor_->publish_state(get_float(EM4M_POWER_FACTOR_L3 * 2, NO_DEC_UNIT));
-  if (this->import_active_energy_l1_sensor_ != nullptr)
-    this->import_active_energy_l1_sensor_->publish_state(get_float(EM4M_IMPORT_ACTIVE_ENERGY_L1 * 2, NO_DEC_UNIT));
-  if (this->import_active_energy_l2_sensor_ != nullptr)
-    this->import_active_energy_l2_sensor_->publish_state(get_float(EM4M_IMPORT_ACTIVE_ENERGY_L2 * 2, NO_DEC_UNIT));
-  if (this->import_active_energy_l3_sensor_ != nullptr)
-    this->import_active_energy_l3_sensor_->publish_state(get_float(EM4M_IMPORT_ACTIVE_ENERGY_L3 * 2, NO_DEC_UNIT));
-  if (this->export_active_energy_l1_sensor_ != nullptr)
-    this->export_active_energy_l1_sensor_->publish_state(get_float(EM4M_EXPORT_ACTIVE_ENERGY_L1 * 2, NO_DEC_UNIT));
-  if (this->export_active_energy_l2_sensor_ != nullptr)
-    this->export_active_energy_l2_sensor_->publish_state(get_float(EM4M_EXPORT_ACTIVE_ENERGY_L2 * 2, NO_DEC_UNIT));
-  if (this->export_active_energy_l3_sensor_ != nullptr)
-    this->export_active_energy_l3_sensor_->publish_state(get_float(EM4M_EXPORT_ACTIVE_ENERGY_L3 * 2, NO_DEC_UNIT));
-  if (this->import_reactive_energy_l1_sensor_ != nullptr)
-    this->import_reactive_energy_l1_sensor_->publish_state(get_float(EM4M_IMPORT_REACTIVE_ENERGY_L1 * 2, NO_DEC_UNIT));
-  if (this->import_reactive_energy_l2_sensor_ != nullptr)
-    this->import_reactive_energy_l2_sensor_->publish_state(get_float(EM4M_IMPORT_REACTIVE_ENERGY_L2 * 2, NO_DEC_UNIT));
-  if (this->import_reactive_energy_l3_sensor_ != nullptr)
-    this->import_reactive_energy_l3_sensor_->publish_state(get_float(EM4M_IMPORT_REACTIVE_ENERGY_L3 * 2, NO_DEC_UNIT));
-  if (this->export_reactive_energy_l1_sensor_ != nullptr)
-    this->export_reactive_energy_l1_sensor_->publish_state(get_float(EM4M_EXPORT_REACTIVE_ENERGY_L1 * 2, NO_DEC_UNIT));
-  if (this->export_reactive_energy_l2_sensor_ != nullptr)
-    this->export_reactive_energy_l2_sensor_->publish_state(get_float(EM4M_EXPORT_REACTIVE_ENERGY_L2 * 2, NO_DEC_UNIT));
-  if (this->export_reactive_energy_l3_sensor_ != nullptr)
-    this->export_reactive_energy_l3_sensor_->publish_state(get_float(EM4M_EXPORT_REACTIVE_ENERGY_L3 * 2, NO_DEC_UNIT));
-  if (this->apparent_energy_l1_sensor_ != nullptr)
-    this->apparent_energy_l1_sensor_->publish_state(get_float(EM4M_APPARENT_ENERGY_L1 * 2, NO_DEC_UNIT));
-  if (this->apparent_energy_l2_sensor_ != nullptr)
-    this->apparent_energy_l2_sensor_->publish_state(get_float(EM4M_APPARENT_ENERGY_L2 * 2, NO_DEC_UNIT));
-  if (this->apparent_energy_l3_sensor_ != nullptr)
-    this->apparent_energy_l3_sensor_->publish_state(get_float(EM4M_APPARENT_ENERGY_L3 * 2, NO_DEC_UNIT));
-  if (this->average_voltage_ll_sensor_ != nullptr)
-    this->average_voltage_ll_sensor_->publish_state(get_float(EM4M_AVERAGE_VOLTAGE_LL * 2, NO_DEC_UNIT));
-  if (this->net_active_energy_mains_sensor_ != nullptr)
-    this->net_active_energy_mains_sensor_->publish_state(get_float(EM4M_NET_ACTIVE_ENERGY_MAINS * 2, NO_DEC_UNIT));
-  if (this->net_reactive_energy_mains_sensor_ != nullptr)
-    this->net_reactive_energy_mains_sensor_->publish_state(get_float(EM4M_NET_REACTIVE_ENERGY_MAINS * 2, NO_DEC_UNIT));
-  if (this->net_apparent_energy_mains_sensor_ != nullptr)
-    this->net_apparent_energy_mains_sensor_->publish_state(get_float(EM4M_NET_APPARENT_ENERGY_MAINS * 2, NO_DEC_UNIT));
-  if (this->net_active_energy_dg_sensor_ != nullptr)
-    this->net_active_energy_dg_sensor_->publish_state(get_float(EM4M_NET_ACTIVE_ENERGY_DG * 2, NO_DEC_UNIT));
-  if (this->net_reactive_energy_dg_sensor_ != nullptr)
-    this->net_reactive_energy_dg_sensor_->publish_state(get_float(EM4M_NET_REACTIVE_ENERGY_DG * 2, NO_DEC_UNIT));
-  if (this->net_apparent_energy_dg_sensor_ != nullptr)
-    this->net_apparent_energy_dg_sensor_->publish_state(get_float(EM4M_NET_APPARENT_ENERGY_DG * 2, NO_DEC_UNIT));
   return true;
 }
 
