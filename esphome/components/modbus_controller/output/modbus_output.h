@@ -8,13 +8,13 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusFloatOutput final : public output::FloatOutput, public Component, public SensorItem, public WriterDevice {
+class ModbusFloatOutput final : public output::FloatOutput, public Component, public SensorItem, public WriterEntity {
  public:
   ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = modbus::EntityType::HOLDING;
     // Byte offset applied byte-accurately: fold the whole-register shift into the address (write-only, so
     // the residual byte only matters if this entity is ever read back).
-    this->SensorItem::set_address(start_address + offset / 2);
+    this->set_address(start_address + offset / 2);
     this->set_offset_from_start_address(offset % 2);
     this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
@@ -39,12 +39,12 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
   bool use_write_multiple_{false};
 };
 
-class ModbusBinaryOutput final : public output::BinaryOutput, public Component, public SensorItem, public WriterDevice {
+class ModbusBinaryOutput final : public output::BinaryOutput, public Component, public SensorItem, public WriterEntity {
  public:
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = modbus::EntityType::COIL;
     // A coil offset is a coil count; fold it into the address.
-    this->SensorItem::set_address(start_address + offset);
+    this->set_address(start_address + offset);
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
     this->register_count = 1;
