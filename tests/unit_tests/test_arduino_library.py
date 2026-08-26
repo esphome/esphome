@@ -918,6 +918,30 @@ def test_dict_shorthand_dependency_skips_registry_through_real_converter(
     # the bundled copy, so the reconciliation passed without raising
 
 
+def test_versionless_provides_skip_is_reconciled_through_real_converter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A truly version-less bare-name dependency the walk skips on the
+    backend's promise is recorded and fulfilled by the bundled copy."""
+    framework = _make_framework(tmp_path)
+    _local_lib(tmp_path, ["Wire"])
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
+    libs = _resolve(framework)
+    assert "Wire" in [lib.name for lib in libs]
+
+
+def test_platform_filtered_bundled_candidate_does_not_break_reconciliation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bundled candidate the backend knowingly skips (platform filter)
+    counts as satisfied; the promise reconciliation must not raise."""
+    framework = _make_framework(tmp_path)
+    _local_lib(tmp_path, [{"name": "Wire", "platforms": ["espressif32"]}])
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(tmp_path / ".esphome"))
+    libs = _resolve(framework)
+    assert "Wire" not in [lib.name for lib in libs]
+
+
 @pytest.mark.parametrize(
     ("bad_name", "message"),
     [
