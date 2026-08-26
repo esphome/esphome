@@ -536,8 +536,7 @@ def run_compile(config, verbose: bool) -> int:
     try:
         prepare_pch()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Discard so an unexpected error can never leave a stale .gch that
-        # GCC would silently consume; exc_info keeps the failure diagnosable
+        # Discard so a stale .gch can never be consumed
         with suppress(OSError):
             discard_pch()
         _LOGGER.warning(

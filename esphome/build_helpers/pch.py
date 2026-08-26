@@ -171,9 +171,8 @@ def pch_checksum(
     return digest.hexdigest()
 
 
-# Compile-command tokens dropped when retargeting a TU's flags at the
-# prefix header: source/output/depfile flags with an argument, and the
-# argument-less depfile flags (the pch compile must not touch depfiles)
+# Tokens dropped when retargeting a TU's flags at the prefix header
+# (the pch compile must not touch depfiles)
 _PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-o", "-c", "-MT", "-MF", "-MQ"})
 _PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
 
@@ -225,8 +224,7 @@ def pch_compile_command(
     if tokens and is_launcher(tokens[0]):
         tokens = tokens[1:]
     if not tokens:
-        # An "arguments"-style or empty entry must skip cleanly, not spawn
-        # a compiler-less argv that warns on every build
+        # "arguments"-style or empty entries must skip, not spawn "-x ..."
         _LOGGER.warning("Compile database entry has no usable command, skipping pch")
         return None
     args: list[str] = []
@@ -302,9 +300,8 @@ def prepare_pch(
         discard_pch(build_dir)
         return
     cmd, cmd_dir = cmd_and_dir
-    # Stripped like ccache's own rewriting (a user CCACHE_BASEDIR wins) so
-    # identical configs hash identically across devices; the raw build path
-    # covers unresolved spellings in the compile DB
+    # Strip like ccache's rewriting (user CCACHE_BASEDIR wins); the raw
+    # build path covers unresolved (symlinked) spellings
     cmd_id = (
         " ".join(cmd)
         .replace(effective_ccache_basedir(), "")

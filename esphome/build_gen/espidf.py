@@ -292,17 +292,15 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 def _pch_cmake() -> str:
     """The src component's precompiled-header block (C++ TUs only).
 
-    The -include stays relative (resolved from the compilers' cwd, the
-    build dir, where prepare_pch() puts the header and .gch); an absolute
-    path would poison ccache keys with the per-device build path.
+    The -include stays relative (resolved from the compiler cwd, the build
+    dir); an absolute path would poison ccache keys.
     """
     if not pch_enabled():
         return ""
     return f"""
-# ESPHome precompiled header (see esphome/build_helpers/pch.py). The
-# OBJECT_DEPENDS edge is on the header, not the .gch: headers baked into
-# a .gch drop out of the TU depfiles, and prepare_pch() touches the
-# header whenever it rebuilds the .gch so consumers recompile.
+# ESPHome precompiled header (see esphome/build_helpers/pch.py).
+# OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
+# out of TU depfiles, and prepare_pch() touches the header on rebuild.
 target_compile_options(${{COMPONENT_LIB}} PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
     "$<$<COMPILE_LANGUAGE:CXX>:-include>"
@@ -329,9 +327,8 @@ def prepare_pch() -> None:
     try:
         sdkconfig = sdkconfig_path.read_text(encoding="utf-8")
     except OSError as err:
-        # Fail closed: the sdkconfig is the only config-awareness the .sum
-        # has for options that surface via sdkconfig.h, and any stand-in
-        # marker would collide across devices
+        # Fail closed: the sdkconfig is the .sum's only config identity for
+        # sdkconfig.h-only options; a stand-in marker would collide
         _LOGGER.warning(
             "Could not read %s; compiling without the pch: %s", sdkconfig_path, err
         )
