@@ -23,7 +23,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from queue import Empty, SimpleQueue
+from queue import SimpleQueue
 import signal
 import subprocess
 import sys
@@ -33,12 +33,13 @@ from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
     content_length,
+    discard_partial_download,
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
     warn_prefetch_failures,
 )
-from esphome.helpers import rmtree
+from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -269,12 +270,8 @@ def _registry_jobs(
         results = list(ex.map(_resolve, pending))
     jobs: list[tuple[str, int, Any]] = []
     installable: list[tuple[str, Any]] = []
-    failed = 0
     for res in results:
-        if res is None:
-            continue
-        if res is _RESOLVE_FAILED:
-            failed += 1
+        if res is None or res is _RESOLVE_FAILED:
             continue
         installable.append((res.name, res.spec))
         if res.cached or str(res.dl_path) in seen:
@@ -289,7 +286,7 @@ def _registry_jobs(
                 ),
             )
         )
-    if failed:
+    if failed := len(errors):
         # Visible once per build, naming a cause so an API break does not
         # read as an outage; per-spec detail stays at debug
         _LOGGER.warning(
@@ -297,7 +294,7 @@ def _registry_jobs(
             "PlatformIO will download them serially",
             failed,
             len(pending),
-            errors[0] if errors else "unknown error",
+            errors[0],
         )
     return jobs, failed, installable
 
@@ -413,7 +410,7 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
             if dl_path.is_file():
                 # Another process finished it while we waited; the staging
                 # files are dead weight PlatformIO's cache never prunes
-                _discard_staging(tmp)
+                discard_partial_download(tmp)
                 return
             fetch(tracker)
             tmp.replace(dl_path)
@@ -421,13 +418,6 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
             lock.release()
 
     return run
-
-
-def _discard_staging(tmp: Path) -> None:
-    part = tmp.with_name(tmp.name + ".part")
-    for stale in (tmp, part, part.with_name(part.name + ".meta")):
-        with suppress(OSError):
-            stale.unlink()
 
 
 def _dependency_entries(
@@ -479,8 +469,7 @@ def _preinstall(
     installed manifests feed the next wave until nothing new appears. Any
     failure leaves that package to pio run's serial installer.
     """
-    cpus = getattr(os, "process_cpu_count", os.cpu_count)() or 4
-    workers = min(cpus, len(entries))
+    workers = min(get_usable_cpu_count() or 4, len(entries))
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -491,11 +480,8 @@ def _preinstall(
     def _install_one(entry) -> bool:
         name, spec = entry
         if (mgr := getattr(local, "mgr", None)) is None:
-            try:
-                mgr = managers.get_nowait()
-            except Empty:
-                mgr = manager.__class__(manager.package_dir, **_manager_kwargs(manager))
-            local.mgr = mgr
+            # at most `workers` pool threads, one dequeue each
+            mgr = local.mgr = managers.get_nowait()
         try:
             mgr._install(spec, skip_dependencies=True)  # pylint: disable=protected-access  # noqa: SLF001
             return True
@@ -565,7 +551,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
     from platformio.dependencies import get_core_dependencies
     from platformio.package.manager.library import LibraryPackageManager
     from platformio.package.manager.platform import PlatformPackageManager
-    from platformio.package.meta import PackageSpec
+    from platformio.package.meta import PackageCompatibility, PackageSpec
     from platformio.platform.factory import PlatformFactory
 
     platform_spec, config = _project_platform_and_config(
@@ -603,8 +589,6 @@ def _prefetch(build_dir: Path, env: str) -> None:
     # pio run's storage dir for this env, with its compatibility
     # qualifiers: an unqualified library install could land a different
     # owner's package pio run would then trust
-    from platformio.package.meta import PackageCompatibility
-
     qualifiers: dict[str, Any] = {"platforms": [p.name]}
     if framework := config.get(f"env:{env}", "framework", None):
         qualifiers["frameworks"] = framework
@@ -701,8 +685,16 @@ def main(argv: list[str]) -> int:
         level = logging.INFO
     # Mirror the parent's log setup: warnings keep their level prefix and
     # color, and the download bar still draws under the dashboard
-    CORE.dashboard = bool(os.environ.get("ESPHOME_PREFETCH_DASHBOARD"))
+    CORE.dashboard = get_bool_env("ESPHOME_PREFETCH_DASHBOARD")
     setup_log(level)
+    # pio's managers attach their own handler and still propagate; without
+    # this every manager line also prints through the root handler
+    for cls_name in (
+        "ToolPackageManager",
+        "LibraryPackageManager",
+        "PlatformPackageManager",
+    ):
+        logging.getLogger(cls_name.replace("Package", " ")).propagate = False
     if len(argv) != 2:
         # A wiring bug, not a network failure; make it distinguishable
         _LOGGER.warning("prefetch usage: <build_dir> <env_name>")

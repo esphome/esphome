@@ -909,6 +909,14 @@ def _part_path(dest: Path) -> Path:
     return dest.with_name(dest.name + ".part")
 
 
+def discard_partial_download(dest: Path) -> None:
+    """Remove ``dest`` and the resume sidecars of an abandoned download."""
+    part = _part_path(dest)
+    for stale in (dest, part, part.with_name(part.name + ".meta")):
+        with suppress(OSError):
+            stale.unlink()
+
+
 def _cancellable_sleep(
     delay: float, progress: Callable[[int], None] | None, done: int
 ) -> None:

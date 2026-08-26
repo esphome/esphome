@@ -22,6 +22,8 @@ def _core(tmp_path: Path):
     CORE.name = "testenv"
     saved_bar = os.environ.get("PLATFORMIO_DISABLE_PROGRESSBAR")
     saved_sigterm = signal.getsignal(signal.SIGTERM)
+    pio_loggers = ("Tool Manager", "Library Manager", "Platform Manager")
+    saved_propagate = {n: pf.logging.getLogger(n).propagate for n in pio_loggers}
     yield
     # _preinstall and main() set these process-wide; keep the suite hermetic
     if saved_bar is None:
@@ -29,6 +31,8 @@ def _core(tmp_path: Path):
     else:
         os.environ["PLATFORMIO_DISABLE_PROGRESSBAR"] = saved_bar
     signal.signal(signal.SIGTERM, saved_sigterm)
+    for n, flag in saved_propagate.items():
+        pf.logging.getLogger(n).propagate = flag
     CORE.reset()
 
 
@@ -268,6 +272,15 @@ def test_main_bad_log_level_falls_back(tmp_path: Path) -> None:
     ):
         assert pf.main([str(tmp_path), "testenv"]) == 0
     assert mock_setup.call_args[0][0] == pf.logging.INFO
+
+
+def test_main_silences_pio_manager_propagation(tmp_path: Path) -> None:
+    """The pio manager loggers carry their own handler; propagation to
+    the root handler would print every install line twice."""
+    with patch("esphome.log.setup_log"), patch.object(pf, "_prefetch"):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    for name in ("Tool Manager", "Library Manager", "Platform Manager"):
+        assert pf.logging.getLogger(name).propagate is False
 
 
 def test_main_mirrors_parent_log_setup(tmp_path: Path) -> None:
@@ -773,10 +786,10 @@ def test_prefetch_warm_sentinel_skips_spawn(tmp_path: Path) -> None:
     _write_valid_sentinel(tmp_path, [str(pkg_dir)])
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
-        patch.object(pf.subprocess, "run") as mock_run,
+        patch.object(pf.subprocess, "Popen") as mock_popen,
     ):
         pf.prefetch_platformio_packages()
-    mock_run.assert_not_called()
+    mock_popen.assert_not_called()
 
 
 def test_prefetch_end_to_end_wiring(
@@ -1054,15 +1067,6 @@ def test_dependency_entries_skip_installed(tmp_path: Path) -> None:
         pf._dependency_entries(m, [("top@1", _FakeSpec(uri=None, name="top"))], set())
         == []
     )
-
-
-def test_preinstall_empty_queue_builds_a_manager(tmp_path: Path) -> None:
-    """A manager-supply shortfall degrades one entry, not the batch."""
-    m = _fake_manager(tmp_path)
-    with patch.object(pf, "SimpleQueue") as mock_queue:
-        mock_queue.return_value.get_nowait.side_effect = pf.Empty()
-        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
-    m._install.assert_called_once()
 
 
 def test_group_failure_does_not_skip_other_groups(tmp_path: Path) -> None:
