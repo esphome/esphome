@@ -8,6 +8,7 @@
 #include "esphome/core/helpers.h"
 #ifdef USE_WIFI
 #include <improv.h>
+#include <span>
 #include <vector>
 
 #ifdef USE_ESP32
@@ -60,11 +61,11 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   void set_state_(improv::State state);
   void send_current_state_(improv::State state);
   void set_error_(improv::Error error);
-  void send_response_(std::vector<uint8_t> &response);
+  void send_response_(std::span<const uint8_t> response);
   void on_wifi_connect_timeout_();
 
-  std::vector<uint8_t> build_rpc_settings_response_(improv::Command command);
-  std::vector<uint8_t> build_version_info_();
+  void send_settings_response_(improv::Command command);
+  void send_version_info_();
 
   ESPHOME_ALWAYS_INLINE optional<uint8_t> read_byte_() {
     optional<uint8_t> byte;
