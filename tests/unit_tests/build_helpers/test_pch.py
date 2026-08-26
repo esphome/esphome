@@ -45,22 +45,23 @@ def test_ccache_pch_env_disabled() -> None:
         assert pch.ccache_pch_env() == {}
 
 
-def test_ccache_pch_env_respects_user_values(
+def test_ccache_pch_env_unions_user_sloppiness(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A user CCACHE_SLOPPINESS wins, but one without pch_defines silently
-    stops ccache from caching pch consumers, so it must warn."""
+    """Without pch_defines/time_macros ccache declines every pch-consuming
+    compile, so missing tokens are unioned onto the user's value."""
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
         env = pch.ccache_pch_env()
-    assert "CCACHE_SLOPPINESS" not in env
+    assert env["CCACHE_SLOPPINESS"] == "locale,pch_defines,time_macros"
     assert env["CCACHE_PCH_EXTSUM"] == "true"
-    assert "lacks pch_defines" in caplog.text
+    assert "Adding pch_defines,time_macros" in caplog.text
     caplog.clear()
     with patch.dict(
-        os.environ, {"CCACHE_SLOPPINESS": "pch_defines,locale"}, clear=True
+        os.environ, {"CCACHE_SLOPPINESS": "pch_defines,time_macros"}, clear=True
     ):
-        pch.ccache_pch_env()
-    assert "lacks pch_defines" not in caplog.text
+        env = pch.ccache_pch_env()
+    assert "CCACHE_SLOPPINESS" not in env
+    assert not caplog.records
 
 
 def test_pch_header_text_preserves_order() -> None:
@@ -140,3 +141,28 @@ def test_pch_extra_scripts_gated(monkeypatch: pytest.MonkeyPatch) -> None:
         assert pch.pch_extra_scripts() == ["post:pch.py"]
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     assert pch.pch_extra_scripts() == []
+
+
+def test_include_closure_raises_when_identity_unknown(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Read AND stat failing means no marker can vouch for the header, so
+    the OSError propagates and callers compile without a pch."""
+
+    class _BadFile:
+        def is_file(self) -> bool:
+            return True
+
+        def read_bytes(self) -> bytes:
+            raise OSError("read failed")
+
+        def stat(self) -> None:
+            raise OSError("stat failed")
+
+    class _FakeSrcDir:
+        def __truediv__(self, rel: str) -> _BadFile:
+            return _BadFile()
+
+    with pytest.raises(OSError, match="stat failed"):
+        pch._include_closure(_FakeSrcDir(), ["a.h"])
+    assert "Could not read a.h" in caplog.text

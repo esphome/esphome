@@ -1223,44 +1223,54 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         # edges keep srcflags (a .gch is a C++ artifact)
         # The opt-out hint matters when a toolchain rejects its own .gch:
         # the build stays correct but every TU warns via -Winvalid-pch
-        _LOGGER.info(
-            "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
-        )
         pch_header = build_dir / PCH_HEADER_NAME
         pch_includes = (*src_includes, PCH_CORE_HEADER)
         pch_text = pch_header_text(pch_includes)
-        write_file_if_changed(pch_header, pch_text)
-        if ccache:
-            # The .sum sidecar only exists for CCACHE_PCH_EXTSUM; ninja's
-            # depfile handles staleness. Mirror CCACHE_BASEDIR: strip the
-            # per-device build path so identically-configured devices
-            # produce identical .sum files and share cache entries
-            flags_id = " ".join(cxxflags).replace(effective_ccache_basedir(), "")
-            # The header text covers include order, which the sorted
-            # closure alone does not
-            checksum = pch_checksum(
-                src_dir,
-                pch_includes,
-                (
-                    pch_text,
-                    str(paths.framework),
-                    str(paths.toolchain),
-                    flags_id,
-                ),
+        checksum = None
+        try:
+            if ccache:
+                # The .sum sidecar only exists for CCACHE_PCH_EXTSUM; ninja's
+                # depfile handles staleness. Mirror CCACHE_BASEDIR: strip the
+                # per-device build path so identically-configured devices
+                # produce identical .sum files and share cache entries
+                flags_id = " ".join(cxxflags).replace(effective_ccache_basedir(), "")
+                # The header text covers include order, which the sorted
+                # closure alone does not
+                checksum = pch_checksum(
+                    src_dir,
+                    pch_includes,
+                    (
+                        pch_text,
+                        str(paths.framework),
+                        str(paths.toolchain),
+                        flags_id,
+                    ),
+                )
+        except OSError as err:
+            # Identity unknown: a stale cache entry must never be served
+            _LOGGER.warning(
+                "Could not establish the pch identity; compiling without it: %s", err
             )
-            write_file_if_changed(
-                build_dir / f"{PCH_HEADER_NAME}.gch.sum", checksum + "\n"
+        else:
+            _LOGGER.info(
+                "Compiling with a precompiled header "
+                "(set ESPHOME_PCH_ENABLE=0 to disable)"
             )
-        gch = _e(f"{PCH_HEADER_NAME}.gch")
-        lines.append(f"build {gch}: pch {_e(pch_header)}")
-        if src_other:
-            lines.append(f"  flags = {' '.join(src_other)}")
-        # Relative -include (resolved from the ninja cwd, where the header
-        # lives): an absolute path would put the per-device build path on
-        # every compile command and defeat cross-device ccache sharing
-        cxx_parts = src_other + [f"-Winvalid-pch -include {PCH_HEADER_NAME}"]
-        lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
-        src_cxx_override = ("$srccxxflags", gch)
+            write_file_if_changed(pch_header, pch_text)
+            if checksum is not None:
+                write_file_if_changed(
+                    build_dir / f"{PCH_HEADER_NAME}.gch.sum", checksum + "\n"
+                )
+            gch = _e(f"{PCH_HEADER_NAME}.gch")
+            lines.append(f"build {gch}: pch {_e(pch_header)}")
+            if src_other:
+                lines.append(f"  flags = {' '.join(src_other)}")
+            # Relative -include (resolved from the ninja cwd, where the header
+            # lives): an absolute path would put the per-device build path on
+            # every compile command and defeat cross-device ccache sharing
+            cxx_parts = src_other + [f"-Winvalid-pch -include {PCH_HEADER_NAME}"]
+            lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
+            src_cxx_override = ("$srccxxflags", gch)
     src_objs = _ninja_compile_edges(
         lines,
         _collect_sources(src_dir),
