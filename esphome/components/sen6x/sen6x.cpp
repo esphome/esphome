@@ -226,8 +226,8 @@ void SEN6XComponent::finish_setup_() {
   ESP_LOGD(TAG, "Initialized");
 }
 
-// Writes one optional configuration command. A failure warns and returns false; setup
-// continues so the sensor still measures with that setting left at its default.
+// Writes one optional configuration command. A failure warns and returns false, but does
+// not stop setup: the sensor still measures with that setting left at its default.
 bool SEN6XComponent::write_config_words_(uint16_t i2c_command, const uint16_t *data, uint8_t len) {
   if (!this->write_command(i2c_command, data, len)) {
     ESP_LOGE(TAG, "Write 0x%04X failed, error %d", i2c_command, this->last_error_);
