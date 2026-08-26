@@ -3,20 +3,18 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <new>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::api {
 
-/// Helper to use make_unique_for_overwrite where available (skips zero-fill),
-/// falling back to make_unique on older GCC (ESP8266, LibreTiny).
+/// Allocate a buffer without zero-fill. Returns nullptr on allocation failure;
+/// nothrow is required so OOM is reportable — ESP8266 Arduino's plain new
+/// returns nullptr when out of memory, ESP-IDF's aborts.
 inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
-  return std::make_unique<uint8_t[]>(n);
-#else
-  return std::make_unique_for_overwrite<uint8_t[]>(n);
-#endif
+  return std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[n]);
 }
 
 /// Byte buffer that skips zero-initialization on resize().
@@ -36,19 +34,23 @@ inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
 class APIBuffer {
  public:
   void clear() { this->size_ = 0; }
-  inline void reserve(size_t n) ESPHOME_ALWAYS_INLINE {
-    if (n > this->capacity_)
-      this->grow_(n);
-  }
-  inline void resize(size_t n) ESPHOME_ALWAYS_INLINE {
-    this->reserve(n);
+  /// Returns false if allocation fails; the buffer is left unchanged.
+  [[nodiscard]] inline bool reserve(size_t n) ESPHOME_ALWAYS_INLINE { return n <= this->capacity_ || this->grow_(n); }
+  /// Returns false if allocation fails; the buffer is left unchanged.
+  [[nodiscard]] inline bool resize(size_t n) ESPHOME_ALWAYS_INLINE {
+    if (!this->reserve(n))
+      return false;
     this->size_ = n;  // no zero-fill
+    return true;
   }
   /// Reserve capacity for max(reserve_size, new_size) bytes, then set size to new_size.
   /// Single grow_ check regardless of argument order.
-  inline void reserve_and_resize(size_t reserve_size, size_t new_size) ESPHOME_ALWAYS_INLINE {
-    this->reserve(std::max(reserve_size, new_size));
+  /// Returns false if allocation fails; the buffer is left unchanged.
+  [[nodiscard]] inline bool reserve_and_resize(size_t reserve_size, size_t new_size) ESPHOME_ALWAYS_INLINE {
+    if (!this->reserve(std::max(reserve_size, new_size)))
+      return false;
     this->size_ = new_size;
+    return true;
   }
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
@@ -64,7 +66,7 @@ class APIBuffer {
   }
 
  protected:
-  void grow_(size_t n);
+  bool grow_(size_t n);
   std::unique_ptr<uint8_t[]> data_;
   size_t size_{0};
   size_t capacity_{0};

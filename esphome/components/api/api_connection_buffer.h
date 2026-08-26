@@ -41,7 +41,10 @@ inline uint16_t ESPHOME_ALWAYS_INLINE APIConnection::encode_to_buffer(uint32_t c
     return 0;
 
   auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-  shared_buf.resize(shared_buf.size() + to_add);
+  if (!shared_buf.resize(shared_buf.size() + to_add)) {
+    conn->fatal_error_with_log_(LOG_STR("Out of memory"), APIError::OUT_OF_MEMORY);
+    return 0;
+  }
   ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
   encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
 

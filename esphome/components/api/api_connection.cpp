@@ -2241,9 +2241,13 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
   }
 #endif
   auto &shared_buf = this->parent_->get_shared_buffer_ref();
-  this->prepare_first_message_buffer(shared_buf, payload_size);
+  if (!this->prepare_first_message_buffer(shared_buf, payload_size)) {
+    this->fatal_error_with_log_(LOG_STR("Out of memory"), APIError::OUT_OF_MEMORY);
+    return false;
+  }
   size_t write_start = shared_buf.size();
-  shared_buf.resize(write_start + payload_size);
+  // Capacity reserved above, cannot fail
+  (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
   encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
@@ -2294,7 +2298,10 @@ bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_typ
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
     auto &shared_buf = this->parent_->get_shared_buffer_ref();
-    this->prepare_first_message_buffer(shared_buf, estimated_size);
+    if (!this->prepare_first_message_buffer(shared_buf, estimated_size)) {
+      this->fatal_error_with_log_(LOG_STR("Out of memory"), APIError::OUT_OF_MEMORY);
+      return false;
+    }
     DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
     if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
         this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
@@ -2352,7 +2359,11 @@ void APIConnection::process_batch_() {
     total_estimated_size = MAX_BATCH_PACKET_SIZE;
   }
 
-  this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
+  if (!this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size)) {
+    this->fatal_error_with_log_(LOG_STR("Out of memory"), APIError::OUT_OF_MEMORY);
+    this->clear_batch_();
+    return;
+  }
 
   // Fast path for single message - buffer already allocated above
   if (num_items == 1) {
@@ -2366,8 +2377,9 @@ void APIConnection::process_batch_() {
       this->log_batch_item_(item);
 #endif
       this->clear_batch_();
-    } else if (payload_size == 0) {
-      // Message too large to fit in available space
+    } else if (payload_size == 0 && !this->flags_.remove) {
+      // Message too large to fit in available space (payload_size == 0 with
+      // remove set means encoding hit OOM and the connection is being dropped)
       ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
       this->clear_batch_();
     }
@@ -2431,8 +2443,10 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
 
   if (items_processed > 0) {
     // Add footer space for the last message (for Noise protocol MAC)
-    if (footer_size > 0) {
-      shared_buf.resize(shared_buf.size() + footer_size);
+    if (footer_size > 0 && !shared_buf.resize(shared_buf.size() + footer_size)) {
+      this->fatal_error_with_log_(LOG_STR("Out of memory"), APIError::OUT_OF_MEMORY);
+      this->clear_batch_();
+      return;
     }
 
     // Send all collected messages

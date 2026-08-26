@@ -352,21 +352,22 @@ class APIConnection final : public APIServerConnectionBase {
     }
   }
 
-  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t header_padding, size_t total_size) {
+  /// Returns false if the shared buffer allocation fails (out of memory).
+  [[nodiscard]] bool prepare_first_message_buffer(APIBuffer &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
     // Reserve full size but only set initial size to header padding
     // so message encoding starts at the correct position
-    shared_buf.reserve_and_resize(total_size, header_padding);
+    return shared_buf.reserve_and_resize(total_size, header_padding);
   }
 
   // Convenience overload - computes frame overhead internally
-  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t payload_size) {
+  [[nodiscard]] bool prepare_first_message_buffer(APIBuffer &shared_buf, size_t payload_size) {
     const uint8_t header_padding = this->helper_->frame_header_padding();
     const uint8_t footer_size = this->helper_->frame_footer_size();
-    this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
+    return this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
   }
 
   bool try_to_clear_buffer(bool log_out_of_space) {
