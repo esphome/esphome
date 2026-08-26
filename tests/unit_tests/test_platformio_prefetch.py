@@ -1,7 +1,9 @@
 """Tests for the parallel PlatformIO package prefetch."""
 
 import errno
+import inspect
 import json
+import logging
 import os
 from pathlib import Path
 import signal
@@ -11,6 +13,12 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from filelock import Timeout
+from platformio.package.manager._install import PackageManagerInstallMixin
+from platformio.package.manager.base import BasePackageManager
+from platformio.package.manager.library import LibraryPackageManager
+from platformio.package.manager.platform import PlatformPackageManager
+from platformio.package.manager.tool import ToolPackageManager
+from platformio.package.meta import PackageCompatibility
 import pytest
 
 from esphome.core import CORE
@@ -897,10 +905,8 @@ def test_preinstall_wave_limit_warns(tmp_path: Path) -> None:
     ]
     m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
     prior = {f"seen{i}" for i in range(200)}
-    import logging as _logging
-
     records: list = []
-    handler = _logging.Handler()
+    handler = logging.Handler()
     handler.emit = records.append
     pf._LOGGER.addHandler(handler)
     try:
@@ -1043,8 +1049,6 @@ def test_preinstall_cleanup_failure_warns(
 def test_dependency_entries_honor_compatibility(tmp_path: Path) -> None:
     """A dependency pio's install_dependency would skip as incompatible is
     not pre-installed either."""
-    from platformio.package.meta import PackageCompatibility
-
     m = _fake_manager(tmp_path)
     m.compatibility = PackageCompatibility(platforms=["espressif32"])
     # only the top-level entry is installed; the deps are not
@@ -1665,14 +1669,6 @@ def test_platformio_private_api_contract() -> None:
     test that fails loudly when a requirements bump changes the private
     surface instead of silently degrading the prefetch to a no-op.
     """
-    import inspect
-
-    from platformio.package.manager._install import PackageManagerInstallMixin
-    from platformio.package.manager.base import BasePackageManager
-    from platformio.package.manager.library import LibraryPackageManager
-    from platformio.package.manager.platform import PlatformPackageManager
-    from platformio.package.manager.tool import ToolPackageManager
-
     params = inspect.signature(PackageManagerInstallMixin._install).parameters
     assert "spec" in params
     assert "skip_dependencies" in params
@@ -1699,7 +1695,5 @@ def test_platformio_private_api_contract() -> None:
     assert "compatibility" in lib_params or any(
         p.kind is inspect.Parameter.VAR_KEYWORD for p in lib_params.values()
     )
-    from platformio.package.meta import PackageCompatibility
-
     assert callable(PackageCompatibility.from_dependency)
     assert callable(PackageCompatibility.is_compatible)
