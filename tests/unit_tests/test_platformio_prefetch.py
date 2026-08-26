@@ -19,7 +19,9 @@ def _core(tmp_path: Path):
     CORE.name = "testenv"
     pio_loggers = ("Tool Manager", "Library Manager", "Platform Manager")
     saved_propagate = {n: pf.logging.getLogger(n).propagate for n in pio_loggers}
-    yield
+    # The real setup_log would swap pytest's root-handler formatter
+    with patch("esphome.log.setup_log"):
+        yield
     # main() flips these process-wide; keep the suite hermetic
     for n, flag in saved_propagate.items():
         pf.logging.getLogger(n).propagate = flag
@@ -196,6 +198,91 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     # (filelock removes it on release on some platforms)
     leftovers = {f.name for f in tmp_path.iterdir()}
     assert leftovers - {f"{dl_path.name}.prefetch.lock"} == {dl_path.name}
+
+
+def test_registry_fetch_job_skips_when_cached(tmp_path: Path) -> None:
+    """A destination another process completed is not re-downloaded."""
+    dl_path = tmp_path / "archive"
+    dl_path.write_bytes(b"done")
+    with patch("esphome.framework_helpers.download_with_resume") as mock_download:
+        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            lambda done: None
+        )
+    mock_download.assert_not_called()
+    assert dl_path.read_bytes() == b"done"
+
+
+def test_registry_fetch_job_downloads_under_lock(tmp_path: Path) -> None:
+    """Registry downloads write the shared cache path under the same lock
+    the URL path uses; interleaved writers would corrupt the archive."""
+    dl_path = tmp_path / "archive"
+    order: list[str] = []
+    with (
+        patch(
+            "esphome.framework_helpers.download_with_resume",
+            side_effect=lambda url, dest, progress=None, **kw: order.append("fetch"),
+        ),
+        patch(
+            "filelock.FileLock.acquire",
+            side_effect=lambda *a, **k: order.append("lock"),
+        ),
+        patch(
+            "filelock.FileLock.release",
+            side_effect=lambda *a, **k: order.append("unlock"),
+        ),
+    ):
+        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            lambda done: None
+        )
+    # FileLock.__del__ may add a trailing release; the contract is the order
+    assert order[:2] == ["lock", "fetch"]
+    assert "unlock" in order[2:]
+
+
+def test_lockless_filesystem_downloads_unlocked(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A filesystem without lock support (ENOSYS/EPERM) degrades to an
+    unlocked download with one warning, never a per-package failure."""
+    dl_path = tmp_path / "archive"
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch("filelock.FileLock.acquire", side_effect=OSError("ENOSYS")),
+        patch("filelock.FileLock.release"),
+    ):
+        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
+            lambda done: None
+        )
+    mock_download.assert_called_once()
+    assert "downloading unlocked" in caplog.text
+
+
+def test_uri_fetch_job_failed_download_keeps_staging(tmp_path: Path) -> None:
+    """A failed fetch keeps the .part staging bytes for the next resume."""
+    dl_path = tmp_path / "archive"
+    part = tmp_path / "archive.prefetch.part"
+    part.write_bytes(b"partial")
+    with (
+        patch(
+            "esphome.framework_helpers.download_with_resume",
+            side_effect=OSError("network gone"),
+        ),
+        pytest.raises(OSError, match="network gone"),
+    ):
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+    assert part.read_bytes() == b"partial"
+    assert not dl_path.exists()
+
+
+def test_uri_fetch_job_no_discard_without_a_file(tmp_path: Path) -> None:
+    """When no archive landed (degraded serialized run), the staging bytes
+    stay for the next resume instead of being discarded."""
+    dl_path = tmp_path / "archive"
+    part = tmp_path / "archive.prefetch.part"
+    part.write_bytes(b"partial")
+    with patch.object(pf, "_serialized_fetch_job", return_value=lambda tracker: None):
+        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+    assert part.read_bytes() == b"partial"
 
 
 def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
