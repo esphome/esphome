@@ -67,7 +67,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Determine tag and whether to push
         id: tag
@@ -98,7 +98,7 @@ jobs:
 
       - name: Log in to the GitHub container registry
         if: steps.tag.outputs.push == 'true'
-        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -153,10 +153,10 @@ jobs:
         with:
           python-version: "3.12"
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Log in to the GitHub container registry
-        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -182,8 +182,6 @@ jobs:
       contents: read  # actions/checkout to load the test configs
     strategy:
       fail-fast: false
-      # Cap concurrency so this smoke test doesn't hog all the shared runners.
-      max-parallel: 2
       matrix:
         # One entry per distinct toolchain. ESP32 variants (c3/c6/s2/s3/p4)
         # share a toolchain bundle, so esp32 is exercised on the base variant

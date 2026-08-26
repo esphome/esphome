@@ -11,7 +11,8 @@
 
 namespace esphome::modbus::helpers {
 
-inline bool is_function_code_read(uint8_t function_code) {
+// Pure read codes (0x01-0x04): they only read, so they are idempotent and safe to retry.
+inline bool is_function_code_read_only(uint8_t function_code) {
   FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == FunctionCode::READ_COILS ||
          masked_function_code == FunctionCode::READ_DISCRETE_INPUTS ||
@@ -19,12 +20,27 @@ inline bool is_function_code_read(uint8_t function_code) {
          masked_function_code == FunctionCode::READ_INPUT_REGISTERS;
 }
 
+// Codes whose response carries read-back data: the pure reads plus 0x17, which reads and writes at once.
+inline bool is_function_code_read(uint8_t function_code) {
+  return is_function_code_read_only(function_code) ||
+         static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK) == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+}
+
+// Codes that mutate registers or coils: the pure writes, 0x16 mask-write, and 0x17 read/write multiple.
 inline bool is_function_code_write(uint8_t function_code) {
   FunctionCode masked_function_code = static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK);
   return masked_function_code == FunctionCode::WRITE_SINGLE_COIL ||
          masked_function_code == FunctionCode::WRITE_SINGLE_REGISTER ||
          masked_function_code == FunctionCode::WRITE_MULTIPLE_COILS ||
-         masked_function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS;
+         masked_function_code == FunctionCode::WRITE_MULTIPLE_REGISTERS ||
+         masked_function_code == FunctionCode::MASK_WRITE_REGISTER ||
+         masked_function_code == FunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
+}
+
+// True if [start_address, start_address + count) fits within the 16-bit Modbus address space. The 32-bit
+// promotion is the overflow guard - a 16-bit sum could wrap and pass.
+inline bool address_range_fits(uint16_t start_address, size_t count) {
+  return uint32_t(start_address) + count <= 0x10000u;
 }
 
 inline bool is_function_code_exception(uint8_t function_code) {
@@ -37,6 +53,38 @@ inline bool is_function_code_custom(uint8_t function_code) {
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_1_END) ||
          (masked_function_code >= FUNCTION_CODE_USER_DEFINED_SPACE_2_INIT &&
           masked_function_code <= FUNCTION_CODE_USER_DEFINED_SPACE_2_END);
+}
+
+/// True for any function code whose frame length the parsers cannot predict - everything the
+/// server_pdu_length()/client_pdu_length() switches fall through to `default` on (keep the case list
+/// in step with those switches). Deliberately wider than is_function_code_custom(): the user-defined
+/// ranges are unknown to the parser too, but so are the assigned-but-unimplemented codes
+/// (READ_EXCEPTION_STATUS, DIAGNOSTICS, GET_COMM_EVENT_*, REPORT_SERVER_ID) and every unassigned value.
+/// The 0x80 exception flag is masked off first, so a frame with it set classifies by its base code -
+/// even though a spec exception reply has a known 2-byte PDU. That is deliberate, matching what
+/// is_function_code_custom() has always done: some vendors use codes with the 0x80 bit set as ordinary
+/// codes with longer payloads, so the response parser CRC-scans these rather than assuming the spec
+/// length. For an intact spec exception the scan matches at its first candidate, so only a corrupt one
+/// pays (recovery by timeout instead of an immediate CRC failure).
+inline bool is_function_code_unknown_length(uint8_t function_code) {
+  switch (static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK)) {
+    case FunctionCode::READ_COILS:
+    case FunctionCode::READ_DISCRETE_INPUTS:
+    case FunctionCode::READ_HOLDING_REGISTERS:
+    case FunctionCode::READ_INPUT_REGISTERS:
+    case FunctionCode::WRITE_SINGLE_COIL:
+    case FunctionCode::WRITE_SINGLE_REGISTER:
+    case FunctionCode::WRITE_MULTIPLE_COILS:
+    case FunctionCode::WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_FILE_RECORD:
+    case FunctionCode::WRITE_FILE_RECORD:
+    case FunctionCode::MASK_WRITE_REGISTER:
+    case FunctionCode::READ_WRITE_MULTIPLE_REGISTERS:
+    case FunctionCode::READ_FIFO_QUEUE:
+      return false;
+    default:
+      return true;
+  }
 }
 
 // Returns the expected length of a server response PDU based on the function code.
@@ -90,8 +138,8 @@ inline uint8_t server_frame_data_offset(const uint8_t *frame, size_t size) {
 }
 
 /** Returns the payload portion of a server response PDU: the bytes after the function code, and for the
- * standard read responses (0x01-0x04) also after the byte-count byte. Responses to 0x14/0x17 also carry a
- * byte-count byte, but those codes are not implemented and their count byte is left in the payload. For
+ * read responses (0x01-0x04 and 0x17) also after the byte-count byte. Response 0x14 also carries a
+ * byte-count byte, but that code is not implemented and its count byte is left in the payload. For
  * an exception PDU the payload is the exception code byte (the read check must not see the masked
  * function code, or an exception-of-read would classify as a read and return an empty span). Returns an
  * empty span if the PDU is too short.
@@ -119,11 +167,18 @@ enum class SensorValueType : uint8_t {
   U_QWORD_R = 0xA,
   S_QWORD_R = 0xB,
   FP32 = 0xC,
-  FP32_R = 0xD
+  FP32_R = 0xD,
+  U_WORD_S = 0xE,  // 1 Register unsigned, bytes swapped
+  S_WORD_S = 0xF,  // 1 Register signed, bytes swapped
 };
 
 inline bool value_type_is_float(SensorValueType v) {
   return v == SensorValueType::FP32 || v == SensorValueType::FP32_R;
+}
+
+/// Coils and discrete inputs are the bit-addressed entity tables; the other types are 16-bit registers.
+inline bool is_entity_type_binary(EntityType type) {
+  return type == EntityType::COIL || type == EntityType::DISCRETE_INPUT;
 }
 
 inline FunctionCode modbus_register_read_function(EntityType reg_type) {
@@ -250,6 +305,29 @@ inline bool bit_from_packed(int bit, std::span<const uint8_t> data) {
 ESPDEPRECATED("Use bit_from_packed() instead. Removed in 2027.2.0", "2026.8.0")
 inline bool coil_from_vector(int coil, std::span<const uint8_t> data) { return bit_from_packed(coil, data); }
 
+/** Append packed bytes (LSB first) for the given bits onto a growable byte container.
+ * push_back-based so callers can build a payload incrementally (e.g. a std::vector<uint8_t>
+ * with no fixed upper bound). A non-byte-aligned count appends n+1 bytes, the last holding
+ * the remaining bits in its low positions.
+ * @param out destination byte container exposing push_back(uint8_t)
+ * @param bits container of bool exposing range-based iteration
+ */
+template<typename Out, typename Bits> void pack_bits(Out &out, const Bits &bits) {
+  uint8_t byte = 0;
+  uint8_t bit = 0;
+  for (bool b : bits) {
+    if (b)
+      byte |= (1 << bit);
+    if (++bit == 8) {
+      out.push_back(byte);
+      byte = 0;
+      bit = 0;
+    }
+  }
+  if (bit != 0)  // flush the final partial byte
+    out.push_back(byte);
+}
+
 /** Extract bits from value and shift right according to the bitmask
  * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
  * the result is then shifted right by the position if the first right set bit in the mask
@@ -283,6 +361,10 @@ template<typename Container> void number_to_payload(Container &data, int64_t val
     case SensorValueType::U_WORD:
     case SensorValueType::S_WORD:
       data.push_back(value & 0xFFFF);
+      break;
+    case SensorValueType::U_WORD_S:
+    case SensorValueType::S_WORD_S:
+      data.push_back(byteswap(static_cast<uint16_t>(value & 0xFFFF)));
       break;
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
@@ -355,6 +437,8 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
 using PduBuffer = StaticVector<uint8_t, MAX_PDU_SIZE>;
 using ReadPdu = StaticVector<uint8_t, READ_PDU_SIZE>;
 using WriteSinglePdu = StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE>;
+/// Scratch space for packing coils into wire layout: one bit per coil, sized for the spec maximum.
+using CoilPackBuffer = StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)>;
 
 /** Create a modbus read request PDU.
  * @param function_code one of READ_COILS, READ_DISCRETE_INPUTS, READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS
@@ -396,6 +480,21 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
  */
 PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
 
+/** Create modbus read/write multiple registers command
+ *  Function 0x17 Read/Write Multiple Registers
+ * Writes write_values then reads read_count registers in one transaction (write first, per Modbus 6.17);
+ * the response carries only the read registers.
+ * @param read_start_address modbus address of the first register to read back
+ * @param read_count number of registers to read (at most MAX_NUM_OF_REGISTERS_TO_READ)
+ * @param write_start_address modbus address of the first register to write
+ * @param write_values register values to write; the register count is write_values.size() (at most
+ *               MAX_NUM_OF_REGISTERS_TO_WRITE_RW). Any contiguous uint16_t container converts.
+ * @return PDU (function code + data, no address, no CRC); an empty PDU on any out-of-range input
+ */
+PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,
+                                                   uint16_t write_start_address,
+                                                   std::span<const uint16_t> write_values);
+
 /** Create modbus write single register command
  *  Function 0x06 Write Single Register
  * @param start_address modbus address of the register to write
@@ -416,11 +515,21 @@ WriteSinglePdu create_write_single_coil_pdu(uint16_t address, bool value);
  *  Function 0x0F Write Multiple Coils
  * @param start_address modbus address of the first coil to write
  * @param values coil values to write; the coil count is values.size() (at most MAX_NUM_OF_COILS_TO_WRITE, an
- *               over-long set is rejected and an empty PDU is returned). Note std::vector<bool> is bit-packed and
- *               does not convert to a span; pass a std::array<bool, N> or other contiguous bool container.
+ *               over-long set is rejected and an empty PDU is returned)
  * @return PDU (function code + data, no address, no CRC)
  */
 PduBuffer create_write_coils_pdu(uint16_t start_address, std::span<const bool> values);
+
+/** Create modbus write multiple coils command (function 0x0F) from a std::vector<bool>.
+ * Prefer the span overload above whenever the coils are already in contiguous storage - a std::array<bool, N>
+ * or any other contiguous bool container converts to it. This overload exists only because std::vector<bool>
+ * is bit-packed and so cannot convert to a span; without it every caller holding one re-implements the packing.
+ * @param start_address modbus address of the first coil to write
+ * @param values coil values to write; the coil count is values.size() (at most MAX_NUM_OF_COILS_TO_WRITE, an
+ *               over-long set is rejected and an empty PDU is returned)
+ * @return PDU (function code + data, no address, no CRC)
+ */
+PduBuffer create_write_coils_pdu(uint16_t start_address, const std::vector<bool> &values);
 
 /** Create modbus write multiple coils command (function 0x0F) from bits packed as on the wire.
  * @param start_address modbus address of the first coil to write

@@ -23,7 +23,7 @@ what files have changed. It outputs JSON with the following structure:
 }
 
 The CI workflow uses this information to:
-- Gate the unconditional jobs (ci-custom, pytest, pre-commit-ci-lite) via core_ci;
+- Gate the unconditional jobs (ci-custom, pytest, lint-format) via core_ci;
   false when a pull_request only touches CI-irrelevant meta paths (other workflow
   files, .github/actions/build-image/*, .yamllint, .github/dependabot.yml, docker/**)
   so workflow-only PRs satisfy the required CI Status check without running the
@@ -63,9 +63,9 @@ from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
+    base_python_changed,
     changed_files,
     core_changed,
-    filter_component_and_test_cpp_files,
     filter_component_and_test_files,
     get_changed_components,
     get_component_from_path,
@@ -524,13 +524,21 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     return False
 
 
-# ESP-IDF infra: changes under esphome/espidf/ or to the IDF build generator
-# affect every esp32 IDF build (now the default toolchain) but aren't
+# Native-build infra: changes under esphome/espidf/, the shared
+# esphome/build_helpers/ package, or the modules the native ESP-IDF build
+# imports affect every esp32 IDF build (now the default toolchain) but aren't
 # components, so the component matrix wouldn't otherwise force any esp32
 # compile. When they change we fold the `esp32` component into the matrix so
 # the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
+ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
+ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
+    {
+        "esphome/build_gen/espidf.py",
+        "esphome/framework_helpers.py",
+        "esphome/platformio/library.py",
+        "esphome/platformio/extra_script.py",
+    }
+)
 
 
 def _esp_idf_infra_changed(files: list[str]) -> bool:
@@ -619,12 +627,17 @@ def determine_cpp_unit_tests(
 
     C++ unit tests will run when any of the following conditions are met:
 
-    1. Any C++ core source files changed (esphome/core/*), in which case
+    1. Any core C++ or Python files changed (esphome/core/*), in which case
        all cpp unit tests run.
     2. A test file for a component changed, which triggers tests for that
        component.
     3. The code for a component changed, which triggers tests for that
-       component and all components that depend on it.
+       component and all components that depend on it. Python files count
+       too: a component's Python decides which sources and defines go into
+       the host test build, so a Python-only change can break the link.
+
+    Components without C++ test sources are dropped from the list, so the
+    job is only scheduled when there is something to build.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -638,9 +651,7 @@ def determine_cpp_unit_tests(
     if core_changed(files):
         return (True, [])
 
-    # Filter to only C++ files
-    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
-    return (False, get_cpp_changed_components(cpp_files))
+    return (False, get_cpp_changed_components(files))
 
 
 # Paths within tests/benchmarks/ that contain component benchmark files
@@ -657,16 +668,20 @@ BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
-    """Determine if C++ benchmarks should run based on changed files.
+    """Determine if benchmarks (C++ and Python) should run based on changed files.
 
     Benchmarks run when any of the following conditions are met:
 
-    1. Core C++ files changed (esphome/core/*)
-    2. The host platform changed (esphome/components/host/*) — benchmarks
+    1. Core files changed (esphome/core/*, C++ or Python)
+    2. Top-level Python files changed (esphome/*.py and esphome/*.pyi) —
+       the Python benchmarks exercise config loading (config.py,
+       yaml_util.py, ...), so a slowdown there is invisible unless the
+       benchmarks job runs
+    3. The host platform changed (esphome/components/host/*) — benchmarks
        are built and run on the host platform, so its implementations of
        ``millis()``/``micros()``/etc. affect every benchmark
-    3. A directly changed component has benchmark files (no dependency expansion)
-    4. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+    4. A directly changed component has benchmark files (no dependency expansion)
+    5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
@@ -681,6 +696,11 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
     if core_changed(files):
+        return True
+
+    # Top-level esphome/*.py modules are what the Python benchmarks in
+    # tests/benchmarks/python/ exercise
+    if base_python_changed(files):
         return True
 
     # Host platform supplies the runtime that benchmarks execute on
@@ -708,7 +728,7 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
 
 
 # Files / path patterns whose changes alone don't warrant running the
-# unconditional CI jobs (`ci-custom`, `pytest`, `pre-commit-ci-lite`).
+# unconditional CI jobs (`ci-custom`, `pytest`, `lint-format`).
 # Single source of truth for what we treat as "CI-irrelevant" on
 # pull_request events; ci.yml used to encode this in its own
 # `pull_request.paths` filter, but that hid the required `CI Status`
@@ -752,7 +772,7 @@ def _is_ci_irrelevant_path(path: str) -> bool:
 
 
 def should_run_core_ci(branch: str | None = None) -> bool:
-    """Determine if the unconditional CI jobs (ci-custom/pytest/pre-commit-ci-lite) should run.
+    """Determine if the unconditional CI jobs (ci-custom/pytest/lint-format) should run.
 
     Returns False only when every changed file is in the CI-irrelevant set
     above (see ``_is_ci_irrelevant_path``). Empty diffs return True so we
@@ -1177,7 +1197,7 @@ def main() -> None:
 
     # Determine what should run
     # core_ci gates the unconditional jobs in ci.yml (ci-custom, pytest,
-    # pre-commit-ci-lite). Non-pull_request events (push to dev/beta/release
+    # lint-format). Non-pull_request events (push to dev/beta/release
     # and merge_group) always run them so behavior like venv-cache saves on
     # push to dev is preserved.
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")

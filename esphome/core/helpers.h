@@ -184,6 +184,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
+  bool empty() const { return this->len_ == 0; }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<const uint8_t>() const { return std::span<const uint8_t>(this->data(), this->len_); }
+
   /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
   /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
   /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
@@ -249,6 +254,11 @@ template<typename T, size_t N> class StaticVector {
         break;
       data_[count_++] = val;
     }
+  }
+
+  // Converting constructor from a smaller StaticVector of the same element type
+  template<size_t M> StaticVector(const StaticVector<T, M> &other) : StaticVector(other.begin(), other.end()) {
+    static_assert(M <= N, "Source StaticVector cannot be larger than the destination");
   }
 
   // Minimal vector-compatible interface - only what we actually use
@@ -971,6 +981,35 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
   return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
 }
 
+/// Fallback implementation for case insensitive substring comparison.
+bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
+
+#ifdef USE_ESP8266
+/// ESP8266 internal implementation reading the needle from flash — prefer the
+/// `str_contains_ignore_case` macro which wraps needle literals with PSTR() automatically.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle);
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// On ESP8266 the needle is wrapped with PSTR() so it stays in flash, which requires it to be
+/// a string literal; a runtime needle needs str_contains_ignore_case_p behind #ifdef USE_ESP8266.
+#define str_contains_ignore_case(haystack, needle) str_contains_ignore_case_p(haystack, PSTR(needle))
+#else
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
+  if (!needle || !haystack) {
+    return false;
+  }
+
+// strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
+// ESP32/host builds get it from their framework or from g++ on Linux;
+// LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
+#if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return str_contains_ignore_case_fallback(haystack, needle);
+#else   // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return strcasestr(haystack, needle) != nullptr;
+#endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+}
+#endif  // USE_ESP8266
+
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
 // str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
@@ -1617,15 +1656,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 /// @name Colors
 ///@{
 
-/// Applies gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_correct(float value, float gamma);
-/// Reverts gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_uncorrect(float value, float gamma);
-
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert \p hue (0-360), \p saturation (0-1) and \p value (0-1) to \p red, \p green and \p blue (all 0-1).
@@ -2059,6 +2089,11 @@ const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETT
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
+
+/// Read the custom MAC address from eFuse into the provided byte array (6 bytes).
+/// Must not use the ESPHome logger (may run before it is initialized); IDF itself may still log.
+/// @return True if a valid custom MAC address was read; on false, the contents of mac are undefined.
+bool get_custom_mac_address(uint8_t *mac);
 #endif
 
 /// Check if a custom MAC address is set (ESP32 & variants)

@@ -58,15 +58,15 @@ void ModbusFloatOutput::write_state(float value) {
   }
 
   // Create and send the write command
-  ModbusCommandItem write_cmd;
+  optional<ModbusCommandItem> write_cmd;
   if (this->register_count == 1 && !this->use_write_multiple_) {
-    write_cmd =
-        ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]);
+    write_cmd.emplace(
+        ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]));
   } else {
-    write_cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset,
-                                                                 data.size(), data);
+    write_cmd.emplace(ModbusCommandItem::create_write_multiple_command(
+        this->parent_, this->start_address + this->offset, data.size(), data));
   }
-  this->parent_->queue_command(write_cmd);
+  this->parent_->queue_command(std::move(*write_cmd));
 }
 
 void ModbusFloatOutput::dump_config() {
@@ -82,7 +82,7 @@ void ModbusFloatOutput::dump_config() {
 // ModbusBinaryOutput
 void ModbusBinaryOutput::write_state(bool state) {
   // This will be called every time the user requests a state change.
-  ModbusCommandItem cmd;
+  optional<ModbusCommandItem> cmd;
   std::vector<uint8_t> data;
 
   // Is there are lambda configured?
@@ -105,11 +105,11 @@ void ModbusBinaryOutput::write_state(bool state) {
 #endif
     ESP_LOGV(TAG, "Modbus binary output write raw: %s",
              format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    cmd = ModbusCommandItem::create_custom_command(
+    cmd.emplace(ModbusCommandItem::create_custom_command(
         this->parent_, data,
-        [this, cmd](modbus::EntityType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-          this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
-        });
+        [this](modbus::EntityType register_type, uint16_t start_address, std::span<const uint8_t> data) {
+          this->parent_->on_write_register_response(register_type, this->start_address, data);
+        }));
   } else {
     ESP_LOGV(TAG, "Write new state: value is %s, type is %d address = %X, offset = %x", ONOFF(state),
              (int) this->register_type, this->start_address, this->offset);
@@ -117,12 +117,14 @@ void ModbusBinaryOutput::write_state(bool state) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
       std::vector<bool> states{state};
-      cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
+      cmd.emplace(
+          ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states));
     } else {
-      cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
+      cmd.emplace(
+          ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state));
     }
   }
-  this->parent_->queue_command(cmd);
+  this->parent_->queue_command(std::move(*cmd));
 }
 
 void ModbusBinaryOutput::dump_config() {

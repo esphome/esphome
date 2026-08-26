@@ -1,7 +1,10 @@
 esp32_ble_tracker:
+  id: ble_tracker_hub
 
 binary_sensor:
+  # Explicit ble_hub_id: pins the neutral binding as a declared key.
   - platform: ble_presence
+    ble_hub_id: ble_tracker_hub
     mac_address: AC:37:43:77:5F:4C
     name: ESP32 BLE Tracker Google Home Mini
   - platform: ble_presence

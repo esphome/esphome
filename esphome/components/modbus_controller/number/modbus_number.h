@@ -13,24 +13,23 @@ using value_to_data_t = std::function<float>(float);
 class ModbusNumber final : public number::Number, public Component, public SensorItem {
  public:
   ModbusNumber(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               SensorValueType value_type, int register_count, uint16_t skip_updates, bool force_new_range) {
+               SensorValueType value_type, int register_count, bool force_new_range) {
     this->register_type = register_type;
-    this->start_address = start_address;
-    this->offset = offset;
+    this->set_address(start_address);
+    this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = value_type;
     this->register_count = register_count;
-    this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
   };
 
   void dump_config() override;
-  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_parent(ModbusController *parent) { this->parent_ = parent; }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
 
-  using transform_func_t = optional<float> (*)(ModbusNumber *, float, const std::vector<uint8_t> &);
+  using transform_func_t = optional<float> (*)(ModbusNumber *, float, std::span<const uint8_t>);
   using write_transform_func_t = optional<float> (*)(ModbusNumber *, float, std::vector<uint16_t> &);
   void set_template(transform_func_t f) { this->transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
