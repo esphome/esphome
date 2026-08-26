@@ -612,19 +612,21 @@ def test_prefetch_spawn_failures_warn_and_continue(
 
 def test_stop_child_waits_terminates_then_kills() -> None:
     """The stop sequence waits for a self-unwinding child first, then
-    SIGTERMs, and kills only a child that will not stop."""
+    SIGTERMs, and kills only a child that will not stop. The platform is
+    pinned: on Windows the terminate arm is deliberately skipped."""
     timeout = pf.subprocess.TimeoutExpired("cmd", 5)
-    # Child already unwinding from its own SIGINT: no signals at all
-    proc = MagicMock()
-    proc.wait.return_value = 0
-    pf._stop_child(proc)
-    proc.terminate.assert_not_called()
-    # Child needs the SIGTERM unwind
-    proc = MagicMock()
-    proc.wait.side_effect = [timeout, 0]
-    pf._stop_child(proc)
-    proc.terminate.assert_called_once_with()
-    proc.kill.assert_not_called()
+    with patch.object(pf.sys, "platform", "linux"):
+        # Child already unwinding from its own SIGINT: no signals at all
+        proc = MagicMock()
+        proc.wait.return_value = 0
+        pf._stop_child(proc)
+        proc.terminate.assert_not_called()
+        # Child needs the SIGTERM unwind
+        proc = MagicMock()
+        proc.wait.side_effect = [timeout, 0]
+        pf._stop_child(proc)
+        proc.terminate.assert_called_once_with()
+        proc.kill.assert_not_called()
     # Child ignoring SIGTERM is killed with a bounded reap
     proc = MagicMock()
     proc.wait.side_effect = [timeout, timeout, 0]
