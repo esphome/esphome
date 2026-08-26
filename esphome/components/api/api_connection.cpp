@@ -2306,8 +2306,11 @@ bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_typ
       return false;
     }
     DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
+    // Re-fetch the shared buffer here instead of reusing the local: keeping it
+    // live across dispatch_message_ costs a register and spills message_type
+    // into the batching path's dedup loop (measured on x86 GCC -Os)
     if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
-        this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
+        this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_batch_item_(item);
 #endif
