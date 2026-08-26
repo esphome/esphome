@@ -560,6 +560,95 @@ def test_stop_child_windows_never_terminates() -> None:
     proc.kill.assert_not_called()
 
 
+def test_stop_child_surviving_child_warns(caplog: pytest.LogCaptureFixture) -> None:
+    """A child that outlives kill() may still be writing packages pio run
+    trusts; that must be visible at default verbosity."""
+    timeout = pf.subprocess.TimeoutExpired("cmd", 5)
+    proc = MagicMock()
+    proc.wait.side_effect = [timeout, timeout, timeout]
+    with patch.object(pf.sys, "platform", "linux"):
+        pf._stop_child(proc)
+    assert "could not be confirmed stopped" in caplog.text
+
+
+def test_main_interrupt_exits_quietly(tmp_path: Path) -> None:
+    """Ctrl-C reaches the child via the shared process group; it must exit
+    without a traceback."""
+    with (
+        patch("esphome.log.setup_log"),
+        patch.object(pf, "_prefetch", side_effect=KeyboardInterrupt),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 130
+
+
+def test_dependency_entries_isolate_a_bad_manifest(tmp_path: Path) -> None:
+    """One unreadable manifest skips that entry only, never the group."""
+    m = _fake_manager(tmp_path)
+    m.get_package.side_effect = lambda spec: (
+        SimpleNamespace(spec=spec)
+        if getattr(spec, "name", "") in ("bad", "good")
+        else None
+    )
+
+    def deps_for(pkg):
+        if pkg.spec.name == "bad":
+            raise RuntimeError("manifest unreadable")
+        return [{"owner": "o", "name": "dep", "version": "^1"}]
+
+    m.get_pkg_dependencies.side_effect = deps_for
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    entries = pf._dependency_entries(
+        m,
+        [
+            ("bad@1", _FakeSpec(uri=None, name="bad")),
+            ("good@1", _FakeSpec(uri=None, name="good")),
+        ],
+        set(),
+    )
+    assert [name for name, *_ in entries] == ["dep"]
+
+
+def test_dependency_entries_skip_nameless_spec(tmp_path: Path) -> None:
+    """A dependency whose spec has no name has no destination identity."""
+    m = _fake_manager(tmp_path)
+    m.get_package.side_effect = lambda spec: (
+        SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
+    )
+    m.get_pkg_dependencies.return_value = [{"owner": "o", "version": "^1"}]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=None)
+    assert (
+        pf._dependency_entries(m, [("top@1", _FakeSpec(uri=None, name="top"))], set())
+        == []
+    )
+
+
+def test_dependency_entries_filter_seen_names(tmp_path: Path) -> None:
+    """A dependency already waved under its name is not queued again."""
+    m = _fake_manager(tmp_path)
+    m.get_package.side_effect = lambda spec: (
+        SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
+    )
+    m.get_pkg_dependencies.return_value = [
+        {"owner": "o", "name": "dep", "version": "^1"}
+    ]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    assert (
+        pf._dependency_entries(m, [("top@1", _FakeSpec(uri=None, name="top"))], {"dep"})
+        == []
+    )
+
+
+def test_preinstall_memcache_failure_leaves_a_trace(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failing cache reset is logged; the wave still completes."""
+    m = _fake_manager(tmp_path)
+    m.memcache_reset.side_effect = RuntimeError("cache broken")
+    with caplog.at_level(pf.logging.DEBUG):
+        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+    assert "memcache reset failed" in caplog.text
+
+
 def _proc(wait_effect) -> MagicMock:
     proc = MagicMock()
     if isinstance(wait_effect, BaseException):
@@ -1210,7 +1299,7 @@ def test_group_failure_does_not_skip_other_groups(tmp_path: Path) -> None:
 
 def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
     """A failure inside the pool cancels queued installs and releases the
-    lock; a constructor failure never acquires it."""
+    lock; a failing executor construction still releases it."""
     m = _fake_manager(tmp_path)
     boom = MagicMock()
     boom.__enter__.return_value = boom

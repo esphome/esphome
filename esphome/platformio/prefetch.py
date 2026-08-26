@@ -178,6 +178,7 @@ def _stop_child(proc: subprocess.Popen) -> None:
     Windows terminate() is TerminateProcess (no signal reaches the
     handler), so the graceful arm becomes a longer plain wait.
     """
+    _LOGGER.info("Waiting for the prefetch child to finish its current install")
     try:
         with suppress(subprocess.TimeoutExpired):
             proc.wait(timeout=5)
@@ -189,8 +190,14 @@ def _stop_child(proc: subprocess.Popen) -> None:
             return
         proc.kill()
         proc.wait(timeout=5)
+    except KeyboardInterrupt:
+        # A second interrupt mid-stop must not escape and orphan the child
+        _LOGGER.debug("Interrupted while stopping the prefetch child", exc_info=True)
     except BaseException:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        _LOGGER.debug("Stopping the prefetch child failed", exc_info=True)
+        # A child that outlives kill() may still be writing packages that
+        # pio run will trust; that must be visible, not a debug line
+        _LOGGER.warning("The prefetch child could not be confirmed stopped")
+        _LOGGER.debug("Stop detail", exc_info=True)
 
 
 def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
@@ -458,59 +465,85 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
     return run
 
 
+# (name, spec) from wave 1, (name, spec, compatibility) from dep waves
+_Entry = tuple[str, Any] | tuple[str, Any, Any]
+
+
 def _dependency_entries(
-    manager: Any, entries: list[tuple[str, Any]], seen_names: set[str]
-) -> list[tuple[str, Any]]:
+    manager: Any, entries: list[_Entry], seen_names: set[str]
+) -> list[_Entry]:
     """Registry dependencies of the installed entries, one per new name.
 
     Mostly local manifest reads; the builtin probe walks installed
     platforms (each may run platform code). Name-only platform libs stay
     with pio run.
     """
-    from platformio.package.meta import PackageCompatibility
 
-    compatibility = getattr(manager, "compatibility", None)
+    # A hard attribute read: silently losing this filter would let the
+    # wave pre-install incompatible packages pio run then trusts
+    compatibility = manager.compatibility
+    # Tool managers legitimately lack a builtin table; the contract test
+    # pins the library-side name against renames
     is_builtin = getattr(manager, "is_builtin_lib", None)
     deps: dict[str, Any] = {}
-    for _name, spec, *_ in entries:
-        if (pkg := manager.get_package(spec)) is None:
+    for name, spec, *_ in entries:
+        try:
+            deps_of = _entry_dependencies(manager, spec, compatibility, is_builtin)
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # One unreadable manifest must not drop the group's whole wave
+            _LOGGER.debug("Skipping dependencies of %s", name, exc_info=True)
             continue
-        for dep in manager.get_pkg_dependencies(pkg) or []:
-            if not (dep.get("owner") or dep.get("version")):
-                continue
-            if compatibility and not PackageCompatibility.from_dependency(
-                dep
-            ).is_compatible(compatibility):
-                continue  # pio's install_dependency would skip it too
-            dspec = manager.dependency_to_spec(dep)
-            if (
-                is_builtin
-                and not dspec.owner
-                and not dspec.external
-                and is_builtin(dspec.name)
-            ):
-                # pio's LibraryPackageManager.install_dependency skips
-                # builtins; a registry copy would shadow the bundled one
-                continue
-            if (key := (dspec.name or "").lower()) and key not in seen_names:
-                if manager.get_package(dspec) is not None:
-                    continue  # already installed
-                # Carry the dep's compatibility so _install searches the
-                # registry qualified, exactly like pio's install_dependency
-                deps.setdefault(
-                    key,
-                    (dspec.name, dspec, PackageCompatibility.from_dependency(dep)),
-                )
+        for key, entry in deps_of:
+            if key not in seen_names:
+                deps.setdefault(key, entry)
     return list(deps.values())
 
 
+def _entry_dependencies(
+    manager: Any, spec: Any, compatibility: Any, is_builtin: Any
+) -> list[tuple[str, _Entry]]:
+    from platformio.package.meta import PackageCompatibility
+
+    out: list[tuple[str, _Entry]] = []
+    if (pkg := manager.get_package(spec)) is None:
+        return out
+    for dep in manager.get_pkg_dependencies(pkg) or []:
+        if not (dep.get("owner") or dep.get("version")):
+            continue
+        if compatibility and not PackageCompatibility.from_dependency(
+            dep
+        ).is_compatible(compatibility):
+            continue  # pio's install_dependency would skip it too
+        dspec = manager.dependency_to_spec(dep)
+        if (
+            is_builtin
+            and not dspec.owner
+            and not dspec.external
+            and is_builtin(dspec.name)
+        ):
+            # pio's LibraryPackageManager.install_dependency skips
+            # builtins; a registry copy would shadow the bundled one
+            continue
+        if not (key := (dspec.name or "").lower()):
+            continue
+        if manager.get_package(dspec) is not None:
+            continue  # already installed
+        # Carry the dep's compatibility so _install searches the
+        # registry qualified, exactly like pio's install_dependency
+        out.append(
+            (key, (dspec.name, dspec, PackageCompatibility.from_dependency(dep)))
+        )
+    return out
+
+
 def _preinstall(
-    manager: Any, entries: list[tuple[str, Any]], seen_names: set[str] | None = None
+    manager: Any, entries: list[_Entry], seen_names: set[str] | None = None
 ) -> None:
     """Install downloaded packages in parallel via PlatformIO's own ``_install``.
 
-    ``entries`` are ``(name, spec)`` pairs, one per destination directory.
-    The manager's lock is held once; each wave skips dependencies, then the
+    ``entries`` are ``_Entry`` tuples, one per destination directory.
+    The manager's lock is held around each wave's pool; a wave skips
+    dependencies, then the
     installed manifests feed the next wave until nothing new appears. Any
     failure leaves that package to pio run's serial installer.
     """
@@ -582,8 +615,11 @@ def _preinstall(
                 raise
     finally:
         # Cleanup must not mask an in-flight exception or skip a step
-        with suppress(Exception):
+        try:
             manager.memcache_reset()
+        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            # The dependency wave reads installed state from this cache
+            _LOGGER.debug("memcache reset failed", exc_info=True)
         try:
             manager.unlock()
         finally:
@@ -767,6 +803,10 @@ def main(argv: list[str]) -> int:
     build_dir, env = argv
     try:
         _prefetch(Path(build_dir), env)
+    except KeyboardInterrupt:
+        # Shared process group: exit quietly, no traceback on the terminal
+        _LOGGER.debug("Prefetch interrupted", exc_info=True)
+        return 130
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Exit 0: the parent must not treat a failed prefetch as a failed build
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
