@@ -35,6 +35,7 @@ def _core(tmp_path: Path):
     saved_sigterm = signal.getsignal(signal.SIGTERM)
     pio_loggers = ("Tool Manager", "Library Manager", "Platform Manager")
     saved_propagate = {n: pf.logging.getLogger(n).propagate for n in pio_loggers}
+    saved_filters = {n: list(pf.logging.getLogger(n).filters) for n in pio_loggers}
     # The real setup_log would swap pytest's root-handler formatter
     with patch("esphome.log.setup_log"):
         yield
@@ -46,6 +47,7 @@ def _core(tmp_path: Path):
     signal.signal(signal.SIGTERM, saved_sigterm)
     for n, flag in saved_propagate.items():
         pf.logging.getLogger(n).propagate = flag
+        pf.logging.getLogger(n).filters[:] = saved_filters[n]
     CORE.reset()
 
 
@@ -514,6 +516,24 @@ def test_main_silences_pio_manager_propagation(tmp_path: Path) -> None:
         assert pf.main([str(tmp_path), "testenv"]) == 0
     for name in ("Tool Manager", "Library Manager", "Platform Manager"):
         assert pf.logging.getLogger(name).propagate is False
+
+
+def test_main_quiet_level_reaches_pio_manager_loggers(tmp_path: Path) -> None:
+    """Manager construction re-pins its logger to INFO, so a quiet run
+    needs the logger-level filter to keep per-package lines out."""
+    with (
+        patch.dict("os.environ", {"ESPHOME_PREFETCH_LOG_LEVEL": "30"}),
+        patch("esphome.log.setup_log"),
+        patch.object(pf, "_prefetch"),
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    lib_logger = pf.logging.getLogger("Library Manager")
+    lib_logger.setLevel(pf.logging.INFO)  # what pio's _setup_logger does
+    info = pf.logging.LogRecord("Library Manager", 20, __file__, 1, "x", (), None)
+    warning = pf.logging.LogRecord("Library Manager", 30, __file__, 1, "x", (), None)
+    # Logger.filter returns falsy to drop, the record itself to pass
+    assert not lib_logger.filter(info)
+    assert lib_logger.filter(warning)
 
 
 def test_main_mirrors_parent_log_setup(tmp_path: Path) -> None:
