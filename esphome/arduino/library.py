@@ -23,6 +23,8 @@ from esphome.platformio.extra_script import apply_extra_script
 from esphome.platformio.library import (
     DEFAULT_BUILD_INCLUDE_DIR,
     DEFAULT_BUILD_SRC_FILTER,
+    ESPHOME_DATA_KEY,
+    ESPHOME_DATA_LINK_FLAGS_KEY,
     LIBRARY_HEADER_SUFFIXES,
     SRC_FILE_EXTENSIONS,
     ConvertedLibrary,
@@ -317,20 +319,19 @@ def _external_short_name(name: str) -> str:
     return short.partition("#")[0].removesuffix(".git")
 
 
-def _warn_unfulfilled_provides(
+def _check_unfulfilled_provides(
     provided_requests: list[str], satisfied: set[str]
 ) -> None:
     """Reconcile the provides() promise: every dependency the walk skipped
     on the backend's word must have been added from the framework tree (or
-    knowingly satisfied by a converted/external library); an unfulfilled
-    promise would surface only as undefined symbols at link."""
-    for name in provided_requests:
-        if name not in satisfied:
-            _LOGGER.warning(
-                "provides() skipped dependency %s but nothing added it; "
-                "the build is missing a library",
-                name,
-            )
+    knowingly satisfied by a converted/external library). An unfulfilled
+    promise can only surface as undefined symbols at link, so it fails
+    here by name like the other can-never-link checks in this module."""
+    if missing := sorted(set(provided_requests) - satisfied):
+        raise EsphomeError(
+            "provides() skipped these dependencies but nothing added them: "
+            f"{', '.join(missing)}; the build is missing libraries"
+        )
 
 
 def resolve_libraries(
@@ -470,11 +471,18 @@ def resolve_libraries(
         )
         if isinstance(manifest_name := component.data.get("name"), str):
             converted_manifest_names.add(manifest_name)
-        converted.append(
-            _library_info(
-                component.get_require_name(), component.source_dir, component.data
+        lib = _library_info(
+            component.get_require_name(), component.source_dir, component.data
+        )
+        # Extra-script LINKFLAGS travel outside build.flags (see
+        # ESPHOME_DATA_LINK_FLAGS_KEY); dropping them would link wrong
+        # with no stated cause
+        lib.link_flags.extend(
+            component.data.get(ESPHOME_DATA_KEY, {}).get(
+                ESPHOME_DATA_LINK_FLAGS_KEY, []
             )
         )
+        converted.append(lib)
         _add_bundled_dependencies(component)
 
     backend = LibraryBackend(
@@ -503,7 +511,7 @@ def resolve_libraries(
         bundled_names.add(name)
         bundled.append(_bundled_library(framework_path, name))
 
-    _warn_unfulfilled_provides(
+    _check_unfulfilled_provides(
         backend.provided_requests,
         bundled_names | converted_manifest_names | external_short_names,
     )
