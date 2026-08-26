@@ -160,7 +160,6 @@
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
-#define USE_PREFERENCES_SYNC_EVERY_LOOP
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
 // managers do not provide load_from_key(), so the PreferencesKeyLookupContract
@@ -189,10 +188,12 @@
 #define USE_TEXT_SENSOR
 #define USE_TEXT_SENSOR_FILTER
 #define USE_TIME
+#define USE_TIME_TRIGGERS
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_UART_WAKE_LOOP_ON_RX
 #define USE_UPDATE
+#define USE_UPTIME_TIMESTAMP
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
