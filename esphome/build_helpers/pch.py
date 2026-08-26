@@ -203,16 +203,21 @@ def pch_compile_command(
             e
             for e in entries
             if isinstance(e, dict)
-            and e.get("file", "").replace("\\", "/").startswith(src_prefix)
-            and e.get("file", "").endswith(CXX_SOURCE_SUFFIXES)
+            and isinstance(e.get("file"), str)
+            and e["file"].replace("\\", "/").startswith(src_prefix)
+            and e["file"].endswith(CXX_SOURCE_SUFFIXES)
         ),
         None,
     )
     if entry is None:
         _LOGGER.warning("No src C++ entry in the compile database, skipping pch")
         return None
-    cmd_dir = Path(entry.get("directory") or build_dir)
-    tokens = expand_response_files(split_command(entry.get("command", "")), cmd_dir)
+    directory = entry.get("directory")
+    cmd_dir = Path(directory) if isinstance(directory, str) and directory else build_dir
+    command = entry.get("command")
+    tokens = expand_response_files(
+        split_command(command if isinstance(command, str) else ""), cmd_dir
+    )
     # A DB recorded with ccache enabled prefixes the compiler with the
     # launcher; the .gch must be compiled directly
     if tokens and is_launcher(tokens[0]):
