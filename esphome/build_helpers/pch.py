@@ -233,6 +233,14 @@ def pch_compile_command(
     return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)], cmd_dir
 
 
+def _log_pch_in_use() -> None:
+    # The only place a user can discover the knob; emitted only once a
+    # .gch is actually fresh or being built
+    _LOGGER.info(
+        "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
+    )
+
+
 def discard_pch(build_dir: Path) -> None:
     """Remove the pch sidecars so a stale .gch is never consumed.
 
@@ -262,9 +270,6 @@ def prepare_pch(
     """
     from esphome.core import CORE
 
-    _LOGGER.info(
-        "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
-    )
     header = build_dir / PCH_HEADER_NAME
     gch = Path(f"{header}.gch")
     sum_path = Path(f"{gch}.sum")
@@ -297,6 +302,7 @@ def prepare_pch(
         and sum_path.is_file()
         and sum_path.read_text(encoding="utf-8").strip() == checksum
     ):
+        _log_pch_in_use()
         return
     failed_marker = Path(f"{gch}.failed")
     if (
@@ -308,11 +314,21 @@ def prepare_pch(
             failed_marker,
         )
         return
+    _log_pch_in_use()
     try:
         result = subprocess.run(
             cmd, cwd=cmd_dir, capture_output=True, text=True, check=False, timeout=300
         )
         error = None
+        if result.returncode < 0:
+            # Killed by a signal (OOM, ^C): environmental, do not latch
+            _LOGGER.warning(
+                "Precompiled header compile was killed (signal %d); retrying "
+                "next build",
+                -result.returncode,
+            )
+            discard_pch(build_dir)
+            return
         if result.returncode != 0:
             error = result.stderr.strip() or f"exit code {result.returncode}"
         elif not gch.is_file():
