@@ -21,6 +21,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    NATIVE_TOOLCHAINS,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -983,6 +984,19 @@ class EsphomeCore:
         return self.toolchain == Toolchain.SDK_NRF
 
     @property
+    def using_toolchain_arduino(self):
+        """The native ESP8266 Arduino build toolchain (unlike
+        ``using_arduino``, which is the target framework)."""
+        return self.toolchain == Toolchain.ARDUINO
+
+    @property
+    def using_native_toolchain(self):
+        """Whether the selected toolchain builds natively, without reading
+        ``platformio.ini`` (see ``NATIVE_TOOLCHAINS`` in ``esphome.const``;
+        keep its membership in sync with ``write_cpp_file``'s dispatch)."""
+        return self.toolchain in NATIVE_TOOLCHAINS
+
+    @property
     def using_zephyr(self):
         return self.target_framework == "zephyr"
 
@@ -1095,6 +1109,8 @@ class EsphomeCore:
         return build_flag
 
     def add_build_unflag(self, build_unflag: str) -> None:
+        # No warning for using_toolchain_arduino: the native ESP8266 build
+        # honors build_unflags (token-level, matching PlatformIO).
         if self.using_toolchain_esp_idf:
             # The native ESP-IDF build generator does not consume build_unflags
             _LOGGER.warning(

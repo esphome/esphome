@@ -53,6 +53,7 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_TOOLCHAIN,
     CONF_TOPIC,
     CONF_TYPE,
     CONF_TYPE_ID,
@@ -75,6 +76,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     Framework,
+    Toolchain,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
@@ -91,7 +93,13 @@ from esphome.core import (
 )
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
-from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
+from esphome.helpers import (
+    FALSY_BOOL_STRINGS,
+    TRUTHY_BOOL_STRINGS,
+    add_class_to_obj,
+    docs_url,
+    list_starts_with,
+)
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     schema_extractor,
@@ -105,6 +113,9 @@ from esphome.schema_extractors import (
 from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
+
+if typing.TYPE_CHECKING:
+    from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -576,9 +587,9 @@ def boolean(value):
         return value
     if isinstance(value, str):
         value = value.lower()
-        if value in ("true", "yes", "on", "enable"):
+        if value in TRUTHY_BOOL_STRINGS:
             return True
-        if value in ("false", "no", "off", "disable"):
+        if value in FALSY_BOOL_STRINGS:
             return False
     raise Invalid(
         f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
@@ -2530,6 +2541,63 @@ def platformio_version_constraint(value):
 
         constraints.append((op, version_number(item)))
     return constraints
+
+
+def _check_supported_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...]
+) -> None:
+    """Raise when the resolved ``CORE.toolchain`` is not in ``supported``
+    (one message shape for every platform)."""
+    toolchain = CORE.toolchain
+    if toolchain is None:
+        # A caller ran the check before resolving; an ordering bug, not a
+        # user error
+        raise Invalid(f"Toolchain was not resolved before {platform_name} validation")
+    if toolchain not in supported:
+        names = ", ".join(f"'{tc.value}'" for tc in supported)
+        raise Invalid(
+            f"Unsupported toolchain "
+            f"'{toolchain.value}' for "
+            f"{platform_name}. Supported: {names}."
+        )
+
+
+def toolchain_enum(supported: tuple[Toolchain, ...]) -> Callable[[str], Toolchain]:
+    """Schema validator for a platform's ``toolchain`` config key."""
+
+    def validator(value: str) -> Toolchain:
+        return Toolchain(one_of(*supported, lower=True)(value))
+
+    return validator
+
+
+def resolve_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...], default: Toolchain
+) -> Callable[[ConfigType], ConfigType]:
+    """Resolve ``CORE.toolchain`` (CLI > YAML > default) and reject one the
+    platform cannot serve.
+
+    Add to the platform's validation chain before anything that reads
+    ``CORE.toolchain``.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        if CORE.toolchain is None:
+            CORE.toolchain = config.get(CONF_TOOLCHAIN, default)
+        _check_supported_toolchain(platform_name, supported)
+        return config
+
+    return validator
+
+
+def require_platformio_toolchain(
+    platform_name: str,
+) -> Callable[[ConfigType], ConfigType]:
+    """Reject a CLI-selected toolchain other than PlatformIO, for platforms
+    with only the PlatformIO backend."""
+    return resolve_toolchain(
+        platform_name, (Toolchain.PLATFORMIO,), Toolchain.PLATFORMIO
+    )
 
 
 def require_framework_version(
