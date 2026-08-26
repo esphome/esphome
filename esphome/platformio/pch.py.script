@@ -9,10 +9,12 @@ import traceback
 
 # pylint: disable=E0602
 Import("env")  # noqa: F821
+_projenv_error = None
 try:
     Import("projenv")  # noqa: F821
-except Exception:  # noqa: BLE001 -- not exported under -t nobuild
+except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
     projenv = None
+    _projenv_error = err
 
 # Precompile the src force-includes plus defines.h (which pulls in
 # Arduino.h on Arduino platforms) and force-include the result into C++ src
@@ -45,12 +47,11 @@ def _include_closure(src_dir: Path, roots: list) -> dict:
         try:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
+            # If stat also fails the identity is unknown: the OSError
+            # propagates to the outer handler, which skips the pch
             print(f"ESPHome: could not read {rel} for the pch checksum: {err}")
-            try:
-                st = (src_dir / rel).stat()
-                data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
-            except OSError:
-                data = b"<unreadable>"
+            st = (src_dir / rel).stat()
+            data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
@@ -107,6 +108,8 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
 
 def _setup_pch() -> None:
     if projenv is None:
+        # Expected under -t nobuild; anything else must leave a trail
+        print(f"ESPHome: projenv unavailable ({_projenv_error}); skipping pch")
         return
     # Project root, not $BUILD_DIR: SCons compiles run with the project dir
     # as cwd, so "-include esphome_pch.h" resolves here as a relative path.
@@ -189,8 +192,9 @@ def _setup_pch() -> None:
             inc_dir.is_dir()
             and inc_dir.is_relative_to(proj_dir)
             and not inc_dir.is_relative_to(src_dir)
-            # Library/build trees are versioned via the package digest above;
-            # walking them would read every library file on every build
+            # lib_deps trees are not part of the prefix closure today (the
+            # roots resolve under src/ only); walking them would read every
+            # library file on every build for nothing
             and not inc_dir.is_relative_to(proj_dir / ".piolibdeps")
             and not inc_dir.is_relative_to(proj_dir / ".pioenvs")
         ):
@@ -204,14 +208,11 @@ def _setup_pch() -> None:
             try:
                 data = local.read_bytes()
             except OSError as err:
+                # mtime/size keep a changed-but-unreadable header shifting
+                # the digest; a stat failure propagates and skips the pch
                 print(f"ESPHome: could not read {local} for the pch checksum: {err}")
-                try:
-                    # mtime/size keep a changed-but-unreadable header shifting
-                    # the digest without putting device paths in it
-                    st = local.stat()
-                    data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
-                except OSError:
-                    data = b"<unreadable>"
+                st = local.stat()
+                data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
             digest.update(str(local.relative_to(proj_dir)).encode())
             digest.update(data)
             digest.update(b"\0")

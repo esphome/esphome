@@ -649,5 +649,6 @@ def test_ccache_env_pch_disabled() -> None:
 def test_ccache_env_respects_user_sloppiness() -> None:
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
         env = framework.ccache_env("/usr/bin/ccache")
-    assert "CCACHE_SLOPPINESS" not in env
+    # The user's tokens survive; the ones the pch needs are unioned on
+    assert env["CCACHE_SLOPPINESS"] == "locale,pch_defines,time_macros"
     assert env["CCACHE_PCH_EXTSUM"] == "true"

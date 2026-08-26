@@ -82,15 +82,22 @@ def ccache_pch_env() -> dict[str, str]:
     export these process-wide; only time_macros affects non-pch TUs."""
     if not pch_enabled():
         return {}
+    env = {k: v for k, v in _CCACHE_PCH_ENV.items() if k not in os.environ}
     user_sloppiness = os.environ.get("CCACHE_SLOPPINESS")
-    if user_sloppiness is not None and "pch_defines" not in user_sloppiness:
-        # EXTSUM without pch_defines makes ccache silently decline every
-        # pch-consuming compile
+    if user_sloppiness is not None and (
+        missing := [
+            t for t in ("pch_defines", "time_macros") if t not in user_sloppiness
+        ]
+    ):
+        # Without these ccache declines every pch-consuming compile; union
+        # rather than override so the user's own tokens survive
+        env["CCACHE_SLOPPINESS"] = ",".join((user_sloppiness, *missing))
         _LOGGER.warning(
-            "CCACHE_SLOPPINESS lacks pch_defines; ccache will not cache "
-            "compiles that use the precompiled header"
+            "Adding %s to CCACHE_SLOPPINESS so ccache can cache compiles "
+            "that use the precompiled header",
+            ",".join(missing),
         )
-    return {k: v for k, v in _CCACHE_PCH_ENV.items() if k not in os.environ}
+    return env
 
 
 def pch_extra_scripts() -> list[str]:
@@ -130,13 +137,12 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
             # mtime/size keep a changed-but-unreadable header shifting the
-            # digest without device paths in it
+            # digest without device paths in it; if stat also fails the
+            # header's identity is unknown and the OSError propagates so
+            # callers compile without a pch
             _LOGGER.warning("Could not read %s for the pch checksum: %s", rel, err)
-            try:
-                st = (src_dir / rel).stat()
-                data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
-            except OSError:
-                data = b"<unreadable>"
+            st = (src_dir / rel).stat()
+            data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend((inc.decode(), parent) for inc in _INCLUDE_RE.findall(data))
@@ -148,7 +154,8 @@ def pch_checksum(
 ) -> str:
     """Digest standing in for the .gch in ccache's hash: the include closure
     of the prefix header plus caller-supplied identity strings (versioned
-    install paths, flags)."""
+    install paths, flags). Raises OSError when a header's identity cannot
+    be established at all; callers must then compile without a pch."""
     digest = hashlib.sha256()
     closure = _include_closure(src_dir, include_headers)
     for name in sorted(closure):
@@ -287,16 +294,24 @@ def prepare_pch(
         .replace(effective_ccache_basedir(), "")
         .replace(str(CORE.build_path), "")
     )
-    checksum = pch_checksum(
-        CORE.relative_src_path(),
-        include_headers,
-        (
-            # The closure is sorted, so root order only enters via the text
-            pch_header_text(include_headers),
-            *extra,
-            cmd_id,
-        ),
-    )
+    try:
+        checksum = pch_checksum(
+            CORE.relative_src_path(),
+            include_headers,
+            (
+                # The closure is sorted, so root order only enters via the text
+                pch_header_text(include_headers),
+                *extra,
+                cmd_id,
+            ),
+        )
+    except OSError as err:
+        # Identity unknown: a stale cache entry must never be served
+        _LOGGER.warning(
+            "Could not establish the pch identity; compiling without it: %s", err
+        )
+        discard_pch(build_dir)
+        return
     if (
         gch.is_file()
         and sum_path.is_file()

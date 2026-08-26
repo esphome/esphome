@@ -398,6 +398,24 @@ def test_write_project_pch_sum_only_with_ccache(tmp_path: Path) -> None:
     assert not (build_dir / "esphome_pch.h.gch.sum").exists()
 
 
+def test_write_project_pch_identity_unknown_skips_pch(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An OSError from the checksum means the .sum cannot vouch for the
+    .gch: the build must fall back to plain srcflags."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    with patch(
+        "esphome.build_gen.arduino8266.pch_checksum",
+        side_effect=OSError("stat failed"),
+    ):
+        content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "srccxxflags" not in content
+    assert "  flags = $srcflags" in content
+    assert "Could not establish the pch identity" in caplog.text
+
+
 def test_write_project_pch_disabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
