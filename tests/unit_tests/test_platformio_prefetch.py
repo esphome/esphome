@@ -613,6 +613,19 @@ def test_prefetch_spawn_failures_warn_and_continue(
     assert expected in caplog.text
 
 
+def test_prefetch_child_handled_failure_is_quiet(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Exit 1 means the child already warned with the reason; the parent
+    adds no second warning."""
+    with (
+        patch("esphome.platformio.toolchain.heal_platformio_python_env"),
+        patch.object(pf.subprocess, "run", return_value=MagicMock(returncode=1)),
+    ):
+        pf.prefetch_platformio_packages()
+    assert "prefetch skipped" not in caplog.text
+
+
 def test_main_guards_and_exits_nonzero(caplog: pytest.LogCaptureFixture) -> None:
     """A swallowed failure still reaches the parent as a nonzero exit; the
     parent warns and continues, never failing the build."""

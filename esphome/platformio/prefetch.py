@@ -160,7 +160,11 @@ def prefetch_platformio_packages() -> None:
         _LOGGER.warning("PlatformIO package prefetch skipped: %s", failure_reason(err))
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
         return
-    if proc.returncode != 0:
+    if proc.returncode == 1:
+        # The child already warned with the reason; a second line is noise
+        _LOGGER.debug("Prefetch child reported a handled failure")
+    elif proc.returncode != 0:
+        # Codes the child cannot emit itself (signal deaths, bad wiring)
         _LOGGER.warning(
             "PlatformIO package prefetch skipped (exit %d)", proc.returncode
         )
