@@ -40,12 +40,14 @@ void ControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
 
 void ControllerDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   this->notify_online_(request_pdu);
+  this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
 }
 
 void ControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
   ESP_LOGW(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", fc_of(request_pdu),
            addr_of(request_pdu), static_cast<uint8_t>(exception_code));
   this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
+  this->dispatch_response_(request_pdu, {}, exception_code);
 }
 
 // Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent trigger
@@ -56,9 +58,13 @@ void ControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
 }
 
 void ControllerDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
-  // Fires for intentionally superseded requests as well as frames retired when the device goes offline,
-  // so stay below WARN.
-  ESP_LOGD(TAG, "Request not sent: function 0x%X register 0x%X", fc_of(request_pdu), addr_of(request_pdu));
+  // Only the offline teardown reaches this (a supersede retires silently), so the frame is genuinely
+  // lost; a dropped write was already published optimistically, so surface it.
+  if (modbus::helpers::is_function_code_write(fc_of(request_pdu))) {
+    ESP_LOGW(TAG, "Write not sent: function 0x%X register 0x%X", fc_of(request_pdu), addr_of(request_pdu));
+  } else {
+    ESP_LOGD(TAG, "Request not sent: function 0x%X register 0x%X", fc_of(request_pdu), addr_of(request_pdu));
+  }
 }
 
 bool ControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
