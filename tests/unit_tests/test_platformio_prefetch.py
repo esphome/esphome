@@ -17,6 +17,7 @@ import esphome.platformio.prefetch as pf
 @pytest.fixture(autouse=True)
 def _core(tmp_path: Path):
     CORE.reset()
+    pf._REGISTER_FAILURES.clear()
     CORE.build_path = str(tmp_path)
     CORE.name = "testenv"
     pio_loggers = ("Tool Manager", "Library Manager", "Platform Manager")
@@ -362,14 +363,10 @@ def test_register_download_failure_leaves_a_trace(
 
 def test_register_failures_warn_once(caplog: pytest.LogCaptureFixture) -> None:
     """Systematic registration failures surface once per run."""
-    pf._REGISTER_FAILURES.clear()
     pf._warn_register_failures()
     assert "could not be registered" not in caplog.text
     pf._REGISTER_FAILURES.extend(["a.tar.gz", "b.tar.gz"])
-    try:
-        pf._warn_register_failures()
-    finally:
-        pf._REGISTER_FAILURES.clear()
+    pf._warn_register_failures()
     assert "2 archive(s) could not be registered" in caplog.text
 
 
