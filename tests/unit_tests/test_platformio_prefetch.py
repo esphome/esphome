@@ -220,7 +220,7 @@ def test_uri_fetch_job_promotes_atomically(tmp_path: Path) -> None:
     with patch(
         "esphome.framework_helpers.download_with_resume", side_effect=fake_download
     ):
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
     assert dl_path.read_bytes() == b"data"
     # no orphaned staging file; the lock file may or may not persist
     # (filelock removes it on release on some platforms)
@@ -233,9 +233,9 @@ def test_registry_fetch_job_skips_when_cached(tmp_path: Path) -> None:
     dl_path = tmp_path / "archive"
     dl_path.write_bytes(b"done")
     with patch("esphome.framework_helpers.download_with_resume") as mock_download:
-        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
-            lambda done: None
-        )
+        pf._registry_fetch_job(
+            MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
+        )(lambda done: None)
     mock_download.assert_not_called()
     assert dl_path.read_bytes() == b"done"
 
@@ -259,9 +259,9 @@ def test_registry_fetch_job_downloads_under_lock(tmp_path: Path) -> None:
             side_effect=lambda *a, **k: order.append("unlock"),
         ),
     ):
-        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
-            lambda done: None
-        )
+        pf._registry_fetch_job(
+            MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
+        )(lambda done: None)
     # FileLock.__del__ may add a trailing release; the contract is the order
     assert order[:2] == ["lock", "fetch"]
     assert "unlock" in order[2:]
@@ -281,9 +281,9 @@ def test_lockless_filesystem_downloads_unlocked(
         ),
         patch("filelock.FileLock.release"),
     ):
-        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
-            lambda done: None
-        )
+        pf._registry_fetch_job(
+            MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
+        )(lambda done: None)
     mock_download.assert_called_once()
     assert "downloading unlocked" in caplog.text
 
@@ -300,7 +300,7 @@ def test_uri_fetch_job_failed_download_keeps_staging(tmp_path: Path) -> None:
         ),
         pytest.raises(OSError, match="network gone"),
     ):
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
     assert part.read_bytes() == b"partial"
     assert not dl_path.exists()
 
@@ -317,9 +317,9 @@ def test_lock_real_fault_is_a_counted_failure(tmp_path: Path) -> None:
         ),
         pytest.raises(OSError),
     ):
-        pf._registry_fetch_job("https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
-            lambda done: None
-        )
+        pf._registry_fetch_job(
+            MagicMock(), "https://x/a.tar.gz", dl_path, "ab" * 32, 4
+        )(lambda done: None)
     mock_download.assert_not_called()
 
 
@@ -337,7 +337,9 @@ def test_uri_fetch_job_rejects_wrong_length(tmp_path: Path) -> None:
         ),
         pytest.raises(ValueError, match="expected 9999 bytes"),
     ):
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 9999)(lambda done: None)
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 9999)(
+            lambda done: None
+        )
     assert not dl_path.exists()
     assert not (tmp_path / "archive.prefetch").exists()
 
@@ -361,6 +363,39 @@ def test_sweep_stale_sidecars(tmp_path: Path) -> None:
     pf._sweep_stale_sidecars(tmp_path / "missing")  # tolerated
 
 
+def test_sweep_logs_unprunable_files(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A sidecar that cannot be removed leaves a trace; a sweep that never
+    prunes must not look like a clean sweep."""
+    old_time = pf.time.time() - pf._SIDECAR_EXPIRE_SECONDS - 10
+    stale = tmp_path / "a.tar.gz.part"
+    stale.write_bytes(b"x")
+    os.utime(stale, (old_time, old_time))
+    with (
+        patch.object(Path, "unlink", side_effect=OSError("busy")),
+        caplog.at_level(pf.logging.DEBUG),
+    ):
+        pf._sweep_stale_sidecars(tmp_path)
+    assert "Could not remove" in caplog.text
+
+
+def test_uri_lock_failure_is_a_counted_failure(tmp_path: Path) -> None:
+    """The checksum-less URL path never degrades to an unlocked shared
+    write; interleaved right-length corruption would go undetected."""
+    dl_path = tmp_path / "archive"
+    with (
+        patch("esphome.framework_helpers.download_with_resume") as mock_download,
+        patch(
+            "filelock.FileLock.acquire",
+            side_effect=OSError(errno.ENOSYS, "no locks"),
+        ),
+        pytest.raises(OSError),
+    ):
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
+    mock_download.assert_not_called()
+
+
 def test_uri_fetch_job_no_discard_without_a_file(tmp_path: Path) -> None:
     """When no archive landed (degraded serialized run), the staging bytes
     stay for the next resume instead of being discarded."""
@@ -368,7 +403,7 @@ def test_uri_fetch_job_no_discard_without_a_file(tmp_path: Path) -> None:
     part = tmp_path / "archive.prefetch.part"
     part.write_bytes(b"partial")
     with patch.object(pf, "_serialized_fetch_job", return_value=lambda tracker: None):
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
     assert part.read_bytes() == b"partial"
 
 
@@ -388,7 +423,7 @@ def test_uri_fetch_job_waits_out_a_briefly_held_lock(tmp_path: Path) -> None:
         patch("filelock.FileLock.acquire", side_effect=[Timeout("held"), None]),
         patch("filelock.FileLock.release"),
     ):
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
     assert dl_path.read_bytes() == b"data"
 
 
@@ -405,7 +440,7 @@ def test_uri_fetch_job_lock_timeout_raises(tmp_path: Path) -> None:
         patch.object(pf, "_URI_LOCK_TIMEOUT", 0),
         pytest.raises(TimeoutError, match="another download"),
     ):
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(ticks.append)
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(ticks.append)
     mock_download.assert_not_called()
     assert ticks == [0]
     assert not dl_path.exists()
@@ -458,7 +493,7 @@ def test_uri_fetch_job_skips_when_another_process_won(tmp_path: Path) -> None:
     for f in stale:
         f.write_bytes(b"stale")
     with patch("esphome.framework_helpers.download_with_resume") as mock_download:
-        pf._uri_fetch_job("https://x/a.zip", dl_path, 4)(lambda done: None)
+        pf._uri_fetch_job(MagicMock(), "https://x/a.zip", dl_path, 4)(lambda done: None)
     mock_download.assert_not_called()
     assert dl_path.read_bytes() == b"done"
     assert not any(f.exists() for f in stale)
@@ -714,6 +749,52 @@ def test_preinstall_memcache_failure_leaves_a_trace(
     assert "memcache reset failed" in caplog.text
 
 
+def test_stop_child_interrupted_and_still_alive_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A second interrupt triggers a best-effort kill; a child that still
+    cannot be confirmed dead is warned about."""
+    proc = MagicMock()
+    proc.wait.side_effect = KeyboardInterrupt()
+    proc.poll.return_value = None
+    pf._stop_child(proc)
+    proc.kill.assert_called_once_with()
+    assert "could not be confirmed stopped" in caplog.text
+
+
+def test_stop_child_reraises_system_exit(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A SystemExit mid-stop must not be absorbed into a warning."""
+    proc = MagicMock()
+    proc.wait.side_effect = SystemExit(143)
+    with pytest.raises(SystemExit):
+        pf._stop_child(proc)
+    assert "could not be confirmed stopped" in caplog.text
+
+
+def test_dependency_entries_warn_when_all_reads_fail(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Every manifest read failing is a systematic fault (a pio API
+    break), not one bad package; the waves must not vanish silently."""
+    m = _fake_manager(tmp_path)
+    m.get_package.side_effect = lambda spec: SimpleNamespace(spec=spec)
+    m.get_pkg_dependencies.side_effect = RuntimeError("api break")
+    assert (
+        pf._dependency_entries(
+            m,
+            [
+                ("a@1", _FakeSpec(uri=None, name="a")),
+                ("b@1", _FakeSpec(uri=None, name="b")),
+            ],
+            set(),
+        )
+        == []
+    )
+    assert "Could not read dependencies of any of 2" in caplog.text
+
+
 def _proc(wait_effect) -> MagicMock:
     proc = MagicMock()
     if isinstance(wait_effect, BaseException):
@@ -737,25 +818,29 @@ def test_prefetch_passes_dashboard_flag(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("popen_effect", "expected"),
+    ("wait_effect", "spawn_error", "expected"),
     [
-        (
-            {
-                "return_value": _proc(
-                    pf.subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT)
-                )
-            },
-            "prefetch timed out",
-        ),
-        ({"return_value": _proc(3)}, "prefetch skipped (exit 3)"),
-        ({"side_effect": OSError("no exec")}, "PlatformIO package prefetch skipped"),
+        ("timeout", None, "prefetch timed out"),
+        (3, None, "prefetch skipped (exit 3)"),
+        (None, OSError("no exec"), "PlatformIO package prefetch skipped"),
     ],
 )
 def test_prefetch_spawn_failures_warn_and_continue(
-    caplog: pytest.LogCaptureFixture, popen_effect, expected
+    caplog: pytest.LogCaptureFixture, wait_effect, spawn_error, expected
 ) -> None:
     """Timeouts, nonzero exits, and spawn failures each warn, never raise;
-    a timed-out child is stopped gracefully."""
+    a timed-out child is stopped gracefully. The mock is built per test:
+    a collection-time mock's consumable side_effect breaks reruns."""
+    if spawn_error is not None:
+        popen_effect = {"side_effect": spawn_error}
+    elif wait_effect == "timeout":
+        popen_effect = {
+            "return_value": _proc(
+                pf.subprocess.TimeoutExpired("cmd", pf._PREFETCH_TIMEOUT)
+            )
+        }
+    else:
+        popen_effect = {"return_value": _proc(wait_effect)}
     with (
         patch("esphome.platformio.toolchain.heal_platformio_python_env"),
         patch.object(pf.subprocess, "Popen", **popen_effect),

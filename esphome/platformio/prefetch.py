@@ -76,9 +76,12 @@ def _sweep_stale_sidecars(download_dir: Path) -> None:
         for f in download_dir.iterdir():
             if f.suffix not in (".part", ".meta", ".prefetch", ".lock"):
                 continue
-            with suppress(OSError):
+            try:
                 if f.stat().st_mtime < cutoff:
                     f.unlink()
+            except OSError as err:
+                # An unprunable sidecar grows the cache forever otherwise
+                _LOGGER.debug("Could not remove %s: %s", f, err)
     except OSError:
         _LOGGER.debug("Could not sweep %s", download_dir, exc_info=True)
 
@@ -219,13 +222,24 @@ def _stop_child(proc: subprocess.Popen) -> None:
         proc.kill()
         proc.wait(timeout=5)
     except KeyboardInterrupt:
-        # A second interrupt mid-stop must not escape and orphan the child
+        # A second interrupt mid-stop must not escape and orphan the child;
+        # best-effort kill so it cannot keep writing package directories
+        # (BaseException: a third interrupt must not escape either)
+        with suppress(BaseException):
+            proc.kill()
+            proc.wait(timeout=5)
+        if proc.poll() is None:
+            _LOGGER.warning("The prefetch child could not be confirmed stopped")
         _LOGGER.debug("Interrupted while stopping the prefetch child", exc_info=True)
-    except BaseException:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # A child that outlives kill() may still be writing packages that
         # pio run will trust; that must be visible, not a debug line
         _LOGGER.warning("The prefetch child could not be confirmed stopped")
         _LOGGER.debug("Stop detail", exc_info=True)
+    except BaseException:
+        # SystemExit/GeneratorExit must not be absorbed into a warning
+        _LOGGER.warning("The prefetch child could not be confirmed stopped")
+        raise
 
 
 def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
@@ -242,7 +256,9 @@ def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
 
 def _manager_kwargs(manager: Any) -> dict[str, Any]:
     """Constructor kwargs that make a sibling manager equivalent to the shared one."""
-    if compatibility := getattr(manager, "compatibility", None):
+    # Hard read: a renamed attribute must fail loudly, not silently drop
+    # the qualifiers wave-1 installs resolve with
+    if compatibility := manager.compatibility:
         return {"compatibility": compatibility}
     return {}
 
@@ -319,7 +335,9 @@ def _registry_jobs(
             (
                 res.name,
                 res.size,
-                _registry_fetch_job(res.url, res.dl_path, res.checksum, res.size),
+                _registry_fetch_job(
+                    manager, res.url, res.dl_path, res.checksum, res.size
+                ),
             )
         )
     if failed := len(errors):
@@ -367,16 +385,20 @@ def _uri_jobs(
         seen.add(str(dl_path))
         candidates.append((name, url, dl_path, spec))
 
+    errors: list[str] = []
+
     def _head_size(url: str) -> int:
         try:
             resp = fetch_with_retry(url, lambda: http_request("HEAD", url, timeout=30))
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             _LOGGER.debug("HEAD %s failed", url, exc_info=True)
+            errors.append(failure_reason(err))
             return -1
         if not resp.ok:
             # An error page's Content-Length is not a download size
             _LOGGER.debug("HEAD %s returned %s", url, resp.status_code)
             if resp.status_code in (408, 429) or resp.status_code >= 500:
+                errors.append(f"HTTP {resp.status_code}")
                 return -1  # transient; must not be cached as warm
             if resp.status_code in (405, 501):
                 # HEAD unsupported but GET may work: a clean skip, or the
@@ -398,27 +420,33 @@ def _uri_jobs(
         if size < 0:
             failed += 1
         elif size:
-            jobs.append((name, size, _uri_fetch_job(url, dl_path, size)))
+            jobs.append((name, size, _uri_fetch_job(manager, url, dl_path, size)))
             installable.append((name, spec))
     if failed:
         _LOGGER.warning(
-            "Could not size %d of %d PlatformIO package URL(s); "
+            "Could not size %d of %d PlatformIO package URL(s) (%s); "
             "PlatformIO will download them serially",
             failed,
             len(candidates),
+            errors[0] if errors else "no length",
         )
     return jobs, failed, installable
 
 
-def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
+def _serialized_fetch_job(
+    dl_path: Path, lock_path: str, body: Any, unlocked_ok: bool = True
+) -> Any:
     """Wrap ``body`` so the shared destination is single-writer.
 
     Any download landing in PlatformIO's shared core dir can race a
     sibling esphome process writing the same ``.part``; interleaved
     writers truncate each other's bytes (see registry.py). A bounded
-    poll keeps a parked worker observing Ctrl-C via the tracker, a
-    blown deadline is a counted failure, and a lock-less filesystem
-    (git.py's ENOSYS/EPERM case) proceeds unlocked with one warning.
+    poll keeps a parked worker observing Ctrl-C via the tracker and a
+    blown deadline is a counted failure. On a lock-less filesystem
+    (git.py's ENOSYS/EPERM case) a sha256-verified body proceeds
+    unlocked with one warning; a checksum-less one becomes a counted
+    failure, since interleaved right-length corruption would go
+    undetected.
     """
 
     def run(tracker: Any) -> None:
@@ -442,9 +470,13 @@ def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
                         "timed out waiting for another download of the same file"
                     ) from None
             except OSError as err:
-                if err.errno not in (errno.ENOSYS, errno.EPERM, errno.EROFS):
-                    # EACCES/ENOSPC/EMFILE are real faults; an unlocked
-                    # write of a shared destination is not a safe fallback
+                if not unlocked_ok or err.errno not in (
+                    errno.ENOSYS,
+                    errno.EPERM,
+                    errno.EROFS,
+                ):
+                    # Real faults (EACCES/ENOSPC/EMFILE), or a body with no
+                    # checksum to catch interleaved corruption
                     raise
                 lock = None
                 _LOGGER.warning(
@@ -464,18 +496,33 @@ def _serialized_fetch_job(dl_path: Path, lock_path: str, body: Any) -> Any:
     return run
 
 
-def _registry_fetch_job(url: str, dl_path: Path, checksum: str, size: int) -> Any:
+def _register_download(manager: Any, dl_path: Path) -> None:
+    """Hand the archive to pio's usage.db pruner; without an entry an
+    archive nothing ever consumes would be stranded at any age."""
+    with suppress(Exception):
+        manager.set_download_utime(str(dl_path))
+
+
+def _registry_fetch_job(
+    manager: Any, url: str, dl_path: Path, checksum: str, size: int
+) -> Any:
     """A locked fetch straight to the cache path; sha256 verifies it."""
     # .esphome.lock: pio's own LockFile(dl_path) owns <dl_path>.lock and
     # deletes it on release, which would unlink a held filelock
-    return _serialized_fetch_job(
+    fetch = _serialized_fetch_job(
         dl_path,
         f"{dl_path}.esphome.lock",
         resume_fetch_job(url, dl_path, sha256=checksum, size=size),
     )
 
+    def run(tracker: Any) -> None:
+        fetch(tracker)
+        _register_download(manager, dl_path)
 
-def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
+    return run
+
+
+def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
     """Fetch to a locked staging path, then rename into the cache.
 
     URL specs carry no checksum, so a same-length corrupt file could be
@@ -495,11 +542,14 @@ def _uri_fetch_job(url: str, dl_path: Path, size: int) -> Any:
         tmp.replace(dl_path)
 
     def run(tracker: Any) -> None:
-        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote)(tracker)
+        _serialized_fetch_job(dl_path, f"{tmp}.lock", promote, unlocked_ok=False)(
+            tracker
+        )
         if dl_path.is_file():
             # Won or lost, the race is over; staging files left behind
             # are dead weight PlatformIO's cache never prunes
             discard_partial_download(tmp)
+            _register_download(manager, dl_path)
 
     return run
 
@@ -525,16 +575,24 @@ def _dependency_entries(
     # pins the library-side name against renames
     is_builtin = getattr(manager, "is_builtin_lib", None)
     deps: dict[str, Any] = {}
+    skipped = 0
     for name, spec, *_ in entries:
         try:
             deps_of = _entry_dependencies(manager, spec, compatibility, is_builtin)
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
             # One unreadable manifest must not drop the group's whole wave
             _LOGGER.debug("Skipping dependencies of %s", name, exc_info=True)
+            skipped += 1
             continue
         for key, entry in deps_of:
             if key not in seen_names:
                 deps.setdefault(key, entry)
+    if skipped and skipped == len(entries):
+        # A systematic fault (a pio API break), not one bad manifest;
+        # without this the dependency waves vanish with no trace
+        _LOGGER.warning(
+            "Could not read dependencies of any of %d package(s)", len(entries)
+        )
     return list(deps.values())
 
 
@@ -654,10 +712,11 @@ def _preinstall(
                 raise
     finally:
         # Cleanup must not mask an in-flight exception or skip a step
+        stale_cache = False
         try:
             manager.memcache_reset()
         except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            # The dependency wave reads installed state from this cache
+            stale_cache = True
             _LOGGER.debug("memcache reset failed", exc_info=True)
         try:
             manager.unlock()
@@ -671,6 +730,11 @@ def _preinstall(
 
     seen = seen_names if seen_names is not None else set()
     seen.update(name.split("@", 1)[0].lower() for name, *_ in entries)
+    if stale_cache:
+        # The wave decides installed-vs-missing from that cache; running
+        # on stale answers could queue or skip the wrong packages
+        _LOGGER.warning("Skipping the dependency wave after a failed cache reset")
+        return
     # The builtin probe may construct platforms whose setup rewrites
     # sys.path (see _prefetch); restore it for later imports
     saved_sys_path = list(sys.path)
