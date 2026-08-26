@@ -117,15 +117,10 @@ class _FakeManager:
     def get_pkg_dependencies(self, pkg):
         return getattr(type(self), "deps", {}).get(pkg.spec)
 
-    @staticmethod
-    def dependency_to_spec(dependency):
-        from platformio.package.meta import PackageSpec
+    # The real conversion: the fake must not drift from what pio does
+    from platformio.package.manager.base import BasePackageManager
 
-        return PackageSpec(
-            owner=dependency.get("owner"),
-            name=dependency.get("name"),
-            requirements=dependency.get("version"),
-        )
+    dependency_to_spec = staticmethod(BasePackageManager.dependency_to_spec)
 
 
 def _reset_fake(base_dir: str = "", **kwargs) -> type:
@@ -231,10 +226,8 @@ def test_success_without_package_prints_anomaly(tmp_path: Path, capsys) -> None:
     anomaly instead of silently pruning its dependency subtree."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path))
-    real_get = cls.get_package
-    cls.get_package = lambda self, spec: None  # never resolvable
+    cls.get_package = lambda self, spec: None  # throwaway subclass
     mod.parallel_install(cls, ["esphome/ghost @ 1.0"])
-    cls.get_package = real_get
     assert "not resolvable afterwards" in capsys.readouterr().out
 
 

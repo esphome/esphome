@@ -18,9 +18,10 @@ import traceback
 try:
     from platformio import fs
     from platformio.cache import ContentCache
+    from platformio.package.manager.base import BasePackageManager
     from platformio.package.manager.library import LibraryPackageManager
     from platformio.package.manager.tool import ToolPackageManager
-    from platformio.package.meta import PackageCompatibility, PackageSpec
+    from platformio.package.meta import PackageCompatibility
 
     PARALLEL_AVAILABLE = True
 except ImportError:  # pragma: no cover
@@ -91,12 +92,66 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
     )
 
 
+def predicted_dest(mgr, spec) -> Path | None:
+    """The spec's own install dir; a fallback (case/safe-dirname quirks),
+    not the primary lookup."""
+    name = BasePackageManager.ensure_spec(spec).name
+    return Path(mgr.package_dir, name) if name else None
+
+
+def remove_dir(spec, dest: Path) -> None:
+    # fs.rmtree never raises (errors go to a printing onexc handler);
+    # only the destination's absence proves the cleanup worked
+    fs.rmtree(str(dest))
+    if dest.exists():
+        # Failing the build beats baking a corrupt image
+        raise CleanupError(
+            f"could not remove the failed pre-install of {spec} at {dest}"
+        )
+    print(f"Removed torn destination {dest}", flush=True)
+
+
+def clean_torn(mgr, spec) -> None:
+    """Remove a torn destination so the serial pass cannot trust it."""
+    scan_err = None
+    pkg = None
+    for attempt in range(5):
+        try:
+            # get_package memoizes a pre-install snapshot; without a
+            # reset it cannot see the torn directory
+            mgr.memcache_reset()
+            pkg = mgr.get_package(spec)
+            scan_err = None
+            break
+        except Exception as err:  # noqa: BLE001
+            # Likely another worker's in-flight copy; back off and retry
+            scan_err = err
+            time.sleep(0.2 * (2**attempt))
+    if pkg is not None:
+        remove_dir(spec, Path(pkg.path))
+        return
+    # The scan verdict depends on the whole storage tree (or the manifest
+    # is unparsable); judge by this spec's own destination so an innocent
+    # worker's in-flight copy cannot fail the build naming the wrong spec
+    dest = predicted_dest(mgr, spec)
+    if dest is not None and dest.exists():
+        remove_dir(spec, dest)
+    elif scan_err is not None:
+        print(
+            f"Could not inspect failed pre-install of {spec} "
+            f"({scan_err!r}); no destination to clean",
+            flush=True,
+        )
+    else:
+        print(f"No resolvable destination to clean for {spec}", flush=True)
+
+
 def spec_key(spec) -> str | None:
     """The destination identity of a spec: PlatformIO installs by package
     name, so two specs sharing a name share a directory. ``None`` means
     the name could not be derived; such a spec must stay out of the wave
     (a raw-string key would break the one-per-destination guarantee)."""
-    name = spec.name if isinstance(spec, PackageSpec) else PackageSpec(spec).name
+    name = BasePackageManager.ensure_spec(spec).name
     return name.lower() if name else None
 
 
@@ -153,7 +208,7 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     unique = {}
     for spec, compat in pairs:
         # Normalize once: a dependency's URL version surfaces as spec.uri
-        parsed = spec if isinstance(spec, PackageSpec) else PackageSpec(spec)
+        parsed = BasePackageManager.ensure_spec(spec)
         if parsed.uri:
             continue
         if (key := spec_key(parsed)) is None:
@@ -175,65 +230,6 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     for _ in range(workers):
         managers.put(manager_cls(None))
     local = threading.local()
-
-    def predicted_dest(mgr, spec) -> Path | None:
-        # pio installs by package name; case and safe-dirname quirks make
-        # this a fallback, not the primary lookup
-        name = spec.name if isinstance(spec, PackageSpec) else PackageSpec(spec).name
-        return Path(mgr.package_dir, name) if name else None
-
-    def remove_dir(spec, dest: Path) -> None:
-        # fs.rmtree never raises (errors go to a printing onexc handler);
-        # only the destination's absence proves the cleanup worked
-        fs.rmtree(str(dest))
-        if dest.exists():
-            # Failing the build beats baking a corrupt image
-            raise CleanupError(
-                f"could not remove the failed pre-install of {spec} at {dest}"
-            )
-        print(f"Removed torn destination {dest}", flush=True)
-
-    def clean_torn(mgr, spec) -> None:
-        # A torn copy into the destination can carry valid metadata the
-        # pkg install pass would trust; remove it so that pass redoes it
-        scan_err = None
-        pkg = None
-        for attempt in range(5):
-            try:
-                # get_package memoizes a pre-install snapshot; without a
-                # reset it cannot see the torn directory
-                mgr.memcache_reset()
-                pkg = mgr.get_package(spec)
-                scan_err = None
-                break
-            except Exception as err:  # noqa: BLE001
-                # Likely another worker's in-flight copy; back off and retry
-                scan_err = err
-                time.sleep(0.2 * (2**attempt))
-        if scan_err is not None:
-            # The scan verdict depends on the whole storage tree; judge by
-            # this spec's own destination so an innocent worker's in-flight
-            # copy cannot fail the build naming the wrong spec
-            dest = predicted_dest(mgr, spec)
-            if dest is not None and dest.exists():
-                remove_dir(spec, dest)
-            else:
-                print(
-                    f"Could not inspect failed pre-install of {spec} "
-                    f"({scan_err!r}); no destination to clean",
-                    flush=True,
-                )
-            return
-        if pkg is None:
-            # A torn dir with an unparsable manifest is invisible to
-            # get_package; fall back to the predicted destination
-            dest = predicted_dest(mgr, spec)
-            if dest is not None and dest.exists():
-                remove_dir(spec, dest)
-            else:
-                print(f"No resolvable destination to clean for {spec}", flush=True)
-            return
-        remove_dir(spec, Path(pkg.path))
 
     def install_one(item) -> bool:
         spec, compat = item
@@ -359,12 +355,10 @@ def main() -> None:
 
     # Platforms stay serial: PlatformPackageManager.install runs an
     # on_installed hook the private _install path would skip
-    wave_groups = (
-        [(ToolPackageManager, tools), (LibraryPackageManager, libs)]
-        if PARALLEL_AVAILABLE
-        else []
-    )
-    if not PARALLEL_AVAILABLE:  # pragma: no cover
+    if PARALLEL_AVAILABLE:
+        wave_groups = [(ToolPackageManager, tools), (LibraryPackageManager, libs)]
+    else:  # pragma: no cover
+        wave_groups = []
         print("PlatformIO layout changed; serial install only", flush=True)
     for manager_cls, specs in wave_groups:
         try:
