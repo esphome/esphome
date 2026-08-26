@@ -30,7 +30,6 @@ CONF_PID = "pid"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
 CONF_MAX_PACKET_SIZE = "max_packet_size"
-CONF_DUAL_HOST = "dual_host"
 
 
 def usb_device_schema(
@@ -67,17 +66,6 @@ def get_max_transfer_requests() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_TRANSFER_REQUESTS, 16)
 
 
-def _dual_host_validator(value):
-    """dual_host requires ESP32-P4 and IDF >= 6.0 (needs espressif/usb 1.4.1)."""
-    value = cv.boolean(value)
-    if value:
-        if get_esp32_variant() != VARIANT_ESP32P4:
-            raise cv.Invalid("dual_host is only supported on ESP32-P4")
-        if idf_version() < cv.Version(6, 0, 0):
-            raise cv.Invalid("dual_host requires IDF >= 6.0.0")
-    return value
-
-
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -87,7 +75,6 @@ CONFIG_SCHEMA = cv.All(
                 min=1, max=32
             ),
             cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(64, 512, int=True),
-            cv.Optional(CONF_DUAL_HOST, default=False): _dual_host_validator,
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
         }
     ),
@@ -124,9 +111,6 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    if config.get(CONF_DUAL_HOST):
-        cg.add(var.set_dual_host(True))
 
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_client(device)
