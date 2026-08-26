@@ -66,9 +66,8 @@ class ArduinoLibrary:
     link_flags: list[str] = field(default_factory=list)
 
 
-# Filename-plain names only: leading alnum/underscore, then word chars,
-# dot, space, plus, or hyphen. An allowlist excludes separators, drive
-# colons, and dot-only names by shape instead of enumerating them.
+# Filename-plain names: an allowlist excludes separators, drive colons,
+# and dot-only names by shape
 _SAFE_LIBRARY_NAME_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_. +-]*\Z")
 
 
@@ -78,8 +77,7 @@ def _is_safe_library_name(name: object) -> bool:
 
 
 def _manifest_build(name: str, data: object) -> dict:
-    """The manifest's ``build`` section; a malformed manifest must fail
-    naming the library, not with an AttributeError."""
+    """The manifest's ``build`` section; malformed manifests fail by name."""
     build = data.get("build", {}) if isinstance(data, dict) else None
     if not isinstance(build, dict):
         raise EsphomeError(f"Library {name} has a malformed manifest")
@@ -90,8 +88,7 @@ def _resolve_src_dir(name: str, read_path: Path, build: dict) -> str:
     """Resolve PIO's source dir: manifest srcDir, else src/Src, else the root."""
     if "srcDir" not in build:
         return next((d for d in ("src", "Src") if (read_path / d).is_dir()), ".")
-    # A declared srcDir (falsy included) that does not resolve is a
-    # manifest error
+    # A declared srcDir (falsy included) that does not resolve is a manifest error
     src_dir = build["srcDir"]
     if not (isinstance(src_dir, str) and src_dir and (read_path / src_dir).is_dir()):
         raise EsphomeError(
@@ -101,9 +98,8 @@ def _resolve_src_dir(name: str, read_path: Path, build: dict) -> str:
 
 
 def _reject_unsupported_link_fields(name: str, data: dict) -> None:
-    # PIO's Arduino lib builder honors these; building without them would
-    # fail at link with no stated cause. library.properties values are
-    # strings, so "false" (the spec's explicit opt-out) is not a declaration.
+    # PIO honors these; ignoring them would fail at link with no stated
+    # cause. Property values are strings, so "false" is not a declaration.
     precompiled = data.get("precompiled")
     if precompiled and str(precompiled).strip().lower() != "false":
         raise EsphomeError(
@@ -116,8 +112,8 @@ def _reject_unsupported_link_fields(name: str, data: dict) -> None:
 
 
 def _resolve_lib_archive(name: str, data: dict, build: dict) -> bool:
-    """build.libArchive, else dot_a_linkage (Arduino IDE's property, ignored
-    by PIO -- a deliberate extra), else archive."""
+    """build.libArchive, else dot_a_linkage (an Arduino IDE property PIO
+    ignores; a deliberate extra), else archive."""
 
     # Strict parse: bool("false") is True
     def _parse(key: str, raw: object) -> bool:
@@ -149,8 +145,8 @@ def _classify_build_flags(
         elif tok.startswith("-L"):
             link_dir = (read_path / tok[2:]).resolve()
             if not link_dir.is_dir():
-                # Kept anyway (the linker ignores missing -L dirs); the
-                # warning names the culprit before a bare "cannot find -lfoo"
+                # Kept (the linker ignores missing -L dirs); the warning
+                # names the culprit before a bare "cannot find -lfoo"
                 _LOGGER.warning(
                     "Library %s declares library dir %s which does not exist",
                     name,
@@ -185,9 +181,8 @@ def _resolve_include_dirs(
         if (path := (read_path / d)).is_dir():
             lib.include_dirs.append(path.resolve())
         elif explicit:
-            # Warn-and-drop is intended (unlike srcDir, which raises): a
-            # missing include dir is harmless until a header is actually
-            # needed, and the compile names it then
+            # Warn-and-drop (unlike srcDir): a missing include dir is
+            # harmless until a header is needed, and the compile names it
             _LOGGER.warning(
                 "Library %s declares include dir %s which does not exist", name, d
             )
@@ -206,10 +201,8 @@ def _collect_lib_sources(
         for f in matched
         if (path := Path(f)).suffix in SRC_FILE_EXTENSIONS
     )
-    # A source-like suffix the case-sensitive map rejects (.CPP, .ino) is a
-    # dropped compilation unit that surfaces as undefined symbols at link;
-    # headers and metadata files fall through silently (header-only
-    # libraries are routine)
+    # A source-like suffix the case-sensitive map rejects (.CPP, .ino)
+    # is a dropped compilation unit; headers fall through silently
     source_like = {s.lower() for s in SRC_FILE_EXTENSIONS} | {".ino"}
     if dropped := [
         Path(f).name
@@ -226,10 +219,8 @@ def _collect_lib_sources(
     if not lib.sources and not any(
         Path(f).suffix.lower() in LIBRARY_HEADER_SUFFIXES for f in matched
     ):
-        # Matched headers mean a header-only library; a filter matching
-        # nothing (or only inert files) is a manifest/tree problem whether
-        # or not it was declared. The truly empty tree raises via
-        # _assert_tree_has_code.
+        # Matched headers mean header-only; a filter matching nothing is
+        # a manifest/tree problem (a truly empty tree raises elsewhere)
         _LOGGER.warning("Library %s: no source files matched", name)
 
 
@@ -265,8 +256,7 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
     else:
         manifest = lib_dir / "library.properties"
         if not manifest.is_file():
-            # Defaults still build core libraries correctly, but a missing
-            # manifest can also mean a torn framework extraction
+            # Defaults build core libraries; can also mean a torn extraction
             _LOGGER.debug("Bundled library %s has no manifest; using defaults", name)
         data = parse_library_properties(manifest) if manifest.is_file() else {}
     if isinstance(data, dict):
@@ -280,8 +270,8 @@ def _bundled_library(framework_path: Path, name: str) -> ArduinoLibrary:
         warn_properties_depends(name, data)
         build = data.get("build")
         if isinstance(build, dict) and build.get("extraScript"):
-            # apply_extra_script only runs on the converted path; building
-            # without the script's flags would miscompile
+            # Scripts only run on the converted path; building without
+            # the script's flags would miscompile
             raise EsphomeError(
                 f"Bundled library {name} declares an extraScript, which is "
                 "not run for bundled libraries"
@@ -309,12 +299,10 @@ def _assert_tree_has_code(name: str, root: Path, hint: str) -> None:
 def _external_short_name(name: str) -> str:
     """The short library name of a requested spec.
 
-    "owner/Name" and plain names take the last path segment; the
-    "Name=<url>" custom-name form takes the declared name (the URL tail is
-    a repository path, not a library name). Git tails (".git", "#ref") are
-    stripped like the walk's own URL normalization -- deliberately further
-    than CORE.add_library's keying, because the comparand here is a manifest
-    dependency name, never a spec.
+    "owner/Name" and plain names take the last path segment; "Name=<url>"
+    takes the declared name. Git tails (".git", "#ref") are stripped like
+    the walk's URL normalization; the comparand is a manifest dependency
+    name, never a spec.
     """
     head, sep, tail = name.partition("=")
     if sep and "://" in tail:
@@ -326,13 +314,12 @@ def _external_short_name(name: str) -> str:
 def _check_unfulfilled_provides(
     provided_requests: list[str], satisfied: set[str], still_requested: set[str]
 ) -> None:
-    """Reconcile the provides() promise: every dependency the walk skipped
-    on the backend's word must have been added from the framework tree (or
-    knowingly satisfied by a converted/external library). An unfulfilled
-    promise can only surface as undefined symbols at link, so it fails
-    here by name like the other can-never-link checks in this module. The
-    walk records across re-resolutions, so a name no final manifest still
-    requests is stale state, never a failure."""
+    """Fail by name when a walk-skipped dependency was never added.
+
+    An unfulfilled provides() promise only surfaces as undefined symbols
+    at link. The walk records across re-resolutions, so a name no final
+    manifest still requests is stale state, never a failure.
+    """
     if missing := sorted((set(provided_requests) & still_requested) - satisfied):
         raise EsphomeError(
             "provides() skipped these dependencies but nothing added them: "
@@ -358,14 +345,13 @@ def resolve_libraries(
     # PlatformIO's lib_ignore covers framework-bundled libraries too; the
     # shared converter only filters the registry/git ones.
     lib_ignore = lib_ignore_set()
-    # Exact on-disk directory names, so membership is case-sensitive on
-    # every filesystem (a per-name is_dir() probe would match "wire" on
-    # macOS/Windows and build the bundled Wire twice); the safety guard
-    # stays fused with the lookup (path traversal)
+    # Exact directory names keep membership case-sensitive everywhere
+    # (an is_dir() probe would match "wire" on macOS/Windows and build
+    # the bundled Wire twice)
     libraries_dir = framework_path / "libraries"
     if not libraries_dir.is_dir():
-        # Falling back to the registry would fail later with a misleading
-        # package-not-found error for every bundled name
+        # A registry fallback would fail later with a misleading
+        # package-not-found error per bundled name
         raise EsphomeError(
             f"{libraries_dir} is missing; the framework install may be "
             "incomplete (run 'esphome clean-all')"
@@ -381,8 +367,7 @@ def resolve_libraries(
         # Bundled only for a bare name with a matching framework dir; pinned
         # or unmatched names resolve from the registry, as under PlatformIO.
         if not library.repository and not library.version and _provided(library.name):
-            # Bundled libraries' own manifest deps are not walked (none of
-            # the ESP8266 core's declare any; _bundled_library warns if one does)
+            # Bundled manifest deps are not walked; _bundled_library warns
             bundled.append(_bundled_library(framework_path, library.name))
         else:
             external.append(library)
@@ -405,9 +390,8 @@ def resolve_libraries(
     }
 
     def _add_bundled_dependencies(component: ConvertedLibrary) -> None:
-        # A version-less bare-name dependency ("Hash" in ESPAsyncWebServer)
-        # is a core-bundled library; the shared converter skips it because
-        # it cannot be resolved from the registry.
+        # A version-less bare name ("Hash") is a core-bundled library the
+        # shared converter cannot resolve from the registry
         for dep in normalize_dependencies(
             component.data.get("dependencies"), component.name
         ):
@@ -417,12 +401,10 @@ def resolve_libraries(
             if isinstance(name, str) and "/" in name:
                 owner, _, pkg = name.partition("/")
                 if _is_safe_library_name(owner) and _is_safe_library_name(pkg):
-                    # PIO's owner-qualified spelling ("Owner/Pkg"); the
-                    # converter resolves it from the registry
+                    # Owner-qualified; the converter resolves it from the registry
                     continue
             if not _is_safe_library_name(name):
-                # The name becomes a path component under the framework
-                # tree; never join a traversal or a non-string
+                # The name becomes a path component; never join a traversal
                 _LOGGER.warning(
                     "Ignoring malformed dependency entry %r of library %s",
                     dep,
@@ -431,8 +413,8 @@ def resolve_libraries(
                 continue
             if name in external_short_names:
                 if _provided(name):
-                    # A bundled copy really is suppressed; an accidental
-                    # short-name collision would surface as link errors
+                    # A bundled copy is suppressed; a coincidental name
+                    # collision would surface as link errors
                     _LOGGER.warning(
                         "Dependency %s of %s is assumed satisfied by a "
                         "requested external library; the bundled copy is "
@@ -451,30 +433,23 @@ def resolve_libraries(
             if name in bundled_names or is_lib_ignored(name, lib_ignore):
                 continue
             if _url_or_none(dep.get("version")) is not None:
-                # A URL names one specific source (the walk resolves it as
-                # git); the bundled copy must never be added on top
+                # A URL names one specific source; never add the bundled copy
                 continue
             if dep.get("owner") or not _provided(name):
-                # Owner-less names in the framework tree prefer the bundled
-                # copy (PIO's process_dependencies); everything else resolves
-                # via the converter, and the walk reports any real drops
+                # Only owner-less framework-tree names take the bundled
+                # copy (PIO's process_dependencies); the walk reports drops
                 continue
             try:
-                # framework=None: the walk already ran dependency_is_usable
-                # on this entry and warned for any non-platform cause, so
-                # debug here is what keeps one manifest fault from warning
-                # twice. That invariant is pinned by
-                # test_nonplatform_rejection_warns_once_through_real_converter,
-                # which fails if the walk stops evaluating these deps.
+                # framework=None: the walk already warned for non-platform
+                # causes; debug keeps one fault from warning twice (pinned
+                # by test_nonplatform_rejection_warns_once_through_real_converter)
                 check_library_data(dep, pio_platform, None)
             except InvalidLibrary as err:
-                # A knowing skip (platform filter), not a broken promise;
-                # the reconciliation must accept it as satisfied
+                # A knowing skip (platform filter), not a broken promise
                 knowingly_skipped.add(name)
                 _LOGGER.debug("Skip bundled candidate %s: %s", name, err)
                 continue
-            # Deferred: a later-emitted library's manifest name may satisfy
-            # this; adding now could double the archive
+            # Deferred: a later manifest name may satisfy this
             pending_bundled.setdefault(name)
 
     def _emit(component: ConvertedLibrary) -> None:
@@ -491,9 +466,8 @@ def resolve_libraries(
         lib = _library_info(
             component.get_require_name(), component.source_dir, component.data
         )
-        # Extra-script LINKFLAGS travel outside build.flags (see
-        # ESPHOME_DATA_LINK_FLAGS_KEY); dropping them would link wrong
-        # with no stated cause
+        # Extra-script LINKFLAGS travel outside build.flags; dropping
+        # them would link wrong with no stated cause
         lib.link_flags.extend(
             component.data.get(ESPHOME_DATA_KEY, {}).get(
                 ESPHOME_DATA_LINK_FLAGS_KEY, []
@@ -515,10 +489,8 @@ def resolve_libraries(
         convert_libraries(external, backend)
     for name in pending_bundled:
         if name in converted_manifest_names:
-            # Manifest-name evidence: the converted library is this library,
-            # so the bundled copy would double the archive. Warn like the
-            # external_short_names twin: a coincidental collision would
-            # otherwise surface only as link errors
+            # The converted library is this one; the bundled copy would
+            # double the archive. Warn like the external_short_names twin.
             _LOGGER.warning(
                 "Dependency %s is assumed satisfied by a converted library's "
                 "manifest name; the bundled copy is not added",
