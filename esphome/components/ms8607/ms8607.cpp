@@ -273,7 +273,7 @@ void MS8607Component::request_read_temperature_() {
 void MS8607Component::read_temperature_() {
   uint8_t bytes[3];  // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
-    ESP_LOGE(TAG, "ADC Read of temperature failed");
+    ESP_LOGW(TAG, "ADC Read of temperature failed");
     this->status_set_warning();
     return;
   }
@@ -301,7 +301,7 @@ void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
 void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
   uint8_t bytes[3];  // 24 bits
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
-    ESP_LOGE(TAG, "ADC Read of pressure failed");
+    ESP_LOGW(TAG, "ADC Read of pressure failed");
     this->status_set_warning();
     return;
   }
@@ -315,7 +315,7 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
   }
 
   if (!this->humidity_device_->write_bytes(MS8607_CMD_H_MEASURE_NO_HOLD, nullptr, 0)) {
-    ESP_LOGE(TAG, "Request to measure humidity failed");
+    ESP_LOGW(TAG, "Request to measure humidity failed");
     this->status_set_warning();
     return;
   }
@@ -331,7 +331,7 @@ void MS8607Component::read_humidity_(float temperature_float) {
 
   uint8_t bytes[3];
   if (!this->humidity_device_->read_bytes_raw(bytes, 3)) {
-    ESP_LOGE(TAG, "Failed to read the measured humidity value");
+    ESP_LOGW(TAG, "Failed to read the measured humidity value");
     this->status_set_warning();
     return;
   }
@@ -342,19 +342,19 @@ void MS8607Component::read_humidity_(float temperature_float) {
   uint8_t const expected_crc = bytes[2];
   uint8_t const actual_crc = crc8(bytes, 2, 0, 0x31, true);
   if (expected_crc != actual_crc) {
-    ESP_LOGE(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
+    ESP_LOGW(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
              actual_crc);
     this->status_set_warning();
     return;
   }
   if (!(humidity & 0x2)) {
     // data sheet says Bit1 should always set, but nothing about what happens if it isn't
-    ESP_LOGE(TAG, "Humidity status bit was not set to 1?");
+    ESP_LOGW(TAG, "Humidity status bit was not set to 1?");
   }
   if (humidity == 0) {
     // treat this like a bad I2C read, because we received all zeros, despite the datasheet saying
     // there should be at least Bit1 set. CRC might have passed because all zeros results in expected CRC of 0.
-    ESP_LOGE(TAG, "Treating this humidity read as a failed read, skipping it");
+    ESP_LOGW(TAG, "Treating this humidity read as a failed read, skipping it");
     this->status_set_warning();
     return;
   }
@@ -373,7 +373,7 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
 
   if (temperature_values.temperature_float < TEMPERATURE_LOWER_LIMIT ||
       temperature_values.temperature_float > TEMPERATURE_UPPER_LIMIT) {
-    ESP_LOGE(TAG, "Treating this temperature read of %0.2f°C as a failed read, skipping it",
+    ESP_LOGW(TAG, "Treating this temperature read of %0.2f°C as a failed read, skipping it",
              temperature_values.temperature_float);
     this->status_set_warning();
     return;
@@ -390,7 +390,7 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
     float pressure_float = compensated_pressure(d1_raw_pressure, this->calibration_values_, temperature_values);
 
     if (pressure_float < PRESSURE_LOWER_LIMIT || pressure_float > PRESSURE_UPPER_LIMIT) {
-      ESP_LOGE(TAG, "Treating this pressure read of %.2fhPa as a failed read, skipping it", pressure_float);
+      ESP_LOGW(TAG, "Treating this pressure read of %.2fhPa as a failed read, skipping it", pressure_float);
       this->status_set_warning();
       // Fall through to read humidity, even though pressure failed.
       // If humidity succeeds, it's going to clear the warning flag almost immediately
