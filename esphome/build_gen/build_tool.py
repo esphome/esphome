@@ -44,9 +44,9 @@ def _run_ar(ar: str, archive: str, rspfile: str) -> int:
         print(f"ar: no objects listed in {rspfile} for {archive}", file=sys.stderr)
         return 1
     # Batch by argv length: expanding the rspfile gives back the Windows
-    # 32767-char command-line limit it existed to avoid. "rc" creates,
-    # "q" appends the remainder.
-    op = "rc"
+    # 32767-char command-line limit it existed to avoid. "rcs" creates,
+    # "qs" appends; the s keeps the symbol index explicit on every ar.
+    op = "rcs"
     ok = False
     try:
         while objects:
@@ -60,7 +60,7 @@ def _run_ar(ar: str, archive: str, rspfile: str) -> int:
             ).returncode
             if rc != 0:
                 return rc
-            op = "q"
+            op = "qs"
         ok = True
         return 0
     finally:
@@ -78,7 +78,8 @@ def _run_copy(src: str, dst: str) -> int:
         # SameFileError means dst IS src, where unlinking destroys the input
         if not isinstance(err, shutil.SameFileError):
             Path(dst).unlink(missing_ok=True)
-        raise
+        print(f"copy: {src} -> {dst} failed: {err}", file=sys.stderr)
+        return 1
     return 0
 
 
