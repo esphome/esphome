@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from platformio import fs
 from platformio.cache import ContentCache
+from platformio.exception import InvalidJSONFile
 from platformio.package.manager._install import PackageManagerInstallMixin
 from platformio.package.manager.base import BasePackageManager
 from platformio.package.manager.library import LibraryPackageManager
@@ -641,5 +642,8 @@ def test_platformio_surface_for_install_deps_script() -> None:
     # The failure-cleanup path degrades to a single line if these vanish
     assert callable(fs.rmtree)
     assert callable(fs.load_json)
+    # piopm_matches only tolerates a corrupt .piopm through this base;
+    # losing it would flip a wave failure from degrade to build failure
+    assert issubclass(InvalidJSONFile, ValueError)
     assert PackageItem("pkg-dir").path == "pkg-dir"
     assert callable(PackageCompatibility.from_dependency)
