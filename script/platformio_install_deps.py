@@ -39,6 +39,11 @@ class CleanupError(RuntimeError):
     trust it, so the build must fail rather than bake a corrupt image."""
 
 
+class LockReleaseError(RuntimeError):
+    """The manager lock could not be released; the serial pass would
+    block on it, so the build must fail with the cause named."""
+
+
 def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
     """Extract lib/platform/tool specs from every section of a platformio.ini."""
     config = configparser.ConfigParser(inline_comment_prefixes=(";",))
@@ -171,12 +176,29 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         managers.put(manager_cls(None))
     local = threading.local()
 
+    def predicted_dest(mgr, spec) -> Path | None:
+        # pio installs by package name; case and safe-dirname quirks make
+        # this a fallback, not the primary lookup
+        name = spec.name if isinstance(spec, PackageSpec) else PackageSpec(spec).name
+        return Path(mgr.package_dir, name) if name else None
+
+    def remove_dir(spec, dest: Path) -> None:
+        # fs.rmtree never raises (errors go to a printing onexc handler);
+        # only the destination's absence proves the cleanup worked
+        fs.rmtree(str(dest))
+        if dest.exists():
+            # Failing the build beats baking a corrupt image
+            raise CleanupError(
+                f"could not remove the failed pre-install of {spec} at {dest}"
+            )
+        print(f"Removed torn destination {dest}", flush=True)
+
     def clean_torn(mgr, spec) -> None:
         # A torn copy into the destination can carry valid metadata the
         # pkg install pass would trust; remove it so that pass redoes it
         scan_err = None
         pkg = None
-        for _attempt in range(3):
+        for attempt in range(5):
             try:
                 # get_package memoizes a pre-install snapshot; without a
                 # reset it cannot see the torn directory
@@ -185,26 +207,33 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
                 scan_err = None
                 break
             except Exception as err:  # noqa: BLE001
-                # Likely another worker's in-flight copy; retry first
+                # Likely another worker's in-flight copy; back off and retry
                 scan_err = err
-                time.sleep(0.2)
+                time.sleep(0.2 * (2**attempt))
         if scan_err is not None:
-            # Unverifiable: a trusted torn destination may remain
-            raise CleanupError(
-                f"could not verify the failed pre-install of {spec}: {scan_err!r}"
-            ) from scan_err
-        if pkg is None:
-            # An unresolvable torn dir must not look like nothing-to-clean
-            print(f"No resolvable destination to clean for {spec}", flush=True)
+            # The scan verdict depends on the whole storage tree; judge by
+            # this spec's own destination so an innocent worker's in-flight
+            # copy cannot fail the build naming the wrong spec
+            dest = predicted_dest(mgr, spec)
+            if dest is not None and dest.exists():
+                remove_dir(spec, dest)
+            else:
+                print(
+                    f"Could not inspect failed pre-install of {spec} "
+                    f"({scan_err!r}); no destination to clean",
+                    flush=True,
+                )
             return
-        # fs.rmtree never raises (errors go to a printing onexc handler);
-        # only the destination's absence proves the cleanup worked
-        fs.rmtree(pkg.path)
-        if Path(pkg.path).exists():
-            # Failing the build beats baking a corrupt image
-            raise CleanupError(
-                f"could not remove the failed pre-install of {spec} at {pkg.path}"
-            )
+        if pkg is None:
+            # A torn dir with an unparsable manifest is invisible to
+            # get_package; fall back to the predicted destination
+            dest = predicted_dest(mgr, spec)
+            if dest is not None and dest.exists():
+                remove_dir(spec, dest)
+            else:
+                print(f"No resolvable destination to clean for {spec}", flush=True)
+            return
+        remove_dir(spec, Path(pkg.path))
 
     def install_one(item) -> bool:
         spec, compat = item
@@ -232,6 +261,7 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         Path(lazy_dir).mkdir(parents=True, exist_ok=True)
     ContentCache("http")
     cwd = Path.cwd()
+    unlock_error = None
     manager.lock()
     try:
         with ThreadPoolExecutor(max_workers=workers) as ex:
@@ -252,14 +282,21 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         # Neither cleanup may replace an in-flight CleanupError
         try:
             manager.unlock()
-        except Exception as unlock_err:  # noqa: BLE001
-            print(f"Could not release the manager lock ({unlock_err!r})", flush=True)
+        except Exception as err:  # noqa: BLE001
+            unlock_error = err
+            print(f"Could not release the manager lock ({err!r})", flush=True)
         # Worker postinstall scripts chdir process-wide (pio's fs.cd);
         # restore between waves, not only for the final subprocess
         try:
             os.chdir(cwd)
         except OSError as chdir_err:
             print(f"Could not restore the working dir ({chdir_err!r})", flush=True)
+    if unlock_error is not None:
+        # A held flock would hang the serial pass in another process;
+        # failing loudly beats an unexplained stuck docker build
+        raise LockReleaseError(
+            f"could not release the manager lock: {unlock_error!r}"
+        ) from unlock_error
     if failures := len(results) - sum(results):
         # The stock pass retries CLI specs and re-walks installed
         # packages' dependencies, so failed deps retry too
@@ -332,12 +369,12 @@ def main() -> None:
     for manager_cls, specs in wave_groups:
         try:
             parallel_install(manager_cls, specs)
-        except CleanupError:
-            # A torn package the serial pass would trust is still on disk
+        except (CleanupError, LockReleaseError, KeyboardInterrupt):
+            # A torn package or a held lock must fail the build
             raise
-        except Exception:  # noqa: BLE001
-            # The wave is an optimization; it must never stop the real
-            # pass, but a persistent break must read as a failure in logs
+        except BaseException:  # noqa: BLE001
+            # BaseException: a worker postinstall's SystemExit must not
+            # skip the authoritative serial pass (partial deps, exit 0)
             print("Parallel preinstall failed, falling back to serial", flush=True)
             traceback.print_exc()
 

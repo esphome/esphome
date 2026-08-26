@@ -73,6 +73,7 @@ class _FakeManager:
     fail: set = set()
     calls: list = []
     lock_events: list = []
+    base_dir: str = ""  # per-test tmp base; set by _reset_fake
 
     def __init__(self, package_dir) -> None:
         assert package_dir is None
@@ -89,11 +90,15 @@ class _FakeManager:
     def memcache_reset(self) -> None:
         type(self).resets = getattr(type(self), "resets", 0) + 1
 
+    @property
+    def package_dir(self) -> str:
+        return str(Path(type(self).base_dir) / "packages")
+
     def get_download_dir(self) -> str:
-        return "/tmp/fake-downloads"
+        return str(Path(type(self).base_dir) / "downloads")
 
     def get_tmp_dir(self) -> str:
-        return "/tmp/fake-tmp"
+        return str(Path(type(self).base_dir) / "tmp")
 
     def lock(self) -> None:
         type(self).lock_events.append("lock")
@@ -123,13 +128,14 @@ class _FakeManager:
         )
 
 
-def _reset_fake(**kwargs) -> type:
+def _reset_fake(base_dir: str = "", **kwargs) -> type:
     # A fresh subclass per test: nothing leaks between tests through the
     # class-level scripted state
     return type(
         "_ScriptedManager",
         (_FakeManager,),
         {
+            "base_dir": base_dir,
             "installed": kwargs.get("installed", set()),
             "fail": kwargs.get("fail", set()),
             "calls": [],
@@ -139,11 +145,11 @@ def _reset_fake(**kwargs) -> type:
     )
 
 
-def test_parallel_install_behavior() -> None:
+def test_parallel_install_behavior(tmp_path: Path) -> None:
     """Duplicates collapse to one install, installed specs are filtered,
     URL specs stay out of the wave, and the lock wraps the pool."""
     mod = _load_script()
-    cls = _reset_fake(installed={"esphome/already @ 1.0"})
+    cls = _reset_fake(str(tmp_path), installed={"esphome/already @ 1.0"})
     mod.parallel_install(
         cls,
         [
@@ -157,11 +163,13 @@ def test_parallel_install_behavior() -> None:
     assert cls.lock_events == ["lock", "unlock"]
 
 
-def test_parallel_install_failure_cleans_torn_destination(capsys) -> None:
+def test_parallel_install_failure_cleans_torn_destination(
+    tmp_path: Path, capsys
+) -> None:
     """A failed install resets the memcache, removes what get_package can
     see, and reports; the others still install."""
     mod = _load_script()
-    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
 
     removed = []
 
@@ -180,11 +188,11 @@ def test_parallel_install_failure_cleans_torn_destination(capsys) -> None:
     assert "Pre-install failed for 1 of 2 package(s)" in out
 
 
-def test_parallel_install_runs_dependency_waves() -> None:
+def test_parallel_install_runs_dependency_waves(tmp_path: Path) -> None:
     """Dependencies of wave-installed packages install in a second wave,
     deduped by name; name-only platform libs stay with the serial pass."""
     mod = _load_script()
-    cls = _reset_fake()
+    cls = _reset_fake(str(tmp_path))
     cls.deps = {
         "esphome/noise-c @ 0.1.21": [
             {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
@@ -204,11 +212,11 @@ def test_parallel_install_runs_dependency_waves() -> None:
     assert dep_compat is not None  # mirrors pio's install_dependency
 
 
-def test_dependency_wave_excludes_url_specs() -> None:
+def test_dependency_wave_excludes_url_specs(tmp_path: Path) -> None:
     """A dependency pinned to a URL surfaces as spec.uri; it must stay out
     of the wave like string URL specs do."""
     mod = _load_script()
-    cls = _reset_fake()
+    cls = _reset_fake(str(tmp_path))
     cls.deps = {
         "esphome/noise-c @ 0.1.21": [
             {"name": "vendored", "version": "https://github.com/x/y.git"},
@@ -218,11 +226,11 @@ def test_dependency_wave_excludes_url_specs() -> None:
     assert {mod.spec_key(c) for c in cls.calls} == {"noise-c"}
 
 
-def test_success_without_package_prints_anomaly(capsys) -> None:
+def test_success_without_package_prints_anomaly(tmp_path: Path, capsys) -> None:
     """An install that reported success but resolves to nothing prints the
     anomaly instead of silently pruning its dependency subtree."""
     mod = _load_script()
-    cls = _reset_fake()
+    cls = _reset_fake(str(tmp_path))
     real_get = cls.get_package
     cls.get_package = lambda self, spec: None  # never resolvable
     mod.parallel_install(cls, ["esphome/ghost @ 1.0"])
@@ -230,10 +238,10 @@ def test_success_without_package_prints_anomaly(capsys) -> None:
     assert "not resolvable afterwards" in capsys.readouterr().out
 
 
-def test_wave_limit_prints_truncation(capsys) -> None:
+def test_wave_limit_prints_truncation(tmp_path: Path, capsys) -> None:
     """Hitting the cycle backstop announces what is left to pkg install."""
     mod = _load_script()
-    cls = _reset_fake()
+    cls = _reset_fake(str(tmp_path))
     cls.deps = {
         "esphome/noise-c @ 0.1.21": [
             {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
@@ -250,7 +258,7 @@ def test_failed_cleanup_fails_the_build(tmp_path: Path) -> None:
     fs.rmtree never raises (its onexc handler prints), so only the
     destination's absence proves the cleanup worked."""
     mod = _load_script()
-    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     torn = tmp_path / "torn-pkg"
     torn.mkdir()
 
@@ -272,7 +280,7 @@ def test_api_break_cleans_before_surfacing(tmp_path: Path) -> None:
     """An AttributeError from _install still removes the torn destination
     before propagating to the logged serial fallback."""
     mod = _load_script()
-    cls = _reset_fake()
+    cls = _reset_fake(str(tmp_path))
     torn = tmp_path / "torn-pkg"
     torn.mkdir()
 
@@ -300,11 +308,14 @@ def test_api_break_cleans_before_surfacing(tmp_path: Path) -> None:
     assert removed == [str(torn)]
 
 
-def test_unverifiable_torn_destination_fails_the_build() -> None:
-    """An inspect that keeps failing cannot prove the destination is
-    clean; the serial pass would trust it, so the build fails."""
+def test_unverifiable_torn_destination_fails_the_build(tmp_path: Path) -> None:
+    """When the scan keeps failing, the spec's own predicted destination
+    decides: an unremovable leftover fails the build; no leftover means
+    an innocent worker's in-flight copy cannot fail it."""
     mod = _load_script()
-    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    dest = Path(cls.base_dir) / "packages" / "bad"
+    dest.mkdir(parents=True)
 
     def bad_reset(self):
         raise OSError("scan broken")
@@ -312,15 +323,35 @@ def test_unverifiable_torn_destination_fails_the_build() -> None:
     cls.memcache_reset = bad_reset
     with (
         patch.object(mod.time, "sleep", lambda s: None),
-        pytest.raises(mod.CleanupError, match="could not verify"),
+        patch.object(mod.fs, "rmtree", lambda path: None),  # onexc swallowed
+        pytest.raises(mod.CleanupError, match="could not remove"),
     ):
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
 
 
-def test_transient_inspect_failure_retries(capsys) -> None:
+def test_unverifiable_scan_without_leftover_degrades(tmp_path: Path, capsys) -> None:
+    """A persistently failing scan with no destination on disk is another
+    worker's problem, never a build failure blaming this spec."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    resets = {"n": 0}
+
+    def bad_reset(self):
+        # Exhaust clean_torn's retries; the coordinator's later reset works
+        resets["n"] += 1
+        if resets["n"] <= 5:
+            raise OSError("scan broken")
+
+    cls.memcache_reset = bad_reset
+    with patch.object(mod.time, "sleep", lambda s: None):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert "no destination to clean" in capsys.readouterr().out
+
+
+def test_transient_inspect_failure_retries(tmp_path: Path, capsys) -> None:
     """A transient read of another worker's copy is retried, not fatal."""
     mod = _load_script()
-    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     attempts: list[int] = []
 
     def flaky_reset(self):
@@ -335,13 +366,30 @@ def test_transient_inspect_failure_retries(capsys) -> None:
     assert "No resolvable destination to clean" in capsys.readouterr().out
 
 
-def test_unresolvable_torn_destination_is_printed(capsys) -> None:
+def test_unresolvable_torn_destination_is_printed(tmp_path: Path, capsys) -> None:
     """A failed install with no resolvable package prints, so an invisible
     torn directory is at least traceable."""
     mod = _load_script()
-    cls = _reset_fake(fail={"esphome/bad @ 1.0"})
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert "No resolvable destination to clean" in capsys.readouterr().out
+
+
+def test_unparsable_torn_destination_is_removed(tmp_path: Path, capsys) -> None:
+    """A torn dir get_package cannot resolve is removed via the predicted
+    destination instead of surviving into the serial pass."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
+    dest = Path(cls.base_dir) / "packages" / "bad"
+    dest.mkdir(parents=True)
+
+    def real_rmtree(path):
+        Path(path).rmdir()
+
+    with patch.object(mod.fs, "rmtree", real_rmtree):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert not dest.exists()
+    assert "Removed torn destination" in capsys.readouterr().out
 
 
 def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> None:
@@ -390,11 +438,11 @@ def test_content_cache_creates_its_dir(tmp_path: Path, monkeypatch) -> None:
     assert (tmp_path / "cache" / "http").is_dir()
 
 
-def test_unresolvable_spec_stays_out_of_the_wave(capsys) -> None:
+def test_unresolvable_spec_stays_out_of_the_wave(tmp_path: Path, capsys) -> None:
     """A spec with no derivable name is left to the serial pass; a raw
     string key would break the one-per-destination dedupe."""
     mod = _load_script()
-    cls = _reset_fake()
+    cls = _reset_fake(str(tmp_path))
     from platformio.package.meta import PackageSpec
 
     nameless = PackageSpec(requirements="^1.0")
@@ -403,9 +451,9 @@ def test_unresolvable_spec_stays_out_of_the_wave(capsys) -> None:
     assert "Skipping unresolvable spec" in capsys.readouterr().out
 
 
-def test_parallel_install_unlocks_when_pool_fails() -> None:
+def test_parallel_install_unlocks_when_pool_fails(tmp_path: Path) -> None:
     mod = _load_script()
-    cls = _reset_fake()
+    cls = _reset_fake(str(tmp_path))
     with (
         patch.object(mod, "ThreadPoolExecutor", side_effect=RuntimeError("no")),
         pytest.raises(RuntimeError),
