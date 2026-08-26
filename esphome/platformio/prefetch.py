@@ -17,12 +17,14 @@ a file lock and promoted with an atomic rename.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import suppress
 import hashlib
 import json
 import logging
 import os
 from pathlib import Path
-from queue import SimpleQueue
+from queue import Empty, SimpleQueue
+import signal
 import subprocess
 import sys
 import threading
@@ -157,17 +159,27 @@ def prefetch_platformio_packages() -> None:
 
 
 def _stop_child(proc: subprocess.Popen) -> None:
-    """Terminate the child, escalating to kill only if it will not stop.
+    """Stop the child without cutting an in-flight package install short.
 
-    SIGTERM gives the child's in-flight package install time to finish or
-    unwind; the grace period covers one large archive extraction.
+    On a terminal interrupt the child shares the process group and is
+    already unwinding from its own SIGINT, so wait briefly first. SIGTERM
+    then triggers the handler main() installs (a clean unwind through the
+    pool's cancellation); the grace period covers one large extraction.
+    Kill only a child that will not stop, with a bounded reap, and never
+    let a second interrupt escape and orphan the child mid-copy.
     """
-    proc.terminate()
     try:
-        proc.wait(timeout=30)
-    except subprocess.TimeoutExpired:
+        with suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=5)
+            return
+        proc.terminate()
+        with suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=30)
+            return
         proc.kill()
-        proc.wait()
+        proc.wait(timeout=5)
+    except BaseException:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        _LOGGER.debug("Stopping the prefetch child failed", exc_info=True)
 
 
 def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
@@ -180,6 +192,15 @@ def _project_platform_and_config(ini: Path, env: str) -> tuple[str | None, Any]:
     app.set_session_var("custom_project_conf", str(ini))
     config = ProjectConfig.get_instance(str(ini))
     return config.get(f"env:{env}", "platform", None), config
+
+
+def _manager_kwargs(manager) -> dict[str, Any]:
+    """Constructor kwargs that keep a sibling manager equivalent to the
+    shared one (the compatibility qualifiers select which package a
+    library spec resolves to)."""
+    if compatibility := getattr(manager, "compatibility", None):
+        return {"compatibility": compatibility}
+    return {}
 
 
 def _registry_jobs(
@@ -200,7 +221,9 @@ def _registry_jobs(
         # One manager (and registry HTTP session) per worker thread;
         # installed-state was already checked on the shared manager
         if (mgr := getattr(local, "mgr", None)) is None:
-            mgr = local.mgr = manager.__class__()
+            mgr = local.mgr = manager.__class__(
+                manager.package_dir, **_manager_kwargs(manager)
+            )
         try:
             packages = mgr.search_registry_packages(spec)
             if not packages:
@@ -397,6 +420,9 @@ def _dependency_entries(manager, entries, seen_names: set[str]) -> list:
                 continue  # pio's install_dependency would skip it too
             dspec = manager.dependency_to_spec(dep)
             if (key := (dspec.name or "").lower()) and key not in seen_names:
+                if manager.get_package(dspec) is not None:
+                    continue  # a previous build installed it; keep it off
+                    # the destructive failure path
                 deps.setdefault(key, (dspec.name, dspec))
     return list(deps.values())
 
@@ -425,20 +451,19 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
     # (memcache, install history, the registry client). Built serially,
     # because every construction rewires the shared manager logger and
     # concurrent handler swaps drop log lines.
-    mgr_kwargs = (
-        {"compatibility": manager.compatibility}
-        if getattr(manager, "compatibility", None)
-        else {}
-    )
     managers: SimpleQueue = SimpleQueue()
     for _ in range(workers):
-        managers.put(manager.__class__(manager.package_dir, **mgr_kwargs))
+        managers.put(manager.__class__(manager.package_dir, **_manager_kwargs(manager)))
     local = threading.local()
 
     def _install_one(entry) -> bool:
         name, spec = entry
         if (mgr := getattr(local, "mgr", None)) is None:
-            mgr = local.mgr = managers.get_nowait()
+            try:
+                mgr = managers.get_nowait()
+            except Empty:
+                mgr = manager.__class__(manager.package_dir, **_manager_kwargs(manager))
+            local.mgr = mgr
         try:
             # PlatformIO's real install (metadata, postinstall scripts);
             # only the concurrency across packages is ours
@@ -454,6 +479,8 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
                 mgr.memcache_reset()
                 if (pkg := mgr.get_package(spec)) is not None:
                     rmtree(pkg.path)
+                else:
+                    _LOGGER.debug("No on-disk install of %s to remove", name)
             except Exception as cleanup_err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 _LOGGER.warning(
                     "Could not remove the failed install of %s: %s",
@@ -474,20 +501,25 @@ def _preinstall(manager, entries, seen_names: set[str] | None = None) -> None:
     # suppressed; pio's per-package install lines remain.
     os.environ.setdefault("PLATFORMIO_DISABLE_PROGRESSBAR", "true")
     cwd = Path.cwd()
-    ex = ThreadPoolExecutor(max_workers=workers)
     manager.lock()
     try:
-        results = list(ex.map(_install_one, entries))
-    except BaseException:
-        # An interrupt must not run the queued installs; in-flight ones
-        # finish so no package directory is left half copied
-        ex.shutdown(wait=True, cancel_futures=True)
-        raise
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            try:
+                results = list(ex.map(_install_one, entries))
+            except BaseException:
+                # An interrupt must not run the queued installs; in-flight
+                # ones finish so no package directory is left half copied
+                ex.shutdown(wait=True, cancel_futures=True)
+                raise
     finally:
-        ex.shutdown(wait=True)
-        manager.unlock()
-        manager.memcache_reset()
-        os.chdir(cwd)
+        # A cleanup failure must not replace the in-flight exception or
+        # skip the remaining cleanup
+        with suppress(Exception):
+            manager.memcache_reset()
+        try:
+            manager.unlock()
+        finally:
+            os.chdir(cwd)
     if not any(results):
         # A systematic fault, not one bad archive; pio run installs serially
         _LOGGER.warning(
@@ -605,11 +637,27 @@ def _prefetch(build_dir: Path, env: str) -> None:
             if name not in failed_names
         }
         if to_install:
-            _preinstall(mgr, list(to_install.values()))
+            try:
+                _preinstall(mgr, list(to_install.values()))
+            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+                # Each group degrades independently; pio run installs
+                # whatever this one did not
+                _LOGGER.warning(
+                    "Pre-install failed for a package group: %s",
+                    failure_reason(err),
+                )
+                _LOGGER.debug("Pre-install group failure detail", exc_info=True)
+
+
+def _sigterm(_signum, _frame) -> None:
+    # Raised in the main thread: the pool's BaseException arm cancels
+    # queued installs while in-flight copies finish, then finally runs
+    raise SystemExit(143)
 
 
 def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
+    signal.signal(signal.SIGTERM, _sigterm)
     try:
         level = int(os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL", logging.INFO))
     except ValueError:

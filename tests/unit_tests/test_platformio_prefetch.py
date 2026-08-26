@@ -1,8 +1,10 @@
 """Tests for the parallel PlatformIO package prefetch."""
 
 import json
+import os
 from pathlib import Path
 import sys
+import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -17,7 +19,13 @@ def _core(tmp_path: Path):
     CORE.reset()
     CORE.build_path = str(tmp_path)
     CORE.name = "testenv"
+    saved_bar = os.environ.get("PLATFORMIO_DISABLE_PROGRESSBAR")
     yield
+    # _preinstall sets this process-wide; keep the suite hermetic
+    if saved_bar is None:
+        os.environ.pop("PLATFORMIO_DISABLE_PROGRESSBAR", None)
+    else:
+        os.environ["PLATFORMIO_DISABLE_PROGRESSBAR"] = saved_bar
     CORE.reset()
 
 
@@ -406,13 +414,30 @@ def test_prefetch_spawn_failures_warn_and_continue(
     assert expected in caplog.text
 
 
-def test_stop_child_escalates_to_kill() -> None:
-    """A child ignoring SIGTERM is killed after the grace period."""
+def test_stop_child_waits_terminates_then_kills() -> None:
+    """The stop sequence waits for a self-unwinding child first, then
+    SIGTERMs, and kills only a child that will not stop."""
+    timeout = pf.subprocess.TimeoutExpired("cmd", 5)
+    # Child already unwinding from its own SIGINT: no signals at all
     proc = MagicMock()
-    proc.wait.side_effect = [pf.subprocess.TimeoutExpired("cmd", 30), 0]
+    proc.wait.return_value = 0
+    pf._stop_child(proc)
+    proc.terminate.assert_not_called()
+    # Child needs the SIGTERM unwind
+    proc = MagicMock()
+    proc.wait.side_effect = [timeout, 0]
     pf._stop_child(proc)
     proc.terminate.assert_called_once_with()
+    proc.kill.assert_not_called()
+    # Child ignoring SIGTERM is killed with a bounded reap
+    proc = MagicMock()
+    proc.wait.side_effect = [timeout, timeout, 0]
+    pf._stop_child(proc)
     proc.kill.assert_called_once_with()
+    # A second interrupt mid-stop must not escape
+    proc = MagicMock()
+    proc.wait.side_effect = KeyboardInterrupt()
+    pf._stop_child(proc)
 
 
 def test_preinstall_failure_removes_torn_destination(tmp_path: Path) -> None:
@@ -445,7 +470,10 @@ def test_dependency_entries_honor_compatibility(tmp_path: Path) -> None:
 
     m = _fake_manager(tmp_path)
     m.compatibility = PackageCompatibility(platforms=["espressif32"])
-    m.get_package.side_effect = lambda spec: SimpleNamespace(spec=spec)
+    # only the top-level entry is installed; the deps are not
+    m.get_package.side_effect = lambda spec: (
+        SimpleNamespace(spec=spec) if getattr(spec, "name", "") == "top" else None
+    )
     m.get_pkg_dependencies.return_value = [
         {"owner": "o", "name": "espdep", "version": "^1", "platforms": ["espressif32"]},
         {"owner": "o", "name": "avrdep", "version": "^1", "platforms": ["atmelavr"]},
@@ -468,7 +496,8 @@ def test_prefetch_interrupt_stops_child_gracefully() -> None:
         pytest.raises(KeyboardInterrupt),
     ):
         pf.prefetch_platformio_packages()
-    proc.terminate.assert_called_once_with()
+    # the stop sequence's first wait saw the child exit on its own
+    proc.terminate.assert_not_called()
     proc.kill.assert_not_called()
 
 
@@ -847,11 +876,118 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     assert installed == ["noise-c"]
 
 
+def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
+    """Each worker thread gets its own pre-built manager and installs
+    genuinely overlap (the barrier deadlocks a serial pool)."""
+    barrier = threading.Barrier(2, timeout=5)
+
+    class _WaveManager:
+        package_dir = str(tmp_path)
+        compatibility = None
+        used: set = set()
+
+        def __init__(self, package_dir, **kwargs) -> None:
+            assert package_dir == str(tmp_path)
+
+        def lock(self) -> None:
+            pass
+
+        def unlock(self) -> None:
+            pass
+
+        def memcache_reset(self) -> None:
+            pass
+
+        def get_package(self, spec):
+            return None
+
+        def get_pkg_dependencies(self, pkg):
+            return None
+
+        def _install(self, spec, skip_dependencies) -> None:
+            type(self).used.add(id(self))
+            barrier.wait()
+
+    seed = _WaveManager(str(tmp_path))
+    pf._preinstall(
+        seed,
+        [
+            ("a@1", _FakeSpec(uri=None, name="a")),
+            ("b@1", _FakeSpec(uri=None, name="b")),
+        ],
+    )
+    assert len(_WaveManager.used) == 2
+    assert id(seed) not in _WaveManager.used
+
+
+def test_manager_kwargs_and_sigterm() -> None:
+    """Sibling managers inherit compatibility; SIGTERM raises SystemExit."""
+    assert pf._manager_kwargs(SimpleNamespace(compatibility="qual")) == {
+        "compatibility": "qual"
+    }
+    assert pf._manager_kwargs(SimpleNamespace(compatibility=None)) == {}
+    with pytest.raises(SystemExit):
+        pf._sigterm(15, None)
+
+
+def test_dependency_entries_skip_installed(tmp_path: Path) -> None:
+    """A dependency a previous build installed stays off the destructive
+    failure path."""
+    m = _fake_manager(tmp_path)
+    m.get_package.side_effect = lambda spec: SimpleNamespace(spec=spec)
+    m.get_pkg_dependencies.return_value = [
+        {"owner": "o", "name": "already", "version": "^1"},
+    ]
+    m.dependency_to_spec.side_effect = lambda dep: _FakeSpec(uri=None, name=dep["name"])
+    assert (
+        pf._dependency_entries(m, [("top@1", _FakeSpec(uri=None, name="top"))], set())
+        == []
+    )
+
+
+def test_preinstall_empty_queue_builds_a_manager(tmp_path: Path) -> None:
+    """A manager-supply shortfall degrades one entry, not the batch."""
+    m = _fake_manager(tmp_path)
+    with patch.object(pf, "SimpleQueue") as mock_queue:
+        mock_queue.return_value.get_nowait.side_effect = pf.Empty()
+        pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
+    m._install.assert_called_once()
+
+
+def test_group_failure_does_not_skip_other_groups(tmp_path: Path) -> None:
+    """One group's pre-install failure degrades that group only."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    s1 = _FakeSpec(uri=None, name="toolpkg")
+    s2 = _FakeSpec(uri=None, name="libpkg")
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf,
+            "_registry_jobs",
+            side_effect=[
+                ([], 0, [("toolpkg@1", s1)]),
+                ([], 0, [("libpkg@1", s2)]),
+            ],
+        ),
+        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
+        patch.object(
+            pf, "_preinstall", side_effect=[RuntimeError("group down"), None]
+        ) as mock_install,
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    assert mock_install.call_count == 2
+
+
 def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
     """A failure inside the pool cancels queued installs and releases the
     lock; a constructor failure never acquires it."""
     m = _fake_manager(tmp_path)
     boom = MagicMock()
+    boom.__enter__.return_value = boom
     boom.map.side_effect = RuntimeError("no threads")
     with (
         patch.object(pf, "ThreadPoolExecutor", return_value=boom),
@@ -861,12 +997,13 @@ def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
     m.unlock.assert_called_once_with()
     assert boom.shutdown.call_args_list[0][1].get("cancel_futures") is True
     m.reset_mock()
+    # A failing executor construction still releases the lock
     with (
         patch.object(pf, "ThreadPoolExecutor", side_effect=RuntimeError("no")),
         pytest.raises(RuntimeError),
     ):
         pf._preinstall(m, [("a@1", _FakeSpec(uri=None, name="a"))])
-    m.lock.assert_not_called()
+    m.unlock.assert_called_once_with()
 
 
 def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:
@@ -921,5 +1058,17 @@ def test_platformio_private_api_contract() -> None:
         "memcache_reset",
         "get_package",
         "compute_download_path",
+        "get_pkg_dependencies",
+        "dependency_to_spec",
     ):
         assert callable(getattr(BasePackageManager, name))
+    # The pre-install passes these positionally / by keyword
+    assert "compatibility" in inspect.signature(BasePackageManager.__init__).parameters
+    lib_params = inspect.signature(LibraryPackageManager.__init__).parameters
+    assert any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in lib_params.values()
+    )  # forwards compatibility=
+    from platformio.package.meta import PackageCompatibility
+
+    assert callable(PackageCompatibility.from_dependency)
+    assert callable(PackageCompatibility.is_compatible)
