@@ -7,7 +7,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
-    get_esp32_variant,
+    get_esp32_variant as get_esp32_variant,
     idf_version,
     only_on_variant,
 )
