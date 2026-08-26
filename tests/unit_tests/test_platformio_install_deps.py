@@ -74,13 +74,17 @@ class _FakeManager:
     def __init__(self, package_dir) -> None:
         assert package_dir is None
 
+    @staticmethod
+    def _key(spec) -> str:
+        return spec if isinstance(spec, str) else str(spec)
+
     def get_package(self, spec):
-        if spec in self.installed:
-            return SimpleNamespace(path="/tmp/fake-pkg")
+        if self._key(spec) in self.installed:
+            return SimpleNamespace(path="/tmp/fake-pkg", spec=self._key(spec))
         return None
 
     def memcache_reset(self) -> None:
-        type(self).calls.append("memcache_reset")
+        type(self).resets = getattr(type(self), "resets", 0) + 1
 
     def lock(self) -> None:
         type(self).lock_events.append("lock")
@@ -90,9 +94,23 @@ class _FakeManager:
 
     def _install(self, spec, skip_dependencies):
         assert skip_dependencies is True
-        if spec in self.fail:
+        if self._key(spec) in self.fail:
             raise RuntimeError("boom")
         type(self).calls.append(spec)
+        type(self).installed = type(self).installed | {self._key(spec)}
+
+    def get_pkg_dependencies(self, pkg):
+        return getattr(type(self), "deps", {}).get(pkg.spec)
+
+    @staticmethod
+    def dependency_to_spec(dependency):
+        from platformio.package.meta import PackageSpec
+
+        return PackageSpec(
+            owner=dependency.get("owner"),
+            name=dependency.get("name"),
+            requirements=dependency.get("version"),
+        )
 
 
 def _reset_fake(**kwargs) -> type:
@@ -137,8 +155,8 @@ def test_parallel_install_failure_cleans_torn_destination(capsys) -> None:
     removed = []
 
     def get_package(self, spec):
-        if spec == "esphome/bad @ 1.0" and "memcache_reset" in cls.calls:
-            return SimpleNamespace(path="/tmp/torn-pkg")
+        if spec == "esphome/bad @ 1.0" and getattr(cls, "resets", 0):
+            return SimpleNamespace(path="/tmp/torn-pkg", spec=spec)
         return _FakeManager.get_package(self, spec)
 
     cls.get_package = get_package  # throwaway subclass; nothing to restore
@@ -149,6 +167,25 @@ def test_parallel_install_failure_cleans_torn_destination(capsys) -> None:
     out = capsys.readouterr().out
     assert "Pre-install of esphome/bad @ 1.0 failed" in out
     assert "Pre-install failed for 1 of 2 package(s)" in out
+
+
+def test_parallel_install_runs_dependency_waves() -> None:
+    """Dependencies of wave-installed packages install in a second wave,
+    deduped by name; name-only platform libs stay with the serial pass."""
+    mod = _load_script()
+    cls = _reset_fake()
+    cls.deps = {
+        "esphome/noise-c @ 0.1.21": [
+            {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
+            {"name": "SPI"},
+        ],
+        "esphome/wg @ 1.0": [
+            {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
+        ],
+    }
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21", "esphome/wg @ 1.0"])
+    assert len(cls.calls) == 3  # the shared dep installs exactly once
+    assert {mod.spec_key(c) for c in cls.calls} == {"noise-c", "wg", "libsodium"}
 
 
 def test_parallel_install_unlocks_when_pool_fails() -> None:

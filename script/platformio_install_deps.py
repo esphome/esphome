@@ -71,14 +71,31 @@ def parse_specs(path: str, args: argparse.Namespace) -> tuple[list, list, list]:
     )
 
 
-def spec_key(spec: str) -> str:
+def spec_key(spec) -> str:
     """The destination identity of a spec: PlatformIO installs by package
     name, so two specs sharing a name share a directory."""
-    name = PackageSpec(spec).name
-    return name.lower() if name else spec.strip()
+    name = spec.name if isinstance(spec, PackageSpec) else PackageSpec(spec).name
+    return name.lower() if name else str(spec).strip()
 
 
-def parallel_install(manager_cls, specs: list) -> None:
+def dependency_specs(manager, specs) -> list:
+    """The registry dependency specs of the given installed packages.
+
+    Local manifest reads only. Name-only dependencies (platform-bundled
+    libs like SPI) are left to the ``pkg install`` pass."""
+    deps = []
+    for spec in specs:
+        if (pkg := manager.get_package(spec)) is None:
+            continue
+        deps.extend(
+            manager.dependency_to_spec(dep)
+            for dep in manager.get_pkg_dependencies(pkg) or []
+            if dep.get("owner") or dep.get("version")
+        )
+    return deps
+
+
+def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -> None:
     """Best-effort parallel top-level install.
 
     PlatformIO's own installer downloads and unpacks one package at a time
@@ -92,11 +109,15 @@ def parallel_install(manager_cls, specs: list) -> None:
     manager = manager_cls(None)
     # One spec per destination: platformio.ini repeats specs across env
     # sections, and two threads must not extract into the same directory.
-    # Another spec for the same name is left to the pkg install pass.
+    # Another spec for the same name, and URL specs (which install into a
+    # manifest-named dir the spec cannot predict), are left to the pkg
+    # install pass.
+    seen_names: set = prior_names if prior_names is not None else set()
     unique = {
-        spec_key(spec): spec for spec in specs if "://" not in spec
-    }  # URL specs install into a manifest-named dir the spec cannot predict;
-    # only the serial pass may handle them
+        spec_key(spec): spec
+        for spec in specs
+        if isinstance(spec, PackageSpec) or "://" not in spec
+    }
     pending = [spec for spec in unique.values() if not manager.get_package(spec)]
     if not pending:
         return
@@ -148,6 +169,20 @@ def parallel_install(manager_cls, specs: list) -> None:
             "pkg install retries them serially",
             flush=True,
         )
+
+    # The wave skipped dependencies (a shared one must not extract from two
+    # threads); collect them from the installed manifests, dedupe by name,
+    # and run them as the next wave until nothing new appears
+    seen_names.update(unique)
+    # The pre-wave get_package calls memoized an empty storage snapshot
+    manager.memcache_reset()
+    next_specs = [
+        dep
+        for dep in dependency_specs(manager, pending)
+        if spec_key(dep) not in seen_names
+    ]
+    if next_specs and len(seen_names) < 200:  # cycle backstop
+        parallel_install(manager_cls, next_specs, seen_names)
 
 
 def build_cli_args(libs: list, platforms: list, tools: list) -> list:
