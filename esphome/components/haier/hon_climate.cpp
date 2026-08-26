@@ -50,7 +50,7 @@ void HonClimate::set_quiet_mode_state(bool state) {
       this->quiet_mode_state_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
       this->force_send_control_ = true;
     } else {
-      this->quiet_mode_state_ = state ? SwitchState::ON : SwitchState::OFF;
+      this->quiet_mode_state_ = state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
     }
     this->settings_.quiet_mode_state = state;
 #ifdef USE_SWITCH
@@ -63,7 +63,7 @@ void HonClimate::set_quiet_mode_state(bool state) {
 }
 
 bool HonClimate::get_quiet_mode_state() const {
-  return (this->quiet_mode_state_ == SwitchState::ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
+  return (this->quiet_mode_state_ == SwitchState::SWITCH_ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
 }
 
 esphome::optional<hon_protocol::VerticalSwingMode> HonClimate::get_vertical_airflow() const {
@@ -513,7 +513,7 @@ void HonClimate::initialization() {
   }
   this->current_vertical_swing_ = this->settings_.last_vertiacal_swing;
   this->current_horizontal_swing_ = this->settings_.last_horizontal_swing;
-  this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::ON : SwitchState::OFF;
+  this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
 }
 
 haier_protocol::HaierMessage HonClimate::get_control_message() {
@@ -825,7 +825,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
 #ifdef USE_SENSOR
     this->update_sub_sensor_(SubSensorType::INDOOR_COIL_TEMPERATURE, bd_packet->indoor_coil_temperature / 2.0 - 20);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_COIL_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
-    this->update_sub_sensor_(SubSensorType::OUTDOOR_DEFROST_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
+    this->update_sub_sensor_(SubSensorType::OUTDOOR_DEFROST_TEMPERATURE, bd_packet->outdoor_defrost_temperature - 64);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_IN_AIR_TEMPERATURE, bd_packet->outdoor_in_air_temperature - 64);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_OUT_AIR_TEMPERATURE, bd_packet->outdoor_out_air_temperature - 64);
     this->update_sub_sensor_(SubSensorType::POWER, encode_uint16(bd_packet->power[0], bd_packet->power[1]));
@@ -939,14 +939,14 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         // AC just turned on from remote need to turn off display
         this->force_send_control_ = true;
       } else if ((((uint8_t) this->display_status_) & 0b10) == 0) {
-        this->display_status_ = disp_status ? SwitchState::ON : SwitchState::OFF;
+        this->display_status_ = disp_status ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
       }
     }
   }
   // Health mode
   if ((((uint8_t) this->health_mode_) & 0b10) == 0) {
     bool old_health_mode = this->get_health_mode();
-    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::ON : SwitchState::OFF;
+    this->health_mode_ = packet.control.health_mode == 1 ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
     should_publish = should_publish || (old_health_mode != this->get_health_mode());
   }
   {
@@ -1008,7 +1008,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       // In proper mode and not in pending state
       bool new_quiet_mode = packet.control.quiet_mode != 0;
       if (new_quiet_mode != this->get_quiet_mode_state()) {
-        this->quiet_mode_state_ = new_quiet_mode ? SwitchState::ON : SwitchState::OFF;
+        this->quiet_mode_state_ = new_quiet_mode ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
         this->settings_.quiet_mode_state = new_quiet_mode;
 #ifdef USE_SWITCH
         if (this->quiet_mode_switch_ != nullptr) {

@@ -49,6 +49,7 @@ ILI9341.extend(
     invert_colors=True,
     pixel_mode="18bit",
     data_rate="40MHz",
+    requires={"psram"},
 )
 
 GC9107 = ST7789V.extend(
@@ -68,4 +69,5 @@ GC9107.extend(
     reset_pin=48,
     dc_pin=42,
     cs_pin=14,
+    requires={"psram"},
 )

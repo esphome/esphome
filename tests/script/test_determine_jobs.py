@@ -1120,7 +1120,14 @@ def test_should_run_esp32_platformio_with_branch() -> None:
         (["esphome/espidf/runner.py"], True),
         (["esphome/espidf/framework.py"], True),
         (["esphome/build_gen/espidf.py"], True),
-        # PlatformIO build gen and esp32 component are NOT IDF-infra triggers
+        # Shared native-build modules the IDF build imports -> trigger
+        (["esphome/build_helpers/idedata.py"], True),
+        (["esphome/platformio/library.py"], True),
+        (["esphome/framework_helpers.py"], True),
+        (["esphome/platformio/extra_script.py"], True),
+        # PlatformIO build gen, its toolchain, and the esp32 component are
+        # NOT IDF-infra triggers
+        (["esphome/platformio/toolchain.py"], False),
         (["esphome/build_gen/platformio.py"], False),
         (["esphome/components/esp32/__init__.py"], False),
         (["README.md"], False),
@@ -1130,6 +1137,16 @@ def test_should_run_esp32_platformio_with_branch() -> None:
 def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
     """ESP-IDF build/runner infra paths are detected; other paths are not."""
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
+
+
+def test_esp_idf_infra_trigger_paths_exist() -> None:
+    """A renamed or moved trigger module must fail here, not silently stop
+    forcing the esp32 IDF compile."""
+    repo_root = Path(__file__).resolve().parents[2]
+    for file in determine_jobs.ESP_IDF_INFRA_TRIGGER_FILES:
+        assert (repo_root / file).is_file(), f"trigger file {file} moved or renamed"
+    for prefix in determine_jobs.ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES:
+        assert (repo_root / prefix).is_dir(), f"trigger dir {prefix} moved or renamed"
 
 
 @pytest.mark.parametrize(
@@ -1195,6 +1212,56 @@ def test_count_changed_cpp_files_with_branch() -> None:
         mock_changed.return_value = []
         determine_jobs.count_changed_cpp_files("release")
         mock_changed.assert_called_once_with("release")
+
+
+@pytest.mark.parametrize(
+    ("changed_files", "expected"),
+    [
+        # Core C++ change runs everything
+        (["esphome/core/helpers.cpp"], (True, [])),
+        # Core Python change runs everything too
+        (["esphome/core/config.py"], (True, [])),
+        # Component C++ change: component plus dependents with C++ tests
+        (["esphome/components/time/posix_tz.cpp"], (False, ["sntp", "time"])),
+        # Component Python change shapes the host build (defines, source
+        # filters), so it must trigger the same tests as a C++ change
+        (["esphome/components/time/__init__.py"], (False, ["sntp", "time"])),
+        # Nothing to build when no selected component has C++ tests
+        (["esphome/components/homeassistant/__init__.py"], (False, [])),
+        # Test manifest override changes only that component
+        (["tests/components/time/__init__.py"], (False, ["time"])),
+        # Test source change only that component
+        (["tests/components/time/posix_tz.cpp"], (False, ["time"])),
+        # pytest files and YAML build tests do not affect the test binary
+        (["tests/components/socket/conftest.py"], (False, [])),
+        (["tests/components/time/test.esp32-idf.yaml"], (False, [])),
+        (["README.md", "script/helpers.py"], (False, [])),
+        ([], (False, [])),
+    ],
+)
+def test_determine_cpp_unit_tests(
+    changed_files: list[str],
+    expected: tuple[bool, list[str]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test which C++ unit tests a set of changed files selects."""
+    tests_dir = tmp_path / "tests" / "components"
+    for component in ("time", "sntp"):
+        (tests_dir / component).mkdir(parents=True)
+        (tests_dir / component / f"{component}.cpp").write_text("")
+    (tests_dir / "homeassistant").mkdir()
+    (tests_dir / "socket").mkdir()
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    with (
+        patch.object(determine_jobs, "changed_files", return_value=changed_files),
+        patch.object(
+            helpers,
+            "create_components_graph",
+            return_value={"time": ["homeassistant", "sntp"]},
+        ),
+    ):
+        assert determine_jobs.determine_cpp_unit_tests() == expected
 
 
 def test_main_filters_components_without_tests(
@@ -2475,6 +2542,35 @@ def test_should_run_benchmarks_core_header_change() -> None:
         assert determine_jobs.should_run_benchmarks() is True
 
 
+def test_should_run_benchmarks_top_level_python_change() -> None:
+    """Test benchmarks trigger on top-level esphome Python module changes.
+
+    The Python benchmarks exercise config loading, so changes to modules
+    like config.py and yaml_util.py must run them; a regression in #16718
+    went unnoticed because these files matched no trigger.
+    """
+    for py_file in [
+        "esphome/config.py",
+        "esphome/yaml_util.py",
+        "esphome/__main__.py",
+        "esphome/helpers.py",
+    ]:
+        with patch.object(determine_jobs, "changed_files", return_value=[py_file]):
+            assert determine_jobs.should_run_benchmarks() is True, (
+                f"Expected benchmarks to run for {py_file}"
+            )
+
+
+def test_should_run_benchmarks_nested_python_change() -> None:
+    """Test benchmarks do NOT trigger for nested non-core Python changes."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["esphome/dashboard/web_server.py"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is False
+
+
 def test_should_run_benchmarks_host_platform_change() -> None:
     """Test benchmarks trigger on host platform changes.
 
@@ -2993,3 +3089,53 @@ def test_main_force_all_off_uses_detection(
     assert output["component_test_count"] == 0
     mock_determine_integration_tests.assert_called_once()
     mock_should_run_clang_tidy.assert_called_once()
+
+
+# Every platform the memory impact analysis can select must produce an ELF that
+# find_elf_path knows how to locate. The analysis fails the job when it cannot
+# find one, so a platform with an unknown layout would turn a clean build red.
+_MEMORY_IMPACT_ELF_LAYOUTS = {
+    # Native ESP-IDF toolchain (the esp32 default): <build>/build/firmware.elf
+    "esp32-c6-idf": "build/firmware.elf",
+    "esp32-idf": "build/firmware.elf",
+    "esp32-c3-idf": "build/firmware.elf",
+    "esp32-s2-idf": "build/firmware.elf",
+    "esp32-s3-idf": "build/firmware.elf",
+    # PlatformIO: <build>/.pioenvs/<name>/firmware.elf
+    "esp8266-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2040-ard": ".pioenvs/{name}/firmware.elf",
+    "rp2350-ard": ".pioenvs/{name}/firmware.elf",
+    # LibreTiny: <build>/.pioenvs/<name>/raw_firmware.elf
+    "bk72xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "rtl87xx-ard": ".pioenvs/{name}/raw_firmware.elf",
+    "ln882x-ard": ".pioenvs/{name}/raw_firmware.elf",
+    # Zephyr: <build>/.pioenvs/<name>/zephyr/[zephyr/]zephyr.elf
+    "nrf52-adafruit": ".pioenvs/{name}/zephyr/zephyr/zephyr.elf",
+}
+
+
+def test_memory_impact_platforms_have_known_elf_layout() -> None:
+    """Every selectable memory impact platform has a documented ELF layout.
+
+    Adding a platform to the preference list without teaching find_elf_path
+    where its ELF lands would fail the memory impact job on a clean build.
+    """
+    selectable = {
+        platform.value for platform in determine_jobs.MEMORY_IMPACT_PLATFORM_PREFERENCE
+    }
+    selectable.add(determine_jobs.MEMORY_IMPACT_FALLBACK_PLATFORM.value)
+
+    assert selectable == set(_MEMORY_IMPACT_ELF_LAYOUTS)
+
+
+def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
+    """find_elf_path locates the ELF each memory impact platform produces."""
+    from esphome.analyze_memory.toolchain import find_elf_path
+
+    for platform, layout in _MEMORY_IMPACT_ELF_LAYOUTS.items():
+        build_path = tmp_path / platform / ".esphome" / "build" / "mydevice"
+        elf = build_path / layout.format(name=build_path.name)
+        elf.parent.mkdir(parents=True)
+        elf.write_text("")
+
+        assert find_elf_path(build_path) == elf, f"{platform} ELF not found"

@@ -13,7 +13,7 @@
 
 using SPIInterface = spi_host_device_t;
 
-#elif defined(USE_ARDUINO)
+#elif defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
 
 #include <SPI.h>
 
@@ -351,6 +351,8 @@ class SPIComponent final : public Component {
     this->interface_ = interface;
     this->using_hw_ = true;
   }
+
+  SPIInterface get_interface() const { return this->interface_; }
 
   void set_interface_name(const char *name) { this->interface_name_ = name; }
 

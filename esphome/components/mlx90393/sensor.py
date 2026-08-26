@@ -17,6 +17,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_MICROTESLA,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@functionpointer"]
 DEPENDENCIES = ["i2c"]
@@ -52,7 +53,7 @@ CONF_DRDY_PIN = "drdy_pin"
 CONF_HALLCONF = "hallconf"
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if config[CONF_TEMPERATURE_COMPENSATION]:
         for axis in [CONF_X_AXIS, CONF_Y_AXIS, CONF_Z_AXIS]:
             if axis not in config:
@@ -74,7 +75,7 @@ def _validate(config):
     return config
 
 
-def mlx90393_axis_schema():
+def mlx90393_axis_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_MICROTESLA,
         accuracy_decimals=0,
@@ -127,7 +128,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

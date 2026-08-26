@@ -47,7 +47,7 @@ void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_regi
   auto &services = services_storage;
 #endif
 
-#ifdef USE_API
+#ifdef USE_MDNS_DEVICE_INFO_TXT
 #ifdef USE_MDNS_STORE_SERVICES
   get_mac_address_into_buffer(this->mac_address_);
   char *mac_ptr = this->mac_address_;
@@ -70,17 +70,20 @@ void MDNSComponent::setup_buffers_and_register_(PlatformRegisterFn platform_regi
   platform_register(this, services);
 }
 
-void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf,
-                                     char *config_hash_buf) {
+void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services,
+                                     const char *mac_address_buf, const char *config_hash_buf) {
   // IMPORTANT: The #ifdef blocks below must match COMPONENTS_WITH_MDNS_SERVICES
   // in mdns/__init__.py. If you add a new service here, update both locations.
+
+#ifdef USE_MDNS_DEVICE_INFO_TXT
+  MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
+  MDNS_STATIC_CONST_CHAR(TXT_MAC, "mac");
+  MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
+#endif
 
 #ifdef USE_API
   MDNS_STATIC_CONST_CHAR(SERVICE_ESPHOMELIB, "_esphomelib");
   MDNS_STATIC_CONST_CHAR(TXT_FRIENDLY_NAME, "friendly_name");
-  MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
-  MDNS_STATIC_CONST_CHAR(TXT_CONFIG_HASH, "config_hash");
-  MDNS_STATIC_CONST_CHAR(TXT_MAC, "mac");
   MDNS_STATIC_CONST_CHAR(TXT_PLATFORM, "platform");
   MDNS_STATIC_CONST_CHAR(TXT_BOARD, "board");
   MDNS_STATIC_CONST_CHAR(TXT_NETWORK, "network");
@@ -107,7 +110,13 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     txt_count++;  // network
 #endif
 #ifdef USE_API_NOISE
+    const bool api_has_psk = api::global_api_server->get_noise_ctx().has_psk();
     txt_count++;  // api_encryption or api_encryption_supported
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+    if (!api_has_psk) {
+      txt_count++;  // api_provisioning
+    }
+#endif
 #endif
 #ifdef ESPHOME_PROJECT_NAME
     txt_count += 2;  // project_name and project_version
@@ -163,9 +172,18 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION, "api_encryption");
     MDNS_STATIC_CONST_CHAR(TXT_API_ENCRYPTION_SUPPORTED, "api_encryption_supported");
     MDNS_STATIC_CONST_CHAR(NOISE_ENCRYPTION, "Noise_NNpsk0_25519_ChaChaPoly_SHA256");
-    bool has_psk = api::global_api_server->get_noise_ctx().has_psk();
-    const char *encryption_key = has_psk ? TXT_API_ENCRYPTION : TXT_API_ENCRYPTION_SUPPORTED;
+    const char *encryption_key = api_has_psk ? TXT_API_ENCRYPTION : TXT_API_ENCRYPTION_SUPPORTED;
     txt_records.push_back({MDNS_STR(encryption_key), MDNS_STR(NOISE_ENCRYPTION)});
+#ifndef USE_API_NOISE_PSK_FROM_YAML
+    if (!api_has_psk) {
+      // Unprovisioned device without a YAML key: advertise that the encryption
+      // key can be provisioned over a zero-PSK Noise connection. Gated on the
+      // YAML define so this survives the plaintext removal in 2027.2.0.
+      MDNS_STATIC_CONST_CHAR(TXT_API_PROVISIONING, "api_provisioning");
+      MDNS_STATIC_CONST_CHAR(VALUE_ZERO_PSK, "zero-psk");
+      txt_records.push_back({MDNS_STR(TXT_API_PROVISIONING), MDNS_STR(VALUE_ZERO_PSK)});
+    }
+#endif
 #endif
 
 #ifdef ESPHOME_PROJECT_NAME
@@ -212,12 +230,18 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   web_service.service_type = MDNS_STR(SERVICE_HTTP);
   web_service.proto = MDNS_STR(SERVICE_TCP);
   web_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
+#ifndef USE_API
+  // Without the native API there is no _esphomelib service, so publish the
+  // device info here for the device builder to discover.
+  web_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)},
+                             {MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)},
+                             {MDNS_STR(TXT_CONFIG_HASH), MDNS_STR(config_hash_buf)}};
+#endif
 #endif
 
 #if !defined(USE_API) && !defined(USE_PROMETHEUS) && !defined(USE_SENDSPIN) && !defined(USE_WEBSERVER) && \
     !defined(USE_MDNS_EXTRA_SERVICES)
   MDNS_STATIC_CONST_CHAR(SERVICE_HTTP, "_http");
-  MDNS_STATIC_CONST_CHAR(TXT_VERSION, "version");
 
   // Publish "http" service if not using native API or any other services
   // This is just to have *some* mDNS service so that .local resolution works
@@ -225,7 +249,9 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
   fallback_service.service_type = MDNS_STR(SERVICE_HTTP);
   fallback_service.proto = MDNS_STR(SERVICE_TCP);
   fallback_service.port = []() -> uint16_t { return USE_WEBSERVER_PORT; };
-  fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)}};
+  fallback_service.txt_records = {{MDNS_STR(TXT_VERSION), MDNS_STR(VALUE_VERSION)},
+                                  {MDNS_STR(TXT_MAC), MDNS_STR(mac_address_buf)},
+                                  {MDNS_STR(TXT_CONFIG_HASH), MDNS_STR(config_hash_buf)}};
 #endif
 }
 
