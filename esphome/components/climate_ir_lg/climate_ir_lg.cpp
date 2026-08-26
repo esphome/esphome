@@ -43,8 +43,12 @@ void LgIrClimate::transmit_state() {
 
   // Set command
   if (this->send_swing_cmd_) {
+    // The real remote's swing button sends this fixed code on its own, with no fan-speed or
+    // temperature payload, so transmit it immediately instead of falling through below.
     this->send_swing_cmd_ = false;
     remote_state |= COMMAND_SWING;
+    this->transmit_(remote_state);
+    return;
   } else {
     bool climate_is_off = (this->mode_before_ == climate::CLIMATE_MODE_OFF);
     switch (this->mode) {
@@ -102,7 +106,6 @@ void LgIrClimate::transmit_state() {
   }
 
   this->transmit_(remote_state);
-  this->publish_state();
 }
 
 bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
