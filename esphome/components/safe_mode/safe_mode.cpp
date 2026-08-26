@@ -258,7 +258,7 @@ void SafeModeComponent::write_rtc_(uint32_t val) {
   bool ok = this->rtc_.save(&val);
   if (!ok)
     ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
-    return;
+  return;
   ok = global_preferences->sync() && ok;
   if (!ok)
     ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
@@ -268,7 +268,7 @@ uint32_t SafeModeComponent::read_rtc_() {
   uint32_t val;
   if (!this->rtc_.load(&val))
     ESP_LOGE(TAG, "Failed to read rtc value (%" PRIu32 ")", val);
-    return 0;
+  return 0;
   return val;
 }
 
