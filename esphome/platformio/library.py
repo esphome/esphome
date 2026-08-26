@@ -944,9 +944,11 @@ def _warn_unsatisfied_versionless(
         if dep_name in resolved_manifest_names:
             # Name-only evidence: any resolved component with this manifest
             # name counts, not just ones the requester can reach, so a
-            # coincidental name collision must stay visible
+            # coincidental name collision must stay visible where the user
+            # could pin it; treeless backends cannot act on it
             warned.add(dep_name)
-            _LOGGER.warning(
+            log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
+            log(
                 "Version-less dependency %s of %s assumed satisfied by a "
                 "resolved library's manifest name only",
                 dep_name,
