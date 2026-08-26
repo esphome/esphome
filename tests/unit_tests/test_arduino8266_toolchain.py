@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.arduino8266 import framework, toolchain
+from esphome.build_helpers.pch import mark_pch_emitted
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
@@ -632,6 +633,7 @@ def test_get_idedata_accepts_preresolved_ccache() -> None:
 
 
 def test_ccache_env_includes_pch_settings() -> None:
+    mark_pch_emitted()
     """The native build exports the ccache settings the pch needs."""
     with patch.dict(os.environ, {}, clear=True):
         env = framework.ccache_env("/usr/bin/ccache")
@@ -647,6 +649,7 @@ def test_ccache_env_pch_disabled() -> None:
 
 
 def test_ccache_env_respects_user_sloppiness() -> None:
+    mark_pch_emitted()
     with patch.dict(os.environ, {"CCACHE_SLOPPINESS": "locale"}, clear=True):
         env = framework.ccache_env("/usr/bin/ccache")
     # The user's tokens survive; the ones the pch needs are unioned on
