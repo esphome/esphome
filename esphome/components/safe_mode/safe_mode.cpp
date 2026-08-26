@@ -256,6 +256,9 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 
 void SafeModeComponent::write_rtc_(uint32_t val) {
   bool ok = this->rtc_.save(&val);
+  if (!ok)
+    ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
+    return;
   ok = global_preferences->sync() && ok;
   if (!ok)
     ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
@@ -264,6 +267,7 @@ void SafeModeComponent::write_rtc_(uint32_t val) {
 uint32_t SafeModeComponent::read_rtc_() {
   uint32_t val;
   if (!this->rtc_.load(&val))
+    ESP_LOGE(TAG, "Failed to read rtc value (%" PRIu32 ")", val);
     return 0;
   return val;
 }
@@ -274,7 +278,9 @@ void SafeModeComponent::clean_rtc() {
   // before sync, the boot wasn't really successful anyway and the counter should
   // remain incremented.
   uint32_t val = 0;
-  this->rtc_.save(&val);
+  bool ok = this->rtc_.save(&val);
+  if (!ok)
+    ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
 }
 
 void SafeModeComponent::on_safe_shutdown() {
