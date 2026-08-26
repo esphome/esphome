@@ -337,7 +337,7 @@ class LibraryBackend:
     # the backend supplies them itself (e.g. core-bundled libraries) and
     # reconciles provided_requests after resolving
     provides: Callable[[str], bool] | None = None
-    provided_requests: list[str] = field(default_factory=list)
+    provided_requests: set[str] = field(default_factory=set)
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -932,6 +932,8 @@ def _warn_unsatisfied_versionless(
     """Warn for version-less deps nothing satisfied; a silent drop
     surfaces as link errors far from the cause."""
     resolved_manifest_names = {c.data.get("name") for c in components.values()}
+    # A treeless backend can never supply a bundled name; noise for it
+    log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
     warned: set[str] = set()
     for dep_name, dep_owner, requester in skipped_versionless:
         if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
@@ -943,7 +945,6 @@ def _warn_unsatisfied_versionless(
             # Name-only evidence: a coincidental collision must stay
             # visible where the user could pin it
             warned.add(dep_name)
-            log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
             log(
                 "Version-less dependency %s of %s assumed satisfied by a "
                 "resolved library's manifest name only",
@@ -958,11 +959,9 @@ def _warn_unsatisfied_versionless(
         ):
             # provides() only satisfies owner-less names (same guard as
             # the walk's skip); record for the post-emit reconciliation
-            backend.provided_requests.append(dep_name)
+            backend.provided_requests.add(dep_name)
             continue
         warned.add(dep_name)
-        # A treeless backend can never supply a bundled name; noise for it
-        log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
         log(
             "Dependency %s of %s has no version to resolve and nothing "
             "provides it; skipping",
@@ -1252,23 +1251,20 @@ def convert_libraries(
                 if "version" not in dependency:
                     # Cannot resolve from the registry; the post-emit
                     # reconciliation owns the drop warning
+                    dep_name = dependency.get("name")
                     _LOGGER.debug(
                         "Skip version-less dependency %r of %s",
-                        dependency.get("name"),
+                        dep_name,
                         component.name,
                     )
                     if not is_lib_ignored(
-                        dependency.get("name"), lib_ignore
+                        dep_name, lib_ignore
                     ) and dependency_is_usable(
                         dependency, backend.platform, backend.framework, component.name
                     ):
                         # Filtered or ignored deps are deliberately absent
                         skipped_versionless.append(
-                            (
-                                dependency.get("name"),
-                                dependency.get("owner"),
-                                component.name,
-                            )
+                            (dep_name, dependency.get("owner"), component.name)
                         )
                     continue
                 if not dependency_is_usable(
@@ -1304,7 +1300,7 @@ def convert_libraries(
                         )
                     else:
                         _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
-                    backend.provided_requests.append(dep_name)
+                    backend.provided_requests.add(dep_name)
                     continue
                 dep_key = add_spec(dep_name, dep_version, dep_url)
                 node.edges.add(dep_key)
