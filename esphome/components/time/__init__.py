@@ -426,7 +426,12 @@ async def setup_time_core_(time_var, config):
             raise EsphomeError(f"Invalid timezone: {timezone}") from e
         _emit_parsed_timezone_fields(parsed)
 
-    for conf in config.get(CONF_ON_TIME, []):
+    on_time = config.get(CONF_ON_TIME, [])
+    on_time_sync = config.get(CONF_ON_TIME_SYNC, [])
+    if on_time or on_time_sync:
+        cg.add_define("USE_TIME_TRIGGERS")
+
+    for conf in on_time:
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         seconds = conf.get(CONF_SECONDS, list(range(61)))
@@ -445,7 +450,7 @@ async def setup_time_core_(time_var, config):
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 
-    for conf in config.get(CONF_ON_TIME_SYNC, []):
+    for conf in on_time_sync:
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         await cg.register_component(trigger, conf)
@@ -479,7 +484,11 @@ async def time_has_time_to_code(config, condition_id, template_arg, args):
 
 
 # posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a
-# timezone is configured or detected.
+# timezone is configured or detected; automation.cpp holds the on_time and
+# on_time_sync triggers and is #ifdef'd on USE_TIME_TRIGGERS.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"posix_tz.cpp": "USE_TIME_TIMEZONE"}
+    {
+        "posix_tz.cpp": "USE_TIME_TIMEZONE",
+        "automation.cpp": "USE_TIME_TRIGGERS",
+    }
 )

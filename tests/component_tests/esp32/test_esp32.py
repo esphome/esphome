@@ -132,6 +132,20 @@ def test_esp32_rejects_unsupported_toolchains(
         CONFIG_SCHEMA({"variant": VARIANT_ESP32, "toolchain": config_toolchain})
 
 
+def test_esp32_rejects_unsupported_cli_toolchain(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A --toolchain the platform cannot serve fails instead of silently
+    building with PlatformIO (the CLI path bypasses the YAML validator)."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32})
+
+
 @pytest.mark.parametrize(
     ("config", "error_match"),
     [

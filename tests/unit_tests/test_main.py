@@ -7195,6 +7195,42 @@ def test_compile_program_espidf_idedata_none_warns(
     assert "No idedata was generated" in caplog.text
 
 
+def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
+    """An explicit --toolchain must run the per-platform validators, so the
+    upload/logs fast path becomes a cache miss."""
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "arduino", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_cache,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
+    ):
+        assert run_esphome(argv) == 2
+    mock_cache.assert_not_called()
+    mock_read.assert_called_once()
+
+
+def test_cli_toolchain_still_refreshes_the_validated_config_cache(
+    tmp_path: Path,
+) -> None:
+    """An explicit --toolchain gates only the cache read; with a matching
+    sidecar the freshly validated config is still saved."""
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "platformio", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_load,
+        patch("esphome.config.read_config", return_value={CONF_ESPHOME: {}}),
+        patch("esphome.compiled_config.save_compiled_config_and_sidecar") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS", {"logs": Mock(return_value=0)}
+        ),
+    ):
+        assert run_esphome(argv) == 0
+    mock_load.assert_not_called()
+    mock_save.assert_called_once()
+
+
 @pytest.mark.asyncio
 async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     """The config comment dumps with sorted keys: voluptuous fills schema
