@@ -2,6 +2,7 @@ modbus_controller:
   - id: modbus_controller1
     address: 0x2
     modbus_id: modbus_bus
+    continuous: true
     on_online:
       then:
         logger.log: "Module Online"
@@ -108,6 +109,22 @@ select:
       return value;
 
 sensor:
+  # custom_pdu polls a ready-made PDU (function code + data - no device address byte, no CRC); covers
+  # the set_custom_pdu codegen path and the custom-range polling constructor.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_custom_pdu
+    name: Test Custom PDU Sensor
+    custom_pdu: [0x03, 0x00, 0x2A, 0x00, 0x01]
+    value_type: U_WORD
+  # Deprecated custom_command (leading byte 0x02 == modbus_controller1's address) drives the
+  # migrate_custom_command final-validate auto-migration path in CI.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller1
+    id: modbus_sensor_custom_command
+    name: Test Custom Command Sensor
+    custom_command: [0x02, 0x03, 0x00, 0x2B, 0x00, 0x01]
+    value_type: U_WORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller1
     id: modbus_sensor1

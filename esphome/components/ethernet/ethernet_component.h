@@ -13,6 +13,9 @@
 #include "esp_eth.h"
 #ifdef USE_ETHERNET_SPI
 #include "hal/spi_types.h"
+#ifdef USE_SPI
+#include "esphome/components/spi/spi.h"
+#endif
 #endif
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_esp.h"
@@ -159,9 +162,6 @@ class EthernetComponent final : public Component {
   const char *get_use_address() const { return this->use_address_; }
   void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   void get_eth_mac_address_raw(uint8_t *mac);
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string get_eth_mac_address_pretty();
   const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
@@ -179,6 +179,9 @@ class EthernetComponent final : public Component {
   void set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
   void set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
   void set_interface(spi_host_device_t interface) { this->interface_ = interface; }
+#ifdef USE_SPI
+  void set_spi_parent(spi::SPIComponent *parent) { this->spi_parent_ = parent; }
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   void set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
 #endif
@@ -261,6 +264,11 @@ class EthernetComponent final : public Component {
   int phy_addr_spi_{-1};
   int clock_speed_;
   spi_host_device_t interface_{SPI2_HOST};
+#ifdef USE_SPI
+  // When set, the SPI bus is owned and initialized by this spi component
+  // and the ethernet chip only adds a device to it.
+  spi::SPIComponent *spi_parent_{nullptr};
+#endif
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif

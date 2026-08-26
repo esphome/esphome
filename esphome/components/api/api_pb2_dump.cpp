@@ -816,6 +816,18 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
       return ESPHOME_PSTR("UNKNOWN");
   }
 }
+template<> const char *proto_enum_to_string<enums::ZWaveProxyStatus>(enums::ZWaveProxyStatus value) {
+  switch (value) {
+    case enums::ZWAVE_PROXY_STATUS_OK:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_OK");
+    case enums::ZWAVE_PROXY_STATUS_IN_USE:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_IN_USE");
+    case enums::ZWAVE_PROXY_STATUS_NOT_SUPPORTED:
+      return ESPHOME_PSTR("ZWAVE_PROXY_STATUS_NOT_SUPPORTED");
+    default:
+      return ESPHOME_PSTR("UNKNOWN");
+  }
+}
 #endif
 #ifdef USE_SERIAL_PROXY
 template<> const char *proto_enum_to_string<enums::SerialProxyParity>(enums::SerialProxyParity value) {
@@ -838,6 +850,10 @@ template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE");
     case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
       return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_FLUSH");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_CONFIGURE");
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+      return ESPHOME_PSTR("SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -854,6 +870,10 @@ template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::Ser
       return ESPHOME_PSTR("SERIAL_PROXY_STATUS_TIMEOUT");
     case enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED:
       return ESPHOME_PSTR("SERIAL_PROXY_STATUS_NOT_SUPPORTED");
+    case enums::SERIAL_PROXY_STATUS_PORT_IN_USE:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_PORT_IN_USE");
+    case enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT:
+      return ESPHOME_PSTR("SERIAL_PROXY_STATUS_INVALID_ARGUMENT");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -914,6 +934,7 @@ const char *SerialProxyInfo::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyInfo"));
   dump_field(out, ESPHOME_PSTR("name"), this->name);
   dump_field(out, ESPHOME_PSTR("port_type"), static_cast<enums::SerialProxyPortType>(this->port_type));
+  dump_field(out, ESPHOME_PSTR("configured_line_states"), this->configured_line_states);
   return out.c_str();
 }
 #endif
@@ -1468,7 +1489,7 @@ const char *ParsedTimezone::dump_to(DumpBuffer &out) const {
 const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("GetTimeResponse"));
   dump_field(out, ESPHOME_PSTR("epoch_seconds"), this->epoch_seconds);
-  dump_field(out, ESPHOME_PSTR("timezone"), this->timezone);
+  dump_field(out, ESPHOME_PSTR("has_parsed_timezone"), this->has_parsed_timezone);
   out.append(2, ' ').append_p(ESPHOME_PSTR("parsed_timezone")).append(": ");
   this->parsed_timezone.dump_to(out);
   out.append("\n");
@@ -2644,6 +2665,12 @@ const char *ZWaveProxyRequest::dump_to(DumpBuffer &out) const {
   dump_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
   return out.c_str();
 }
+const char *ZWaveProxyRequestResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("ZWaveProxyRequestResponse"));
+  dump_field(out, ESPHOME_PSTR("type"), static_cast<enums::ZWaveProxyRequestType>(this->type));
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::ZWaveProxyStatus>(this->status));
+  return out.c_str();
+}
 #endif
 #ifdef USE_INFRARED
 const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
@@ -2753,6 +2780,7 @@ const char *SerialProxyGetModemPinsResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SerialProxyGetModemPinsResponse"));
   dump_field(out, ESPHOME_PSTR("instance"), this->instance);
   dump_field(out, ESPHOME_PSTR("line_states"), this->line_states);
+  dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SerialProxyStatus>(this->status));
   return out.c_str();
 }
 const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {

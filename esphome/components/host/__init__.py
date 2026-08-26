@@ -37,6 +37,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
         }
     ),
+    cv.require_platformio_toolchain("host"),
     set_core_data,
 )
 
