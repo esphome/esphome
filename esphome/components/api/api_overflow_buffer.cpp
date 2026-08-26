@@ -62,8 +62,9 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
     return false;
 
   uint16_t buffer_size = total_len - skip;
-  // nothrow: on OOM drop the connection instead of crashing — ESP8266 Arduino's
-  // plain new returns nullptr when out of memory, ESP-IDF's aborts
+  // nothrow: a failed allocation returns nullptr so the connection is dropped
+  // cleanly instead of plain new's crash or abort on OOM
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   auto *data = new (std::nothrow) uint8_t[buffer_size];
   if (data == nullptr)
     return false;
