@@ -783,4 +783,6 @@ def test_platformio_surface_for_install_deps_script() -> None:
 
     mod = _load_script()
     # The intact-dir heuristic hand-copies pio's manifest map
-    assert set(mod._MANIFEST_NAMES) == set(PackageType.get_manifest_map().values())
+    assert set(mod._MANIFEST_NAMES) == {
+        name for names in PackageType.get_manifest_map().values() for name in names
+    }
