@@ -416,6 +416,19 @@ def test_write_project_pch_identity_unknown_skips_pch(
     assert "Could not establish the pch identity" in caplog.text
 
 
+def test_write_project_pch_skipped_for_joined_force_include_spelling(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """GCC also accepts -includefoo.h as one token; the guard must see it."""
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-includefoo.h"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "esphome_pch" not in content
+    assert "prevents the precompiled header" in caplog.text
+
+
 def test_write_project_pch_skipped_when_user_force_include_precedes(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -1799,7 +1812,10 @@ def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
         CORE.build_path = tmp_path / name
         _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
         content = _write_ninja(paths, ccache="/usr/bin/ccache")
-        assert "srccxxflags = -Winvalid-pch -include esphome_pch.h" in content
+        assert (
+            "srccxxflags = -Winvalid-pch -Wno-error=invalid-pch "
+            "-include esphome_pch.h" in content
+        )
         sums.append(
             (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
         )

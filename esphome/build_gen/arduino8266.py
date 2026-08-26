@@ -1217,7 +1217,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
     # edge (hundreds of edges in a real project)
     lines.append(f"srcflags = {' '.join(src_other + include_flags)}")
     src_cxx_override = None
-    if pch_enabled() and "-include" in cxxflags:
+    if pch_enabled() and any(tok.startswith("-include") for tok in cxxflags):
         # GCC only loads a .gch while no tokens precede it, and the cxx rule
         # expands $cxxflags before $flags: a user -include in build_flags
         # means every TU would silently skip the .gch
@@ -1281,7 +1281,10 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             # Relative -include (resolved from the ninja cwd, where the header
             # lives): an absolute path would put the per-device build path on
             # every compile command and defeat cross-device ccache sharing
-            cxx_parts = src_other + [f"-Winvalid-pch -include {PCH_HEADER_NAME}"]
+            # -Wno-error keeps a rejected .gch a warning under user -Werror
+            cxx_parts = src_other + [
+                f"-Winvalid-pch -Wno-error=invalid-pch -include {PCH_HEADER_NAME}"
+            ]
             lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
             src_cxx_override = ("$srccxxflags", gch)
     src_objs = _ninja_compile_edges(
