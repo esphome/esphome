@@ -23,6 +23,7 @@ try:
     from platformio.package.manager.library import LibraryPackageManager
     from platformio.package.manager.tool import ToolPackageManager
     from platformio.package.meta import PackageCompatibility
+    import semantic_version
 
     PARALLEL_AVAILABLE = True
 except ImportError as err:  # pragma: no cover
@@ -112,12 +113,19 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
         mspec = meta.get("spec") or {}
         name = (mspec.get("name") or meta.get("name") or "").lower()
         owner = (mspec.get("owner") or "").lower()
-        if (
-            want
-            and name == want
-            and (not parsed.owner or owner == parsed.owner.lower())
-        ):
-            matches.append(d)
+        if not want or name != want:
+            continue
+        if parsed.owner and owner != parsed.owner.lower():
+            continue
+        version = str(meta.get("version") or "")
+        if parsed.requirements and version:
+            try:
+                if semantic_version.Version.coerce(version) not in parsed.requirements:
+                    # A healthy other version this run never tried to write
+                    continue
+            except ValueError:
+                pass  # unparsable version stays a candidate
+        matches.append(d)
     return matches
 
 
@@ -350,11 +358,12 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
             os.chdir(cwd)
         except OSError as chdir_err:
             print(f"Could not restore the working dir ({chdir_err!r})", flush=True)
-            if body_error is None:
+            if body_error is None and unlock_error is None:
                 # Further waves cannot run from an unknown cwd; the serial
                 # pass is safe either way (its cwd is pinned)
                 raise
-            body_error.add_note(
+            # A pending LockReleaseError must still win the raise
+            (body_error or unlock_error).add_note(
                 f"also: could not restore the working dir ({chdir_err!r})"
             )
     if unlock_error is not None:

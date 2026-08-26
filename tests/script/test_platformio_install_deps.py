@@ -112,7 +112,7 @@ class _FakeManager:
             raise RuntimeError("boom")
         type(self).calls.append(spec)
         type(self).compat_calls.append((self._key(spec), compatibility))
-        type(self).installed = type(self).installed | {self._key(spec)}
+        type(self).installed.add(self._key(spec))  # atomic under the GIL
 
     def get_pkg_dependencies(self, pkg):
         return getattr(type(self), "deps", {}).get(pkg.spec)
@@ -501,6 +501,46 @@ def test_piopm_match_removes_manifest_named_torn_dir(tmp_path: Path, capsys) -> 
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
     assert not torn.exists()
     assert "Removed torn destination" in capsys.readouterr().out
+
+
+def test_piopm_match_spares_other_versions(tmp_path: Path) -> None:
+    """A healthy install of another version is never a cleanup casualty."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ ^2.0"})
+    healthy = tmp_path / "packages" / "bad"
+    healthy.mkdir(parents=True)
+    (healthy / ".piopm").write_text(
+        '{"version": "1.0.0", "spec": {"owner": "esphome", "name": "bad"}}'
+    )
+    removed: list[str] = []
+    with patch.object(mod.fs, "rmtree", removed.append):
+        mod.parallel_install(cls, ["esphome/bad @ ^2.0"])
+    assert removed == []
+    assert healthy.exists()
+
+
+def test_chdir_failure_defers_to_pending_lock_fault(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """An unlock fault plus a failed cwd restore must still raise the
+    LockReleaseError; the OSError must not displace it."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path))
+
+    def bad_unlock(self):
+        raise OSError("flock broke")
+
+    cls.unlock = bad_unlock
+    real_chdir = mod.os.chdir
+    monkeypatch.setattr(
+        mod.os, "chdir", lambda path: (_ for _ in ()).throw(OSError("cwd gone"))
+    )
+    try:
+        with pytest.raises(mod.LockReleaseError) as err:
+            mod.parallel_install(cls, ["esphome/a @ 1.0"])
+    finally:
+        monkeypatch.setattr(mod.os, "chdir", real_chdir)
+    assert any("working dir" in n for n in err.value.__notes__)
 
 
 def test_main_cleanup_error_fails_before_generic_fallback(tmp_path: Path) -> None:
