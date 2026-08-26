@@ -182,8 +182,6 @@ jobs:
       contents: read  # actions/checkout to load the test configs
     strategy:
       fail-fast: false
-      # Modest cap so this smoke test leaves room on the shared runner pool.
-      max-parallel: 8
       matrix:
         # One entry per distinct toolchain. ESP32 variants (c3/c6/s2/s3/p4)
         # share a toolchain bundle, so esp32 is exercised on the base variant

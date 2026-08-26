@@ -3,6 +3,8 @@ import logging
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
+from esphome.components.libretiny import get_libretiny_family
+from esphome.components.libretiny.const import FAMILY_RTL8720C
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -43,6 +45,16 @@ DigitalWriteAction = remote_transmitter_ns.class_(
 )
 
 
+def _validate_non_blocking_platform(value: bool) -> bool:
+    # non_blocking requires hardware transmission: RMT on ESP32, the gtimer
+    # envelope chain on RTL8720C. Reject everywhere else at config time.
+    if CORE.is_esp32:
+        return cv.boolean(value)
+    if CORE.is_libretiny and get_libretiny_family() == FAMILY_RTL8720C:
+        return cv.boolean(value)
+    raise cv.Invalid("non_blocking is only supported on ESP32 and RTL8720C")
+
+
 MULTI_CONF = True
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -76,7 +88,7 @@ CONFIG_SCHEMA = (
                 esp32_s2=64,
                 esp32_s3=48,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
-            cv.Optional(CONF_NON_BLOCKING): cv.All(cv.only_on_esp32, cv.boolean),
+            cv.Optional(CONF_NON_BLOCKING): _validate_non_blocking_platform,
             cv.Optional(CONF_ON_TRANSMIT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_COMPLETE): automation.validate_automation(single=True),
         }
@@ -164,6 +176,8 @@ async def to_code(config: ConfigType) -> None:
             )
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
+        if (non_blocking := config.get(CONF_NON_BLOCKING)) is not None:
+            cg.add(var.set_non_blocking(non_blocking))
     await cg.register_component(var, config)
 
     cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
