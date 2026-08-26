@@ -63,6 +63,9 @@ struct MDNSService {
   const MDNSString *proto;
   TemplatableFn<uint16_t> port;
   FixedVector<MDNSTXTRecord> txt_records;
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  bool enabled{true};
+#endif
 };
 
 class MDNSComponent final : public Component
@@ -110,6 +113,15 @@ class MDNSComponent final : public Component
 
 #ifdef USE_MDNS_STORE_SERVICES
   const StaticVector<MDNSService, MDNS_SERVICE_COUNT> &get_services() const { return this->services_; }
+#endif
+
+#ifdef USE_MDNS_SUPPORTS_ENABLE_DISABLE
+  /// Enable or disable a compile-time configured service at runtime.
+  /// Matches by service type and protocol (e.g. "_sendspin", "_tcp"), including
+  /// the underscore prefixes. Only valid after setup(); returns true when the
+  /// service is in the requested state afterwards. Blocks briefly on the mDNS
+  /// task, so avoid calling from hot paths.
+  bool set_service_enabled(const char *service_type, const char *proto, bool enabled);
 #endif
 
   void on_shutdown() override;
