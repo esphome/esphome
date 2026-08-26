@@ -97,10 +97,8 @@ void RemoteTransmitterComponent::digital_write(bool value) {
   if (this->pwm_ == nullptr)
     return;
 #ifdef USE_LIBRETINY_VARIANT_RTL8720C
-  if (this->transmitting_) {
-    ESP_LOGW(TAG, "digital_write ignored: transmission in flight");
-    return;
-  }
+  // serialize behind an in-flight chain, matching the ESP32/RMT non-blocking behavior
+  this->wait_until_idle_();
 #endif
   pwmout_write(static_cast<pwmout_t *>(this->pwm_), (value != this->pin_->is_inverted()) ? 1.0f : 0.0f);
 }
