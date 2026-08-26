@@ -57,7 +57,7 @@ void ModbusNumber::control(float value) {
         bytes.push_back(word_bytes[0]);
         bytes.push_back(word_bytes[1]);
       }
-      if (!this->send_raw_frame_deprecated(std::span<const uint8_t>(bytes.data(), bytes.size()))) {
+      if (!this->send_raw_frame_deprecated_(std::span<const uint8_t>(bytes.data(), bytes.size()))) {
         ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
         return;
       }
