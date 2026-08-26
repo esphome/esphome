@@ -1211,7 +1211,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                     "build_src_flags has a trailing '-include' with no header"
                 )
             src_includes.append(header)
-        elif tok.startswith("-include"):
+        elif tok.startswith("-include") and not tok.startswith("-include-"):
             # Joined spelling; left in src_other it would precede the pch
             # include and silently defeat the .gch
             src_includes.append(tok[len("-include") :])
@@ -1268,12 +1268,14 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 "(set ESPHOME_PCH_ENABLE=0 to disable)"
             )
             write_file_if_changed(pch_header, pch_text)
+            sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
             if checksum is not None:
                 # Generate-time stamp: a hand-run ninja can rebuild the .gch
                 # while this .sum lags
-                write_file_if_changed(
-                    build_dir / f"{PCH_HEADER_NAME}.gch.sum", checksum + "\n"
-                )
+                write_file_if_changed(sum_path, checksum + "\n")
+            else:
+                # A stale .sum from an earlier ccache run must not survive
+                sum_path.unlink(missing_ok=True)
             gch = _e(f"{PCH_HEADER_NAME}.gch")
             lines.append(f"build {gch}: pch {_e(pch_header)}")
             if src_other:
