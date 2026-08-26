@@ -1,11 +1,8 @@
 """Shared precompiled-header policy for the build backends.
 
-Safe by construction when the prefix header mirrors what the TUs already
-include first (ESP8266); a backend may instead inject a curated set of
-self-contained core headers (ESP-IDF). User sources from ``esphome:
-includes:`` also receive the prefix; the Arduino.h visibility this gives
-them on Arduino platforms is intended behavior (see esphome#8693, which
-made defines.h -> macros.h include it everywhere).
+The prefix either mirrors the TUs' own force-includes (ESP8266) or is a
+curated core-header set (ESP-IDF). ``esphome: includes:`` sources receive
+it too; Arduino.h visibility there is intended (esphome#8693).
 """
 
 from __future__ import annotations
@@ -94,13 +91,10 @@ def ccache_pch_env() -> dict[str, str]:
         missing := [
             t
             for t in ("pch_defines", "time_macros")
-            # Set membership: substring matching could be fooled by a token
-            # that merely contains one of ours
             if t not in {tok.strip() for tok in user_sloppiness.split(",")}
         ]
     ):
-        # Without these ccache declines every pch-consuming compile; union
-        # rather than override so the user's own tokens survive
+        # Without these ccache declines every pch-consuming compile
         env["CCACHE_SLOPPINESS"] = ",".join((user_sloppiness, *missing))
         _LOGGER.warning(
             "Adding %s to CCACHE_SLOPPINESS so ccache can cache compiles "
@@ -122,14 +116,11 @@ def pch_header_text(include_headers: Iterable[str]) -> str:
 
 
 def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
-    """Quoted-include closure of ``roots``: src-relative name -> contents.
+    """Include closure of ``roots``: src-relative name -> contents.
 
-    Resolves each include against the includer's directory first, then the
-    src root, matching the compiler's quoted-include lookup. Names that do
-    not resolve under ``src_dir`` end the walk; they live in versioned
-    framework/toolchain installs the caller identifies separately.
-    Over-approximates (no #ifdef evaluation) — the safe direction for
-    cache invalidation.
+    Resolution mirrors the compiler (includer's dir, then src root); names
+    outside ``src_dir`` end the walk and are versioned by the caller. No
+    #ifdef evaluation: over-approximating is the safe direction.
     """
     seen: dict[str, bytes] = {}
     stack: list[tuple[str, str]] = [(name, "") for name in roots]
@@ -146,18 +137,15 @@ def _include_closure(src_dir: Path, roots: Iterable[str]) -> dict[str, bytes]:
         try:
             data = (src_dir / rel).read_bytes()
         except OSError as err:
-            # mtime/size keep a changed-but-unreadable header shifting the
-            # digest without device paths in it; if stat also fails the
-            # header's identity is unknown and the OSError propagates so
-            # callers compile without a pch
+            # mtime/size still shift the digest; a stat failure propagates
+            # so callers compile without a pch
             _LOGGER.warning("Could not read %s for the pch checksum: %s", rel, err)
             st = (src_dir / rel).stat()
             data = f"<unreadable:{st.st_mtime_ns}:{st.st_size}>".encode()
         seen[rel] = data
         parent = posixpath.dirname(rel)
         stack.extend(
-            # surrogateescape: a non-UTF-8 include name must not abort the
-            # build; it simply will not resolve and ends the walk
+            # surrogateescape: a non-UTF-8 name just fails to resolve
             (inc.decode(errors="surrogateescape"), parent)
             for inc in _INCLUDE_RE.findall(data)
         )
@@ -174,7 +162,6 @@ def pch_checksum(
     digest = hashlib.sha256()
     closure = _include_closure(src_dir, include_headers)
     for name in sorted(closure):
-        # surrogateescape round-trips names from non-UTF-8 filesystems
         digest.update(name.encode(errors="surrogateescape"))
         digest.update(closure[name])
         digest.update(b"\0")
