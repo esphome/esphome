@@ -65,6 +65,7 @@ void ModbusSwitch::write_state(bool state) {
   // so a rapidly-changing value writes the latest, not every intermediate.
   this->clear_tx_queue_for_device();
   modbus::helpers::PduBuffer data;
+  bool write_value = state;
   if (this->write_transform_func_.has_value()) {
     // The lambda may drive the write itself via item->write_*/queue_pdu(), override the written value (return a
     // value), or (deprecated) fill `data` with a custom PDU.
@@ -92,26 +93,27 @@ void ModbusSwitch::write_state(bool state) {
       ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
     }
+    // The returned bool is the wire value only; the entity still reports the requested state.
     ESP_LOGV(TAG, "Value overwritten by lambda");
-    state = val.value();
+    write_value = val.value();
   }
   ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
-           ONOFF(state), (int) this->register_type, this->start_address, this->offset);
+           ONOFF(write_value), (int) this->register_type, this->start_address, this->offset);
   bool queued;
   if (this->register_type == EntityType::COIL) {
     // offset for coil and discrete inputs is the coil/register number not bytes
     if (this->use_write_multiple_) {
-      std::array<bool, 1> states{state};
+      std::array<bool, 1> states{write_value};
       queued = this->write_multiple_coils(this->write_address(), states);
     } else {
-      queued = this->write_single_coil(this->write_address(), state);
+      queued = this->write_single_coil(this->write_address(), write_value);
     }
   } else {
     if (this->use_write_multiple_) {
-      std::array<uint16_t, 1> states{static_cast<uint16_t>(state ? (0xFFFF & this->bitmask) : 0)};
+      std::array<uint16_t, 1> states{static_cast<uint16_t>(write_value ? (0xFFFF & this->bitmask) : 0)};
       queued = this->write_multiple_registers(this->write_address(), states);
     } else {
-      queued = this->write_single_register(this->write_address(), state ? 0xFFFF & this->bitmask : 0u);
+      queued = this->write_single_register(this->write_address(), write_value ? 0xFFFF & this->bitmask : 0u);
     }
   }
   if (!queued) {
