@@ -597,21 +597,21 @@ std::string LvSelectable::get_selected_text() {
   return this->options_[selected];
 }
 
-static std::string join_string(std::vector<std::string> options) {
+static std::string join_string(const FixedVector<const char *> &options) {
   return std::accumulate(
       options.begin(), options.end(), std::string(),
-      [](const std::string &a, const std::string &b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
+      [](const std::string &a, const char *b) -> std::string { return a + (!a.empty() ? "\n" : "") + b; });
 }
 
 void LvSelectable::set_selected_text(const std::string &text, lv_anim_enable_t anim) {
-  auto index = std::find(this->options_.begin(), this->options_.end(), text);
+  auto *index = std::find(this->options_.begin(), this->options_.end(), text);
   if (index != this->options_.end()) {
     this->set_selected_index(index - this->options_.begin(), anim);
     lv_obj_send_event(this->obj, lv_update_event, nullptr);
   }
 }
 
-void LvSelectable::set_options(std::vector<std::string> options) {
+void LvSelectable::set_options(FixedVector<const char *> options) {
   auto index = this->get_selected_index();
   if (index >= options.size())
     index = options.size() - 1;
