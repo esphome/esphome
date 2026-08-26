@@ -381,6 +381,7 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
 
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->publish_state(temperature_values.temperature_float);
+    this->status_clear_warning();
   }
 
   if (this->pressure_sensor_ != nullptr) {
@@ -389,15 +390,15 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
     if (pressure_float < PRESSURE_LOWER_LIMIT || pressure_float > PRESSURE_UPPER_LIMIT) {
       ESP_LOGE(TAG, "Treating this pressure read of %.2fhPa as a failed read, skipping it", pressure_float);
       this->status_set_warning();
-      return;
+      // Fall through to read humidity, even though pressure failed.
+      // If humidity succeeds, it's going to clear the warning flag almost immediately
+    } else {
+      ESP_LOGD(TAG, "Pressure=%0.2fhPa", pressure_float);
+
+      this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
+      this->status_clear_warning();
     }
-
-    ESP_LOGD(TAG, "Pressure=%0.2fhPa", pressure_float);
-
-    this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
   }
-
-  this->status_clear_warning();
 
   if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
     // now that we have temperature (to compensate the humidity with), kick off that read
