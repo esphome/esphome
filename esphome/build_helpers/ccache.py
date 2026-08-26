@@ -99,10 +99,7 @@ def effective_ccache_basedir() -> str:
     from esphome.core import CORE
 
     raw = os.environ.get("CCACHE_BASEDIR")
-    if raw is not None:
-        # A degenerate value ("", "/", relative) must not be used for
-        # substring stripping; fall back to the resolved build path
-        if len(Path(raw).parts) > 1:
-            return raw
-        return str(Path(CORE.build_path).resolve())
+    if raw is not None and Path(raw).is_absolute() and len(Path(raw).parts) > 1:
+        return raw
+    # Unset or degenerate ("", "/", relative): fall back to the build path
     return str(Path(CORE.build_path).resolve())
