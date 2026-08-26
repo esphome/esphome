@@ -394,6 +394,61 @@ def test_unparsable_torn_destination_is_removed(tmp_path: Path, capsys) -> None:
     assert "Removed torn destination" in capsys.readouterr().out
 
 
+def test_parse_specs_tools_branch(tmp_path: Path) -> None:
+    """platform_packages parsing keeps owner'd tools and rewrites github
+    URL pins to bare URLs the wave then skips via parsed.uri."""
+    mod = _load_script()
+    ini = tmp_path / "platformio.ini"
+    ini.write_text(
+        "[env:t]\n"
+        "platform_packages =\n"
+        "    platformio/tool-scons@~4.40801.0\n"
+        "    framework-arduinopico@https://github.com/earlephilhower/arduino-pico/releases/download/6.0.0/rp2040-6.0.0.zip\n"
+    )
+    args = Namespace(libraries=False, platforms=False, tools=True)
+    libs, platforms, tools = mod.parse_specs(str(ini), args)
+    assert libs == [] and platforms == []
+    assert tools == [
+        "platformio/tool-scons@~4.40801.0",
+        "https://github.com/earlephilhower/arduino-pico/releases/download/6.0.0/rp2040-6.0.0.zip",
+    ]
+    assert mod.build_cli_args([], [], tools)[:2] == ["-t", tools[0]]
+
+
+def test_warm_store_still_walks_dependencies(tmp_path: Path) -> None:
+    """Already-installed top-level packages still feed the dependency
+    wave; a warm store can be missing a transitive dep."""
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path), installed={"esphome/noise-c @ 0.1.21"})
+    cls.deps = {
+        "esphome/noise-c @ 0.1.21": [
+            {"owner": "esphome", "name": "libsodium", "version": "^1.0"},
+        ],
+    }
+    mod.parallel_install(cls, ["esphome/noise-c @ 0.1.21"])
+    assert [mod.spec_key(c) for c in cls.calls] == ["libsodium"]
+
+
+def test_partial_submission_still_drains_cleanup_errors(tmp_path: Path) -> None:
+    """A submit failure partway must not drop an already-running worker's
+    CleanupError; the serial pass would trust its torn directory."""
+    from concurrent.futures import Future
+
+    mod = _load_script()
+    cls = _reset_fake(str(tmp_path))
+    done: Future = Future()
+    done.set_exception(mod.CleanupError("torn dir stuck"))
+    boom = MagicMock()
+    boom.__enter__.return_value = boom
+    boom.__exit__.return_value = False
+    boom.submit.side_effect = [done, RuntimeError("no threads")]
+    with (
+        patch.object(mod, "ThreadPoolExecutor", return_value=boom),
+        pytest.raises(mod.CleanupError, match="torn dir stuck"),
+    ):
+        mod.parallel_install(cls, ["esphome/a @ 1.0", "esphome/b @ 1.0"])
+
+
 def test_worker_system_exit_still_cleans(tmp_path: Path, capsys) -> None:
     """A worker SystemExit runs the torn cleanup before propagating; the
     serial pass must never trust its leftovers."""
@@ -517,6 +572,7 @@ def test_piopm_match_spares_other_versions(tmp_path: Path) -> None:
     (healthy / ".piopm").write_text(
         '{"version": "1.0.0", "spec": {"owner": "esphome", "name": "bad"}}'
     )
+    (healthy / "library.json").write_text("{}")  # intact, not half-deleted
     removed: list[str] = []
     with patch.object(mod.fs, "rmtree", removed.append):
         mod.parallel_install(cls, ["esphome/bad @ ^2.0"])
@@ -566,16 +622,18 @@ def test_unscannable_package_dir_fails_the_build(tmp_path: Path) -> None:
         mod.parallel_install(cls, ["esphome/bad @ 1.0"])
 
 
-def test_unreadable_piopm_is_named(tmp_path: Path, capsys) -> None:
-    """A half-written .piopm the cleanup refuses to judge is named."""
+def test_unreadable_piopm_dir_is_removed(tmp_path: Path, capsys) -> None:
+    """A persistently corrupt .piopm would crash pio's own storage scan;
+    the dir is removed rather than left to break the serial pass."""
     mod = _load_script()
     cls = _reset_fake(str(tmp_path), fail={"esphome/bad @ 1.0"})
     weird = tmp_path / "packages" / "weird"
     weird.mkdir(parents=True)
     (weird / ".piopm").write_text("{not json")
-    mod.parallel_install(cls, ["esphome/bad @ 1.0"])
-    assert "Skipping unreadable metadata" in capsys.readouterr().out
-    assert weird.exists()
+    with patch.object(mod.time, "sleep", lambda s: None):
+        mod.parallel_install(cls, ["esphome/bad @ 1.0"])
+    assert "Removing unreadable-metadata dir" in capsys.readouterr().out
+    assert not weird.exists()
 
 
 def test_unverifiable_removal_fails_the_build(tmp_path: Path) -> None:

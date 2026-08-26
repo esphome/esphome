@@ -38,6 +38,17 @@ except ImportError as err:  # pragma: no cover
 MAX_WORKERS = 16
 
 
+# A spared other-version dir must carry one of pio's manifest files to
+# count as intact rather than half-deleted
+_MANIFEST_NAMES = (
+    "package.json",
+    "library.json",
+    "library.properties",
+    "platform.json",
+    "module.json",
+)
+
+
 class CleanupError(RuntimeError):
     """A torn destination could not be removed; the serial pass would
     trust it, so the build must fail rather than bake a corrupt image."""
@@ -112,14 +123,29 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
             f"could not scan {package_dir} while cleaning up {spec}: {err!r}"
         ) from err
     for d in entries:
-        try:
-            meta = json.loads((d / ".piopm").read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            continue  # no metadata means pio does not trust it either
-        except (OSError, ValueError) as err:
-            # Half-written metadata: pio re-synthesizes and overwrites such
-            # a dir, but the refused judgment must be named in the log
-            print(f"Skipping unreadable metadata in {d} ({err!r})", flush=True)
+        meta = None
+        last_err = None
+        for attempt in range(3):
+            try:
+                meta = json.loads((d / ".piopm").read_text(encoding="utf-8"))
+                last_err = None
+                break
+            except FileNotFoundError:
+                last_err = None
+                break  # no metadata means pio does not trust it either
+            except (OSError, ValueError) as err:
+                # Possibly another worker mid-copy of the tiny file
+                last_err = err
+                if attempt < 2:
+                    time.sleep(0.1 * (2**attempt))
+        if meta is None:
+            if last_err is not None:
+                # A corrupt .piopm crashes pio's own storage scan, so the
+                # serial pass could not even run over it; remove it
+                print(
+                    f"Removing unreadable-metadata dir {d} ({last_err!r})", flush=True
+                )
+                matches.append(d)
             continue
         mspec = meta.get("spec") or {}
         name = (mspec.get("name") or meta.get("name") or "").lower()
@@ -131,11 +157,16 @@ def piopm_matches(package_dir: str, spec) -> list[Path]:
         version = str(meta.get("version") or "")
         if parsed.requirements and version:
             try:
-                if semantic_version.Version.coerce(version) not in parsed.requirements:
-                    # A healthy other version this run never tried to write
-                    continue
+                other_version = (
+                    semantic_version.Version.coerce(version) not in parsed.requirements
+                )
             except ValueError:
-                pass  # unparsable version stays a candidate
+                other_version = False  # unparsable version stays a candidate
+            if other_version and any((d / m).is_file() for m in _MANIFEST_NAMES):
+                # An intact other version this run never tried to write
+                continue
+            # An other-version dir without a manifest is a half-deleted
+            # tree (an interrupted detach); it stays a candidate
         matches.append(d)
     return matches
 
@@ -282,6 +313,9 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         if not manager.get_package(spec)
     ]
     if not pending:
+        # Nothing to install, but a warm store's dependencies must still
+        # feed the next wave (a transitive dep may be missing)
+        _next_wave(manager_cls, manager, unique, [], [], seen_names)
         return
     workers = min(len(pending), MAX_WORKERS)
     # One manager per worker (_install mutates instance state); built
@@ -326,8 +360,15 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     body_error: BaseException | None = None
     manager.lock()
     try:
+        futures = []
+        submit_error = None
         with ThreadPoolExecutor(max_workers=workers) as ex:
-            futures = [ex.submit(install_one, item) for item in pending]
+            try:
+                futures.extend(ex.submit(install_one, item) for item in pending)
+            except BaseException as err:  # noqa: BLE001
+                # Already-submitted workers run to completion in __exit__;
+                # their CleanupErrors must still be drained below
+                submit_error = err
         # The with-block joined every future; drain them all so a
         # concurrent CleanupError is never dropped
         errors = [err for f in futures if (err := f.exception()) is not None]
@@ -337,6 +378,8 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
         for err in errors:
             if isinstance(err, CleanupError):
                 raise err
+        if submit_error is not None:
+            raise submit_error
         if errors:
             raise errors[0]
         results = [f.result() for f in futures]
@@ -396,6 +439,14 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
 
     # Waves skip dependencies (a shared one must not extract from two
     # threads); the installed manifests feed the next wave
+    _next_wave(manager_cls, manager, unique, pending, results, seen_names)
+
+
+def _next_wave(
+    manager_cls, manager, unique: dict, pending: list, results: list, seen_names: set
+) -> None:
+    """Queue the dependency wave for every requested spec, installed or
+    freshly waved; a warm store can still be missing a transitive dep."""
     seen_names.update(unique)
     # The pre-wave get_package calls memoized an empty storage snapshot
     manager.memcache_reset()
@@ -405,7 +456,7 @@ def parallel_install(manager_cls, specs: list, prior_names: set | None = None) -
     next_specs = [
         item
         for item in dependency_specs(
-            manager, [spec for spec, _ in pending], installed_ok
+            manager, [spec for spec, _ in unique.values()], installed_ok
         )
         if spec_key(item[0]) not in seen_names
     ]
