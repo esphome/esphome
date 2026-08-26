@@ -279,8 +279,16 @@ def _setup_pch() -> None:
         failed_marker.unlink(missing_ok=True)
         sum_path.write_text(checksum + "\n", encoding="utf-8")
 
-    # projenv["ENV"] aliases os.environ, so these reach all TUs; only
-    # time_macros affects non-pch TUs. User-set values win.
+    # Prepended: GCC only uses a .gch while no other tokens precede it.
+    # The relative name also reaches "pio run -t idedata" output.
+    # -Wno-error: the per-process probe can pass while a later cc1plus
+    # rejects the .gch; that must stay a warning under user -Werror.
+    projenv.Prepend(  # noqa: F821
+        CXXFLAGS=["-Winvalid-pch", "-Wno-error=invalid-pch", "-include", header.name]
+    )
+    # Exported last so a raise above cannot leave the relaxed settings with
+    # no pch in the build. projenv["ENV"] aliases os.environ, so these
+    # reach all TUs; only time_macros affects non-pch TUs. User values win.
     for key, value in (
         ("CCACHE_SLOPPINESS", "pch_defines,time_macros"),
         ("CCACHE_PCH_EXTSUM", "true"),
@@ -295,14 +303,6 @@ def _setup_pch() -> None:
             # Without these ccache declines every pch-consuming compile
             projenv["ENV"]["CCACHE_SLOPPINESS"] = ",".join((sloppiness, *missing))  # noqa: F821
             print(f"ESPHome: adding {','.join(missing)} to CCACHE_SLOPPINESS for the pch")
-
-    # Prepended: GCC only uses a .gch while no other tokens precede it.
-    # The relative name also reaches "pio run -t idedata" output.
-    # -Wno-error: the per-process probe can pass while a later cc1plus
-    # rejects the .gch; that must stay a warning under user -Werror.
-    projenv.Prepend(  # noqa: F821
-        CXXFLAGS=["-Winvalid-pch", "-Wno-error=invalid-pch", "-include", header.name]
-    )
     print("ESPHome: Compiling with precompiled header")
 
 
