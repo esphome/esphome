@@ -170,7 +170,7 @@ def pch_checksum(
         digest.update(closure[name])
         digest.update(b"\0")
     for item in extra:
-        digest.update(item.encode())
+        digest.update(item.encode(errors="surrogateescape"))
         digest.update(b"\0")
     return digest.hexdigest()
 
