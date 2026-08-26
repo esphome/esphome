@@ -8,12 +8,12 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem, public WriterDevice {
+class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem, public WriterEntity {
  public:
   ModbusSwitch(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                bool force_new_range) {
     this->register_type = register_type;
-    this->SensorItem::set_address(start_address);
+    this->set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
@@ -23,11 +23,11 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
     // both the write (write_address()) and the state read-back target the right register; an odd residual
     // straddles into the next register, so read one more. For coils the offset is a coil count.
     if (register_type == modbus::EntityType::HOLDING) {
-      this->SensorItem::set_address(start_address + offset / 2);
+      this->set_address(start_address + offset / 2);
       this->set_offset_from_start_address(offset % 2);
       this->register_count += this->offset;
     } else if (register_type == modbus::EntityType::COIL) {
-      this->SensorItem::set_address(start_address + offset);
+      this->set_address(start_address + offset);
       this->set_offset_from_start_address(0);
     }
     this->force_new_range = force_new_range;
