@@ -211,7 +211,7 @@ def pch_compile_command(
     if entry is None:
         _LOGGER.warning("No src C++ entry in the compile database, skipping pch")
         return None
-    cmd_dir = Path(entry.get("directory", build_dir))
+    cmd_dir = Path(entry.get("directory") or build_dir)
     tokens = expand_response_files(split_command(entry.get("command", "")), cmd_dir)
     # A DB recorded with ccache enabled prefixes the compiler with the
     # launcher; the .gch must be compiled directly
@@ -358,6 +358,8 @@ def prepare_pch(
         _LOGGER.warning(
             "Precompiled header failed; compiling without it: %s", error[:400]
         )
+        # This path latches, so keep the full compiler output recoverable
+        _LOGGER.debug("Full pch compile output: %s", error)
         discard_pch(build_dir)
         # Skip retries until a header/flag/backend-identity/command change
         failed_marker.write_text(checksum + "\n", encoding="utf-8")
