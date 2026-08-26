@@ -284,6 +284,16 @@ def test_pch_script_package_version_error_skips_pch(tmp_path: Path) -> None:
     assert scons_env.prepended == []
 
 
+def test_pch_script_corrupt_sidecar_reads_as_stale(tmp_path: Path) -> None:
+    """A truncated/corrupt .failed marker must not disable the pch forever."""
+    _run_script(tmp_path, fail=True)
+    proj = tmp_path / "dev"
+    (proj / "esphome_pch.h.gch.failed").write_bytes(b"\xff\xfe corrupt")
+    _run_script(tmp_path)
+    assert (proj / "esphome_pch.h.gch").is_file()
+    assert (proj / "esphome_pch.h.gch.sum").is_file()
+
+
 def test_pch_script_rebuilds_when_header_missing(tmp_path: Path) -> None:
     _run_script(tmp_path)
     proj = tmp_path / "dev"
