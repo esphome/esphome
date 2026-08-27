@@ -148,7 +148,11 @@ def ccache_pch_env() -> dict[str, str]:
 def pch_extra_scripts() -> list[str]:
     """The extra_scripts entries a PlatformIO platform registers for the
     pch; empty when disabled (the script itself has no enable check)."""
-    return ["post:pch.py"] if pch_enabled() else []
+    if not pch_enabled():
+        # Strict CI must not read "no pch at all" as success
+        pch_degraded("pch disabled by ESPHOME_PCH_ENABLE")
+        return []
+    return ["post:pch.py"]
 
 
 def pch_header_text(include_headers: Iterable[str]) -> str:

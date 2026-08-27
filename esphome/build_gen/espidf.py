@@ -323,6 +323,7 @@ def prepare_pch() -> None:
     if not pch_enabled():
         # Self-cleaning escape hatch: drop any previously built .gch
         pch.discard_pch(CORE.relative_build_path("build"))
+        pch.pch_degraded("pch disabled by ESPHOME_PCH_ENABLE")
         return
     sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
     try:

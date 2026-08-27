@@ -869,6 +869,61 @@ def test_prepare_pch_signal_kill_is_transient(tmp_path: Path) -> None:
     assert len(calls) == 2
 
 
+def test_prepare_pch_signal_kill_strict_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    dev = _make_pch_device(tmp_path, "dev_ks")
+    CORE.build_path = dev
+    with (
+        patch.object(CORE, "name", "test"),
+        patch(
+            "esphome.build_helpers.pch.subprocess.run",
+            side_effect=lambda cmd, **kw: subprocess.CompletedProcess(cmd, -9, "", ""),
+        ),
+        pytest.raises(EsphomeError, match="killed by signal"),
+    ):
+        prepare_pch()
+
+
+def test_prepare_pch_strict_raises_when_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict must not read a disabled pch as success."""
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    dev = _make_pch_device(tmp_path, "dev_ds")
+    CORE.build_path = dev
+    with (
+        patch.object(CORE, "name", "test"),
+        pytest.raises(EsphomeError, match="disabled"),
+    ):
+        prepare_pch()
+
+
+def test_prepare_pch_missing_sdkconfig_strict_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    dev = _make_pch_device(tmp_path, "dev_ss")
+    (dev / "sdkconfig.test").unlink()
+    CORE.build_path = dev
+    with (
+        patch.object(CORE, "name", "test"),
+        pytest.raises(EsphomeError, match="sdkconfig unreadable"),
+    ):
+        prepare_pch()
+
+
 def test_prepare_pch_without_compile_commands(tmp_path: Path) -> None:
     """Stale checksum but no configured TU yet: no compile, no sidecars."""
     from esphome.build_gen.espidf import prepare_pch

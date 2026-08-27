@@ -242,3 +242,14 @@ def test_pch_degraded_raises_only_in_strict(
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
     with pytest.raises(EsphomeError, match="reason"):
         pch.pch_degraded("reason")
+
+
+def test_pch_extra_scripts_strict_raises_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    with pytest.raises(EsphomeError, match="disabled"):
+        pch.pch_extra_scripts()

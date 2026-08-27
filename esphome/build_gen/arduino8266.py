@@ -1313,6 +1313,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 pch_dep = f"{gch} esphome_pch.probe"
             src_cxx_override = ("$srccxxflags", pch_dep)
             mark_pch_emitted()
+    else:
+        # Strict CI must not read "no pch at all" as success
+        pch_degraded("pch disabled by ESPHOME_PCH_ENABLE")
     src_objs = _ninja_compile_edges(
         lines,
         _collect_sources(src_dir),
