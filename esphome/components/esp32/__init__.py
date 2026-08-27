@@ -944,9 +944,15 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(6, 0, 2),
+    "recommended": cv.Version(6, 1, 0),
     "latest": cv.Version(5, 5, 5),
     "dev": cv.Version(5, 5, 5),
+}
+
+# pioarduino has no 6.1 packaging yet, so the PlatformIO toolchain stays on 6.0.2
+ESP_IDF_PIO_FRAMEWORK_VERSION_LOOKUP = {
+    **ESP_IDF_FRAMEWORK_VERSION_LOOKUP,
+    "recommended": cv.Version(6, 0, 2),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
@@ -999,8 +1005,10 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
     if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
-        else:
+        elif CORE.using_toolchain_esp_idf:
             version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
+        else:
+            version = ESP_IDF_PIO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
     else:
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
 
