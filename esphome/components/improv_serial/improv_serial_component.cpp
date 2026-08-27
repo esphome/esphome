@@ -312,7 +312,7 @@ void ImprovSerialComponent::set_error_(improv::Error error) {
 
 void ImprovSerialComponent::send_response_(std::span<const uint8_t> response) {
   // The serial frame length field is a single byte
-  if (response.size() > MAX_SERIAL_PAYLOAD + 3) {
+  if (response.size() > MAX_SERIAL_RESPONSE) {
     ESP_LOGE(TAG, "Response too long");
     return;
   }

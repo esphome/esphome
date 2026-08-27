@@ -48,19 +48,21 @@ enum ImprovSerialType : uint8_t {
 static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-// The serial frame length field is one byte, so a full response (command + length
-// + payload + trailing byte) must not exceed 255
-static constexpr size_t MAX_SERIAL_PAYLOAD = 255 - 3;
+// The serial frame length field is one byte
+static constexpr size_t MAX_SERIAL_RESPONSE = 255;
+// command + data length + trailing byte
+static constexpr size_t RPC_RESPONSE_OVERHEAD = 3;
+static constexpr size_t MAX_SERIAL_PAYLOAD = MAX_SERIAL_RESPONSE - RPC_RESPONSE_OVERHEAD;
 #ifdef USE_WEBSERVER
-// Reserve the web server URL entry that may follow: length byte + "http://" + IPv4 + ":" + port
+// length byte + "http://" + IPv4 + ":" + port
 static constexpr size_t WEBSERVER_URL_RESERVE = 1 + 7 + 15 + 1 + 5;
 #else
 static constexpr size_t WEBSERVER_URL_RESERVE = 0;
 #endif
-// Budget for the next URL entry, minus its own length byte
+// Entry budget minus its own length byte
 static constexpr size_t MAX_NEXT_URL_LEN = MAX_SERIAL_PAYLOAD - WEBSERVER_URL_RESERVE - 1;
 
-static_assert(MAX_SERIAL_PAYLOAD + 3 <= improv::RPC_RESPONSE_MAX_SIZE, "builder buffer too small for the frame");
+static_assert(MAX_SERIAL_RESPONSE <= improv::RPC_RESPONSE_MAX_SIZE, "builder buffer too small for the frame");
 
 class ImprovSerialComponent final : public Component, public improv_base::ImprovBase {
  public:
