@@ -102,7 +102,9 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
 #endif
 
 #ifdef USE_WEBSERVER
-  void add_webserver_urls_(improv::RpcResponseBuilder &builder);
+  /// Append one web server URL per interface that has a usable IPv4. With wifi_first the Wi-Fi
+  /// URL leads, for responses to Wi-Fi provisioning; otherwise interfaces go in priority order.
+  void add_webserver_urls_(improv::RpcResponseBuilder &builder, [[maybe_unused]] bool wifi_first);
 #endif
   void send_settings_response_(improv::Command command);
   void send_version_info_();

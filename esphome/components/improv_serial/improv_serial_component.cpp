@@ -158,7 +158,7 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 }
 
 #ifdef USE_WEBSERVER
-void ImprovSerialComponent::add_webserver_urls_(improv::RpcResponseBuilder &builder) {
+void ImprovSerialComponent::add_webserver_urls_(improv::RpcResponseBuilder &builder, [[maybe_unused]] bool wifi_first) {
   // The webserver listens on every interface, so advertise each one that has a usable IPv4.
   // network::get_ip_addresses() can't be used here: it returns only the highest-priority
   // interface's addresses, which are all-unset (0.0.0.0) when e.g. Ethernet has no link while
@@ -180,6 +180,16 @@ void ImprovSerialComponent::add_webserver_urls_(improv::RpcResponseBuilder &buil
       }
     }
   };
+#ifdef USE_WIFI
+  // Clients redirect to the first URL, so the interface the client just configured has to lead:
+  // another interface's address can be on a subnet that client cannot reach.
+  const auto append_wifi_urls = [&append_urls]() {
+    if (wifi::global_wifi_component != nullptr)
+      append_urls(wifi::global_wifi_component->get_ip_addresses());
+  };
+  if (wifi_first)
+    append_wifi_urls();
+#endif
 #ifdef USE_ETHERNET
   if (ethernet::global_eth_component != nullptr)
     append_urls(ethernet::global_eth_component->get_ip_addresses());
@@ -189,8 +199,8 @@ void ImprovSerialComponent::add_webserver_urls_(improv::RpcResponseBuilder &buil
     append_urls(modem::global_modem_component->get_ip_addresses());
 #endif
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    append_urls(wifi::global_wifi_component->get_ip_addresses());
+  if (!wifi_first)
+    append_wifi_urls();
 #endif
 }
 #endif  // USE_WEBSERVER
@@ -202,7 +212,9 @@ void ImprovSerialComponent::send_settings_response_(improv::Command command) {
   this->add_next_url_(builder, MAX_NEXT_URL_LEN);
 #endif
 #ifdef USE_WEBSERVER
-  this->add_webserver_urls_(builder);
+  // This response only ever answers Wi-Fi provisioning, so lead with the Wi-Fi URL as it did
+  // before other interfaces were reported.
+  this->add_webserver_urls_(builder, /*wifi_first=*/true);
 #endif
   this->send_response_(builder.finish(false));
 }
@@ -378,8 +390,15 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       char *flags_end = int8_to_str(flags_buf, static_cast<int8_t>(flags));
       builder.add_string(flags_buf, flags_end - flags_buf);
 #ifdef USE_WEBSERVER
-      if (flags & improv::NETWORK_IS_ONLINE)
-        this->add_webserver_urls_(builder);
+      // Not tied to one interface, so follow the configured priority the way
+      // network::get_ip_addresses() does: a wifi-first network priority list leads with Wi-Fi.
+      if (flags & improv::NETWORK_IS_ONLINE) {
+#if defined(USE_NETWORK_PRIMARY_INTERFACE_WIFI) && defined(USE_WIFI)
+        this->add_webserver_urls_(builder, /*wifi_first=*/true);
+#else
+        this->add_webserver_urls_(builder, /*wifi_first=*/false);
+#endif
+      }
 #endif
       this->send_response_(builder.finish(false));
       return true;
