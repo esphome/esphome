@@ -408,7 +408,7 @@ class RangeBuilder {
       this->range_bytes_ += static_cast<size_t>(gap) * 2;
     curr->offset = static_cast<uint8_t>(prospective_offset);
     this->range_bytes_ += curr->get_register_size();
-    this->range_custom_size_ = this->range_custom_size_ || custom_size_(curr);
+    this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
     this->r_.register_count = static_cast<uint16_t>(new_count);
     ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
     return true;
@@ -420,7 +420,7 @@ class RangeBuilder {
   bool try_cover(SensorItem *curr) {
     if (!this->range_shared_ || this->range_forced_ || curr->start_address < this->r_.start_address ||
         curr->start_address + curr->register_width() > this->range_end_() || this->range_custom_size_ ||
-        this->custom_size_(curr)) {
+        has_custom_size(curr)) {
       return false;
     }
     const uint16_t addr_delta = curr->start_address - this->r_.start_address;
@@ -441,7 +441,7 @@ class RangeBuilder {
     curr->offset = curr->offset_from_start_address;
     this->r_.register_count = std::max(this->r_.register_count, curr->register_width());
     this->range_bytes_ = std::max(this->range_bytes_, curr->get_register_size());
-    this->range_custom_size_ = this->range_custom_size_ || custom_size_(curr);
+    this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
     this->range_shared_ = true;
     this->range_forced_ = this->range_forced_ || curr->reuse_previous_range == RangeReuse::NEVER;
     ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
@@ -458,7 +458,7 @@ class RangeBuilder {
     this->close();
     this->r_ = {};
     this->range_bytes_ = curr->get_register_size();
-    this->range_custom_size_ = this->custom_size_(curr);
+    this->range_custom_size_ = has_custom_size(curr);
     this->range_forced_ = curr->reuse_previous_range == RangeReuse::NEVER;
     this->range_shared_ = false;
     curr->offset = curr->offset_from_start_address;
@@ -490,7 +490,7 @@ class RangeBuilder {
   uint32_t range_end_() const { return this->r_.start_address + this->r_.register_count; }
   /// A register that answers something other than two bytes; positions past it cannot be derived from
   /// addresses alone. Coils count too (one bit per address), so bit ranges never take the coverage join.
-  static bool custom_size_(const SensorItem *item) {
+  static bool has_custom_size(const SensorItem *item) {
     return item->get_register_size() != static_cast<size_t>(item->register_width()) * 2;
   }
   FixedVector<RegisterRange> &ranges_;
