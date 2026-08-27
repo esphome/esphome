@@ -3,44 +3,73 @@ mk2pvrouter:
   uart_id: uart_bus
 
 sensor:
+  # Test single-letter tags (exact matches)
   - platform: mk2pvrouter
     name: Power
     tag: P
     mk2pvrouter_id: test_mk2pvrouter
-    unit_of_measurement: W
-    device_class: power
-    state_class: measurement
-    accuracy_decimals: 0
+    # Override default unit to test customization
+    unit_of_measurement: Wh
+
+  # Test pattern-matched power sensors (P + digit)
+  - platform: mk2pvrouter
+    name: Power Phase 1
+    tag: P1
+    mk2pvrouter_id: test_mk2pvrouter
+    # Should auto-apply POWER_CONFIG defaults
 
   - platform: mk2pvrouter
-    name: Voltage
-    tag: V
+    name: Power Phase 2
+    tag: P2
     mk2pvrouter_id: test_mk2pvrouter
-    unit_of_measurement: V
-    device_class: voltage
-    state_class: measurement
-    accuracy_decimals: 2
-    filters:
-      # Device sends voltage * 100
-      - multiply: 0.01
 
+  # Test voltage sensors (V + digit)
+  - platform: mk2pvrouter
+    name: Voltage Phase 1
+    tag: V1
+    mk2pvrouter_id: test_mk2pvrouter
+    # Should auto-apply VOLTAGE_CONFIG (V, device_class, 2 decimals)
+
+  # Test voltage sensor with user-supplied filters: the built-in
+  # multiply: 0.01 (from VOLTAGE_CONFIG) must be prepended, and this
+  # filter must run after it, not replace it.
+  - platform: mk2pvrouter
+    name: Voltage Phase 2 Scaled
+    tag: V2
+    mk2pvrouter_id: test_mk2pvrouter
+    filters:
+      - multiply: 0.001
+
+  # Test energy sensor (exact match)
   - platform: mk2pvrouter
     name: Energy
     tag: E
     mk2pvrouter_id: test_mk2pvrouter
-    unit_of_measurement: Wh
-    device_class: energy
-    state_class: total_increasing
-    accuracy_decimals: 0
+    # Should auto-apply ENERGY_CONFIG
 
+  # Test temperature sensors (T + digit)
   - platform: mk2pvrouter
-    name: Temperature
+    name: Temperature 1
     tag: T1
     mk2pvrouter_id: test_mk2pvrouter
-    unit_of_measurement: "°C"
-    device_class: temperature
-    state_class: measurement
-    accuracy_decimals: 2
-    filters:
-      # Device sends temperature * 100
-      - multiply: 0.01
+    # Should auto-apply TEMPERATURE_CONFIG (°C, 2 decimals)
+
+  # Test diversion rate (D + digit)
+  - platform: mk2pvrouter
+    name: Diversion Rate 1
+    tag: D1
+    mk2pvrouter_id: test_mk2pvrouter
+    # Should auto-apply DIVERSION_RATE_CONFIG (%, measurement)
+
+  # Test relay state as sensor (R + digit)
+  - platform: mk2pvrouter
+    name: Relay 1 State
+    tag: R1
+    mk2pvrouter_id: test_mk2pvrouter
+    # Should auto-apply RELAY_STATE_CONFIG (switch device_class)
+
+  # Test relay state with multiple digits
+  - platform: mk2pvrouter
+    name: Relay 10 State
+    tag: R10
+    mk2pvrouter_id: test_mk2pvrouter
