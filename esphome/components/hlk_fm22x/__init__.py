@@ -42,6 +42,9 @@ BAUD_RATE = 115200
 # The module stores names in a 32 byte field; one byte is kept for the terminating NUL
 MAX_NAME_LENGTH = 31
 
+# Trigger strings are passed by const reference so nothing is copied per call
+STRING_ARG = cg.std_string_ref.operator("const")
+
 hlk_fm22x_ns = cg.esphome_ns.namespace("hlk_fm22x")
 HlkFm22xComponent = hlk_fm22x_ns.class_(
     "HlkFm22xComponent", cg.Component, uart.UARTDevice
@@ -126,7 +129,7 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_FACE_SCAN_MATCHED,
         "add_on_face_scan_matched_callback",
-        [(cg.int16, "face_id"), (cg.std_string, "name"), (cg.bool_, "admin")],
+        [(cg.int16, "face_id"), (STRING_ARG, "name"), (cg.bool_, "admin")],
     ),
     automation.CallbackAutomation(
         CONF_ON_FACE_SCAN_UNMATCHED, "add_on_face_scan_unmatched_callback"
@@ -153,7 +156,7 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_FACE_DETAILS,
         "add_on_face_details_callback",
-        [(cg.int16, "face_id"), (cg.std_string, "name"), (cg.bool_, "admin")],
+        [(cg.int16, "face_id"), (STRING_ARG, "name"), (cg.bool_, "admin")],
     ),
     automation.CallbackAutomation(
         CONF_ON_ENROLLMENT_DONE,

@@ -206,12 +206,6 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
     RECV_STATE_CHECKSUM,
   };
 
-  static bool is_scan_or_enroll_(HlkFm22xCommand command);
-  static bool is_read_out_(HlkFm22xCommand command);
-  static uint16_t default_timeout_s_(HlkFm22xCommand command);
-  static bool parse_face_record_(const uint8_t *data, size_t length, int16_t &face_id, const char *&name,
-                                 size_t &name_length, bool &admin);
-
   bool enqueue_(HlkFm22xCommand command, const uint8_t *data = nullptr, size_t size = 0, uint16_t timeout_s = 0);
   void enqueue_face_id_command_(HlkFm22xCommand command, int16_t face_id);
   void drop_queued_(bool (*predicate)(HlkFm22xCommand));
@@ -269,10 +263,10 @@ class HlkFm22xComponent final : public Component, public uart::UARTDevice {
   text_sensor::TextSensor *serial_number_text_sensor_{nullptr};
   text_sensor::TextSensor *face_state_text_sensor_{nullptr};
   LazyCallbackManager<void(uint8_t)> face_scan_invalid_callback_;
-  LazyCallbackManager<void(int16_t, std::string, bool)> face_scan_matched_callback_;
+  LazyCallbackManager<void(int16_t, const std::string &, bool)> face_scan_matched_callback_;
   LazyCallbackManager<void()> face_scan_unmatched_callback_;
   LazyCallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
-  LazyCallbackManager<void(int16_t, std::string, bool)> face_details_callback_;
+  LazyCallbackManager<void(int16_t, const std::string &, bool)> face_details_callback_;
   LazyCallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   LazyCallbackManager<void(uint8_t)> enrollment_failed_callback_;
 };

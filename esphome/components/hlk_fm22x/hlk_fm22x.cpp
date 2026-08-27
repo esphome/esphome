@@ -67,6 +67,35 @@ static size_t printable_length(const char *text, size_t max_length) {
   return length;
 }
 
+static bool is_scan_or_enroll(HlkFm22xCommand command) {
+  return command == HlkFm22xCommand::VERIFY || command == HlkFm22xCommand::ENROLL ||
+         command == HlkFm22xCommand::ENROLL_SINGLE || command == HlkFm22xCommand::ENROLL_ITG;
+}
+
+static bool is_read_out(HlkFm22xCommand command) {
+  return command == HlkFm22xCommand::GET_STATUS || command == HlkFm22xCommand::GET_VERSION ||
+         command == HlkFm22xCommand::GET_SERIAL_NUMBER || command == HlkFm22xCommand::GET_ALL_FACE_IDS;
+}
+
+static uint16_t default_timeout_s(HlkFm22xCommand command) {
+  if (command == HlkFm22xCommand::DELETE_FACE || command == HlkFm22xCommand::DELETE_ALL_FACES) {
+    return DELETE_TIMEOUT_S;
+  }
+  return COMMAND_TIMEOUT_S;
+}
+
+static bool parse_face_record(const uint8_t *data, size_t length, int16_t &face_id, const char *&name,
+                              size_t &name_length, bool &admin) {
+  if (length < FACE_RECORD_MIN_SIZE) {
+    return false;
+  }
+  face_id = (int16_t) encode_uint16(data[2], data[3]);
+  name = reinterpret_cast<const char *>(data + 4);
+  name_length = printable_length(name, HLK_FM22X_NAME_SIZE);
+  admin = length > FACE_RECORD_ADMIN_OFFSET && data[FACE_RECORD_ADMIN_OFFSET] != 0;
+  return true;
+}
+
 static const LogString *result_to_string(uint8_t result) {
   switch (result) {
     case HlkFm22xResult::SUCCEEDED:
@@ -226,8 +255,8 @@ void HlkFm22xComponent::scan_face(uint8_t timeout_s) {
 }
 
 void HlkFm22xComponent::cancel() {
-  this->drop_queued_(is_scan_or_enroll_);
-  if (is_scan_or_enroll_(this->pending_command_)) {
+  this->drop_queued_(is_scan_or_enroll);
+  if (is_scan_or_enroll(this->pending_command_)) {
     const bool enrolling = this->pending_command_ != HlkFm22xCommand::VERIFY;
     ESP_LOGI(TAG, "Cancelling %s", enrolling ? "enrollment" : "scan");
     // RESET makes the module stop what it is doing; FACE_RESET then forgets the directions captured so far
@@ -258,40 +287,11 @@ void HlkFm22xComponent::get_face_details(int16_t face_id) {
 
 void HlkFm22xComponent::reset() {
   ESP_LOGI(TAG, "Resetting module");
-  if (is_scan_or_enroll_(this->pending_command_)) {
+  if (is_scan_or_enroll(this->pending_command_)) {
     this->interrupt_with_(HlkFm22xCommand::RESET);
     return;
   }
   this->enqueue_(HlkFm22xCommand::RESET);
-}
-
-bool HlkFm22xComponent::is_scan_or_enroll_(HlkFm22xCommand command) {
-  return command == HlkFm22xCommand::VERIFY || command == HlkFm22xCommand::ENROLL ||
-         command == HlkFm22xCommand::ENROLL_SINGLE || command == HlkFm22xCommand::ENROLL_ITG;
-}
-
-bool HlkFm22xComponent::is_read_out_(HlkFm22xCommand command) {
-  return command == HlkFm22xCommand::GET_STATUS || command == HlkFm22xCommand::GET_VERSION ||
-         command == HlkFm22xCommand::GET_SERIAL_NUMBER || command == HlkFm22xCommand::GET_ALL_FACE_IDS;
-}
-
-uint16_t HlkFm22xComponent::default_timeout_s_(HlkFm22xCommand command) {
-  if (command == HlkFm22xCommand::DELETE_FACE || command == HlkFm22xCommand::DELETE_ALL_FACES) {
-    return DELETE_TIMEOUT_S;
-  }
-  return COMMAND_TIMEOUT_S;
-}
-
-bool HlkFm22xComponent::parse_face_record_(const uint8_t *data, size_t length, int16_t &face_id, const char *&name,
-                                           size_t &name_length, bool &admin) {
-  if (length < FACE_RECORD_MIN_SIZE) {
-    return false;
-  }
-  face_id = (int16_t) encode_uint16(data[2], data[3]);
-  name = reinterpret_cast<const char *>(data + 4);
-  name_length = printable_length(name, HLK_FM22X_NAME_SIZE);
-  admin = length > FACE_RECORD_ADMIN_OFFSET && data[FACE_RECORD_ADMIN_OFFSET] != 0;
-  return true;
 }
 
 bool HlkFm22xComponent::enqueue_(HlkFm22xCommand command, const uint8_t *data, size_t size, uint16_t timeout_s) {
@@ -302,7 +302,7 @@ bool HlkFm22xComponent::enqueue_(HlkFm22xCommand command, const uint8_t *data, s
   QueuedCommand queued{};
   queued.command = command;
   queued.size = (uint8_t) size;
-  queued.timeout_s = timeout_s != 0 ? timeout_s : default_timeout_s_(command);
+  queued.timeout_s = timeout_s != 0 ? timeout_s : default_timeout_s(command);
   if (size > 0) {
     memcpy(queued.data, data, size);
   }
@@ -341,7 +341,7 @@ void HlkFm22xComponent::send_next_command_() {
   this->pending_timeout_ms_ = queued.timeout_s * 1000UL;
   if (queued.command == HlkFm22xCommand::VERIFY) {
     this->set_scanning_(true);
-  } else if (is_scan_or_enroll_(queued.command)) {
+  } else if (is_scan_or_enroll(queued.command)) {
     this->set_enrolling_(true);
   }
   this->queue_.pop();
@@ -508,7 +508,7 @@ void HlkFm22xComponent::handle_note_(const uint8_t *data, size_t length) {
     case HlkFm22xNoteType::NOTE_READY:
       ESP_LOGI(TAG, "Module ready");
       if (this->pending_command_ != HlkFm22xCommand::NONE) {
-        if (is_scan_or_enroll_(this->pending_command_)) {
+        if (is_scan_or_enroll(this->pending_command_)) {
           // The module may still answer the scan or enrollment it was running; give it a moment
           this->hold_interrupted_(this->pending_command_);
           this->interrupted_deadline_ms_ = millis() + INTERRUPT_GRACE_MS;
@@ -557,7 +557,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
   } else if (command == this->interrupted_command_) {
     this->interrupted_command_ = HlkFm22xCommand::NONE;
     this->interrupted_deadline_set_ = false;
-  } else if (is_scan_or_enroll_(command)) {
+  } else if (is_scan_or_enroll(command)) {
     // Its result has already been reported as a timeout or abort
     ESP_LOGW(TAG, "Unexpected reply for command 0x%02X, ignoring", command);
     return;
@@ -637,7 +637,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
   }
 
   // Only one command is ever outstanding, so an expected read-out reply belongs to the running read-out chain
-  if (expected && is_read_out_(command)) {
+  if (expected && is_read_out(command)) {
     this->continue_read_out_();
   }
 }
@@ -650,7 +650,7 @@ void HlkFm22xComponent::handle_scan_reply_(uint8_t result, const uint8_t *data, 
     const char *name;
     size_t name_length;
     bool admin;
-    if (!parse_face_record_(data, length, face_id, name, name_length, admin)) {
+    if (!parse_face_record(data, length, face_id, name, name_length, admin)) {
       ESP_LOGE(TAG, "Scan reply too short: %zu bytes", length);
       this->face_scan_invalid_callback_.call(HlkFm22xResult::FAILED4_UNKNOWNREASON);
       return;
@@ -710,7 +710,7 @@ void HlkFm22xComponent::handle_face_details_reply_(uint8_t result, const uint8_t
   const char *name;
   size_t name_length;
   bool admin;
-  if (!parse_face_record_(data, length, face_id, name, name_length, admin)) {
+  if (!parse_face_record(data, length, face_id, name, name_length, admin)) {
     ESP_LOGE(TAG, "Face details reply too short: %zu bytes", length);
     return;
   }
@@ -791,7 +791,7 @@ void HlkFm22xComponent::finish_failed_(HlkFm22xCommand command, uint8_t error) {
 
 void HlkFm22xComponent::start_read_out_() {
   // Never let two read-out chains run at the same time
-  this->drop_queued_(is_read_out_);
+  this->drop_queued_(is_read_out);
   this->read_out_stage_ = 0;
   this->continue_read_out_();
 }
