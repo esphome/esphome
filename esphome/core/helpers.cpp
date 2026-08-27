@@ -601,21 +601,14 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 
 int8_t step_to_accuracy_decimals(float step) {
   // Decimals needed to show the step at five significant digits, trailing zeros dropped.
-  if (!std::isfinite(step) || step == 0.0f)
+  if (!std::isnormal(step))
     return 0;
-  float mantissa = std::fabs(step);
-  int8_t decimals = 4;  // decimals needed for five significant digits when mantissa is in [1, 10)
-  while (mantissa >= 10.0f) {
-    mantissa /= 10.0f;
-    decimals--;
-  }
-  while (mantissa < 1.0f) {
-    mantissa *= 10.0f;
-    decimals++;
-  }
+  float magnitude = std::fabs(step);
+  int8_t exponent = ilog10(magnitude);
+  int8_t decimals = 4 - exponent;
   if (decimals <= 0)
     return 0;
-  float scaled = mantissa * 10000.0f;
+  float scaled = magnitude * pow10_int(-exponent) * 10000.0f;
   auto digits = static_cast<uint32_t>(scaled);
   if (scaled - static_cast<float>(digits) >= 0.5f)
     digits++;
