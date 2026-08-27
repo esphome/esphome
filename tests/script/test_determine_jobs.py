@@ -1003,6 +1003,7 @@ _ESP32_PLATFORMIO_FULL_LIST_FILES = [
     # PlatformIO subsystem (path-prefix trigger) + build generator
     ["esphome/platformio/runner.py"],
     ["esphome/platformio/toolchain.py"],
+    ["esphome/build_helpers/pch.py"],
     ["esphome/build_gen/platformio.py"],
     # Workflow / harness files
     ["script/test_build_components.py"],
