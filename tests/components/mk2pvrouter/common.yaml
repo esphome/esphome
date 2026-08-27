@@ -66,3 +66,15 @@ binary_sensor:
     name: Relay 2 Binary
     tag: R2
     mk2pvrouter_id: test_mk2pvrouter
+
+text_sensor:
+  - platform: mk2pvrouter
+    name: S per MC
+    tag: S_MC
+    mk2pvrouter_id: test_mk2pvrouter
+
+  # Test another text tag
+  - platform: mk2pvrouter
+    name: Status
+    tag: STATUS
+    mk2pvrouter_id: test_mk2pvrouter
