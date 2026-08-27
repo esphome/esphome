@@ -268,9 +268,6 @@ char *str_sanitize_to(char *buffer, size_t buffer_size, const char *str) {
 
 // str_sanitize, str_snprintf, str_sprintf moved to alloc_helpers.cpp
 
-// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
-static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
-
 size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *name, size_t name_len, char sep,
                                 const char *suffix_ptr, size_t suffix_len) {
   size_t total_len = name_len + 1 + suffix_len;
@@ -289,17 +286,6 @@ size_t make_name_with_suffix_to(char *buffer, size_t buffer_size, const char *na
   memcpy(buffer + name_len + 1, suffix_ptr, suffix_len);
   buffer[total_len] = '\0';
   return total_len;
-}
-
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len) {
-  char buffer[MAX_NAME_WITH_SUFFIX_SIZE];
-  size_t len = make_name_with_suffix_to(buffer, sizeof(buffer), name, name_len, sep, suffix_ptr, suffix_len);
-  return std::string(buffer, len);
-}
-
-std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len) {
-  return make_name_with_suffix(name.c_str(), name.size(), sep, suffix_ptr, suffix_len);
 }
 
 // Parsing & formatting
