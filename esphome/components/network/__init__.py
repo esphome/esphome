@@ -225,11 +225,6 @@ def require_ipv4(config: ConfigType, name: str | None = None) -> ConfigType:
     return config
 
 
-def has_ipv4_requirement() -> bool:
-    """Check if any configured component called require_ipv4()."""
-    return bool(CORE.data.get(KEY_REQUIRE_IPV4))
-
-
 def require_ipv6(config: ConfigType, name: str | None = None) -> ConfigType:
     """Declare that a component cannot compile or function with IPv6 disabled.
 
@@ -247,11 +242,6 @@ def require_ipv6(config: ConfigType, name: str | None = None) -> ConfigType:
     """
     CORE.data.setdefault(KEY_REQUIRE_IPV6, set()).add(name or "a component")
     return config
-
-
-def has_ipv6_requirement() -> bool:
-    """Check if any configured component called require_ipv6()."""
-    return bool(CORE.data.get(KEY_REQUIRE_IPV6))
 
 
 def get_network_priority(iface: str) -> float | None:
@@ -603,16 +593,17 @@ async def to_code(config: ConfigType) -> None:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
         if CORE.is_rp2:
             cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+
+    cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
+    if CORE.is_esp32:
+        add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
+
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
     # (above) separate from C++ object lifecycle and allows wiring in interface
     # pointers via get_variable().
     if CORE.is_esp32:
         CORE.add_job(network_component_to_code, config)
-
-    cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
-    if CORE.is_esp32:
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)

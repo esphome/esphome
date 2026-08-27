@@ -93,7 +93,9 @@ namespace esphome::network {
 /// Buffer size for IP address string (IPv6 max: 39 chars + null)
 static constexpr size_t IP_ADDRESS_BUFFER_SIZE =
 #if defined(USE_ZEPHYR)
-    // Mainline Zephyr's inet_ntop() rejects buffers smaller than NET_INET6_ADDRSTRLEN (46).
+    // Mainline Zephyr's inet_ntop() (net_addr_ntop() in subsys/net/ip/utils.c) never checks
+    // its size argument, so an undersized buffer overflows instead of failing cleanly. Size
+    // for the worst case: an IPv4-mapped IPv6 address needs up to INET6_ADDRSTRLEN (46).
     46;
 #else
     40;

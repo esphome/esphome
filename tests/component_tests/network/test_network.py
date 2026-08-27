@@ -11,9 +11,9 @@ from esphome.components.network import (
     KEY_REQUIRE_IPV4,
     KEY_REQUIRE_IPV6,
     _final_validate,
-    has_ipv4_requirement,
     require_ipv4,
 )
+from esphome.config import load_config
 from esphome.const import (
     CONF_ENABLE_IPV6,
     KEY_CORE,
@@ -36,15 +36,11 @@ def _clear_core_data():
     CORE.data.clear()
 
 
-def test_has_ipv4_requirement_false_by_default() -> None:
-    assert has_ipv4_requirement() is False
-
-
 def test_require_ipv4_sets_requirement() -> None:
     config = {"foo": "bar"}
     result = require_ipv4(config)
     assert result is config
-    assert has_ipv4_requirement() is True
+    assert CORE.data[KEY_REQUIRE_IPV4] == {"a component"}
 
 
 def test_require_ipv4_is_idempotent() -> None:
@@ -139,13 +135,35 @@ def test_wake_on_lan_keeps_ipv4_under_openthread(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """wake_on_lan unconditionally broadcasts over IPv4 (AF_INET, 255.255.255.255) --
-    it must register require_ipv4 so an openthread-only config (which auto-enables
-    IPv6 and would otherwise auto-drop IPv4) doesn't silently break it at runtime."""
+    """wake_on_lan unconditionally broadcasts over IPv4 (AF_INET, 255.255.255.255), so it
+    stays on by default here regardless of require_ipv4 -- the registration itself is
+    exercised by test_require_ipv4_registration_rejects_explicit_disable below."""
     generate_main(component_config_path("openthread_with_wake_on_lan.yaml"))
     define = next((d for d in CORE.defines if d.name == "USE_NETWORK_IPV4"), None)
     assert define is not None
     assert str(define.value) == "true"
+
+
+# Each config pairs a require_ipv4() registrant (wifi, wake_on_lan, udp, or the esp8266
+# platform itself) with an explicit 'enable_ipv4: false' -- unlike the "stays on" tests
+# above, these fail if the corresponding require_ipv4() call is ever removed, since
+# enable_ipv4: false would then validate instead of being rejected.
+@pytest.mark.parametrize(
+    "config_file",
+    [
+        "wifi_ipv4_disabled_rejected.yaml",
+        "wake_on_lan_ipv4_disabled_rejected.yaml",
+        "udp_ipv4_disabled_rejected.yaml",
+        "esp8266_ipv4_disabled_rejected.yaml",
+    ],
+)
+def test_require_ipv4_registration_rejects_explicit_disable(
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+) -> None:
+    CORE.config_path = component_config_path(config_file)
+    res = load_config({})
+    assert any("explicitly disables it" in str(err) for err in res.errors)
 
 
 def test_final_validate_rejects_explicit_ipv6_disable_when_required() -> None:
