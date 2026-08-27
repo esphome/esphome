@@ -963,15 +963,29 @@ def run_compile(args, config: ConfigType) -> bool:
         # so an existing DB is settled, and --cmake-only reconfigures.
         # Sysbuild configures the app image during its own configure, so the
         # app's flags and autoconf.h are settled after this phase too.
-        if not (
-            _app_build_dir(build_dir) / "compile_commands.json"
-        ).is_file() and not run_command_ok(
-            west_cmd + ["--cmake-only", "--", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
-            env=env,
-            stream_output=True,
-            cwd=str(paths["framework_path"]),
-        ):
-            raise EsphomeError("nRF52 native build failed")
+        if not (_app_build_dir(build_dir) / "compile_commands.json").is_file():
+            if not run_command_ok(
+                west_cmd + ["--cmake-only", "--", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
+                env=env,
+                stream_output=True,
+                cwd=str(paths["framework_path"]),
+            ):
+                raise EsphomeError("nRF52 native build failed")
+            # The pch includes zephyr/kernel.h, whose syscall headers are
+            # generated at build time (same target the clang-tidy flow uses)
+            if not run_command_ok(
+                [
+                    "cmake",
+                    "--build",
+                    str(_app_build_dir(build_dir)),
+                    "--target",
+                    "zephyr_generated_headers",
+                ],
+                env=env,
+                stream_output=True,
+                cwd=str(paths["framework_path"]),
+            ):
+                raise EsphomeError("nRF52 native build failed")
 
     # An optional speedup must never abort the build
     app_dir = _app_build_dir(build_dir)

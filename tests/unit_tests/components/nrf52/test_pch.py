@@ -195,7 +195,8 @@ class TestRunCompilePhases:
 
     def test_missing_db_runs_cmake_phase(self, compile_ctx) -> None:
         run_cmd, prepare, build_dir = compile_ctx
-        results = iter([True, False])  # cmake-only ok, final build fails
+        # cmake-only ok, generated headers ok, final build fails
+        results = iter([True, True, False])
 
         def west(cmd, **kwargs):
             # Phase 1 configures the sysbuild app domain
@@ -208,9 +209,21 @@ class TestRunCompilePhases:
         with pytest.raises(EsphomeError, match="nRF52 native build failed"):
             self._run()
         assert "--cmake-only" in run_cmd.call_args_list[0].args[0]
-        assert "--cmake-only" not in run_cmd.call_args_list[1].args[0]
+        # Generated syscall headers are built in the app domain pre-pch
+        headers_cmd = run_cmd.call_args_list[1].args[0]
+        assert headers_cmd[:2] == ["cmake", "--build"]
+        assert str(build_dir / "zephyr") in headers_cmd
+        assert "zephyr_generated_headers" in headers_cmd
+        assert "--cmake-only" not in run_cmd.call_args_list[2].args[0]
         # The pch is prepared in the app domain dir, not the sysbuild root
         assert prepare.call_args.args[0] == build_dir / "zephyr"
+
+    def test_generated_headers_failure_raises(self, compile_ctx) -> None:
+        run_cmd, prepare, _ = compile_ctx
+        run_cmd.side_effect = [True, False]
+        with pytest.raises(EsphomeError, match="nRF52 native build failed"):
+            self._run()
+        assert not prepare.called
 
     def test_cmake_phase_failure_raises(self, compile_ctx) -> None:
         run_cmd, prepare, _ = compile_ctx
@@ -264,10 +277,10 @@ class TestRunCompilePhases:
     ) -> None:
         run_cmd, prepare, _ = compile_ctx
         prepare.side_effect = RuntimeError("boom")
-        run_cmd.side_effect = [True, False]
+        run_cmd.side_effect = [True, True, False]
         with pytest.raises(EsphomeError, match="nRF52 native build failed"):
             self._run()
-        assert run_cmd.call_count == 2
+        assert run_cmd.call_count == 3
         assert "Precompiled header setup failed" in caplog.text
 
     def test_prepare_failure_strict_raises(
@@ -276,6 +289,6 @@ class TestRunCompilePhases:
         monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
         run_cmd, prepare, _ = compile_ctx
         prepare.side_effect = RuntimeError("boom")
-        run_cmd.side_effect = [True]
+        run_cmd.side_effect = [True, True]
         with pytest.raises(RuntimeError, match="boom"):
             self._run()
