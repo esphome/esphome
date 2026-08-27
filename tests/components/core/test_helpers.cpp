@@ -320,6 +320,10 @@ TEST(StepToAccuracyDecimals, TrailingZerosDropped) {
   EXPECT_EQ(step_to_accuracy_decimals(0.7f), 1);
   EXPECT_EQ(step_to_accuracy_decimals(0.125f), 3);
   EXPECT_EQ(step_to_accuracy_decimals(0.0625f), 4);
+}
+
+TEST(StepToAccuracyDecimals, RoundsUpToWholeNumber) {
+  // Rounds to five significant digits first, so this becomes 10 with no decimals.
   EXPECT_EQ(step_to_accuracy_decimals(9.999999f), 0);
 }
 
