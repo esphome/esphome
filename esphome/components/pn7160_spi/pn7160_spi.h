@@ -9,8 +9,8 @@
 
 namespace esphome::pn7160_spi {
 
-static constexpr uint8_t TDD_SPI_READ = 0xFF;
-static constexpr uint8_t TDD_SPI_WRITE = 0x0A;
+static const uint8_t TDD_SPI_READ = 0xFF;
+static const uint8_t TDD_SPI_WRITE = 0x0A;
 
 class PN7160Spi final : public pn7160::PN7160,
                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
