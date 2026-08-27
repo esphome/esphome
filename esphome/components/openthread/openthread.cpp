@@ -4,6 +4,7 @@
 
 #include <openthread/cli.h>
 #include <openthread/instance.h>
+#include <openthread/ip6.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
