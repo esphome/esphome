@@ -115,14 +115,7 @@ def patch_registry_private_packages() -> None:
     """
     from platformio.registry.client import RegistryClient
 
-    if getattr(RegistryClient.allowed_private_packages, "_esphome_patched", False):
-        return
-
-    def no_private_packages() -> bool:
-        return False
-
-    no_private_packages._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
-    RegistryClient.allowed_private_packages = staticmethod(no_private_packages)  # type: ignore[method-assign]
+    RegistryClient.allowed_private_packages = staticmethod(lambda: False)  # type: ignore[method-assign]
 
 
 _IGNORE_LIB_WARNINGS = "(?:Hash|Update)"

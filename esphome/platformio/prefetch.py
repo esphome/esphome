@@ -925,6 +925,7 @@ def main(argv: list[str]) -> int:
     from esphome.platformio.runner import patch_registry_private_packages
 
     signal.signal(signal.SIGTERM, _sigterm)
+    patch_registry_private_packages()
     raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
     try:
         level = int(raw_level) if raw_level is not None else logging.INFO
@@ -951,7 +952,6 @@ def main(argv: list[str]) -> int:
         _LOGGER.warning("prefetch usage: <build_dir> <env_name>")
         return 2
     build_dir, env = argv
-    patch_registry_private_packages()
     try:
         _prefetch(Path(build_dir), env)
     except KeyboardInterrupt:

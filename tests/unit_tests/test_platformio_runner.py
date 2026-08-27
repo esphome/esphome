@@ -6,6 +6,7 @@ from collections.abc import Callable
 import io
 import sys
 from types import ModuleType
+from unittest.mock import Mock
 
 from platformio.registry.client import RegistryClient
 import pytest
@@ -113,40 +114,20 @@ def test_main_applies_registry_private_packages_patch(
 _PIO_PROBE = RegistryClient.__dict__["allowed_private_packages"]
 
 
-@pytest.fixture
-def _restore_registry_probe():
-    """Start from and return to PlatformIO's own probe."""
-    RegistryClient.allowed_private_packages = _PIO_PROBE  # type: ignore[method-assign]
-    yield
-    RegistryClient.allowed_private_packages = _PIO_PROBE  # type: ignore[method-assign]
-
-
-@pytest.mark.usefixtures("_restore_registry_probe")
 def test_patch_registry_private_packages_skips_account_probe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Answers False without touching the account client."""
     from platformio.account.client import AccountClient
 
-    assert RegistryClient.__dict__["allowed_private_packages"] is _PIO_PROBE
-
-    def fail(*_args, **_kwargs):
-        raise AssertionError("account probe must not run")
-
-    monkeypatch.setattr(AccountClient, "get_account_info", fail)
+    monkeypatch.setattr(RegistryClient, "allowed_private_packages", _PIO_PROBE)
+    monkeypatch.setattr(
+        AccountClient,
+        "get_account_info",
+        Mock(side_effect=AssertionError("account probe must not run")),
+    )
 
     runner.patch_registry_private_packages()
 
     assert RegistryClient.allowed_private_packages() is False
     assert RegistryClient().allowed_private_packages() is False
-
-
-@pytest.mark.usefixtures("_restore_registry_probe")
-def test_patch_registry_private_packages_is_idempotent() -> None:
-    assert RegistryClient.__dict__["allowed_private_packages"] is _PIO_PROBE
-
-    runner.patch_registry_private_packages()
-    patched = RegistryClient.allowed_private_packages
-    runner.patch_registry_private_packages()
-
-    assert RegistryClient.allowed_private_packages is patched

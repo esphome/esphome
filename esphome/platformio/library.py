@@ -580,16 +580,12 @@ def _make_registry_client() -> Any:
 
     class _Registry(PackageManagerRegistryMixin):
         def __init__(self) -> None:
-            self._registry_client = None
             self.pkg_type = "library"
-
-        def get_registry_client_instance(self) -> RegistryClient:
-            if self._registry_client is None:
-                self._registry_client = RegistryClient()
-                # Skip PlatformIO's account probe: it sleeps ~500 ms per lookup
-                # (see runner.patch_registry_private_packages)
-                self._registry_client.allowed_private_packages = lambda: False
-            return self._registry_client
+            self._registry_client = RegistryClient()
+            # PlatformIO's account probe sleeps ~500 ms per lookup (see
+            # runner.patch_registry_private_packages); override it on our own
+            # instance so the ESPHome process never patches PlatformIO's class
+            self._registry_client.allowed_private_packages = lambda: False
 
         @staticmethod
         def is_system_compatible(value: Any, custom_system: Any = None) -> bool:

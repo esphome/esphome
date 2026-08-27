@@ -7,6 +7,7 @@ exercised in their own test modules)."""
 import json
 import logging
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
@@ -225,23 +226,20 @@ def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
 
 
 def test_make_registry_client_skips_private_package_probe(monkeypatch):
-    """Our client never calls PlatformIO's account probe, and only ours."""
+    """Our client answers the probe locally without patching PlatformIO's class."""
     from platformio.account.client import AccountClient
     from platformio.registry.client import RegistryClient
 
     pio_probe = RegistryClient.__dict__["allowed_private_packages"]
+    monkeypatch.setattr(
+        AccountClient,
+        "get_account_info",
+        Mock(side_effect=AssertionError("account probe must not run")),
+    )
 
-    def fail(*_args, **_kwargs):
-        raise AssertionError("account probe must not run")
-
-    monkeypatch.setattr(AccountClient, "get_account_info", fail)
-
-    registry = lib._make_registry_client()
-    client = registry.get_registry_client_instance()
+    client = lib._make_registry_client().get_registry_client_instance()
 
     assert client.allowed_private_packages() is False
-    assert registry.get_registry_client_instance() is client
-    # Instance override only; the class keeps PlatformIO's probe in this process
     assert RegistryClient.__dict__["allowed_private_packages"] is pio_probe
 
 
