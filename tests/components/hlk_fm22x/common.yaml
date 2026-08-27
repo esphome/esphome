@@ -1,20 +1,46 @@
 esphome:
   on_boot:
     then:
+      # Interactive enrollment, one direction per call; the numeric code is kept for older configs
       - hlk_fm22x.enroll:
           name: "Test"
           direction: 1
+      - hlk_fm22x.enroll:
+          name: !lambda 'return "Lambda";'
+          direction: left
+          admin: true
+          timeout: 20s
+      # Single frame enrollment that refuses faces the module already knows
+      - hlk_fm22x.enroll:
+          name: "Single"
+          allow_duplicate: false
+      - hlk_fm22x.enroll: "Shorthand"
+      - hlk_fm22x.scan:
+          timeout: 15s
+      - hlk_fm22x.scan:
+      - hlk_fm22x.cancel:
+      - hlk_fm22x.get_face_details: 3
+      - hlk_fm22x.get_face_details:
+          face_id: !lambda 'return 4;'
+      - hlk_fm22x.delete: 0
       - hlk_fm22x.delete_all:
+      - hlk_fm22x.reset:
 
 hlk_fm22x:
   on_face_scan_matched:
-    - logger.log: test_hlk_22x_face_scan_matched
+    - logger.log:
+        format: "matched %d %s admin=%d"
+        args: ["face_id", "name.c_str()", "admin"]
   on_face_scan_unmatched:
     - logger.log: test_hlk_22x_face_scan_unmatched
   on_face_scan_invalid:
     - logger.log: test_hlk_22x_face_scan_invalid
   on_face_info:
     - logger.log: test_hlk_22x_face_info
+  on_face_details:
+    - logger.log:
+        format: "face %d is %s admin=%d"
+        args: ["face_id", "name.c_str()", "admin"]
   on_enrollment_done:
     - logger.log: test_hlk_22x_enrollment_done
   on_enrollment_failed:
@@ -31,11 +57,18 @@ sensor:
 
 binary_sensor:
   - platform: hlk_fm22x
-    name: "Face Enrolling"
+    enrolling:
+      name: "Face Enrolling"
+    scanning:
+      name: "Face Scanning"
 
 text_sensor:
   - platform: hlk_fm22x
     version:
       name: "HLK Version"
+    serial_number:
+      name: "HLK Serial Number"
     last_face_name:
       name: "Last Face Name"
+    face_state:
+      name: "Face State"
