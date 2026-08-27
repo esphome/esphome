@@ -32,10 +32,16 @@ void ControllerDevice::set_controller(ModbusController *controller) {
   this->set_address(controller->device_address());
 }
 
+// The address handed to the triggers and logs: a request whose layout carries no start address (a
+// custom PDU) reports -1, so 0 stays distinguishable as a real address.
+static int trigger_address(std::span<const uint8_t> request_pdu) {
+  const auto addr = modbus::helpers::client_pdu_start_address(request_pdu);
+  return addr.has_value() ? *addr : -1;
+}
+
 void ControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
   if (this->controller_ != nullptr) {
-    this->controller_->set_online(true, modbus::helpers::pdu_function_code(request_pdu),
-                                  modbus::helpers::client_pdu_start_address(request_pdu));
+    this->controller_->set_online(true, modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu));
   }
 }
 
@@ -44,8 +50,8 @@ void ControllerDevice::on_response(std::span<const uint8_t> request_pdu, std::sp
 }
 
 void ControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
-  ESP_LOGW(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d",
-           modbus::helpers::pdu_function_code(request_pdu), modbus::helpers::client_pdu_start_address(request_pdu),
+  ESP_LOGW(TAG, "Modbus error function code: 0x%X register %d exception: %d",
+           modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu),
            static_cast<uint8_t>(exception_code));
   this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
 }
@@ -64,20 +70,19 @@ void WriterDevice::on_error(std::span<const uint8_t> request_pdu, modbus::Except
 // reflects when the frame actually went out, not when it was queued.
 void ControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
   if (this->controller_ != nullptr) {
-    this->controller_->command_sent(modbus::helpers::pdu_function_code(request_pdu),
-                                    modbus::helpers::client_pdu_start_address(request_pdu));
+    this->controller_->command_sent(modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu));
   }
 }
 
 void ControllerDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
   const uint8_t fc = modbus::helpers::pdu_function_code(request_pdu);
-  const uint16_t addr = modbus::helpers::client_pdu_start_address(request_pdu);
+  const int addr = trigger_address(request_pdu);
   // Only the offline teardown reaches this (a supersede retires silently), so the frame is genuinely
   // lost; a dropped write was already published optimistically, so surface it.
   if (modbus::helpers::is_function_code_write(fc)) {
-    ESP_LOGW(TAG, "Write not sent: function 0x%X register 0x%X", fc, addr);
+    ESP_LOGW(TAG, "Write not sent: function 0x%X register %d", fc, addr);
   } else {
-    ESP_LOGD(TAG, "Request not sent: function 0x%X register 0x%X", fc, addr);
+    ESP_LOGD(TAG, "Request not sent: function 0x%X register %d", fc, addr);
   }
 }
 
@@ -87,8 +92,7 @@ bool ControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
   this->controller_->increment_non_response_count();
   if (this->controller_->can_send())
     return true;  // the hub re-queues the frame it is holding; on_sent fires again on the retry
-  this->controller_->set_online(false, modbus::helpers::pdu_function_code(request_pdu),
-                                modbus::helpers::client_pdu_start_address(request_pdu));
+  this->controller_->set_online(false, modbus::helpers::pdu_function_code(request_pdu), trigger_address(request_pdu));
   return false;
 }
 
