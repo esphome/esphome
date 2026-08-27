@@ -85,15 +85,10 @@ PollingDevice::PollingDevice(ModbusController &controller, modbus::ModbusClientH
   this->controller_ = &controller;
   this->set_parent(parent);
   this->set_address(address);
+  // A custom range polls its first sensor's custom_pdu (referenced, not copied); its first byte is the
+  // real function code, so the request PDU carries it to the callbacks like any other read.
   if (this->register_type_ == EntityType::CUSTOM && !this->sensors_.empty()) {
-    // A custom range polls its first sensor's custom_pdu (referenced, not copied). The PDU's first byte
-    // is its real function code; carry it so logs and the on_command_sent trigger report the actual code.
-    const auto &pdu = (*this->sensors_.begin())->custom_pdu;
-    this->custom_pdu_ = &pdu;
-    if (!pdu.empty())
-      this->function_code_ = static_cast<FunctionCode>(pdu.data()[0]);
-  } else {
-    this->function_code_ = modbus::helpers::modbus_register_read_function(this->register_type_);
+    this->custom_pdu_ = &(*this->sensors_.begin())->custom_pdu;
   }
 }
 
@@ -103,10 +98,12 @@ bool PollingDevice::queue(modbus::CommandOptions options) {
     accepted = this->queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
   } else {
     accepted = this->queue_pdu(
-        modbus::helpers::create_client_pdu(this->function_code_, this->start_address_, this->register_count_), options);
+        modbus::helpers::create_client_pdu(modbus::helpers::modbus_register_read_function(this->register_type_),
+                                           this->start_address_, this->register_count_),
+        options);
   }
   if (accepted) {
-    ESP_LOGV(TAG, "Poll queued %d 0x%X %d", static_cast<uint8_t>(this->function_code_), this->start_address_,
+    ESP_LOGV(TAG, "Poll queued type=%u 0x%X %d", static_cast<uint8_t>(this->register_type_), this->start_address_,
              this->register_count_);
   }
   return accepted;

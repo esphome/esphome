@@ -353,7 +353,6 @@ class PollingDevice final : public ControllerDevice {
   EntityType register_type_{EntityType::CUSTOM};
   uint16_t start_address_{0};
   uint16_t register_count_{0};
-  FunctionCode function_code_{FunctionCode::INVALID};
   /// A custom range references the PDU bytes owned by its first SensorItem instead of copying them.
   const SmallInlineBuffer<8> *custom_pdu_{nullptr};
 };
