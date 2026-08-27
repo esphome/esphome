@@ -38,3 +38,5 @@ uart_mock:
 
 improv_serial:
   uart_id: mock_uart
+  # Deterministic on host: only the device name placeholder is used
+  next_url: https://example.com/?device={{device_name}}

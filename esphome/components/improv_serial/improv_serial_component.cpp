@@ -177,7 +177,8 @@ void ImprovSerialComponent::send_version_info_() {
 #else
   static constexpr size_t INFO_ENTRIES_LEN = sizeof("ESPHome") + sizeof(ESPHOME_VERSION) + sizeof(ESPHOME_VARIANT);
 #endif
-  static_assert(INFO_ENTRIES_LEN < MAX_SERIAL_PAYLOAD, "device info literals exceed the serial frame");
+  static_assert(INFO_ENTRIES_LEN < MAX_SERIAL_PAYLOAD,
+                "esphome project name and version too long for the improv_serial device info frame");
   std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
   improv::RpcResponseBuilder builder(buf, improv::GET_DEVICE_INFO);
 #ifdef USE_ESP8266

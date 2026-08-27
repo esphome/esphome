@@ -133,8 +133,15 @@ async def test_improv_serial_uart(
         )
         await waiter.wait_for("save_wifi_sta ssid=NewNet")
         await waiter.wait_for("uart_mock", f"TX 12 bytes: {state_frame_hex(0x04)}")
-        # Settings RPC response with no URLs: payload [0x01, 0x00, 0x00] and footer
-        await waiter.wait_for("uart_mock", "TX 3 bytes: 01:00:00")
-        await waiter.wait_for(
-            "uart_mock", f"TX 2 bytes: {rpc_footer_hex(bytes([0x01, 0x00, 0x00]))}"
+        # Settings RPC response carries the formatted next_url and its footer
+        next_url = b"https://example.com/?device=improv-uart"
+        payload = (
+            bytes([CMD_WIFI_SETTINGS, len(next_url) + 1, len(next_url)])
+            + next_url
+            + b"\x00"
         )
+        await waiter.wait_for(
+            "uart_mock",
+            f"TX {len(payload)} bytes: " + ":".join(f"{b:02X}" for b in payload),
+        )
+        await waiter.wait_for("uart_mock", f"TX 2 bytes: {rpc_footer_hex(payload)}")
