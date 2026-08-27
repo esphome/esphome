@@ -164,14 +164,20 @@ void ImprovSerialComponent::send_settings_response_(improv::Command command) {
 void ImprovSerialComponent::send_version_info_() {
   std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
   improv::RpcResponseBuilder builder(buf, improv::GET_DEVICE_INFO);
+  bool ok = true;
 #ifdef USE_ESP8266
-  // Stage each literal through a stack buffer; buf_append_str keeps the literals in
-  // flash on ESP8266 instead of copying them into RAM at startup
-  char tmp[64];
-#define IMPROV_ADD_INFO(lit) builder.add_string(tmp, buf_append_str(tmp, sizeof(tmp), 0, lit))
+  // Keep each literal in flash and copy it through an exact size stack buffer,
+  // so a long project name or version can never be truncated
+#define IMPROV_ADD_INFO(lit) \
+  { \
+    static const char progmem_str[] PROGMEM = lit; \
+    char tmp[sizeof(lit)]; \
+    progmem_memcpy(tmp, progmem_str, sizeof(lit)); \
+    ok &= builder.add_string(tmp, sizeof(lit) - 1); \
+  }
 #else
   // Literals are directly flash mapped on all other platforms
-#define IMPROV_ADD_INFO(lit) builder.add_string(lit, sizeof(lit) - 1)
+#define IMPROV_ADD_INFO(lit) ok &= builder.add_string(lit, sizeof(lit) - 1)
 #endif
 #ifdef ESPHOME_PROJECT_NAME
   IMPROV_ADD_INFO(ESPHOME_PROJECT_NAME);
@@ -183,7 +189,11 @@ void ImprovSerialComponent::send_version_info_() {
   IMPROV_ADD_INFO(ESPHOME_VARIANT);
 #undef IMPROV_ADD_INFO
   const auto &name = App.get_name();
-  builder.add_string(name.c_str(), name.size());
+  ok &= builder.add_string(name.c_str(), name.size());
+  if (!ok) {
+    // Fields are positional, so a dropped one misaligns the rest for the client
+    ESP_LOGW(TAG, "Response full; device info incomplete");
+  }
   this->send_response_(builder.finish(false));
 }
 
