@@ -247,6 +247,7 @@ def copy_src_tree():
         Path(
             "esphome/core/ring_buffer.h"
         ),  # moved to components/ring_buffer/, removed in 2026.11.0
+        Path("esphome/core/pch_prefix.h"),  # build machinery, not user API
     }
     include_l = []
     for target, _ in source_files_l:

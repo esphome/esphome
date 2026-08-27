@@ -64,8 +64,9 @@ async def to_code(config: ConfigType) -> None:
         # Curated prefix for the pch (the script folds it plus defines.h):
         # host has no framework force-includes, and the per-TU cost is the
         # STL closure behind the core headers. Measured -43% compile CPU.
-        # Gated so ESPHOME_PCH_ENABLE=0 restores the strict view; a
-        # toolchain that cannot load its own pch hits the script's probe.
+        # Gated so ESPHOME_PCH_ENABLE=0 restores the strict view. When the
+        # .gch fails to build or load, the force-include stays and every TU
+        # parses the closure as text: correct, but slower than no pch.
         cg.add_platformio_option("build_src_flags", f"-include {HOST_PCH_PREFIX}")
 
 
