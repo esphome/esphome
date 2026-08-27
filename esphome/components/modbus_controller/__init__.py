@@ -11,7 +11,14 @@ from esphome.components.modbus.helpers import (
     EntityType,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_CONTINUOUS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_NAME,
+    CONF_OFFSET,
+)
 from esphome.core import CORE
 from esphome.cpp_helpers import logging
 import esphome.final_validate as fv
@@ -125,6 +132,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_MAX_CMD_RETRIES, default=4): cv.positive_int,
             cv.Optional(CONF_OFFLINE_SKIP_UPDATES, default=0): cv.positive_int,
+            **modbus.command_options_schema(direction="read"),
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.invalid(
@@ -183,7 +191,7 @@ ModbusItemBaseSchema = cv.Schema(
 )
 
 
-def validate_modbus_register(config):
+def validate_modbus_register(config: ConfigType) -> ConfigType:
     # custom_command is the deprecated alias for custom_pdu (migrated later in final validate); treat
     # either as "a custom frame is configured" so the address/register_type rules match.
     has_custom = CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config
@@ -234,6 +242,35 @@ def migrate_custom_command(config: ConfigType) -> None:
     del config[CONF_CUSTOM_COMMAND]
 
 
+def _reject_continuous_write_custom_pdu(config: ConfigType) -> None:
+    """Final-validate: a custom_pdu whose function code writes (e.g. 0x17 read/write-multiple) cannot be
+    polled continuously - the hub ignores continuous for mutating codes and would warn on every update
+    while that range silently does not stream. Reject the combination instead. Runs after
+    migrate_custom_command, so it sees custom_pdu whether written directly or migrated from
+    custom_command."""
+    pdu = config.get(CONF_CUSTOM_PDU)
+    if pdu is None or not modbus.is_function_code_write(pdu[0]):
+        return
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_MODBUS_CONTROLLER_ID])[:-1]
+    controller = fconf.get_config_for_path(path)
+    if controller.get(CONF_CONTINUOUS) is True:
+        raise cv.Invalid(
+            f"a '{CONF_CUSTOM_PDU}' with a write function code (0x{pdu[0] & 0x7F:02X}) can't be polled "
+            f"continuously: the hub ignores 'continuous' for mutating codes. Remove 'continuous: true' "
+            f"from the '{controller[CONF_ID]}' modbus_controller, or use a read function code.",
+            [CONF_CUSTOM_PDU],
+        )
+
+
+def validate_custom_pdu_item(config: ConfigType) -> None:
+    """Final-validate for the read platforms that accept custom_pdu (sensor, binary_sensor,
+    text_sensor): migrate the deprecated custom_command, then reject a write-coded custom_pdu under a
+    continuously-polling controller."""
+    migrate_custom_command(config)
+    _reject_continuous_write_custom_pdu(config)
+
+
 def _final_validate(config: ConfigType) -> None:
     modbus.final_validate_modbus_device("modbus_controller", role="client")(config)
 
@@ -241,7 +278,7 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def modbus_calc_properties(config):
+def modbus_calc_properties(config: ConfigType) -> tuple[int, int]:
     byte_offset = 0
     reg_count = 0
     if CONF_OFFSET in config:
@@ -270,8 +307,12 @@ def modbus_calc_properties(config):
 
 
 async def add_modbus_base_properties(
-    var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
-):
+    var: cg.MockObj,
+    config: ConfigType,
+    sensor_type: cg.MockObjClass,
+    lambda_param_type: cg.MockObj = cg.float_,
+    lambda_return_type: Any = float,
+) -> None:
     if CONF_CUSTOM_PDU in config:
         cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
 
@@ -310,21 +351,34 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    # Await the hub first, so no entity can bind to a controller that doesn't have one yet.
+    hub = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
+    var = cg.new_Pvariable(config[CONF_ID], hub, config[CONF_ADDRESS])
+    await cg.register_component(var, config)
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
-    await register_modbus_device(var, config)
+    cg.add(
+        var.set_read_options(
+            modbus.command_options_expression(config, direction="read")
+        )
+    )
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-async def register_modbus_device(var, config):
+async def register_modbus_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj:
+    # Remove before 2027.3.0
+    _LOGGER.warning(
+        "'modbus_controller.register_modbus_device' is deprecated, use "
+        "'modbus.register_modbus_client_device' and set the address on your own "
+        "class instead. Will be removed in 2027.3.0"
+    )
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
     return await modbus.register_modbus_client_device(var, config)
 
 
-def function_code_to_register(function_code):
+def function_code_to_register(function_code: str) -> cg.MockObj:
     FUNCTION_CODE_TYPE_MAP = {
         "read_coils": EntityType.COIL,
         "read_discrete_inputs": EntityType.DISCRETE_INPUT,

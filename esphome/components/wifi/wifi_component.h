@@ -478,6 +478,13 @@ class WiFiComponent final : public Component {
 
   bool is_connected() const { return this->connected_; }
 
+  /// True while a post-connect roaming scan holds the radio off-channel.
+  bool is_roaming_scan_active() const { return this->roaming_state_ == RoamingState::SCANNING; }
+
+  /// True while a post-connect roam is in progress (scanning off-channel, reassociating,
+  /// or recovering from a failed roam).
+  bool is_roaming() const { return this->roaming_state_ != RoamingState::IDLE; }
+
 #ifdef USE_ESP32
   /// esp_netif handle of the station interface, used by network for default-route
   /// arbitration. nullptr until wifi_lazy_init_() has run.
@@ -951,6 +958,14 @@ class WiFiComponent final : public Component {
   // On ESP8266, written from SDK system context (wifi_event_callback) —
   // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
   uint8_t sta_state_{0};
+#endif
+#ifdef USE_LIBRETINY
+  // First attempt since STA-up (re-armed on every STA off->on); the
+  // pre-attempt teardown is skipped then.
+  bool lt_first_connect_attempt_{true};
+  // A self-inflicted disconnect from that teardown is pending; it must not
+  // consume an ignored-disconnect slot.
+  bool lt_teardown_event_pending_{false};
 #endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};

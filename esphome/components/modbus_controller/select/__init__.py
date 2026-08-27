@@ -1,8 +1,16 @@
+from collections.abc import Callable
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import select
-from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE, TYPE_REGISTER_MAP
+from esphome.components.modbus.helpers import (
+    SENSOR_VALUE_TYPE,
+    TYPE_REGISTER_MAP,
+    RegisterValues,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC
+from esphome.types import ConfigType
 
 from .. import (
     ModbusController,
@@ -29,8 +37,8 @@ ModbusSelect = modbus_controller_ns.class_(
 )
 
 
-def ensure_option_map():
-    def validator(value):
+def ensure_option_map() -> Callable[[Any], dict[str, int]]:
+    def validator(value: Any) -> dict[str, int]:
         cv.check_not_templatable(value)
         option = cv.All(cv.string_strict)
         mapping = cv.All(cv.int_range(-(2**63), 2**63 - 1))
@@ -47,7 +55,7 @@ def ensure_option_map():
     return validator
 
 
-def register_count_value_type_min(value):
+def register_count_value_type_min(value: ConfigType) -> ConfigType:
     reg_count = value.get(CONF_REGISTER_COUNT)
     if reg_count is not None:
         value_type = value[CONF_VALUE_TYPE]
@@ -87,7 +95,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     value_type = config[CONF_VALUE_TYPE]
     reg_count = config.get(CONF_REGISTER_COUNT)
     if reg_count is None:
@@ -132,7 +140,7 @@ async def to_code(config):
                 (ModbusSelect.operator("const_ptr"), "item"),
                 (cg.std_string.operator("const").operator("ref"), "x"),
                 (cg.int64, "value"),
-                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                (RegisterValues.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(cg.int64),
         )
