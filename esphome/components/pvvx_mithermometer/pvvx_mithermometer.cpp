@@ -1,8 +1,6 @@
 #include "pvvx_mithermometer.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::pvvx_mithermometer {
 
 static const char *const TAG = "pvvx_mithermometer";
@@ -15,7 +13,7 @@ void PVVXMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
 }
 
-bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool PVVXMiThermometer::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -52,7 +50,7 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
   return success;
 }
 
-optional<ParseResult> PVVXMiThermometer::parse_header_(const esp32_ble_tracker::ServiceData &service_data) {
+optional<ParseResult> PVVXMiThermometer::parse_header_(const ble_device_base::ServiceData &service_data) {
   ParseResult result;
   if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
@@ -140,5 +138,3 @@ bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, con
 }
 
 }  // namespace esphome::pvvx_mithermometer
-
-#endif

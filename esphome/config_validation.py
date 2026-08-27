@@ -53,6 +53,7 @@ from esphome.const import (
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
+    CONF_TOOLCHAIN,
     CONF_TOPIC,
     CONF_TYPE,
     CONF_TYPE_ID,
@@ -75,6 +76,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     Framework,
+    Toolchain,
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import (
@@ -91,7 +93,13 @@ from esphome.core import (
 )
 from esphome.enum import StrEnum
 from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
-from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
+from esphome.helpers import (
+    FALSY_BOOL_STRINGS,
+    TRUTHY_BOOL_STRINGS,
+    add_class_to_obj,
+    docs_url,
+    list_starts_with,
+)
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
     schema_extractor,
@@ -99,9 +107,15 @@ from esphome.schema_extractors import (
     schema_extractor_registry,
     schema_extractor_typed,
 )
-from esphome.util import parse_esphome_version
+
+# Deprecated re-export for external components; remove before 2027.2.0
+# pylint: disable-next=unused-import
+from esphome.util import parse_esphome_version  # noqa: F401
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import SensitiveStr, make_data_base
+
+if typing.TYPE_CHECKING:
+    from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -573,9 +587,9 @@ def boolean(value):
         return value
     if isinstance(value, str):
         value = value.lower()
-        if value in ("true", "yes", "on", "enable"):
+        if value in TRUTHY_BOOL_STRINGS:
             return True
-        if value in ("false", "no", "off", "disable"):
+        if value in FALSY_BOOL_STRINGS:
             return False
     raise Invalid(
         f"Expected boolean value, but cannot convert {value} to a boolean. Please use 'true' or 'false'"
@@ -1868,13 +1882,46 @@ def lambda_(value):
     return value
 
 
+# 'return' at a statement boundary; only consulted when the source has no
+# semicolon, so ';' is not a boundary. Migration use only, see
+# looks_like_returning_lambda.
+LAMBDA_RETURN_STATEMENT_PROG = re.compile(r"(?:^|[:{})\n])\s*return\b")
+LAMBDA_RETURN_KEYWORD_PROG = re.compile(r"\breturn\b")
+# RESERVED_IDS subset that can begin a return expression; 'this'/'true' would
+# promote prose and infix 'and'/'or' cannot start an expression.
+_CPP_LEADING_WORD_OPERATORS = "not|new|sizeof|delete"
+# Two or more plain words: prose, not C++. A single word is indistinguishable
+# from 'return x'. Migration use only, see looks_like_returning_lambda.
+LAMBDA_PROSE_TAIL_PROG = re.compile(
+    rf"(?!(?:{_CPP_LEADING_WORD_OPERATORS})\b)[A-Za-z']+(?:,?\s+[A-Za-z']+)+[.!?]?"
+)
+
+
+def looks_like_returning_lambda(value: str) -> bool:
+    """Check whether a string looks like C++ lambda source: a semicolon means
+    code, so any return keyword counts; without one, a boundary return whose
+    tail does not read as prose is a return statement missing its semicolon.
+
+    For migrating deprecated implicit lambdas only; new validators must
+    require an explicit !lambda tag instead of guessing.
+    """
+    src = Lambda.comment_remover(value)
+    if ";" in src:
+        return LAMBDA_RETURN_KEYWORD_PROG.search(src) is not None
+    for match in LAMBDA_RETURN_STATEMENT_PROG.finditer(src):
+        tail = src[match.end() :].split("\n", 1)[0].strip()
+        if not LAMBDA_PROSE_TAIL_PROG.fullmatch(tail):
+            return True
+    return False
+
+
 def returning_lambda(value):
     """Coerce this configuration option to a lambda.
 
     Additionally, make sure the lambda returns something.
     """
     value = lambda_(value)
-    if "return" not in value.value:
+    if LAMBDA_RETURN_KEYWORD_PROG.search(Lambda.comment_remover(value.value)) is None:
         raise Invalid(
             "Lambda doesn't contain a 'return' statement, but the lambda "
             "is expected to return a value. \n"
@@ -2332,13 +2379,13 @@ def _validate_no_slash(value):
     the visually similar Unicode FRACTION SLASH (U+2044) character.
     """
     if "/" in value:
-        # Remove before 2026.7.0
+        # Remove before 2027.7.0
         new_value = value.replace("/", FRACTION_SLASH)
         _LOGGER.warning(
             "'%s' contains '/' which is reserved as a URL path separator. "
             "Automatically replacing with '%s' (Unicode FRACTION SLASH). "
             "Please update your configuration. "
-            "This will become an error in ESPHome 2026.7.0.",
+            "This will become an error in ESPHome 2027.7.0.",
             value,
             new_value,
         )
@@ -2529,6 +2576,63 @@ def platformio_version_constraint(value):
     return constraints
 
 
+def _check_supported_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...]
+) -> None:
+    """Raise when the resolved ``CORE.toolchain`` is not in ``supported``
+    (one message shape for every platform)."""
+    toolchain = CORE.toolchain
+    if toolchain is None:
+        # A caller ran the check before resolving; an ordering bug, not a
+        # user error
+        raise Invalid(f"Toolchain was not resolved before {platform_name} validation")
+    if toolchain not in supported:
+        names = ", ".join(f"'{tc.value}'" for tc in supported)
+        raise Invalid(
+            f"Unsupported toolchain "
+            f"'{toolchain.value}' for "
+            f"{platform_name}. Supported: {names}."
+        )
+
+
+def toolchain_enum(supported: tuple[Toolchain, ...]) -> Callable[[str], Toolchain]:
+    """Schema validator for a platform's ``toolchain`` config key."""
+
+    def validator(value: str) -> Toolchain:
+        return Toolchain(one_of(*supported, lower=True)(value))
+
+    return validator
+
+
+def resolve_toolchain(
+    platform_name: str, supported: tuple[Toolchain, ...], default: Toolchain
+) -> Callable[[ConfigType], ConfigType]:
+    """Resolve ``CORE.toolchain`` (CLI > YAML > default) and reject one the
+    platform cannot serve.
+
+    Add to the platform's validation chain before anything that reads
+    ``CORE.toolchain``.
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        if CORE.toolchain is None:
+            CORE.toolchain = config.get(CONF_TOOLCHAIN, default)
+        _check_supported_toolchain(platform_name, supported)
+        return config
+
+    return validator
+
+
+def require_platformio_toolchain(
+    platform_name: str,
+) -> Callable[[ConfigType], ConfigType]:
+    """Reject a CLI-selected toolchain other than PlatformIO, for platforms
+    with only the PlatformIO backend."""
+    return resolve_toolchain(
+        platform_name, (Toolchain.PLATFORMIO,), Toolchain.PLATFORMIO
+    )
+
+
 def require_framework_version(
     *,
     max_version=False,
@@ -2612,13 +2716,30 @@ def require_framework_version(
     return validator
 
 
-def require_esphome_version(year, month, patch):
+def require_esphome_version(
+    year: Version | int, month: int | None = None, patch: int | None = None
+):
+    """Validator requiring at least the given ESPHome version.
+
+    Accepts a single ``Version`` like the sibling
+    ``require_framework_version``, or the legacy ``(year, month, patch)``
+    ints external components already pass.
+    """
+    if isinstance(year, Version):
+        required = year
+    elif month is None or patch is None:
+        raise ValueError(
+            "require_esphome_version needs a Version or (year, month, patch)"
+        )
+    else:
+        required = Version(year, month, patch)
+
     def validator(value):
-        esphome_version = parse_esphome_version()
-        if esphome_version < (year, month, patch):
-            requires_version = f"{year}.{month}.{patch}"
+        # A dev or beta build of the required version still satisfies it,
+        # matching the old tuple comparison that dropped the suffix.
+        if Version.parse(ESPHOME_VERSION) < required:
             raise Invalid(
-                f"This component requires at least ESPHome version {requires_version}"
+                f"This component requires at least ESPHome version {required}"
             )
         return value
 

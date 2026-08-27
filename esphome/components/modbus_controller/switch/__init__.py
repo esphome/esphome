@@ -1,26 +1,25 @@
 import esphome.codegen as cg
 from esphome.components import switch
-from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE
+from esphome.components.modbus.helpers import MODBUS_REGISTER_TYPE, PduBuffer
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ASSUMED_STATE, CONF_ID
+from esphome.types import ConfigType
 
 from .. import (
-    RANGE_REUSE,
     ModbusItemBaseSchema,
-    ModbusWriteBytes,
     SensorItem,
     add_modbus_base_properties,
     modbus_calc_properties,
     modbus_controller_ns,
+    reject_odd_holding_write_offset,
+    validate_custom_pdu_item,
     validate_modbus_register,
-    validate_range_reuse_migration,
 )
 from ..const import (
     CONF_BITMASK,
+    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
-    CONF_REUSE_PREVIOUS_RANGE,
-    CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
     CONF_WRITE_LAMBDA,
 )
@@ -32,6 +31,14 @@ CODEOWNERS = ["@martgras"]
 ModbusSwitch = modbus_controller_ns.class_(
     "ModbusSwitch", cg.Component, switch.Switch, SensorItem
 )
+
+
+def _validate_holding_offset(config: ConfigType) -> ConfigType:
+    # Only a holding-register switch folds the byte offset into a 16-bit register write.
+    if config.get(CONF_REGISTER_TYPE) == "holding":
+        reject_odd_holding_write_offset(config)
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     switch.switch_schema(ModbusSwitch, default_restore_mode="DISABLED")
@@ -46,20 +53,21 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_modbus_register,
-    validate_range_reuse_migration,
+    _validate_holding_offset,
 )
 
+FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
 
-async def to_code(config):
-    byte_offset = modbus_calc_properties(config)
+
+async def to_code(config: ConfigType) -> None:
+    byte_offset, _ = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],
-        config[CONF_SKIP_UPDATES],
-        RANGE_REUSE[config[CONF_REUSE_PREVIOUS_RANGE]],
+        config[CONF_FORCE_NEW_RANGE],
     )
     await cg.register_component(var, config)
     await switch.register_switch(var, config)
@@ -77,7 +85,7 @@ async def to_code(config):
             [
                 (ModbusSwitch.operator("ptr"), "item"),
                 (cg.bool_, "x"),
-                (ModbusWriteBytes.operator("ref"), "payload"),
+                (PduBuffer.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(bool),
         )

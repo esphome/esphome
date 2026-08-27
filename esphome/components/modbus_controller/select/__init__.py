@@ -1,22 +1,27 @@
+from collections.abc import Callable
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import select
-from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE
+from esphome.components.modbus.helpers import (
+    SENSOR_VALUE_TYPE,
+    TYPE_REGISTER_MAP,
+    RegisterValues,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC
+from esphome.types import ConfigType
 
 from .. import (
-    RANGE_REUSE,
     ModbusController,
-    ModbusWriteRegisters,
     SensorItem,
     modbus_controller_ns,
-    validate_range_reuse_migration,
+    validate_skip_updates_deprecated,
 )
 from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_COUNT,
-    CONF_REUSE_PREVIOUS_RANGE,
     CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
@@ -32,8 +37,8 @@ ModbusSelect = modbus_controller_ns.class_(
 )
 
 
-def ensure_option_map():
-    def validator(value):
+def ensure_option_map() -> Callable[[Any], dict[str, int]]:
+    def validator(value: Any) -> dict[str, int]:
         cv.check_not_templatable(value)
         option = cv.All(cv.string_strict)
         mapping = cv.All(cv.int_range(-(2**63), 2**63 - 1))
@@ -50,6 +55,18 @@ def ensure_option_map():
     return validator
 
 
+def register_count_value_type_min(value: ConfigType) -> ConfigType:
+    reg_count = value.get(CONF_REGISTER_COUNT)
+    if reg_count is not None:
+        value_type = value[CONF_VALUE_TYPE]
+        min_register_count = TYPE_REGISTER_MAP[value_type]
+        if min_register_count > reg_count:
+            raise cv.Invalid(
+                f"Value type {value_type} needs at least {min_register_count} registers"
+            )
+    return value
+
+
 INTEGER_SENSOR_VALUE_TYPE = {
     key: value for key, value in SENSOR_VALUE_TYPE.items() if not key.startswith("FP")
 }
@@ -64,13 +81,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
                 INTEGER_SENSOR_VALUE_TYPE
             ),
-            cv.Optional(CONF_SKIP_UPDATES, default=0): cv.positive_int,
-            cv.Optional(CONF_REUSE_PREVIOUS_RANGE, default="auto"): cv.Any(
-                cv.boolean, cv.one_of("auto", lower=True)
-            ),
-            # Deprecated options, migrated by validate_range_reuse_migration(). Remove before 2027.2.0
-            cv.Optional(CONF_FORCE_NEW_RANGE): cv.boolean,
             cv.Optional(CONF_REGISTER_COUNT): cv.positive_int,
+            cv.Optional(CONF_SKIP_UPDATES): validate_skip_updates_deprecated,
+            cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
             cv.Required(CONF_OPTIONSMAP): ensure_option_map(),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -78,19 +91,24 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
         },
     ),
-    validate_range_reuse_migration,
+    register_count_value_type_min,
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
+    value_type = config[CONF_VALUE_TYPE]
+    reg_count = config.get(CONF_REGISTER_COUNT)
+    if reg_count is None:
+        reg_count = TYPE_REGISTER_MAP[value_type]
+
     options_map = config[CONF_OPTIONSMAP]
 
     var = cg.new_Pvariable(
         config[CONF_ID],
-        config[CONF_VALUE_TYPE],
+        value_type,
         config[CONF_ADDRESS],
-        config[CONF_SKIP_UPDATES],
-        RANGE_REUSE[config[CONF_REUSE_PREVIOUS_RANGE]],
+        reg_count,
+        config[CONF_FORCE_NEW_RANGE],
         list(options_map.values()),
     )
 
@@ -122,7 +140,7 @@ async def to_code(config):
                 (ModbusSelect.operator("const_ptr"), "item"),
                 (cg.std_string.operator("const").operator("ref"), "x"),
                 (cg.int64, "value"),
-                (ModbusWriteRegisters.operator("ref"), "payload"),
+                (RegisterValues.operator("ref"), "payload"),
             ],
             return_type=cg.optional.template(cg.int64),
         )

@@ -37,10 +37,6 @@ async def test_fnv1_hash_object_id(
         "special",
         "complex",
         "empty",
-        "raw",
-        "raw_utf8",
-        "old_utf8",
-        "old_cjk",
     }
 
     def on_log_line(line: str) -> None:

@@ -8,20 +8,16 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusFloatOutput final : public output::FloatOutput,
-                                public Component,
-                                public SensorItem,
-                                public ModbusControllerDevice {
+class ModbusFloatOutput final : public output::FloatOutput, public Component, public SensorItem, public WriterEntity {
  public:
-  ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type) {
+  ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = modbus::EntityType::HOLDING;
-    // Byte offset applied byte-accurately: fold the whole-register shift into the address (write-only, so
-    // the residual byte only matters if this entity is ever read back).
-    this->SensorItem::set_address(start_address + offset / 2);
-    this->set_offset_from_start_address(offset % 2);
+    // A byte offset folds into the address as whole registers; odd offsets are rejected at validation.
+    this->set_address(start_address + offset / 2);
+    this->set_offset_from_start_address(0);
     this->bitmask = 0xFFFFFFFF;
+    this->register_count = register_count;
     this->sensor_value_type = value_type;
-    this->skip_updates = 0;
   }
   void dump_config() override;
 
@@ -30,7 +26,7 @@ class ModbusFloatOutput final : public output::FloatOutput,
   // Do nothing
   void parse_and_publish(std::span<const uint8_t> data) override{};
 
-  using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, ModbusWriteRegisters &);
+  using write_transform_func_t = optional<float> (*)(ModbusFloatOutput *, float, modbus::RegisterValues &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
@@ -42,18 +38,15 @@ class ModbusFloatOutput final : public output::FloatOutput,
   bool use_write_multiple_{false};
 };
 
-class ModbusBinaryOutput final : public output::BinaryOutput,
-                                 public Component,
-                                 public SensorItem,
-                                 public ModbusControllerDevice {
+class ModbusBinaryOutput final : public output::BinaryOutput, public Component, public SensorItem, public WriterEntity {
  public:
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = modbus::EntityType::COIL;
     // A coil offset is a coil count; fold it into the address.
-    this->SensorItem::set_address(start_address + offset);
+    this->set_address(start_address + offset);
     this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
-    this->skip_updates = 0;
+    this->register_count = 1;
     this->set_offset_from_start_address(0);
   }
   void dump_config() override;
@@ -62,7 +55,7 @@ class ModbusBinaryOutput final : public output::BinaryOutput,
   // Do nothing
   void parse_and_publish(std::span<const uint8_t> data) override{};
 
-  using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, ModbusWriteBytes &);
+  using write_transform_func_t = optional<bool> (*)(ModbusBinaryOutput *, bool, modbus::helpers::PduBuffer &);
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 

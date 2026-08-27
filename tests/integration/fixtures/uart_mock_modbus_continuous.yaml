@@ -6,6 +6,13 @@ api:
 logger:
   level: VERBOSE
 
+# When set, the mock server stops forwarding its replies to the controller, so the controller sees
+# timeouts - used by the recovery test to drive a live continuous poll offline and back.
+globals:
+  - id: silence_server
+    type: bool
+    initial_value: "false"
+
 external_components:
   - source:
       type: local
@@ -24,9 +31,13 @@ uart_mock:
     debug:
     on_tx:
       - then:
-          - uart_mock.inject_rx:
-              id: virtual_uart_controller
-              data: !lambda return data;
+          - if:
+              condition:
+                lambda: "return !id(silence_server);"
+              then:
+                - uart_mock.inject_rx:
+                    id: virtual_uart_controller
+                    data: !lambda return data;
   - id: virtual_uart_controller
     baud_rate: 9600
     auto_start: true
@@ -45,6 +56,9 @@ modbus:
     id: virtual_modbus_controller
     role: client
     turnaround_time: 10ms
+    # Short timeout so the recovery test drives the poll offline quickly; when the server answers,
+    # replies arrive within turnaround_time, so this does not slow the streaming path.
+    send_wait_time: 100ms
 
 modbus_controller:
   - address: 1
@@ -55,6 +69,8 @@ modbus_controller:
     # bus allows.
     update_interval: 30s
     continuous: true
+    # One retry so a silenced device trips offline fast (initial send + 1 retry, each 100ms).
+    max_cmd_retries: 1
 
 modbus_server:
   - address: 1
@@ -85,3 +101,15 @@ button:
     # somewhere in the 30s update_interval; once this one read completes, continuous re-queuing takes over.
     on_press:
       - lambda: "id(modbus_controller_1)->update();"
+
+switch:
+  # Toggles whether the mock server forwards its replies. On = silence (controller sees timeouts);
+  # off = answer again. The recovery test uses it to drive a live continuous poll offline and back.
+  - platform: template
+    name: "Silence Server"
+    id: silence_server_switch
+    optimistic: true
+    turn_on_action:
+      - lambda: "id(silence_server) = true;"
+    turn_off_action:
+      - lambda: "id(silence_server) = false;"

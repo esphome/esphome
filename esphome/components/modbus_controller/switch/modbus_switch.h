@@ -8,37 +8,27 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem, public ModbusControllerDevice {
+class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem, public WriterEntity {
  public:
   ModbusSwitch(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-               uint16_t skip_updates, RangeReuse reuse_previous_range) {
+               bool force_new_range) {
     this->register_type = register_type;
-    this->SensorItem::set_address(start_address);
+    this->set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
-    this->skip_updates = skip_updates;
-    // Apply the configured byte offset byte-accurately (the same meaning as on sensor/number). For holding
-    // registers a byte offset is folded into the address as a whole-register shift plus a residual byte, so
-    // both the write (write_address()) and the state read-back target the right register; an odd residual
-    // straddles into the next register (see register_width()). For coils the offset is a coil count.
+    this->register_count = 1;
+    // A holding byte offset folds into the address as whole registers (odd offsets are rejected at
+    // validation: a 16-bit register write cannot target half a register); a coil offset is a coil count.
     if (register_type == modbus::EntityType::HOLDING) {
-      this->SensorItem::set_address(start_address + offset / 2);
-      this->set_offset_from_start_address(offset % 2);
+      this->set_address(start_address + offset / 2);
+      this->set_offset_from_start_address(0);
     } else if (register_type == modbus::EntityType::COIL) {
-      this->SensorItem::set_address(start_address + offset);
+      this->set_address(start_address + offset);
       this->set_offset_from_start_address(0);
     }
-    this->reuse_previous_range = reuse_previous_range;
+    this->force_new_range = force_new_range;
   };
-
-  /// An odd residual byte offset on a holding register straddles into the next register, so read one more.
-  uint16_t register_width() const override {
-    if (this->register_type == modbus::EntityType::HOLDING) {
-      return 1 + this->offset_from_start_address;
-    }
-    return 1;
-  }
   void setup() override;
   void write_state(bool state) override;
   void dump_config() override;
@@ -48,7 +38,7 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
   void set_parent(ModbusController *parent) { this->set_controller_(parent); }
 
   using transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, std::span<const uint8_t>);
-  using write_transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, ModbusWriteBytes &);
+  using write_transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, modbus::helpers::PduBuffer &);
   void set_template(transform_func_t f) { this->publish_transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
