@@ -334,6 +334,7 @@ def prepare_pch() -> None:
             "Could not read %s; compiling without the pch: %s", sdkconfig_path, err
         )
         pch.discard_pch(CORE.relative_build_path("build"))
+        pch.pch_degraded(f"sdkconfig unreadable: {err}")
         return
     pch.prepare_pch(
         CORE.relative_build_path("build"),

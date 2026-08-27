@@ -539,6 +539,10 @@ def run_compile(config, verbose: bool) -> int:
         # Discard so a stale .gch can never be consumed
         with suppress(OSError):
             discard_pch()
+        from esphome.build_helpers.pch import pch_strict
+
+        if pch_strict():
+            raise
         _LOGGER.warning(
             "Precompiled header setup failed; compiling without it", exc_info=True
         )

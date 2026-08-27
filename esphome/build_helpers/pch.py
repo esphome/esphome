@@ -407,6 +407,7 @@ def prepare_pch(
                 -result.returncode,
             )
             discard_pch(build_dir)
+            pch_degraded(f"compile killed by signal {-result.returncode}")
             return
         if result.returncode != 0:
             error = result.stderr.strip() or f"exit code {result.returncode}"

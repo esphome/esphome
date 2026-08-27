@@ -160,9 +160,10 @@ def _read_stamp(path: Path) -> str:
 
 def _setup_pch() -> bool | None:
     if projenv is None:
-        # Expected under -t nobuild; anything else must leave a trail
+        # Expected under -t nobuild (nothing compiles), so not a degrade
+        # even in strict mode; anything else still leaves a trail
         print(f"ESPHome: projenv unavailable ({_projenv_error}); skipping pch")
-        return
+        return True
     # Project root: SCons compiles run here, so the relative -include
     # resolves; an absolute path would break cross-device ccache sharing.
     proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821

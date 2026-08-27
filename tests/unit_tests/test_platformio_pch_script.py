@@ -462,8 +462,32 @@ def test_pch_script_unreadable_local_header_skips_pch(
 
 def test_pch_script_strict_raises_when_pch_not_used(tmp_path: Path) -> None:
     """ESPHOME_PCH_STRICT fails the build instead of degrading."""
-    with pytest.raises(Exception, match="ESPHOME_PCH_STRICT|boom"):
+    with pytest.raises(RuntimeError, match="ESPHOME_PCH_STRICT"):
         _run_script(tmp_path, fail=True, env_vars={"ESPHOME_PCH_STRICT": "1"})
+
+
+def test_pch_script_strict_reraises_internal_errors(tmp_path: Path) -> None:
+    """The catch-all must not swallow programming errors in strict mode."""
+    with pytest.raises(TypeError):
+        _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "1"}, platform_cls=None)
+
+
+def test_pch_script_strict_allows_nobuild_skip(tmp_path: Path) -> None:
+    """-t nobuild compiles nothing; the skip is expected even in strict."""
+    proj = tmp_path / "dev"
+    (proj / "src").mkdir(parents=True)
+
+    def strict_import(*names: str) -> None:
+        if "projenv" in names:
+            raise RuntimeError("Import of non-existent variable 'projenv'")
+
+    env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
+    with patch.dict(os.environ, {"ESPHOME_PCH_STRICT": "1"}, clear=True):
+        exec(  # noqa: S102
+            compile(_SCRIPT.read_text(), "pch.py", "exec"),
+            {"Import": strict_import, "env": env},
+        )
+    assert not (proj / "esphome_pch.h").exists()
 
 
 def test_pch_script_strict_passes_on_success(tmp_path: Path) -> None:
