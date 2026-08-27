@@ -119,8 +119,12 @@ jobs:
       # pushed image) keeps it working for fork PRs, which never push to ghcr.io.
       - name: Export image for compile-test
         if: matrix.os == 'ubuntu-24.04' && matrix.build_type == 'docker'
-        # zstd over gzip: docker load auto-detects it, and every compile-test
-        # job pays the decompress (single-threaded gunzip took ~18s per job)
+        # zstd over gzip: docker save is on the critical path for every
+        # compile-test job, and zstd -T0 is multithreaded (export 50s -> 9s).
+        # docker load auto-detects the format; its time is layer extraction,
+        # not decompression, so it is unchanged. shell: bash adds pipefail so
+        # a failed docker save cannot upload a truncated artifact.
+        shell: bash
         run: docker save "ghcr.io/esphome/esphome-amd64:${{ steps.tag.outputs.tag }}" | zstd -T0 -3 > compile-test-image.tar.zst
 
       - name: Upload compile-test image artifact
