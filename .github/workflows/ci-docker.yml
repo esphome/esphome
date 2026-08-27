@@ -201,6 +201,17 @@ jobs:
           - ln882x-arduino
           - nrf52
           - host
+        # Fail the job if the precompiled header silently degrades on the
+        # platforms where it must work (libretiny needs a toolchain bump)
+        include:
+          - id: esp8266-arduino
+            pch_strict: "1"
+          - id: esp32-idf-esp-idf
+            pch_strict: "1"
+          - id: esp32-arduino-esp-idf
+            pch_strict: "1"
+          - id: rp2040-arduino
+            pch_strict: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Download image artifact
@@ -212,6 +223,7 @@ jobs:
       - name: Compile ${{ matrix.id }}
         run: |
           docker run --rm \
+            -e ESPHOME_PCH_STRICT="${{ matrix.pch_strict || '0' }}" \
             -v "${{ github.workspace }}/docker/test_configs:/config" \
             "ghcr.io/esphome/esphome-amd64:${{ needs.check-docker.outputs.tag }}" \
             compile "${{ matrix.id }}.yaml"

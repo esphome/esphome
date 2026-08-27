@@ -158,7 +158,7 @@ def _read_stamp(path: Path) -> str:
         return ""
 
 
-def _setup_pch() -> None:
+def _setup_pch() -> bool | None:
     if projenv is None:
         # Expected under -t nobuild; anything else must leave a trail
         print(f"ESPHome: projenv unavailable ({_projenv_error}); skipping pch")
@@ -355,10 +355,20 @@ def _setup_pch() -> None:
     )
     projenv["ENV"].update(ccache_updates)  # noqa: F821
     print("ESPHome: Compiling with precompiled header")
+    return True
 
 
+_strict = os.environ.get("ESPHOME_PCH_STRICT", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
 try:
-    _setup_pch()
+    if not _setup_pch() and _strict:
+        raise RuntimeError("ESPHOME_PCH_STRICT: precompiled header was not used")
 except Exception:  # noqa: BLE001 -- a speedup must never break the build
+    if _strict:
+        raise
     print("ESPHome: pch internal error; compiling without it")
     traceback.print_exc()

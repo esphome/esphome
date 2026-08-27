@@ -458,3 +458,14 @@ def test_pch_script_unreadable_local_header_skips_pch(
     assert not (proj / "esphome_pch.h.gch.sum").exists()
     assert scons_env.prepended == []
     assert "skipping precompiled header" in capsys.readouterr().out
+
+
+def test_pch_script_strict_raises_when_pch_not_used(tmp_path: Path) -> None:
+    """ESPHOME_PCH_STRICT fails the build instead of degrading."""
+    with pytest.raises(Exception, match="ESPHOME_PCH_STRICT|boom"):
+        _run_script(tmp_path, fail=True, env_vars={"ESPHOME_PCH_STRICT": "1"})
+
+
+def test_pch_script_strict_passes_on_success(tmp_path: Path) -> None:
+    scons_env = _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "1"})
+    assert scons_env.prepended

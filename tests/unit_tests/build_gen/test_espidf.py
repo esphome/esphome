@@ -1078,3 +1078,22 @@ def test_prepare_pch_transient_compiler_failure_does_not_latch(
         prepare_pch()
     assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
     assert len(calls) == 2
+
+
+def test_prepare_pch_strict_raises_on_missing_db(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ESPHOME_PCH_STRICT turns the silent skip into a failure."""
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    dev = _make_pch_device(tmp_path, "dev_st")
+    (dev / "build" / "compile_commands.json").unlink()
+    CORE.build_path = dev
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
+        pytest.raises(EsphomeError, match="no usable compile command"),
+    ):
+        prepare_pch()

@@ -216,3 +216,29 @@ def test_ccache_pch_env_warns_on_falsy_extsum(
         env = pch.ccache_pch_env()
     assert "CCACHE_PCH_EXTSUM" not in env
     assert "disables pch caching" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, False), ("0", False), ("1", True), ("true", True)],
+)
+def test_pch_strict(
+    value: str | None, expected: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if value is None:
+        monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+    else:
+        monkeypatch.setenv("ESPHOME_PCH_STRICT", value)
+    assert pch.pch_strict() is expected
+
+
+def test_pch_degraded_raises_only_in_strict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from esphome.core import EsphomeError
+
+    monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+    pch.pch_degraded("reason")
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    with pytest.raises(EsphomeError, match="reason"):
+        pch.pch_degraded("reason")

@@ -102,6 +102,19 @@ def pch_enabled() -> bool:
     return parse_enable_env("ESPHOME_PCH_ENABLE") is not False
 
 
+def pch_strict() -> bool:
+    """CI knob: ``ESPHOME_PCH_STRICT=1`` turns pch degrade paths fatal."""
+    return parse_enable_env("ESPHOME_PCH_STRICT") is True
+
+
+def pch_degraded(reason: str) -> None:
+    """Every degrade path funnels through here; strict mode raises."""
+    if pch_strict():
+        from esphome.core import EsphomeError
+
+        raise EsphomeError(f"ESPHOME_PCH_STRICT: {reason}")
+
+
 def ccache_pch_env() -> dict[str, str]:
     """Settings ccache needs to cache compiles that consume the .gch;
     empty unless this build actually emitted one. User-set values win.
@@ -333,6 +346,7 @@ def prepare_pch(
     if cmd_and_dir is None:
         # Freshness cannot be validated; a leftover .gch must not be consumed
         discard_pch(build_dir)
+        pch_degraded("no usable compile command")
         return
     cmd, cmd_dir = cmd_and_dir
     # Strip like ccache's rewriting (user CCACHE_BASEDIR wins); the raw
@@ -359,6 +373,7 @@ def prepare_pch(
             "Could not establish the pch identity; compiling without it: %s", err
         )
         discard_pch(build_dir)
+        pch_degraded(f"identity unknown: {err}")
         return
     if gch.is_file() and _read_stamp(sum_path) == checksum:
         _log_pch_in_use()
@@ -369,6 +384,7 @@ def prepare_pch(
             "Precompiled header disabled after an earlier failure; delete %s to retry",
             failed_marker,
         )
+        pch_degraded("earlier failure latched")
         return
     _log_pch_in_use()
     try:
@@ -400,6 +416,7 @@ def prepare_pch(
         # Transient (timeout, spawn/IO): warn and retry next build, no marker
         _LOGGER.warning("Precompiled header compile did not run: %s", err)
         discard_pch(build_dir)
+        pch_degraded(f"compile did not run: {err}")
         return
     if error is not None:
         _LOGGER.warning(
@@ -410,10 +427,12 @@ def prepare_pch(
         discard_pch(build_dir)
         if any(m in error for m in _TRANSIENT_ERRORS):
             # Resource exhaustion clears on its own; retry next build
+            pch_degraded(f"transient compile failure: {error[:200]}")
             return
         # Skip retries until a header/flag/backend-identity/command change
         failed_marker.write_text(checksum + "\n", encoding="utf-8")
         os.utime(header)
+        pch_degraded(f"compile failed: {error[:200]}")
         return
     failed_marker.unlink(missing_ok=True)
     sum_path.write_text(checksum + "\n", encoding="utf-8")

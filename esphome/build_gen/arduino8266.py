@@ -39,6 +39,7 @@ from esphome.build_helpers.pch import (
     PCH_HEADER_NAME,
     mark_pch_emitted,
     pch_checksum,
+    pch_degraded,
     pch_enabled,
     pch_header_text,
 )
@@ -1230,6 +1231,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             "A -include in build_flags prevents the precompiled header from "
             "loading; compiling without it"
         )
+        pch_degraded("a user -include precedes the pch")
     elif pch_enabled():
         # C++ src edges swap the force-includes for one precompiled prefix
         # header (same content plus defines.h); C/assembly keep srcflags
@@ -1263,6 +1265,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             _LOGGER.warning(
                 "Could not establish the pch identity; compiling without it: %s", err
             )
+            pch_degraded(f"identity unknown: {err}")
         else:
             _LOGGER.info(
                 "Compiling with a precompiled header "

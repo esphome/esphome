@@ -1842,3 +1842,17 @@ def test_write_project_pch_no_device_path_poison(tmp_path: Path) -> None:
             (CORE.relative_pioenvs_path(name) / "esphome_pch.h.gch.sum").read_text()
         )
     assert sums[0] == sums[1]
+
+
+def test_write_project_pch_strict_raises_on_skip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    paths = _make_framework(tmp_path)
+    _set_flags(
+        "-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH", "-include foo.h"
+    )
+    with pytest.raises(EsphomeError, match="precedes the pch"):
+        _write_ninja(paths, ccache="/usr/bin/ccache")
