@@ -1463,7 +1463,7 @@ def test_prefetch_reconfigures_only_after_platform_installs(
 def test_prefetch_settle_failure_warns_and_continues(
     tmp_path: Path, caplog: pytest.LogCaptureFixture, err: BaseException
 ) -> None:
-    """A failing second configure pass, even a postinstall's exit, only costs the speedup."""
+    """A failing second configure pass only costs the speedup."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     fake_platform = MagicMock()
     fake_platform.packages = {}

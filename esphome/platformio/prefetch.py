@@ -928,12 +928,9 @@ def _prefetch(build_dir: Path, env: str) -> None:
                 _LOGGER.debug("Pre-install group failure detail", exc_info=True)
     if platform_packages_installed:
         # pioarduino installs its real toolchains from configure (the registry
-        # package is a stub); settle that here so pio run does not reinstall
-        # the stubs and copy every toolchain again. Off the main thread so a
-        # SIGTERM joins the worker instead of interrupting a copy mid-way;
-        # exception() also keeps a postinstall's SystemExit from ending the
-        # child after a successful prefetch
+        # package is a stub); settle that here so pio run does not redo it
         with _preserved_sys_path(), ThreadPoolExecutor(max_workers=1) as ex:
+            # A worker so SIGTERM joins it; exception() so a postinstall exit only warns
             err = ex.submit(p.configure_project_packages, env, ["run"]).exception()
         if err is not None:
             _LOGGER.warning(
