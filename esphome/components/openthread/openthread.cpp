@@ -260,7 +260,6 @@ bool OpenThreadComponent::teardown() {
       int error = this->openthread_stop_();
       if (error != 0) {
         ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
-        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
       }
     } break;
     case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
