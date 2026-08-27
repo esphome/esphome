@@ -26,8 +26,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, config
 from esphome.core.config import (
-    Area,
     CONF_SUSPEND_LOOP,
+    Area,
     make_app_name_cpp,
     preload_core_config,
     valid_include,
