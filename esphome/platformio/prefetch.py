@@ -832,9 +832,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
         for name, opts in p.packages.items()
         if not opts.get("optional")
     ]
-    # PIO's build engine installs tool-scons by its own registry spec at
-    # build start and replaces any other install of it (a platform URL one
-    # has no owner to match), so prefetch that spec instead of the platform's
+    # PIO's build engine installs tool-scons by its own registry spec at build
+    # start; a platform URL copy has no owner to match it, so prefetch that spec
     specs = [s for s in specs if s.name != "tool-scons"]
     specs.append(
         PackageSpec(

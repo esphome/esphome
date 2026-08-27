@@ -1785,6 +1785,10 @@ def test_platformio_private_api_contract() -> None:
         assert callable(getattr(BasePackageManager, name))
     # The dependency wave mirrors install_dependency's builtin skip
     assert callable(LibraryPackageManager.is_builtin_lib)
+    # The prefetch keys tool-scons on this core dependency
+    from platformio.dependencies import get_core_dependencies
+
+    assert "tool-scons" in get_core_dependencies()
     # The pre-install passes these positionally / by keyword
     assert "compatibility" in inspect.signature(BasePackageManager.__init__).parameters
     lib_params = inspect.signature(LibraryPackageManager.__init__).parameters
