@@ -358,6 +358,7 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_stm32l4=4,  # 128KB RAM, fail fast like esp8266 rather than buffer
                 zephyr_stm32f4=4,  # 96KB RAM (nucleo_f401re), same tier as stm32l4
                 zephyr_ra4m1=4,  # 32KB RAM -- fail fast, same tier as esp8266
+                zephyr_stm32f1=2,  # 20KB RAM (nucleo_f103rb) -- tightest zephyr RAM budget yet
             ): cv.int_range(min=1, max=64),
         }
     ).extend(cv.COMPONENT_SCHEMA),
