@@ -537,9 +537,11 @@ def run_compile(config, verbose: bool) -> int:
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         from esphome.build_helpers.pch import pch_strict
 
+        # Strict first: its own knob error must not mask the real failure
+        strict = pch_strict()
         # Raises itself if a stale .gch survives (silently wrong output)
         discard_pch()
-        if pch_strict():
+        if strict:
             raise
         _LOGGER.warning(
             "Precompiled header setup failed; compiling without it", exc_info=True

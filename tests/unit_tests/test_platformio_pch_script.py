@@ -295,15 +295,17 @@ def test_pch_script_spawn_failure_is_transient(
     assert "did not run" in capsys.readouterr().out
 
 
-def test_pch_script_probe_environment_failure_does_not_latch(
-    tmp_path: Path,
+def test_pch_script_probe_baseline_failure_latches_with_honest_label(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Probe AND baseline failing is environmental: no marker, retry."""
+    """Probe AND baseline failing is a deterministic environment problem:
+    latch, but blame the environment rather than the pch."""
     scons_env = _run_script(tmp_path, probe_exit=1)
     proj = tmp_path / "dev"
     assert not (proj / "esphome_pch.h.gch").exists()
-    assert not (proj / "esphome_pch.h.gch.failed").exists()
+    assert (proj / "esphome_pch.h.gch.failed").is_file()
     assert scons_env.prepended == []
+    assert "probe cannot run at all" in capsys.readouterr().out
 
 
 def test_pch_script_unresolved_package_version_skips_pch(tmp_path: Path) -> None:
@@ -464,6 +466,27 @@ def test_pch_script_unreadable_local_header_skips_pch(
     assert "skipping precompiled header" in capsys.readouterr().out
 
 
+def test_pch_script_rejects_unrecognized_strict_value(tmp_path: Path) -> None:
+    """A typo'd knob must fail the build, not silently disable the gate."""
+    with pytest.raises(RuntimeError, match="Unrecognized ESPHOME_PCH_STRICT"):
+        _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "yolo"})
+
+
+def test_pch_script_strict_tables_match_helpers(tmp_path: Path) -> None:
+    """The script's mirrored spelling tables must not drift."""
+    from esphome.helpers import FALSY_ENV_STRINGS, TRUTHY_ENV_STRINGS
+
+    proj = tmp_path / "dev"
+    (proj / "src").mkdir(parents=True)
+    env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
+    namespace = {"Import": lambda *_names: None, "env": env, "projenv": env}
+    with patch.dict(os.environ, {}, clear=True):
+        exec(compile(_SCRIPT.read_text(), "pch.py", "exec"), namespace)  # noqa: S102
+    assert set(namespace["_TRUTHY"]) == set(TRUTHY_ENV_STRINGS)
+    # parse_enable_env handles the empty string separately
+    assert set(namespace["_FALSY"]) - {""} == set(FALSY_ENV_STRINGS)
+
+
 def test_pch_script_strict_reprobes_cached_gch(tmp_path: Path) -> None:
     """Rejection is per-process: strict re-proves a cached .gch loads."""
     _run_script(tmp_path)
@@ -491,8 +514,12 @@ def test_pch_script_strict_fails_without_scons(tmp_path: Path) -> None:
         if "projenv" in names:
             raise RuntimeError("Import of non-existent variable 'projenv'")
 
+    import sys
+
     env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
     with (
+        # None forces ImportError even where SCons is installed
+        patch.dict(sys.modules, {"SCons.Script": None}),
         patch.dict(os.environ, {"ESPHOME_PCH_STRICT": "1"}, clear=True),
         pytest.raises(RuntimeError, match="not used"),
     ):
