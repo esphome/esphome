@@ -927,3 +927,41 @@ def test_install_packages_caps_workers(tmp_path: Path) -> None:
     ):
         registry.install_packages(specs, dl)
     assert batch.call_args.kwargs["max_workers"] == 10
+
+
+def test_install_package_batched_refetch_announced_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batched archive that fails verification and refetches is announced;
+    a verify no-op (full size credited immediately) stays silent."""
+    dest = tmp_path / "pkg"
+    (tmp_path / "dl").mkdir()
+    (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
+    with (
+        caplog.at_level(logging.INFO),
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(registry, "archive_extract_all") as mock_extract,
+        patch.object(
+            registry,
+            "registry_download",
+            return_value=("http://x/pkg.tar.gz", "abc123", 42),
+        ),
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            [],
+            tmp_path / "dl",
+            expect=("payload",),
+            extract_progress=lambda _frac: None,
+        )
+        progress = mock_download.call_args[1]["progress"]
+        progress(42)
+        assert "Re-downloading pkg 1.0.0" not in caplog.text
+        progress(10)
+        progress(20)
+    assert caplog.text.count("Re-downloading pkg 1.0.0") == 1

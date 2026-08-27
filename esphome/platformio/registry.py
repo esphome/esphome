@@ -323,13 +323,23 @@ def install_package(
             )
         else:
             url, sha256, size = registry_download(name, version)
-            # Batched: no private bar, no bytes (the shared bar must never
-            # run backwards), but the zero tick keeps cancellation observable
-            download_progress = (
-                None
-                if extract_progress is None
-                else lambda _done: extract_progress(0.0)
-            )
+            if extract_progress is None:
+                download_progress = None
+            else:
+                announced = False
+
+                # Batched: no private bar, no bytes (the shared bar must
+                # never run backwards); the zero tick keeps cancellation
+                # observable and a real refetch is announced once
+                def _batched_progress(done: int) -> None:
+                    nonlocal announced
+                    if not announced and size and done < size:
+                        _LOGGER.info("Re-downloading %s %s ...", name, version)
+                        announced = True
+                    extract_progress(0.0)
+
+                download_progress = _batched_progress
+
             download_with_resume(
                 url, archive, sha256=sha256, size=size, progress=download_progress
             )

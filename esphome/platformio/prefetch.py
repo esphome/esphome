@@ -32,6 +32,7 @@ import time
 from typing import Any, NamedTuple
 
 from esphome.framework_helpers import (
+    BATCH_EXTRACT_WORKERS,
     content_length,
     discard_partial_download,
     failure_reason,
@@ -681,7 +682,7 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    workers = min(get_usable_cpu_count(), len(entries))
+    workers = min(get_usable_cpu_count(), len(entries), BATCH_EXTRACT_WORKERS)
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
