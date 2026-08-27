@@ -457,7 +457,11 @@ def prepare_pch(
         refuse to load (per-process ASLR). Dep flags are already stripped
         from cmd, so no -MF is needed; cmd ends with the fixed
         "-x c++-header -c -o" tail."""
-        probe = _run([*cmd[:-6], *pch_probe_args(str(header))], "probe")
+        # The fixed tail pch_compile_command appends; the slice below
+        # depends on it
+        assert cmd[-6:-4] == ["-x", "c++-header"], cmd[-6:]
+        # fatal: rejection must be a nonzero exit, not a wording match
+        probe = _run([*cmd[:-6], *pch_probe_args(str(header), fatal=True)], "probe")
         if probe is None:
             return
         if probe.returncode != 0 or ".gch" in probe.stderr:

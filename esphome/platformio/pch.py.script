@@ -26,6 +26,15 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
 # Compiler failures that clear on their own must not latch the .failed marker
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
 
+# Keep in sync with helpers.TRUTHY_ENV_STRINGS
+_STRICT = os.environ.get("ESPHOME_PCH_STRICT", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+    "enable",
+)
+
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 _CORE_HEADER = "esphome/core/defines.h"
 
@@ -118,6 +127,11 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
         raise OSError(f"compiler killed by signal {-result.returncode}")
     if result.returncode != 0:
         return result.stderr
+    return _probe_gch(cxx, flags, header, proj_dir)
+
+
+def _probe_gch(cxx, flags, header: Path, proj_dir: Path):
+    """Load-check an existing .gch; error string or None."""
     # -MF is only legal alongside a dependency flag; pass it solely to
     # redirect a depfile that -MD/-MMD in the flags would otherwise write
     dep_redirect = (
@@ -165,8 +179,9 @@ def _setup_pch() -> bool | None:
         try:
             from SCons.Script import COMMAND_LINE_TARGETS
         except ImportError:
-            # No SCons: cannot tell, stay lenient
-            return True
+            # No SCons is an anomaly under PlatformIO: strict must not
+            # read the unknown state as success
+            return not _STRICT
         # Expected under -t nobuild (nothing compiles); a missing
         # projenv on a real compile must not pass strict
         return "nobuild" in [str(t) for t in COMMAND_LINE_TARGETS]
@@ -293,12 +308,22 @@ def _setup_pch() -> bool | None:
     checksum = digest.hexdigest()
 
     # The ccache .sum sidecar doubles as the freshness stamp
-    if (
-        not header.is_file()
-        or not gch.is_file()
-        or not sum_path.is_file()
-        or (_read_stamp(sum_path) != checksum)
-    ):
+    fresh = (
+        header.is_file()
+        and gch.is_file()
+        and sum_path.is_file()
+        and (_read_stamp(sum_path) == checksum)
+    )
+    if fresh and _STRICT:
+        # Rejection is per-process: strict re-proves a cached .gch loads
+        # (mirrors the pch_strict() re-probe in build_helpers/pch.py)
+        error = _probe_gch(cxx, flags, header, proj_dir)
+        if error is not None:
+            print(f"ESPHome: {error}")
+            gch.unlink(missing_ok=True)
+            sum_path.unlink(missing_ok=True)
+            return
+    if not fresh:
         failed_marker = Path(f"{gch}.failed")
         if _read_stamp(failed_marker) == checksum:
             print(
@@ -365,21 +390,14 @@ def _setup_pch() -> bool | None:
     return True
 
 
-# Keep in sync with helpers.TRUTHY_ENV_STRINGS
-_strict = os.environ.get("ESPHOME_PCH_STRICT", "").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-    "enable",
-)
+
 try:
     _used = _setup_pch()
 except Exception:  # noqa: BLE001 -- a speedup must never break the build
-    if _strict:
+    if _STRICT:
         raise
     print("ESPHome: pch internal error; compiling without it")
     traceback.print_exc()
 else:
-    if _strict and not _used:
+    if _STRICT and not _used:
         raise RuntimeError("ESPHOME_PCH_STRICT: precompiled header was not used")

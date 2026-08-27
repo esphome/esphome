@@ -1288,9 +1288,15 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             if src_other:
                 lines.append(f"  flags = {' '.join(src_other)}")
             # Relative -include: absolute would break cross-device ccache.
-            # -Wno-error keeps a rejected .gch a warning under user -Werror
+            # -Wno-error keeps a rejected .gch a warning under user -Werror;
+            # strict inverts it so any consumer rejection reds the build
+            # (rejection is per-process, so the probe alone cannot prove
+            # the consumers)
+            escalation = (
+                "-Werror=invalid-pch" if pch_strict() else "-Wno-error=invalid-pch"
+            )
             cxx_parts = src_other + [
-                f"-Winvalid-pch -Wno-error=invalid-pch -include {PCH_HEADER_NAME}"
+                f"-Winvalid-pch {escalation} -include {PCH_HEADER_NAME}"
             ]
             lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
             pch_dep = gch
@@ -1305,6 +1311,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                     " && $python $buildtool touch $out"
                 )
                 lines.append("  description = PCHPROBE $out")
+                # Runs when the .gch is (re)built; strict consumer -Werror
+                # covers a cached .gch this process cannot load
                 lines.append(f"build esphome_pch.probe: pchprobe {gch}")
                 if src_other:
                     lines.append(f"  flags = {' '.join(src_other)}")
