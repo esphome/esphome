@@ -320,8 +320,7 @@ def _tar_extract_all(
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
-        progress: If set, receives fractions in [0, 1] ending at 1.0 and
-            overrides ``progress_header``
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
     """
     import tarfile
 
@@ -402,8 +401,7 @@ def _zip_extract_all(
         data: File-like object containing the ZIP archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
-        progress: If set, receives fractions in [0, 1] ending at 1.0 and
-            overrides ``progress_header``
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
     """
     import zipfile
 
@@ -502,8 +500,7 @@ def _7z_extract_all(
         data: File-like object containing the 7z archive (must be seekable)
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
-        progress: If set, called with 1.0 on completion and overrides
-            ``progress_header``
+        progress: called with 1.0 on completion; overrides progress_header
     """
     import py7zr
 
@@ -590,8 +587,7 @@ def archive_extract_all(
         archive: Path to archive file or file-like object
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
-        progress: If set, receives fractions in [0, 1] ending at 1.0 and
-            overrides ``progress_header``
+        progress: fraction callback (0..1, ends at 1.0); overrides progress_header
 
     Raises:
         TypeError: If archive is not a valid type

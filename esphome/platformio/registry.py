@@ -304,9 +304,8 @@ def install_package(
         # Persistent location so an interrupted download resumes across runs.
         downloads_dir.mkdir(parents=True, exist_ok=True)
         archive = _archive_path(downloads_dir, name, version)
-        # The batch header already names each package; a batched archive that
-        # unexpectedly needs a real download keeps the INFO line, since the
-        # shared bar shows no progress for it
+        # Batch header names each package; keep INFO when an archive
+        # unexpectedly needs a real download (the shared bar won't move)
         log = (
             _LOGGER.debug
             if extract_progress is not None and archive.is_file()
@@ -346,12 +345,9 @@ def install_package(
 
 
 def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> None:
-    """Install several packages, extracting verified archives in parallel.
-
-    Prefetched archives extract concurrently under one shared bar; the rest
-    (marker hits, mirror overrides, missing archives) take the sequential
-    ``install_package`` path. The first failure is re-raised.
-    """
+    """Install several packages; prefetched archives extract in parallel under
+    one shared bar, the rest take the sequential ``install_package`` path.
+    The first failure is re-raised."""
     pending: list[tuple[PackageSpec, int]] = []
     rest: list[PackageSpec] = []
     seen: set[str] = set()
