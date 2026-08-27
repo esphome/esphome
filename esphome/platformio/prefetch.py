@@ -811,11 +811,11 @@ def _prefetch(build_dir: Path, env: str) -> None:
 
     # The platform (manifest plus build scripts) installs first and
     # resolves the rest
-    pm = PlatformPackageManager()
-    _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
-    pkg = pm.install(platform_spec, skip_dependencies=True)
-    p = PlatformFactory.new(pkg)
     with _preserved_sys_path():
+        pm = PlatformPackageManager()
+        _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
+        pkg = pm.install(platform_spec, skip_dependencies=True)
+        p = PlatformFactory.new(pkg)
         p.configure_project_packages(env, ["run"])
 
     specs = [
@@ -856,9 +856,9 @@ def _prefetch(build_dir: Path, env: str) -> None:
 
     seen: set[str] = set()
     jobs: list[tuple[str, int, Any]] = []
-    groups: list[tuple[Any, list[tuple[str, Any]]]] = []
+    groups: list[tuple[Any, list[tuple[str, Any]], bool]] = []
     unresolved = 0
-    for mgr, batch in ((p.pm, specs), (lm, lib_specs)):
+    for mgr, batch, is_platform in ((p.pm, specs, True), (lm, lib_specs, False)):
         entries: list[tuple[str, Any]] = []
         for build_jobs in (_registry_jobs, _uri_jobs):
             batch_jobs, failed, installable = build_jobs(mgr, batch, seen)
@@ -866,7 +866,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             unresolved += failed
             entries += installable
         if entries:
-            groups.append((mgr, entries))
+            groups.append((mgr, entries, is_platform))
 
     sentinel = build_dir / _SENTINEL_NAME
     if jobs or groups:
@@ -896,7 +896,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         )
 
     platform_packages_installed = False
-    for mgr, entries in groups:
+    for mgr, entries, is_platform in groups:
         # One install per destination: pio derives the directory from
         # the package name, so key on the name part
         to_install = {
@@ -907,7 +907,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         if to_install:
             try:
                 _preinstall(mgr, list(to_install.values()))
-                if mgr is p.pm:
+                if is_platform:
                     platform_packages_installed = True
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Each group degrades independently; pio run installs

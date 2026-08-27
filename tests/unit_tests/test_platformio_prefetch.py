@@ -1457,6 +1457,36 @@ def test_prefetch_reconfigures_only_after_platform_installs(
     assert order == expected
 
 
+def test_prefetch_settle_failure_warns_and_continues(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failing second configure pass only costs the speedup."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    fake_platform.configure_project_packages.side_effect = [
+        None,
+        RuntimeError("idf_tools.py failed"),
+    ]
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf,
+            "_registry_jobs",
+            side_effect=[
+                ([], 0, [("toolchain-x@1", _FakeSpec(name="toolchain-x"))]),
+                ([], 0, []),
+            ],
+        ),
+        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
+        patch.object(pf, "_preinstall"),
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    assert "Could not settle platform packages: idf_tools.py failed" in caplog.text
+
+
 def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
     """The manager lock wraps the whole batch; per-thread managers share
     its package dir; one failing install leaves the rest alone."""
