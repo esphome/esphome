@@ -255,8 +255,7 @@ bool SafeModeComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t en
 }
 
 void SafeModeComponent::write_rtc_(uint32_t val) {
-  bool ok = this->rtc_.save(&val);
-  if (!ok) {
+  if (!this->rtc_.save(&val)) {
     ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
     return;
   }
