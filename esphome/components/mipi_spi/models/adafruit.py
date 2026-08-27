@@ -13,6 +13,7 @@ ST7789V.extend(
     mirror_x=True,
     mirror_y=True,
     data_rate="80MHz",
+    requires={"psram"},
 )
 
 ST7789V.extend(
@@ -25,4 +26,5 @@ ST7789V.extend(
     dc_pin=39,
     reset_pin=40,
     invert_colors=True,
+    requires={"psram"},
 )

@@ -8,7 +8,14 @@
 #include <vector>
 #include <memory>
 
+#if defined(USE_RP2) || defined(USE_LIBRETINY)
+namespace arduino {
 class UDP;
+}  // namespace arduino
+using arduino::UDP;  // NOLINT(google-global-names-in-headers)
+#else
+class UDP;
+#endif
 
 namespace esphome::wled {
 

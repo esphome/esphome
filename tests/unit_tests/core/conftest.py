@@ -12,7 +12,7 @@ def yaml_file(tmp_path: Path) -> Callable[[str], Path]:
 
     def _yaml_file(content: str) -> Path:
         yaml_path = tmp_path / "test.yaml"
-        yaml_path.write_text(content)
+        yaml_path.write_text(content, encoding="utf-8")
         return yaml_path
 
     return _yaml_file
