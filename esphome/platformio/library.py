@@ -35,6 +35,7 @@ from esphome.framework_helpers import (
     failure_reason,
     rmdir,
     run_batch_downloads,
+    warn_prefetch_failures,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -977,14 +978,10 @@ def _prefetch_wave(
                 for c in components
             ],
         )
-        for name, err in failures:
-            # The sequential call below retries and raises the real error
-            _LOGGER.warning(
-                "Prefetch of %s failed (retrying sequentially): %s",
-                name,
-                failure_reason(err),
-            )
-            _LOGGER.debug("Prefetch failure detail", exc_info=err)
+        # The sequential call below retries and raises the real error
+        warn_prefetch_failures(
+            failures, "Prefetch of %s failed (retrying sequentially): %s"
+        )
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Same policy as the ESP-IDF twin: the prefetch must never become a
         # new way for the build to fail

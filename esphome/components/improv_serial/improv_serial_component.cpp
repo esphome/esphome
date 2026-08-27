@@ -12,13 +12,17 @@
 #include "esphome/components/wifi/scan_list.h"
 #endif
 
+#include <array>
+
 namespace esphome::improv_serial {
 
 static const char *const TAG = "improv_serial";
 
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+  // Transport is a dedicated UART bus set via set_uart() in generated code
+#elif defined(USE_ESP32)
   this->uart_num_ = logger::global_logger->get_uart_num();
   this->uart_selection_ = logger::global_logger->get_uart();
 #elif defined(USE_ARDUINO)
@@ -72,8 +76,7 @@ void ImprovSerialComponent::loop() {
       this->cancel_timeout("wifi-connect-timeout");
       this->set_state_(improv::STATE_PROVISIONED);
 
-      std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::WIFI_SETTINGS);
-      this->send_response_(url);
+      this->send_settings_response_(improv::WIFI_SETTINGS);
     }
   }
 #endif
@@ -103,7 +106,13 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   }
   this->tx_header_[TX_CHECKSUM_IDX] = checksum;
 
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+  this->uart_->write_array(this->tx_header_, header_tx_len);
+  if (there_is_data) {
+    this->uart_->write_array(data, size);
+    this->uart_->write_array(&this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
+  }
+#elif defined(USE_ESP32)
   switch (this->uart_selection_) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
@@ -148,17 +157,14 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 #endif
 }
 
-void ImprovSerialComponent::collect_webserver_urls_(std::vector<std::string> &urls) {
 #ifdef USE_WEBSERVER
-  // The webserver listens on every interface, so advertise each one that has a
-  // usable IPv4. network::get_ip_addresses() can't be used here: it returns only
-  // the highest-priority interface's addresses, which are all-unset (0.0.0.0)
-  // when e.g. Ethernet has no link while the device is online via Wi-Fi — and
-  // 0.0.0.0 must not become the advertised URL. Collect per interface instead,
-  // skipping addresses that aren't set. OpenThread is deliberately omitted: it
-  // only ever has IPv6 addresses, which cannot form a usable IPv4 http:// URL.
-  // TODO: This section should be reworked once #14255 (and any related subsequent PRs) is merged.
-  const auto append_urls = [&urls](const network::IPAddresses &addresses) {
+void ImprovSerialComponent::add_webserver_urls_(improv::RpcResponseBuilder &builder) {
+  // The webserver listens on every interface, so advertise each one that has a usable IPv4.
+  // network::get_ip_addresses() can't be used here: it returns only the highest-priority
+  // interface's addresses, which are all-unset (0.0.0.0) when e.g. Ethernet has no link while
+  // the device is online via Wi-Fi, and 0.0.0.0 must not become the advertised URL. OpenThread
+  // is omitted: it only ever has IPv6 addresses, which cannot form an IPv4 http:// URL.
+  const auto append_urls = [&builder](const network::IPAddresses &addresses) {
     for (const auto &ip : addresses) {
       if (!ip.is_ip4() || !ip.is_set())
         continue;
@@ -166,8 +172,12 @@ void ImprovSerialComponent::collect_webserver_urls_(std::vector<std::string> &ur
       ip.str_to(ip_buf);
       // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
       char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
-      snprintf(webserver_url, sizeof(webserver_url), "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
-      urls.emplace_back(webserver_url);
+      // buf_append_printf keeps the format string in flash on ESP8266
+      size_t len =
+          buf_append_printf(webserver_url, sizeof(webserver_url), 0, "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
+      if (!builder.add_string(webserver_url, len)) {
+        ESP_LOGW(TAG, "Response full; URL dropped");
+      }
     }
   };
 #ifdef USE_ETHERNET
@@ -182,34 +192,65 @@ void ImprovSerialComponent::collect_webserver_urls_(std::vector<std::string> &ur
   if (wifi::global_wifi_component != nullptr)
     append_urls(wifi::global_wifi_component->get_ip_addresses());
 #endif
+}
 #endif  // USE_WEBSERVER
-}
 
-std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
-  std::vector<std::string> urls;
+void ImprovSerialComponent::send_settings_response_(improv::Command command) {
+  std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
+  improv::RpcResponseBuilder builder(buf, command);
 #ifdef USE_IMPROV_SERIAL_NEXT_URL
-  {
-    char url_buffer[384];
-    size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
-    if (len > 0) {
-      urls.emplace_back(url_buffer, len);
-    }
-  }
+  this->add_next_url_(builder, MAX_NEXT_URL_LEN);
 #endif
-  this->collect_webserver_urls_(urls);
-  std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
-  return data;
+#ifdef USE_WEBSERVER
+  this->add_webserver_urls_(builder);
+#endif
+  this->send_response_(builder.finish(false));
 }
 
-std::vector<uint8_t> ImprovSerialComponent::build_version_info_() {
+void ImprovSerialComponent::send_version_info_() {
+// Entry cost per field is sizeof(lit): a length byte plus the string
 #ifdef ESPHOME_PROJECT_NAME
-  std::vector<std::string> infos = {ESPHOME_PROJECT_NAME, ESPHOME_PROJECT_VERSION, ESPHOME_VARIANT, App.get_name()};
+  static constexpr size_t INFO_ENTRIES_LEN =
+      sizeof(ESPHOME_PROJECT_NAME) + sizeof(ESPHOME_PROJECT_VERSION) + sizeof(ESPHOME_VARIANT);
 #else
-  std::vector<std::string> infos = {"ESPHome", ESPHOME_VERSION, ESPHOME_VARIANT, App.get_name()};
+  static constexpr size_t INFO_ENTRIES_LEN = sizeof("ESPHome") + sizeof(ESPHOME_VERSION) + sizeof(ESPHOME_VARIANT);
 #endif
-  std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_DEVICE_INFO, infos, false);
-  return data;
-};
+  static_assert(INFO_ENTRIES_LEN < MAX_SERIAL_PAYLOAD,
+                "esphome project name and version too long for the improv_serial device info frame");
+  std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
+  improv::RpcResponseBuilder builder(buf, improv::GET_DEVICE_INFO);
+#ifdef USE_ESP8266
+  // Keep each literal in flash and copy it through an exact size stack buffer,
+  // so a long project name or version can never be truncated
+#define IMPROV_ADD_INFO(lit) \
+  do { \
+    static const char progmem_str[] PROGMEM = lit; \
+    char tmp[sizeof(lit)]; \
+    progmem_memcpy(tmp, progmem_str, sizeof(lit)); \
+    builder.add_string(tmp, sizeof(lit) - 1); \
+  } while (0)
+#else
+  // Literals are directly flash mapped on all other platforms
+#define IMPROV_ADD_INFO(lit) builder.add_string(lit, sizeof(lit) - 1)
+#endif
+#ifdef ESPHOME_PROJECT_NAME
+  IMPROV_ADD_INFO(ESPHOME_PROJECT_NAME);
+  IMPROV_ADD_INFO(ESPHOME_PROJECT_VERSION);
+#else
+  IMPROV_ADD_INFO("ESPHome");
+  IMPROV_ADD_INFO(ESPHOME_VERSION);
+#endif
+  IMPROV_ADD_INFO(ESPHOME_VARIANT);
+#undef IMPROV_ADD_INFO
+  // Only the device name length is unknown at compile time
+  const auto &name = App.get_name();
+  if (INFO_ENTRIES_LEN + 1 + name.size() <= MAX_SERIAL_PAYLOAD) {
+    builder.add_string(name.c_str(), name.size());
+  } else {
+    ESP_LOGW(TAG, "Response full; device name dropped");
+  }
+  this->send_response_(builder.finish(false));
+}
 
 bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
@@ -274,8 +315,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       }
       this->set_state_(this->state_);
       if (this->state_ == improv::STATE_PROVISIONED) {
-        std::vector<uint8_t> url = this->build_rpc_settings_response_(improv::GET_CURRENT_STATE);
-        this->send_response_(url);
+        this->send_settings_response_(improv::GET_CURRENT_STATE);
       }
 #else
       this->send_current_state_(improv::STATE_STOPPED);
@@ -283,11 +323,12 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       return true;
     }
     case improv::GET_DEVICE_INFO: {
-      std::vector<uint8_t> info = this->build_version_info_();
-      this->send_response_(info);
+      this->send_version_info_();
       return true;
     }
     case improv::GET_WIFI_NETWORKS: {
+      // Declared out here because the terminating empty response is sent with or without Wi-Fi
+      std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
 #ifdef USE_WIFI
       const auto &results = wifi::global_wifi_component->get_scan_result();
       for (const auto &scan : results) {
@@ -296,16 +337,20 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
           continue;
         // Send each ssid separately to avoid overflowing the buffer
         char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
-        *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
-        std::vector<uint8_t> data = improv::build_rpc_response(
-            improv::GET_WIFI_NETWORKS, {scan.get_ssid().str(), rssi_buf, YESNO(with_auth)}, false);
-        this->send_response_(data);
+        char *rssi_end = int8_to_str(rssi_buf, scan.get_rssi());
+        *rssi_end = '\0';
+        improv::RpcResponseBuilder builder(buf, improv::GET_WIFI_NETWORKS);
+        // SSID(32) + RSSI(4) + YESNO(3) entries always fit the payload
+        const auto &ssid = scan.get_ssid();
+        builder.add_string(ssid.c_str(), ssid.size());
+        builder.add_string(rssi_buf, rssi_end - rssi_buf);
+        builder.add_string(YESNO(with_auth));
+        this->send_response_(builder.finish(false));
       }
 #endif  // USE_WIFI
       // Send empty response to signify the end of the list.
-      std::vector<uint8_t> data =
-          improv::build_rpc_response(improv::GET_WIFI_NETWORKS, std::vector<std::string>{}, false);
-      this->send_response_(data);
+      improv::RpcResponseBuilder builder(buf, improv::GET_WIFI_NETWORKS);
+      this->send_response_(builder.finish(false));
       return true;
     }
     case improv::GET_NETWORK_STATE: {
@@ -327,14 +372,18 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
 #ifdef USE_MODEM
       flags |= improv::NETWORK_SUPPORTS_MODEM;
 #endif
-      std::vector<std::string> datum;
+      std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
+      improv::RpcResponseBuilder builder(buf, improv::GET_NETWORK_STATE);
+      // Every flag bit fits int8_t's positive range, so int8_to_str renders the byte
+      static_assert(improv::NETWORK_SUPPORTS_MODEM <= 0x7F, "network flags no longer fit int8_to_str");
       char flags_buf[4];  // uint8_t: max "255" + null
-      snprintf(flags_buf, sizeof(flags_buf), "%u", flags);
-      datum.emplace_back(flags_buf);
+      char *flags_end = int8_to_str(flags_buf, static_cast<int8_t>(flags));
+      builder.add_string(flags_buf, flags_end - flags_buf);
+#ifdef USE_WEBSERVER
       if (flags & improv::NETWORK_IS_ONLINE)
-        this->collect_webserver_urls_(datum);
-      std::vector<uint8_t> data = improv::build_rpc_response(improv::GET_NETWORK_STATE, datum, false);
-      this->send_response_(data);
+        this->add_webserver_urls_(builder);
+#endif
+      this->send_response_(builder.finish(false));
       return true;
     }
     default: {
@@ -362,7 +411,14 @@ void ImprovSerialComponent::set_error_(improv::Error error) {
   this->write_data_();
 }
 
-void ImprovSerialComponent::send_response_(std::vector<uint8_t> &response) {
+void ImprovSerialComponent::send_response_(std::span<const uint8_t> response) {
+  // The serial frame length field is a single byte
+  if (response.size() > MAX_SERIAL_RESPONSE) {
+    ESP_LOGE(TAG, "Response too long");
+    // Fail fast instead of leaving the client to wait out its timeout
+    this->set_error_(improv::ERROR_UNKNOWN);
+    return;
+  }
   this->tx_header_[TX_TYPE_IDX] = TYPE_RPC_RESPONSE;
   this->write_data_(response.data(), response.size());
 }

@@ -1,8 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import output
-from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE
+from esphome.components.modbus.helpers import (
+    SENSOR_VALUE_TYPE,
+    PduBuffer,
+    RegisterValues,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_MULTIPLY
+from esphome.types import ConfigType
 
 from .. import (
     ModbusItemBaseSchema,
@@ -73,7 +78,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     byte_offset, reg_count = modbus_calc_properties(config)
     # Binary Output
     write_template = None
@@ -89,7 +94,7 @@ async def to_code(config):
                 [
                     (ModbusBinaryOutput.operator("ptr"), "item"),
                     (cg.bool_, "x"),
-                    (cg.std_vector.template(cg.uint8).operator("ref"), "payload"),
+                    (PduBuffer.operator("ref"), "payload"),
                 ],
                 return_type=cg.optional.template(bool),
             )
@@ -109,7 +114,7 @@ async def to_code(config):
                 [
                     (ModbusFloatOutput.operator("ptr"), "item"),
                     (cg.float_, "x"),
-                    (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                    (RegisterValues.operator("ref"), "payload"),
                 ],
                 return_type=cg.optional.template(float),
             )
