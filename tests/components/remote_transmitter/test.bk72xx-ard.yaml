@@ -2,6 +2,7 @@ remote_transmitter:
   id: xmitr
   pin: GPIO26
   carrier_duty_percent: 50%
+  # non_blocking is bk7231n/bk7238-only; the CI board is a BK7252
 
 packages:
   buttons: !include common-buttons.yaml
