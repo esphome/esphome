@@ -1654,7 +1654,8 @@ message ListEntitiesMediaPlayerResponse {
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
 
-  bool supports_pause = 8;
+  // Deprecated in ESPHome 2026.9.0; use feature_flags instead.
+  bool supports_pause = 8 [deprecated = true];
 
   repeated MediaPlayerSupportedFormat supported_formats = 9;
 
