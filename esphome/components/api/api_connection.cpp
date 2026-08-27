@@ -1099,7 +1099,6 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
   auto *media_player = static_cast<media_player::MediaPlayer *>(entity);
   ListEntitiesMediaPlayerResponse msg;
   auto traits = media_player->get_traits();
-  msg.supports_pause = traits.get_supports_pause();
   msg.feature_flags = traits.get_feature_flags();
   for (auto &supported_format : traits.get_supported_formats()) {
     msg.supported_formats.emplace_back();
@@ -1814,10 +1813,12 @@ void APIConnection::send_resume_ticket_() {
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
-  this->client_api_version_major_ = msg.api_version_major;
-  this->client_api_version_minor_ = msg.api_version_minor;
+  this->client_api_version_major_ =
+      static_cast<uint8_t>(std::min<uint32_t>(msg.api_version_major, std::numeric_limits<uint8_t>::max()));
+  this->client_api_version_minor_ =
+      static_cast<uint8_t>(std::min<uint32_t>(msg.api_version_minor, std::numeric_limits<uint8_t>::max()));
   char peername[socket::SOCKADDR_STR_LEN];
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %u.%u", this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
@@ -2248,7 +2249,7 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   }
   return false;
 }
-bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn,
+bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
@@ -2277,7 +2278,7 @@ uint16_t APIConnection::encode_to_buffer_slow(uint32_t calculated_size, MessageE
                                               APIConnection *conn, uint32_t remaining_size) {
   return encode_to_buffer(calculated_size, encode_fn, msg, conn, remaining_size);
 }
-bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
+bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
 
   if (!this->try_to_clear_buffer(!is_log_message)) {
@@ -2307,12 +2308,12 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-bool APIConnection::schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
   this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
   return this->schedule_batch_();
 }
 
-bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
     auto &shared_buf = this->parent_->get_shared_buffer_ref();

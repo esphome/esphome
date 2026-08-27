@@ -158,16 +158,12 @@ def test_urlsource_download_extracts_then_reuses_marker(
 ):
     monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
     dl_calls: list[list[str]] = []
-    monkeypatch.setattr(
-        lib,
-        "download_from_mirrors",
-        lambda urls, headers, f, progress=None: dl_calls.append(urls),
-    )
 
-    def fake_extract(fileobj, path):
-        Path(path).mkdir(parents=True, exist_ok=True)
+    def fake_download_and_extract(urls, subs, archive_path, extract_dir, **kwargs):
+        dl_calls.append(urls)
+        Path(extract_dir).mkdir(parents=True, exist_ok=True)
 
-    monkeypatch.setattr(lib, "archive_extract_all", fake_extract)
+    monkeypatch.setattr(lib, "download_and_extract", fake_download_and_extract)
 
     src = URLSource("http://example.test/lib.tar.gz")
     out = src.download("mylib")
@@ -185,6 +181,25 @@ def test_urlsource_download_extracts_then_reuses_marker(
     src.download("mylib-batch", progress=lambda done: None)
     assert len(dl_calls) == 2
     assert "Downloading" not in caplog.text
+
+
+def test_urlsource_downloads_to_sibling_archive_path(setup_core, monkeypatch):
+    """The archive downloads to a deterministic path next to the cache dir
+    (not a random temp file), so an interrupted download's .part file
+    resumes on the next run."""
+    monkeypatch.setattr(lib, "rmdir", lambda path, msg="": None)
+    targets: list[Path] = []
+
+    def fake_download_and_extract(urls, subs, archive_path, extract_dir, **kwargs):
+        targets.append(Path(archive_path))
+        Path(extract_dir).mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(lib, "download_and_extract", fake_download_and_extract)
+
+    src = URLSource("http://example.test/lib.tar.gz")
+    out = src.download("mylib")
+
+    assert targets == [out.with_name(f"{out.name}.archive")]
 
 
 def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
@@ -929,11 +944,11 @@ def test_split_flag_entry_non_string_is_clean() -> None:
 
 
 def test_source_kind_map_shape() -> None:
-    """The kind values the native compile rules key on, and the deliberate
-    AS/ASPP merge (.s and .S both map to asm)."""
+    """The kind values the native compile rules key on; the AS/ASPP split
+    matches SCons (.S preprocessed, .s plain assembler)."""
 
-    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm"}
+    assert set(SOURCE_KIND_FOR_SUFFIX.values()) == {"c", "cxx", "asm", "aspp"}
     assert SOURCE_KIND_FOR_SUFFIX[".s"] == "asm"
-    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "asm"
+    assert SOURCE_KIND_FOR_SUFFIX[".S"] == "aspp"
     assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
     assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
