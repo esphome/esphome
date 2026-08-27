@@ -1199,13 +1199,16 @@ def test_framework_install_prefetches_before_installer(
 
 
 _IDF_TOOLS_STUB_DIR = Path(__file__).parent / "fixtures" / "idf_tools_stub"
+_ESPIDF_SCRIPTS_DIR = Path(__file__).parents[2] / "esphome" / "espidf"
 
 
-def _run_downloads_script(
-    tmp_path: Path, *args: str, env_extra: dict[str, str] | None = None
+def _run_espidf_script(
+    tmp_path: Path,
+    script_name: str,
+    *args: str,
+    env_extra: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the real get_tool_downloads.py against the stub idf_tools module."""
-    script = Path(__file__).parents[2] / "esphome" / "espidf" / "get_tool_downloads.py"
+    """Run a real espidf helper script against the stub idf_tools module."""
     env = os.environ | {
         "PYTHONPATH": str(_IDF_TOOLS_STUB_DIR),
         "IDF_TOOLS_PATH": str(tmp_path / "tp"),
@@ -1213,7 +1216,12 @@ def _run_downloads_script(
     if env_extra:
         env |= env_extra
     return subprocess.run(
-        [sys.executable, str(script), str(tmp_path / "fw"), *args],
+        [
+            sys.executable,
+            str(_ESPIDF_SCRIPTS_DIR / script_name),
+            str(tmp_path / "fw"),
+            *args,
+        ],
         capture_output=True,
         text=True,
         env=env,
@@ -1225,7 +1233,7 @@ def test_get_tool_downloads_lists_missing_tools(tmp_path: Path) -> None:
     """Installed versions are skipped, tools that fail their binary check are
     still listed, rename_dist decides the dist filename, and idf_tools' stdout
     chatter stays off the JSON channel."""
-    result = _run_downloads_script(tmp_path, "esp32", "required")
+    result = _run_espidf_script(tmp_path, "get_tool_downloads.py", "esp32", "required")
 
     assert result.returncode == 0, result.stderr
     downloads = {d["name"]: d for d in json.loads(result.stdout)}
@@ -1241,8 +1249,9 @@ def test_get_tool_downloads_lists_missing_tools(tmp_path: Path) -> None:
 
 
 def test_get_tool_downloads_applies_mirror_rewrite(tmp_path: Path) -> None:
-    result = _run_downloads_script(
+    result = _run_espidf_script(
         tmp_path,
+        "get_tool_downloads.py",
         "esp32",
         "required",
         env_extra={"TEST_MIRROR_PREFIX": "https://mirror.test/"},
@@ -1253,13 +1262,13 @@ def test_get_tool_downloads_applies_mirror_rewrite(tmp_path: Path) -> None:
     assert all(d["url"].startswith("https://mirror.test/") for d in downloads)
 
 
-def _run_downloads_inprocess(
+def _run_espidf_script_inprocess(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+    script_name: str,
     *args: str,
-) -> list[dict]:
-    """Execute get_tool_downloads.py in-process against the stub idf_tools.
+) -> None:
+    """Execute an espidf helper script in-process against the stub idf_tools.
 
     Unlike the subprocess variant this runs under coverage, exercising the
     script's own lines.
@@ -1270,10 +1279,24 @@ def _run_downloads_inprocess(
     stub = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(stub)
     monkeypatch.setitem(sys.modules, "idf_tools", stub)
+    # _tool_resolution binds idf_tools objects at import; force a fresh
+    # import against this test's stub instance
+    monkeypatch.delitem(sys.modules, "_tool_resolution", raising=False)
+    # python <script> puts the script's directory on sys.path; runpy does not
+    monkeypatch.syspath_prepend(str(_ESPIDF_SCRIPTS_DIR))
     monkeypatch.setenv("IDF_TOOLS_PATH", str(tmp_path / "tp"))
-    script = Path(__file__).parents[2] / "esphome" / "espidf" / "get_tool_downloads.py"
+    script = _ESPIDF_SCRIPTS_DIR / script_name
     monkeypatch.setattr(sys, "argv", [str(script), str(tmp_path / "fw"), *args])
     runpy.run_path(str(script))
+
+
+def _run_downloads_inprocess(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    *args: str,
+) -> list[dict]:
+    _run_espidf_script_inprocess(tmp_path, monkeypatch, "get_tool_downloads.py", *args)
     return json.loads(capsys.readouterr().out)
 
 
@@ -2017,6 +2040,19 @@ def test_preinstall_streams_script_with_workers(tmp_path: Path) -> None:
     )
 
 
+def test_preinstall_caps_workers(tmp_path: Path) -> None:
+    """A high core count is capped; the workers share one disk."""
+    with (
+        patch(
+            "esphome.espidf.framework._run_idf_tools_script",
+            return_value=(True, None, None),
+        ) as run_script,
+        patch("esphome.espidf.framework.get_usable_cpu_count", return_value=64),
+    ):
+        _preinstall_idf_tool_archives(tmp_path, "esp32", ["required"], None)
+    assert run_script.call_args.kwargs["args"][1] == "10"
+
+
 def test_preinstall_script_failure_only_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
@@ -2052,28 +2088,6 @@ def test_preinstall_exception_only_warns(
 # ---------------------------------------------------------------------------
 
 
-def _run_install_script(
-    tmp_path: Path, *args: str, env_extra: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
-    """Run the real install_tool_archives.py against the stub idf_tools."""
-    script = (
-        Path(__file__).parents[2] / "esphome" / "espidf" / "install_tool_archives.py"
-    )
-    env = os.environ | {
-        "PYTHONPATH": str(_IDF_TOOLS_STUB_DIR),
-        "IDF_TOOLS_PATH": str(tmp_path / "tp"),
-    }
-    if env_extra:
-        env |= env_extra
-    return subprocess.run(
-        [sys.executable, str(script), str(tmp_path / "fw"), *args],
-        capture_output=True,
-        text=True,
-        env=env,
-        check=False,
-    )
-
-
 def _make_dist(tmp_path: Path, *names: str) -> None:
     dist = tmp_path / "tp" / "dist"
     dist.mkdir(parents=True, exist_ok=True)
@@ -2082,10 +2096,12 @@ def _make_dist(tmp_path: Path, *names: str) -> None:
 
 
 def test_install_tool_archives_extracts_pending_in_parallel(tmp_path: Path) -> None:
-    """Tools with a prefetched archive install concurrently; installed tools,
-    broken tools, and tools without an archive stay with the installer."""
+    """Subprocess end-to-end: tools with a prefetched archive install
+    concurrently; installed and broken tools stay with the installer."""
     _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip", "x.tar.gz", "y.tar.gz")
-    result = _run_install_script(tmp_path, "esp32", "8", "required")
+    result = _run_espidf_script(
+        tmp_path, "install_tool_archives.py", "esp32", "8", "required"
+    )
     assert result.returncode == 0, result.stderr
     tools = tmp_path / "tp" / "tools"
     assert (tools / "cmake" / "3.30.2" / ".installed").is_file()
@@ -2102,71 +2118,65 @@ def test_install_tool_archives_extracts_pending_in_parallel(tmp_path: Path) -> N
 
 def test_install_tool_archives_single_pending_stays_sequential(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """One pending archive has nothing to parallelize; the installer keeps
     its normal output."""
     _make_dist(tmp_path, "cmake.tar.gz")
-    result = _run_install_script(tmp_path, "esp32", "4", "required")
-    assert result.returncode == 0, result.stderr
+    _run_espidf_script_inprocess(
+        tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
+    )
     assert not (tmp_path / "tp" / "tools").exists()
-    assert "Extracting" not in result.stdout
+    assert "Extracting" not in capsys.readouterr().out
 
 
 def test_install_tool_archives_failed_install_left_to_installer(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A per-tool failure (SystemExit from the binary check) warns and moves
     on; the other tools still install."""
     _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
-    result = _run_install_script(
-        tmp_path, "esp32", "4", "required", env_extra={"TEST_FAIL_INSTALL": "ninja"}
+    monkeypatch.setenv("TEST_FAIL_INSTALL", "ninja")
+    _run_espidf_script_inprocess(
+        tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
     )
-    assert result.returncode == 0, result.stderr
     tools = tmp_path / "tp" / "tools"
     assert (tools / "cmake" / "3.30.2" / ".installed").is_file()
     assert not (tools / "ninja").exists()
-    assert "pre-extracting ninja@1.12.1 failed" in result.stderr
+    assert "pre-extracting ninja@1.12.1 failed" in capsys.readouterr().err
 
 
-def _run_install_inprocess(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    *args: str,
-) -> None:
-    """Execute install_tool_archives.py in-process against the stub idf_tools.
-
-    Unlike the subprocess variant this runs under coverage, exercising the
-    script's own lines.
-    """
-    spec = importlib.util.spec_from_file_location(
-        "idf_tools", _IDF_TOOLS_STUB_DIR / "idf_tools.py"
-    )
-    stub = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(stub)
-    monkeypatch.setitem(sys.modules, "idf_tools", stub)
-    monkeypatch.setenv("IDF_TOOLS_PATH", str(tmp_path / "tp"))
-    script = (
-        Path(__file__).parents[2] / "esphome" / "espidf" / "install_tool_archives.py"
-    )
-    monkeypatch.setattr(sys, "argv", [str(script), str(tmp_path / "fw"), *args])
-    runpy.run_path(str(script))
-
-
-def test_install_tool_archives_inprocess_dedupes_specs(
+def test_install_tool_archives_inprocess_dedupes_and_skips(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """In-process full flow: duplicate tool@version specs collapse to one
-    job and both tools install."""
-    _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
-    _run_install_inprocess(
-        tmp_path, monkeypatch, "esp32", "8", "cmake", "ninja", "cmake@3.30.2"
+    job, broken and installed tools are skipped, both pending tools install."""
+    _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip", "x.tar.gz", "y.tar.gz")
+    _run_espidf_script_inprocess(
+        tmp_path,
+        monkeypatch,
+        "install_tool_archives.py",
+        "esp32",
+        "8",
+        "cmake",
+        "ninja",
+        "cmake@3.30.2",
+        "installed-tool",
+        "broken-tool",
     )
-    out = capsys.readouterr().out
+    captured = capsys.readouterr()
     assert (
         "Extracting 2 ESP-IDF tool archive(s) with 2 worker(s): "
-        "cmake@3.30.2, ninja@1.12.1" in out
+        "cmake@3.30.2, ninja@1.12.1" in captured.out
     )
-    assert (tmp_path / "tp" / "tools" / "cmake" / "3.30.2" / ".installed").is_file()
-    assert (tmp_path / "tp" / "tools" / "ninja" / "1.12.1" / ".installed").is_file()
+    assert "leaving broken broken-tool to the installer" in captured.err
+    tools = tmp_path / "tp" / "tools"
+    assert (tools / "cmake" / "3.30.2" / ".installed").is_file()
+    assert (tools / "ninja" / "1.12.1" / ".installed").is_file()
+    assert not (tools / "installed-tool").exists()
+    assert not (tools / "broken-tool").exists()

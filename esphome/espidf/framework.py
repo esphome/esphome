@@ -20,6 +20,7 @@ from esphome.build_helpers.pch import ccache_pch_env
 from esphome.build_helpers.tools_cache import IDF_TOOLS_CACHE, tools_cache_path
 from esphome.core import Version
 from esphome.framework_helpers import (
+    BATCH_EXTRACT_WORKERS,
     PathType,
     create_venv,
     download_and_extract,
@@ -797,21 +798,19 @@ def _preinstall_idf_tool_archives(
     tools: list[str],
     env: dict[str, str] | None,
 ) -> None:
-    """Extract the prefetched tool archives in parallel before the installer.
-
-    ``idf_tools.py install`` unpacks one archive at a time on a single core;
-    ``install_tool_archives.py`` drives idf_tools' own ``IDFTool.install()``
-    with one worker per usable core over the archives the prefetch verified.
-    The sequential installer still runs afterwards as the authority, skipping
-    the tools installed here and redoing anything this pass failed on, so
-    this is strictly best-effort.
-    """
+    """Run install_tool_archives.py to extract the prefetched tool archives
+    in parallel. Strictly best-effort: the sequential installer remains the
+    authority (see that script's docstring)."""
     try:
         success, _stdout, _stderr = _run_idf_tools_script(
             framework_path,
             "install_tool_archives.py",
             "ESP-IDF tool archive extraction",
-            args=[targets_str, str(get_usable_cpu_count()), *tools],
+            args=[
+                targets_str,
+                str(min(get_usable_cpu_count(), BATCH_EXTRACT_WORKERS)),
+                *tools,
+            ],
             env=env,
             stream_output=True,
         )
