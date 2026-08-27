@@ -383,7 +383,13 @@ def _setup_pch() -> bool | None:
     # -Wno-error: the per-process probe can pass while a later cc1plus
     # rejects the .gch; that must stay a warning under user -Werror.
     projenv.Prepend(  # noqa: F821
-        CXXFLAGS=["-Winvalid-pch", "-Wno-error=invalid-pch", "-include", header.name]
+        CXXFLAGS=[
+            "-Winvalid-pch",
+            # Strict inverts: a per-process consumer rejection reds the build
+            "-Werror=invalid-pch" if _STRICT else "-Wno-error=invalid-pch",
+            "-include",
+            header.name,
+        ]
     )
     projenv["ENV"].update(ccache_updates)  # noqa: F821
     print("ESPHome: Compiling with precompiled header")

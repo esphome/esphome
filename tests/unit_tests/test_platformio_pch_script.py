@@ -542,4 +542,6 @@ def test_pch_script_strict_projenv_skip_gated_on_nobuild(
 
 def test_pch_script_strict_passes_on_success(tmp_path: Path) -> None:
     scons_env = _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "1"})
-    assert scons_env.prepended
+    # Strict escalates the consumer edges too
+    assert "-Werror=invalid-pch" in scons_env.prepended
+    assert "-Wno-error=invalid-pch" not in scons_env.prepended
