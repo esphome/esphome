@@ -14,6 +14,7 @@ from .. import (
     SensorItem,
     modbus_calc_properties,
     modbus_controller_ns,
+    reject_odd_holding_write_offset,
 )
 from ..const import (
     CONF_CUSTOM_COMMAND,
@@ -53,23 +54,26 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             }
         ),
-        "holding": output.FLOAT_OUTPUT_SCHEMA.extend(ModbusItemBaseSchema).extend(
-            {
-                cv.GenerateID(): cv.declare_id(ModbusFloatOutput),
-                cv.Required(CONF_ADDRESS): cv.positive_int,
-                cv.Optional(CONF_CUSTOM_PDU): cv.invalid(
-                    "custom_pdu is not supported for outputs; use a write_lambda instead"
-                ),
-                cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
-                    "custom_command is not supported for outputs; use a write_lambda instead"
-                ),
-                cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
-                    SENSOR_VALUE_TYPE
-                ),
-                cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
-                cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
-                cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
-            }
+        "holding": cv.All(
+            output.FLOAT_OUTPUT_SCHEMA.extend(ModbusItemBaseSchema).extend(
+                {
+                    cv.GenerateID(): cv.declare_id(ModbusFloatOutput),
+                    cv.Required(CONF_ADDRESS): cv.positive_int,
+                    cv.Optional(CONF_CUSTOM_PDU): cv.invalid(
+                        "custom_pdu is not supported for outputs; use a write_lambda instead"
+                    ),
+                    cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
+                        "custom_command is not supported for outputs; use a write_lambda instead"
+                    ),
+                    cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
+                        SENSOR_VALUE_TYPE
+                    ),
+                    cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+                    cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
+                    cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+                }
+            ),
+            reject_odd_holding_write_offset,
         ),
     },
     lower=True,
