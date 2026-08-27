@@ -8,6 +8,15 @@ import shutil
 import subprocess
 
 from esphome import pins
+from esphome.build_helpers import pch
+from esphome.build_helpers.pch import (
+    PCH_DEFAULT_HEADERS,
+    PCH_HEADER_NAME,
+    mark_pch_emitted,
+    pch_consumer_escalation,
+    pch_enabled,
+    pch_header_text,
+)
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     add_extra_script,
@@ -805,6 +814,25 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
+    if pch_enabled():
+        # ESPHome precompiled header (see esphome/build_helpers/pch.py).
+        # OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers
+        # drop out of TU depfiles, and prepare_pch() touches the header on
+        # rebuild. The relative -include resolves from the compiler cwd
+        # (the build dir); an absolute path would poison ccache keys.
+        escalation = pch_consumer_escalation()
+        lines += [
+            "",
+            "target_compile_options(app PRIVATE",
+            '  "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"',
+            f'  "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"',
+            '  "$<$<COMPILE_LANGUAGE:CXX>:-include>"',
+            f'  "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"',
+            ")",
+            "set_source_files_properties(${APP_SOURCES} PROPERTIES",
+            f'  OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")',
+        ]
+
     if link_flags:
         lines += [
             "",
@@ -816,6 +844,40 @@ def _generate_cmake_lists() -> bool:
     return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),
         "\n".join(lines) + "\n",
+    )
+
+
+def _prepare_pch(build_dir: Path) -> None:
+    """Build the .gch between the cmake and compile phases of west."""
+    if not pch_enabled():
+        pch.discard_pch(build_dir)
+        pch.pch_disabled_degraded()
+        return
+    autoconf = next(build_dir.glob("zephyr/include/generated/**/autoconf.h"), None)
+    if autoconf is None:
+        # Fail closed: autoconf.h is the .sum's Kconfig identity
+        _LOGGER.warning("No autoconf.h found; compiling without the pch")
+        pch.discard_pch(build_dir)
+        pch.pch_degraded("autoconf.h missing")
+        return
+    try:
+        autoconf_text = autoconf.read_text(encoding="utf-8")
+    except OSError as err:
+        _LOGGER.warning(
+            "Could not read %s; compiling without the pch: %s", autoconf, err
+        )
+        pch.discard_pch(build_dir)
+        pch.pch_degraded(f"autoconf unreadable: {err}")
+        return
+    pch.prepare_pch(
+        build_dir,
+        PCH_DEFAULT_HEADERS,
+        (
+            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            zephyr_data()[KEY_BOARD],
+            autoconf_text,
+            *get_project_compile_flags(),
+        ),
     )
 
 
@@ -870,6 +932,43 @@ def run_compile(args, config: ConfigType) -> bool:
         str(build_dir),
         str(source_dir),
     ]
+
+    if pch_enabled():
+        # Before the cmake phase: OBJECT_DEPENDS names the header
+        build_dir.mkdir(parents=True, exist_ok=True)
+        write_file_if_changed(
+            build_dir / PCH_HEADER_NAME, pch_header_text(PCH_DEFAULT_HEADERS)
+        )
+        # Consumers carry the -include; gate the ccache relaxation on it
+        # (Zephyr auto-enables ccache as the compiler launcher when found)
+        mark_pch_emitted()
+        env.update(pch.ccache_pch_env())
+
+        # Split west into configure + build so the .gch is compiled from the
+        # settled compile_commands.json flags between the two phases. Only
+        # when the DB is missing: any input change wipes the build dir, so
+        # an existing DB is settled, and --cmake-only always reconfigures
+        if not (build_dir / "compile_commands.json").is_file() and not run_command_ok(
+            west_cmd + ["--cmake-only", "--", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
+            env=env,
+            stream_output=True,
+            cwd=str(paths["framework_path"]),
+        ):
+            raise EsphomeError("nRF52 native build failed")
+
+    # An optional speedup must never abort the build
+    try:
+        _prepare_pch(build_dir)
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Strict first: its own knob error must not mask the real failure
+        strict = pch.pch_strict()
+        # Raises itself if a stale .gch survives (silently wrong output)
+        pch.discard_pch(build_dir)
+        if strict:
+            raise
+        _LOGGER.warning(
+            "Precompiled header setup failed; compiling without it", exc_info=True
+        )
 
     if not run_command_ok(
         west_cmd,
