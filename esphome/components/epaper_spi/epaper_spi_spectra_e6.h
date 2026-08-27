@@ -4,7 +4,7 @@
 
 namespace esphome::epaper_spi {
 
-class EPaperSpectraE6 final : public EPaper4bpp {
+class EPaperSpectraE6 : public EPaper4bpp {
  public:
   using EPaper4bpp::EPaper4bpp;
 
