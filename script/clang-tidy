@@ -449,7 +449,18 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     from esphome.components.nrf52.clang_tidy import generate_compile_commands
 
     try:
-        executable = _get_codechecker_binary(_codechecker_pinned_version())
+        # clang-tidy is what CodeChecker invokes as its analyzer, so its pin
+        # is read first.
+        clang_tidy_pin = _clang_tidy_pinned_major()
+        codechecker_pin = _codechecker_pinned_version()
+    except (FileNotFoundError, RuntimeError) as err:
+        # Read before the binary-presence checks below so a missing/renamed
+        # requirements file isn't misattributed to a missing binary.
+        print(f"Could not determine pinned tool versions: {err}", file=sys.stderr)
+        return 1
+
+    try:
+        executable = _get_codechecker_binary(codechecker_pin)
     except FileNotFoundError:
         # CodeChecker is deliberately kept out of requirements_dev.txt (see
         # requirements_codechecker.txt), so script/setup won't install it.
@@ -464,7 +475,7 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         return 1
 
     try:
-        _verify_codechecker_clang_tidy(_clang_tidy_pinned_major())
+        _verify_codechecker_clang_tidy(clang_tidy_pin)
     except FileNotFoundError:
         print(
             "clang-tidy is not installed in this venv. Activate the venv and install it with:\n"
@@ -594,9 +605,9 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         failed = stats["failed"]
         # successful_sources/failed_sources verified present (as absolute paths) against
         # the pinned CodeChecker 6.28.2; undocumented internal schema, not a stable API.
-        analyzed_sources = {
-            Path(p).resolve()
-            for p in stats["successful_sources"] + stats["failed_sources"]
+        failed_sources = {Path(p).resolve() for p in stats["failed_sources"]}
+        analyzed_sources = failed_sources | {
+            Path(p).resolve() for p in stats["successful_sources"]
         }
     except (OSError, KeyError, IndexError, json.JSONDecodeError) as err:
         print(
@@ -614,9 +625,11 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         # Analyzer crashes/errors must not read as a clean run just because
         # they're counted alongside successes.
         print(
-            f"ERROR: CodeChecker failed to analyze {failed} file(s)",
+            f"ERROR: CodeChecker failed to analyze {failed} file(s):",
             file=sys.stderr,
         )
+        for path in sorted(failed_sources):
+            print(f"    {path}", file=sys.stderr)
         invalidate_stale_cache()
         return 1
     if not covered:
@@ -632,9 +645,10 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         invalidate_stale_cache()
         return 1
 
-    # Only recorded once analyze/coverage are confirmed clean -- otherwise a
-    # regenerated database that produced failures would be cached as good.
-    if regenerated:
+    # Only recorded once analyze exited clean and coverage is confirmed --
+    # otherwise a regenerated database that produced failures would be
+    # cached as good.
+    if regenerated and result.returncode == 0:
         update_cache(cache_key_path, key)
 
     # Does not return the number of failed files, just pass/fail

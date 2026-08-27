@@ -50,13 +50,11 @@ def test_calculate_clang_tidy_hash_includes_per_target_sdkconfig(
     _populate(tmp_path)
     before = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
 
-    # Adding a per-target file must change the hash.
     per_target = tmp_path / "sdkconfig.defaults.esp32c6"
     per_target.write_bytes(b"CONFIG_OPENTHREAD_ENABLED=y\n")
     after_add = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
     assert after_add != before
 
-    # Editing the per-target file must change the hash again.
     per_target.write_bytes(b"CONFIG_OPENTHREAD_ENABLED=n\n")
     after_edit = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
     assert after_edit != after_add
@@ -66,7 +64,6 @@ def test_calculate_clang_tidy_hash_handles_missing_optional_files(
     tmp_path: Path,
 ) -> None:
     """Hash calculation must not fail when files are absent."""
-    # Only .clang-tidy present; everything else missing.
     (tmp_path / ".clang-tidy").write_text("Checks: '-*'\n")
     result = clang_tidy_hash.calculate_clang_tidy_hash(repo_root=tmp_path)
     assert len(result) == 64  # sha256 hexdigest length
