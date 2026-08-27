@@ -930,15 +930,16 @@ def _prefetch(build_dir: Path, env: str) -> None:
         # pioarduino installs its real toolchains from configure (the registry
         # package is a stub); settle that here so pio run does not reinstall
         # the stubs and copy every toolchain again. Off the main thread so a
-        # SIGTERM lets the copy in flight finish, as in _preinstall
-        try:
-            with _preserved_sys_path(), ThreadPoolExecutor(max_workers=1) as ex:
-                ex.submit(p.configure_project_packages, env, ["run"]).result()
-        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # SIGTERM joins the worker instead of interrupting a copy mid-way;
+        # exception() also keeps a postinstall's SystemExit from ending the
+        # child after a successful prefetch
+        with _preserved_sys_path(), ThreadPoolExecutor(max_workers=1) as ex:
+            err = ex.submit(p.configure_project_packages, env, ["run"]).exception()
+        if err is not None:
             _LOGGER.warning(
                 "Could not settle platform packages: %s", failure_reason(err)
             )
-            _LOGGER.debug("Platform settle failure detail", exc_info=True)
+            _LOGGER.debug("Platform settle failure detail", exc_info=err)
 
 
 def _sigterm(_signum, _frame) -> None:

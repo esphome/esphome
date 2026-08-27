@@ -1457,17 +1457,17 @@ def test_prefetch_reconfigures_only_after_platform_installs(
     assert order == expected
 
 
+@pytest.mark.parametrize(
+    "err", [RuntimeError("idf_tools.py failed"), SystemExit("postinstall exited")]
+)
 def test_prefetch_settle_failure_warns_and_continues(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, err: BaseException
 ) -> None:
-    """A failing second configure pass only costs the speedup."""
+    """A failing second configure pass, even a postinstall's exit, only costs the speedup."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     fake_platform = MagicMock()
     fake_platform.packages = {}
-    fake_platform.configure_project_packages.side_effect = [
-        None,
-        RuntimeError("idf_tools.py failed"),
-    ]
+    fake_platform.configure_project_packages.side_effect = [None, err]
     config = _fake_config(tmp_path, {"platform": "fake/p@1"})
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
     with (
@@ -1484,7 +1484,7 @@ def test_prefetch_settle_failure_warns_and_continues(
         patch.object(pf, "_preinstall"),
     ):
         pf._prefetch(tmp_path, "testenv")
-    assert "Could not settle platform packages: idf_tools.py failed" in caplog.text
+    assert f"Could not settle platform packages: {err}" in caplog.text
 
 
 def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
