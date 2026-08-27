@@ -340,7 +340,7 @@ class PollingDevice final : public ControllerDevice {
   PollingDevice(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address, RegisterRange &&range);
 
   /// Queue this range's read (or its sensor's custom PDU) on the hub. False = refused, no callback follows.
-  bool send(modbus::CommandOptions options = {});
+  bool queue(modbus::CommandOptions options = {});
 
   uint16_t register_address() const { return this->start_address_; }
   uint16_t register_count() const { return this->register_count_; }

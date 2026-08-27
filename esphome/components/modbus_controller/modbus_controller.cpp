@@ -97,7 +97,7 @@ PollingDevice::PollingDevice(ModbusController &controller, modbus::ModbusClientH
   }
 }
 
-bool PollingDevice::send(modbus::CommandOptions options) {
+bool PollingDevice::queue(modbus::CommandOptions options) {
   bool accepted;
   if (this->custom_pdu_ != nullptr) {
     accepted = this->queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
@@ -319,7 +319,7 @@ void ModbusController::update() {
       for (auto &poll : this->polling_devices_) {
         // Probes carry the read-side options too, so a recovering device resumes streaming on the
         // probe itself rather than waiting for the next update_interval.
-        if (!poll.send(this->read_options_)) {
+        if (!poll.queue(this->read_options_)) {
           ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", poll.register_address());
         }
       }
@@ -335,7 +335,7 @@ void ModbusController::update() {
       ESP_LOGVV(TAG, "Updating range 0x%X", poll.register_address());
       // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-      if (!poll.send(this->read_options_)) {
+      if (!poll.queue(this->read_options_)) {
         ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", poll.register_address());
       }
     }
