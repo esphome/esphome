@@ -85,8 +85,11 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 // Override esp_log_format to prevent V2's 3-call vprintf fragmentation.
 // Without this, Log V2 calls the vprintf hook 3 times per message (header,
 // body, newline) which creates 3 separate log entries in ESPHome's logger.
-// This strong definition overrides the archive symbol from ESP-IDF's liblog,
-// affecting all callers including precompiled blobs (e.g. wifi).
+// Interception uses the linker's --wrap (added in esp32/__init__.py when Log
+// V2 is enabled): a plain strong definition cannot win here because liblog's
+// log.c.obj references esp_log_format and the linker resolves it from
+// log_format_text.c.obj within the same archive, before ever reaching
+// ESPHome's archive, which then collides as a duplicate definition.
 #include <esp_private/log_message.h>
 #include <esp_log_write.h>
 
@@ -136,13 +139,14 @@ static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *mess
 }
 
 extern "C" {
-// Override esp_log_format from liblog.a to prevent V2's 3-call vprintf
-// fragmentation. Deliberately NOT IRAM_ATTR: every caller that must work with
-// flash cache disabled (ESP_DRAM_LOGx, ESP_EARLY_LOGx) bypasses esp_log()
-// entirely under CONFIG_LOG_API_CONSTRAINED_ENV_SAFE=n, and both paths below
-// immediately call flash-resident code anyway, so IRAM placement would only
-// spend the IRAM this change exists to save.
-void esp_log_format(esp_log_msg_t *message) {
+// Wrap of esp_log_format from liblog.a (via -Wl,--wrap=esp_log_format) to
+// prevent V2's 3-call vprintf fragmentation. Deliberately NOT IRAM_ATTR: every
+// caller that must work with flash cache disabled (ESP_DRAM_LOGx,
+// ESP_EARLY_LOGx) bypasses esp_log() entirely under
+// CONFIG_LOG_API_CONSTRAINED_ENV_SAFE=n, and both paths below immediately call
+// flash-resident code anyway, so IRAM placement would only spend the IRAM this
+// change exists to save.
+void __wrap_esp_log_format(esp_log_msg_t *message) {  // NOLINT
   extern vprintf_like_t esp_log_vprint_func;
   extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
   if (esp_log_vprint_func == &vprintf || message->config.opts.constrained_env) [[unlikely]] {

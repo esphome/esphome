@@ -2697,6 +2697,10 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
         add_idf_sdkconfig_option("CONFIG_LOG_API_CONSTRAINED_ENV_SAFE", False)
         cg.add_define("USE_ESP32_LOG_V2")
+        # Intercept liblog's formatter via --wrap; a plain strong definition
+        # collides instead of overriding because liblog resolves the symbol
+        # within its own archive (see core/log.cpp).
+        cg.add_build_flag("-Wl,--wrap=esp_log_format")
 
     # Reduce PHY TX power in the event of a brownout
     add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
