@@ -731,6 +731,7 @@ def test_prefetch_wave_warm_git_cache_is_silent(
     setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """An already-complete clone is neither re-fetched nor announced."""
+    caplog.set_level("INFO")
     monkeypatch.setattr(
         GitSource,
         "download",
