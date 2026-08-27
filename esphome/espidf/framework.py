@@ -1148,6 +1148,8 @@ def check_esp_idf_install(
     env = {}
     env["IDF_TOOLS_PATH"] = str(get_idf_tools_path())
     env["IDF_PATH"] = ""
+    # uv defaults to 3 HTTP retries; match the pioarduino penv's bump to 10
+    env["UV_HTTP_RETRIES"] = os.environ.get("UV_HTTP_RETRIES", "10")
 
     # An explicit ESPHOME_IDF_DEFAULT_TARGETS wins over the caller's
     # per-variant request (builder-image pre-warm); otherwise the caller's
