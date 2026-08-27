@@ -633,6 +633,21 @@ void WiFiComponent::setup() {
   this->configured_power_save_ = this->power_save_;
 #endif
 
+#if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
+  // The access point is a provisioning surface: once the provisioning window has
+  // closed, shut it down (mirrors the teardown done on a successful connection).
+  // The captive portal registers its own closed-callback, and the fallback block
+  // in loop() is gated so neither is started again afterwards.
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      if (this->ap_setup_) {
+        ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
+        this->wifi_mode_({}, false);
+      }
+    });
+  }
+#endif
+
   if (this->enable_on_boot_) {
 #ifdef USE_ESP32
     this->wifi_lazy_init_();
@@ -854,7 +869,15 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_WIFI_AP
-    if (this->has_ap() && !this->ap_setup_) {
+    bool provisioning_closed = false;
+#ifdef USE_PROVISIONING
+    // Once the provisioning window has closed, don't bring up the fallback AP (or
+    // the captive portal on it) - the device must stay unprovisionable until it is
+    // power-cycled.
+    provisioning_closed =
+        provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
+#endif
+    if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
       if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();

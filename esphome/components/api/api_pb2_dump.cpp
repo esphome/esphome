@@ -1962,7 +1962,6 @@ const char *ListEntitiesMediaPlayerResponse::dump_to(DumpBuffer &out) const {
 #endif
   dump_field(out, ESPHOME_PSTR("disabled_by_default"), this->disabled_by_default);
   dump_field(out, ESPHOME_PSTR("entity_category"), static_cast<enums::EntityCategory>(this->entity_category));
-  dump_field(out, ESPHOME_PSTR("supports_pause"), this->supports_pause);
   for (const auto &it : this->supported_formats) {
     out.append(4, ' ').append_p(ESPHOME_PSTR("supported_formats")).append(": ");
     it.dump_to(out);
