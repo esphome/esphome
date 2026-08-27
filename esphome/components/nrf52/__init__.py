@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 import logging
 from pathlib import Path
 import re
@@ -13,7 +14,7 @@ from esphome.build_helpers.pch import (
     PCH_DEFAULT_HEADERS,
     PCH_HEADER_NAME,
     mark_pch_emitted,
-    pch_consumer_escalation,
+    pch_cmake_consumer,
     pch_enabled,
     pch_header_text,
 )
@@ -814,24 +815,8 @@ def _generate_cmake_lists() -> bool:
             ")",
         ]
 
-    if pch_enabled():
-        # ESPHome precompiled header (see esphome/build_helpers/pch.py).
-        # OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers
-        # drop out of TU depfiles, and prepare_pch() touches the header on
-        # rebuild. The relative -include resolves from the compiler cwd
-        # (the build dir); an absolute path would poison ccache keys.
-        escalation = pch_consumer_escalation()
-        lines += [
-            "",
-            "target_compile_options(app PRIVATE",
-            '  "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"',
-            f'  "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"',
-            '  "$<$<COMPILE_LANGUAGE:CXX>:-include>"',
-            f'  "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"',
-            ")",
-            "set_source_files_properties(${APP_SOURCES} PROPERTIES",
-            f'  OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")',
-        ]
+    if consumer := pch_cmake_consumer("app", "${APP_SOURCES}"):
+        lines += consumer.rstrip("\n").splitlines()
 
     if link_flags:
         lines += [
@@ -871,7 +856,19 @@ def _prepare_pch(app_dir: Path) -> None:
     write_file_if_changed(
         app_dir / PCH_HEADER_NAME, pch_header_text(PCH_DEFAULT_HEADERS)
     )
-    autoconf = next(app_dir.glob("zephyr/include/generated/**/autoconf.h"), None)
+    # New layout first (Zephyr >= 3.4 nests under zephyr/); fixed candidates
+    # keep the .sum identity deterministic and skip walking generated/
+    autoconf = next(
+        (
+            candidate
+            for candidate in (
+                app_dir / "zephyr" / "include" / "generated" / "zephyr" / "autoconf.h",
+                app_dir / "zephyr" / "include" / "generated" / "autoconf.h",
+            )
+            if candidate.exists()
+        ),
+        None,
+    )
     if autoconf is None:
         # Fail closed: autoconf.h is the .sum's Kconfig identity
         _LOGGER.warning("No autoconf.h found; compiling without the pch")
@@ -970,7 +967,7 @@ def run_compile(args, config: ConfigType) -> bool:
                 stream_output=True,
                 cwd=str(paths["framework_path"]),
             ):
-                raise EsphomeError("nRF52 native build failed")
+                raise EsphomeError("nRF52 native build configure failed")
             # The pch includes zephyr/kernel.h, whose syscall headers are
             # generated at build time (same target the clang-tidy flow uses)
             if not run_command_ok(
@@ -985,7 +982,7 @@ def run_compile(args, config: ConfigType) -> bool:
                 stream_output=True,
                 cwd=str(paths["framework_path"]),
             ):
-                raise EsphomeError("nRF52 native build failed")
+                raise EsphomeError("nRF52 Zephyr header generation failed")
 
     # An optional speedup must never abort the build
     app_dir = _app_build_dir(build_dir)
@@ -998,6 +995,9 @@ def run_compile(args, config: ConfigType) -> bool:
         pch.discard_pch(app_dir)
         if strict:
             raise
+        # Best effort: OBJECT_DEPENDS needs the header even without a pch
+        with suppress(OSError):
+            (app_dir / PCH_HEADER_NAME).touch()
         _LOGGER.warning(
             "Precompiled header setup failed; compiling without it", exc_info=True
         )

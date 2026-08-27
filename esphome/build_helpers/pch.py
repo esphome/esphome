@@ -156,6 +156,33 @@ def pch_consumer_escalation() -> str:
     return "-Werror=invalid-pch" if pch_strict() else "-Wno-error=invalid-pch"
 
 
+def pch_cmake_consumer(target: str, sources_var: str) -> str:
+    """Emit the CMake block making ``target``'s C++ sources consume the
+    pch; empty when disabled. Shared by every CMake-based backend so the
+    consumer contract (flags, relative include, header dependency)
+    cannot drift between them.
+
+    OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
+    out of TU depfiles, and prepare_pch() touches the header on rebuild.
+    The -include stays relative (resolved from the compiler cwd, the build
+    dir); an absolute path would poison ccache keys.
+    """
+    if not pch_enabled():
+        return ""
+    escalation = pch_consumer_escalation()
+    return f"""
+# ESPHome precompiled header (see esphome/build_helpers/pch.py)
+target_compile_options({target} PRIVATE
+    "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"
+    "$<$<COMPILE_LANGUAGE:CXX>:-include>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
+)
+set_source_files_properties({sources_var} PROPERTIES
+    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
+"""
+
+
 def ccache_pch_env() -> dict[str, str]:
     """Settings ccache needs to cache compiles that consume the .gch;
     empty unless this build actually emitted one. User-set values win.

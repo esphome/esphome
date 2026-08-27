@@ -221,16 +221,29 @@ class TestRunCompilePhases:
     def test_generated_headers_failure_raises(self, compile_ctx) -> None:
         run_cmd, prepare, _ = compile_ctx
         run_cmd.side_effect = [True, False]
-        with pytest.raises(EsphomeError, match="nRF52 native build failed"):
+        with pytest.raises(EsphomeError, match="header generation failed"):
             self._run()
         assert not prepare.called
 
     def test_cmake_phase_failure_raises(self, compile_ctx) -> None:
         run_cmd, prepare, _ = compile_ctx
         run_cmd.side_effect = [False]
-        with pytest.raises(EsphomeError, match="nRF52 native build failed"):
+        with pytest.raises(EsphomeError, match="configure failed"):
             self._run()
         assert not prepare.called
+
+    def test_ccache_pch_env_reaches_west(self, compile_ctx) -> None:
+        run_cmd, _, _ = compile_ctx
+        run_cmd.side_effect = [False]
+        # clear=True also drops ambient CCACHE_*/ESPHOME_PCH_* overrides
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            pytest.raises(EsphomeError, match="configure failed"),
+        ):
+            self._run()
+        env = run_cmd.call_args.kwargs["env"]
+        assert env["CCACHE_PCH_EXTSUM"] == "true"
+        assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
 
     def test_settled_db_skips_cmake_phase(self, compile_ctx) -> None:
         run_cmd, prepare, build_dir = compile_ctx
@@ -275,13 +288,18 @@ class TestRunCompilePhases:
     def test_prepare_failure_never_aborts_the_build(
         self, compile_ctx, caplog: pytest.LogCaptureFixture
     ) -> None:
-        run_cmd, prepare, _ = compile_ctx
+        run_cmd, prepare, build_dir = compile_ctx
+        build_dir.mkdir(parents=True)
+        # Keep the pristine wipe from dropping the dir the fallback touches
+        (build_dir / "CMakeCache.txt").write_text("")
         prepare.side_effect = RuntimeError("boom")
         run_cmd.side_effect = [True, True, False]
         with pytest.raises(EsphomeError, match="nRF52 native build failed"):
             self._run()
         assert run_cmd.call_count == 3
         assert "Precompiled header setup failed" in caplog.text
+        # The fallback still satisfies OBJECT_DEPENDS
+        assert (build_dir / "esphome_pch.h").is_file()
 
     def test_prepare_failure_strict_raises(
         self, monkeypatch: pytest.MonkeyPatch, compile_ctx

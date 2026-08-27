@@ -291,30 +291,13 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 
 
 def _pch_cmake() -> str:
-    """The src component's precompiled-header block (C++ TUs only).
+    """Consumer block appended to the component CMakeLists.
 
-    The -include stays relative (resolved from the compiler cwd, the build
-    dir); an absolute path would poison ccache keys.
+    Strict inverts: a per-process consumer rejection reds the build.
+    Baked at generation: a knob flip takes effect when the CMakeLists is
+    rewritten (every esphome compile); a hand-run idf.py keeps the old one
     """
-    if not pch_enabled():
-        return ""
-    # Strict inverts: a per-process consumer rejection reds the build.
-    # Baked at generation: a knob flip takes effect when the CMakeLists is
-    # rewritten (every esphome compile); a hand-run idf.py keeps the old one
-    escalation = pch.pch_consumer_escalation()
-    return f"""
-# ESPHome precompiled header (see esphome/build_helpers/pch.py).
-# OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
-# out of TU depfiles, and prepare_pch() touches the header on rebuild.
-target_compile_options(${{COMPONENT_LIB}} PRIVATE
-    "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
-    "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"
-    "$<$<COMPILE_LANGUAGE:CXX>:-include>"
-    "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
-)
-set_source_files_properties(${{app_sources}} PROPERTIES
-    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
-"""
+    return pch.pch_cmake_consumer("${COMPONENT_LIB}", "${app_sources}")
 
 
 def discard_pch() -> None:
