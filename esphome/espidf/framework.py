@@ -36,7 +36,7 @@ from esphome.framework_helpers import (
     tool_version_runs,
     warn_batch_failures,
 )
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import get_usable_cpu_count, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -292,6 +292,7 @@ def _run_idf_tools_script(
     msg: str,
     args: list[str] | None = None,
     env: dict[str, str] | None = None,
+    stream_output: bool = False,
 ) -> tuple[bool, str | None, str | None]:
     """Run one of the sibling idf_tools-backed helper scripts.
 
@@ -309,6 +310,7 @@ def _run_idf_tools_script(
         msg=msg,
         env=(env or os.environ)
         | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+        stream_output=stream_output,
     )
 
 
@@ -789,6 +791,41 @@ def _prefetch_idf_tool_archives(
         _LOGGER.debug("Prefetch failure detail", exc_info=True)
 
 
+def _preinstall_idf_tool_archives(
+    framework_path: Path,
+    targets_str: str,
+    tools: list[str],
+    env: dict[str, str] | None,
+) -> None:
+    """Extract the prefetched tool archives in parallel before the installer.
+
+    ``idf_tools.py install`` unpacks one archive at a time on a single core;
+    ``install_tool_archives.py`` drives idf_tools' own ``IDFTool.install()``
+    with one worker per usable core over the archives the prefetch verified.
+    The sequential installer still runs afterwards as the authority, skipping
+    the tools installed here and redoing anything this pass failed on, so
+    this is strictly best-effort.
+    """
+    try:
+        success, _stdout, _stderr = _run_idf_tools_script(
+            framework_path,
+            "install_tool_archives.py",
+            "ESP-IDF tool archive extraction",
+            args=[targets_str, str(get_usable_cpu_count()), *tools],
+            env=env,
+            stream_output=True,
+        )
+        if not success:
+            # Detail already streamed to the terminal by the script
+            _LOGGER.warning(
+                "ESP-IDF tool pre-extraction failed; the installer will "
+                "extract sequentially"
+            )
+    except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        _LOGGER.warning("ESP-IDF tool pre-extraction failed: %s", failure_reason(e))
+        _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
+
+
 def _check_esphome_idf_framework_install(
     version: str,
     targets: list[str],
@@ -940,6 +977,7 @@ def _check_esphome_idf_framework_install(
         _LOGGER.info("Installing ESP-IDF %s framework ...", version)
         targets_str = ",".join(targets)
         _prefetch_idf_tool_archives(framework_path, targets_str, tools, env)
+        _preinstall_idf_tool_archives(framework_path, targets_str, tools, env)
         cmd = [
             get_system_python_path(),
             str(idf_tools_path),
