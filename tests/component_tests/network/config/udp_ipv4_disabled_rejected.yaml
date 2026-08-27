@@ -10,10 +10,6 @@ network:
   enable_ipv6: true
   enable_ipv4: false
 
-wifi:
-  ssid: "test_ssid"
-  password: "test_password"
-
 udp:
   id: my_udp
   listen_address: 239.0.60.53
