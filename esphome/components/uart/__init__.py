@@ -179,6 +179,19 @@ UART_PARITY_OPTIONS = {
 CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
+CONF_CLOCK_SOURCE = "clock_source"
+
+UARTClockSource = uart_ns.enum("UARTClockSource")
+# Maps to ESP-IDF uart_config_t::source_clk. XTAL/REF_TICK are independent of
+# the APB clock and keep the baud rate stable when Dynamic Frequency Scaling
+# (CONFIG_PM_ENABLE) is active. Availability differs per ESP32 variant.
+UART_CLOCK_SOURCES = {
+    "DEFAULT": UARTClockSource.UART_CLOCK_SOURCE_DEFAULT,
+    "APB": UARTClockSource.UART_CLOCK_SOURCE_APB,
+    "XTAL": UARTClockSource.UART_CLOCK_SOURCE_XTAL,
+    "RTC": UARTClockSource.UART_CLOCK_SOURCE_RTC,
+    "REF_TICK": UARTClockSource.UART_CLOCK_SOURCE_REF_TICK,
+}
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = {
@@ -263,6 +276,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLUSH_TIMEOUT): cv.All(
                 cv.only_on_esp32, cv.positive_time_period_milliseconds
             ),
+            cv.Optional(CONF_CLOCK_SOURCE): cv.All(
+                cv.only_on_esp32, cv.enum(UART_CLOCK_SOURCES, upper=True)
+            ),
             cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
             cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
             cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -344,6 +360,8 @@ async def to_code(config):
         cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
         if CONF_FLUSH_TIMEOUT in config:
             cg.add(var.set_flush_timeout(config[CONF_FLUSH_TIMEOUT]))
+        if CONF_CLOCK_SOURCE in config:
+            cg.add(var.set_clock_source(config[CONF_CLOCK_SOURCE]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     cg.add(var.set_parity(config[CONF_PARITY]))

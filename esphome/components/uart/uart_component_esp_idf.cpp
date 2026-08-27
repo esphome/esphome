@@ -9,6 +9,7 @@
 #include "driver/gpio.h"
 #include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/soc_caps.h"
 #include "soc/uart_pins.h"
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
@@ -35,6 +36,64 @@ static const char *const TAG = "uart";
 /// causing TX data to loop back into RX on the same pin.
 static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
+
+/// Resolve the ESPHome clock source selection to the ESP-IDF uart_sclk_t value.
+/// Returns whether the selection is available on the target chip; an unsupported
+/// source resolves to UART_SCLK_DEFAULT and returns false. When out_clk is
+/// non-null it receives the resolved value (pass nullptr to only query support).
+/// Each case is guarded by the same SOC_UART_SUPPORT_* macro that gates the
+/// corresponding uart_sclk_t enumerator, so an unsupported source is compiled out
+/// and falls through to the default branch.
+static bool resolve_clock_source(UARTClockSource clock_source, uart_sclk_t *out_clk = nullptr) {
+  uart_sclk_t clk = UART_SCLK_DEFAULT;
+  bool supported = true;
+  switch (clock_source) {
+    case UART_CLOCK_SOURCE_DEFAULT:
+      break;
+#if SOC_UART_SUPPORT_APB_CLK
+    case UART_CLOCK_SOURCE_APB:
+      clk = UART_SCLK_APB;
+      break;
+#endif
+#if SOC_UART_SUPPORT_XTAL_CLK
+    case UART_CLOCK_SOURCE_XTAL:
+      clk = UART_SCLK_XTAL;
+      break;
+#endif
+#if SOC_UART_SUPPORT_RTC_CLK
+    case UART_CLOCK_SOURCE_RTC:
+      clk = UART_SCLK_RTC;
+      break;
+#endif
+#if SOC_UART_SUPPORT_REF_TICK
+    case UART_CLOCK_SOURCE_REF_TICK:
+      clk = UART_SCLK_REF_TICK;
+      break;
+#endif
+    default:
+      supported = false;
+      break;
+  }
+  if (out_clk != nullptr)
+    *out_clk = clk;
+  return supported;
+}
+
+static const char *clock_source_to_str(UARTClockSource clock_source) {
+  switch (clock_source) {
+    case UART_CLOCK_SOURCE_APB:
+      return "APB";
+    case UART_CLOCK_SOURCE_XTAL:
+      return "XTAL";
+    case UART_CLOCK_SOURCE_RTC:
+      return "RTC";
+    case UART_CLOCK_SOURCE_REF_TICK:
+      return "REF_TICK";
+    case UART_CLOCK_SOURCE_DEFAULT:
+    default:
+      return "DEFAULT";
+  }
 }
 
 uart_config_t IDFUARTComponent::get_config_() {
@@ -70,7 +129,7 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-  uart_config.source_clk = UART_SCLK_DEFAULT;
+  resolve_clock_source(this->clock_source_, &uart_config.source_clk);
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
@@ -153,6 +212,10 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   // rate or framing settings. Calling uart_param_config here ensures the requested
   // settings are applied after the reset and before pin routing, inversion, and
   // threshold configuration.
+  if (!resolve_clock_source(this->clock_source_)) {
+    ESP_LOGW(TAG, "Clock source %s is not available on this chip, using default",
+             clock_source_to_str(this->clock_source_));
+  }
   uart_config_t uart_config = this->get_config_();
   err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
@@ -265,16 +328,22 @@ void IDFUARTComponent::dump_config() {
   if (this->flush_timeout_ms_ > 0) {
     ESP_LOGCONFIG(TAG, "  Flush Timeout: %" PRIu32 " ms", this->flush_timeout_ms_);
   }
+  const char *clock_source = clock_source_to_str(this->clock_source_);
+  if (!resolve_clock_source(this->clock_source_)) {
+    clock_source = "DEFAULT (requested source unavailable)";
+  }
   ESP_LOGCONFIG(TAG,
                 "  Baud Rate: %" PRIu32 " baud\n"
                 "  Data Bits: %u\n"
                 "  Parity: %s\n"
-                "  Stop bits: %u"
+                "  Stop bits: %u\n"
+                "  Clock Source: %s"
 #ifdef USE_UART_WAKE_LOOP_ON_RX
                 "\n  Wake on data RX: ENABLED"
 #endif
                 ,
-                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_);
+                this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_,
+                clock_source);
   this->check_logger_conflict();
 }
 

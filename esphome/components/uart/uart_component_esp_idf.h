@@ -11,6 +11,22 @@
 
 namespace esphome::uart {
 
+/// UART peripheral clock source.
+///
+/// Selects the clock that drives the UART baud-rate generator. The default
+/// tracks the APB clock, whose frequency changes when ESP-IDF Dynamic
+/// Frequency Scaling (CONFIG_PM_ENABLE) is active, causing baud-rate drift.
+/// Selecting XTAL or REF_TICK keeps the baud rate stable because those clocks
+/// are independent of APB. Available sources differ per ESP32 variant; an
+/// unsupported selection falls back to the default with a logged warning.
+enum UARTClockSource : uint8_t {
+  UART_CLOCK_SOURCE_DEFAULT = 0,
+  UART_CLOCK_SOURCE_APB,
+  UART_CLOCK_SOURCE_XTAL,
+  UART_CLOCK_SOURCE_RTC,
+  UART_CLOCK_SOURCE_REF_TICK,
+};
+
 /// ESP-IDF UART driver wrapper.
 ///
 /// Thread safety: All public methods must only be called from the main loop.
@@ -34,6 +50,8 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   UARTFlushResult flush() override;
 
   void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
+
+  void set_clock_source(UARTClockSource clock_source) { this->clock_source_ = clock_source; }
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }
 
@@ -62,6 +80,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   bool has_peek_{false};
   uint8_t peek_byte_;
   uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
+  UARTClockSource clock_source_{UART_CLOCK_SOURCE_DEFAULT};
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.
