@@ -615,7 +615,7 @@ int8_t step_to_accuracy_decimals(float step) {
   }
   if (decimals <= 0)
     return 0;
-  auto digits = static_cast<uint32_t>(mantissa * 10000.0f + 0.5f);
+  auto digits = static_cast<uint32_t>(std::lroundf(mantissa * 10000.0f));
   while (decimals > 0 && digits % 10 == 0) {
     digits /= 10;
     decimals--;
