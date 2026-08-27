@@ -7,8 +7,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace apds9306 {
+namespace esphome::apds9306 {
 
 enum MeasurementBitWidth : uint8_t {
   MEASUREMENT_BIT_WIDTH_20 = 0,
@@ -40,7 +39,7 @@ enum AmbientLightGain : uint8_t {
 };
 static const uint8_t AMBIENT_LIGHT_GAIN_VALUES[] = {1, 3, 6, 9, 18};
 
-class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
+class APDS9306 final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -62,5 +61,4 @@ class APDS9306 : public sensor::Sensor, public PollingComponent, public i2c::I2C
   AmbientLightGain gain_;
 };
 
-}  // namespace apds9306
-}  // namespace esphome
+}  // namespace esphome::apds9306

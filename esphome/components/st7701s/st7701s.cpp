@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
 
-namespace esphome {
-namespace st7701s {
+namespace esphome::st7701s {
 
 void ST7701S::setup() {
   this->spi_setup();
@@ -58,8 +57,9 @@ void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
   // if color mapping is required, pass the buck.
   // note that endianness is not considered here - it is assumed to match!
   if (bitness != display::COLOR_BITNESS_565) {
-    return display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
-                                            x_pad);
+    display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
+                                     x_pad);
+    return;
   }
   x_start += this->offset_x_;
   y_start += this->offset_y_;
@@ -195,6 +195,5 @@ void ST7701S::dump_config() {
   ESP_LOGCONFIG(TAG, "  SPI Data rate: %dMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
-}  // namespace st7701s
-}  // namespace esphome
+}  // namespace esphome::st7701s
 #endif  // USE_ESP32_VARIANT_ESP32S3

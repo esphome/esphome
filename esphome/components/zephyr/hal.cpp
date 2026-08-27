@@ -46,6 +46,8 @@ void arch_init() {
     }
   }
 #endif
+  // feed watchdog early. Otherwise OTA may rollback.
+  arch_feed_wdt();
 }
 
 void arch_feed_wdt() {

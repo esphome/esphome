@@ -12,7 +12,7 @@ extern "C" {
 
 namespace esphome::zigbee {
 
-class ZigbeeTime : public time::RealTimeClock, public ZigbeeEntity {
+class ZigbeeTime final : public time::RealTimeClock, public ZigbeeEntity {
  public:
   void setup() override;
   void dump_config() override;

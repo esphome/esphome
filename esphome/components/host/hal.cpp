@@ -2,10 +2,14 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "core.h"
 
 #include <time.h>
+#include <unistd.h>
 #include <cerrno>
 #include <cstdlib>
+#include <cstring>
 
 // Empty host namespace block to satisfy ci-custom's lint_namespace check.
 // HAL functions live in namespace esphome (root) — they are not part of the
@@ -50,7 +54,19 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
     res = nanosleep(&ts, &ts);
   } while (res != 0 && errno == EINTR);
 }
-void arch_restart() { exit(0); }
+void arch_restart() {
+  // Host OTA: if a re-exec is armed, swap binaries instead of exiting.
+  if (const char *target = host::get_reexec_path()) {
+    char **argv = host::get_argv();
+    if (argv != nullptr) {
+      execv(target, argv);
+      // execv only returns on failure.
+      ESP_LOGE("host", "execv('%s') failed: %s", target, std::strerror(errno));
+      exit(1);
+    }
+  }
+  exit(0);
+}
 
 uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;

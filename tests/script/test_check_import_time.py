@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 from pathlib import Path
 import sys
 from unittest.mock import patch
@@ -13,12 +12,10 @@ import pytest
 
 # Load the script-under-test as `check_import_time` (it's a hyphenated path
 # inside `script/` that mirrors the existing `determine_jobs` pattern).
-script_dir = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "script")
-)
+script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
 sys.path.insert(0, script_dir)
 spec = importlib.util.spec_from_file_location(
-    "check_import_time", os.path.join(script_dir, "check_import_time.py")
+    "check_import_time", str(Path(script_dir) / "check_import_time.py")
 )
 check_import_time = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(check_import_time)

@@ -1,8 +1,7 @@
 #include "bmp085.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace bmp085 {
+namespace esphome::bmp085 {
 
 static const char *const TAG = "bmp085.sensor";
 
@@ -132,5 +131,4 @@ bool BMP085Component::set_mode_(uint8_t mode) {
   return this->write_byte(BMP085_REGISTER_CONTROL, mode);
 }
 
-}  // namespace bmp085
-}  // namespace esphome
+}  // namespace esphome::bmp085

@@ -6,8 +6,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace es7243e {
+namespace esphome::es7243e {
 
 static const char *const TAG = "es7243e";
 
@@ -106,18 +105,17 @@ bool ES7243E::configure_mic_gain_() {
 
 uint8_t ES7243E::es7243e_gain_reg_value_(float mic_gain) {
   // reg: 12 - 34.5dB, 13 - 36dB, 14 - 37.5dB
-  mic_gain += 0.5;
-  if (mic_gain <= 33.0) {
+  mic_gain += 0.5f;
+  if (mic_gain <= 33.0f) {
     return (uint8_t) mic_gain / 3;
   }
-  if (mic_gain < 36.0) {
+  if (mic_gain < 36.0f) {
     return 12;
   }
-  if (mic_gain < 37.0) {
+  if (mic_gain < 37.0f) {
     return 13;
   }
   return 14;
 }
 
-}  // namespace es7243e
-}  // namespace esphome
+}  // namespace esphome::es7243e

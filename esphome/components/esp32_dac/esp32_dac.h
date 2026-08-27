@@ -9,10 +9,9 @@
 
 #include <driver/dac_oneshot.h>
 
-namespace esphome {
-namespace esp32_dac {
+namespace esphome::esp32_dac {
 
-class ESP32DAC : public output::FloatOutput, public Component {
+class ESP32DAC final : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
 
@@ -30,7 +29,6 @@ class ESP32DAC : public output::FloatOutput, public Component {
   dac_oneshot_handle_t dac_handle_;
 };
 
-}  // namespace esp32_dac
-}  // namespace esphome
+}  // namespace esphome::esp32_dac
 
 #endif  // USE_ESP32_VARIANT_ESP32 || USE_ESP32_VARIANT_ESP32S2

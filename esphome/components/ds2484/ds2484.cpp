@@ -1,7 +1,6 @@
 #include "ds2484.h"
 
-namespace esphome {
-namespace ds2484 {
+namespace esphome::ds2484 {
 static const char *const TAG = "ds2484.onewire";
 
 void DS2484OneWireBus::setup() {
@@ -204,5 +203,4 @@ uint64_t IRAM_ATTR DS2484OneWireBus::search_int() {
   return address;
 }
 
-}  // namespace ds2484
-}  // namespace esphome
+}  // namespace esphome::ds2484

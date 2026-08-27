@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sht4x {
+namespace esphome::sht4x {
 
 static const char *const TAG = "sht4x";
 
@@ -127,5 +126,4 @@ void SHT4XComponent::update() {
   });
 }
 
-}  // namespace sht4x
-}  // namespace esphome
+}  // namespace esphome::sht4x

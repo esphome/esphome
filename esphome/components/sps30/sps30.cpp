@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace sps30 {
+namespace esphome::sps30 {
 
 static const char *const TAG = "sps30";
 
@@ -291,5 +290,4 @@ bool SPS30Component::start_fan_cleaning() {
   return true;
 }
 
-}  // namespace sps30
-}  // namespace esphome
+}  // namespace esphome::sps30

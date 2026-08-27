@@ -5,13 +5,12 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace gt911 {
+namespace esphome::gt911 {
 
-class GT911Button : public binary_sensor::BinarySensor,
-                    public Component,
-                    public GT911ButtonListener,
-                    public Parented<GT911Touchscreen> {
+class GT911Button final : public binary_sensor::BinarySensor,
+                          public Component,
+                          public GT911ButtonListener,
+                          public Parented<GT911Touchscreen> {
  public:
   void setup() override;
   void dump_config() override;
@@ -24,5 +23,4 @@ class GT911Button : public binary_sensor::BinarySensor,
   uint8_t index_;
 };
 
-}  // namespace gt911
-}  // namespace esphome
+}  // namespace esphome::gt911

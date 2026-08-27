@@ -6,32 +6,32 @@
 
 namespace esphome::wifi {
 
-template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class WiFiConnectedCondition final : public Condition<Ts...> {
  public:
   bool check(const Ts &...x) override { return global_wifi_component->is_connected(); }
 };
 
-template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
+template<typename... Ts> class WiFiEnabledCondition final : public Condition<Ts...> {
  public:
   bool check(const Ts &...x) override { return !global_wifi_component->is_disabled(); }
 };
 
-template<typename... Ts> class WiFiAPActiveCondition : public Condition<Ts...> {
+template<typename... Ts> class WiFiAPActiveCondition final : public Condition<Ts...> {
  public:
   bool check(const Ts &...x) override { return global_wifi_component->is_ap_active(); }
 };
 
-template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
+template<typename... Ts> class WiFiEnableAction final : public Action<Ts...> {
  public:
   void play(const Ts &...x) override { global_wifi_component->enable(); }
 };
 
-template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
+template<typename... Ts> class WiFiDisableAction final : public Action<Ts...> {
  public:
   void play(const Ts &...x) override { global_wifi_component->disable(); }
 };
 
-template<typename... Ts> class WiFiConfigureAction : public Action<Ts...>, public Component {
+template<typename... Ts> class WiFiConfigureAction final : public Action<Ts...>, public Component {
  public:
   TEMPLATABLE_VALUE(std::string, ssid)
   TEMPLATABLE_VALUE(std::string, password)

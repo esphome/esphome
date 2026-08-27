@@ -5,8 +5,7 @@
 
 using namespace std;
 
-namespace esphome {
-namespace tormatic {
+namespace esphome::tormatic {
 
 static const char *const TAG = "tormatic.cover";
 
@@ -390,5 +389,4 @@ void Tormatic::drain_rx_(uint16_t n) {
   }
 }
 
-}  // namespace tormatic
-}  // namespace esphome
+}  // namespace esphome::tormatic

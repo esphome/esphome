@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct JVCData {
   uint32_t data;
@@ -33,5 +32,4 @@ template<typename... Ts> class JVCAction : public RemoteTransmitterActionBase<Ts
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max44009 {
+namespace esphome::max44009 {
 
 static const char *const TAG = "max44009.sensor";
 
@@ -137,5 +136,4 @@ void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
 
 void MAX44009Sensor::set_mode(MAX44009Mode mode) { this->mode_ = mode; }
 
-}  // namespace max44009
-}  // namespace esphome
+}  // namespace esphome::max44009

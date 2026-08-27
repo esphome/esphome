@@ -8,13 +8,14 @@ breaking changes policy. Use at your own risk.
 Once the API is considered stable, this warning will be removed.
 """
 
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_ON_CONTROL
 from esphome.core import CORE, coroutine_with_priority
 from esphome.core.entity_helpers import queue_entity_register, setup_entity
 from esphome.coroutine import CoroPriority
-from esphome.types import ConfigType
+from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["remote_base"]
@@ -42,16 +43,17 @@ def radio_frequency_schema(class_: type[cg.MockObjClass]) -> cv.Schema:
     return entity_schema.extend(
         {
             cv.GenerateID(): cv.declare_id(class_),
+            cv.Optional(CONF_ON_CONTROL): automation.validate_automation({}),
         }
     )
 
 
 @setup_entity("radio_frequency")
-async def setup_radio_frequency_core_(var: cg.Pvariable, config: ConfigType) -> None:
+async def setup_radio_frequency_core_(var: cg.MockObj, config: ConfigType) -> None:
     """Set up core radio frequency configuration."""
 
 
-async def register_radio_frequency(var: cg.Pvariable, config: ConfigType) -> None:
+async def register_radio_frequency(var: cg.MockObj, config: ConfigType) -> None:
     """Register a radio frequency device with the core."""
     cg.add_define("USE_RADIO_FREQUENCY")
     await cg.register_component(var, config)
@@ -59,8 +61,13 @@ async def register_radio_frequency(var: cg.Pvariable, config: ConfigType) -> Non
     await setup_radio_frequency_core_(var, config)
     CORE.register_platform_component("radio_frequency", var)
 
+    for conf in config.get(CONF_ON_CONTROL, []):
+        await automation.build_callback_automation(
+            var, "add_on_control_callback", [(RadioFrequencyCall, "x")], conf
+        )
 
-async def new_radio_frequency(config: ConfigType, *args) -> cg.Pvariable:
+
+async def new_radio_frequency(config: ConfigType, *args: SafeExpType) -> cg.MockObj:
     """Create a new RadioFrequency instance.
 
     :param config: Configuration dictionary.

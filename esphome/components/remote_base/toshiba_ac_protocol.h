@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "remote_base.h"
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct ToshibaAcData {
   uint64_t rc_code_1;
@@ -35,5 +34,4 @@ template<typename... Ts> class ToshibaAcAction : public RemoteTransmitterActionB
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

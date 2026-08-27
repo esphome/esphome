@@ -46,11 +46,14 @@ static constexpr size_t MIN_BUFFER_SIZE = 256;
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.esp8266";
+static const char *const TAG = "ota";
 
 std::unique_ptr<ESP8266OTABackend> make_ota_backend() { return make_unique<ESP8266OTABackend>(); }
 
-OTAResponseTypes ESP8266OTABackend::begin(size_t image_size) {
+OTAResponseTypes ESP8266OTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (ota_type != OTA_TYPE_UPDATE_APP) {
+    return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
+  }
   // Handle UPDATE_SIZE_UNKNOWN (0) by calculating available space
   if (image_size == 0) {
     // Round down to sector boundary: subtract one sector, then mask to sector alignment

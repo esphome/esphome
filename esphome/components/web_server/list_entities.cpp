@@ -167,5 +167,9 @@ bool ListEntitiesIterator::on_update(update::UpdateEntity *obj) {
 }
 #endif
 
+#ifdef USE_MEDIA_PLAYER
+bool ListEntitiesIterator::on_media_player(media_player::MediaPlayer *obj) { return true; }
+#endif
+
 }  // namespace esphome::web_server
 #endif

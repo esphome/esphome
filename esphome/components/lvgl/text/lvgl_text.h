@@ -4,10 +4,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace lvgl {
+namespace esphome::lvgl {
 
-class LVGLText : public text::Text {
+class LVGLText final : public text::Text {
  public:
   void set_control_lambda(const std::function<void(std::string)> &control_lambda) {
     this->control_lambda_ = control_lambda;
@@ -29,5 +28,4 @@ class LVGLText : public text::Text {
   optional<std::string> initial_state_{};
 };
 
-}  // namespace lvgl
-}  // namespace esphome
+}  // namespace esphome::lvgl

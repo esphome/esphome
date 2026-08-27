@@ -25,20 +25,6 @@ binary_sensor:
     widget: button_a
     state: checked
   - platform: lvgl
-    id: button_checker
-    name: LVGL button
-    widget: button_button
-    state: checked
-    on_state:
-      then:
-        - lvgl.checkbox.update:
-            id: checkbox_id
-            state:
-              checked: !lambda |-
-                  auto y = x; // block inlining of one line return
-                  return y;
-
-  - platform: lvgl
     id: button_presser
     name: Button pressed
     widget: button_button
@@ -49,6 +35,9 @@ lvgl:
   rotation: 90
   log_level: debug
   resume_on_input: true
+  paused: true
+  update_when_display_idle: true
+  refresh_interval: 30ms
   on_pause:
     - logger.log: LVGL is Paused
     - lvgl.display.set_rotation: 90
@@ -57,6 +46,40 @@ lvgl:
     - lvgl.display.set_rotation:
         rotation: 0
         lvgl_id: lvgl_id
+    - lvgl.display.set_rotation:
+        rotation: !lambda "return 180;"
+        lvgl_id: lvgl_id
+  on_landscape:
+    - logger.log: LVGL display is now landscape
+    # Re-layout a container in response to orientation changes. The layout type
+    # and grid structure are fixed at creation; only the style options change.
+    - lvgl.widget.update:
+        id: grid_rows_only_shorthand
+        layout:
+          grid_column_align: center
+          grid_row_align: space_between
+          pad_row: 4px
+    - lvgl.update:
+        top_layer:
+          layout:
+            flex_flow: row
+  on_portrait:
+    - logger.log: LVGL display is now portrait
+    - lvgl.widget.update:
+        id: grid_rows_only_shorthand
+        layout:
+          grid_column_align: start
+          pad_row: 2px
+    # Top-level layout applies to the active screen
+    - lvgl.update:
+        layout:
+          flex_flow: column
+          pad_row: 8px
+    - lvgl.update:
+        top_layer:
+          layout:
+            flex_flow: column
+            flex_align_main: center
 
   on_boot:
     - logger.log: LVGL has started
@@ -64,6 +87,12 @@ lvgl:
         id: meter_arc_indicator
         start_value: 0
         end_value: 180
+    - lvgl.animation.start:
+        id:
+          - anim_slide
+          - anim_color
+        duration: 3s
+        loop: true
   on_invalidate_area:
     logger.log: Invalidate area
   on_resolution_change:
@@ -108,6 +137,53 @@ lvgl:
       - obj:
           bg_color: 0x000000
           bg_opa: cover
+  top_layer:
+    widgets:
+      - obj:
+          id: anim_box
+          x: 0
+          y: 0
+          width: 50
+          height: 50
+          bg_color: 0xFF0000
+      - label:
+          id: anim_label
+          text: anim
+  animations:
+    - id: anim_slide
+      duration: 1s
+      start_delay: 100ms
+      auto_start: true
+      loop: true
+      timing: ease_in_out
+      on_start:
+        - logger.log: anim started
+      on_stop:
+        - logger.log: anim stopped
+      widgets:
+        - id: anim_box
+          x:
+            from: 0
+            to: 100
+          y:
+            from: 0
+            to: !lambda "return 80;"
+          opa:
+            from: 50%
+            to: 100%
+    - id: anim_color
+      duration: 2s
+      timing:
+        - type: round_trip
+          pause: 0.5
+        - type: gravity
+          bounce: 0.3
+          acceleration: 0.8
+      widgets:
+        - id: anim_label
+          text_color:
+            from: 0xFF0000
+            to: color_id
   theme:
     dark_mode: true
     obj:
@@ -210,13 +286,37 @@ lvgl:
           on_click:
             then:
               - lvgl.display.set_rotation: 0
+              - lvgl.animation.stop: anim_slide
+              - lvgl.animation.stop:
+                  id:
+                    - anim_slide
+                    - anim_color
               - lvgl.widget.hide: message_box
               - lvgl.style.update:
                   id: style_test
                   bg_color: blue
                   bg_opa: !lambda return 0.5;
+              # `obj` is already themed above -- exercises updating an existing hidden style.
+              - lvgl.theme.update:
+                  obj:
+                    border_width: 2
+              # `label` is never mentioned under `theme:` -- exercises lazily creating the
+              # hidden style and getting it attached to already-built label widgets.
+              - lvgl.theme.update:
+                  label:
+                    text_color: red
+              # `button` is never mentioned under `theme:`, and only a non-default state is
+              # targeted here -- exercises that no spurious, empty main/default style is
+              # created (and attached to every button) alongside the requested one.
+              - lvgl.theme.update:
+                  button:
+                    pressed:
+                      bg_color: red
               - lvgl.image.update:
                   id: lv_image
+                  src:
+                    mapping: image_map
+                    value: !lambda return round(1.0);
                   scale: !lambda return 512;
                   rotation: !lambda return 100;
                   pivot_x: !lambda return 20;
@@ -309,6 +409,11 @@ lvgl:
                 - logger.log:
                     format: "Roller changed = %d: %s"
                     args: [x, text.c_str()]
+            on_update:
+              then:
+                - logger.log:
+                    format: "Roller updated = %d: %s"
+                    args: [x, text.c_str()]
         - animimg:
             height: 60
             id: anim_img
@@ -337,9 +442,16 @@ lvgl:
             text_font: montserrat_40
             border_post: true
             on_press:
-              lvgl.label.update:
-                id: hello_label
-                text: Goodbye
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: lvgl_string_map
+                    value: !lambda return 2;
+              - lvgl.label.update:
+                  id: hello_label
+                  text:
+                    mapping: lvgl_string_map
+                    value: 2
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
@@ -630,6 +742,10 @@ lvgl:
               logger.log:
                 format: "state now %d"
                 args: [x]
+            on_update:
+              logger.log:
+                format: "button updated %d"
+                args: [x]
             on_short_click:
               lvgl.widget.hide: hello_label
             on_long_press:
@@ -641,7 +757,25 @@ lvgl:
             on_defocus:
               lvgl.widget.hide: hello_label
             on_focus:
-              logger.log: Button clicked
+              - logger.log: Button clicked
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: top
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: bottom
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: up
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: down
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: 1
+              - lvgl.widget.set_z_index:
+                  id: hello_label
+                  position: -1
             on_scroll:
               logger.log: Button clicked
             on_scroll_end:
@@ -649,11 +783,15 @@ lvgl:
             on_scroll_begin:
               logger.log: Button clicked
             on_release:
-              logger.log: Button clicked
+              logger.log:
+                format: Button released at %d/%d
+                args: ['(int) point.x', '(int) point.y']
             on_long_press_repeat:
               logger.log: Button clicked
             on_pressing:
-              logger.log: Button pressing
+              logger.log:
+                format: Button pressing at %d/%d
+                args: ['(int) point.x', '(int) point.y']
             on_press_lost:
               logger.log: Button press lost
             on_single_click:
@@ -754,6 +892,9 @@ lvgl:
                       lambda: return tile == id(tile_1);
                     then:
                       - logger.log: "tile 1 is now showing"
+            on_update:
+              then:
+                - logger.log: "tileview updated programmatically"
             tiles:
               - id: tile_1
                 scroll_snap_y: center
@@ -925,6 +1066,10 @@ lvgl:
                   value: !lambda |-
                       static float yyy = 83.0;
                       return yyy + .8;
+            on_release:
+              logger.log:
+                format: Slider released at %d/%d with value %.0f
+                args: ['(int) point.x', '(int) point.y', x]
         - button:
             styles: spin_button
             id: spin_up
@@ -974,6 +1119,11 @@ lvgl:
               then:
                 - logger.log:
                     format: "Arc value is %f"
+                    args: [x]
+            on_update:
+              then:
+                - logger.log:
+                    format: "Arc updated to %f"
                     args: [x]
             scroll_on_focus: true
             value: 75
@@ -1031,6 +1181,38 @@ lvgl:
                 - logger.log:
                     format: "bar value %f"
                     args: [x]
+        - table:
+            id: table_id
+            align: top_mid
+            y: 60
+            columns:
+              - width: 40%
+              - width: 80
+            rows:
+              - ["Name", "Value"]
+              - cells:
+                  - text: "Temp"
+                    merge_right: true
+                  - text: "22.5"
+                    text_crop: true
+            selected_row: 0
+            on_value:
+              then:
+                - logger.log:
+                    format: "table selected row %u col %u"
+                    args: [row, column]
+            on_click:
+              then:
+                - lvgl.table.cell.update:
+                    id: table_id
+                    row: 1
+                    column: 1
+                    text: !lambda return str_sprintf("%.1f", (float) rand() / RAND_MAX * 100);
+                    merge_right: false
+                - lvgl.table.update:
+                    id: table_id
+                    selected_row: !lambda return (int) ((float) rand() / RAND_MAX * 2);
+                    selected_column: 0
         - line:
             id: lv_line_id
             align: center
@@ -1038,7 +1220,10 @@ lvgl:
               - 5, 5
               - x: !lambda return random_uint32() % 100;
                 y: !lambda return random_uint32() % 100;
-              - 70, 70
+              - x: 10%
+                y: 50%
+              - 70%, 70%
+              - [75%, 75%]
               - 120, 10
               - 180, 60
               - 240, 10
@@ -1061,6 +1246,64 @@ lvgl:
             id: checkbox_id
             text: Checkbox
             align: bottom_right
+        - list:
+            id: test_list_id
+            align: top_right
+            width: 150px
+            height: 120px
+            pad_row: 4
+            on_add:
+              - logger.log:
+                  format: "list entry added at %d"
+                  args: [list_index]
+            on_remove:
+              - logger.log:
+                  format: "list entry removed at %d"
+                  args: [list_index]
+            on_click:
+              - lvgl.list.add_text:
+                  id: test_list_id
+                  text: !lambda return "Section";
+              - lvgl.list.add_text:
+                  id: test_list_id
+                  text: "Pinned section"
+                  index: 0
+              - lvgl.list.add:
+                  id: test_list_id
+                  button:
+                    text: "Entry"
+                    checkable: true
+              - lvgl.list.add:
+                  id: test_list_id
+                  index: 1
+                  obj:
+                    widgets:
+                      - label:
+                          text: !lambda return "Dynamic row " + std::to_string(millis());
+                      - button:
+                          widgets:
+                            - label:
+                                text: "Tap"
+                          on_click:
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row button clicked, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
+                      - dropdown:
+                          options:
+                            - "One"
+                            - "Two"
+                          on_value:
+                            - lambda: |-
+                                ESP_LOGD("lvgl", "dynamic row dropdown changed, row %d",
+                                    lvgl::lv_list_get_row_index(id(test_list_id), static_cast<lv_obj_t *>(lv_event_get_target(event))));
+              - lvgl.list.remove:
+                  id: test_list_id
+                  index: 0
+              - lvgl.list.clear:
+                  id: test_list_id
+              - lvgl.list.update:
+                  id: test_list_id
+                  pad_row: 8
         - slider:
             id: slider_id
             align: top_mid
@@ -1073,6 +1316,11 @@ lvgl:
               then:
                 - logger.log:
                     format: "slider value %f"
+                    args: [x]
+            on_update:
+              then:
+                - logger.log:
+                    format: "slider updated to %f"
                     args: [x]
             on_click:
               then:
@@ -1186,6 +1434,10 @@ lvgl:
                         logger.log:
                           format: "Dropdown changed = %d: %s"
                           args: [x, text.c_str()]
+                      on_update:
+                        logger.log:
+                          format: "Dropdown updated = %d: %s"
+                          args: [x, text.c_str()]
                       on_cancel:
                         logger.log:
                           format: "Dropdown closed = %d"
@@ -1276,6 +1528,7 @@ lvgl:
                                 width: 6
                                 start_value: 0
                                 end_value: 360
+                                rounded: true
     - id: page3
       layout: Horizontal
       pad_all: 6px
@@ -1395,22 +1648,40 @@ font:
 
 image:
   - id: cat_image
+    platform: file
     resize: 256x48
     file: $component_dir/logo-text.svg
     type: RGB565
     transparency: alpha_channel
   - id: dog_image
+    platform: file
     file: $component_dir/logo-text.svg
     resize: 256x48
     type: BINARY
     transparency: chroma_key
 
   - id: alert
+    platform: file
     file: $component_dir/logo-text.svg
     type: grayscale
     resize: 100x100
     invert_alpha: true
     transparency: alpha_channel
+
+mapping:
+  - id: image_map
+    from: int
+    to: image
+    entries:
+      0: cat_image
+      1: dog_image
+  - id: lvgl_string_map
+    from: int
+    to: string
+    entries:
+      0: "First"
+      1: "Second"
+      2: "Third"
 
 color:
   - id: light_blue
@@ -1425,6 +1696,30 @@ color:
     green_int: 123
     blue_int: 64
     white_int: 255
+
+sensor:
+  - platform: lvgl
+    widget: lv_arc_1
+    id: lvgl_arc1_sensor_on_change
+    name: LVGL Arc1 Sensor on_change
+    trigger: on_change
+  - platform: lvgl
+    widget: bar_id
+    id: lvgl_bar_sensor_on_release
+    name: LVGL Bar Sensor on_release
+    trigger: on_release
+
+number:
+  - platform: lvgl
+    widget: lv_arc_1
+    id: lvgl_arc1_number_on_update
+    name: LVGL Arc1 Number on_update
+    trigger: on_update
+  - platform: lvgl
+    widget: spinbox_id
+    id: lvgl_spinbox_number_on_change
+    name: LVGL Spinbox Number on_change
+    trigger: on_change
 
 select:
   - platform: lvgl

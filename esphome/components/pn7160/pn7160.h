@@ -11,8 +11,7 @@
 
 #include <functional>
 
-namespace esphome {
-namespace pn7160 {
+namespace esphome::pn7160 {
 
 static constexpr uint16_t NFCC_DEFAULT_TIMEOUT = 10;
 static constexpr uint16_t NFCC_INIT_TIMEOUT = 50;
@@ -311,5 +310,4 @@ class PN7160 : public nfc::Nfcc, public Component {
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
 };
 
-}  // namespace pn7160
-}  // namespace esphome
+}  // namespace esphome::pn7160

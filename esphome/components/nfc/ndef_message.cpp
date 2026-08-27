@@ -1,8 +1,7 @@
 #include "ndef_message.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.ndef_message";
 
@@ -53,7 +52,7 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
 
     index += type_length;
 
-    std::string id_str = "";
+    std::string id_str;
     if (il) {
       id_str = std::string(data.begin() + index, data.begin() + index + id_length);
       index += id_length;
@@ -120,5 +119,4 @@ std::vector<uint8_t> NdefMessage::encode() {
   return data;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

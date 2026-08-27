@@ -39,14 +39,14 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 #endif  // USE_OTA_PASSWORD
 
   /// Manually set the port OTA should listen on
-  void set_port(uint16_t port);
+  void set_port(uint16_t port) { this->port_ = port; }
 
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void loop() override;
 
-  uint16_t get_port() const;
+  uint16_t get_port() const { return this->port_; }
 
  protected:
   void handle_handshake_();
@@ -98,6 +98,10 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 
   uint32_t client_connect_time_{0};
   static constexpr size_t HANDSHAKE_BUF_SIZE = 5;
+#ifdef USE_OTA_PARTITIONS
+  uint32_t running_app_offset_{0};
+  size_t running_app_size_{0};
+#endif
   uint16_t port_;
   uint8_t handshake_buf_[HANDSHAKE_BUF_SIZE];
   OTAState ota_state_{OTAState::IDLE};

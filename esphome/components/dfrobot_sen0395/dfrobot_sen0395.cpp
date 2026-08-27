@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace dfrobot_sen0395 {
+namespace esphome::dfrobot_sen0395 {
 
 static const char *const TAG = "dfrobot_sen0395";
 const char ASCII_CR = 0x0D;
@@ -140,5 +139,4 @@ uint8_t CircularCommandQueue::process(DfrobotSen0395Component *parent) {
   }
 }
 
-}  // namespace dfrobot_sen0395
-}  // namespace esphome
+}  // namespace esphome::dfrobot_sen0395

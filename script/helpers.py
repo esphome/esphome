@@ -17,10 +17,10 @@ from typing import Any
 
 import colorama
 
-root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
-basepath = os.path.join(root_path, "esphome")
-temp_folder = os.path.join(root_path, ".temp")
-temp_header_file = os.path.join(temp_folder, "all-include.cpp")
+root_path = str(Path(__file__).resolve().parent.parent)
+basepath = str(Path(root_path) / "esphome")
+temp_folder = str(Path(root_path) / ".temp")
+temp_header_file = str(Path(temp_folder) / "all-include.cpp")
 
 # C++ file extensions used for clang-tidy and clang-format checks
 CPP_FILE_EXTENSIONS = (".cpp", ".h", ".hpp", ".cc", ".cxx", ".c", ".tcc")
@@ -53,6 +53,7 @@ BASE_BUS_COMPONENTS = {
     "canbus",
     "remote_transmitter",
     "remote_receiver",
+    "i2s_audio",
 }
 
 # Cache version for components graph
@@ -103,9 +104,7 @@ def get_component_from_path(file_path: str) -> str | None:
     Returns:
         Component name if path is in components or tests directory, None otherwise
     """
-    if file_path.startswith(ESPHOME_COMPONENTS_PATH) or file_path.startswith(
-        ESPHOME_TESTS_COMPONENTS_PATH
-    ):
+    if file_path.startswith((ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)):
         parts = file_path.split("/")
         if len(parts) >= 3 and parts[2]:
             # Verify that parts[2] is actually a component directory, not a file
@@ -117,7 +116,7 @@ def get_component_from_path(file_path: str) -> str | None:
 
 
 def get_component_test_files(
-    component: str, *, all_variants: bool = False
+    component: str, *, all_variants: bool = False, include_validate: bool = False
 ) -> list[Path]:
     """Get test files for a component.
 
@@ -125,6 +124,10 @@ def get_component_test_files(
         component: Component name (e.g., "wifi")
         all_variants: If True, returns all test files including variants (test-*.yaml).
                      If False, returns only base test files (test.*.yaml).
+                     Default is False.
+        include_validate: If True, also returns config-only files (validate.*.yaml,
+                     and validate-*.yaml when all_variants is True). These files
+                     are validated with `esphome config` but never compiled.
                      Default is False.
 
     Returns:
@@ -136,9 +139,52 @@ def get_component_test_files(
 
     if all_variants:
         # Match both test.*.yaml and test-*.yaml patterns
-        return list(tests_dir.glob("test[.-]*.yaml"))
+        files = list(tests_dir.glob("test[.-]*.yaml"))
+        if include_validate:
+            files.extend(tests_dir.glob("validate[.-]*.yaml"))
+        return files
     # Match only test.*.yaml (base tests)
-    return list(tests_dir.glob("test.*.yaml"))
+    files = list(tests_dir.glob("test.*.yaml"))
+    if include_validate:
+        files.extend(tests_dir.glob("validate.*.yaml"))
+    return files
+
+
+def get_component_test_platforms(component: str, *, base_only: bool = True) -> set[str]:
+    """Return the set of platforms a component has compilable test files for.
+
+    Uses the same discovery as ``test_build_components.py`` (``get_component_test_files``
+    + ``parse_test_filename``) so callers agree with what the build runner would
+    actually compile. With ``base_only=True`` (the default, matching the
+    memory-impact build's ``--base-only``), only base ``test.<platform>.yaml``
+    files are considered; variant ``test-<variant>.<platform>.yaml`` files are
+    excluded. The ``"all"`` platform sentinel is excluded.
+
+    Args:
+        component: Component name (e.g. "wifi")
+        base_only: If True, only consider base test files (default).
+
+    Returns:
+        Set of platform identifiers (e.g. {"esp32-idf", "esp8266-ard"}).
+    """
+    platforms: set[str] = set()
+    for test_file in get_component_test_files(component, all_variants=not base_only):
+        platform = parse_test_filename(test_file)[1]
+        if platform != "all":
+            platforms.add(platform)
+    return platforms
+
+
+def is_validate_only_file(test_file: Path) -> bool:
+    """Return True if the given path is a config-only validate file.
+
+    Validate files follow the same grammar as test files but with a
+    ``validate`` prefix instead of ``test``: ``validate.<platform>.yaml``
+    or ``validate-<variant>.<platform>.yaml``. They are exercised with
+    ``esphome config`` only and skipped during compile.
+    """
+    name = test_file.name
+    return name.startswith(("validate.", "validate-"))
 
 
 @dataclass(frozen=True)
@@ -192,6 +238,72 @@ class _ConflictWalk:
     rejects: set[str]
 
 
+@cache
+def _get_test_config_components(component: str, platform: str) -> frozenset[str]:
+    """Return the components referenced by a component's test config for a platform.
+
+    Loads ``tests/components/<component>/test.<platform>.yaml`` and extracts the
+    top-level component keys (and list ``platform:`` values). This lets the
+    conflict splitter see components that are only pulled in via a test config
+    (e.g. nRF52 ``network`` tests that also enable ``openthread``), which a
+    purely static AUTO_LOAD/CONFLICTS_WITH parse cannot discover -- notably for
+    components like ``api`` whose ``AUTO_LOAD`` is a callable.
+
+    Failures (missing file, parse error) are treated as empty so the splitter
+    never crashes on a malformed or absent test config.
+    """
+    from esphome import yaml_util
+
+    test_file = (
+        Path(root_path) / "tests" / "components" / component / f"test.{platform}.yaml"
+    )
+    if not test_file.exists():
+        return frozenset()
+    try:
+        config = yaml_util.load_yaml(test_file)
+    except Exception:  # noqa: BLE001 - never let a bad test config crash grouping
+        # Matches analyze_component_buses, which loads these same files and
+        # silently tolerates parse failures; surfacing it only here would be
+        # inconsistent and noisy.
+        return frozenset()
+    if not isinstance(config, dict):
+        return frozenset()
+    return frozenset(_extract_components_from_yaml(config))
+
+
+@cache
+def _conflict_walk(comp: str, platform: str) -> _ConflictWalk:
+    """Build the platform-aware conflict walk for a single component.
+
+    Seeds the walk with the component itself plus any components pulled in via
+    its ``test.<platform>.yaml`` config, then folds in each seed's static
+    AUTO_LOAD closure and CONFLICTS_WITH declarations. Cached per
+    ``(component, platform)`` since the test-config seeds are platform-specific.
+    """
+    seeds = {comp} | set(_get_test_config_components(comp, platform))
+    walk = _ConflictWalk(loaded=set(seeds), rejects=set())
+    stack = list(seeds)
+    while stack:
+        metadata = parse_component_metadata(stack.pop())
+        walk.rejects |= metadata.conflicts_with
+        new = metadata.auto_load - walk.loaded
+        walk.loaded |= new
+        stack.extend(new)
+    return walk
+
+
+def components_conflict(a: str, b: str, platform: str) -> bool:
+    """Return True if components ``a`` and ``b`` cannot share a build on ``platform``.
+
+    Uses the same platform-aware conflict walk as :func:`split_conflicting_groups`
+    so callers (e.g. the no-bus redistribution in ``test_build_components.py``)
+    agree with how groups were originally split. The conflict relation is
+    symmetric even when only one side declares CONFLICTS_WITH.
+    """
+    wa, wb = _conflict_walk(a, platform), _conflict_walk(b, platform)
+    return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(wa.loaded)
+
+
 def split_conflicting_groups(
     grouped_components: dict[tuple[str, str], list[str]],
 ) -> dict[tuple[str, str], list[str]]:
@@ -204,33 +316,24 @@ def split_conflicting_groups(
     conflict relation is treated as symmetric even when only one side
     declares it (e.g. ethernet rejects wifi but wifi does not declare the
     reverse).
+
+    The walk is platform-aware: in addition to the static AUTO_LOAD closure,
+    each ``(component, platform)`` walk is seeded with the components found in
+    that component's ``test.<platform>.yaml`` config. This catches conflicts
+    that only exist on a given platform and are expressed through the test
+    config rather than static metadata -- e.g. on nRF52 the ``network``/``api``
+    test configs also enable ``openthread``, which ``zigbee`` declares a
+    conflict with, so ``api`` and ``zigbee`` end up split there. On ESP32 those
+    test configs have no ``openthread``, so the components still group together.
     """
-    batch = {c for comps in grouped_components.values() for c in comps}
-
-    walks: dict[str, _ConflictWalk] = {}
-    for comp in batch:
-        walk = _ConflictWalk(loaded={comp}, rejects=set())
-        stack = [comp]
-        while stack:
-            metadata = parse_component_metadata(stack.pop())
-            walk.rejects |= metadata.conflicts_with
-            new = metadata.auto_load - walk.loaded
-            walk.loaded |= new
-            stack.extend(new)
-        walks[comp] = walk
-
-    def conflicts(a: str, b: str) -> bool:
-        wa, wb = walks[a], walks[b]
-        return not wa.rejects.isdisjoint(wb.loaded) or not wb.rejects.isdisjoint(
-            wa.loaded
-        )
-
     result: dict[tuple[str, str], list[str]] = {}
     for (platform, signature), components in grouped_components.items():
         buckets: list[list[str]] = []
         for comp in components:
             for bucket in buckets:
-                if not any(conflicts(comp, other) for other in bucket):
+                if not any(
+                    components_conflict(comp, other, platform) for other in bucket
+                ):
                     bucket.append(comp)
                     break
             else:
@@ -317,8 +420,11 @@ def _get_github_event_data() -> dict | None:
         Parsed event data dictionary, or None if not available
     """
     github_event_path = os.environ.get("GITHUB_EVENT_PATH")
-    if github_event_path and os.path.exists(github_event_path):
-        with open(github_event_path) as f:
+    if github_event_path and Path(github_event_path).exists():
+        # The event payload is UTF-8 JSON; without an explicit encoding
+        # Windows decodes it as cp1252 and any non ASCII byte (an ellipsis in
+        # a commit title is enough) raises UnicodeDecodeError.
+        with Path(github_event_path).open(encoding="utf-8") as f:
             return json.load(f)
     return None
 
@@ -363,6 +469,77 @@ def get_target_branch() -> str | None:
     return None
 
 
+# Substrings (matched case-insensitively against gh's stderr) that identify
+# transient failures worth retrying: server errors (HTTP 5xx) and dropped or
+# failed connections. Permanent failures (bad auth, missing PR, the 300-file
+# diff limit) never match so callers see them immediately. Phrases are
+# anchored so gh's GraphQL "Could not resolve to a PullRequest" (a missing
+# PR) never classifies as a DNS failure.
+_TRANSIENT_GH_ERROR_RE = re.compile(
+    r"http 5\d\d"
+    r"|timed out|timeout"
+    r"|connection (?:reset|refused|closed)"
+    r"|no such host|could not resolve host"
+    # gh intercepts DNS errors and prints its own "error connecting to
+    # <host>" text; the Go phrases above are kept as a hedge in case a
+    # future gh stops swallowing the underlying error
+    r"|error connecting to"
+    r"|failed to verify certificate"
+    # Go reports a server-closed connection as 'Post "<url>": EOF'; the
+    # quote-and-colon anchor keeps a URL or message body containing the
+    # letters from matching
+    r"|unexpected eof"
+    r'|": eof'
+    r"|network is unreachable"
+    r"|temporary failure"
+)
+
+# Same retry policy as git network commands in esphome/git.py: 3 attempts
+# with 2s/4s backoff.
+_GH_MAX_ATTEMPTS = 3
+
+
+def run_gh_command(
+    args: list[str], *, retry: bool = True
+) -> subprocess.CompletedProcess[str]:
+    """Run a gh CLI command, retrying transient network and server failures.
+
+    Args:
+        args: Full command line, including the leading "gh".
+        retry: Pass False for commands that are not idempotent (e.g. posting
+            a comment), where a retry after a dropped response could repeat
+            a write that already succeeded server-side.
+
+    Returns:
+        CompletedProcess with captured text output.
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails with a permanent
+            error, or is still failing after the retries are exhausted.
+    """
+    attempts = _GH_MAX_ATTEMPTS if retry else 1
+    attempt = 0
+    while True:
+        try:
+            return subprocess.run(
+                args, check=True, capture_output=True, text=True, close_fds=False
+            )
+        except subprocess.CalledProcessError as err:
+            attempt += 1
+            stderr = err.stderr or ""
+            if attempt >= attempts or not _TRANSIENT_GH_ERROR_RE.search(stderr.lower()):
+                raise
+            delay = 2**attempt
+            # Only the leading arguments: comment-update calls carry the
+            # whole multi-KB comment body in the argument list
+            print(
+                f"WARNING: {' '.join(args[:3])} failed: {stderr.strip()}; "
+                f"retrying in {delay}s (attempt {attempt}/{attempts})",
+                file=sys.stderr,
+            )
+            time.sleep(delay)
+
+
 @cache
 def _get_changed_files_github_actions() -> list[str] | None:
     """Get changed files in GitHub Actions environment.
@@ -381,8 +558,9 @@ def _get_changed_files_github_actions() -> list[str] | None:
             try:
                 return _get_changed_files_from_command(cmd)
             except Exception as e:
-                # If it fails due to the 300 file limit, use the API method
-                if "maximum" in str(e) and "files" in str(e):
+                # If it fails due to a diff limit (300 files or 20000 lines),
+                # use the API method which only returns filenames
+                if "diff exceeded the maximum" in str(e):
                     cmd = [
                         "gh",
                         "api",
@@ -436,13 +614,26 @@ def changed_files(branch: str | None = None) -> list[str]:
 
 
 def _get_changed_files_from_command(command: list[str]) -> list[str]:
-    """Run a git command to get changed files and return them as a list."""
-    proc = subprocess.run(command, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise Exception(f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}")
+    """Run a git or gh command to get changed files and return them as a list."""
+    if command[0] == "gh":
+        try:
+            proc = run_gh_command(command)
+        except subprocess.CalledProcessError as e:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {e.stderr}"
+            ) from e
+    else:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, check=False, close_fds=False
+        )
+        if proc.returncode != 0:
+            raise Exception(
+                f"Command failed: {' '.join(command)}\nstderr: {proc.stderr}"
+            )
 
     changed_files = splitlines_no_ends(proc.stdout)
-    changed_files = [os.path.relpath(f, os.getcwd()) for f in changed_files if f]
+    cwd = Path.cwd()
+    changed_files = [os.path.relpath(f, cwd) for f in changed_files if f]  # noqa: PTH109
     changed_files.sort()
     return changed_files
 
@@ -477,7 +668,7 @@ def get_changed_components() -> list[str] | None:
         return None
 
     # Use list-components.py to get changed components
-    script_path = os.path.join(root_path, "script", "list-components.py")
+    script_path = str(Path(root_path) / "script" / "list-components.py")
     cmd = [script_path, "--changed"]
 
     try:
@@ -597,7 +788,7 @@ def filter_changed(files: list[str]) -> list[str]:
 def filter_grep(files: list[str], value: list[str]) -> list[str]:
     matched = []
     for file in files:
-        with open(file, encoding="utf-8") as handle:
+        with Path(file).open(encoding="utf-8") as handle:
             contents = handle.read()
         if any(v in contents for v in value):
             matched.append(file)
@@ -618,26 +809,22 @@ def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
-    platformio_ini = Path(root_path) / "platformio.ini"
+    # Reuse the clang-tidy input hash as the cache key: it already covers every
+    # file baked into the generated idedata (platformio.ini, sdkconfig.defaults,
+    # esphome/idf_component.yml), so this can't drift from that file list. A
+    # content hash -- unlike an mtime comparison -- stays correct across git
+    # checkouts, which don't preserve mtimes.
+    from clang_tidy_hash import calculate_clang_tidy_hash
+
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
-    changed = False
-    if (
-        not platformio_ini.is_file()
-        or not temp_idedata.is_file()
-        or platformio_ini.stat().st_mtime >= temp_idedata.stat().st_mtime
-    ):
-        changed = True
+    temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    if "idf" in environment:
-        # remove full sdkconfig when the defaults have changed so that it is regenerated
-        default_sdkconfig = Path(root_path) / "sdkconfig.defaults"
-        temp_sdkconfig = Path(temp_folder) / f"sdkconfig-{environment}"
-
-        if not temp_sdkconfig.is_file():
-            changed = True
-        elif default_sdkconfig.stat().st_mtime >= temp_sdkconfig.stat().st_mtime:
-            temp_sdkconfig.unlink()
-            changed = True
+    cache_key = calculate_clang_tidy_hash()
+    changed = (
+        not temp_idedata.is_file()
+        or not temp_hash.is_file()
+        or temp_hash.read_text().strip() != cache_key
+    )
 
     if not changed:
         data = json.loads(temp_idedata.read_text())
@@ -648,7 +835,12 @@ def load_idedata(environment: str) -> dict[str, Any]:
     # ensure temp directory exists before running pio, as it writes sdkconfig to it
     Path(temp_folder).mkdir(exist_ok=True)
 
-    if "nrf" in environment:
+    platformio_ini = Path(root_path) / "platformio.ini"
+    if "esp32" in environment:
+        from esphome.espidf.clang_tidy import load_idedata as idf_load_idedata
+
+        data = idf_load_idedata(environment, temp_folder, platformio_ini)
+    elif "nrf" in environment:
         from helpers_zephyr import load_idedata as zephyr_load_idedata
 
         data = zephyr_load_idedata(environment, temp_folder, platformio_ini)
@@ -659,6 +851,7 @@ def load_idedata(environment: str) -> dict[str, Any]:
         match = re.search(r'{\s*".*}', stdout.decode("utf-8"))
         data = json.loads(match.group())
     temp_idedata.write_text(json.dumps(data, indent=2) + "\n")
+    temp_hash.write_text(cache_key + "\n")
 
     elapsed = time.time() - start_time
     print(f"IDE data generated and cached in {elapsed:.2f} seconds")
@@ -957,17 +1150,41 @@ def filter_component_and_test_files(file_path: str) -> bool:
     )
 
 
-def filter_component_and_test_cpp_files(file_path: str) -> bool:
-    """Check if a file is a C++ source file in component or test directories.
+def filter_cpp_unit_test_files(file_path: str) -> bool:
+    """Check if a file can affect a component's C++ unit test build.
+
+    Besides C++ sources, a component's Python code (defines, source file
+    filters, libraries) and the ``__init__.py`` manifest overrides under
+    ``tests/components/<component>/`` decide what the host test binary
+    compiles and links. Other Python files under ``tests/components/``
+    (pytest conftest.py, fixtures) do not.
 
     Args:
         file_path: Path to check
 
     Returns:
-        True if the file is a C++ source/header file in component or test directories
+        True if the file is a C++ or Python file in a component directory, or
+        a C++ file or ``__init__.py`` in a component test directory
     """
-    return file_path.endswith(CPP_FILE_EXTENSIONS) and file_path.startswith(
-        COMPONENT_AND_TESTS_PATHS
+    if file_path.startswith(ESPHOME_COMPONENTS_PATH):
+        return file_path.endswith(CPP_AND_PYTHON_FILE_EXTENSIONS)
+    if file_path.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
+        return file_path.endswith(CPP_FILE_EXTENSIONS) or file_path.endswith(
+            "/__init__.py"
+        )
+    return False
+
+
+def has_cpp_unit_tests(component: str, tests_dir: Path) -> bool:
+    """Check if a component has C++ test or benchmark sources in ``tests_dir``.
+
+    Shared by CI job selection and the build itself
+    (``build_helpers.filter_components_with_files``) so both agree on
+    which components have something to build.
+    """
+    component_dir = tests_dir / component
+    return component_dir.is_dir() and (
+        any(component_dir.glob("*.cpp")) or any(component_dir.glob("*.h"))
     )
 
 
@@ -1271,42 +1488,63 @@ def core_changed(files: list[str]) -> bool:
     )
 
 
+def base_python_changed(files: list[str]) -> bool:
+    """Check if any Python file directly in esphome/ has changed.
+
+    Matches top-level modules and stubs (.py and .pyi) like esphome/config.py
+    and esphome/yaml_util.py but not files in subdirectories such as
+    esphome/components/ or esphome/dashboard/.
+
+    Args:
+        files: List of file paths to check
+
+    Returns:
+        True if any top-level esphome Python file has changed
+    """
+    return any(
+        f.startswith("esphome/")
+        and f.endswith(PYTHON_FILE_EXTENSIONS)
+        and "/" not in f.removeprefix("esphome/")
+        for f in files
+    )
+
+
 def get_cpp_changed_components(files: list[str]) -> list[str]:
-    """Get components that have changed C++ files or tests.
+    """Get components whose C++ unit tests are affected by changed files.
 
     This function analyzes a list of changed files and determines which components
     are affected. It handles two scenarios:
 
-    1. Test files changed (tests/components/<component>/*.cpp):
+    1. Test files changed (tests/components/<component>/*.cpp or __init__.py):
        - Adds the component to the affected list
        - Only that component needs to be tested
 
-    2. Component C++ files changed (esphome/components/<component>/*):
+    2. Component files changed (esphome/components/<component>/*.cpp or *.py):
        - Adds the component to the affected list
        - Also adds all components that depend on this component (recursively)
        - This ensures that changes propagate to dependent components
 
+    Python files count because a component's Python code decides which
+    sources and defines end up in the host test build. Components without
+    C++ test sources are dropped so CI does not schedule the job for nothing.
+
     Args:
-        files: List of file paths to analyze (should be C++ files)
+        files: List of changed file paths; irrelevant ones are ignored
 
     Returns:
         Sorted list of component names that need C++ unit tests run
     """
     components_graph = create_components_graph()
+    tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
     affected: set[str] = set()
     for file in files:
-        if not file.endswith(CPP_FILE_EXTENSIONS):
+        if not filter_cpp_unit_test_files(file):
             continue
-        if file.startswith(ESPHOME_TESTS_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component_dir = Path(ESPHOME_TESTS_COMPONENTS_PATH) / parts[2]
-                if component_dir.is_dir():
-                    affected.add(parts[2])
-        elif file.startswith(ESPHOME_COMPONENTS_PATH):
-            parts = file.split("/")
-            if len(parts) >= 4:
-                component = parts[2]
-                affected.update(find_children_of_component(components_graph, component))
-                affected.add(component)
-    return sorted(affected)
+        parts = file.split("/")
+        if len(parts) < 4:
+            continue
+        component = parts[2]
+        affected.add(component)
+        if file.startswith(ESPHOME_COMPONENTS_PATH):
+            affected.update(find_children_of_component(components_graph, component))
+    return sorted(c for c in affected if has_cpp_unit_tests(c, tests_dir))

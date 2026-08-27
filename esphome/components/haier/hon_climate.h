@@ -18,8 +18,7 @@
 #include "haier_base.h"
 #include "hon_packet.h"
 
-namespace esphome {
-namespace haier {
+namespace esphome::haier {
 
 enum class CleaningState : uint8_t {
   NO_CLEANING = 0,
@@ -36,7 +35,7 @@ struct HonSettings {
   bool quiet_mode_state{false};
 };
 
-class HonClimate : public HaierClimateBase {
+class HonClimate final : public HaierClimateBase {
 #ifdef USE_SENSOR
  public:
   enum class SubSensorType {
@@ -198,8 +197,7 @@ class HonClimate : public HaierClimateBase {
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
   HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
-  SwitchState quiet_mode_state_{SwitchState::OFF};
+  SwitchState quiet_mode_state_{SwitchState::SWITCH_OFF};
 };
 
-}  // namespace haier
-}  // namespace esphome
+}  // namespace esphome::haier

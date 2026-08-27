@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace he60r {
+namespace esphome::he60r {
 
 static const char *const TAG = "he60r.cover";
 static const uint8_t QUERY_BYTE = 0x38;
@@ -264,5 +263,4 @@ void HE60rCover::recompute_position_() {
   }
 }
 
-}  // namespace he60r
-}  // namespace esphome
+}  // namespace esphome::he60r

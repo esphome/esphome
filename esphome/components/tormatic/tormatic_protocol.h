@@ -46,8 +46,7 @@
  * for this purpose.
  */
 
-namespace esphome {
-namespace tormatic {
+namespace esphome::tormatic {
 
 using namespace esphome::cover;
 
@@ -225,5 +224,4 @@ struct CommandRequestReply {
   void byteswap() { this->type = convert_big_endian(this->type); }
 } __attribute__((packed));
 
-}  // namespace tormatic
-}  // namespace esphome
+}  // namespace esphome::tormatic

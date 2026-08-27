@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server
@@ -48,13 +50,19 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     queue_entity_register,
     setup_entity,
 )
-from esphome.cpp_generator import LambdaExpression, MockObjClass
+from esphome.cpp_generator import (
+    LambdaExpression,
+    MockObj,
+    MockObjClass,
+    TemplateArgsType,
+)
+from esphome.types import ConfigType, SafeExpType
 
 IS_PLATFORM_COMPONENT = True
 
@@ -132,7 +140,7 @@ VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Schema(
 )
 
 
-def visual_temperature_step(value):
+def visual_temperature_step(value: Any) -> ConfigType:
     # Allow defining target/current temperature steps separately
     if isinstance(value, dict):
         return VISUAL_TEMPERATURE_STEP_SCHEMA(value)
@@ -273,8 +281,8 @@ def climate_schema(
 
 
 @setup_entity("climate")
-async def setup_climate_core_(var, config):
-    visual = config[CONF_VISUAL]
+async def setup_climate_core_(var: MockObj, config: ConfigType) -> None:
+    visual = config.get(CONF_VISUAL, {})
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
         cg.add(var.set_visual_min_temperature_override(min_temp))
@@ -443,7 +451,7 @@ async def setup_climate_core_(var, config):
         await web_server.add_entity_config(var, web_server_config)
 
 
-async def register_climate(var, config):
+async def register_climate(var: MockObj, config: ConfigType) -> None:
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("climate", config)
@@ -451,7 +459,7 @@ async def register_climate(var, config):
     await setup_climate_core_(var, config)
 
 
-async def new_climate(config, *args):
+async def new_climate(config: ConfigType, *args: SafeExpType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_climate(var, config)
     return var
@@ -485,7 +493,12 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
     CLIMATE_CONTROL_ACTION_SCHEMA,
     synchronous=True,
 )
-async def climate_control_to_code(config, action_id, template_arg, args):
+async def climate_control_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
 
     # All configured fields are folded into a single stateless lambda whose
@@ -506,6 +519,15 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         (CONF_SWING_MODE, "set_swing_mode", ClimateSwingMode),
     )
 
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches ControlAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
     fwd_args = ", ".join(name for _, name in args)
     body_lines: list[str] = []
 
@@ -513,7 +535,7 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         if (value := config.get(conf_key)) is None:
             continue
         if isinstance(value, Lambda):
-            inner = await cg.process_lambda(value, args, return_type=type_)
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
             body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
         elif type_ is cg.std_string:
             # Static custom strings: emit a flash literal and pass the
@@ -526,10 +548,9 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         else:
             body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
 
-    # Match ControlAction::ApplyFn signature: const Ts &... for trigger args.
     apply_args = [
         (ClimateCall.operator("ref"), "call"),
-        *((t.operator("const").operator("ref"), n) for t, n in args),
+        *normalized_args,
     ]
     apply_lambda = LambdaExpression(
         ["\n".join(body_lines)],
@@ -541,5 +562,5 @@ async def climate_control_to_code(config, action_id, template_arg, args):
 
 
 @coroutine_with_priority(CoroPriority.CORE)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_global(climate_ns.using)

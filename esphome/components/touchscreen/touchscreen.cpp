@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace touchscreen {
+namespace esphome::touchscreen {
 
 static const char *const TAG = "touchscreen";
 
@@ -79,7 +78,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   if (this->swap_x_y_) {
     std::swap(x_raw, y_raw);
   }
-  if (this->touches_.count(id) == 0) {
+  if (!this->touches_.contains(id)) {
     tp.state = STATE_PRESSED;
     tp.id = id;
   } else {
@@ -162,5 +161,4 @@ int16_t Touchscreen::normalize_(int16_t val, int16_t min_val, int16_t max_val, b
   return ret;
 }
 
-}  // namespace touchscreen
-}  // namespace esphome
+}  // namespace esphome::touchscreen

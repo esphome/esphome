@@ -7,14 +7,11 @@ from esphome.cpp_types import Component
 
 from ..defines import CONF_WIDGET, literal
 from ..lvcode import (
-    API_EVENT,
     EVENT_ARG,
     UPDATE_EVENT,
     LambdaContext,
-    LvConditional,
     LvContext,
     lv_add,
-    lv_obj,
     lvgl_static,
 )
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
@@ -35,11 +32,7 @@ async def to_code(config):
     switch_id = MockObj(config[CONF_ID], "->")
     v = literal("v")
     async with LambdaContext([(cg.bool_, "v")]) as control:
-        with LvConditional(v) as cond:
-            widget.add_state(LV_STATE.CHECKED)
-            cond.else_()
-            widget.clear_state(LV_STATE.CHECKED)
-        lv_obj.send_event(widget.obj, API_EVENT, cg.nullptr)
+        widget.set_state(LV_STATE.CHECKED, literal("v"))
         control.add(switch_id.publish_state(v))
     switch = cg.new_Pvariable(config[CONF_ID], await control.get_lambda())
     await cg.register_component(switch, config)

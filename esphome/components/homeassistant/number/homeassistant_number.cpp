@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
 static const char *const TAG = "homeassistant.number";
 
@@ -103,5 +102,4 @@ void HomeassistantNumber::control(float value) {
   api::global_api_server->send_homeassistant_action(resp);
 }
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

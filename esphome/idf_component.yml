@@ -1,30 +1,36 @@
 dependencies:
   bblanchon/arduinojson:
-    version: "7.4.2"
+    version: "7.4.3"
+  esphome/dlms_parser:
+    version: 1.1.0
   esphome/esp-audio-libs:
-    version: 2.0.4
+    version: 3.2.1
   esphome/esp-micro-speech-features:
     version: 1.2.3
   esphome/micro-decoder:
-    version: 0.2.0
-  esphome/micro-flac:
-    version: 0.1.1
-  esphome/micro-opus:
     version: 0.4.0
+  esphome/micro-flac:
+    version: 0.2.0
+  esphome/micro-mp3:
+    version: 0.4.0
+  esphome/micro-opus:
+    version: 0.4.1
+  esphome/micro-wav:
+    version: 0.2.0
   espressif/esp-dsp:
-    version: "1.7.1"
+    version: "1.8.2"
   espressif/esp-tflite-micro:
     version: 1.3.3~1
   espressif/esp32-camera:
-    version: 2.1.6
+    version: 2.1.7
   espressif/mdns:
-    version: 1.11.0
+    version: 1.11.3
   espressif/esp_wifi_remote:
-    version: 1.5.1
+    version: 1.6.3
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/wifi_remote_over_eppp:
-    version: 0.3.2
+    version: 0.3.3
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/eppp_link:
@@ -32,7 +38,7 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.12.6
+    version: 2.12.12
     rules:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
@@ -41,12 +47,8 @@ dependencies:
     version: "2.0.0"
     rules:
       - if: "target in [esp32, esp32p4]"
-  espressif/esp-zboss-lib:
-    version: 1.6.4
-    rules:
-      - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/esp-zigbee-lib:
-    version: 1.6.8
+    version: 2.0.4
     rules:
       - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/lan87xx:
@@ -74,13 +76,13 @@ dependencies:
     rules:
       - if: "idf_version >=6.0.0"
   espressif/dm9051:
-    version: "1.0.0"
+    version: "1.1.0"
     rules:
       - if: "idf_version >=6.0.0"
   espressif/esp_tinyusb:
-    version: "2.1.1"
+    version: "2.2.1"
     rules:
-      - if: "target in [esp32s2, esp32s3, esp32p4]"
+      - if: "target in [esp32s2, esp32s3, esp32s31, esp32p4, esp32h4]"
   esphome/esp-hub75:
     version: 0.3.5
     rules:
@@ -90,12 +92,17 @@ dependencies:
     rules:
       - if: "idf_version >=6.0.0"
   espressif/usb:
-    version: "1.3.0"
+    version: "1.4.1"
     rules:
-      - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32p4]"
+      - if: "idf_version >=6.0.0 && target in [esp32s2, esp32s3, esp32s31, esp32p4, esp32h4]"
   esp32async/asynctcp:
     version: 3.4.91
   sendspin/sendspin-cpp:
-    version: 0.4.0
+    version: 0.7.2
   lvgl/lvgl:
     version: 9.5.0
+  fastled/FastLED:
+    git: https://github.com/FastLED/FastLED.git
+    version: d44c800a9e876a8394caefc2ce4915dd96dac77b
+    rules:
+      - if: "$ESPHOME_ARDUINO_COMPONENT == 1"

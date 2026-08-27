@@ -3,10 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace homeassistant {
+namespace esphome::homeassistant {
 
-class HomeassistantSensor : public sensor::Sensor, public Component {
+class HomeassistantSensor final : public sensor::Sensor, public Component {
  public:
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
   void set_attribute(const char *attribute) { this->attribute_ = attribute; }
@@ -19,5 +18,4 @@ class HomeassistantSensor : public sensor::Sensor, public Component {
   const char *attribute_{nullptr};
 };
 
-}  // namespace homeassistant
-}  // namespace esphome
+}  // namespace esphome::homeassistant

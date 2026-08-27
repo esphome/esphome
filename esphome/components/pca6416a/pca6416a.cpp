@@ -1,8 +1,7 @@
 #include "pca6416a.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pca6416a {
+namespace esphome::pca6416a {
 
 enum PCA6416AGPIORegisters {
   // 0 side
@@ -205,5 +204,4 @@ size_t PCA6416AGPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCA6416A", this->pin_);
 }
 
-}  // namespace pca6416a
-}  // namespace esphome
+}  // namespace esphome::pca6416a

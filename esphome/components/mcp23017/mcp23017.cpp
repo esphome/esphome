@@ -1,8 +1,7 @@
 #include "mcp23017.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp23017 {
+namespace esphome::mcp23017 {
 
 static const char *const TAG = "mcp23017";
 
@@ -19,6 +18,10 @@ void MCP23017::setup() {
   // Read current output register state
   this->read_reg(mcp23x17_base::MCP23X17_OLATA, &this->olat_a_);
   this->read_reg(mcp23x17_base::MCP23X17_OLATB, &this->olat_b_);
+
+  // Reset IPOL to 0x00: ESPHome handles 'inverted' in software.
+  this->write_reg(mcp23x17_base::MCP23X17_IPOLA, 0x00);
+  this->write_reg(mcp23x17_base::MCP23X17_IPOLB, 0x00);
 
   uint8_t iocon_flags = 0;
   if (this->open_drain_ints_) {
@@ -54,5 +57,4 @@ bool MCP23017::write_reg(uint8_t reg, uint8_t value) {
   return this->write_byte(reg, value);
 }
 
-}  // namespace mcp23017
-}  // namespace esphome
+}  // namespace esphome::mcp23017

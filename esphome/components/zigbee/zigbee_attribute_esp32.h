@@ -9,9 +9,12 @@
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 
-#include "esp_zigbee_core.h"
+#include "esp_zigbee.h"
 #include "zigbee_esp32.h"
 
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -19,12 +22,13 @@
 namespace esphome::zigbee {
 
 enum ZigbeeReportT {
+  ZIGBEE_REPORT_DEFAULT,
   ZIGBEE_REPORT_COORDINATOR,
   ZIGBEE_REPORT_ENABLE,
   ZIGBEE_REPORT_FORCE,
 };
 
-class ZigbeeAttribute : public Component {
+class ZigbeeAttribute final : public Component {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
@@ -34,14 +38,16 @@ class ZigbeeAttribute : public Component {
         role_(role),
         attr_id_(attr_id),
         attr_type_(attr_type),
-        scale_(scale),
-        max_size_(max_size) {}
+        max_size_(max_size),
+        scale_(scale) {}
   void loop() override;
   template<typename T> void add_attr(T value);
-  esp_zb_zcl_reporting_info_t get_reporting_info();
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
-  void set_report(bool force);
+  void set_report(ZigbeeReportT report);
+#ifdef USE_SENSOR
+  template<typename T> void connect(sensor::Sensor *sensor);
+#endif
 #ifdef USE_BINARY_SENSOR
   template<typename T> void connect(binary_sensor::BinarySensor *sensor);
 #endif
@@ -60,6 +66,7 @@ class ZigbeeAttribute : public Component {
   float scale_;
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
+  bool report_requested_{false};
   bool force_report_{false};
 };
 
@@ -78,6 +85,11 @@ template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
   this->enable_loop();
 }
 
+#ifdef USE_SENSOR
+template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor) {
+  sensor->add_on_state_callback([this](float value) { this->set_attr((T) (this->scale_ * value)); });
+}
+#endif
 #ifdef USE_BINARY_SENSOR
 template<typename T> void ZigbeeAttribute::connect(binary_sensor::BinarySensor *sensor) {
   sensor->add_on_state_callback([this](bool value) { this->set_attr((T) (this->scale_ * value)); });

@@ -9,8 +9,7 @@
 // https://www.belling.com.cn/media/file_object/bel_product/BL0906/datasheet/BL0906_V1.02_cn.pdf
 // https://www.belling.com.cn/media/file_object/bel_product/BL0906/guide/BL0906%20APP%20Note_V1.02.pdf
 
-namespace esphome {
-namespace bl0906 {
+namespace esphome::bl0906 {
 
 // Stage values for the read state machine. After STAGE_CHANNEL_6 the state machine
 // jumps to the two sentinel stages below, then to STAGE_IDLE which marks the cycle
@@ -54,7 +53,7 @@ class BL0906;
 
 using ActionCallbackFuncPtr = void (BL0906::*)();
 
-class BL0906 : public PollingComponent, public uart::UARTDevice {
+class BL0906 final : public PollingComponent, public uart::UARTDevice {
   SUB_SENSOR(voltage)
   SUB_SENSOR(current_1)
   SUB_SENSOR(current_2)
@@ -104,10 +103,9 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
   std::vector<ActionCallbackFuncPtr> action_queue_{};
 };
 
-template<typename... Ts> class ResetEnergyAction : public Action<Ts...>, public Parented<BL0906> {
+template<typename... Ts> class ResetEnergyAction final : public Action<Ts...>, public Parented<BL0906> {
  public:
   void play(const Ts &...x) override { this->parent_->enqueue_action_(&BL0906::reset_energy_); }
 };
 
-}  // namespace bl0906
-}  // namespace esphome
+}  // namespace esphome::bl0906

@@ -7,7 +7,7 @@
 
 namespace esphome::uart {
 
-class UARTEvent : public event::Event, public UARTDevice, public Component {
+class UARTEvent final : public event::Event, public UARTDevice, public Component {
  public:
   void setup() override;
   void loop() override;

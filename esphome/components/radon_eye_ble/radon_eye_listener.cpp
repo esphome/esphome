@@ -2,14 +2,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace radon_eye_ble {
+namespace esphome::radon_eye_ble {
 
 static const char *const TAG = "radon_eye_ble";
 
-bool RadonEyeListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool RadonEyeListener::parse_device(const ble_device_base::ESPBTDevice &device) {
   // Radon Eye devices have names starting with "FR:"
   if (device.get_name().starts_with("FR:")) {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -19,7 +16,4 @@ bool RadonEyeListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   return false;
 }
 
-}  // namespace radon_eye_ble
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::radon_eye_ble

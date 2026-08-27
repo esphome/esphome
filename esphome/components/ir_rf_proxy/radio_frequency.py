@@ -35,17 +35,19 @@ def _final_validate(config: ConfigType) -> None:
     if CONF_REMOTE_TRANSMITTER_ID not in config:
         return
 
-    transmitter_id = config[CONF_REMOTE_TRANSMITTER_ID]
     full_config = fv.full_config.get()
-    transmitter_path = full_config.get_path_for_id(transmitter_id)[:-1]
+    transmitter_path = full_config.get_path_for_id(config[CONF_REMOTE_TRANSMITTER_ID])[
+        :-1
+    ]
     transmitter_config = full_config.get_config_for_path(transmitter_path)
 
     duty_percent = transmitter_config.get(CONF_CARRIER_DUTY_PERCENT)
     if duty_percent is not None and duty_percent != 100:
         raise cv.Invalid(
-            f"Transmitter '{transmitter_id}' must have '{CONF_CARRIER_DUTY_PERCENT}' "
-            "set to 100% for RF transmission. Dedicated RF hardware handles modulation; "
-            "applying a carrier duty cycle would corrupt the signal"
+            f"Transmitter '{config[CONF_REMOTE_TRANSMITTER_ID]}' must have "
+            f"'{CONF_CARRIER_DUTY_PERCENT}' set to 100% for RF transmission. "
+            "Dedicated RF hardware handles modulation; applying a carrier duty cycle "
+            "would corrupt the signal"
         )
 
 

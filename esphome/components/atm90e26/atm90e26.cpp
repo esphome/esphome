@@ -2,8 +2,7 @@
 #include "atm90e26_reg.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace atm90e26 {
+namespace esphome::atm90e26 {
 
 static const char *const TAG = "atm90e26";
 
@@ -229,5 +228,4 @@ float ATM90E26Component::get_frequency_() {
   return freq / 100.0f;
 }
 
-}  // namespace atm90e26
-}  // namespace esphome
+}  // namespace esphome::atm90e26

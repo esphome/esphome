@@ -18,8 +18,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace ens160_base {
+namespace esphome::ens160_base {
 
 static const char *const TAG = "ens160";
 
@@ -332,5 +331,4 @@ void ENS160Component::dump_config() {
   }
 }
 
-}  // namespace ens160_base
-}  // namespace esphome
+}  // namespace esphome::ens160_base

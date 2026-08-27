@@ -1,7 +1,6 @@
 #pragma once
 
-namespace esphome {
-namespace opentherm {
+namespace esphome::opentherm {
 
 class OpenthermInput {
  public:
@@ -14,5 +13,4 @@ class OpenthermInput {
   virtual void set_auto_max_value(bool auto_max_value) { this->auto_max_value = auto_max_value; }
 };
 
-}  // namespace opentherm
-}  // namespace esphome
+}  // namespace esphome::opentherm

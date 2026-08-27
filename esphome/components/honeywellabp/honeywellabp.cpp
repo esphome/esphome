@@ -1,8 +1,7 @@
 #include "honeywellabp.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace honeywellabp {
+namespace esphome::honeywellabp {
 
 static const char *const TAG = "honeywellabp";
 
@@ -56,7 +55,9 @@ float HONEYWELLABPSensor::countstopressure_(const int counts, const float min_pr
 
 // Converts a digital temperature measurement in counts to temperature in C
 // This will be invalid if sensore daoes not have temperature measurement capability
-float HONEYWELLABPSensor::countstotemperatures_(const int counts) { return (((float) counts / 2047.0) * 200.0) - 50.0; }
+float HONEYWELLABPSensor::countstotemperatures_(const int counts) {
+  return (((float) counts / 2047.0f) * 200.0f) - 50.0f;
+}
 
 // Pressure value from the most recent reading in units
 float HONEYWELLABPSensor::read_pressure_() {
@@ -70,9 +71,9 @@ void HONEYWELLABPSensor::update() {
   ESP_LOGV(TAG, "Update Honeywell ABP Sensor");
   if (readsensor_() == 0) {
     if (this->pressure_sensor_ != nullptr)
-      this->pressure_sensor_->publish_state(read_pressure_() * 1.0);
+      this->pressure_sensor_->publish_state(read_pressure_() * 1.0f);
     if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(read_temperature_() * 1.0);
+      this->temperature_sensor_->publish_state(read_temperature_() * 1.0f);
   }
 }
 
@@ -96,5 +97,4 @@ void HONEYWELLABPSensor::set_honeywellabp_max_pressure(float max_pressure) {
   this->honeywellabp_max_pressure_ = max_pressure;
 }
 
-}  // namespace honeywellabp
-}  // namespace esphome
+}  // namespace esphome::honeywellabp

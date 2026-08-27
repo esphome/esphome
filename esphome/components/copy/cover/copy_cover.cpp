@@ -1,8 +1,7 @@
 #include "copy_cover.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace copy {
+namespace esphome::copy {
 
 static const char *const TAG = "copy.cover";
 
@@ -50,5 +49,4 @@ void CopyCover::control(const cover::CoverCall &call) {
   call2.perform();
 }
 
-}  // namespace copy
-}  // namespace esphome
+}  // namespace esphome::copy

@@ -15,8 +15,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace deep_sleep {
+namespace esphome::deep_sleep {
 
 #if defined(USE_ESP32) || defined(USE_BK72XX)
 
@@ -61,6 +60,65 @@ struct WakeupCauseToRunDuration {
 
 #endif  // USE_ESP32
 
+#ifdef USE_DEEP_SLEEP_ON_WAKE
+
+/// Why the device woke from deep sleep. Passed to on_wake automations.
+enum WakeupCause : uint8_t {
+  /// The device did not wake from deep sleep (for example a cold boot, reset or OTA restart).
+  WAKEUP_CAUSE_NONE = 0,
+  /// The device woke from deep sleep, but the source could not be identified.
+  WAKEUP_CAUSE_UNKNOWN,
+  /// The device was woken by the sleep timer.
+  WAKEUP_CAUSE_TIMER,
+  /// The device was woken by a GPIO pin (wakeup_pin or esp32_ext1_wakeup).
+  WAKEUP_CAUSE_GPIO,
+  /// The device was woken by a touch pad.
+  WAKEUP_CAUSE_TOUCH,
+};
+
+/// Return why the device woke from deep sleep. Implemented per platform.
+WakeupCause get_wakeup_cause();
+
+/** Setup priority of on_wake triggers.
+ *
+ * Between restoring global variables (setup_priority::HARDWARE, 800) and on_boot automations at
+ * their default priority (600), so on_wake automations can update state (e.g. globals) that
+ * on_boot automations then use.
+ */
+inline constexpr float ON_WAKE_TRIGGER_SETUP_PRIORITY = 700.0f;
+
+/// Fires once on boot when the device woke from deep sleep, with the wakeup cause.
+class WakeTrigger : public Trigger<WakeupCause>, public Component {
+ public:
+  void setup() override {
+    const WakeupCause cause = get_wakeup_cause();
+    if (cause != WAKEUP_CAUSE_NONE) {
+      this->trigger(cause);
+    }
+  }
+  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
+};
+
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+/// Fires once on boot when the device was woken from deep sleep by the given ext1 pin.
+class Ext1WakeTrigger : public Trigger<>, public Component {
+ public:
+  explicit Ext1WakeTrigger(uint8_t pin) : pin_(pin) {}
+  void setup() override {
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 &&
+        (esp_sleep_get_ext1_wakeup_status() & (1ULL << this->pin_))) {
+      this->trigger();
+    }
+  }
+  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
+
+ protected:
+  uint8_t pin_;
+};
+#endif
+
+#endif  // USE_DEEP_SLEEP_ON_WAKE
+
 template<typename... Ts> class EnterDeepSleepAction;
 
 template<typename... Ts> class PreventDeepSleepAction;
@@ -71,10 +129,10 @@ template<typename... Ts> class PreventDeepSleepAction;
  * and set_run_duration, then set how long the deep sleep should last using set_sleep_duration and optionally
  * on the ESP32 set_wakeup_pin.
  */
-class DeepSleepComponent : public Component {
+class DeepSleepComponent final : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
-  void set_sleep_duration(uint32_t time_ms);
+  void set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
 #if defined(USE_ESP32)
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
@@ -85,7 +143,7 @@ class DeepSleepComponent : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
-  void init_wakeup_pins_(size_t capacity) { this->wakeup_pins_.init(capacity); }
+  void init_wakeup_pins(size_t capacity) { this->wakeup_pins_.init(capacity); }
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
     this->wakeup_pins_.emplace_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
   }
@@ -97,8 +155,9 @@ class DeepSleepComponent : public Component {
 #endif
 
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C6) && !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
-  void set_touch_wakeup(bool touch_wakeup);
+    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+  void set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
 
   // Set the duration in ms for how long the code should run before entering
@@ -107,7 +166,7 @@ class DeepSleepComponent : public Component {
 #endif  // USE_ESP32
 
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
-  void set_run_duration(uint32_t time_ms);
+  void set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
 
   void setup() override;
   void dump_config() override;
@@ -117,8 +176,8 @@ class DeepSleepComponent : public Component {
   /// Helper to enter deep sleep mode
   void begin_sleep(bool manual = false);
 
-  void prevent_deep_sleep();
-  void allow_deep_sleep();
+  void prevent_deep_sleep() { this->prevent_ = true; }
+  void allow_deep_sleep() { this->prevent_ = false; }
 
  protected:
   // Returns nullopt if no run duration is set. Otherwise, returns the run
@@ -132,7 +191,7 @@ class DeepSleepComponent : public Component {
   bool should_teardown_();
 
 #ifdef USE_BK72XX
-  bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
+  bool pin_prevents_sleep_(WakeUpPinItem &pin_item) const;
   bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }
 #endif  // USE_BK72XX
 
@@ -162,7 +221,7 @@ class DeepSleepComponent : public Component {
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
+template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...> {
  public:
   EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
   TEMPLATABLE_VALUE(uint32_t, sleep_duration);
@@ -234,15 +293,15 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
 #endif
 };
 
-template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+template<typename... Ts>
+class PreventDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->prevent_deep_sleep(); }
 };
 
-template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+template<typename... Ts> class AllowDeepSleepAction final : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
-}  // namespace deep_sleep
-}  // namespace esphome
+}  // namespace esphome::deep_sleep

@@ -1,8 +1,7 @@
 #include "gps_time.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gps {
+namespace esphome::gps {
 
 static const char *const TAG = "gps.time";
 
@@ -24,5 +23,4 @@ void GPSTime::from_tiny_gps_(TinyGPSPlus &tiny_gps) {
   this->has_time_ = true;
 }
 
-}  // namespace gps
-}  // namespace esphome
+}  // namespace esphome::gps

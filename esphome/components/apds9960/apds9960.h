@@ -10,10 +10,9 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
 
-namespace esphome {
-namespace apds9960 {
+namespace esphome::apds9960 {
 
-class APDS9960 : public PollingComponent, public i2c::I2CDevice {
+class APDS9960 final : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_SENSOR
   SUB_SENSOR(red)
   SUB_SENSOR(green)
@@ -71,5 +70,4 @@ class APDS9960 : public PollingComponent, public i2c::I2CDevice {
   uint32_t gesture_start_{0};
 };
 
-}  // namespace apds9960
-}  // namespace esphome
+}  // namespace esphome::apds9960

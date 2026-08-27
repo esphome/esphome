@@ -1,7 +1,6 @@
 #include "camera.h"
 
-namespace esphome {
-namespace camera {
+namespace esphome::camera {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 Camera *Camera::global_camera = nullptr;
@@ -18,5 +17,4 @@ Camera::Camera() {
 
 Camera *Camera::instance() { return global_camera; }
 
-}  // namespace camera
-}  // namespace esphome
+}  // namespace esphome::camera

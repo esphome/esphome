@@ -10,13 +10,13 @@
 namespace esphome::sendspin_ {
 
 template<typename... Ts>
-class EnableStaticDelayAdjustmentAction : public Action<Ts...>, public Parented<SendspinMediaSource> {
+class EnableStaticDelayAdjustmentAction final : public Action<Ts...>, public Parented<SendspinMediaSource> {
  public:
   void play(const Ts &...x) override { this->parent_->set_static_delay_adjustable(true); }
 };
 
 template<typename... Ts>
-class DisableStaticDelayAdjustmentAction : public Action<Ts...>, public Parented<SendspinMediaSource> {
+class DisableStaticDelayAdjustmentAction final : public Action<Ts...>, public Parented<SendspinMediaSource> {
  public:
   void play(const Ts &...x) override { this->parent_->set_static_delay_adjustable(false); }
 };

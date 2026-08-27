@@ -157,7 +157,7 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
   const RadioFrequencyTraits &get_traits() const { return this->traits_; }
 
   /// Create a call object for transmitting
-  RadioFrequencyCall make_call();
+  RadioFrequencyCall make_call() { return RadioFrequencyCall(this); }
 
   /// Get capability flags for this radio frequency instance
   uint32_t get_capability_flags() const;
@@ -168,6 +168,15 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
   /// Add a callback to invoke when RF data is received
   template<typename F> void add_on_receive_callback(F &&callback) {
     this->receive_callback_.add(std::forward<F>(callback));
+  }
+
+  /// Add a callback to invoke when a transmit call is made on this entity.
+  /// Fires before the platform-specific control() runs, with the call object
+  /// (containing frequency, modulation, repeat count, etc.).  Used by the
+  /// `on_control` YAML trigger so users can wire any RF front-end driver
+  /// (CC1101, RFM69, custom) to react to per-call parameters.
+  template<typename F> void add_on_control_callback(F &&callback) {
+    this->control_callback_.add(std::forward<F>(callback));
   }
 
  protected:
@@ -182,6 +191,8 @@ class RadioFrequency : public Component, public EntityBase, public remote_base::
 
   // Callback manager for receive events (lazy: saves memory when no callbacks registered)
   LazyCallbackManager<void(remote_base::RemoteReceiveData)> receive_callback_;
+  // Callback manager for on_control trigger (lazy: same memory savings)
+  LazyCallbackManager<void(const RadioFrequencyCall &)> control_callback_;
 };
 
 }  // namespace esphome::radio_frequency

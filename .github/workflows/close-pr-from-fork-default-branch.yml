@@ -6,8 +6,8 @@ on:
     types: [opened, reopened]
 
 permissions:
-  pull-requests: write
-  issues: write
+  pull-requests: write  # pulls.update to close the PR opened from a fork's default branch
+  issues: write         # issues.createComment to explain to the contributor why the PR was closed
 
 jobs:
   close:

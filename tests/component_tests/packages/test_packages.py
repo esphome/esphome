@@ -7,13 +7,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome import bundle
 from esphome.components.packages import (
     CONFIG_SCHEMA,
     _substitute_package_definition,
     _walk_packages,
     do_packages_pass,
-    is_package_definition,
     merge_packages,
+    resolve_packages,
 )
 from esphome.components.substitutions import ContextVars, do_substitution_pass
 import esphome.config as config_module
@@ -86,44 +87,6 @@ def packages_pass(config):
     config = merge_packages(config)
     resolve_extend_remove(config)
     return config
-
-
-_INCLUDE_FILE = "INCLUDE_FILE"
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        # IncludeFile objects are package definitions
-        (_INCLUDE_FILE, True),
-        # Git URL shorthand strings are package definitions
-        ("github://esphome/firmware/base.yaml@main", True),
-        # Remote package dicts (with url key) are package definitions
-        ({"url": "https://github.com/esphome/firmware", "file": "base.yaml"}, True),
-        # Plain config dicts are NOT package definitions (they are config fragments)
-        ({"wifi": {"ssid": "test"}}, False),
-        # None is not a package definition
-        (None, False),
-        # Lists are not package definitions
-        ([{"wifi": {"ssid": "test"}}], False),
-        # Empty dicts are not package definitions
-        ({}, False),
-    ],
-    ids=[
-        "include_file",
-        "git_shorthand",
-        "remote_package",
-        "config_fragment",
-        "none",
-        "list",
-        "empty_dict",
-    ],
-)
-def test_is_package_definition(value: object, expected: bool) -> None:
-    """Test that is_package_definition correctly identifies package definitions."""
-    if value is _INCLUDE_FILE:
-        value = MagicMock(spec=IncludeFile)
-    assert is_package_definition(value) is expected
 
 
 def test_package_unused(basic_esphome, basic_wifi) -> None:
@@ -207,30 +170,6 @@ def test_package_include(basic_wifi, basic_esphome) -> None:
 
     actual = packages_pass(config)
     assert actual == expected
-
-
-def test_single_package(
-    basic_esphome,
-    basic_wifi,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """
-    Tests the simple case where a single package is added to the top-level config as is.
-    In this test, the CONF_WIFI config is expected to be simply added to the top-level config.
-    This tests the case where the user just put packages: !include package.yaml, not
-    part of a list or mapping of packages.
-    This behavior is deprecated, the test also checks if a warning is issued.
-    """
-    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: {CONF_WIFI: basic_wifi}}
-
-    expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
-
-    with caplog.at_level("WARNING"):
-        actual = packages_pass(config)
-
-    assert actual == expected
-
-    assert "This method for including packages will go away in 2026.7.0" in caplog.text
 
 
 def test_package_append(basic_wifi, basic_esphome) -> None:
@@ -509,15 +448,9 @@ def test_package_merge_by_missing_id() -> None:
         ],
     }
 
-    error_raised = False
-    try:
+    with pytest.raises(cv.Invalid) as exc_info:
         packages_pass(config)
-        assert False, "Expected validation error for missing ID"
-    except cv.Invalid as err:
-        error_raised = True
-        assert err.path == [CONF_SENSOR, 2]
-
-    assert error_raised
+    assert exc_info.value.path == [CONF_SENSOR, 2]
 
 
 def test_package_list_remove_by_id() -> None:
@@ -1159,6 +1092,10 @@ def test_packages_include_file_resolves_to_invalid_type_raises(
         6,
         "some string",
         True,
+        None,
+        ["some string"],
+        {"some_component": 8},
+        {3: 2},
     ],
 )
 def test_invalid_package_contents_rejected(invalid_package: object) -> None:
@@ -1172,28 +1109,15 @@ def test_invalid_package_contents_rejected(invalid_package: object) -> None:
         do_packages_pass(config)
 
 
-@pytest.mark.xfail(
-    reason="Deprecated single-package fallback swallows these errors. "
-    "Remove xfail when single-package deprecation is removed (2026.7.0).",
-    strict=True,
-)
-@pytest.mark.parametrize(
-    "invalid_package",
-    [
-        None,
-        ["some string"],
-        {"some_component": 8},
-        {3: 2},
-    ],
-)
-def test_invalid_package_contents_masked_by_deprecation(
-    invalid_package: object,
-) -> None:
-    """These invalid packages are swallowed by the deprecated single-package fallback."""
+def test_single_package_fragment_form_rejected() -> None:
+    """The deprecated single-package form is removed and now raises.
+
+    Previously ``packages: !include some_package.yaml`` resolving to a bare config
+    fragment dict was silently wrapped and merged via the single-package fallback.
+    That form must now raise instead of being accepted.
+    """
     config = {
-        CONF_PACKAGES: {
-            "some_package": invalid_package,
-        },
+        CONF_PACKAGES: {CONF_WIFI: {CONF_SSID: "test", CONF_PASSWORD: "secret"}},
     }
     with pytest.raises(cv.Invalid):
         do_packages_pass(config)
@@ -1236,14 +1160,10 @@ def test_named_dict_with_include_files_no_false_deprecation_warning(
     assert "deprecated" not in caplog.text.lower()
 
 
-def test_validate_deprecated_false_raises_directly(
+def test_named_package_errors_raise_directly(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """With validate_deprecated=False, errors raise directly without fallback.
-
-    This is the codepath used for remote packages where _process_remote_package
-    returns already-resolved dicts that is_package_definition cannot detect.
-    """
+    """Errors processing a named-dict package raise directly, with no deprecation warning."""
     config = {
         CONF_PACKAGES: {
             "pkg_a": {CONF_WIFI: {CONF_SSID: "test"}},
@@ -1266,7 +1186,7 @@ def test_validate_deprecated_false_raises_directly(
         caplog.at_level(logging.WARNING),
         pytest.raises(cv.Invalid, match="nested error"),
     ):
-        _walk_packages(config, failing_callback, validate_deprecated=False)
+        _walk_packages(config, failing_callback)
 
     assert "deprecated" not in caplog.text.lower()
 
@@ -1299,40 +1219,6 @@ def test_error_on_first_declared_package_still_detected() -> None:
 
     with pytest.raises(cv.Invalid, match="error in first_pkg"):
         _walk_packages(config, fail_on_last)
-
-
-def test_deprecated_single_package_fallback_still_works(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The deprecated single-package form still falls back at the top level.
-
-    When a dict's values are plain config fragments (not package definitions)
-    and the callback fails, the deprecated fallback wraps the dict in a list
-    and retries with a deprecation warning.
-    """
-    config = {
-        CONF_PACKAGES: {
-            CONF_WIFI: {CONF_SSID: "test", CONF_PASSWORD: "secret"},
-        },
-    }
-
-    attempt = 0
-
-    def fail_then_succeed(
-        package_config: dict, context: object, path: DocumentPath | None = None
-    ) -> dict:
-        nonlocal attempt
-        attempt += 1
-        if attempt == 1:
-            # First attempt: treating as named dict fails
-            raise cv.Invalid("not a valid package")
-        # Second attempt: after fallback wraps as list, succeeds
-        return package_config
-
-    with caplog.at_level(logging.WARNING):
-        _walk_packages(config, fail_then_succeed)
-
-    assert "deprecated" in caplog.text.lower()
 
 
 def test_merge_packages_invalid_nested_type_raises() -> None:
@@ -1377,6 +1263,75 @@ def test_remote_packages_no_revert(
     assert actual[CONF_SENSOR] == [
         {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}
     ]
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_skipped_revert_does_not_retry(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """When revert() reports the rollback was skipped, the load is not
+    retried (the checkout is unchanged) and the error says so."""
+    mock_revert = MagicMock(return_value=False)
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+    mock_is_file.return_value = True
+    mock_load_yaml.side_effect = cv.Invalid("bad yaml")
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    with pytest.raises(cv.Invalid, match="could not revert the cached checkout"):
+        packages_pass(config)
+
+    assert mock_revert.call_count == 1
+    assert mock_load_yaml.call_count == 1
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_successful_revert_retries(
+    mock_clone_or_update, mock_is_file, mock_load_yaml, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A successful revert retries the load against the reverted checkout and
+    logs the original error, the only trace that upstream was broken."""
+    mock_revert = MagicMock(return_value=True)
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+    mock_is_file.return_value = True
+    mock_load_yaml.side_effect = [
+        cv.Invalid("bad yaml"),
+        OrderedDict(
+            {CONF_SENSOR: [{CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}]}
+        ),
+    ]
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    with caplog.at_level(logging.WARNING):
+        actual = packages_pass(config)
+
+    assert actual[CONF_SENSOR] == [
+        {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}
+    ]
+    assert mock_revert.call_count == 1
+    assert mock_load_yaml.call_count == 2
+    assert any("reverted the cached checkout" in r.getMessage() for r in caplog.records)
 
 
 def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
@@ -1621,3 +1576,153 @@ def test_remote_package_vars_resolved_against_sibling_package_substitutions(
     actual = packages_pass(config)
 
     assert actual[CONF_SENSOR][0]["pin"] == "GPIO5"
+
+
+# ---------------------------------------------------------------------------
+# resolve_packages — single-call wrapper around do_packages_pass + merge_packages
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_packages_returns_config_unchanged_without_packages() -> None:
+    """No ``packages:`` key → no-op, same dict back."""
+    config = {CONF_ESPHOME: {CONF_NAME: "test"}, CONF_WIFI: {CONF_SSID: "x"}}
+    result = resolve_packages(config)
+    assert result is config
+    assert CONF_PACKAGES not in result
+
+
+def test_resolve_packages_loads_and_merges_in_one_call() -> None:
+    """End-to-end: a config with one local-dict package gets its blocks flattened."""
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_PACKAGES: {
+            "shared": {
+                CONF_WIFI: {CONF_SSID: "from_package"},
+                CONF_SENSOR: [
+                    {CONF_PLATFORM: "template", CONF_NAME: "from_package_sensor"},
+                ],
+            }
+        },
+    }
+    result = resolve_packages(config)
+    # ``packages:`` is gone — it was consumed by the merge.
+    assert CONF_PACKAGES not in result
+    # Blocks contributed by the package are now top-level.
+    assert result[CONF_WIFI][CONF_SSID] == "from_package"
+    assert result[CONF_SENSOR][0][CONF_NAME] == "from_package_sensor"
+    # The main config's own keys survive untouched.
+    assert result[CONF_ESPHOME][CONF_NAME] == "main"
+
+
+def test_resolve_packages_preserves_main_config_overrides() -> None:
+    """Main-config values win over package values for the same key.
+
+    Pinning the precedence ESPHome's compiler uses so any future
+    refactor of the wrapper doesn't accidentally flip the order.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_WIFI: {CONF_SSID: "main_wins"},
+        CONF_PACKAGES: {
+            "shared": {CONF_WIFI: {CONF_SSID: "package_loses"}},
+        },
+    }
+    result = resolve_packages(config)
+    assert result[CONF_WIFI][CONF_SSID] == "main_wins"
+
+
+def test_resolve_packages_forwards_command_line_substitutions() -> None:
+    """``command_line_substitutions`` reaches the underlying ``do_packages_pass``.
+
+    The wrapper exists so external tools have one stable seam; if
+    that seam silently dropped a kwarg the underlying call accepts,
+    callers would see surprising behaviour. This pins the
+    pass-through.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_PACKAGES: {"shared": {CONF_WIFI: {CONF_SSID: "from_package"}}},
+    }
+    with patch(
+        "esphome.components.packages.do_packages_pass",
+        wraps=do_packages_pass,
+    ) as spy:
+        resolve_packages(config, command_line_substitutions={"foo": "bar"})
+    spy.assert_called_once()
+    _, kwargs = spy.call_args
+    assert kwargs.get("command_line_substitutions") == {"foo": "bar"}
+
+
+def test_resolve_packages_does_not_run_substitutions() -> None:
+    """``${var}`` placeholders inside package content stay literal.
+
+    The full ``validate_config`` pipeline runs ``do_substitution_pass``
+    BETWEEN ``do_packages_pass`` and ``merge_packages``; this wrapper
+    skips it on purpose. Pin that contract so a future refactor can't
+    silently start resolving substitutions and break callers that
+    deliberately compose the passes themselves.
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_SUBSTITUTIONS: {"ssid_value": "resolved_ssid"},
+        CONF_PACKAGES: {
+            "shared": {CONF_WIFI: {CONF_SSID: "${ssid_value}"}},
+        },
+    }
+    result = resolve_packages(config)
+    # Without ``do_substitution_pass`` the placeholder is preserved.
+    assert result[CONF_WIFI][CONF_SSID] == "${ssid_value}"
+
+
+def test_resolve_packages_does_not_apply_extend_remove() -> None:
+    """Top-level ``!remove`` / ``!extend`` markers stay in the merged dict.
+
+    The full ``validate_config`` pipeline runs ``resolve_extend_remove``
+    AFTER ``merge_packages``; this wrapper skips it on purpose. Pin
+    that contract: a package-contributed block paired with a top-level
+    ``!remove`` is left as-is for callers to handle (or for them to
+    call ``resolve_extend_remove`` themselves).
+    """
+    config = {
+        CONF_ESPHOME: {CONF_NAME: "main"},
+        CONF_WIFI: Remove(),
+        CONF_PACKAGES: {
+            "shared": {CONF_WIFI: {CONF_SSID: "from_package"}},
+        },
+    }
+    result = resolve_packages(config)
+    # ``merge_packages`` keeps the top-level ``!remove`` (it wins
+    # over the package value during merge), and the marker is not
+    # resolved by this wrapper.
+    assert isinstance(result[CONF_WIFI], Remove)
+
+
+@patch("esphome.git.clone_or_update")
+def test_remote_package_registers_checkout_for_secret_scan(
+    mock_clone_or_update, tmp_path: Path
+) -> None:
+    """Loading a remote package registers its path-narrowed checkout dir
+    as a bundle secret-scan dir (issue 18023)."""
+    repo_root = tmp_path / "repo"
+    package_dir = repo_root / "packages"
+    package_dir.mkdir(parents=True)
+    (package_dir / "base.yml").write_text(
+        f"sensor:\n  - platform: {TEST_SENSOR_PLATFORM_1}\n    name: {TEST_SENSOR_NAME_1}\n"
+    )
+    mock_clone_or_update.return_value = (repo_root, None)
+
+    config = {
+        CONF_PACKAGES: {
+            "package1": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_REF: "main",
+                CONF_PATH: "packages",
+                CONF_FILES: ["base.yml"],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    packages_pass(config)
+
+    assert package_dir in bundle._get_data().secret_scan_dirs
+    assert repo_root not in bundle._get_data().secret_scan_dirs

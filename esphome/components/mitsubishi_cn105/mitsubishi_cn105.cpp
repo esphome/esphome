@@ -1,15 +1,16 @@
+#include "mitsubishi_cn105.h"
+
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <numeric>
-#include "mitsubishi_cn105.h"
+#include "mitsubishi_cn105_properties.h"
 
 namespace esphome::mitsubishi_cn105 {
 
 static const char *const TAG = "mitsubishi_cn105.driver";
 
-static constexpr uint32_t WRITE_TIMEOUT_MS = 2000;
-
-static constexpr uint8_t TARGET_TEMPERATURE_ENC_A_OFFSET = 31;
+static constexpr uint32_t RESPONSE_TIMEOUT_MS = 2000;
 
 static constexpr size_t REQUEST_PAYLOAD_LEN = 0x10;
 static constexpr size_t HEADER_LEN = 5;
@@ -24,49 +25,10 @@ static constexpr std::array<uint8_t, 2> CONNECT_REQUEST_PAYLOAD = {0xCA, 0x01};
 static constexpr uint8_t PACKET_TYPE_STATUS_REQUEST = 0x42;
 static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
-static constexpr uint8_t STATUS_MSG_ROOM_TEMP = 0x03;
+static constexpr uint8_t STATUS_MSG_TELEMETRY = 0x03;
 
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_REQUEST = 0x41;
 static constexpr uint8_t PACKET_TYPE_WRITE_SETTINGS_RESPONSE = 0x61;
-
-static constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> PROTOCOL_MODE_MAP = {
-    std::nullopt,                     // 0x00
-    MitsubishiCN105::Mode::HEAT,      // 0x01
-    MitsubishiCN105::Mode::DRY,       // 0x02
-    MitsubishiCN105::Mode::COOL,      // 0x03
-    std::nullopt,                     // 0x04
-    std::nullopt,                     // 0x05
-    std::nullopt,                     // 0x06
-    MitsubishiCN105::Mode::FAN_ONLY,  // 0x07
-    MitsubishiCN105::Mode::AUTO       // 0x08
-};
-
-static constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> PROTOCOL_FAN_MODE_MAP = {
-    MitsubishiCN105::FanMode::AUTO,     // 0x00
-    MitsubishiCN105::FanMode::QUIET,    // 0x01
-    MitsubishiCN105::FanMode::SPEED_1,  // 0x02
-    MitsubishiCN105::FanMode::SPEED_2,  // 0x03
-    std::nullopt,                       // 0x04
-    MitsubishiCN105::FanMode::SPEED_3,  // 0x05
-    MitsubishiCN105::FanMode::SPEED_4   // 0x06
-};
-
-template<typename T, size_t N>
-static constexpr std::optional<T> lookup(const std::array<std::optional<T>, N> &table, uint8_t value) {
-  return (value < N) ? table[value] : std::nullopt;
-}
-
-template<typename T, size_t N>
-static constexpr bool reverse_lookup(const std::array<std::optional<T>, N> &table, T value, uint8_t &placeholder) {
-  for (size_t i = 0; i < N; ++i) {
-    const auto &table_value = table[i];
-    if (table_value.has_value() && table_value == value) {
-      placeholder = i;
-      return true;
-    }
-  }
-  return false;
-}
 
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - std::accumulate(bytes, bytes + length, uint8_t{0}));
@@ -81,32 +43,43 @@ static constexpr auto make_packet(uint8_t type, const std::array<uint8_t, Payloa
   return packet;
 }
 
-static float decode_temperature(int temp_a, int temp_b, int delta) {
-  return temp_b != 0 ? (temp_b - 128) / 2.0f : delta + temp_a;
-}
-
 static constexpr auto CONNECT_PACKET = make_packet(PACKET_TYPE_CONNECT_REQUEST, CONNECT_REQUEST_PAYLOAD);
 
 void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 
 bool MitsubishiCN105::update() {
-  if (const auto start = this->status_update_start_ms_) {
-    if (this->pending_updates_.any()) {
-      this->cancel_waiting_and_transition_to_(State::APPLYING_SETTINGS);
+  switch (this->state_) {
+    case State::DEFERRED_STATUS_REQUEST:
+      // Defer the next request to a later loop iteration; some units might not respond if a request is sent
+      // immediately after a response. See https://github.com/esphome/esphome/issues/18099. No minimum RX-to-TX delay
+      // is enforced.
+      this->set_state_(State::UPDATING_STATUS);
       return false;
-    }
 
-    if ((get_loop_time_ms() - *start) >= this->update_interval_ms_) {
-      this->cancel_waiting_and_transition_to_(State::UPDATING_STATUS);
-      return false;
-    }
-  }
+    case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
+      if (this->pending_updates_.any()) {
+        this->status_update_wait_credit_ms_ =
+            std::min(this->update_interval_ms_, get_loop_time_ms() - this->operation_start_ms_);
+        this->set_state_(State::APPLYING_SETTINGS);
+        return false;
+      }
+      if (this->has_timed_out_(this->update_interval_ms_)) {
+        this->set_state_(State::UPDATING_STATUS);
+        return false;
+      }
+      break;
 
-  if (const auto start = this->write_timeout_start_ms_; start && (get_loop_time_ms() - *start) >= WRITE_TIMEOUT_MS) {
-    this->write_timeout_start_ms_.reset();
-    this->frame_parser_.reset();
-    this->set_state_(State::READ_TIMEOUT);
-    return false;
+    case State::CONNECTING:
+    case State::UPDATING_STATUS:
+    case State::APPLYING_SETTINGS:
+      if (this->has_timed_out_(RESPONSE_TIMEOUT_MS)) {
+        this->set_state_(State::READ_TIMEOUT);
+        return false;
+      }
+      break;
+
+    default:
+      break;
   }
 
   return this->frame_parser_.read_and_parse(this->device_, [this](uint8_t type, const uint8_t *payload, size_t len) {
@@ -135,11 +108,13 @@ bool MitsubishiCN105::should_transition(State from, State to) {
       return from == State::CONNECTING;
 
     case State::UPDATING_STATUS:
-      return from == State::CONNECTED || from == State::STATUS_UPDATED ||
-             from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
+      return from == State::DEFERRED_STATUS_REQUEST || from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
 
     case State::STATUS_UPDATED:
       return from == State::UPDATING_STATUS;
+
+    case State::DEFERRED_STATUS_REQUEST:
+      return from == State::CONNECTED || from == State::STATUS_UPDATED;
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
       return from == State::STATUS_UPDATED || from == State::SETTINGS_APPLIED;
@@ -148,7 +123,7 @@ bool MitsubishiCN105::should_transition(State from, State to) {
       return from == State::SCHEDULE_NEXT_STATUS_UPDATE;
 
     case State::APPLYING_SETTINGS:
-      return from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE || from == State::STATUS_UPDATED;
+      return from == State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
 
     case State::SETTINGS_APPLIED:
       return from == State::APPLYING_SETTINGS;
@@ -156,9 +131,10 @@ bool MitsubishiCN105::should_transition(State from, State to) {
     case State::READ_TIMEOUT:
       return from == State::UPDATING_STATUS || from == State::APPLYING_SETTINGS || from == State::CONNECTING;
 
-    default:
+    case State::NOT_CONNECTED:
       return false;
   }
+  return false;
 }
 
 void MitsubishiCN105::did_transition_(State to) {
@@ -168,9 +144,8 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::CONNECTED:
-      this->write_timeout_start_ms_.reset();
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
-      this->set_state_(State::UPDATING_STATUS);
+      this->set_state_(State::DEFERRED_STATUS_REQUEST);
       break;
 
     case State::UPDATING_STATUS:
@@ -178,12 +153,14 @@ void MitsubishiCN105::did_transition_(State to) {
       break;
 
     case State::STATUS_UPDATED: {
-      this->write_timeout_start_ms_.reset();
-      if (this->pending_updates_.any() && this->is_status_initialized()) {
-        this->set_state_(State::APPLYING_SETTINGS);
-      } else if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_room_temperature_()) {
-        this->current_status_msg_type_ = STATUS_MSG_ROOM_TEMP;
-        this->set_state_(State::UPDATING_STATUS);
+      // When present, pending settings are applied from WAITING_FOR_SCHEDULED_STATUS_UPDATE during the next update(),
+      // deferring transmission to a later loop iteration; some units might not respond if a request is sent
+      // immediately after a response, causing the request to time out.
+      const bool should_apply_pending_settings = this->pending_updates_.any() && this->is_status_initialized();
+      if (!should_apply_pending_settings && this->current_status_msg_type_ == STATUS_MSG_SETTINGS &&
+          this->should_request_telemetry_()) {
+        this->current_status_msg_type_ = STATUS_MSG_TELEMETRY;
+        this->set_state_(State::DEFERRED_STATUS_REQUEST);
       } else {
         this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       }
@@ -191,56 +168,54 @@ void MitsubishiCN105::did_transition_(State to) {
     }
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      this->status_update_start_ms_ = get_loop_time_ms();
+      this->operation_start_ms_ = get_loop_time_ms() - this->status_update_wait_credit_ms_;
+      this->status_update_wait_credit_ms_ = 0;
       this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
       this->set_state_(State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
       break;
 
     case State::APPLYING_SETTINGS:
       this->apply_settings_();
-      this->pending_updates_.clear();
       break;
 
     case State::SETTINGS_APPLIED:
-      this->write_timeout_start_ms_.reset();
       this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
       break;
 
     case State::READ_TIMEOUT:
+      this->frame_parser_.reset();
+      this->status_update_wait_credit_ms_ = 0;
       this->set_state_(State::CONNECTING);
       break;
 
-    default:
+    case State::NOT_CONNECTED:
+    case State::DEFERRED_STATUS_REQUEST:
+    case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
       break;
   }
 }
 
-bool MitsubishiCN105::should_request_room_temperature_() const {
-  if (!this->is_room_temperature_enabled()) {
+bool MitsubishiCN105::should_request_telemetry_() const {
+  if (!this->is_telemetry_polling_enabled()) {
     return false;
   }
 
-  if (!this->last_room_temperature_update_ms_.has_value()) {
+  if (!this->last_telemetry_update_ms_.has_value()) {
     return true;
   }
 
-  return (get_loop_time_ms() - *this->last_room_temperature_update_ms_) >= this->room_temperature_min_interval_ms_;
+  return (get_loop_time_ms() - *this->last_telemetry_update_ms_) >= this->telemetry_request_min_interval_ms_;
 }
 
-void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
-  FrameParser::dump_buffer_vv("TX", packet, len);
-  this->device_.write_array(packet, len);
-  this->write_timeout_start_ms_ = get_loop_time_ms();
+void MitsubishiCN105::send_packet_(std::span<const uint8_t> packet) {
+  FrameParser::dump_buffer_vv("TX", packet.data(), packet.size());
+  this->device_.write_array(packet.data(), packet.size());
+  this->operation_start_ms_ = get_loop_time_ms();
 }
 
 void MitsubishiCN105::update_status_() {
-  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload = {this->current_status_msg_type_};
+  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{this->current_status_msg_type_};
   this->send_packet_(make_packet(PACKET_TYPE_STATUS_REQUEST, payload));
-}
-
-void MitsubishiCN105::cancel_waiting_and_transition_to_(State state) {
-  this->status_update_start_ms_.reset();
-  this->set_state_(state);
 }
 
 bool MitsubishiCN105::process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len) {
@@ -278,11 +253,12 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     this->set_state_(State::STATUS_UPDATED);
   }
 
-  bool changed = previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
-                 previous.fan_mode != this->status_.fan_mode ||
-                 previous.target_temperature != this->status_.target_temperature;
+  bool changed =
+      previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
+      previous.fan_mode != this->status_.fan_mode || previous.target_temperature != this->status_.target_temperature ||
+      previous.vane_mode != this->status_.vane_mode || previous.wide_vane_mode != this->status_.wide_vane_mode;
 
-  if (this->is_room_temperature_enabled()) {
+  if (this->is_telemetry_polling_enabled()) {
     changed |= previous.room_temperature != this->status_.room_temperature;
   }
 
@@ -290,12 +266,22 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
 }
 
 bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len) {
+  Property::Decoder decoder{std::span{payload, len}, this->property_context_, this->pending_updates_};
   switch (msg_type) {
     case STATUS_MSG_SETTINGS:
-      return this->parse_status_settings_(payload, len);
+      if (!decoder.decode_settings(this->status_)) {
+        ESP_LOGVV(TAG, "RX settings payload too short");
+        return false;
+      }
+      return true;
 
-    case STATUS_MSG_ROOM_TEMP:
-      return this->parse_status_room_temperature_(payload, len);
+    case STATUS_MSG_TELEMETRY:
+      if (!decoder.decode_room_temperature(this->status_)) {
+        ESP_LOGVV(TAG, "RX telemetry payload too short");
+        return false;
+      }
+      this->last_telemetry_update_ms_ = get_loop_time_ms();
+      return true;
 
     default:
       ESP_LOGVV(TAG, "RX unsupported status msg type 0x%02X", msg_type);
@@ -303,48 +289,30 @@ bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *pay
   }
 }
 
-bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len) {
-  if (len <= 10) {
-    ESP_LOGVV(TAG, "RX settings payload too short");
-    return false;
+void MitsubishiCN105::set_remote_temperature(float temperature) {
+  if (std::isnan(temperature)) {
+    ESP_LOGD(TAG, "Ignoring NaN remote temperature");
+    return;
   }
-
-  if (!this->pending_updates_.has(UpdateFlag::POWER)) {
-    this->status_.power_on = payload[2] != 0;
+  if (temperature < 8.0f || temperature > 39.5f) {
+    ESP_LOGD(TAG, "Ignoring out-of-range remote temperature: %.1f", temperature);
+    return;
   }
-
-  this->use_temperature_encoding_b_ = payload[10] != 0;
-  if (!this->pending_updates_.has(UpdateFlag::TEMPERATURE)) {
-    this->status_.target_temperature = decode_temperature(-payload[4], payload[10], TARGET_TEMPERATURE_ENC_A_OFFSET);
-  }
-
-  if (!this->pending_updates_.has(UpdateFlag::MODE)) {
-    const bool i_see = payload[3] > 0x08;
-    this->status_.mode = lookup(PROTOCOL_MODE_MAP, payload[3] - (i_see ? 0x08 : 0)).value_or(Mode::UNKNOWN);
-  }
-
-  if (!this->pending_updates_.has(UpdateFlag::FAN)) {
-    this->status_.fan_mode = lookup(PROTOCOL_FAN_MODE_MAP, payload[5]).value_or(FanMode::UNKNOWN);
-  }
-
-  return true;
+  this->set_remote_temperature_half_deg_(static_cast<uint8_t>(std::round(temperature * 2.0f)));
 }
 
-bool MitsubishiCN105::parse_status_room_temperature_(const uint8_t *payload, size_t len) {
-  if (len <= 5) {
-    ESP_LOGVV(TAG, "RX room temperature payload too short");
-    return false;
-  }
+void MitsubishiCN105::clear_remote_temperature() {
+  this->set_remote_temperature_half_deg_(REMOTE_TEMPERATURE_DISABLED);
+}
 
-  this->status_.room_temperature = decode_temperature(payload[2], payload[5], 10);
-  this->last_room_temperature_update_ms_ = get_loop_time_ms();
-
-  return true;
+void MitsubishiCN105::set_remote_temperature_half_deg_(uint8_t temperature_half_deg) {
+  this->remote_temperature_half_deg_ = temperature_half_deg;
+  this->pending_updates_.set(Property::Temperature::Remote::ID);
 }
 
 void MitsubishiCN105::set_power(bool power_on) {
   this->status_.power_on = power_on;
-  this->pending_updates_.set(UpdateFlag::POWER);
+  this->pending_updates_.set(Property::Power::ID);
 }
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
@@ -353,54 +321,42 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
     return;
   }
   this->status_.target_temperature = target_temperature;
-  this->pending_updates_.set(UpdateFlag::TEMPERATURE);
+  this->pending_updates_.set(Property::Temperature::Target::ID);
 }
 
 void MitsubishiCN105::set_mode(Mode mode) {
-  uint8_t placeholder;
-  if (!reverse_lookup(PROTOCOL_MODE_MAP, mode, placeholder)) {
-    ESP_LOGD(TAG, "Setting invalid mode: %u", static_cast<uint8_t>(mode));
-    return;
+  if (!Property::Mode::validate_and_set(mode, this->status_, this->pending_updates_)) {
+    ESP_LOGD(TAG, "Ignoring invalid mode: %u", static_cast<uint8_t>(mode));
   }
-  this->status_.mode = mode;
-  this->pending_updates_.set(UpdateFlag::MODE);
 }
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
-  uint8_t placeholder;
-  if (!reverse_lookup(PROTOCOL_FAN_MODE_MAP, fan_mode, placeholder)) {
-    ESP_LOGD(TAG, "Setting invalid fan mode: %u", static_cast<uint8_t>(fan_mode));
-    return;
+  if (!Property::FanMode::validate_and_set(fan_mode, this->status_, this->pending_updates_)) {
+    ESP_LOGD(TAG, "Ignoring invalid fan mode: %u", static_cast<uint8_t>(fan_mode));
   }
-  this->status_.fan_mode = fan_mode;
-  this->pending_updates_.set(UpdateFlag::FAN);
+}
+
+void MitsubishiCN105::set_vane_mode(VaneMode vane_mode) {
+  if (!Property::VaneMode::validate_and_set(vane_mode, this->status_, this->pending_updates_)) {
+    ESP_LOGD(TAG, "Ignoring invalid vane mode: %u", static_cast<uint8_t>(vane_mode));
+  }
+}
+
+void MitsubishiCN105::set_wide_vane_mode(WideVaneMode wide_vane_mode) {
+  if (!Property::WideVaneMode::validate_and_set(wide_vane_mode, this->status_, this->pending_updates_)) {
+    ESP_LOGD(TAG, "Ignoring invalid wide vane mode: %u", static_cast<uint8_t>(wide_vane_mode));
+  }
 }
 
 void MitsubishiCN105::apply_settings_() {
-  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload = {0x01};
+  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
+  Property::Encoder encoder{payload.data(), this->property_context_, this->pending_updates_};
 
-  if (this->pending_updates_.has(UpdateFlag::POWER)) {
-    payload[1] |= 0x01;
-    payload[3] = this->status_.power_on ? 0x01 : 0x00;
-  }
-
-  if (this->pending_updates_.has(UpdateFlag::TEMPERATURE)) {
-    payload[1] |= 0x04;
-    if (this->use_temperature_encoding_b_) {
-      payload[14] = static_cast<uint8_t>(std::round(this->status_.target_temperature * 2.0f) + 128);
-    } else {
-      payload[5] = static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - std::round(this->status_.target_temperature));
-    }
-  }
-
-  if (this->pending_updates_.has(UpdateFlag::MODE) &&
-      reverse_lookup(PROTOCOL_MODE_MAP, this->status_.mode, payload[4])) {
-    payload[1] |= 0x02;
-  }
-
-  if (this->pending_updates_.has(UpdateFlag::FAN) &&
-      reverse_lookup(PROTOCOL_FAN_MODE_MAP, this->status_.fan_mode, payload[6])) {
-    payload[1] |= 0x08;
+  // Apply all other pending settings first; handle REMOTE_TEMPERATURE last
+  if (this->pending_updates_.contains_only(Property::Temperature::Remote::ID)) {
+    encoder.encode_remote_temperature(this->remote_temperature_half_deg_);
+  } else {
+    encoder.encode_settings(this->status_);
   }
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
@@ -418,6 +374,8 @@ const LogString *MitsubishiCN105::state_to_string(State state) {
       return LOG_STR("UpdatingStatus");
     case State::STATUS_UPDATED:
       return LOG_STR("StatusUpdated");
+    case State::DEFERRED_STATUS_REQUEST:
+      return LOG_STR("DeferredStatusRequest");
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
       return LOG_STR("ScheduleNextStatusUpdate");
     case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:

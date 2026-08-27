@@ -9,8 +9,7 @@
 // - https://www.nxp.com/docs/en/nxp/application-notes/AN133910.pdf
 // - https://www.nxp.com/docs/en/nxp/application-notes/153710.pdf
 
-namespace esphome {
-namespace pn532 {
+namespace esphome::pn532 {
 
 static const char *const TAG = "pn532";
 
@@ -458,5 +457,4 @@ bool PN532BinarySensor::process(const nfc::NfcTagUid &data) {
   return true;
 }
 
-}  // namespace pn532
-}  // namespace esphome
+}  // namespace esphome::pn532

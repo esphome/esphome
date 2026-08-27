@@ -3,8 +3,7 @@
 #include "remote_base.h"
 #include <vector>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 struct HaierData {
   std::vector<uint8_t> data;
@@ -35,5 +34,4 @@ template<typename... Ts> class HaierAction : public RemoteTransmitterActionBase<
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

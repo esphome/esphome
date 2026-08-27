@@ -401,7 +401,6 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 #endif
   auto uicr = [](volatile uint32_t *data, uint8_t size) {
     std::string res;
-    char buf[sizeof(uint32_t) * 2 + 1];
     for (size_t i = 0; i < size; i++) {
       if (i > 0) {
         res += ' ';

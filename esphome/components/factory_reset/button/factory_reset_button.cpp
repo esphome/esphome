@@ -9,8 +9,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace factory_reset {
+namespace esphome::factory_reset {
 
 static const char *const TAG = "factory_reset.button";
 
@@ -34,5 +33,4 @@ void FactoryResetButton::factory_reset_callback() {
 }
 #endif
 
-}  // namespace factory_reset
-}  // namespace esphome
+}  // namespace esphome::factory_reset

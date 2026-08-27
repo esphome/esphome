@@ -7,8 +7,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-namespace esphome {
-namespace rf_bridge {
+namespace esphome::rf_bridge {
 
 static const uint8_t RF_MESSAGE_SIZE = 9;
 static const uint8_t RF_CODE_START = 0xAA;
@@ -45,7 +44,7 @@ struct RFBridgeAdvancedData {
   std::string code;
 };
 
-class RFBridgeComponent : public uart::UARTDevice, public Component {
+class RFBridgeComponent final : public uart::UARTDevice, public Component {
  public:
   void loop() override;
   void dump_config() override;
@@ -77,7 +76,7 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   CallbackManager<void(RFBridgeAdvancedData)> advanced_data_callback_;
 };
 
-template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeSendCodeAction final : public Action<Ts...> {
  public:
   RFBridgeSendCodeAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint16_t, sync)
@@ -98,7 +97,7 @@ template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeSendAdvancedCodeAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeSendAdvancedCodeAction final : public Action<Ts...> {
  public:
   RFBridgeSendAdvancedCodeAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint8_t, length)
@@ -117,7 +116,7 @@ template<typename... Ts> class RFBridgeSendAdvancedCodeAction : public Action<Ts
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeLearnAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeLearnAction final : public Action<Ts...> {
  public:
   RFBridgeLearnAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -127,7 +126,7 @@ template<typename... Ts> class RFBridgeLearnAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeStartAdvancedSniffingAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeStartAdvancedSniffingAction final : public Action<Ts...> {
  public:
   RFBridgeStartAdvancedSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -137,7 +136,7 @@ template<typename... Ts> class RFBridgeStartAdvancedSniffingAction : public Acti
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeStopAdvancedSniffingAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeStopAdvancedSniffingAction final : public Action<Ts...> {
  public:
   RFBridgeStopAdvancedSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -147,7 +146,7 @@ template<typename... Ts> class RFBridgeStopAdvancedSniffingAction : public Actio
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeStartBucketSniffingAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeStartBucketSniffingAction final : public Action<Ts...> {
  public:
   RFBridgeStartBucketSniffingAction(RFBridgeComponent *parent) : parent_(parent) {}
 
@@ -157,7 +156,7 @@ template<typename... Ts> class RFBridgeStartBucketSniffingAction : public Action
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeSendRawAction final : public Action<Ts...> {
  public:
   RFBridgeSendRawAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, raw)
@@ -168,7 +167,7 @@ template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
+template<typename... Ts> class RFBridgeBeepAction final : public Action<Ts...> {
  public:
   RFBridgeBeepAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(uint16_t, duration)
@@ -179,5 +178,4 @@ template<typename... Ts> class RFBridgeBeepAction : public Action<Ts...> {
   RFBridgeComponent *parent_;
 };
 
-}  // namespace rf_bridge
-}  // namespace esphome
+}  // namespace esphome::rf_bridge

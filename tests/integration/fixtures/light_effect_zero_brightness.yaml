@@ -1,0 +1,35 @@
+esphome:
+  name: light-effect-zero-bright
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: pulse_output
+    type: float
+    write_action:
+      - logger.log:
+          format: "PULSE_OUTPUT:%.4f"
+          args: [state]
+
+light:
+  - platform: monochromatic
+    name: "Test Pulse Light"
+    id: test_pulse_light
+    output: pulse_output
+    effects:
+      - pulse:
+          name: "Fast Pulse"
+          transition_length: 20ms
+          update_interval: 50ms
+          min_brightness: 0%
+          max_brightness: 100%
+      - strobe:
+          name: "Fast Strobe"
+          colors:
+            - state: true
+              duration: 50ms
+            - state: false
+              duration: 50ms

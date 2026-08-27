@@ -16,7 +16,7 @@ fi
 
 port=$(bashio::addon.ingress_port)
 
-# Wait for NGINX to become available
+# Wait for the ESPHome Device Builder to become available
 bashio::net.wait_for "${port}" "127.0.0.1" 300
 
 config=$(\

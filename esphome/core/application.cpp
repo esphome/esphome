@@ -25,6 +25,10 @@ namespace esphome {
 
 static const char *const TAG = "app";
 
+// Delay after setup() finishes before trimming the scheduler freelist of its post-boot peak.
+// 10 s is well past the bulk of post-setup async work (Wi-Fi/MQTT connects, first-read latency).
+static constexpr uint32_t SCHEDULER_FREELIST_TRIM_DELAY_MS = 10000;
+
 // Helper function for insertion sort of components by priority
 // Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
@@ -111,6 +115,9 @@ void Application::setup() {
   this->app_state_ |= APP_STATE_SETUP_COMPLETE;
 
   ESP_LOGI(TAG, "setup() finished successfully!");
+
+  // Trim the scheduler freelist of its post-boot peak once startup churn settles.
+  this->scheduler.set_timeout(this, SCHEDULER_FREELIST_TRIM_DELAY_MS, [this]() { this->scheduler.trim_freelist(); });
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory

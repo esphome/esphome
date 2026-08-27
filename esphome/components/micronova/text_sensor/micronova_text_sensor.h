@@ -17,7 +17,7 @@ static const char *const STOVE_STATES[11] = {"Off",
                                              "No ignition alarm",
                                              "Undefined alarm"};
 
-class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaListener {
+class MicroNovaTextSensor final : public text_sensor::TextSensor, public MicroNovaListener {
  public:
   MicroNovaTextSensor(MicroNova *m) : MicroNovaListener(m) {}
   void dump_config() override;
