@@ -438,6 +438,7 @@ esphome/components/resampler/speaker/* @kahrendt
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
+esphome/components/rheem/* @amet
 esphome/components/ring_buffer/* @kahrendt
 esphome/components/router/speaker/* @kahrendt
 esphome/components/rp2/* @jesserockz

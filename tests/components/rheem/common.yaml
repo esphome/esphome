@@ -1,0 +1,27 @@
+sensor:
+  - platform: template
+    id: rheem_sensor
+    lambda: "return 21;"
+
+climate:
+  - platform: rheem
+    name: RHEEM Climate with Sensor
+    supports_heat: true
+    supports_cool: true
+    sensor: rheem_sensor
+    transmitter_id: xmitr
+
+switch:
+  - platform: template
+    name: "Mute Mode"
+    icon: "mdi:toggle-switch"
+    restore_mode: ALWAYS_ON
+    lambda: |-
+      return ((rheem::RheemClimate*)id(rheem_sensor))->mute;
+
+    turn_on_action:
+      - lambda: |-
+          ((rheem::RheemClimate*)id(rheem_sensor))->set_mute_state(true);
+    turn_off_action:
+      - lambda: |-
+          ((rheem::RheemClimate*)id(rheem_sensor))->set_mute_state(false);
