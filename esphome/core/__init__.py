@@ -339,7 +339,8 @@ class Lambda:
         self._requires_ids = None
 
     # https://stackoverflow.com/a/241506/229052
-    def comment_remover(self, text):
+    @staticmethod
+    def comment_remover(text):
         def replacer(match):
             s = match.group(0)
             if s.startswith("/"):

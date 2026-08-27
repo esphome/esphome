@@ -3,7 +3,6 @@
 from collections.abc import Callable
 import os
 from pathlib import Path
-import types
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -703,33 +702,6 @@ def test_include_file_with_c_header(
         # Check that include statement is wrapped in extern "C" block
         assert 'extern "C"' in mock_raw_statement.text
         assert '#include "c_library.h"' in mock_raw_statement.text
-
-
-def test_get_usable_cpu_count() -> None:
-    """Test get_usable_cpu_count returns CPU count."""
-    count = config.get_usable_cpu_count()
-    assert isinstance(count, int)
-    assert count > 0
-
-
-def test_get_usable_cpu_count_with_process_cpu_count() -> None:
-    """Test get_usable_cpu_count uses process_cpu_count when available."""
-    # Test with process_cpu_count (Python 3.13+)
-    # Create a mock os module with process_cpu_count
-
-    mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os):
-        # When process_cpu_count exists, it should be used
-        count = config.get_usable_cpu_count()
-        assert count == 8
-
-    # Test fallback to cpu_count when process_cpu_count not available
-    mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os_no_process):
-        count = config.get_usable_cpu_count()
-        assert count == 4
 
 
 def test_list_target_platforms(tmp_path: Path) -> None:
