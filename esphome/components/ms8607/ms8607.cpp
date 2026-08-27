@@ -67,8 +67,12 @@ void MS8607Component::setup() {
 }
 
 void MS8607Component::try_reset_() {
-  ESP_LOGD(TAG, "Resetting I2C addresses: 0x%02X, 0x%02X", this->address_,
-           this->humidity_device_ != nullptr ? this->humidity_device_->get_address() : 0x00);
+  if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
+    ESP_LOGD(TAG, "Resetting I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_device_->get_address());
+  } else {
+    ESP_LOGD(TAG, "Resetting I2C address: 0x%02X", this->address_);
+  }
+
   // I believe sending the reset command to both addresses is preferable to
   // skipping humidity if PT fails for some reason.
   // However, only consider the reset successful if they both ACK
