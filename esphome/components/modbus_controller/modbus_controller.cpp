@@ -352,8 +352,7 @@ void ModbusController::update() {
 // walk through the sensors and determine the register ranges to read
 namespace {
 
-/// Builds the register ranges from the address-ordered sensor walk. Each try_* names one join rule;
-/// the caller runs them in order and opens a new range when none applies.
+/// Builds the register ranges from the address-ordered sensor walk; each try_* is one join rule.
 class RangeBuilder {
  public:
   explicit RangeBuilder(FixedVector<RegisterRange> &ranges) : ranges_(ranges) {}
@@ -363,11 +362,8 @@ class RangeBuilder {
            this->r_.register_type == curr->register_type && curr->register_type != modbus::EntityType::CUSTOM;
   }
 
-  /// A second sensor on the register(s) the previous one covers reads those same bytes, starting where
-  /// that sensor's offset pointed, so a chain configured 0/2/4 resolves to 0/2/6. Both address tests
-  /// matter: the first identifies the previous sensor's register by working back from the range's end,
-  /// which only describes it while it actually sits there - a sensor that joined mid-range must never
-  /// anchor this, or the next one inherits its offset.
+  /// A second sensor on the register(s) the previous one covers reads the same bytes from that sensor's
+  /// offset. Both address tests matter: a sensor that joined mid-range must never anchor this.
   bool try_reuse_register(SensorItem *curr) {
     const uint32_t range_end = this->range_end_();
     if (curr->start_address != range_end - this->prev_->register_width() ||
@@ -381,9 +377,8 @@ class RangeBuilder {
     return true;
   }
 
-  /// Extend with the next contiguous register(s), or across a gap for reuse_previous_range: true (the
-  /// gap registers are read and ignored). AUTO stops at a non-standard response_size register; bit
-  /// ranges are exempt (their positions follow from the addresses).
+  /// Extend with the next contiguous register(s), or across a gap for reuse_previous_range: true.
+  /// AUTO stops at a non-standard response_size register; bit ranges are exempt.
   bool try_extend(SensorItem *curr) {
     const uint32_t range_end = this->range_end_();
     const bool reachable =
@@ -414,9 +409,8 @@ class RangeBuilder {
     return true;
   }
 
-  /// A sensor whose registers already fall inside a range widened by a shared-address join reads its
-  /// slice of that response instead of adding an overlapping second poll. Narrow on purpose: only a
-  /// widened range, never a forced-apart one, only all-standard reply sizes, only sensors genuinely inside.
+  /// A sensor already inside a range widened by a shared-address join reads its slice of that response
+  /// instead of adding an overlapping second poll.
   bool try_cover(SensorItem *curr) {
     if (!this->range_shared_ || this->range_forced_ || curr->start_address < this->r_.start_address ||
         curr->start_address + curr->register_width() > this->range_end_() || this->range_custom_size_ ||
@@ -430,9 +424,8 @@ class RangeBuilder {
     return true;
   }
 
-  /// Sensors on the same start address must share one range (a response is dispatched to a single range
-  /// per start address and register type) - this holds for reuse_previous_range: false and custom
-  /// entities too. The read widens to cover whichever sensor needs the most registers.
+  /// Sensors on one start address must share a range: a response dispatches to a single range per
+  /// (start address, register type). Holds for reuse_previous_range: false and custom entities too.
   bool try_share(SensorItem *curr) {
     if (!this->have_range_ || this->r_.register_type != curr->register_type ||
         this->r_.start_address != curr->start_address) {
@@ -470,8 +463,7 @@ class RangeBuilder {
     this->have_range_ = true;
   }
 
-  /// Every member records its range's first register: the resolved offset is relative to it, and it is
-  /// the address a write entity targets.
+  /// Every member records its range's first register - the base of its offset and of write_address().
   void record(SensorItem *curr) {
     curr->range_start_address = this->r_.start_address;
     this->r_.sensors.insert(curr);
@@ -488,16 +480,14 @@ class RangeBuilder {
 
  private:
   uint32_t range_end_() const { return this->r_.start_address + this->r_.register_count; }
-  /// A register that answers something other than two bytes; positions past it cannot be derived from
-  /// addresses alone. Coils count too (one bit per address), so bit ranges never take the coverage join.
+  /// Answers something other than two bytes per register, so positions past it don't follow from addresses.
   static bool has_custom_size(const SensorItem *item) {
     return item->get_register_size() != static_cast<size_t>(item->register_width()) * 2;
   }
   FixedVector<RegisterRange> &ranges_;
   RegisterRange r_ = {};
   bool have_range_ = false;
-  /// Set while the open range holds a reuse_previous_range: false sensor: it may extend forward but
-  /// never absorbs a later sensor by coverage.
+  /// The open range holds a reuse_previous_range: false sensor: never absorb a later sensor by coverage.
   bool range_forced_ = false;
   /// Set once a shared-address join widened the read; only a widened range absorbs by coverage.
   bool range_shared_ = false;
