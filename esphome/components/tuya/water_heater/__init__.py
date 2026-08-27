@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import water_heater
 import esphome.config_validation as cv
 from esphome.const import CONF_SUPPORTED_MODES, CONF_SWITCH_DATAPOINT
+from esphome.types import ConfigType
 
 from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
@@ -39,7 +40,7 @@ TuyaWaterHeater = tuya_ns.class_(
 )
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     # A mode datapoint is only useful if at least one mode value is mapped, and mode values
     # only make sense together with a mode datapoint.
     has_mode_values = any(key in config for key in MODE_VALUES)
@@ -84,7 +85,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await water_heater.new_water_heater(config)
     await cg.register_component(var, config)
 
