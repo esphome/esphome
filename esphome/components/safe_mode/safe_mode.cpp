@@ -259,8 +259,7 @@ void SafeModeComponent::write_rtc_(uint32_t val) {
     ESP_LOGE(TAG, "Failed to set rtc value (%" PRIu32 ")", val);
     return;
   }
-  ok = global_preferences->sync() && ok;
-  if (!ok) {
+  if (!global_preferences->sync()) {
     ESP_LOGE(TAG, "Failed to persist rtc value (%" PRIu32 ")", val);
   }
 }
