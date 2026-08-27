@@ -9,7 +9,7 @@ from esphome.build_helpers.pch import PCH_PREFIX_HEADER
 REPO = Path(__file__).parents[2]
 
 
-def test_host_pch_prefix_resolves() -> None:
+def test_pch_prefix_resolves() -> None:
     prefix = REPO / PCH_PREFIX_HEADER
     assert prefix.is_file()
     body = prefix.read_text()

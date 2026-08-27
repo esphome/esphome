@@ -21,6 +21,7 @@ on:
       - "esphome/core/**"
       - "esphome/writer.py"
       - "esphome/build_gen/**"
+      - "esphome/build_helpers/**"
       - "esphome/espidf/**"
       - "esphome/platformio/**"
       - "esphome/components/bk72xx/**"

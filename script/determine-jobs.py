@@ -498,7 +498,11 @@ ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
 # drives every PlatformIO build). The esp32 platform component is already in
 # ESP32_PLATFORMIO_TEST_COMPONENTS, so its changes are covered by the normal
 # component-narrowing path.
-ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = ("esphome/platformio/",)
+ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
+    "esphome/platformio/",
+    # The pch wiring the strict smoke jobs police lives here
+    "esphome/build_helpers/",
+)
 
 # Standalone files that, when changed, trigger the PlatformIO compile test:
 #   - esphome/build_gen/platformio.py -- the PlatformIO build generator

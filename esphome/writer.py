@@ -7,7 +7,7 @@ import re
 import time
 
 from esphome import loader
-from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES
+from esphome.build_helpers.pch import PCH_ARTIFACT_NAMES, PCH_PREFIX_HEADER
 from esphome.compiled_config import save_compiled_config
 from esphome.config import iter_component_configs, iter_components
 from esphome.const import (
@@ -247,7 +247,7 @@ def copy_src_tree():
         Path(
             "esphome/core/ring_buffer.h"
         ),  # moved to components/ring_buffer/, removed in 2026.11.0
-        Path("esphome/core/pch_prefix.h"),  # build machinery, not user API
+        Path(PCH_PREFIX_HEADER),  # build machinery, not user API
     }
     include_l = []
     for target, _ in source_files_l:
