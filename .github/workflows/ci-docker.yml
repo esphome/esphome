@@ -191,6 +191,7 @@ jobs:
         # the default.
         id:
           - esp8266-arduino
+          - esp8266-arduino-native
           - esp32-arduino-platformio
           - esp32-arduino-esp-idf
           - esp32-idf-platformio
@@ -205,6 +206,8 @@ jobs:
         # platforms where it must work (libretiny needs a toolchain bump)
         include:
           - id: esp8266-arduino
+            pch_strict: "1"
+          - id: esp8266-arduino-native
             pch_strict: "1"
           - id: esp32-idf-esp-idf
             pch_strict: "1"
