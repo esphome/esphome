@@ -1728,30 +1728,31 @@ def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
     m.unlock.assert_called_once_with()
 
 
-def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:
-    """A platform that lists tool-scons itself does not get it appended."""
+def test_prefetch_replaces_platform_tool_scons_with_core_spec(tmp_path: Path) -> None:
+    """A platform's own tool-scons spec gives way to the core's registry spec."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     fake_platform = MagicMock()
     fake_platform.packages = {"tool-scons": {"optional": False}}
     fake_platform.get_package_spec.side_effect = lambda name: _FakeSpec(
-        uri=None, name=name
+        uri="https://x/scons.zip", name=name, owner=None
     )
     config = _fake_config(tmp_path, {"platform": "fake/p@1"})
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    batches: list[list[str]] = []
+    batches: list[list] = []
     with (
         patch.dict("sys.modules", modules),
         patch.object(
             pf,
             "_registry_jobs",
             side_effect=lambda mgr, specs, seen: (
-                batches.append([s.name for s in specs]) or ([], 0, [])
+                batches.append(list(specs)) or ([], 0, [])
             ),
         ),
         patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
     ):
         pf._prefetch(tmp_path, "testenv")
-    assert batches[0] == ["tool-scons"]
+    (spec,) = batches[0]
+    assert (spec.name, spec.owner, spec.uri) == ("tool-scons", "platformio", None)
 
 
 def test_platformio_private_api_contract() -> None:
