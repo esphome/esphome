@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <cmath>
 #include <cstring>
 
 #include "esphome/core/alloc_helpers.h"
@@ -278,6 +279,73 @@ TEST(Base64, Rfc4648Vectors) {
     EXPECT_EQ(len, strlen(v.plain));
     EXPECT_EQ(memcmp(buf, v.plain, len), 0);
   }
+}
+
+// --- step_to_accuracy_decimals() ---
+
+TEST(StepToAccuracyDecimals, TypicalSteps) {
+  EXPECT_EQ(step_to_accuracy_decimals(0.001f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.005f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.01f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(0.025f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.05f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(0.1f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(0.25f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(0.5f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(1.5f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(2.5f), 1);
+}
+
+TEST(StepToAccuracyDecimals, WholeSteps) {
+  EXPECT_EQ(step_to_accuracy_decimals(1.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(2.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(5.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(10.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(100.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(1000.0f), 0);
+}
+
+TEST(StepToAccuracyDecimals, FiveSignificantDigits) {
+  EXPECT_EQ(step_to_accuracy_decimals(1.23456f), 4);
+  EXPECT_EQ(step_to_accuracy_decimals(12.345f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(123.45f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(1234.5f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(12345.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(0.33333f), 5);
+  EXPECT_EQ(step_to_accuracy_decimals(0.0001f), 4);
+}
+
+TEST(StepToAccuracyDecimals, TrailingZerosDropped) {
+  EXPECT_EQ(step_to_accuracy_decimals(0.3f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(0.7f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(0.125f), 3);
+  EXPECT_EQ(step_to_accuracy_decimals(0.0625f), 4);
+}
+
+TEST(StepToAccuracyDecimals, RoundsUpToWholeNumber) {
+  // Rounds to five significant digits first, so this becomes 10 with no decimals.
+  EXPECT_EQ(step_to_accuracy_decimals(9.999999f), 0);
+}
+
+TEST(StepToAccuracyDecimals, OutsideFixedNotationRange) {
+  // %.5g prints these in exponent form, so the count comes from parsing "1e-05" or "1.2346e+05".
+  EXPECT_EQ(step_to_accuracy_decimals(0.00001f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(0.000125f), 6);
+  EXPECT_EQ(step_to_accuracy_decimals(123456.0f), 8);
+  EXPECT_EQ(step_to_accuracy_decimals(1000000.0f), 0);
+}
+
+TEST(StepToAccuracyDecimals, SignIgnored) {
+  EXPECT_EQ(step_to_accuracy_decimals(-0.1f), 1);
+  EXPECT_EQ(step_to_accuracy_decimals(-0.25f), 2);
+  EXPECT_EQ(step_to_accuracy_decimals(-1.0f), 0);
+}
+
+TEST(StepToAccuracyDecimals, NonFiniteAndZero) {
+  EXPECT_EQ(step_to_accuracy_decimals(0.0f), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(NAN), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(INFINITY), 0);
+  EXPECT_EQ(step_to_accuracy_decimals(-INFINITY), 0);
 }
 
 }  // namespace esphome::core::testing
