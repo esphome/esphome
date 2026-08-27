@@ -229,6 +229,7 @@ class Application {
   ///   - ESP8266 soft WDT (~1.6 s):           ~16x  <-- 100 ms feed (see USE_ESP8266 below)
   ///   - ESP8266 HW WDT (~6 s):               ~60x
   ///   - BK72xx HW WDT (10 s):                ~5x   <-- platform override below
+  /// Important: if these are modified align validate_loop_interval in config.py
 #ifdef USE_BK72XX
   // BDK busy-waits 200us per WDT reload (sctrl_dpll_delay200us). LibreTiny
   // sets HW WDT to 10s; 2000ms keeps ~5x margin. See wdt_ctrl WCMD_RELOAD_PERIOD:

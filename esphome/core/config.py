@@ -192,6 +192,7 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
 
 def validate_loop_interval(config: ConfigType) -> ConfigType:
     if CONF_LOOP_INTERVAL in config and not (CORE.is_host or CORE.is_esp8266):
+        # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
         max_loop = 600  # 2 * 300ms default for other platforms
         if CORE.is_esp32:
             max_loop = (
