@@ -150,6 +150,10 @@ void OpenThreadComponent::ot_main() {
   }
 #endif
 
+  // Register address change callback. Must be done before auto_start, otherwise
+  // the initial addresses will be missed.
+  otIp6SetAddressCallback(instance, OpenThreadComponent::on_address_changed, this);
+
   // Pass the existing dataset, or NULL which will use the preprocessor definitions
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
