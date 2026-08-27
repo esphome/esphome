@@ -903,30 +903,34 @@ def test_prepare_pch_probe_spawn_failure_degrades(
         prepare_pch()
 
 
+@pytest.mark.parametrize(
+    ("stderr", "code"),
+    [("", -9), ("fatal: No space left on device", 1)],
+    ids=("signal-kill", "enospc"),
+)
 def test_prepare_pch_probe_environmental_failures_do_not_latch(
-    tmp_path: Path,
+    tmp_path: Path, stderr: str, code: int
 ) -> None:
     """A signal-killed or ENOSPC probe retries next build, no marker."""
     from esphome.build_gen.espidf import prepare_pch
 
-    for stderr, code in (("", -9), ("fatal: No space left on device", 1)):
-        dev = _make_pch_device(tmp_path, f"dev_pe{code}")
-        CORE.build_path = dev
-        gch = dev / "build" / "esphome_pch.h.gch"
+    dev = _make_pch_device(tmp_path, "dev_pe")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
 
-        def env_probe(cmd, _gch=gch, _stderr=stderr, _code=code, **kwargs):
-            if "-fsyntax-only" in cmd:
-                return subprocess.CompletedProcess(cmd, _code, "", _stderr)
-            _gch.write_bytes(b"gch")
-            return subprocess.CompletedProcess(cmd, 0, "", "")
+    def env_probe(cmd, **kwargs):
+        if "-fsyntax-only" in cmd:
+            return subprocess.CompletedProcess(cmd, code, "", stderr)
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
 
-        with (
-            patch.object(CORE, "name", "test"),
-            patch("esphome.build_helpers.pch.subprocess.run", side_effect=env_probe),
-        ):
-            prepare_pch()
-        assert not gch.exists()
-        assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=env_probe),
+    ):
+        prepare_pch()
+    assert not gch.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
 
 
 def test_prepare_pch_signal_kill_strict_raises(

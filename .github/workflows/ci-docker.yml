@@ -203,7 +203,10 @@ jobs:
           - nrf52
           - host
         # Fail the job if the precompiled header silently degrades on the
-        # platforms where it must work (libretiny needs a toolchain bump)
+        # platforms where it must work. Excluded: bk72xx/rtl87xx/ln882x
+        # (libretiny GCC rejects its own pch until a toolchain bump),
+        # esp32-*-platformio (no pch; the toolchain is being dropped),
+        # nrf52 and host (no pch)
         include:
           - id: esp8266-arduino
             pch_strict: "1"

@@ -6,6 +6,7 @@ started esphome and must not depend on the package being importable.
 Subcommands:
     ar <ar-binary> <archive> <rspfile>   remove stale archive, then ``ar rcs``
     copy <src> <dst>                     copy a file
+    touch <path>                         create/update a stamp file
 
 The ar rspfile carries one object path per line (the generating rule must
 use ``$in_newline``, never ``$in``).
@@ -83,9 +84,14 @@ def _run_copy(src: str, dst: str) -> int:
     return 0
 
 
+def _run_touch(path: str) -> int:
+    Path(path).touch()
+    return 0
+
+
 # mode -> (handler, expected operand count); surplus argv means a
 # mis-specified ninja rule and must error, not silently drop operands
-_MODES = {"ar": (_run_ar, 3), "copy": (_run_copy, 2)}
+_MODES = {"ar": (_run_ar, 3), "copy": (_run_copy, 2), "touch": (_run_touch, 1)}
 
 
 def main() -> int:

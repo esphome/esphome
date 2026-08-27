@@ -40,8 +40,10 @@ from esphome.build_helpers.pch import (
     mark_pch_emitted,
     pch_checksum,
     pch_degraded,
+    pch_disabled_degraded,
     pch_enabled,
     pch_header_text,
+    pch_probe_args,
     pch_strict,
 )
 from esphome.components.esp8266 import build_surgery
@@ -1295,17 +1297,12 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             if pch_strict():
                 # Consumers wait on the probe stamp, so an unloadable .gch
                 # reds the build here instead of warning ~100 times
-                # $out only expands in rule text, so the stamp command is
-                # baked into the rule (generation host == build host)
-                stamp = (
-                    "cmd /c copy /y nul $out >nul" if os.name == "nt" else "touch $out"
-                )
+                probe = " ".join(pch_probe_args(PCH_HEADER_NAME, fatal=True))
                 lines.append("rule pchprobe")
+                # $out only expands in rule text, hence the inline stamp
                 lines.append(
-                    "  command = $cxx $cxxflags $flags -Winvalid-pch"
-                    " -Werror=invalid-pch"
-                    f" -include {PCH_HEADER_NAME} -fsyntax-only -x c++"
-                    f" {_q(Path(os.devnull))} && {stamp}"
+                    f"  command = $cxx $cxxflags $flags {probe}"
+                    " && $python $buildtool touch $out"
                 )
                 lines.append("  description = PCHPROBE $out")
                 lines.append(f"build esphome_pch.probe: pchprobe {gch}")
@@ -1315,8 +1312,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             src_cxx_override = ("$srccxxflags", pch_dep)
             mark_pch_emitted()
     else:
-        # Strict CI must not read "no pch at all" as success
-        pch_degraded("pch disabled by ESPHOME_PCH_ENABLE")
+        pch_disabled_degraded()
     src_objs = _ninja_compile_edges(
         lines,
         _collect_sources(src_dir),

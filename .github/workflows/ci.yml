@@ -1203,8 +1203,8 @@ jobs:
 
           # ESP8266 Arduino built directly (no PlatformIO); compile validates
           # config first, so a separate config pass is redundant. Strict pch:
-          # the docker smoke test covers the PlatformIO default, this job is
-          # the only CI exercise of the native ninja pch (and its probe edge).
+          # exercises the native ninja pch (and its probe edge) against real
+          # component configs; the docker matrix smoke-tests both toolchains.
           ESPHOME_PCH_STRICT=1 python3 script/test_build_components.py -e compile -t esp8266-ard -c "$TEST_COMPONENTS" -f --toolchain arduino --fail-on-no-tests
 
   device-builder:

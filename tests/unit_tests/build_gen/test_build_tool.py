@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -244,3 +245,12 @@ def test_copy_failure_leaves_no_partial_output(tmp_path: Path) -> None:
     ):
         assert build_tool.main() == 1
     assert not dst.exists()
+
+
+def test_touch_creates_and_updates_stamp(tmp_path: Path) -> None:
+    stamp = tmp_path / "esphome_pch.probe"
+    assert build_tool._run_touch(str(stamp)) == 0
+    assert stamp.is_file()
+    os.utime(stamp, (1, 1))
+    assert build_tool._run_touch(str(stamp)) == 0
+    assert stamp.stat().st_mtime > 1

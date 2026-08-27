@@ -20,7 +20,8 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
 # Precompile the src force-includes plus defines.h and force-include the
 # result into C++ src compiles only; their preprocessed output is unchanged.
 # Registration is gated host-side (pch_enabled()). Keep the closure, ccache
-# values, and stamp flow in sync with build_helpers/pch.py.
+# values, probe flow, stamp flow, and env-knob spellings in sync with
+# build_helpers/pch.py.
 
 # Compiler failures that clear on their own must not latch the .failed marker
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
@@ -364,17 +365,21 @@ def _setup_pch() -> bool | None:
     return True
 
 
+# Keep in sync with helpers.TRUTHY_ENV_STRINGS
 _strict = os.environ.get("ESPHOME_PCH_STRICT", "").strip().lower() in (
     "1",
     "true",
     "yes",
     "on",
+    "enable",
 )
 try:
-    if not _setup_pch() and _strict:
-        raise RuntimeError("ESPHOME_PCH_STRICT: precompiled header was not used")
+    _used = _setup_pch()
 except Exception:  # noqa: BLE001 -- a speedup must never break the build
     if _strict:
         raise
     print("ESPHome: pch internal error; compiling without it")
     traceback.print_exc()
+else:
+    if _strict and not _used:
+        raise RuntimeError("ESPHOME_PCH_STRICT: precompiled header was not used")
