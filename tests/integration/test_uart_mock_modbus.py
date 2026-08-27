@@ -967,13 +967,6 @@ async def test_uart_mock_modbus_client_read_write(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Byte-accurate register-offset writes land in the follow-up offset fix; "
-    "until then the byte offset is folded into the address (writes 0x12 instead of "
-    "0x11). The write and read assertions both flip via the same switch-constructor "
-    "fold. Remove this marker when that change merges.",
-)
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_register_offset(
     yaml_config: str,
@@ -1063,6 +1056,61 @@ async def test_uart_mock_modbus_lambda_write(
         # read back 1234. If the entity-as-command dispatch were broken, no register write would go out
         # and this would time out.
         await tracker.await_change(wrote_30, "reg_30", timeout=4.0)
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_lambda_invert(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that a write_lambda's return value is the wire value only.
+
+    `invert_switch` is an active-low holding switch whose write_lambda returns !x. Turning it ON must
+    write 0x0000 to the register (observed through the independent reg_40 sensor) while the entity
+    reports ON - the requested state, not the inverted wire value. Turning it OFF writes 0xFFFF and
+    reports OFF. The switch is assumed_state, so the published state comes only from write_state().
+    """
+
+    tracker = SensorTracker(["reg_40"])
+    initial = tracker.expect("reg_40", 5)
+    wrote_on = tracker.expect("reg_40", 0)
+    wrote_off = tracker.expect("reg_40", 65535)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(initial, "reg_40", timeout=4.0)
+
+        switch = find_entity(entities, "invert_switch", SwitchInfo)
+        assert switch is not None, "invert_switch not found"
+
+        client.switch_command(switch.key, True)
+        # The wire byte carries the inverted value...
+        await tracker.await_change(wrote_on, "reg_40", timeout=4.0)
+        # ...while the entity reports the requested state. Switch states are deduped, so this relies on
+        # wait_for_state's fresh subscribe_states re-dumping every entity's current state.
+        await wait_for_state(
+            client,
+            lambda s: (
+                getattr(s, "key", None) == switch.key
+                and getattr(s, "state", None) is True
+            ),
+            timeout=6.0,
+        )
+
+        client.switch_command(switch.key, False)
+        await tracker.await_change(wrote_off, "reg_40", timeout=4.0)
+        await wait_for_state(
+            client,
+            lambda s: (
+                getattr(s, "key", None) == switch.key
+                and getattr(s, "state", None) is False
+            ),
+            timeout=6.0,
+        )
 
 
 @pytest.mark.asyncio
