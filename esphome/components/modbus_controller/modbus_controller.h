@@ -170,10 +170,8 @@ class SensorItem {
 
   void set_custom_pdu(std::initializer_list<uint8_t> pdu) { this->custom_pdu.set(pdu.begin(), pdu.size()); }
 
-  /// Registers (or coils/discrete inputs) this item spans, derived on demand: bit-addressed types span
-  /// one bit; RAW values read ceil(response_size / 2) registers when response_size is set (block reads);
-  /// typed values always span their value type's width (response_size then only overrides the BYTE size
-  /// of the reply, see get_register_size()).
+  /// Registers (or bits) this item spans: bits span 1, RAW with response_size spans ceil(bytes / 2),
+  /// else the value type's width.
   virtual uint16_t register_width() const {
     if (modbus::helpers::is_entity_type_binary(this->register_type)) {
       return 1;
