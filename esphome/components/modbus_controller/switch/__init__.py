@@ -11,6 +11,7 @@ from .. import (
     add_modbus_base_properties,
     modbus_calc_properties,
     modbus_controller_ns,
+    reject_odd_holding_write_offset,
     validate_custom_pdu_item,
     validate_modbus_register,
 )
@@ -31,6 +32,14 @@ ModbusSwitch = modbus_controller_ns.class_(
     "ModbusSwitch", cg.Component, switch.Switch, SensorItem
 )
 
+
+def _validate_holding_offset(config: ConfigType) -> ConfigType:
+    # Only a holding-register switch folds the byte offset into a 16-bit register write.
+    if config.get(CONF_REGISTER_TYPE) == "holding":
+        reject_odd_holding_write_offset(config)
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     switch.switch_schema(ModbusSwitch, default_restore_mode="DISABLED")
     .extend(cv.COMPONENT_SCHEMA)
@@ -44,6 +53,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_modbus_register,
+    _validate_holding_offset,
 )
 
 FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
