@@ -191,6 +191,7 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
     case Type::PMS5003ST:           // Data 16 not set/reserved
       return payload_length == 36;  // 2*17+2
     case Type::PMS9003M:
+    case Type::LUFTMY:
       return payload_length == 28;  // 2*13+2
   }
   return false;
@@ -221,26 +222,10 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
 }
 
 void PMSX003Component::parse_data_() {
-  // Particle Matter
+  // PM mass concentrations (all types)
   const uint16_t pm_1_0_std_concentration = this->get_16_bit_uint_(4);
   const uint16_t pm_2_5_std_concentration = this->get_16_bit_uint_(6);
   const uint16_t pm_10_0_std_concentration = this->get_16_bit_uint_(8);
-
-  const uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
-  const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
-  const uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
-
-  const uint16_t pm_particles_03um = this->get_16_bit_uint_(16);
-  const uint16_t pm_particles_05um = this->get_16_bit_uint_(18);
-  const uint16_t pm_particles_10um = this->get_16_bit_uint_(20);
-  const uint16_t pm_particles_25um = this->get_16_bit_uint_(22);
-
-  ESP_LOGD(TAG,
-           "Got PM1.0 Standard Concentration: %u µg/m³, PM2.5 Standard Concentration %u µg/m³, PM10.0 Standard "
-           "Concentration: %u µg/m³, PM1.0 Concentration: %u µg/m³, PM2.5 Concentration %u µg/m³, PM10.0 "
-           "Concentration: %u µg/m³",
-           pm_1_0_std_concentration, pm_2_5_std_concentration, pm_10_0_std_concentration, pm_1_0_concentration,
-           pm_2_5_concentration, pm_10_0_concentration);
 
   if (this->pm_1_0_std_sensor_ != nullptr)
     this->pm_1_0_std_sensor_->publish_state(pm_1_0_std_concentration);
@@ -249,12 +234,41 @@ void PMSX003Component::parse_data_() {
   if (this->pm_10_0_std_sensor_ != nullptr)
     this->pm_10_0_std_sensor_->publish_state(pm_10_0_std_concentration);
 
-  if (this->pm_1_0_sensor_ != nullptr)
-    this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
+  // The Luftmy LD10, LD11, LD13, LD15 and LD16 report no atmospheric PM, so their particle counts start at byte 10.
+  // All PMS types have atmospheric PM at bytes 10-15, so their particle counts start at byte 16.
+  const bool is_luftmy = this->type_ == Type::LUFTMY;
+  const uint8_t pc_offset = is_luftmy ? 10 : 16;
+
+  if (!is_luftmy) {
+    const uint16_t pm_1_0_concentration = this->get_16_bit_uint_(10);
+    const uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
+    const uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
+
+    ESP_LOGD(TAG,
+             "Got PM1.0 Standard Concentration: %u µg/m³, PM2.5 Standard Concentration %u µg/m³, PM10.0 Standard "
+             "Concentration: %u µg/m³, PM1.0 Concentration: %u µg/m³, PM2.5 Concentration %u µg/m³, PM10.0 "
+             "Concentration: %u µg/m³",
+             pm_1_0_std_concentration, pm_2_5_std_concentration, pm_10_0_std_concentration, pm_1_0_concentration,
+             pm_2_5_concentration, pm_10_0_concentration);
+
+    if (this->pm_1_0_sensor_ != nullptr)
+      this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
+    if (this->pm_2_5_sensor_ != nullptr)
+      this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
+    if (this->pm_10_0_sensor_ != nullptr)
+      this->pm_10_0_sensor_->publish_state(pm_10_0_concentration);
+  } else {
+    ESP_LOGD(TAG,
+             "Got PM1.0 Standard Concentration: %u µg/m³, PM2.5 Standard Concentration %u µg/m³, PM10.0 Standard "
+             "Concentration: %u µg/m³",
+             pm_1_0_std_concentration, pm_2_5_std_concentration, pm_10_0_std_concentration);
+  }
+
+  // Particle counts at pc_offset: >0.3, >0.5, >1.0, >2.5µm (all types)
+  const uint16_t pm_particles_03um = this->get_16_bit_uint_(pc_offset);
+  const uint16_t pm_particles_05um = this->get_16_bit_uint_(pc_offset + 2);
+  const uint16_t pm_particles_10um = this->get_16_bit_uint_(pc_offset + 4);
+  const uint16_t pm_particles_25um = this->get_16_bit_uint_(pc_offset + 6);
 
   if (this->pm_particles_03um_sensor_ != nullptr)
     this->pm_particles_03um_sensor_->publish_state(pm_particles_03um);
@@ -265,20 +279,14 @@ void PMSX003Component::parse_data_() {
   if (this->pm_particles_25um_sensor_ != nullptr)
     this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
 
-  if (this->type_ == Type::PMS5003T) {
-    ESP_LOGD(TAG,
-             "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
-             "PM2.5 Particles %u Count/0.1L",
-             pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um);
-  } else {
-    // Note the pm particles 50um & 100um are not returned,
-    // as PMS5003T uses those data values for temperature and humidity.
-    const uint16_t pm_particles_50um = this->get_16_bit_uint_(24);
-    const uint16_t pm_particles_100um = this->get_16_bit_uint_(26);
+  // PMS5003T uses pc_offset+8 and pc_offset+10 for temperature/humidity, not particle counts
+  if (this->type_ != Type::PMS5003T) {
+    const uint16_t pm_particles_50um = this->get_16_bit_uint_(pc_offset + 8);
+    const uint16_t pm_particles_100um = this->get_16_bit_uint_(pc_offset + 10);
 
     ESP_LOGD(TAG,
              "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
-             "PM2.5 Particles %u Count/0.1L, PM5.0 Particles: %u Count/0.1L, PM10.0 Particles %u Count/0.1L",
+             "PM2.5 Particles: %u Count/0.1L, PM5.0 Particles: %u Count/0.1L, PM10.0 Particles: %u Count/0.1L",
              pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um, pm_particles_50um,
              pm_particles_100um);
 
@@ -286,6 +294,11 @@ void PMSX003Component::parse_data_() {
       this->pm_particles_50um_sensor_->publish_state(pm_particles_50um);
     if (this->pm_particles_100um_sensor_ != nullptr)
       this->pm_particles_100um_sensor_->publish_state(pm_particles_100um);
+  } else {
+    ESP_LOGD(TAG,
+             "Got PM0.3 Particles: %u Count/0.1L, PM0.5 Particles: %u Count/0.1L, PM1.0 Particles: %u Count/0.1L, "
+             "PM2.5 Particles: %u Count/0.1L",
+             pm_particles_03um, pm_particles_05um, pm_particles_10um, pm_particles_25um);
   }
 
   // Formaldehyde
