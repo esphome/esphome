@@ -165,7 +165,12 @@ def pch_cmake_consumer(target: str, sources_var: str) -> str:
         return ""
     escalation = pch_consumer_escalation()
     return f"""
-# ESPHome precompiled header (see esphome/build_helpers/pch.py)
+# ESPHome precompiled header (see esphome/build_helpers/pch.py).
+# The touch keeps OBJECT_DEPENDS satisfiable when the build system itself
+# wiped the build dir after the header was written (west --pristine)
+if(NOT EXISTS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
+  file(TOUCH "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
+endif()
 target_compile_options({target} PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
     "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"

@@ -955,6 +955,7 @@ def run_compile(args, config: ConfigType) -> bool:
         # flags. Only when the app DB is missing: input changes wipe the
         # build dir, so an existing DB is settled and --cmake-only would
         # reconfigure for nothing.
+        prepare = True
         app_dir = _app_build_dir(build_dir)
         if not (app_dir / "compile_commands.json").is_file():
             if not run_command_ok(
@@ -980,16 +981,21 @@ def run_compile(args, config: ConfigType) -> bool:
                 stream_output=True,
                 cwd=str(paths["framework_path"]),
             ):
-                # A pch-only prerequisite: degrade, let the real build report
+                # A pch-only prerequisite: degrade, let the real build report.
+                # Also skip the .gch compile: it would fail on the missing
+                # headers and latch .gch.failed until an identity change
                 _LOGGER.warning(
                     "Zephyr header generation failed; compiling without the pch"
                 )
                 pch.discard_pch(app_dir)
                 pch.pch_degraded("zephyr_generated_headers failed")
+                prepare = False
     else:
+        prepare = True
         app_dir = _app_build_dir(build_dir)
 
-    pch.guarded_prepare(app_dir, partial(_prepare_pch, app_dir))
+    if prepare:
+        pch.guarded_prepare(app_dir, partial(_prepare_pch, app_dir))
 
     if not run_command_ok(
         west_cmd,

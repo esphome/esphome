@@ -230,7 +230,8 @@ class TestRunCompilePhases:
         with pytest.raises(EsphomeError, match="nRF52 native build failed"):
             self._run()
         assert "Zephyr header generation failed" in caplog.text
-        assert prepare.called
+        # The doomed .gch compile is skipped: it would latch .gch.failed
+        assert not prepare.called
 
     def test_generated_headers_failure_strict_raises(
         self, monkeypatch: pytest.MonkeyPatch, compile_ctx: CompileCtx

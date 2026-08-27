@@ -244,6 +244,8 @@ def test_pch_cmake_consumer_substitutes_target_and_sources(
     assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in block
     assert "set_source_files_properties(${APP_SOURCES} PROPERTIES" in block
     assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in block
+    # Placeholder guard: survives a build-system-side pristine wipe
+    assert 'file(TOUCH "${CMAKE_BINARY_DIR}/esphome_pch.h")' in block
 
 
 def test_pch_cmake_consumer_strict_escalates(
