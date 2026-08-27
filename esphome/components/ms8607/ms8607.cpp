@@ -54,6 +54,9 @@ static constexpr float PRESSURE_LOWER_LIMIT = 0.0f;
 /// value above which we consider a pressure reading to be invalid
 static constexpr float PRESSURE_UPPER_LIMIT = 1500.0f;
 
+/// Value that indicates the raw pressure reading is known to be invalid, and shouldn't be published
+static constexpr uint32_t INVALID_RAW_PRESSURE_SENTINEL = 0;
+
 void MS8607Component::setup() {
   this->reset_interval_ = 5;
   this->reset_attempts_remaining_ = 3;
@@ -132,6 +135,8 @@ void MS8607Component::update() {
     // delay needed between reset & reading the PROM values
     return;
   }
+
+  this->nonterminal_warning_generated_this_update_ = false;
 
   // Updating happens async and sequentially.
   // Temperature, then optionally pressure, then optionally humidity
@@ -266,6 +271,7 @@ static uint8_t crc4(uint16_t *buffer, size_t length) {
 void MS8607Component::request_read_temperature_() {
   // Tell MS8607 to start ADC conversion of temperature sensor
   if (!this->write_bytes(MS8607_CMD_CONV_D2_OSR_8K, nullptr, 0)) {
+    ESP_LOGW(TAG, "Requesting ADC Read of temperature failed");
     this->status_set_warning();
     return;
   }
@@ -288,13 +294,18 @@ void MS8607Component::read_temperature_() {
     this->request_read_pressure_(d2_raw_temperature);
   } else {
     // No pressure sensor configured, skip the pressure reading
-    this->calculate_values_(d2_raw_temperature, 0);
+    this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
   }
 }
 
 void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
   if (!this->write_bytes(MS8607_CMD_CONV_D1_OSR_8K, nullptr, 0)) {
+    ESP_LOGW(TAG, "Requesting ADC Read of pressure failed");
     this->status_set_warning();
+
+    // don't have a valid pressure, but we can still publish temp and possibly humidity
+    this->nonterminal_warning_generated_this_update_ = true;
+    this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
     return;
   }
 
@@ -307,8 +318,13 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
   if (!this->read_bytes(MS8607_CMD_ADC_READ, bytes, 3)) {
     ESP_LOGW(TAG, "ADC Read of pressure failed");
     this->status_set_warning();
+
+    // don't have a valid pressure, but we can still publish temp and possibly humidity
+    this->nonterminal_warning_generated_this_update_ = true;
+    this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
     return;
   }
+
   const uint32_t d1_raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
   this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
 }
@@ -368,7 +384,10 @@ void MS8607Component::read_humidity_(float temperature_float) {
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);
 
   this->humidity_sensor_->publish_state(compensated_humidity_percentage);
-  this->status_clear_warning();
+
+  if (!this->nonterminal_warning_generated_this_update_) {
+    this->status_clear_warning();
+  }
 }
 
 void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1_raw_pressure) {
@@ -387,28 +406,30 @@ void MS8607Component::calculate_values_(uint32_t d2_raw_temperature, uint32_t d1
 
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->publish_state(temperature_values.temperature_float);
-    this->status_clear_warning();
   }
 
-  if (this->pressure_sensor_ != nullptr) {
+  if (this->pressure_sensor_ != nullptr && d1_raw_pressure != INVALID_RAW_PRESSURE_SENTINEL) {
     float pressure_float = compensated_pressure(d1_raw_pressure, this->calibration_values_, temperature_values);
 
     if (pressure_float < PRESSURE_LOWER_LIMIT || pressure_float > PRESSURE_UPPER_LIMIT) {
       ESP_LOGW(TAG, "Treating this pressure read of %.2fhPa as a failed read, skipping it", pressure_float);
       this->status_set_warning();
+      this->nonterminal_warning_generated_this_update_ = true;
       // Fall through to read humidity, even though pressure failed.
-      // If humidity succeeds, it's going to clear the warning flag almost immediately
     } else {
       ESP_LOGD(TAG, "Pressure=%0.2fhPa", pressure_float);
 
       this->pressure_sensor_->publish_state(pressure_float);  // hPa aka mbar
-      this->status_clear_warning();
     }
   }
 
   if (this->humidity_device_ != nullptr && this->humidity_sensor_ != nullptr) {
     // now that we have temperature (to compensate the humidity with), kick off that read
     this->request_read_humidity_(temperature_values.temperature_float);
+  } else if (!this->nonterminal_warning_generated_this_update_) {
+    // since no humidity read is needed, now's the time to clear the warning flag if it wasn't set during
+    // this cycle
+    this->status_clear_warning();
   }
 }
 

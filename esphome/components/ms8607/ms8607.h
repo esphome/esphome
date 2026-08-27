@@ -131,6 +131,11 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
   SetupStatus setup_status_{SetupStatus::SETUP_STATUS_NEEDS_RESET};
   uint32_t reset_interval_{5};
   uint8_t reset_attempts_remaining_{3};
+  /// for each update() call, track whether or not there was a non-terminal status_set_warning call during its
+  /// execution. Some places that set the warning are terminal, others allow proceeding, and will publish partial
+  /// results. This variable is used to know whether or not the warning should be cleared when publishing those
+  /// partial results, or if the warning status should stick around because it's only partially working.
+  bool nonterminal_warning_generated_this_update_{false};
 
  public:  // for testability
   struct CompensatedTemperature {
