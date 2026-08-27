@@ -21,6 +21,8 @@ using namespace bytebuffer;
 
 static const char *const TAG = "esp32_improv.component";
 static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
+// BLE has no frame length field; the builder itself caps a single entry at 254 bytes
+static constexpr size_t MAX_NEXT_URL_LEN = 254;
 static constexpr char ESPHOME_MY_LINK[] = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 static constexpr uint16_t STOP_ADVERTISING_DELAY =
     10000;  // Delay (ms) before stopping service to allow BLE clients to read the final state
@@ -439,7 +441,7 @@ void ESP32ImprovComponent::check_wifi_connection_() {
 
 #ifdef USE_ESP32_IMPROV_NEXT_URL
     // Add next_url if configured (should be first per Improv BLE spec)
-    this->add_next_url_(builder);
+    this->add_next_url_(builder, MAX_NEXT_URL_LEN);
 #endif
 
     // Add default URLs for backward compatibility

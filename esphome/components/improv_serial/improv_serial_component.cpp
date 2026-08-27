@@ -139,7 +139,7 @@ void ImprovSerialComponent::send_settings_response_(improv::Command command) {
   std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
   improv::RpcResponseBuilder builder(buf, command);
 #ifdef USE_IMPROV_SERIAL_NEXT_URL
-  this->add_next_url_(builder);
+  this->add_next_url_(builder, MAX_NEXT_URL_LEN);
 #endif
 #ifdef USE_WEBSERVER
   for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {

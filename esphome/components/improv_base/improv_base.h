@@ -20,7 +20,7 @@ class ImprovBase {
   /// Format next_url_ into buffer, replacing placeholders. Returns length written.
   size_t get_formatted_next_url_(char *buffer, size_t buffer_size);
   /// Append the formatted next_url to the RPC response, warning if it does not fit.
-  void add_next_url_(improv::RpcResponseBuilder &builder);
+  void add_next_url_(improv::RpcResponseBuilder &builder, size_t max_len);
   const char *next_url_{nullptr};
 #endif
 };

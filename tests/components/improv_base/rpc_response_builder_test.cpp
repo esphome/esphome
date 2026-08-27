@@ -54,6 +54,19 @@ TEST(RpcResponseBuilder, GoldenBytes) {
             (std::vector<uint8_t>{0x04, 0x03, 0x02, 'a', 'b', 0xCC}));
 }
 
+// esp32_improv calls finish() and build_rpc_response() with no checksum flag,
+// so the two defaults must agree
+TEST(RpcResponseBuilder, DefaultChecksumFlagMatches) {
+  const std::vector<std::string> urls = {"https://example.com"};
+  std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
+  improv::RpcResponseBuilder builder(buf, improv::WIFI_SETTINGS);
+  for (const auto &str : urls) {
+    EXPECT_TRUE(builder.add_string(str.c_str(), str.size()));
+  }
+  auto out = builder.finish();
+  EXPECT_EQ(std::vector<uint8_t>(out.begin(), out.end()), improv::build_rpc_response(improv::WIFI_SETTINGS, urls));
+}
+
 TEST(RpcResponseBuilder, PayloadBudget) {
   std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
 

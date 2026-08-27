@@ -46,6 +46,10 @@ enum ImprovSerialType : uint8_t {
 static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
+// Longest next URL that still fits the one byte serial frame length field:
+// command + length + (length byte + URL) + trailing byte must not exceed 255
+static constexpr size_t MAX_NEXT_URL_LEN = 251;
+
 class ImprovSerialComponent final : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;
