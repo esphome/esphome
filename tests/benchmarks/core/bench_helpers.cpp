@@ -391,7 +391,9 @@ static void StepToAccuracyDecimals_Whole(benchmark::State &state) {
 BENCHMARK(StepToAccuracyDecimals_Whole);
 
 static void StepToAccuracyDecimals_Mixed(benchmark::State &state) {
-  static constexpr float steps[] = {0.001f, 0.01f, 0.05f, 0.1f, 0.25f, 0.5f, 1.0f, 2.5f, 5.0f, 10.0f};
+  static constexpr float steps[] = {
+      0.001f, 0.01f, 0.05f, 0.1f, 0.25f, 0.5f, 1.0f, 2.5f, 5.0f, 10.0f,
+  };
   static constexpr int num_steps = sizeof(steps) / sizeof(steps[0]);
   for (auto _ : state) {
     int result = 0;
