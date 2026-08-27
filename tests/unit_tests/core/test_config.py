@@ -1130,17 +1130,11 @@ def test_config_hash_same_for_different_config_dirs(tmp_path: Path) -> None:
 def test_config_hash_same_for_different_data_dirs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that downloaded file paths hash the same wherever data_dir lives.
-
-    The CLI keeps downloads under <config>/.esphome while the HA add-on
-    keeps them under /data; the same downloaded file must not change the
-    hash between the two.
-    """
+    """Test that downloaded file paths hash the same wherever data_dir lives."""
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
     CORE.reset()
-    monkeypatch.delenv("ESPHOME_DATA_DIR", raising=False)
     CORE.config_path = config_dir / "device.yaml"
     CORE.config = {
         "esphome": {"name": "test"},

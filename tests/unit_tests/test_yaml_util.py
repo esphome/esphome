@@ -1706,37 +1706,21 @@ def test_dump_path_dotdot_reference_outside_anchor() -> None:
     assert output.strip() == "file: ../shared/font.ttf"
 
 
-def test_dump_path_under_data_dir_uses_default_location() -> None:
-    """Test that Path values under data_dir dump as .esphome/<rest>.
-
-    The HA add-on mounts the data dir at /data, outside the config dir;
-    without this it would dump as ../data/... and hash differently from
-    the CLI, whose data dir is <config>/.esphome.
-    """
+@pytest.mark.parametrize(
+    "data_dir",
+    [
+        pytest.param(Path("/config/.esphome"), id="cli"),
+        pytest.param(Path("/data"), id="addon"),
+    ],
+)
+def test_dump_path_under_data_dir_uses_default_location(data_dir: Path) -> None:
+    """Test that Path values under data_dir dump as .esphome/<rest> for any layout."""
     anchor = Path("/config").absolute()
-    data_dir = Path("/data").absolute()
-    path = data_dir / "image" / "c44630d6"
-    output = yaml_util.dump({"file": path}, relative_to=anchor, data_dir=data_dir)
+    path = data_dir.absolute() / "image" / "c44630d6"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=data_dir.absolute()
+    )
     assert output.strip() == "file: .esphome/image/c44630d6"
-
-
-def test_dump_path_data_dir_layouts_match() -> None:
-    """Test that the add-on /data layout dumps the same as the CLI layout."""
-    anchor = Path("/config").absolute()
-    cli_data_dir = anchor / ".esphome"
-    addon_data_dir = Path("/data").absolute()
-    cli = yaml_util.dump(
-        {"file": cli_data_dir / "image" / "c44630d6"},
-        relative_to=anchor,
-        data_dir=cli_data_dir,
-    )
-    addon = yaml_util.dump(
-        {"file": addon_data_dir / "image" / "c44630d6"},
-        relative_to=anchor,
-        data_dir=addon_data_dir,
-    )
-    assert cli == addon
-    assert cli.strip() == "file: .esphome/image/c44630d6"
 
 
 def test_dump_path_outside_data_dir_still_relative_to_anchor() -> None:
