@@ -51,7 +51,6 @@ CONF_DEBUG_ADD_UART_SETTINGS = "debug_add_uart_settings"
 class Type:
     def __init__(
         self,
-<<<<<<< HEAD
         name,
         vid,
         pid,
@@ -59,28 +58,19 @@ class Type:
         max_channels=1,
         baud_rate_required=True,
         channel_cls=None,
+        max_baud=1_000_000,
     ):
-=======
-        name: str,
-        vid: int,
-        pid: int,
-        cls: str | None,
-        max_channels: int = 1,
-        baud_rate_required: bool = True,
-        max_baud: int = 1_000_000,
-    ) -> None:
->>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
         self.name = name
         cls = cls or name
         self.cls_name = cls
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
-<<<<<<< HEAD
         # max_channels may be a callable (evaluated lazily during config validation)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
         self.channel_cls = channel_cls or USBUartChannel
+        self.max_baud = max_baud
 
     @property
     def max_channels(self):
@@ -98,23 +88,6 @@ class MpxType(Type):
     def max_channels(self):
         # Multiplexed devices aren't restricted by the number of available USB endpoints
         return self._max_channels
-=======
-        self._max_channels = max_channels
-        self.baud_rate_required = baud_rate_required
-        self.max_baud = max_baud
-
-    @property
-    def max_channels(self) -> int:
-        return (
-            3
-            if (
-                CORE.is_esp32
-                and get_esp32_variant() != VARIANT_ESP32P4
-                and self._max_channels > 3
-            )
-            else self._max_channels
-        )
->>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
 
 
 uart_types = (
