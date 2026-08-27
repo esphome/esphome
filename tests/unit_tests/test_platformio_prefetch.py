@@ -1758,3 +1758,9 @@ def test_platformio_private_api_contract() -> None:
     derived = PackageSpec("https://x/y/archive/master.zip")
     assert derived.name and not derived.has_custom_name()
     assert PackageSpec("Foo=https://x/y/archive/master.zip").has_custom_name()
+    # _is_vcs_spec_uri relies on bare .git URLs normalizing to git+, on
+    # both parse paths (raw string, and requirements= for platform tools)
+    assert PackageSpec("https://github.com/x/y.git#v1").uri.startswith("git+")
+    assert PackageSpec(
+        owner="o", name="tool-x", requirements="https://github.com/x/y.git"
+    ).uri.startswith("git+")
