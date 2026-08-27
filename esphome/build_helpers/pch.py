@@ -8,6 +8,7 @@ it too; Arduino.h visibility there is intended (esphome#8693).
 from __future__ import annotations
 
 from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 import hashlib
 import json
@@ -361,19 +362,23 @@ def discard_pch(build_dir: Path) -> None:
     header = build_dir / PCH_HEADER_NAME
     gch = Path(f"{header}.gch")
     had_gch = gch.is_file()
-    try:
-        gch.unlink(missing_ok=True)
-        Path(f"{gch}.sum").unlink(missing_ok=True)
-    except OSError as err:
-        if gch.is_file():
-            from esphome.core import EsphomeError
+    errors = []
+    for sidecar in (gch, Path(f"{gch}.sum")):
+        try:
+            sidecar.unlink(missing_ok=True)
+        except OSError as err:
+            if sidecar.is_file():
+                from esphome.core import EsphomeError
 
-            raise EsphomeError(
-                f"Could not discard the stale precompiled header: {err}"
-            ) from err
+                raise EsphomeError(
+                    f"Could not discard the stale precompiled header: {err}"
+                ) from err
+            errors.append(err)
+    for err in errors:
         _LOGGER.warning("Could not discard the pch sidecars: %s", err)
     if had_gch and header.is_file():
-        os.utime(header)
+        with suppress(OSError):
+            os.utime(header)
 
 
 def prepare_pch(
@@ -493,17 +498,17 @@ def prepare_pch(
         if probe is None:
             return
         if probe.returncode != 0:
-            error = probe.stderr.strip() or f"exit code {probe.returncode}"
-            # Disambiguate: only blame (and latch on) the pch when the same
-            # compile passes without it; anything else is environmental
+            # Disambiguate: only blame the pch when the same compile passes
+            # without it; a failing baseline is its own (latchable) problem
             baseline = _run([*base, *pch_probe_tail()], "probe baseline", stdin="")
             if baseline is None:
                 return
-            _fail(
-                error,
-                "toolchain cannot load the pch",
-                latch=latch and baseline.returncode == 0,
-            )
+            if baseline.returncode == 0:
+                error = probe.stderr.strip() or f"exit code {probe.returncode}"
+                _fail(error, "toolchain cannot load the pch", latch=latch)
+            else:
+                error = baseline.stderr.strip() or f"exit code {baseline.returncode}"
+                _fail(error, "probe cannot run at all", latch=latch)
 
     if gch.is_file() and _read_stamp(sum_path) == checksum:
         _log_pch_in_use()
