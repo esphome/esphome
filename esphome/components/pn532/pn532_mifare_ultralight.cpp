@@ -1,4 +1,5 @@
 #include <array>
+#include <cinttypes>
 #include <memory>
 
 #include "pn532.h"
@@ -21,19 +22,27 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_ultralight_tag_(nfc::NfcTagUid &
     return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
   }
 
-  uint8_t message_length;
+  uint32_t message_length;
   uint8_t message_start_index;
   if (!this->find_mifare_ultralight_ndef_(data, message_length, message_start_index)) {
     ESP_LOGW(TAG, "Couldn't find NDEF message");
     return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
   }
-  ESP_LOGVV(TAG, "NDEF message length: %u, start: %u", message_length, message_start_index);
+  ESP_LOGVV(TAG, "NDEF message length: %" PRIu32 ", start: %u", message_length, message_start_index);
 
   if (message_length == 0) {
     return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
   }
+
+  // data[2] is the CC byte read earlier as part of pages 3-6, same value used by read_mifare_ultralight_capacity_()
+  const uint32_t capacity = data[2] * 8U;
+  const uint32_t total_length = message_length + message_start_index;
+  if (total_length > capacity) {
+    ESP_LOGW(TAG, "NDEF message length %" PRIu32 " exceeds tag capacity %" PRIu32, message_length, capacity);
+    return make_unique<nfc::NfcTag>(uid, nfc::NFC_FORUM_TYPE_2);
+  }
   // we already read pages 3-6 earlier -- pick up where we left off so we're not re-reading pages
-  const uint8_t read_length = message_length + message_start_index > 12 ? message_length + message_start_index - 12 : 0;
+  const uint16_t read_length = total_length > 12 ? static_cast<uint16_t>(total_length - 12) : 0;
   if (read_length) {
     if (!read_mifare_ultralight_bytes_(nfc::MIFARE_ULTRALIGHT_DATA_START_PAGE + 3, read_length, data)) {
       ESP_LOGE(TAG, "Error reading tag data");
@@ -94,7 +103,7 @@ uint16_t PN532::read_mifare_ultralight_capacity_() {
   return 0;
 }
 
-bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
+bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint32_t &message_length,
                                          uint8_t &message_start_index) {
   const uint8_t p4_offset = nfc::MIFARE_ULTRALIGHT_PAGE_SIZE;  // page 4 will begin 4 bytes into the vector
 
@@ -102,16 +111,31 @@ bool PN532::find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6
     return false;
   }
 
+  uint8_t tlv_offset;
   if (page_3_to_6[p4_offset + 0] == 0x03) {
-    message_length = page_3_to_6[p4_offset + 1];
-    message_start_index = 2;
-    return true;
+    tlv_offset = 0;
   } else if (page_3_to_6[p4_offset + 5] == 0x03) {
-    message_length = page_3_to_6[p4_offset + 6];
-    message_start_index = 7;
-    return true;
+    tlv_offset = 5;
+  } else {
+    return false;
   }
-  return false;
+
+  // Long-form TLV length: 0x03 0xFF LEN_HI LEN_LO, used whenever the message is >= 255 bytes.
+  // Short-form is just 0x03 LEN. See NFC Forum Type 2 Tag Operation spec section 2.3.
+  if (page_3_to_6[p4_offset + tlv_offset + 1] == 0xFF) {
+    if (page_3_to_6.size() <= p4_offset + tlv_offset + 3) {
+      // long-form marker present but the length bytes weren't read -- fail explicitly instead of
+      // misreporting a 255-byte short-form message
+      return false;
+    }
+    message_length =
+        (static_cast<uint32_t>(page_3_to_6[p4_offset + tlv_offset + 2]) << 8) | page_3_to_6[p4_offset + tlv_offset + 3];
+    message_start_index = tlv_offset + 4;
+  } else {
+    message_length = page_3_to_6[p4_offset + tlv_offset + 1];
+    message_start_index = tlv_offset + 2;
+  }
+  return true;
 }
 
 bool PN532::write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
