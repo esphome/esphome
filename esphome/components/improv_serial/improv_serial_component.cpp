@@ -63,13 +63,13 @@ void ImprovSerialComponent::loop() {
   }
 
 #ifdef USE_WIFI
-  if (this->state_ == improv::STATE_PROVISIONING && wifi::global_wifi_component != nullptr) {
-    if (!wifi::global_wifi_component->is_connected()) {
-      // Wi-Fi has left any prior connection (or was never connected). Only after observing this
-      // do we trust a later is_connected() to mean we joined the network just requested -- this
-      // prevents reporting the stale old connection as success when changing networks.
-      this->connect_saw_disconnect_ = true;
-    } else if (this->connect_saw_disconnect_) {
+  if (this->state_ == improv::STATE_PROVISIONING && wifi::global_wifi_component != nullptr &&
+      wifi::global_wifi_component->is_connected()) {
+    // Being connected is not enough: re-provisioning a device that is already online leaves the
+    // prior network up until it drops, so check that the joined network is the requested one
+    // before reporting success. Same test as the wifi.connect action.
+    char ssid_buf[wifi::SSID_BUFFER_SIZE];
+    if (strcmp(wifi::global_wifi_component->wifi_ssid_to(ssid_buf), this->connecting_sta_.get_ssid().c_str()) == 0) {
       wifi::global_wifi_component->save_wifi_sta(this->connecting_sta_.get_ssid(),
                                                  this->connecting_sta_.get_password());
       this->connecting_sta_ = {};
@@ -286,8 +286,6 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       const bool switching = wifi::global_wifi_component->is_connected();
       wifi::global_wifi_component->set_sta(sta);
       wifi::global_wifi_component->start_connecting(sta);
-      // Re-arm the gate: don't accept success until Wi-Fi has actually left the prior network.
-      this->connect_saw_disconnect_ = false;
       this->set_state_(improv::STATE_PROVISIONING);
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());

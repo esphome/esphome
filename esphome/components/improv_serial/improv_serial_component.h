@@ -187,11 +187,6 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   uint32_t last_read_byte_{0};
 #ifdef USE_WIFI
   wifi::WiFiAP connecting_sta_;
-  // Gate for accepting a (re)connection as provisioning success: require the Wi-Fi component to
-  // have reported is_connected()==false at least once since WIFI_SETTINGS was received. Without
-  // this, changing networks on an already-connected device would immediately report the stale
-  // prior connection as "provisioned" before the new network is actually joined.
-  bool connect_saw_disconnect_{false};
 #endif
   improv::State state_{improv::STATE_AUTHORIZED};
 };
