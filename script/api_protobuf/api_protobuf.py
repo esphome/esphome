@@ -475,6 +475,19 @@ TYPE_INFO: dict[int, TypeInfo] = {}
 # TYPE_DOUBLE = 1, TYPE_FIXED64 = 6, TYPE_SFIXED64 = 16, TYPE_SINT64 = 18
 UNSUPPORTED_TYPES = {1: "double", 6: "fixed64", 16: "sfixed64", 18: "sint64"}
 
+# The plaintext frame header budgets 2 varint bytes for the message type
+# (APIPlaintextFrameHelper::HEADER_PADDING), which caps message IDs at 16383.
+MAX_MESSAGE_ID = 16383
+
+
+def validate_message_id(message_id: int, message_name: str) -> None:
+    """Reject message IDs whose plaintext type varint would not fit in 2 bytes."""
+    if message_id > MAX_MESSAGE_ID:
+        raise ValueError(
+            f"Message ID {message_id} for {message_name} exceeds the plaintext "
+            f"2-byte type varint maximum ({MAX_MESSAGE_ID})"
+        )
+
 
 def validate_field_type(field_type: int, field_name: str = "") -> None:
     """Validate that the field type is supported by ESPHome API.
@@ -2549,14 +2562,10 @@ def build_message_type(
 
     # Add MESSAGE_TYPE method if this is a service message
     if message_id is not None:
-        # Validate that message_id fits in uint8_t
-        if message_id > 255:
-            raise ValueError(
-                f"Message ID {message_id} for {desc.name} exceeds uint8_t maximum (255)"
-            )
+        validate_message_id(message_id, desc.name)
 
         # Add static constexpr for message type
-        public_content.append(f"static constexpr uint8_t MESSAGE_TYPE = {message_id};")
+        public_content.append(f"static constexpr uint16_t MESSAGE_TYPE = {message_id};")
 
         # Add estimated size constant
         estimated_size = calculate_message_estimated_size(desc)
@@ -3212,8 +3221,12 @@ def main() -> None:
 #include "api_pb2_includes.h"
 """
 
-    content += """
-namespace esphome::api {
+    content += f"""
+namespace esphome::api {{
+
+// Upper bound on message IDs, enforced by the code generator: the plaintext
+// frame header budgets 2 varint bytes for the type (HEADER_PADDING).
+static constexpr uint16_t MAX_MESSAGE_TYPE = {MAX_MESSAGE_ID};
 
 """
 
