@@ -17,7 +17,9 @@ static const char *const TAG = "improv_serial";
 
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+  // Transport is a dedicated UART bus set via set_uart() in generated code
+#elif defined(USE_ESP32)
   this->uart_num_ = logger::global_logger->get_uart_num();
   this->uart_selection_ = logger::global_logger->get_uart();
 #elif defined(USE_ARDUINO)
@@ -90,7 +92,13 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   }
   this->tx_header_[TX_CHECKSUM_IDX] = checksum;
 
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+  this->uart_->write_array(this->tx_header_, header_tx_len);
+  if (there_is_data) {
+    this->uart_->write_array(data, size);
+    this->uart_->write_array(&this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
+  }
+#elif defined(USE_ESP32)
   switch (this->uart_selection_) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:

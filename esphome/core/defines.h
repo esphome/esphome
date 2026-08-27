@@ -537,6 +537,8 @@
 
 #ifdef USE_HOST
 #define USE_HTTP_REQUEST_RESPONSE
+// Host only: the uart arm would shadow the native logger UART arms in other envs
+#define USE_IMPROV_SERIAL_UART
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 64
