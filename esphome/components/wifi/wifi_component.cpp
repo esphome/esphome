@@ -530,7 +530,7 @@ void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   // Skip logging during roaming scans to avoid log buffer overflow
   // (roaming scans typically find many networks but only care about same-SSID APs)
-  if (this->roaming_state_ == RoamingState::SCANNING) {
+  if (this->is_roaming_scan_active()) {
     return;
   }
   char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -631,6 +631,21 @@ void WiFiComponent::setup() {
 
   // Store the configured power save mode as baseline
   this->configured_power_save_ = this->power_save_;
+#endif
+
+#if defined(USE_PROVISIONING) && defined(USE_WIFI_AP)
+  // The access point is a provisioning surface: once the provisioning window has
+  // closed, shut it down (mirrors the teardown done on a successful connection).
+  // The captive portal registers its own closed-callback, and the fallback block
+  // in loop() is gated so neither is started again afterwards.
+  if (provisioning::global_provisioning_manager != nullptr) {
+    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
+      if (this->ap_setup_) {
+        ESP_LOGD(TAG, "Provisioning window closed; disabling AP");
+        this->wifi_mode_({}, false);
+      }
+    });
+  }
 #endif
 
   if (this->enable_on_boot_) {
@@ -833,7 +848,7 @@ void WiFiComponent::loop() {
 
           // Post-connect roaming: check for better AP
           if (this->post_connect_roaming_) {
-            if (this->roaming_state_ == RoamingState::SCANNING) {
+            if (this->is_roaming_scan_active()) {
               if (this->scan_done_) {
                 this->process_roaming_scan_();
               }
@@ -854,7 +869,15 @@ void WiFiComponent::loop() {
     }
 
 #ifdef USE_WIFI_AP
-    if (this->has_ap() && !this->ap_setup_) {
+    bool provisioning_closed = false;
+#ifdef USE_PROVISIONING
+    // Once the provisioning window has closed, don't bring up the fallback AP (or
+    // the captive portal on it) - the device must stay unprovisionable until it is
+    // power-cycled.
+    provisioning_closed =
+        provisioning::global_provisioning_manager != nullptr && provisioning::global_provisioning_manager->closed();
+#endif
+    if (this->has_ap() && !this->ap_setup_ && !provisioning_closed) {
       if (this->ap_timeout_ != 0 && (now - this->last_connected_ > this->ap_timeout_)) {
         ESP_LOGI(TAG, "Starting fallback AP");
         this->setup_ap_config_();
@@ -2144,7 +2167,7 @@ void WiFiComponent::retry_connect() {
     // Roam connection failed - transition to reconnecting
     ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     this->roaming_state_ = RoamingState::RECONNECTING;
-  } else if (this->roaming_state_ == RoamingState::SCANNING) {
+  } else if (this->is_roaming_scan_active()) {
     // Disconnected during roam scan - transition to RECONNECTING so the attempts
     // counter is preserved when reconnection succeeds (IDLE would reset it)
     ESP_LOGD(TAG, "Disconnected during roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);

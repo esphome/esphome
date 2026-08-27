@@ -911,7 +911,7 @@ def test_prefetch_leaves_unverifiable_entries_to_the_installer(
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
@@ -934,7 +934,7 @@ def test_prefetch_all_entries_unverifiable_is_a_noop(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -952,7 +952,7 @@ def test_prefetch_dedupes_entries_by_dest(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress"),
     ):
@@ -967,7 +967,7 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
@@ -1011,7 +1011,7 @@ def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch(
             "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
@@ -1032,7 +1032,7 @@ def test_prefetch_skips_already_downloaded_archives(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -1065,7 +1065,7 @@ def test_prefetch_failures_never_raise(
     with (
         patch("esphome.espidf.framework.run_command", return_value=run_result),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=download_error,
         ),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1087,7 +1087,7 @@ def test_prefetch_total_failure_logs_error(
             return_value=(True, _PREFETCH_JSON, ""),
         ),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=OSError("proxy refuses everything"),
         ),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1112,7 +1112,7 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
             return_value=(True, _PREFETCH_JSON, ""),
         ),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=_fail_cmake_download,
         ) as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1133,7 +1133,7 @@ def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> Non
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume"),
+        patch("esphome.framework_helpers.download_with_resume"),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
         patch("esphome.framework_helpers.ThreadPoolExecutor") as pool_cls,
@@ -1560,13 +1560,14 @@ def test_get_framework_env_without_python_env_uses_os_path(tmp_path: Path) -> No
 
 def _ccache_patches(tmp_path: Path, which: str | None, build_path: Path | None):
     return (
-        patch("esphome.espidf.framework.shutil.which", return_value=which),
+        patch("esphome.espidf.framework.resolve_ccache_path", return_value=which),
         patch(
             "esphome.espidf.framework.get_idf_tools_path",
             return_value=tmp_path / "tools",
         ),
+        # ccache_defaults_env (build_helpers.ccache) reads CORE at call time
         patch(
-            "esphome.espidf.framework.CORE",
+            "esphome.core.CORE",
             SimpleNamespace(build_path=build_path),
         ),
     )
@@ -1587,7 +1588,8 @@ def test_ccache_env_disabled_when_binary_missing(tmp_path: Path) -> None:
     # build_path is None here too: a disabled cache must not require it.
     p1, p2, p3 = _ccache_patches(tmp_path, None, None)
     with patch.dict("os.environ", {}, clear=True), p1, p2, p3:
-        assert _ccache_env() == {}
+        # Canonical off, so an inherited/unparsable value cannot enable it
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
 def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
@@ -1595,18 +1597,111 @@ def test_ccache_env_opt_out_via_env(tmp_path: Path) -> None:
     # short-circuits before build_path is needed.
     p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", None)
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "0"}, clear=True), p1, p2, p3:
-        assert _ccache_env() == {}
+        # The canonical off spelling is exported: the raw value is inherited
+        # by idf.py, where a spelling like "disable" would read as truthy
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
 
 
-def test_ccache_env_opt_in_without_binary(tmp_path: Path) -> None:
-    # Explicit IDF_CCACHE_ENABLE=1 forces it on without probing PATH. It's
-    # already in the environment, so it isn't re-emitted, but the rest is.
+def test_ccache_env_opt_in_without_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Explicit IDF_CCACHE_ENABLE=1 forces it on; without a usable binary
+    # idf.py silently skips ccache, so this branch must say so out loud.
     p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
     with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True), p1, p2, p3:
         env = _ccache_env()
-    assert "IDF_CCACHE_ENABLE" not in env
+    assert env["IDF_CCACHE_ENABLE"] == "1"
     assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
     assert env["CCACHE_DEPEND"] == "1"
+    assert "no ccache binary is on PATH" in caplog.text
+
+
+def test_ccache_env_opt_in_with_working_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Forced on with a working binary: no warning fires at all.
+    ccache = tmp_path / "ccache"
+    ccache.touch()
+    p1, p2, p3 = _ccache_patches(tmp_path, str(ccache), tmp_path / "build")
+    with (
+        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
+        patch("esphome.espidf.framework.shutil.which", return_value=str(ccache)),
+        patch("esphome.espidf.framework.tool_version_runs", return_value=True),
+        p1,
+        p2,
+        p3,
+    ):
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+def test_ccache_env_opt_in_with_rejected_binary(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Forced on with a present-but-rejected binary: idf.py does its own
+    # PATH lookup and uses it anyway; the warning must say so, not claim
+    # the build runs without ccache.
+    # A present but non-executable file: the real probe fails and logs
+    # the forced-on message (patching the probe would silence it)
+    broken = tmp_path / "broken-ccache"
+    broken.touch()
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    with (
+        patch.dict("os.environ", {"IDF_CCACHE_ENABLE": "1"}, clear=True),
+        patch("esphome.espidf.framework.shutil.which", return_value=str(broken)),
+        p1,
+        p2,
+        p3,
+    ):
+        env = _ccache_env()
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+    assert "idf.py will use it anyway" in caplog.text
+    # Exactly one story: the resolver's contradictory "compiling without
+    # ccache" must not precede it
+    assert "compiling without ccache" not in caplog.text
+
+
+def test_ccache_env_honors_shared_esphome_opt_out(tmp_path: Path) -> None:
+    """ESPHOME_CCACHE_ENABLE=0 disables ccache here too; the shared policy
+    must not apply to every backend except this one."""
+    _p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    env_vars = {"ESPHOME_CCACHE_ENABLE": "0", "PATH": "/usr/bin"}
+    with patch.dict("os.environ", env_vars, clear=True), p2, p3:
+        # The real resolver runs so the opt-out parse is exercised
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
+
+
+@pytest.mark.parametrize("value", ["off", "no"])
+def test_ccache_env_idf_knob_parses_strictly(tmp_path: Path, value: str) -> None:
+    """IDF_CCACHE_ENABLE uses the same strict table as the shared knob, so
+    "off" disables instead of reading as truthy."""
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    with patch.dict("os.environ", {"IDF_CCACHE_ENABLE": value}, clear=True), p1, p2, p3:
+        assert _ccache_env() == {"IDF_CCACHE_ENABLE": "0"}
+
+
+def test_ccache_env_idf_knob_unrecognized_warns_and_defers(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unparsable IDF_CCACHE_ENABLE warns, defers to the shared resolver,
+    and is not forwarded to idf.py as truthy."""
+    p1, p2, p3 = _ccache_patches(tmp_path, "/usr/bin/ccache", tmp_path / "build")
+    env_vars = {"IDF_CCACHE_ENABLE": "enabled"}
+    with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert "unrecognized IDF_CCACHE_ENABLE" in caplog.text
+    assert env["IDF_CCACHE_ENABLE"] == "1"
+
+
+def test_ccache_env_idf_knob_wins_over_shared_opt_out(tmp_path: Path) -> None:
+    """IDF_CCACHE_ENABLE=1 takes precedence over ESPHOME_CCACHE_ENABLE=0."""
+    p1, p2, p3 = _ccache_patches(tmp_path, None, tmp_path / "build")
+    env_vars = {"IDF_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_ENABLE": "0"}
+    with patch.dict("os.environ", env_vars, clear=True), p1, p2, p3:
+        env = _ccache_env()
+    assert env["CCACHE_DIR"] == str(tmp_path / "tools" / "ccache")
+    assert env["IDF_CCACHE_ENABLE"] == "1"
 
 
 def test_ccache_env_preserves_user_overrides(tmp_path: Path) -> None:

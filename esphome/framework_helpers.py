@@ -204,6 +204,30 @@ def run_command(
         return False, None, None
 
 
+def tool_version_runs(binary: str, warning: str) -> bool:
+    """Probe ``binary --version``; on failure warn with ``warning`` % binary.
+
+    ``shutil.which`` proves existence, not runnability (Windows .bat/.cmd
+    shims, stale package-manager shims).
+    """
+    try:
+        subprocess.run(
+            [binary, "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+            # Repo-wide convention (posix_spawn fast path)
+            close_fds=False,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        # The cause (permission denied, missing DLL, timeout) is the one
+        # detail the user needs to fix it
+        _LOGGER.warning("%s (%s)", warning % binary, err)
+        return False
+    return True
+
+
 def run_command_ok(*args, **kwargs) -> bool:
     """
     Execute a command and return only the success status.
@@ -677,7 +701,7 @@ def _write_download_meta(
         _LOGGER.debug("Could not update download metadata %s: %s", meta, e)
 
 
-def _content_length(resp: "requests.Response") -> int:
+def content_length(resp: "requests.Response") -> int:
     """Return the response's Content-Length, or 0 when absent or malformed.
 
     0 means "unknown", which downstream disables the progress bar and the
@@ -720,7 +744,7 @@ def _stream_response_to_file(
     """
     f.seek(offset)
     f.truncate(offset)
-    total_size = size or offset + _content_length(resp)
+    total_size = size or offset + content_length(resp)
     downloaded = offset
     own_bar: ProgressBar | None = None
     if progress is None:
@@ -885,6 +909,19 @@ def _part_path(dest: Path) -> Path:
     return dest.with_name(dest.name + ".part")
 
 
+def discard_partial_download(dest: Path) -> None:
+    """Remove ``dest`` and the resume sidecars of an abandoned download."""
+    part = _part_path(dest)
+    for stale in (dest, part, part.with_name(part.name + ".meta")):
+        try:
+            stale.unlink()
+        except FileNotFoundError:
+            continue
+        except OSError as err:
+            # The caller's cache is never pruned; leave a trace
+            _LOGGER.debug("Could not remove %s: %s", stale, err)
+
+
 def _cancellable_sleep(
     delay: float, progress: Callable[[int], None] | None, done: int
 ) -> None:
@@ -896,6 +933,31 @@ def _cancellable_sleep(
     while (remaining := end - time.monotonic()) > 0:
         progress(done)  # raises when the batch was cancelled
         time.sleep(min(0.5, remaining))
+
+
+def resume_fetch_job(
+    url: str, dest: PathType, **kwargs
+) -> Callable[[Callable[[int], None]], None]:
+    """A ``run_batch_downloads`` job callable wrapping ``download_with_resume``.
+
+    Forwards the runner's positional tracker as the ``progress`` keyword.
+    """
+
+    def fetch(tracker: Callable[[int], None]) -> None:
+        download_with_resume(url, dest, progress=tracker, **kwargs)
+
+    return fetch
+
+
+def warn_prefetch_failures(
+    failures: list[tuple[str, BaseException]],
+    message: str = "Could not prefetch %s: %s",
+) -> None:
+    """Warn per failed batch-prefetch job; the caller's installer retries them."""
+    for name, err in failures:
+        # failure_reason: a message-less exception must not log blank
+        _LOGGER.warning(message, name, failure_reason(err))
+        _LOGGER.debug("Prefetch failure detail", exc_info=err)
 
 
 def download_with_resume(
@@ -998,7 +1060,7 @@ def download_with_resume(
                         streamed = True
                         if offset == 0:
                             validator = _response_validator(resp)
-                            expected_total = _content_length(resp)
+                            expected_total = content_length(resp)
                             # Recorded so a later run can prove an If-Range
                             # resume of this part file safe.
                             _write_download_meta(meta, url, validator, expected_total)
@@ -1284,3 +1346,37 @@ def download_from_mirrors(
             f"No mirror URL template matched the provided substitutions:{details}"
         )
     raise ValueError("download_from_mirrors called with an empty mirrors list")
+
+
+def strip_win_long_path_prefix(path: str) -> str:
+    r"""Strip the Windows extended-length path prefix from ``path``.
+
+    Handles both forms documented at
+    https://learn.microsoft.com/windows/win32/fileio/naming-a-file:
+
+    * ``\\?\C:\path\to\file`` -> ``C:\path\to\file``
+    * ``\\?\UNC\server\share\path`` -> ``\\server\share\path``
+
+    The NSIS-installed ``esphome.exe`` launcher on Windows starts Python with
+    ``sys.executable`` already prefixed with ``\\?\``. That prefix propagates
+    into PlatformIO's ``$PYTHONEXE`` (PlatformIO reads ``PYTHONEXEPATH`` from
+    the environment, falling back to ``os.path.normpath(sys.executable)``)
+    and ends up baked into SCons-emitted command lines for build steps such
+    as the esp8266 ``elf2bin`` invocation. ``cmd.exe`` does not understand
+    the ``\\?\`` prefix, so the build fails with
+    "The system cannot find the path specified." Stripping the prefix early
+    keeps the path shell-quotable.
+
+    Also applied to the ccache path exported by the ccache helpers, which
+    ``shutil.which`` can return with the same prefix.
+
+    No-op on non-Windows platforms.
+    """
+    if sys.platform != "win32":
+        return path
+    if path.startswith("\\\\?\\UNC\\"):
+        # \\?\UNC\server\share\... -> \\server\share\...
+        return "\\\\" + path[len("\\\\?\\UNC\\") :]
+    if path.startswith("\\\\?\\"):
+        return path[len("\\\\?\\") :]
+    return path

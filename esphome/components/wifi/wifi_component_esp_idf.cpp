@@ -140,11 +140,6 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-  uint8_t mac[MAC_ADDRESS_SIZE];
-  if (has_custom_mac_address()) {
-    get_mac_address_raw(mac);
-    set_mac_address(mac);
-  }
   // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
@@ -1064,7 +1059,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   // When scanning while connected (roaming), return to home channel between
   // each scanned channel to maintain the connection (helps with BLE/WiFi coexistence)
 #ifdef CONFIG_SOC_WIFI_SUPPORTED
-  if (this->roaming_state_ == RoamingState::SCANNING) {
+  if (this->is_roaming_scan_active()) {
     config.coex_background_scan = true;
   }
 #endif

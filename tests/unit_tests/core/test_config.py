@@ -3,7 +3,6 @@
 from collections.abc import Callable
 import os
 from pathlib import Path
-import types
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -705,33 +704,6 @@ def test_include_file_with_c_header(
         assert '#include "c_library.h"' in mock_raw_statement.text
 
 
-def test_get_usable_cpu_count() -> None:
-    """Test get_usable_cpu_count returns CPU count."""
-    count = config.get_usable_cpu_count()
-    assert isinstance(count, int)
-    assert count > 0
-
-
-def test_get_usable_cpu_count_with_process_cpu_count() -> None:
-    """Test get_usable_cpu_count uses process_cpu_count when available."""
-    # Test with process_cpu_count (Python 3.13+)
-    # Create a mock os module with process_cpu_count
-
-    mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os):
-        # When process_cpu_count exists, it should be used
-        count = config.get_usable_cpu_count()
-        assert count == 8
-
-    # Test fallback to cpu_count when process_cpu_count not available
-    mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os_no_process):
-        count = config.get_usable_cpu_count()
-        assert count == 4
-
-
 def test_list_target_platforms(tmp_path: Path) -> None:
     """Test _list_target_platforms returns available platforms."""
     # Create mock components directory structure
@@ -1285,6 +1257,7 @@ async def test_add_platformio_options_native_idf(
     await config._add_platformio_options(
         {
             "build_flags": "-DSINGLE_FLAG",  # string and list forms both valid
+            "build_unflags": ["-Os"],
             "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
             "lib_ignore": "libsodium",
             "upload_speed": "115200",
@@ -1294,6 +1267,7 @@ async def test_add_platformio_options_native_idf(
 
     assert "-DSINGLE_FLAG" in CORE.build_flags
     assert "ArduinoJson" in CORE.platformio_libraries
+    assert "-Os" in CORE.build_unflags
     # lib_ignore is stored (listified) for generate_idf_components to read;
     # nothing else lands in platformio_options on the native toolchain.
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
@@ -1389,3 +1363,50 @@ def test_esphome_build_internals_are_yaml_only() -> None:
         assert markers[field].visibility is cv.Visibility.ADVANCED, field
     # A regular device-config field stays on the main form.
     assert markers[CONF_NAME_ADD_MAC_SUFFIX].visibility is None
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_native_arduino(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The native ESP8266 Arduino toolchain honors board_build.f_cpu (a
+    real-world overclock knob) and warns about the rest like native IDF."""
+    CORE.toolchain = Toolchain.ARDUINO
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    await config._add_platformio_options(
+        {
+            "board_build.f_cpu": "160000000L",
+            # The schema also permits the list form; the last value wins
+            # and reaches the generator as a scalar
+            "board_build.ldscript": ["eagle.flash.2m.ld", "eagle.flash.4m2m.ld"],
+            "board_build.filesystem": "littlefs",
+            "upload_speed": "115200",
+        }
+    )
+
+    assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
+    assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
+    assert "board_build.f_cpu is ignored" not in caplog.text
+    assert "board_build.ldscript is ignored" not in caplog.text
+    assert (
+        "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
+    )
+    # An empty list for an honored key is not a scalar; it falls through
+    # to the ignored-option warning instead of an IndexError
+    await config._add_platformio_options({"board_build.ldscript": []})
+    assert "board_build.ldscript is ignored" in caplog.text
+    assert "'arduino' toolchain" in caplog.text
+    assert "upload_speed" not in caplog.text
+
+
+def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
+    """Until the native backend lands, ESP8266 serves only PlatformIO."""
+    from esphome.components.esp8266 import CONFIG_SCHEMA
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        CONFIG_SCHEMA({"board": "nodemcuv2"})
