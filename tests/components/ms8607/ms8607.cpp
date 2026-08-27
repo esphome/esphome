@@ -295,7 +295,8 @@ TEST(MS8607Test, Category4MathematicalEdgeCases) {
       EXPECT_EQ(pressure_offset_2, 2'147'439'204) << "Just below 2 ^ 31";
     }
 
-    // calculated pressure is arbitrary, but sending in UINT32_MAX to prove (via UBSan) that it's safe
+    // calculated pressure is arbitrary, but sending in UINT32_MAX (an otherwise invalid value) to show (via UBSan)
+    // that it's safe at this temp
     float const pressure = MS8607Component::compensated_pressure(UINT32_MAX, calibration_values, temperature_boundary);
     EXPECT_NEAR(pressure, 663499.f, 1e2f);
   }
