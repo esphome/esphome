@@ -890,6 +890,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             encoding="utf-8",
         )
 
+    platform_installed = False
     for mgr, entries in groups:
         # One install per destination: pio derives the directory from
         # the package name, so key on the name part
@@ -901,6 +902,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         if to_install:
             try:
                 _preinstall(mgr, list(to_install.values()))
+                platform_installed |= mgr is p.pm
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Each group degrades independently; pio run installs
                 # whatever this one did not
@@ -910,6 +912,12 @@ def _prefetch(build_dir: Path, env: str) -> None:
                     failure_reason(err),
                 )
                 _LOGGER.debug("Pre-install group failure detail", exc_info=True)
+    if platform_installed:
+        # pioarduino installs its real toolchains from configure (the registry
+        # package is a stub); run it again so pio run does not redo the install
+        saved_sys_path = list(sys.path)
+        p.configure_project_packages(env, ["run"])
+        sys.path[:] = saved_sys_path
 
 
 def _sigterm(_signum, _frame) -> None:

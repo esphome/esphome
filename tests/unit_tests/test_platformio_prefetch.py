@@ -10,7 +10,7 @@ import signal
 import sys
 import threading
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from filelock import Timeout
 from platformio.package.manager._install import PackageManagerInstallMixin
@@ -1415,6 +1415,64 @@ def test_prefetch_installs_cached_archives_without_downloads(
     assert mock_install.call_count == 1
     assert mock_install.call_args[0][1] == [("cachedpkg@1", spec)]
     assert not (tmp_path / pf._SENTINEL_NAME).exists()
+
+
+def test_prefetch_reconfigures_after_platform_installs(tmp_path: Path) -> None:
+    """Platform installs get a second configure pass, sys.path restored."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    bogus = str(tmp_path / "penv-site-packages")
+    fake_platform.configure_project_packages.side_effect = lambda env, targets: (
+        sys.path.insert(0, bogus)
+    )
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf,
+            "_registry_jobs",
+            side_effect=[
+                ([], 0, [("toolchain-x@1", _FakeSpec(name="toolchain-x"))]),
+                ([], 0, []),
+            ],
+        ),
+        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
+        patch.object(pf, "_preinstall"),
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    assert fake_platform.configure_project_packages.call_args_list == [
+        call("testenv", ["run"]),
+        call("testenv", ["run"]),
+    ]
+    assert bogus not in sys.path
+
+
+def test_prefetch_library_installs_do_not_reconfigure(tmp_path: Path) -> None:
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    config = _fake_config(
+        tmp_path, {"platform": "fake/p@1", "lib_deps": ["esphome/noise-c@1.0"]}
+    )
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf,
+            "_registry_jobs",
+            side_effect=[
+                ([], 0, []),
+                ([], 0, [("noise-c@1.0", _FakeSpec(name="noise-c"))]),
+            ],
+        ),
+        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
+        patch.object(pf, "_preinstall") as mock_install,
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    mock_install.assert_called_once()
+    fake_platform.configure_project_packages.assert_called_once_with("testenv", ["run"])
 
 
 def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
