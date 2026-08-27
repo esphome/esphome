@@ -100,7 +100,9 @@ def _fake_cxx(
         body += f"echo {fail_msg or 'boom'} >&2\nexit 1\n"
     else:
         # Only the c++-header compile has a -o; the load probe has none
-        body += 'out=""; prev=""\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done\n'
+        body += 'out=""; prev=""; mf=0; dep=0\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; [ "$a" = "-MF" ] && mf=1; case "$a" in -M|-MM|-MD|-MMD) dep=1;; esac; done\n'
+        # Real cc1plus rejects -MF without a dependency flag
+        body += 'if [ "$mf" = 1 ] && [ "$dep" = 0 ]; then echo "cc1plus: error: to generate dependencies you must specify either \x27-M\x27 or \x27-MM\x27" >&2; exit 1; fi\n'
         body += '[ -n "$out" ] && echo gch > "$out"\n'
         if reject_pch:
             body += 'case " $* " in *c++-header*) ;; *) echo "warning: esphome_pch.h.gch: had text segment at different address" >&2;; esac\n'
