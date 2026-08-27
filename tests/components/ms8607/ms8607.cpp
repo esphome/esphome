@@ -273,6 +273,32 @@ TEST(MS8607Test, Category4MathematicalEdgeCases) {
     EXPECT_NEAR(pressure, 1500.0f, 1e-2f);
     EXPECT_NEAR(hum, 133.39f, 1e-2f);
   }
+
+  // Boundary of temperature values that avoid signed 32-bit integer overflow in compensated_pressure().
+  // When first_order_temperature (aka T) < -1500, second order compensation's biggest risk of overflow is:
+  //   pressure_offset_2 = 61 * ((T - 2000)^2 >> 4) + 17 * (T + 1500)^2
+  // With unconstrained raw D2 inputs, first_order_temperature can reach ~ -129070, overflowing int32_t.
+  // The mathematical lower limit before int32_t overflow (pressure_offset_2 <= INT32_MAX) is T = -10926 (-109.26°C).
+  // In normal operation, calculate_values_() guards this by checking temperature_float against TEMPERATURE_LOWER_LIMIT
+  // (-50°C).
+  {
+    // 4227713 will trigger overflow, 4227714 doesn't
+    auto temperature_boundary = MS8607Component::compensated_temperature(4227714, calibration_values);
+
+    EXPECT_EQ(temperature_boundary.first_order_temperature, -10926)
+        << "This specific value is the smallest acceptable value before compensated_pressure triggers overflow";
+
+    // Here's the condensed version of the calculation that gets closest to overflow
+    {
+      const int32_t T = temperature_boundary.first_order_temperature;
+      const int32_t pressure_offset_2 = 61 * (((T - 2000) * (T - 2000)) >> 4) + 17 * (T + 1500) * (T + 1500);
+      EXPECT_EQ(pressure_offset_2, 2'147'439'204) << "Just below 2 ^ 31";
+    }
+
+    // calculated pressure is arbitrary, but sending in UINT32_MAX to prove (via UBSan) that it's safe
+    float const pressure = MS8607Component::compensated_pressure(UINT32_MAX, calibration_values, temperature_boundary);
+    EXPECT_NEAR(pressure, 663499.f, 1e2f);
+  }
 }
 
 }  // namespace esphome::ms8607::testing

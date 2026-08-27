@@ -145,13 +145,13 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
 
   /// use raw temperature and calibration values to figure out actual temperature value
   /// return value includes some intermediate values needed by the pressure compensation algorithm
+  /// Precondition: values must be within typical values from the device to avoid Undefined Behavior.
   static struct CompensatedTemperature compensated_temperature(
       uint32_t d2_raw_temperature, const struct MS8607Component::CalibrationValues &calibration_values);
 
   /// use raw pressure, calibration values, and current temperature to figure out actual pressure
-  /// Precondition: temperature_values must have come from a reading that passed the
-  /// TEMPERATURE_LOWER_LIMIT/TEMPERATURE_UPPER_LIMIT sanity check; unbounded
-  /// first_order_temperature overflows the int32 OFF2/SENS2 intermediates.
+  /// Precondition: calibration_values & temperature_values must be within typical values for the device.
+  /// Unbounded values can cause Undefined Behavior.
   static float compensated_pressure(uint32_t d1_raw_pressure, const struct CalibrationValues &calibration_values,
                                     const struct CompensatedTemperature &temperature_values);
 
