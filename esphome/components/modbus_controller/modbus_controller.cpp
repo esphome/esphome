@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <cstring>
+#include <limits>
 
 namespace esphome::modbus_controller {
 
@@ -352,7 +353,6 @@ void ModbusController::update() {
 // walk through the sensors and determine the register ranges to read
 namespace {
 
-/// Builds the register ranges from the address-ordered sensor walk; each try_* is one join rule.
 class RangeBuilder {
  public:
   explicit RangeBuilder(FixedVector<RegisterRange> &ranges) : ranges_(ranges) {}
@@ -362,8 +362,7 @@ class RangeBuilder {
            this->r_.register_type == curr->register_type && curr->register_type != modbus::EntityType::CUSTOM;
   }
 
-  /// A second sensor on the register(s) the previous one covers reads the same bytes from that sensor's
-  /// offset. Both address tests matter: a sensor that joined mid-range must never anchor this.
+  // A sensor that joined mid-range must never anchor this - hence both address tests.
   bool try_reuse_register(SensorItem *curr) {
     const uint32_t range_end = this->range_end_();
     if (curr->start_address != range_end - this->prev_->register_width() ||
@@ -377,8 +376,6 @@ class RangeBuilder {
     return true;
   }
 
-  /// Extend with the next contiguous register(s), or across a gap for reuse_previous_range: true.
-  /// AUTO stops at a non-standard response_size register; bit ranges are exempt.
   bool try_extend(SensorItem *curr) {
     const uint32_t range_end = this->range_end_();
     const bool reachable =
@@ -391,13 +388,12 @@ class RangeBuilder {
     const uint32_t new_count = this->r_.register_count + gap + curr->register_width();
     const uint16_t max_quantity =
         curr->addresses_bits() ? modbus::MAX_NUM_OF_COILS_TO_READ : modbus::MAX_NUM_OF_REGISTERS_TO_READ;
-    // The resolved offset (bit index for coils, byte cursor for registers) must fit its uint8_t field.
     const uint32_t prospective_offset =
         (curr->addresses_bits() ? static_cast<uint32_t>(curr->start_address - this->r_.start_address)
                                 : static_cast<uint32_t>(this->range_bytes_) + gap * 2) +
         curr->offset_from_start_address;
-    if (new_count > max_quantity || prospective_offset > 0xFF) {
-      return false;  // declined: over-long read or unaddressable position (the caller reports ALWAYS)
+    if (new_count > max_quantity || prospective_offset > std::numeric_limits<uint8_t>::max()) {
+      return false;
     }
     if (!curr->addresses_bits())
       this->range_bytes_ += static_cast<size_t>(gap) * 2;
@@ -409,8 +405,6 @@ class RangeBuilder {
     return true;
   }
 
-  /// A sensor already inside a range widened by a shared-address join reads its slice of that response
-  /// instead of adding an overlapping second poll.
   bool try_cover(SensorItem *curr) {
     if (!this->range_shared_ || this->range_forced_ || curr->start_address < this->r_.start_address ||
         curr->start_address + curr->register_width() > this->range_end_() || this->range_custom_size_ ||
@@ -424,8 +418,8 @@ class RangeBuilder {
     return true;
   }
 
-  /// Sensors on one start address must share a range: a response dispatches to a single range per
-  /// (start address, register type). Holds for reuse_previous_range: false and custom entities too.
+  // A response dispatches to a single range per (start address, register type), so same-address items
+  // must share - even reuse_previous_range: false and custom entities.
   bool try_share(SensorItem *curr) {
     if (!this->have_range_ || this->r_.register_type != curr->register_type ||
         this->r_.start_address != curr->start_address) {
@@ -441,7 +435,6 @@ class RangeBuilder {
     return true;
   }
 
-  /// A join was requested but no rule applied (address inside the open range, or the range is capped).
   bool always_declined(const SensorItem *curr) const {
     return this->have_range_ && curr->reuse_previous_range == RangeReuse::ALWAYS &&
            this->r_.register_type == curr->register_type && curr->start_address != this->r_.start_address;
@@ -463,7 +456,6 @@ class RangeBuilder {
     this->have_range_ = true;
   }
 
-  /// Every member records its range's first register - the base of its offset and of write_address().
   void record(SensorItem *curr) {
     curr->range_start_address = this->r_.start_address;
     this->r_.sensors.insert(curr);
@@ -480,18 +472,14 @@ class RangeBuilder {
 
  private:
   uint32_t range_end_() const { return this->r_.start_address + this->r_.register_count; }
-  /// Answers something other than two bytes per register, so positions past it don't follow from addresses.
   static bool has_custom_size(const SensorItem *item) {
     return item->get_register_size() != static_cast<size_t>(item->register_width()) * 2;
   }
   FixedVector<RegisterRange> &ranges_;
   RegisterRange r_ = {};
   bool have_range_ = false;
-  /// The open range holds a reuse_previous_range: false sensor: never absorb a later sensor by coverage.
-  bool range_forced_ = false;
-  /// Set once a shared-address join widened the read; only a widened range absorbs by coverage.
-  bool range_shared_ = false;
-  /// Bytes the range's registers answer so far; an extending sensor's data starts after them.
+  bool range_forced_ = false;  // a reuse: false member blocks the coverage join
+  bool range_shared_ = false;  // only a share-widened range absorbs by coverage
   size_t range_bytes_ = 0;
   bool range_custom_size_ = false;
   SensorItem *prev_ = nullptr;
@@ -505,10 +493,8 @@ void ModbusController::create_polling_commands_() {
     return;
   }
 
-  // Sensors walk in address order within each register type (see SensorItemsComparator); each keeps its
-  // configured address, and what is resolved here is its `offset` within whichever range it joins.
-  // One range per sensor is a strict upper bound (each step closes at most one range, plus one after the
-  // walk); sized to that bound so no push is ever silently dropped.
+  // At most one range closes per sensor plus one final close, so sensorset_.size() bounds the pushes
+  // (FixedVector silently drops past capacity).
   FixedVector<RegisterRange> ranges;
   ranges.init(this->sensorset_.size());
   RangeBuilder builder(ranges);
