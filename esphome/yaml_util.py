@@ -1290,8 +1290,8 @@ class ESPHomeDumper(yaml.SafeDumper):
             if self._data_dir is not None and path.is_relative_to(
                 data_dir := os.path.normpath(self._data_dir)
             ):
-                rel = path.relative_to(data_dir).as_posix()
-                return self.represent_stringify(f".esphome/{rel}")
+                rel = Path(".esphome") / path.relative_to(data_dir)
+                return self.represent_stringify(rel.as_posix())
             with suppress(ValueError):
                 path = path.relative_to(
                     os.path.normpath(self._relative_to), walk_up=True

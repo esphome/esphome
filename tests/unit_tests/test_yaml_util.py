@@ -1723,6 +1723,18 @@ def test_dump_path_under_data_dir_uses_default_location(data_dir: Path) -> None:
     assert output.strip() == "file: .esphome/image/c44630d6"
 
 
+def test_dump_path_equal_to_data_dir() -> None:
+    """Test that the data dir itself dumps as .esphome, matching the default layout."""
+    anchor = Path("/config").absolute()
+    data_dir = Path("/data").absolute()
+    output = yaml_util.dump({"dir": data_dir}, relative_to=anchor, data_dir=data_dir)
+    assert output.strip() == "dir: .esphome"
+    default = yaml_util.dump(
+        {"dir": anchor / ".esphome"}, relative_to=anchor, data_dir=anchor / ".esphome"
+    )
+    assert default == output
+
+
 def test_dump_path_outside_data_dir_still_relative_to_anchor() -> None:
     """Test that data_dir does not affect paths that are not under it."""
     anchor = Path("/config").absolute()
