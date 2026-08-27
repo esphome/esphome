@@ -212,6 +212,11 @@ class AsyncWebServer {
   void begin();
   void end();
 
+  // Override the number of concurrent client sockets the underlying esp_http_server
+  // keeps open (its `max_open_sockets`). 0 keeps the ESP-IDF default. Must be set
+  // before begin(); the socket component sizes CONFIG_LWIP_MAX_SOCKETS to match.
+  void set_max_open_sockets(uint8_t max_open_sockets) { this->max_open_sockets_ = max_open_sockets; }
+
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
     this->handlers_.push_back(handler);
@@ -223,6 +228,7 @@ class AsyncWebServer {
  protected:
   uint16_t port_{};
   httpd_handle_t server_{};
+  uint8_t max_open_sockets_{0};  // 0 = use the ESP-IDF HTTPD_DEFAULT_CONFIG value
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;

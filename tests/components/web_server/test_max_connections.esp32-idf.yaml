@@ -1,0 +1,4 @@
+<<: !include common_v2.yaml
+
+web_server:
+  max_connections: 12
