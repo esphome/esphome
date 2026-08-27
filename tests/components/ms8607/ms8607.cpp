@@ -290,8 +290,8 @@ TEST(MS8607Test, Category4MathematicalEdgeCases) {
 
     // Here's the condensed version of the calculation that gets closest to overflow
     {
-      const int32_t T = temperature_boundary.first_order_temperature;
-      const int32_t pressure_offset_2 = 61 * (((T - 2000) * (T - 2000)) >> 4) + 17 * (T + 1500) * (T + 1500);
+      const int32_t t = temperature_boundary.first_order_temperature;
+      const int32_t pressure_offset_2 = 61 * (((t - 2000) * (t - 2000)) >> 4) + 17 * (t + 1500) * (t + 1500);
       EXPECT_EQ(pressure_offset_2, 2'147'439'204) << "Just below 2 ^ 31";
     }
 
