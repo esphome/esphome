@@ -12,8 +12,8 @@ permissions:
   contents: read  # actions/checkout for all jobs; individual jobs add their own scopes when they need to write
 
 env:
-  DEFAULT_PYTHON: "3.11"
-  PYUPGRADE_TARGET: "--py311-plus"
+  DEFAULT_PYTHON: "3.12"
+  PYUPGRADE_TARGET: "--py312-plus"
 
 concurrency:
   # yamllint disable-line rule:line-length
@@ -28,18 +28,18 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_dev.txt', 'requirements_test.txt', '.pre-commit-config.yaml') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
         id: python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: venv
           # yamllint disable-line rule:line-length
@@ -49,9 +49,12 @@ jobs:
         # detects the activated venv via ``VIRTUAL_ENV`` so downstream jobs
         # that ``. venv/bin/activate`` see an identical layout.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -62,198 +65,24 @@ jobs:
           python -m venv venv
           . venv/bin/activate
           python --version
-          uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt pre-commit
+          uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
           uv pip install -e .
 
-  pylint:
-    name: Check pylint
+  seed-apt-cache:
+    name: Seed apt package cache
     runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.python-linters == 'true'
+    # PR-branch cache saves are invisible to other PRs, so dev/beta/release
+    # pushes seed the one shared entry PR jobs restore. The key is derived
+    # only from the package list and version; keep both identical in every
+    # step that restores it. In ci-status needs so a broken seed fails dev.
+    if: github.event_name == 'push'
+    timeout-minutes: 10
     steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
+      - name: Install apt packages (cached)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Run pylint
-        run: |
-          . venv/bin/activate
-          pylint -f parseable --persistent=n esphome
-      - name: Suggested changes
-        run: script/ci-suggest-changes
-        if: always()
-
-  ci-custom:
-    name: Run script/ci-custom
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.core-ci == 'true'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Register matcher
-        run: echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
-      - name: Run script/ci-custom
-        run: |
-          . venv/bin/activate
-          script/ci-custom.py
-          script/build_codeowners.py --check
-          script/build_language_schema.py --check
-          script/generate-esp32-boards.py --check
-          script/generate-rp2040-boards.py --check
-          script/ci_check_duplicate_test_ids.py
-
-  import-time:
-    name: Check import esphome.__main__ time
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.import-time == 'true'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Check import time against budget and write waterfall HAR
-        run: |
-          . venv/bin/activate
-          script/check_import_time.py --check --har importtime.har
-      - name: Upload waterfall HAR
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: import-time-waterfall
-          path: importtime.har
-          if-no-files-found: ignore
-          retention-days: 14
-
-  device-builder:
-    name: Test downstream esphome/device-builder
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.device-builder == 'true'
-    steps:
-      - name: Check out esphome (this PR)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          path: esphome
-      - name: Check out esphome/device-builder
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          repository: esphome/device-builder
-          ref: main
-          path: device-builder
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.13"
-      - name: Set up uv
-        # Mirrors the install shape device-builder's own CI uses
-        # (esphome/device-builder#192): uv replaces pip for the
-        # install step (order-of-magnitude faster on cold boots,
-        # with its own wheel cache). actions/setup-python still
-        # provides the interpreter.
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
-        with:
-          enable-cache: true
-          # Pin uv version so the action does not have to fetch the
-          # manifest from raw.githubusercontent.com on every cache
-          # miss; that fetch flakes on Windows runners.
-          version: "0.11.15"
-      - name: Install device-builder + esphome from PR
-        # Install device-builder with its esphome + test extras
-        # first so its pinned versions of pytest/etc. land, then
-        # overlay the PR's esphome so the downstream tests run
-        # against this PR's Python code. ``--system`` installs into
-        # the runner's Python instead of a venv.
-        run: |
-          uv pip install --system -e './device-builder[esphome,test]'
-          uv pip install --system -e ./esphome
-      - name: Run device-builder pytest
-        # ``-n auto`` runs under pytest-xdist (matches device-builder's
-        # own CI). No ``--cov`` here -- this is purely a downstream
-        # smoke check against this PR's esphome code. ``tests/e2e/slow``
-        # is excluded: those are real multi-minute toolchain compiles
-        # (LibreTiny SDK clone, native ESP-IDF install) that device-builder
-        # runs in its own dedicated jobs, not this smoke check.
-        working-directory: device-builder
-        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks --ignore=tests/e2e/slow
-
-  pytest:
-    name: Run pytest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version:
-          - "3.11"
-          - "3.13"
-          - "3.14"
-        os:
-          - ubuntu-latest
-          - macOS-latest
-          - windows-latest
-        exclude:
-          # Minimize CI resource usage
-          # by only running the Python version
-          # version used for docker images on Windows and macOS
-          - python-version: "3.13"
-            os: windows-latest
-          - python-version: "3.13"
-            os: macOS-latest
-    runs-on: ${{ matrix.os }}
-    needs:
-      - common
-      - determine-jobs
-    if: needs.determine-jobs.outputs.core-ci == 'true'
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: Restore Python
-        id: restore-python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Register matcher
-        run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
-      - name: Run pytest
-        if: matrix.os == 'windows-latest'
-        run: |
-          . ./venv/Scripts/activate.ps1
-          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
-      - name: Run pytest
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
-        run: |
-          . venv/bin/activate
-          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-      - name: Save Python virtual environment cache
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: venv
-          key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
+          packages: libsdl2-dev ccache
+          version: 1.1
 
   determine-jobs:
     name: Determine which jobs to run
@@ -270,8 +99,8 @@ jobs:
       python-linters: ${{ steps.determine.outputs.python-linters }}
       import-time: ${{ steps.determine.outputs.import-time }}
       device-builder: ${{ steps.determine.outputs.device-builder }}
-      native-idf: ${{ steps.determine.outputs.native-idf }}
-      native-idf-components: ${{ steps.determine.outputs.native-idf-components }}
+      esp32-platformio: ${{ steps.determine.outputs.esp32-platformio }}
+      esp32-platformio-components: ${{ steps.determine.outputs.esp32-platformio-components }}
       changed-components: ${{ steps.determine.outputs.changed-components }}
       changed-components-with-tests: ${{ steps.determine.outputs.changed-components-with-tests }}
       directly-changed-components-with-tests: ${{ steps.determine.outputs.directly-changed-components-with-tests }}
@@ -283,9 +112,15 @@ jobs:
       component-test-batches: ${{ steps.determine.outputs.component-test-batches }}
       validate-only-components: ${{ steps.determine.outputs.validate-only-components }}
       benchmarks: ${{ steps.determine.outputs.benchmarks }}
+      # "true" when this run is a pull request into one of the release
+      # branches. Those pull requests are batches of changes already tested on
+      # their original dev pull requests, so several jobs below trade coverage
+      # for turnaround time on them. Matched exactly, not by prefix, so an
+      # ordinary branch named e.g. "release-notes" is not caught by it.
+      release-pr: ${{ github.base_ref == 'beta' || github.base_ref == 'release' }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Fetch enough history to find the merge base
           fetch-depth: 2
@@ -295,7 +130,7 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Restore components graph cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
@@ -324,8 +159,8 @@ jobs:
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
           echo "import-time=$(echo "$output" | jq -r '.import_time')" >> $GITHUB_OUTPUT
           echo "device-builder=$(echo "$output" | jq -r '.device_builder')" >> $GITHUB_OUTPUT
-          echo "native-idf=$(echo "$output" | jq -r '.native_idf')" >> $GITHUB_OUTPUT
-          echo "native-idf-components=$(echo "$output" | jq -r '.native_idf_components')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio=$(echo "$output" | jq -r '.esp32_platformio')" >> $GITHUB_OUTPUT
+          echo "esp32-platformio-components=$(echo "$output" | jq -r '.esp32_platformio_components')" >> $GITHUB_OUTPUT
           echo "changed-components=$(echo "$output" | jq -c '.changed_components')" >> $GITHUB_OUTPUT
           echo "changed-components-with-tests=$(echo "$output" | jq -c '.changed_components_with_tests')" >> $GITHUB_OUTPUT
           echo "directly-changed-components-with-tests=$(echo "$output" | jq -c '.directly_changed_components_with_tests')" >> $GITHUB_OUTPUT
@@ -339,14 +174,179 @@ jobs:
           echo "benchmarks=$(echo "$output" | jq -r '.benchmarks')" >> $GITHUB_OUTPUT
       - name: Save components graph cache
         if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .temp/components_graph.json
           key: components-graph-${{ hashFiles('esphome/components/**/*.py') }}
 
+  ci-custom:
+    name: Run script/ci-custom
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.core-ci == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Register matcher
+        run: echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
+      - name: Run script/ci-custom
+        run: |
+          . venv/bin/activate
+          script/ci-custom.py
+          script/build_codeowners.py --check
+          script/build_alias_registry.py --check
+          script/build_language_schema.py --check
+          script/generate-esp32-boards.py --check
+          script/generate-rp2-boards.py --check
+          script/ci_check_duplicate_test_ids.py
+          script/ci_check_test_fixture_list_form.py
+
+  pylint:
+    name: Check pylint
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.python-linters == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Run pylint
+        run: |
+          . venv/bin/activate
+          pylint -f parseable --persistent=n esphome
+      - name: Suggested changes
+        run: script/ci-suggest-changes
+        if: always()
+
+  lint-format:
+    name: Check lint and formatting
+    runs-on: ubuntu-latest
+    needs:
+      - determine-jobs
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.release-pr == 'false' && needs.determine-jobs.outputs.core-ci == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Run prek
+        uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece # v3.0.0
+        with:
+          # Keep in sync with requirements_test.txt.
+          prek-version: "0.4.11"
+          # This job only runs on pull requests, so nothing ever populates
+          # the cache on dev. Every run would miss and then write a per-pull
+          # request copy, which is what the old seed-cache job existed to
+          # avoid. Building the hooks from scratch takes seconds, so skip it.
+          cache: false
+        env:
+          PREK_SKIP: pylint,ci-custom
+      # Pushes any fixes the hooks made back to the pull request. This step
+      # must keep its default name: the GitHub App that performs the push
+      # locates the workflow run by that name.
+      - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
+        if: always()
+        with:
+          msg: apply automatic formatting fixes
+
+  pytest:
+    name: Run pytest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.12"
+          - "3.13"
+          - "3.14"
+        os:
+          - ubuntu-latest
+          - macOS-latest
+          - windows-latest
+        exclude:
+          # Minimize CI resource usage
+          # by only running the Python version
+          # version used for docker images on Windows and macOS
+          - python-version: "3.13"
+            os: windows-latest
+          - python-version: "3.13"
+            os: macOS-latest
+    runs-on: ${{ matrix.os }}
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.core-ci == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore Python
+        id: restore-python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Register matcher
+        run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
+      - name: Run pytest
+        if: matrix.os == 'windows-latest'
+        run: |
+          . ./venv/Scripts/activate.ps1
+          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
+      - name: Run pytest
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macOS-latest'
+        run: |
+          . venv/bin/activate
+          pytest -vv --cov-report=xml --tb=native --durations=30 -n auto tests --ignore=tests/integration/
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      - name: Save Python virtual environment cache
+        if: github.ref == 'refs/heads/dev'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: venv
+          key: ${{ runner.os }}-${{ steps.restore-python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
+
+  codecov-empty-upload:
+    name: Report no coverage to Codecov
+    runs-on: ubuntu-24.04
+    needs:
+      - determine-jobs
+    # ``pytest`` is the only job that uploads coverage, and it is skipped when
+    # every changed file is CI-irrelevant (see ``should_run_core_ci`` in
+    # ``script/determine-jobs.py``). With no upload Codecov never reports a
+    # result, so the required ``codecov/patch`` status stays pending forever and
+    # the pull request can never be merged. Tell Codecov up front that this
+    # commit has nothing to cover so it publishes a passing status instead.
+    #
+    # ``force`` skips Codecov's own check that every changed file is ignorable;
+    # ``determine-jobs`` has already decided none of these files can affect
+    # coverage, and Codecov would otherwise fail the status for paths it does
+    # not recognise as non-testable (``docker/**``, ``.yamllint``).
+    if: needs.determine-jobs.outputs.core-ci == 'false'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Report empty upload to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          run_command: empty-upload
+          force: true
+          fail_ci_if_error: true
+
   integration-tests:
     name: Run integration tests (${{ matrix.bucket.name }})
-    runs-on: ubuntu-latest
+    # Must match seed-apt-cache's image: the apt cache key has no OS in it.
+    runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
@@ -357,24 +357,37 @@ jobs:
         bucket: ${{ fromJson(needs.determine-jobs.outputs.integration-test-buckets) }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install apt packages (cached)
+        # ccache speeds up the host compiles. A cache hit never touches apt
+        # (mirror outages cannot hang the job); the timeout bounds the cold
+        # path. Packages and version must match seed-apt-cache exactly;
+        # libsdl2-dev is unused here and carried only for cache-key parity.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
+        with:
+          packages: libsdl2-dev ccache
+          version: 1.1
       - name: Set up Python 3.13
         id: python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
       - name: Restore Python virtual environment
         id: cache-venv
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: venv
           key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ needs.common.outputs.cache-key }}
       - name: Set up uv
         # Only needed on cache miss to populate the venv.
         if: steps.cache-venv.outputs.cache-hit != 'true'
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
           # Pin uv version so the action does not have to fetch the
           # manifest from raw.githubusercontent.com on every cache
           # miss; that fetch flakes on Windows runners.
@@ -399,6 +412,137 @@ jobs:
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
           pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
+      - name: Print ccache statistics
+        # esphome stores the PlatformIO ccache under the machine-global cache
+        # dir (see _ccache_env() in esphome/platformio/toolchain.py).
+        run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
+
+  import-time:
+    name: Check import esphome.__main__ time
+    runs-on: ubuntu-24.04
+    needs:
+      - common
+      - determine-jobs
+    if: needs.determine-jobs.outputs.import-time == 'true'
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Check import time against budget and write waterfall HAR
+        run: |
+          . venv/bin/activate
+          script/check_import_time.py --check --har importtime.har
+      - name: Upload waterfall HAR
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: import-time-waterfall
+          path: importtime.har
+          if-no-files-found: ignore
+          retention-days: 14
+
+  benchmarks:
+    name: Run CodSpeed benchmarks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs:
+      - common
+      - determine-jobs
+    if: >-
+      github.repository == 'esphome/esphome' && (
+        (github.event_name == 'push' && github.ref_name == 'dev') ||
+        (
+          github.event_name == 'pull_request' &&
+          needs.determine-jobs.outputs.release-pr == 'false' &&
+          needs.determine-jobs.outputs.benchmarks == 'true'
+        )
+      )
+    # CodSpeed benchmarks require a CodSpeed account linked to the repository to run
+    # (https://codspeed.io) -- disabled on forks that aren't esphome/esphome itself.
+    #
+    # Pull requests into beta and release are skipped as well. CodSpeed compares a
+    # pull request against the newest commit of its base branch that has a benchmark
+    # run of its own, and only dev is benchmarked. A release pull request therefore
+    # falls back to dev's latest run, so every speed-up merged into dev since the
+    # release branched is reported as a regression in the release. The changes there
+    # have already been benchmarked on their original dev pull requests.
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
+
+      - name: Build benchmarks
+        id: build
+        run: |
+          # pipefail: without it a failed build is masked by the grep/cut
+          # pipeline below, leaving BINARY empty and silently dropping every
+          # C++ benchmark from the run while the job still reports success.
+          set -o pipefail
+          . venv/bin/activate
+          BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
+          export BENCHMARK_LIB_CONFIG
+          # --build-only prints BUILD_BINARY=<path> to stdout; the grep is
+          # non-fatal so a missing marker reaches the check below instead of
+          # tripping errexit at this assignment
+          BINARY=$(script/cpp_benchmark.py --all --build-only | { grep '^BUILD_BINARY=' || true; } | tail -1 | cut -d= -f2-)
+          if [ -z "$BINARY" ]; then
+            echo "::error::Benchmark build did not report a binary path"
+            exit 1
+          fi
+          echo "binary=$BINARY" >> $GITHUB_OUTPUT
+
+      - name: Bound apt fetches and pre-install libc6-dbg
+        # The CodSpeed runner installs valgrind + libc6-dbg via its own
+        # unbounded apt-get update; per-invocation apt options cannot reach
+        # it. The apt.conf.d timeouts below bound every later apt call in
+        # this job, the runner's included. Pre-installing libc6-dbg lets the
+        # runner skip apt once its valgrind cache is restored (it checks
+        # ``dpkg -s libc6-dbg``, so the cache action's unregistered restores
+        # would not count). Install without update first: image lists are
+        # fresh, and the index refresh is what a congested mirror makes
+        # slow. Best effort; the job timeout is the last backstop.
+        timeout-minutes: 15
+        continue-on-error: true
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+          Acquire::Retries "1";
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          EOF
+          if dpkg -s libc6-dbg >/dev/null 2>&1; then
+            echo "libc6-dbg already installed"
+            exit 0
+          fi
+          # Common path: the image's package lists are fresh enough.
+          if sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 \
+              apt-get install -y libc6-dbg; then
+            exit 0
+          fi
+          # Rescue path: refresh the lists once with a generous bound; the
+          # apt config already fails a stalled mirror over quickly.
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+            dpkg --configure -a || true
+          sudo timeout -k 15 300 apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 \
+            apt-get install -y libc6-dbg
+
+      - name: Run CodSpeed benchmarks
+        uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
+        with:
+          run: |
+            . venv/bin/activate
+            ${{ steps.build.outputs.binary }}
+            pytest tests/benchmarks/python/ --codspeed --no-cov
+          mode: simulation
 
   cpp-unit-tests:
     name: Run C++ unit tests
@@ -409,7 +553,7 @@ jobs:
     if: github.event_name == 'pull_request' && (needs.determine-jobs.outputs.cpp-unit-tests-run-all == 'true' || needs.determine-jobs.outputs.cpp-unit-tests-components != '[]')
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore Python
         uses: ./.github/actions/restore-python
@@ -427,43 +571,6 @@ jobs:
             script/cpp_unit_test.py $ARGS
           fi
 
-  benchmarks:
-    name: Run CodSpeed benchmarks
-    runs-on: ubuntu-24.04
-    needs:
-      - common
-      - determine-jobs
-    if: >-
-      (github.event_name == 'push' && github.ref_name == 'dev') ||
-      (github.event_name == 'pull_request' && needs.determine-jobs.outputs.benchmarks == 'true')
-    steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
-        with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-
-      - name: Build benchmarks
-        id: build
-        run: |
-          . venv/bin/activate
-          export BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
-          # --build-only prints BUILD_BINARY=<path> to stdout
-          BINARY=$(script/cpp_benchmark.py --all --build-only | grep '^BUILD_BINARY=' | tail -1 | cut -d= -f2-)
-          echo "binary=$BINARY" >> $GITHUB_OUTPUT
-
-      - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af # v4.17.5
-        with:
-          run: |
-            . venv/bin/activate
-            ${{ steps.build.outputs.binary }}
-            pytest tests/benchmarks/python/ --codspeed --no-cov
-          mode: simulation
-
   clang-tidy-single:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04
@@ -475,9 +582,10 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       # esp32-arduino-tidy installs ESP-IDF natively; share the native IDF cache.
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # nrf52-tidy installs sdk-nrf natively; pin it to a cacheable path.
+      ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         include:
           - id: clang-tidy
@@ -491,42 +599,59 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ZEPHYR
             options: --environment nrf52-tidy --grep USE_ZEPHYR --grep USE_NRF52
-            pio_cache_key: tidy-zephyr
+            cache_sdk_nrf: true
             ignore_errors: false
+          - id: clang-tidy
+            name: Run script/clang-tidy for RP2
+            options: --environment rp2-tidy --grep USE_RP2
+            pio_cache_key: tidyrp2
+          - id: clang-tidy
+            name: Run script/clang-tidy for LibreTiny
+            environments: bk72xx-tidy ln882h-tidy rtl87xxb-tidy rtl87xxc-tidy
+            options: --grep USE_LIBRETINY --grep USE_BK72XX --grep USE_RTL87XX --grep USE_LN882X
+            pio_cache_key: tidylibretiny
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
 
       - name: Restore Python
+        id: restore-python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
+      # Key on the exact Python version as well: LibreTiny creates a venv under
+      # ~/.platformio/penv whose interpreter is a symlink into the runner's
+      # hosted toolcache, so a cache saved on an older runner image breaks once
+      # a new image ships a newer patch release and drops the old interpreter.
       - name: Cache platformio
         if: github.ref == 'refs/heads/dev' && matrix.pio_cache_key
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ steps.restore-python.outputs.python-version }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache platformio
         if: github.ref != 'refs/heads/dev' && matrix.pio_cache_key
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
-          key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
+          key: platformio-${{ matrix.pio_cache_key }}-${{ steps.restore-python.outputs.python-version }}-${{ hashFiles('platformio.ini') }}
 
       - name: Cache ESP-IDF install
-        # Shared with the IDF tidy + native-IDF build jobs (same install).
         if: matrix.cache_idf
         uses: ./.github/actions/cache-esp-idf
         with:
           framework: arduino
+
+      - name: Cache nRF Connect SDK install
+        if: matrix.cache_sdk_nrf
+        uses: ./.github/actions/cache-sdk-nrf
 
       - name: Register problem matchers
         run: |
@@ -537,15 +662,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -556,10 +678,21 @@ jobs:
           . venv/bin/activate
           if [ "${{ steps.check_full_scan.outputs.full_scan }}" = "true" ]; then
             echo "Running FULL clang-tidy scan (reason: ${{ steps.check_full_scan.outputs.reason }})"
-            script/clang-tidy --all-headers --fix ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed=""
           else
             echo "Running clang-tidy on changed files only"
-            script/clang-tidy --all-headers --fix --changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
+            changed="--changed"
+          fi
+          if [ -n "${{ matrix.environments }}" ]; then
+            rc=0
+            for env in ${{ matrix.environments }}; do
+              echo "::group::clang-tidy $env"
+              script/clang-tidy --all-headers --fix $changed --environment "$env" ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }} || rc=1
+              echo "::endgroup::"
+            done
+            exit $rc
+          else
+            script/clang-tidy --all-headers --fix $changed ${{ matrix.options }} ${{ matrix.ignore_errors && '|| true' || '' }}
           fi
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
@@ -583,7 +716,7 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -595,7 +728,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the Arduino tidy + native-IDF build jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -607,15 +739,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -652,7 +781,6 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
@@ -667,7 +795,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -679,7 +807,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the Arduino tidy + native-IDF build jobs (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -691,15 +818,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -736,12 +860,12 @@ jobs:
       ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix:
         include:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 S3
-            options: --environment esp32s3-idf-tidy --grep USE_ESP32_VARIANT_ESP32S3
+            # yamllint disable-line rule:line-length
+            options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
@@ -751,11 +875,11 @@ jobs:
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
             # yamllint disable-line rule:line-length
-            options: --environment esp32c6-idf-tidy --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+            options: --environment esp32c6-idf-tidy --grep SOC_LP_I2C_SUPPORTED --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history for HEAD~1 to work for checking changed files
           fetch-depth: 2
@@ -767,7 +891,6 @@ jobs:
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache ESP-IDF install
-        # Shared with the IDF/Arduino clang-tidy jobs + native-IDF build (same install).
         uses: ./.github/actions/cache-esp-idf
 
       - name: Register problem matchers
@@ -779,15 +902,12 @@ jobs:
         id: check_full_scan
         run: |
           . venv/bin/activate
-          # determine-jobs.clang-tidy-full-scan is true when core C++ changed
-          # OR the ci-run-all label forced --force-all. Independent of the
-          # hash check, both must produce a full scan in the job itself.
+          # determine-jobs.clang-tidy-full-scan is true when core C++ or a
+          # clang-tidy-relevant config file changed, or the ci-run-all label
+          # forced --force-all.
           if [ "${{ needs.determine-jobs.outputs.clang-tidy-full-scan }}" = "true" ]; then
             echo "full_scan=true" >> $GITHUB_OUTPUT
             echo "reason=determine_jobs" >> $GITHUB_OUTPUT
-          elif python script/clang_tidy_hash.py --check; then
-            echo "full_scan=true" >> $GITHUB_OUTPUT
-            echo "reason=hash_changed" >> $GITHUB_OUTPUT
           else
             echo "full_scan=false" >> $GITHUB_OUTPUT
             echo "reason=normal" >> $GITHUB_OUTPUT
@@ -811,17 +931,23 @@ jobs:
         if: always()
 
   test-build-components-split:
-    name: Test components batch (${{ matrix.components }})
+    name: Test components batch (${{ matrix.batch.components }})
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
     if: github.event_name == 'pull_request' && fromJSON(needs.determine-jobs.outputs.component-test-count) > 0
+    env:
+      # esp32 component builds use the native ESP-IDF toolchain (default), so
+      # share the tidy jobs' install location -- the restore below lands here.
+      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
+      # nrf52 component builds install sdk-nrf natively; pin it to the shared
+      # cacheable path so the restore below lands where the build looks.
+      ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: ${{ (startsWith(github.base_ref, 'beta') || startsWith(github.base_ref, 'release')) && 8 || 4 }}
       matrix:
-        components: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
+        batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:
       - name: Show disk space
         run: |
@@ -829,21 +955,43 @@ jobs:
           df -h
 
       - name: List components
-        run: echo ${{ matrix.components }}
+        run: echo ${{ matrix.batch.components }}
 
-      - name: Cache apt packages
-        uses: awalsh128/cache-apt-pkgs-action@acb598e5ddbc6f68a970c5da0688d2f3a9f04d05 # v1.5.3
+      - name: Install apt packages (cached)
+        # A cache hit (seeded on dev by seed-apt-cache) never touches apt,
+        # so mirror outages cannot hang this PR-only job; the timeout bounds
+        # the cold path. Packages and version must match seed-apt-cache
+        # exactly. The action has no --no-install-recommends; same package
+        # set this job used before #17463.
+        timeout-minutes: 10
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: libsdl2-dev
-          version: 1.0
+          packages: libsdl2-dev ccache
+          version: 1.1
 
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
+      - name: Cache ESP-IDF install (restore-only)
+        # Only batches whose test platforms include esp32 need the native
+        # ESP-IDF install; never save -- just reuse the shared install the
+        # dev tidy jobs already cached when present.
+        if: matrix.batch.needs_idf
+        uses: ./.github/actions/cache-esp-idf
+        with:
+          restore-only: true
+      - name: Cache nRF Connect SDK install (restore-only)
+        # Only batches whose test platforms include nrf52 need the native
+        # sdk-nrf install; never save -- just reuse the shared install the
+        # dev nrf52 tidy job cached when present.
+        if: matrix.batch.needs_nrf
+        uses: ./.github/actions/cache-sdk-nrf
+        with:
+          restore-only: true
       - name: Validate and compile components with intelligent grouping
         run: |
           . venv/bin/activate
@@ -874,7 +1022,7 @@ jobs:
           fi
 
           # Convert space-separated components to comma-separated for Python script
-          components_csv=$(echo "${{ matrix.components }}" | tr ' ' ',')
+          components_csv=$(echo "${{ matrix.batch.components }}" | tr ' ' ',')
 
           # Only isolate directly changed components when targeting dev branch
           # For beta/release branches, group everything for faster CI
@@ -884,7 +1032,7 @@ jobs:
           # - This catches pin conflicts and other issues in directly changed code
           # - Grouped tests use --testing-mode to allow config merging (disables some checks)
           # - Dependencies are safe to group since they weren't modified in this PR
-          if [[ "${{ github.base_ref }}" == beta* ]] || [[ "${{ github.base_ref }}" == release* ]]; then
+          if [[ "${{ needs.determine-jobs.outputs.release-pr }}" == "true" ]]; then
             directly_changed_csv=""
             echo "Testing components: $components_csv"
             echo "Target branch: ${{ github.base_ref }} - grouping all components"
@@ -947,23 +1095,27 @@ jobs:
             echo "All components in this batch are validate-only -- skipping compile stage."
           fi
 
-  test-native-idf:
-    name: Test components with native ESP-IDF
+      - name: Print ccache statistics
+        # esphome stores the cache under the IDF tools path; expand the leading
+        # ~ in ESPHOME_ESP_IDF_PREFIX so ccache reads the dir the build used.
+        run: CCACHE_DIR="${ESPHOME_ESP_IDF_PREFIX/#\~/$HOME}/ccache" ccache -s
+
+  test-esp32-platformio:
+    name: Test esp32 components with PlatformIO
     runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.native-idf == 'true'
+    if: github.event_name == 'pull_request' && needs.determine-jobs.outputs.esp32-platformio == 'true'
     env:
-      ESPHOME_ESP_IDF_PREFIX: ~/.esphome-idf
-      # Comma-joined subset of the native-IDF representative component list,
-      # computed by script/determine-jobs.py (native_idf_components_to_test).
+      # Comma-joined subset of the esp32 PlatformIO representative component list,
+      # computed by script/determine-jobs.py (esp32_platformio_components_to_test).
       # Single source of truth -- the full list lives in
-      # script/determine-jobs.py::NATIVE_IDF_TEST_COMPONENTS.
-      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.native-idf-components }}
+      # script/determine-jobs.py::ESP32_PLATFORMIO_TEST_COMPONENTS.
+      TEST_COMPONENTS: ${{ needs.determine-jobs.outputs.esp32-platformio-components }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore Python
         uses: ./.github/actions/restore-python
@@ -971,87 +1123,80 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
-      - name: Prepare build storage on /mnt
-        # Bind-mount the larger /mnt disk over the IDF install + build dirs BEFORE
-        # restoring the cache, so the ~4.5GB restore lands on the roomier volume
-        # instead of being shadowed by a mount set up later in the run step.
-        run: |
-          root_avail=$(df -k / | awk 'NR==2 {print $4}')
-          mnt_avail=$(df -k /mnt 2>/dev/null | awk 'NR==2 {print $4}')
-          echo "Available space: / has ${root_avail}KB, /mnt has ${mnt_avail}KB"
-          if [ -n "$mnt_avail" ] && [ "$mnt_avail" -gt "$root_avail" ]; then
-            echo "Using /mnt for build files (more space available)"
-            sudo mkdir -p /mnt/esphome-idf
-            sudo chown $USER:$USER /mnt/esphome-idf
-            mkdir -p ~/.esphome-idf
-            sudo mount --bind /mnt/esphome-idf ~/.esphome-idf
-            sudo mkdir -p /mnt/test_build_components_build
-            sudo chown $USER:$USER /mnt/test_build_components_build
-            mkdir -p tests/test_build_components/build
-            sudo mount --bind /mnt/test_build_components_build tests/test_build_components/build
-          else
-            echo "Using / for build files (more space available than /mnt or /mnt unavailable)"
-          fi
-
-      - name: Cache ESP-IDF install
-        # Shared with the IDF/Arduino clang-tidy jobs (same install); restores
-        # into the /mnt bind-mount prepared above when present.
-        uses: ./.github/actions/cache-esp-idf
-
-      - name: Run native ESP-IDF compile test
+      - name: Run PlatformIO compile test
         run: |
           . venv/bin/activate
 
           echo "Testing components: $TEST_COMPONENTS"
           echo ""
 
-          # Show disk space before validation
-          echo "Disk space before config validation:"
-          df -h
-          echo ""
-
-          # Run config validation (auto-grouped by test_build_components.py)
-          python3 script/test_build_components.py -e config -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain esp-idf
+          # compile validates config first, so a separate config pass is
+          # redundant for this smoke test. ESP-IDF framework via PlatformIO:
+          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain platformio
 
           echo ""
-          echo "Config validation passed! Starting compilation..."
+          echo "ESP-IDF-via-PlatformIO build passed! Starting Arduino smoke test..."
           echo ""
 
-          # Show disk space before compilation
-          echo "Disk space before compilation:"
-          df -h
-          echo ""
+          # Arduino framework via PlatformIO (only components with an esp32-ard test are built):
+          python3 script/test_build_components.py -e compile -t esp32-ard -c "$TEST_COMPONENTS" -f --toolchain platformio
 
-          # Run compilation (auto-grouped by test_build_components.py)
-          python3 script/test_build_components.py -e compile -t esp32-idf -c "$TEST_COMPONENTS" -f --toolchain esp-idf
-
-      - name: Save ESPHome cache
-        if: github.ref == 'refs/heads/dev'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.esphome-idf
-          key: ${{ runner.os }}-esphome-${{ needs.common.outputs.cache-key }}
-
-  pre-commit-ci-lite:
-    name: pre-commit.ci lite
-    runs-on: ubuntu-latest
+  device-builder:
+    name: Test downstream esphome/device-builder
+    runs-on: ubuntu-24.04
     needs:
       - common
       - determine-jobs
-    if: github.event_name == 'pull_request' && !startsWith(github.base_ref, 'beta') && !startsWith(github.base_ref, 'release') && needs.determine-jobs.outputs.core-ci == 'true'
+    if: needs.determine-jobs.outputs.device-builder == 'true'
     steps:
-      - name: Check out code from GitHub
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-      - name: Restore Python
-        uses: ./.github/actions/restore-python
+      - name: Check out esphome (this PR)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          python-version: ${{ env.DEFAULT_PYTHON }}
-          cache-key: ${{ needs.common.outputs.cache-key }}
-      - uses: esphome/pre-commit-action@43cd1109c09c544d97196f7730ee5b2e0cc6d81e # v3.0.1 fork with pinned actions/cache
-        env:
-          SKIP: pylint,clang-tidy-hash,ci-custom
-      - uses: pre-commit-ci/lite-action@5d6cc0eb514c891a40562a58a8e71576c5c7fb43 # v1.1.0
-        if: always()
+          path: esphome
+      - name: Check out esphome/device-builder
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: esphome/device-builder
+          ref: main
+          path: device-builder
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Set up uv
+        # Mirrors the install shape device-builder's own CI uses
+        # (esphome/device-builder#192): uv replaces pip for the
+        # install step (order-of-magnitude faster on cold boots,
+        # with its own wheel cache). actions/setup-python still
+        # provides the interpreter.
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          # Pull request saves land in per-PR scopes nothing else can
+          # reuse; dev pushes seed the shared copy instead.
+          save-cache: ${{ github.event_name != 'pull_request' }}
+          # Pin uv version so the action does not have to fetch the
+          # manifest from raw.githubusercontent.com on every cache
+          # miss; that fetch flakes on Windows runners.
+          version: "0.11.15"
+      - name: Install device-builder + esphome from PR
+        # Install device-builder with its esphome + test extras
+        # first so its pinned versions of pytest/etc. land, then
+        # overlay the PR's esphome so the downstream tests run
+        # against this PR's Python code. ``--system`` installs into
+        # the runner's Python instead of a venv.
+        run: |
+          uv pip install --system -e './device-builder[esphome,test]'
+          uv pip install --system -e ./esphome
+      - name: Run device-builder pytest
+        # ``-n auto`` runs under pytest-xdist (matches device-builder's
+        # own CI). No ``--cov`` here -- this is purely a downstream
+        # smoke check against this PR's esphome code. ``tests/e2e/slow``
+        # is excluded: those are real multi-minute toolchain compiles
+        # (LibreTiny SDK clone, native ESP-IDF install) that device-builder
+        # runs in its own dedicated jobs, not this smoke check.
+        working-directory: device-builder
+        run: pytest -q -n auto --maxfail=5 --durations=30 --no-cov --ignore=tests/benchmarks --ignore=tests/e2e/slow
 
   memory-impact-target-branch:
     name: Build target branch for memory impact
@@ -1067,7 +1212,7 @@ jobs:
       skip: ${{ steps.check-script.outputs.skip || steps.check-tests.outputs.skip }}
     steps:
       - name: Check out target branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.base_ref }}
 
@@ -1143,7 +1288,7 @@ jobs:
       - name: Restore cached memory analysis
         id: cache-memory-analysis
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
@@ -1167,7 +1312,7 @@ jobs:
 
       - name: Cache platformio
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
@@ -1209,7 +1354,7 @@ jobs:
 
       - name: Save memory analysis to cache
         if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
@@ -1249,14 +1394,14 @@ jobs:
       flash_usage: ${{ steps.extract.outputs.flash_usage }}
     steps:
       - name: Check out PR branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache platformio
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
@@ -1318,7 +1463,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -1352,21 +1497,28 @@ jobs:
   ci-status:
     name: CI Status
     runs-on: ubuntu-24.04
+    # Listed in the same order the jobs are defined above. One job is
+    # deliberately left out: "benchmarks" reports through CodSpeed rather than
+    # this check.
     needs:
       - common
+      - seed-apt-cache
+      - determine-jobs
       - ci-custom
       - pylint
+      - lint-format
       - pytest
+      - codecov-empty-upload
       - integration-tests
+      - import-time
+      - cpp-unit-tests
       - clang-tidy-single
       - clang-tidy-nosplit
       - clang-tidy-split
       - clang-tidy-esp32-variants
-      - determine-jobs
-      - device-builder
       - test-build-components-split
-      - test-native-idf
-      - pre-commit-ci-lite
+      - test-esp32-platformio
+      - device-builder
       - memory-impact-target-branch
       - memory-impact-pr-branch
       - memory-impact-comment
@@ -1381,4 +1533,7 @@ jobs:
           # 1. The target branch has a build issue independent of this PR
           # 2. This PR fixes a build issue on the target branch
           # In either case, we only care that the PR branch builds successfully.
-          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result != "failure")'
+          # Every other job must have succeeded or been skipped; a "cancelled" or
+          # "failure" result fails this check so CI is not reported green when the
+          # workflow was cancelled.
+          echo "$NEEDS_JSON" | jq -e 'del(.["memory-impact-target-branch"]) | all(.result == "success" or .result == "skipped")'

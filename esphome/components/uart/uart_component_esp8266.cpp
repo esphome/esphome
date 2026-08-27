@@ -14,7 +14,7 @@
 
 namespace esphome::uart {
 
-static const char *const TAG = "uart.arduino_esp8266";
+static const char *const TAG = "uart";
 bool ESP8266UartComponent::serial0_in_use = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t ESP8266UartComponent::get_config() {

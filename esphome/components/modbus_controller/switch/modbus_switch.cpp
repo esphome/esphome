@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <array>
+
 namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
@@ -27,16 +29,17 @@ void ModbusSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ 
 
 bool ModbusSwitch::assumed_state() { return this->assumed_state_; }
 
-void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
+void ModbusSwitch::parse_and_publish(std::span<const uint8_t> data) {
   bool value = false;
+  // For coils/discrete inputs this is the bit index; for registers it is the byte offset.
+  const size_t offset = this->offset;
   switch (this->register_type) {
-    case ModbusRegisterType::DISCRETE_INPUT:
-    case ModbusRegisterType::COIL:
-      // offset for coil is the actual number of the coil not the byte offset
-      value = modbus::helpers::coil_from_vector(this->offset, data);
+    case modbus::EntityType::DISCRETE_INPUT:
+    case modbus::EntityType::COIL:
+      value = modbus::helpers::bit_from_packed(offset, data);
       break;
     default:
-      value = modbus::helpers::get_data<uint16_t>(data, this->offset) & this->bitmask;
+      value = modbus::helpers::get_data<uint16_t>(data.data(), offset) & this->bitmask;
       break;
   }
 
@@ -51,64 +54,70 @@ void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {
     }
   }
 
-  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
-           ONOFF(value), (int) this->register_type, this->start_address, this->offset);
+  ESP_LOGV(TAG, "Publish '%s': new value = %s type = %d address = %X offset = %zx", this->get_name().c_str(),
+           ONOFF(value), (int) this->register_type, this->start_address, offset);
   this->publish_state(value);
 }
 
 void ModbusSwitch::write_state(bool state) {
-  // This will be called every time the user requests a state change.
-  ModbusCommandItem cmd;
-  std::vector<uint8_t> data;
-  // Is there are lambda configured?
+  this->clear_dispatched_();
+  // A new write supersedes this entity's own not-yet-sent writes: drop them (and detach any in-flight one)
+  // so a rapidly-changing value writes the latest, not every intermediate.
+  this->clear_tx_queue_for_device();
+  modbus::helpers::PduBuffer data;
   if (this->write_transform_func_.has_value()) {
-    // data is passed by reference
-    // the lambda can fill the empty vector directly
-    // in that case the return value is ignored
+    // The lambda may drive the write itself via item->write_*/queue_pdu(), override the written value (return a
+    // value), or (deprecated) fill `data` with a custom PDU.
     auto val = (*this->write_transform_func_)(this, state, data);
-    if (val.has_value()) {
-      ESP_LOGV(TAG, "Value overwritten by lambda");
-      state = val.value();
-    } else {
+    if (this->dispatched()) {
+      this->publish_state(state);
+      return;
+    }
+    if (!data.empty()) {
+      this->warn_write_buffer_deprecated_(LOG_STR("switch"), this->start_address);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(MODBUS_SWITCH_MAX_LOG_BYTES)];
+#endif
+      ESP_LOGV(TAG, "Modbus Switch write raw: %s",
+               format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+      // The lambda filled a legacy raw frame (device address + function code + data).
+      if (!this->send_raw_frame_deprecated_(data)) {
+        ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+        return;
+      }
+      this->publish_state(state);
+      return;
+    }
+    if (!val.has_value()) {
       ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
     }
+    ESP_LOGV(TAG, "Value overwritten by lambda");
+    state = val.value();
   }
-  if (!data.empty()) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MODBUS_SWITCH_MAX_LOG_BYTES)];
-#endif
-    ESP_LOGV(TAG, "Modbus Switch write raw: %s",
-             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    cmd = ModbusCommandItem::create_custom_command(
-        this->parent_, data,
-        [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
-          this->parent_->on_write_register_response(cmd.register_type, this->start_address, data);
-        });
-  } else {
-    ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
-             ONOFF(state), (int) this->register_type, this->start_address, this->offset);
-    if (this->register_type == ModbusRegisterType::COIL) {
-      // offset for coil and discrete inputs is the coil/register number not bytes
-      if (this->use_write_multiple_) {
-        std::vector<bool> states{state};
-        cmd = ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states);
-      } else {
-        cmd = ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state);
-      }
+  ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
+           ONOFF(state), (int) this->register_type, this->start_address, this->offset);
+  bool queued;
+  if (this->register_type == EntityType::COIL) {
+    // offset for coil and discrete inputs is the coil/register number not bytes
+    if (this->use_write_multiple_) {
+      std::array<bool, 1> states{state};
+      queued = this->write_multiple_coils(this->write_address(), states);
     } else {
-      // since offset is in bytes and a register is 16 bits we get the start by adding offset/2
-      if (this->use_write_multiple_) {
-        std::vector<uint16_t> bool_states(1, state ? (0xFFFF & this->bitmask) : 0);
-        cmd = ModbusCommandItem::create_write_multiple_command(this->parent_, this->start_address + this->offset / 2, 1,
-                                                               bool_states);
-      } else {
-        cmd = ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset / 2,
-                                                             state ? 0xFFFF & this->bitmask : 0u);
-      }
+      queued = this->write_single_coil(this->write_address(), state);
+    }
+  } else {
+    if (this->use_write_multiple_) {
+      std::array<uint16_t, 1> states{static_cast<uint16_t>(state ? (0xFFFF & this->bitmask) : 0)};
+      queued = this->write_multiple_registers(this->write_address(), states);
+    } else {
+      queued = this->write_single_register(this->write_address(), state ? 0xFFFF & this->bitmask : 0u);
     }
   }
-  this->parent_->queue_command(cmd);
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus write for '%s' was refused by the hub; state not published", this->get_name().c_str());
+    return;
+  }
   this->publish_state(state);
 }
 // ModbusSwitch end

@@ -1,0 +1,15 @@
+# Full proxy on the rp2 BLE hub: active defaults to true here (esp32 parity),
+# so this compiles the BTstack GATT client backend with the default three
+# connection slots, exercising the rp2040_ble/btstack_memory.cpp pool --wrap
+# link.
+# No explicit ble_hub_id: the generated binding resolves the single declared
+# hub, and an inline id here would collide with rp2_ble_tracker's own fixture
+# once CI merges both components into one grouped rp2040-ard build (grouped
+# component dicts collapse; only one id survives). The explicit-key form is
+# covered by validate.rp2040-ard.yaml, which never participates in grouping.
+packages:
+  common: !include common.yaml
+
+rp2_ble_tracker:
+
+bluetooth_proxy:

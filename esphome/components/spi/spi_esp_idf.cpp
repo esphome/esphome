@@ -4,7 +4,7 @@
 namespace esphome::spi {
 
 #ifdef USE_ESP32
-static const char *const TAG = "spi-esp-idf";
+static const char *const TAG = "spi";
 static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 
 class SPIDelegateHw : public SPIDelegate {

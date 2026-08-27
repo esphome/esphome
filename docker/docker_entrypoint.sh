@@ -21,6 +21,11 @@ export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
 export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
 export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
 
+# Keep the native toolchain installs on the persistent cache root, not the
+# container's ephemeral user cache dir (re-downloaded on every restart).
+export ESPHOME_ESP_IDF_PREFIX="$(dirname "${pio_cache_base}")/idf"
+export ESPHOME_SDK_NRF_PREFIX="$(dirname "${pio_cache_base}")/sdk-nrf"
+
 # If /build is mounted, use that as the build path
 # otherwise use path in /config (so that builds aren't lost on container restart)
 if [[ -d /build ]]; then

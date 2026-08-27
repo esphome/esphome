@@ -13,20 +13,14 @@ namespace esphome::esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
-// Intermediate connection parameters for standard operation
-// ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
-// causing disconnections. These medium parameters balance responsiveness with bandwidth usage.
-static constexpr uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
-static constexpr uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
-// The timeout value was increased from 6s to 8s to address stability issues observed
-// in certain BLE devices when operating through WiFi-based BLE proxies. The longer
-// timeout reduces the likelihood of disconnections during periods of high latency.
-static constexpr uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
-
-// Fastest connection parameters for devices with short discovery timeouts
-static constexpr uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
-static constexpr uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
-static constexpr uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
+// Connection parameters are shared with the other GATT client backends
+// (ble_device_base/ble_client_state.h) so the platforms cannot drift.
+using ble_device_base::FAST_CONN_TIMEOUT;
+using ble_device_base::FAST_MAX_CONN_INTERVAL;
+using ble_device_base::FAST_MIN_CONN_INTERVAL;
+using ble_device_base::MEDIUM_CONN_TIMEOUT;
+using ble_device_base::MEDIUM_MAX_CONN_INTERVAL;
+using ble_device_base::MEDIUM_MIN_CONN_INTERVAL;
 static constexpr uint32_t DISCONNECTING_TIMEOUT = 10000;  // 10s
 static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,
@@ -125,6 +119,9 @@ void BLEClientBase::connect() {
   }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);
   this->paired_ = false;
+  // A registration whose event never arrived must not block this connection's release.
+  this->services_released_ = false;
+  this->pending_notify_regs_ = 0;
   // Enable loop for state processing
   this->enable_loop();
   // Immediately transition to CONNECTING to prevent duplicate connection attempts
@@ -200,8 +197,24 @@ void BLEClientBase::release_services() {
   this->services_.clear();
 #endif
 #ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
+  // Only the cache clean makes the stack's database unsafe to walk.
+  this->services_released_ = true;
   esp_ble_gattc_cache_clean(this->remote_bda_);
 #endif
+}
+
+esp_err_t BLEClientBase::register_for_notify(uint16_t char_handle) {
+  esp_err_t err = esp_ble_gattc_register_for_notify(this->gattc_if_, this->remote_bda_, char_handle);
+  if (err != ESP_OK)
+    return err;
+  if (this->pending_notify_regs_ == UINT8_MAX) {
+    // Saturating undercounts, so the release can run before the last registration completes.
+    // Wrapping to zero would undercount by the full range instead, which is worse.
+    this->log_warning_("Too many outstanding notify registrations to track");
+    return err;
+  }
+  this->pending_notify_regs_++;
+  return err;
 }
 
 void BLEClientBase::log_event_(const char *name) {
@@ -498,10 +511,18 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
       this->log_gattc_data_event_("REG_FOR_NOTIFY");
+      // The event carries no conn_id, so this is the only place the request can be retired.
+      if (this->pending_notify_regs_ > 0)
+        this->pending_notify_regs_--;
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
           this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         // Client is responsible for flipping the descriptor value
         // when using the cache
+        break;
+      }
+      if (this->services_released_) {
+        // The lookup below walks the freed GATT cache, and Bluedroid asserts on it rather than erroring.
+        this->log_warning_("REG_FOR_NOTIFY after services released, notifications not enabled");
         break;
       }
       esp_gattc_descr_elem_t desc_result;

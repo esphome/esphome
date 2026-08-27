@@ -47,7 +47,7 @@ enum StepperModeTypeT {
   MICRO_STEPPING = 3,
 };
 
-class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
+class GroveMotorDriveTB6612FNG final : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -162,7 +162,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
 };
 
 template<typename... Ts>
-class GROVETB6612FNGMotorRunAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
+class GROVETB6612FNGMotorRunAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
   TEMPLATABLE_VALUE(uint8_t, channel)
   TEMPLATABLE_VALUE(uint16_t, speed)
@@ -183,7 +183,7 @@ class GROVETB6612FNGMotorRunAction : public Action<Ts...>, public Parented<Grove
 };
 
 template<typename... Ts>
-class GROVETB6612FNGMotorBrakeAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
+class GROVETB6612FNGMotorBrakeAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
   TEMPLATABLE_VALUE(uint8_t, channel)
 
@@ -191,7 +191,7 @@ class GROVETB6612FNGMotorBrakeAction : public Action<Ts...>, public Parented<Gro
 };
 
 template<typename... Ts>
-class GROVETB6612FNGMotorStopAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
+class GROVETB6612FNGMotorStopAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
   TEMPLATABLE_VALUE(uint8_t, channel)
 
@@ -199,19 +199,19 @@ class GROVETB6612FNGMotorStopAction : public Action<Ts...>, public Parented<Grov
 };
 
 template<typename... Ts>
-class GROVETB6612FNGMotorStandbyAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
+class GROVETB6612FNGMotorStandbyAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
   void play(const Ts &...x) override { this->parent_->standby(); }
 };
 
 template<typename... Ts>
-class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
+class GROVETB6612FNGMotorNoStandbyAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
   void play(const Ts &...x) override { this->parent_->not_standby(); }
 };
 
 template<typename... Ts>
-class GROVETB6612FNGMotorChangeAddressAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
+class GROVETB6612FNGMotorChangeAddressAction final : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG> {
  public:
   TEMPLATABLE_VALUE(uint8_t, address)
 

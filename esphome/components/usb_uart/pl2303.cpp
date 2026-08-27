@@ -1,7 +1,9 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::usb_uart {
 
@@ -224,7 +226,7 @@ static const Pl2303InitStep PL2303_INIT[] = {
 };
 static constexpr uint8_t PL2303_INIT_COUNT = sizeof(PL2303_INIT) / sizeof(PL2303_INIT[0]);
 
-bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   bool is_legacy = (this->chip_type_ == PL2303_TYPE_H);
   bool is_hxn = (this->chip_type_ == PL2303_TYPE_HXN);
@@ -290,8 +292,13 @@ bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool 
       // Data bits
       line_coding[6] = channel->get_data_bits();
 
+<<<<<<< HEAD
       ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
                line_coding[6]);
+=======
+      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%" PRIu32 " stop=%u parity=%u data=%u", baud, line_coding[4],
+               line_coding[5], line_coding[6]);
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
 
       std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
       this->config_transfer_(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, iface, lc_vec);
@@ -309,4 +316,5 @@ bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool 
 }
 
 }  // namespace esphome::usb_uart
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

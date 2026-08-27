@@ -1,0 +1,2 @@
+packages:
+  ln882h_ble_tracker: !include common.yaml

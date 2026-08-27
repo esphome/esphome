@@ -16,7 +16,7 @@ struct CSE7761DataStruct {
 };
 
 /// This class implements support for the CSE7761 UART power sensor.
-class CSE7761Component : public PollingComponent, public uart::UARTDevice {
+class CSE7761Component final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_active_power_1_sensor(sensor::Sensor *power_sensor_1) { power_sensor_1_ = power_sensor_1; }

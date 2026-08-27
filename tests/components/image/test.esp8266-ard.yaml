@@ -12,12 +12,11 @@ display:
     invert_colors: true
 
 image:
-  defaults:
+  - platform: file
+    id: test_image
+    file: ../../pnglogo.png
     type: rgb565
     transparency: opaque
     byte_order: little_endian
     resize: 50x50
     dither: FloydSteinberg
-  images:
-    - id: test_image
-      file: ../../pnglogo.png

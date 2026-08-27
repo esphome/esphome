@@ -18,7 +18,7 @@ enum PIDClimateSensorType {
   PID_SENSOR_TYPE_KD,
 };
 
-class PIDClimateSensor : public sensor::Sensor, public Component {
+class PIDClimateSensor final : public sensor::Sensor, public Component {
  public:
   void setup() override;
   void set_parent(PIDClimate *parent) { parent_ = parent; }

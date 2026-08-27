@@ -139,7 +139,7 @@ void I2SAudioSpeakerBase::set_volume(float volume) {
   this->volume_ = volume;
 #ifdef USE_AUDIO_DAC
   if (this->audio_dac_ != nullptr) {
-    if (volume > 0.0) {
+    if (volume > 0.0f) {
       this->audio_dac_->set_mute_off();
     }
     this->audio_dac_->set_volume(volume);
@@ -354,7 +354,7 @@ void I2SAudioSpeakerBase::apply_software_volume_(uint8_t *data, size_t bytes_rea
 void I2SAudioSpeakerBase::swap_esp32_mono_samples_(uint8_t *data, size_t bytes_read) {
 #ifdef USE_ESP32_VARIANT_ESP32
   // For ESP32 16-bit mono mode, adjacent samples need to be swapped.
-  if (this->current_stream_info_.get_channels() == 1 && this->current_stream_info_.get_bits_per_sample() == 16) {
+  if (this->output_stream_info_.get_channels() == 1 && this->output_stream_info_.get_bits_per_sample() == 16) {
     int16_t *samples = reinterpret_cast<int16_t *>(data);
     size_t sample_count = bytes_read / sizeof(int16_t);
     for (size_t i = 0; i + 1 < sample_count; i += 2) {

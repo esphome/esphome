@@ -5,7 +5,7 @@
 
 namespace esphome::ld2410 {
 
-class DistanceResolutionSelect : public select::Select, public Parented<LD2410Component> {
+class DistanceResolutionSelect final : public select::Select, public Parented<LD2410Component> {
  public:
   DistanceResolutionSelect() = default;
 

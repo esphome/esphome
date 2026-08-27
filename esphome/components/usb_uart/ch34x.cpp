@@ -1,4 +1,5 @@
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
@@ -94,7 +95,11 @@ void USBUartTypeCH34X::dump_config() {
   ESP_LOGCONFIG(TAG, "  CH34x chip: %s", this->chip_name_);
 }
 
+<<<<<<< HEAD
 bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+=======
+bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
                                    const uint8_t *response) {
   uint8_t cmd = 0xA1 + channel->index_;
   if (channel->index_ >= 2)
@@ -119,6 +124,7 @@ bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool r
           divisor = 0;
           clk = 11719;
         }
+<<<<<<< HEAD
       }
       ESP_LOGV(TAG, "baud_rate: %" PRIu32 ", divisor: %d, clk: %" PRIu32, baud_rate, divisor, clk);
       auto factor = static_cast<uint8_t>(clk / baud_rate);
@@ -141,6 +147,29 @@ bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool r
           value |= 8 | ((channel->parity_ - 1) << 4);
           break;
       }
+=======
+      }
+      ESP_LOGV(TAG, "baud_rate: %" PRIu32 ", divisor: %d, clk: %" PRIu32, baud_rate, divisor, clk);
+      auto factor = static_cast<uint8_t>(clk / baud_rate);
+      if (factor == 0 || factor == 0xFF) {
+        ESP_LOGE(TAG, "Invalid baud rate %" PRIu32, baud_rate);
+        return false;
+      }
+      if ((clk / factor - baud_rate) > (baud_rate - clk / (factor + 1)))
+        factor++;
+      factor = 256 - factor;
+
+      uint16_t value = 0xC0;
+      if (channel->stop_bits_ == UART_CONFIG_STOP_BITS_2)
+        value |= 4;
+      switch (channel->parity_) {
+        case UART_CONFIG_PARITY_NONE:
+          break;
+        default:
+          value |= 8 | ((channel->parity_ - 1) << 4);
+          break;
+      }
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
       value |= channel->data_bits_ - 5;
       value <<= 8;
       value |= 0x8C;
@@ -165,4 +194,5 @@ std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_
 }
 }  // namespace esphome::usb_uart
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

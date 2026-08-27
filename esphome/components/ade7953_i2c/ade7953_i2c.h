@@ -10,7 +10,7 @@
 
 namespace esphome::ade7953_i2c {
 
-class AdE7953I2c : public ade7953_base::ADE7953, public i2c::I2CDevice {
+class AdE7953I2c final : public ade7953_base::ADE7953, public i2c::I2CDevice {
  public:
   void dump_config() override;
 

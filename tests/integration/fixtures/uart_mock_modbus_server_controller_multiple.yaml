@@ -113,7 +113,4 @@ button:
   - platform: template
     name: "Start Scenario"
     id: start_scenario_btn
-    on_press:
-      - lambda: "id(virtual_uart_server).start_scenario();"
-      - lambda: "id(virtual_uart_server_2).start_scenario();"
-      - lambda: "id(virtual_uart_controller).start_scenario();"
+    # This test does not have anything to start (mock is autostart)

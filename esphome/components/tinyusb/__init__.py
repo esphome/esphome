@@ -2,14 +2,17 @@ from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.esp32 import (
+    VARIANT_ESP32H4,
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 CONFLICTS_WITH = ["usb_host"]
@@ -44,12 +47,18 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     esp32.only_on_variant(
-        supported=[VARIANT_ESP32P4, VARIANT_ESP32S2, VARIANT_ESP32S3],
+        supported=[
+            VARIANT_ESP32H4,
+            VARIANT_ESP32P4,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+            VARIANT_ESP32S31,
+        ],
     ),
 )
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     if not any(name in full_config for name in _USB_CLASS_COMPONENTS):
         raise cv.Invalid(
@@ -64,15 +73,15 @@ def _final_validate(config):
             "'tinyusb' cannot be used with 'logger.hardware_uart: USB_CDC' "
             "because both share the USB OTG peripheral. Set "
             "'logger.hardware_uart' to a hardware UART (e.g. UART0), or to "
-            "USB_SERIAL_JTAG on variants that support it (ESP32-S3, ESP32-P4)"
+            "USB_SERIAL_JTAG on variants that support it "
+            "(ESP32-S3, ESP32-S31, ESP32-P4, ESP32-H4)"
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -85,7 +94,7 @@ async def to_code(config):
     if config[CONF_USB_SERIAL_STR]:
         cg.add(var.set_usb_desc_serial(config[CONF_USB_SERIAL_STR]))
 
-    add_idf_component(name="espressif/esp_tinyusb", ref="2.1.1")
+    add_idf_component(name="espressif/esp_tinyusb", ref="2.2.1")
 
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_ESPRESSIF_VID", False)
     add_idf_sdkconfig_option("CONFIG_TINYUSB_DESC_USE_DEFAULT_PID", False)

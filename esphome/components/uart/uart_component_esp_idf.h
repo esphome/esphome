@@ -16,7 +16,7 @@ namespace esphome::uart {
 /// Thread safety: All public methods must only be called from the main loop.
 /// The ESP-IDF UART driver API does not guarantee thread safety, and ESPHome's
 /// peek byte state (has_peek_/peek_byte_) is not synchronized.
-class IDFUARTComponent : public UARTComponent, public Component {
+class IDFUARTComponent final : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -51,10 +51,15 @@ class IDFUARTComponent : public UARTComponent, public Component {
    */
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+<<<<<<< HEAD
+=======
+
+  void on_shutdown() override;
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
 
  protected:
   void check_logger_conflict() override;
-  uart_port_t uart_num_;
+  uart_port_t uart_num_{UART_NUM_MAX};
   uart_config_t get_config_();
 
   bool has_peek_{false};

@@ -18,6 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_types import Component
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -50,6 +51,7 @@ CONF_DEBUG_ADD_UART_SETTINGS = "debug_add_uart_settings"
 class Type:
     def __init__(
         self,
+<<<<<<< HEAD
         name,
         vid,
         pid,
@@ -58,12 +60,23 @@ class Type:
         baud_rate_required=True,
         channel_cls=None,
     ):
+=======
+        name: str,
+        vid: int,
+        pid: int,
+        cls: str | None,
+        max_channels: int = 1,
+        baud_rate_required: bool = True,
+        max_baud: int = 1_000_000,
+    ) -> None:
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
         self.name = name
         cls = cls or name
         self.cls_name = cls
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
+<<<<<<< HEAD
         # max_channels may be a callable (evaluated lazily during config validation)
         self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
@@ -85,6 +98,23 @@ class MpxType(Type):
     def max_channels(self):
         # Multiplexed devices aren't restricted by the number of available USB endpoints
         return self._max_channels
+=======
+        self._max_channels = max_channels
+        self.baud_rate_required = baud_rate_required
+        self.max_baud = max_baud
+
+    @property
+    def max_channels(self) -> int:
+        return (
+            3
+            if (
+                CORE.is_esp32
+                and get_esp32_variant() != VARIANT_ESP32P4
+                and self._max_channels > 3
+            )
+            else self._max_channels
+        )
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
 
 
 uart_types = (
@@ -95,24 +125,25 @@ uart_types = (
     MpxType("CH348L", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
     MpxType("CH348Q", 0x1A86, 0x55D9, "CH934X", 8, channel_cls=CH934XChannel),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4, max_baud=2_000_000),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3, max_baud=2_000_000),
     Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
-    Type("FT232", 0x0403, 0x6001, "FT23XX", 1),
-    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2),
-    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4),
-    Type("PL2303", 0x067B, 0x2303, "PL2303", 1),
-    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1),
-    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1),
-    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1),
-    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1),
-    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1),
-    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1),
+    Type("FT232", 0x0403, 0x6001, "FT23XX", 1, max_baud=3_000_000),
+    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2, max_baud=12_000_000),
+    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4, max_baud=12_000_000),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1, max_baud=6_000_000),
     Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
 )
 
 
+<<<<<<< HEAD
 def _validate_debug_add_uart_settings(config):
     if config.get(CONF_DEBUG_ADD_UART_SETTINGS) and not config.get(CONF_DEBUG):
         raise cv.Invalid(
@@ -123,10 +154,14 @@ def _validate_debug_add_uart_settings(config):
 
 def channel_schema(type_: "Type", baud_rate_required):
     max_channels = type_.max_channels
+=======
+def channel_schema(type_: "Type") -> cv.Schema:
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
+<<<<<<< HEAD
                     cv.All(
                         cv.Schema(
                             {
@@ -164,11 +199,46 @@ def channel_schema(type_: "Type", baud_rate_required):
                             }
                         ),
                         _validate_debug_add_uart_settings,
+=======
+                    cv.Schema(
+                        {
+                            cv.GenerateID(): cv.declare_id(USBUartChannel),
+                            cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
+                                min=64, max=8192
+                            ),
+                            (
+                                cv.Required(CONF_BAUD_RATE)
+                                if type_.baud_rate_required
+                                else cv.Optional(
+                                    CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
+                                )
+                            ): cv.int_range(min=300, max=type_.max_baud),
+                            cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
+                                UART_STOP_BITS_OPTIONS, upper=True
+                            ),
+                            cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
+                                UART_PARITY_OPTIONS, upper=True
+                            ),
+                            cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(
+                                min=5, max=8
+                            ),
+                            cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
+                            cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+                            cv.Optional(
+                                CONF_FLUSH_TIMEOUT, default="100ms"
+                            ): cv.positive_time_period_milliseconds,
+                        }
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
                     )
                 ),
                 cv.Length(
                     max=type_.max_channels,
+<<<<<<< HEAD
                     msg=f"{type_.name} supports a maximum of {max_channels} channels on this ESP32 variant",
+=======
+                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
                 ),
             )
         }
@@ -179,7 +249,11 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
+<<<<<<< HEAD
                 channel_schema(it, it.baud_rate_required)
+=======
+                channel_schema(it)
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
             )
             for it in uart_types
         },
@@ -188,7 +262,7 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
     # The output chunk pool/queue are compile-time-sized templates shared by all
     # USBUartChannel instances, so use the largest buffer_size across every channel
     # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring

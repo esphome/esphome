@@ -30,7 +30,7 @@ struct UniverseConsumer {
   uint16_t consumers;
 };
 
-class E131Component : public esphome::Component {
+class E131Component final : public esphome::Component {
  public:
   E131Component();
   ~E131Component();

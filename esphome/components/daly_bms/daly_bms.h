@@ -17,7 +17,7 @@
 
 namespace esphome::daly_bms {
 
-class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
+class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice {
  public:
   DalyBmsComponent() = default;
 

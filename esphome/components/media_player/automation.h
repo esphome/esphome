@@ -6,7 +6,7 @@
 namespace esphome::media_player {
 
 template<MediaPlayerCommand Command, typename... Ts>
-class MediaPlayerCommandAction : public Action<Ts...>, public Parented<MediaPlayer> {
+class MediaPlayerCommandAction final : public Action<Ts...>, public Parented<MediaPlayer> {
  public:
   TEMPLATABLE_VALUE(bool, announcement);
   void play(const Ts &...x) override {
@@ -54,7 +54,7 @@ template<typename... Ts>
 using ClearPlaylistAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST, Ts...>;
 
 template<MediaPlayerCommand Command, typename... Ts>
-class MediaPlayerMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
+class MediaPlayerMediaAction final : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
   TEMPLATABLE_VALUE(bool, announcement)
   void play(const Ts &...x) override {
@@ -70,7 +70,7 @@ using PlayMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_
 template<typename... Ts>
 using EnqueueMediaAction = MediaPlayerMediaAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_ENQUEUE, Ts...>;
 
-template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class VolumeSetAction final : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(float, volume)
   void play(const Ts &...x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
 };
@@ -97,39 +97,39 @@ static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
 static_assert(sizeof(StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>) <= sizeof(void *));
 static_assert(std::is_trivially_copyable_v<StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>>);
 
-template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsIdleCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_IDLE; }
 };
 
-template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsPlayingCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING; }
 };
 
-template<typename... Ts> class IsPausedCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsPausedCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED; }
 };
 
-template<typename... Ts> class IsAnnouncingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsAnnouncingCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override {
     return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
   }
 };
 
-template<typename... Ts> class IsOnCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsOnCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ON; }
 };
 
-template<typename... Ts> class IsOffCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsOffCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
 };
 
-template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+template<typename... Ts> class IsMutedCondition final : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_muted(); }
 };

@@ -63,7 +63,7 @@ void zb_zcl_binary_output_init_client();
 
 namespace esphome::zigbee {
 
-class ZigbeeSwitch : public ZigbeeEntity, public Component {
+class ZigbeeSwitch final : public ZigbeeEntity, public Component {
  public:
   ZigbeeSwitch(switch_::Switch *s) : switch_(s) {}
   void set_cluster_attributes(BinaryAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }

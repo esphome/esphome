@@ -63,7 +63,7 @@ enum TSL2591SensorChannel {
 /// light. They are reported as separate sensors, and the difference
 /// between the values is reported as a third sensor as a convenience
 /// for visible light only.
-class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
+class TSL2591Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /** Set device integration time and gain.
    *
