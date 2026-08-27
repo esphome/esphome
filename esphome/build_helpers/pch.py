@@ -103,8 +103,20 @@ def pch_enabled() -> bool:
 
 
 def pch_strict() -> bool:
-    """CI knob: ``ESPHOME_PCH_STRICT=1`` turns pch degrade paths fatal."""
-    return parse_enable_env("ESPHOME_PCH_STRICT") is True
+    """CI knob: ``ESPHOME_PCH_STRICT=1`` turns pch degrade paths fatal.
+
+    A set-but-unrecognized value raises: a typo must not silently turn
+    the gate into a no-op that proves nothing.
+    """
+    parsed = parse_enable_env("ESPHOME_PCH_STRICT")
+    if parsed is None and os.environ.get("ESPHOME_PCH_STRICT") is not None:
+        from esphome.core import EsphomeError
+
+        raise EsphomeError(
+            f"Unrecognized ESPHOME_PCH_STRICT="
+            f"{os.environ['ESPHOME_PCH_STRICT']!r}; use 1 or 0"
+        )
+    return parsed is True
 
 
 def pch_degraded(reason: str) -> None:
@@ -120,11 +132,12 @@ def pch_disabled_degraded() -> None:
     pch_degraded("pch disabled by ESPHOME_PCH_ENABLE")
 
 
-def pch_probe_args(header: str) -> list[str]:
+def pch_probe_args(header: str, source: str = "-") -> list[str]:
     """Flags that load-check a built .gch via a syntax-only compile.
 
     Rejection must be a nonzero exit (never just a wording match), so the
-    invalid-pch class is always escalated.
+    invalid-pch class is always escalated. ``source`` defaults to stdin
+    (host independent); the ninja probe edge passes a real file.
     """
     return [
         "-Winvalid-pch",
@@ -134,7 +147,7 @@ def pch_probe_args(header: str) -> list[str]:
         "-fsyntax-only",
         "-x",
         "c++",
-        os.devnull,
+        source,
     ]
 
 
@@ -403,7 +416,9 @@ def prepare_pch(
         return
     failed_marker = Path(f"{gch}.failed")
 
-    def _run(run_cmd: list[str], what: str) -> subprocess.CompletedProcess | None:
+    def _run(
+        run_cmd: list[str], what: str, stdin: str | None = None
+    ) -> subprocess.CompletedProcess | None:
         """Spawn one pch tool step; environmental failures discard and
         degrade (None): spawn/IO/timeout errors and signal kills never
         latch the marker."""
@@ -413,6 +428,7 @@ def prepare_pch(
                 cwd=cmd_dir,
                 # C locale keeps diagnostics matchable by _TRANSIENT_ERRORS
                 env={**os.environ, "LC_ALL": "C"},
+                input=stdin,
                 capture_output=True,
                 text=True,
                 check=False,
@@ -458,15 +474,27 @@ def prepare_pch(
         from cmd, so no -MF is needed; cmd ends with the fixed
         "-x c++-header -c -o" tail. A cached-header rejection may not
         reproduce (per-process), so that caller passes latch=False."""
-        # The fixed tail pch_compile_command appends; the slice below
-        # depends on it
-        assert cmd[-6:-4] == ["-x", "c++-header"], cmd[-6:]
-        probe = _run([*cmd[:-6], *pch_probe_args(str(header))], "probe")
+        if cmd[-6:-4] != ["-x", "c++-header"]:
+            # The slice below depends on pch_compile_command's fixed tail
+            _LOGGER.warning("Unexpected pch command shape: %s", cmd[-6:])
+            discard_pch(build_dir)
+            pch_degraded("unexpected pch command shape")
+            return
+        base = cmd[:-6]
+        probe = _run([*base, *pch_probe_args(str(header))], "probe", stdin="")
         if probe is None:
             return
-        if probe.returncode != 0 or ".gch" in probe.stderr:
+        if probe.returncode != 0:
             error = probe.stderr.strip() or f"exit code {probe.returncode}"
-            if latch:
+            # Disambiguate: only blame the pch when the same compile passes
+            # without it; anything else is environmental and must not latch
+            # pch_probe_args minus the warning flags and the -include pair
+            baseline = _run(
+                [*base, *pch_probe_args(str(header))[4:]], "probe baseline", stdin=""
+            )
+            if baseline is None:
+                return
+            if latch and baseline.returncode == 0:
                 _fail(error, "toolchain cannot load the pch")
             else:
                 _LOGGER.warning(

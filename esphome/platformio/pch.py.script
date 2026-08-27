@@ -26,14 +26,17 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
 # Compiler failures that clear on their own must not latch the .failed marker
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
 
-# Keep in sync with helpers.TRUTHY_ENV_STRINGS
-_STRICT = os.environ.get("ESPHOME_PCH_STRICT", "").strip().lower() in (
-    "1",
-    "true",
-    "yes",
-    "on",
-    "enable",
-)
+# Keep in sync with helpers.TRUTHY_ENV_STRINGS / FALSY_ENV_STRINGS
+_STRICT_RAW = os.environ.get("ESPHOME_PCH_STRICT")
+_STRICT_VALUE = (_STRICT_RAW or "").strip().lower()
+_STRICT = _STRICT_VALUE in ("1", "true", "yes", "on", "enable")
+if (
+    _STRICT_RAW is not None
+    and not _STRICT
+    and _STRICT_VALUE not in ("", "0", "false", "no", "off", "disable")
+):
+    # A typo must not silently turn the gate into a no-op
+    raise RuntimeError(f"Unrecognized ESPHOME_PCH_STRICT={_STRICT_RAW!r}; use 1 or 0")
 
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 _CORE_HEADER = "esphome/core/defines.h"
@@ -130,28 +133,9 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
     return _probe_gch(cxx, flags, header, proj_dir)
 
 
-def _probe_gch(cxx, flags, header: Path, proj_dir: Path):
-    """Load-check an existing .gch; error string or None."""
-    # -MF is only legal alongside a dependency flag; pass it solely to
-    # redirect a depfile that -MD/-MMD in the flags would otherwise write
-    dep_redirect = (
-        ["-MF", os.devnull]
-        if any(f in ("-MD", "-MMD", "-M", "-MM") for f in flags)
-        else []
-    )
+def _probe_run(cxx, flags, extra, proj_dir: Path):
     probe = subprocess.run(  # noqa: PLW1510
-        [
-            cxx,
-            *flags,
-            *dep_redirect,
-            "-Winvalid-pch",
-            "-include",
-            str(header),
-            "-fsyntax-only",
-            "-x",
-            "c++",
-            "-",
-        ],
+        [cxx, *flags, *extra, "-fsyntax-only", "-x", "c++", "-"],
         cwd=proj_dir,
         env={**os.environ, "LC_ALL": "C"},
         input="",
@@ -160,9 +144,32 @@ def _probe_gch(cxx, flags, header: Path, proj_dir: Path):
     )
     if probe.returncode < 0:
         raise OSError(f"probe killed by signal {-probe.returncode}")
-    if probe.returncode != 0 or ".gch" in probe.stderr:
-        return f"toolchain cannot load the pch: {probe.stderr.strip()}"
-    return None
+    return probe
+
+
+def _probe_gch(cxx, flags, header: Path, proj_dir: Path):
+    """Load-check an existing .gch; error string or None. Rejection must
+    be a nonzero exit (keep in sync with pch_probe_args); a baseline run
+    without the pch keeps environmental failures from being blamed on it."""
+    # -MF is only legal alongside a dependency flag; pass it solely to
+    # redirect a depfile that -MD/-MMD in the flags would otherwise write
+    dep_redirect = (
+        ["-MF", os.devnull]
+        if any(f in ("-MD", "-MMD", "-M", "-MM") for f in flags)
+        else []
+    )
+    probe = _probe_run(
+        cxx,
+        flags,
+        [*dep_redirect, "-Winvalid-pch", "-Werror=invalid-pch", "-include", str(header)],
+        proj_dir,
+    )
+    if probe.returncode == 0:
+        return None
+    baseline = _probe_run(cxx, flags, dep_redirect, proj_dir)
+    if baseline.returncode != 0:
+        raise OSError(f"probe cannot run at all: {baseline.stderr.strip()[:200]}")
+    return f"toolchain cannot load the pch: {probe.stderr.strip()}"
 
 
 def _read_stamp(path: Path) -> str:

@@ -298,7 +298,9 @@ def _pch_cmake() -> str:
     """
     if not pch_enabled():
         return ""
-    # Strict inverts: a per-process consumer rejection reds the build
+    # Strict inverts: a per-process consumer rejection reds the build.
+    # Baked at generation: a knob flip takes effect when the CMakeLists is
+    # rewritten (every esphome compile); a hand-run idf.py keeps the old one
     escalation = "-Werror=invalid-pch" if pch.pch_strict() else "-Wno-error=invalid-pch"
     return f"""
 # ESPHome precompiled header (see esphome/build_helpers/pch.py).
