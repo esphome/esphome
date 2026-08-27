@@ -146,9 +146,7 @@ void Mk2PVRouter::loop() {
 
         this->publish_value_(this->tag_, this->val_);
 
-        buf_finger += field_len + 1 + 1 + 1;  // Skip value + TAB + CRC + CR.
-        if (buf_finger >= buf_end)
-          break;  // Avoid a negative-length search on the next memchr.
+        buf_finger = grp_end;  // grp_end is always < buf_end, so this stays in bounds.
       }
       this->buf_index_ = 0;
       this->state_ = State::WAITING_FOR_START;
