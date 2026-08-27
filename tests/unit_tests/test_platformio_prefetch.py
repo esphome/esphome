@@ -1151,6 +1151,19 @@ def test_main_runs_prefetch(tmp_path: Path) -> None:
     mock_prefetch.assert_called_once_with(tmp_path, "testenv")
 
 
+def test_main_skips_private_package_probe(tmp_path: Path) -> None:
+    """The registry probe patch is applied before any package manager runs."""
+    with (
+        patch.object(pf, "_prefetch") as mock_prefetch,
+        patch(
+            "esphome.platformio.runner.patch_registry_private_packages"
+        ) as mock_patch,
+    ):
+        assert pf.main([str(tmp_path), "testenv"]) == 0
+    mock_patch.assert_called_once_with()
+    mock_prefetch.assert_called_once()
+
+
 def test_main_bad_argv_is_a_distinct_exit(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

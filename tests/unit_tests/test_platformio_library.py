@@ -225,25 +225,24 @@ def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
 
 
 def test_make_registry_client_skips_private_package_probe(monkeypatch):
-    """Our client never calls PlatformIO's account probe."""
+    """Our client never calls PlatformIO's account probe, and only ours."""
     from platformio.account.client import AccountClient
     from platformio.registry.client import RegistryClient
 
-    # Restore PlatformIO's own probe after the test
-    monkeypatch.setattr(
-        RegistryClient,
-        "allowed_private_packages",
-        RegistryClient.__dict__["allowed_private_packages"],
-    )
+    pio_probe = RegistryClient.__dict__["allowed_private_packages"]
 
     def fail(*_args, **_kwargs):
         raise AssertionError("account probe must not run")
 
     monkeypatch.setattr(AccountClient, "get_account_info", fail)
 
-    client = lib._make_registry_client().get_registry_client_instance()
+    registry = lib._make_registry_client()
+    client = registry.get_registry_client_instance()
 
     assert client.allowed_private_packages() is False
+    assert registry.get_registry_client_instance() is client
+    # Instance override only; the class keeps PlatformIO's probe in this process
+    assert RegistryClient.__dict__["allowed_private_packages"] is pio_probe
 
 
 def _patch_registry_resolve(monkeypatch: pytest.MonkeyPatch) -> None:

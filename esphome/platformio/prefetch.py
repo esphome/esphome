@@ -922,6 +922,7 @@ def main(argv: list[str]) -> int:
     """Subprocess entry point: ``prefetch <build_dir> <env_name>``."""
     from esphome.core import CORE
     from esphome.log import setup_log
+    from esphome.platformio.runner import patch_registry_private_packages
 
     signal.signal(signal.SIGTERM, _sigterm)
     raw_level = os.environ.get("ESPHOME_PREFETCH_LOG_LEVEL")
@@ -950,6 +951,7 @@ def main(argv: list[str]) -> int:
         _LOGGER.warning("prefetch usage: <build_dir> <env_name>")
         return 2
     build_dir, env = argv
+    patch_registry_private_packages()
     try:
         _prefetch(Path(build_dir), env)
     except KeyboardInterrupt:
