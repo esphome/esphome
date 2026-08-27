@@ -253,3 +253,14 @@ def test_pch_extra_scripts_strict_raises_when_disabled(
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
     with pytest.raises(EsphomeError, match="disabled"):
         pch.pch_extra_scripts()
+
+
+def test_pch_strict_rejects_unrecognized_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typo must not silently disable the gate."""
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "yolo")
+    with pytest.raises(EsphomeError, match="Unrecognized ESPHOME_PCH_STRICT"):
+        pch.pch_strict()

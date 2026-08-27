@@ -1303,7 +1303,9 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             if pch_strict():
                 # Consumers wait on the probe stamp, so an unloadable .gch
                 # reds the build here instead of warning ~100 times
-                probe = " ".join(pch_probe_args(PCH_HEADER_NAME))
+                probe = " ".join(
+                    pch_probe_args(PCH_HEADER_NAME, source=str(Path(os.devnull)))
+                )
                 lines.append("rule pchprobe")
                 # $out only expands in rule text, hence the inline stamp
                 lines.append(

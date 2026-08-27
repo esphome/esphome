@@ -1240,8 +1240,11 @@ def test_prepare_pch_probe_rejection_latches_and_degrades(
 
     def rejecting(cmd, **kwargs):
         if "-fsyntax-only" in cmd:
+            if "-include" not in cmd:
+                # Baseline without the pch passes: the pch is to blame
+                return subprocess.CompletedProcess(cmd, 0, "", "")
             return subprocess.CompletedProcess(
-                cmd, 0, "", "warning: esphome_pch.h.gch: had text segment "
+                cmd, 1, "", "error: esphome_pch.h.gch: had text segment "
             )
         gch.write_bytes(b"gch")
         return subprocess.CompletedProcess(cmd, 0, "", "")
@@ -1289,8 +1292,10 @@ def test_prepare_pch_strict_reprobes_cached_gch(
 
     def reject(cmd, **kwargs):
         assert "-fsyntax-only" in cmd, "cached path must not recompile"
+        if "-include" not in cmd:
+            return subprocess.CompletedProcess(cmd, 0, "", "")
         return subprocess.CompletedProcess(
-            cmd, 0, "", "warning: esphome_pch.h.gch: had text segment "
+            cmd, 1, "", "error: esphome_pch.h.gch: had text segment "
         )
 
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
@@ -1303,4 +1308,79 @@ def test_prepare_pch_strict_reprobes_cached_gch(
     assert not gch.exists()
     # Per-process rejection may not reproduce: the cached path must not
     # latch the pch off for later non-strict builds
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+
+def test_prepare_pch_unexpected_command_shape_degrades(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tail the probe slice cannot trust discards and degrades."""
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    dev = _make_pch_device(tmp_path, "dev_sh")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def ok(cmd, **kwargs):
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=ok),
+        patch(
+            "esphome.build_helpers.pch.pch_compile_command",
+            return_value=(
+                ["g++", "-DX=1", "-c", "x", "-o", "y", "extra"],
+                dev / "build",
+            ),
+        ),
+        pytest.raises(EsphomeError, match="command shape"),
+    ):
+        prepare_pch()
+    assert not gch.exists()
+
+    # Non-strict: same shape problem degrades without raising
+    monkeypatch.delenv("ESPHOME_PCH_STRICT")
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=ok),
+        patch(
+            "esphome.build_helpers.pch.pch_compile_command",
+            return_value=(
+                ["g++", "-DX=1", "-c", "x", "-o", "y", "extra"],
+                dev / "build",
+            ),
+        ),
+    ):
+        prepare_pch()
+    assert not gch.exists()
+
+
+def test_prepare_pch_probe_baseline_spawn_failure_is_transient(
+    tmp_path: Path,
+) -> None:
+    """A baseline that cannot spawn is environmental: no marker."""
+    from esphome.build_gen.espidf import prepare_pch
+
+    dev = _make_pch_device(tmp_path, "dev_bs")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def flaky(cmd, **kwargs):
+        if "-fsyntax-only" in cmd:
+            if "-include" in cmd:
+                return subprocess.CompletedProcess(cmd, 1, "", "boom")
+            raise OSError("baseline spawn failed")
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=flaky),
+    ):
+        prepare_pch()
+    assert not gch.exists()
     assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()

@@ -100,12 +100,14 @@ def _fake_cxx(
         body += f"echo {fail_msg or 'boom'} >&2\nexit 1\n"
     else:
         # Only the c++-header compile has a -o; the load probe has none
-        body += 'out=""; prev=""; mf=0; dep=0\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; [ "$a" = "-MF" ] && mf=1; case "$a" in -M|-MM|-MD|-MMD) dep=1;; esac; done\n'
+        body += 'out=""; prev=""; mf=0; dep=0; inc=0\nfor a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; [ "$a" = "-MF" ] && mf=1; [ "$a" = "-include" ] && inc=1; case "$a" in -M|-MM|-MD|-MMD) dep=1;; esac; done\n'
         # Real cc1plus rejects -MF without a dependency flag
         body += 'if [ "$mf" = 1 ] && [ "$dep" = 0 ]; then echo "cc1plus: error: to generate dependencies you must specify either \x27-M\x27 or \x27-MM\x27" >&2; exit 1; fi\n'
         body += '[ -n "$out" ] && echo gch > "$out"\n'
         if reject_pch:
-            body += 'case " $* " in *c++-header*) ;; *) echo "warning: esphome_pch.h.gch: had text segment at different address" >&2;; esac\n'
+            # -Werror=invalid-pch makes rejection a nonzero exit; the
+            # baseline (no -include) still passes
+            body += 'case " $* " in *c++-header*) ;; *) if [ "$inc" = 1 ]; then echo "error: esphome_pch.h.gch: had text segment at different address" >&2; exit 1; fi;; esac\n'
         body += f'case " $* " in *c++-header*) exit 0;; *) exit {probe_exit};; esac\n'
     cxx.write_text("#!/bin/sh\n" + body)
     cxx.chmod(cxx.stat().st_mode | stat.S_IEXEC)
@@ -293,12 +295,14 @@ def test_pch_script_spawn_failure_is_transient(
     assert "did not run" in capsys.readouterr().out
 
 
-def test_pch_script_probe_nonzero_exit_falls_back(tmp_path: Path) -> None:
-    """A probe failure whose stderr never mentions .gch must still count."""
+def test_pch_script_probe_environment_failure_does_not_latch(
+    tmp_path: Path,
+) -> None:
+    """Probe AND baseline failing is environmental: no marker, retry."""
     scons_env = _run_script(tmp_path, probe_exit=1)
     proj = tmp_path / "dev"
     assert not (proj / "esphome_pch.h.gch").exists()
-    assert (proj / "esphome_pch.h.gch.failed").is_file()
+    assert not (proj / "esphome_pch.h.gch.failed").exists()
     assert scons_env.prepended == []
 
 
