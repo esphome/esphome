@@ -369,8 +369,8 @@ void ModbusController::create_polling_commands_() {
   ranges.init(this->sensorset_.size());
   RegisterRange r = {};
   bool have_range = false;
-  // Set while the open range belongs to a reuse_previous_range: false sensor: a range the user asked
-  // to keep separate must not quietly absorb other sensors.
+  // Set while the open range holds a reuse_previous_range: false sensor: such a range never absorbs a
+  // later sensor by coverage (extending it forward is still allowed).
   bool range_forced = false;
   // Set once a sensor has joined by sharing the range's start address, which widens the read. Only a
   // widened range can absorb a later sensor by coverage: ranges that were kept apart before stay apart,
@@ -419,12 +419,15 @@ void ModbusController::create_polling_commands_() {
         const uint32_t new_count = r.register_count + gap + curr->register_width();
         const uint16_t max_quantity =
             curr->addresses_bits() ? modbus::MAX_NUM_OF_COILS_TO_READ : modbus::MAX_NUM_OF_REGISTERS_TO_READ;
-        if (new_count > max_quantity) {
-          // never emit an over-long read; the item starts a new range instead
-          if (curr->reuse_previous_range == RangeReuse::ALWAYS) {
-            ESP_LOGW(TAG, "Range 0x%X cannot span to 0x%X (max %u); starting a new range", r.start_address,
-                     curr->start_address, max_quantity);
-          }
+        // The resolved offset must fit its uint8_t field: a bit index for coils, a byte cursor for
+        // registers (which chained response_size surpluses can also push past 255).
+        const uint32_t prospective_offset =
+            (curr->addresses_bits() ? static_cast<uint32_t>(curr->start_address - r.start_address)
+                                    : static_cast<uint32_t>(range_bytes) + gap * 2) +
+            curr->offset_from_start_address;
+        if (new_count > max_quantity || prospective_offset > 0xFF) {
+          // Never emit an over-long read or an unaddressable position; the item starts a new range
+          // instead, and the declined-ALWAYS warning below reports it.
         } else {
           if (!curr->addresses_bits())
             range_bytes += static_cast<size_t>(gap) * 2;
@@ -450,6 +453,14 @@ void ModbusController::create_polling_commands_() {
         join = true;
         ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, r.start_address);
       }
+    }
+
+    if (!join && have_range && curr->reuse_previous_range == RangeReuse::ALWAYS &&
+        r.register_type == curr->register_type && curr->start_address != r.start_address) {
+      // The requested join could not apply (the address falls inside the open range, or the range is
+      // capped) - say so instead of silently opening a new poll.
+      ESP_LOGW(TAG, "reuse_previous_range on 0x%X cannot join range 0x%X; starting a new range", curr->start_address,
+               r.start_address);
     }
 
     // Sensors on the same start address have to share one range: a response is dispatched to a single

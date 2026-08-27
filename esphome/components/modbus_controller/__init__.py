@@ -199,7 +199,7 @@ ModbusItemBaseSchema = cv.Schema(
         cv.Optional(CONF_FORCE_NEW_RANGE): cv.boolean,
         cv.Optional(CONF_REGISTER_COUNT): cv.positive_int,
         cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.positive_int,
+        cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_range(min=0, max=250),
     },
 )
 
@@ -218,16 +218,28 @@ def _derived_register_widths(config: ConfigType) -> set[int]:
     return {1}
 
 
+def _entity_label(config: ConfigType) -> str:
+    """The entity's name or id, so migration messages say which entry to edit."""
+    label = config.get(CONF_NAME) or config.get(CONF_ID)
+    return str(label) if label is not None else "<unnamed>"
+
+
 # Remove before 2027.3.0
 def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
     """Migrate the removed force_new_range/register_count options to reuse_previous_range."""
     if (force_new_range := config.pop(CONF_FORCE_NEW_RANGE, None)) is not None:
+        if config[CONF_REUSE_PREVIOUS_RANGE] != "auto":
+            raise cv.Invalid(
+                f"'{CONF_FORCE_NEW_RANGE}' and '{CONF_REUSE_PREVIOUS_RANGE}' can't be used together; "
+                f"remove '{CONF_FORCE_NEW_RANGE}'"
+            )
         _LOGGER.warning(
-            "'%s' is deprecated, use '%s: false' instead. Removed in 2027.3.0",
+            "%s: '%s' is deprecated, use '%s: false' instead. Removed in 2027.3.0",
+            _entity_label(config),
             CONF_FORCE_NEW_RANGE,
             CONF_REUSE_PREVIOUS_RANGE,
         )
-        if force_new_range and config[CONF_REUSE_PREVIOUS_RANGE] == "auto":
+        if force_new_range:
             config[CONF_REUSE_PREVIOUS_RANGE] = False
     if (register_count := config.pop(CONF_REGISTER_COUNT, None)) is not None:
         if (
@@ -243,10 +255,22 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
                 f"'use_write_multiple: true'. See "
                 "https://esphome.io/components/modbus_controller/"
             )
-        _LOGGER.warning(
-            "'%s' matches the derived register width and is redundant; remove it. Removed in 2027.3.0",
-            CONF_REGISTER_COUNT,
-        )
+        response_size = config.get(CONF_RESPONSE_SIZE, 0)
+        if response_size % 2 == 1 and register_count == response_size // 2:
+            _LOGGER.warning(
+                "%s: '%s' is removed and the read now spans ceil(%s / 2) = %d registers, one more than "
+                "before. Removed in 2027.3.0",
+                _entity_label(config),
+                CONF_REGISTER_COUNT,
+                CONF_RESPONSE_SIZE,
+                (response_size + 1) // 2,
+            )
+        else:
+            _LOGGER.warning(
+                "%s: '%s' matches the derived register width and is redundant; remove it. Removed in 2027.3.0",
+                _entity_label(config),
+                CONF_REGISTER_COUNT,
+            )
     return config
 
 

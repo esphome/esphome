@@ -48,7 +48,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ModbusTextSensor),
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
-            cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.positive_not_null_int,
+            cv.Optional(CONF_RESPONSE_SIZE, default=2): cv.int_range(min=1, max=250),
             cv.Optional(CONF_RAW_ENCODE, default="ANSI"): cv.enum(RAW_ENCODING),
         }
     ),

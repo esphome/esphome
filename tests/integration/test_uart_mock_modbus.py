@@ -1227,5 +1227,10 @@ async def test_uart_mock_modbus_ranges(
     ):
         await tracker.setup_and_start_scenario(client)
         await tracker.await_all(futures)
-        await tracker.await_change(text_future, "text_block")
+        # Not tracker-registered (text sensors are non-numeric), so time out explicitly rather than
+        # letting await_change raise KeyError formatting an unknown name.
+        try:
+            await asyncio.wait_for(text_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("text_block never published 'ABCDEF'")
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
