@@ -1,8 +1,9 @@
 """nrf52 sdk-nrf pch wiring: the CMake consumer block, the prepare wrapper,
 and the two-phase west split in run_compile."""
 
+from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -161,12 +162,15 @@ def test_cmake_lists_pch_block_disabled(
     assert "esphome_pch.h" not in _generate_cmake(tmp_path)
 
 
+CompileCtx = tuple[Mock, Mock, Path]
+
+
 class TestRunCompilePhases:
     """The pch pre-build block in run_compile: header write, conditional
     cmake-only phase, and the never-abort-the-build exception contract."""
 
     @pytest.fixture
-    def compile_ctx(self, tmp_path: Path):
+    def compile_ctx(self, tmp_path: Path) -> Generator[CompileCtx, None, None]:
         CORE.config_path = tmp_path / "test.yaml"
         CORE.build_path = tmp_path / "build"
         CORE.name = "livingroom"
@@ -192,7 +196,7 @@ class TestRunCompilePhases:
     def _run(self) -> None:
         nrf52.run_compile(None, {})
 
-    def test_missing_db_runs_cmake_phase(self, compile_ctx) -> None:
+    def test_missing_db_runs_cmake_phase(self, compile_ctx: CompileCtx) -> None:
         run_cmd, prepare, build_dir = compile_ctx
         # cmake-only ok, generated headers ok, final build fails
         results = iter([True, True, False])
@@ -229,7 +233,7 @@ class TestRunCompilePhases:
         assert prepare.called
 
     def test_generated_headers_failure_strict_raises(
-        self, monkeypatch: pytest.MonkeyPatch, compile_ctx
+        self, monkeypatch: pytest.MonkeyPatch, compile_ctx: CompileCtx
     ) -> None:
         monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
         run_cmd, prepare, _ = compile_ctx
@@ -238,14 +242,14 @@ class TestRunCompilePhases:
             self._run()
         assert not prepare.called
 
-    def test_cmake_phase_failure_raises(self, compile_ctx) -> None:
+    def test_cmake_phase_failure_raises(self, compile_ctx: CompileCtx) -> None:
         run_cmd, prepare, _ = compile_ctx
         run_cmd.side_effect = [False]
         with pytest.raises(EsphomeError, match="configure failed"):
             self._run()
         assert not prepare.called
 
-    def test_ccache_pch_env_reaches_west(self, compile_ctx) -> None:
+    def test_ccache_pch_env_reaches_west(self, compile_ctx: CompileCtx) -> None:
         run_cmd, _, _ = compile_ctx
         run_cmd.side_effect = [False]
         # clear=True also drops ambient CCACHE_*/ESPHOME_PCH_* overrides
@@ -259,7 +263,9 @@ class TestRunCompilePhases:
         assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
 
     @pytest.mark.parametrize("sysbuild", [False, True])
-    def test_settled_db_skips_cmake_phase(self, sysbuild: bool, compile_ctx) -> None:
+    def test_settled_db_skips_cmake_phase(
+        self, sysbuild: bool, compile_ctx: CompileCtx
+    ) -> None:
         run_cmd, prepare, build_dir = compile_ctx
         app = build_dir / "zephyr" if sysbuild else build_dir
         app.mkdir(parents=True)
@@ -276,7 +282,7 @@ class TestRunCompilePhases:
         assert prepare.call_args.args[0] == app
 
     def test_disabled_skips_header_and_cmake_phase(
-        self, monkeypatch: pytest.MonkeyPatch, compile_ctx
+        self, monkeypatch: pytest.MonkeyPatch, compile_ctx: CompileCtx
     ) -> None:
         monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
         run_cmd, prepare, build_dir = compile_ctx
@@ -305,7 +311,7 @@ class TestRunCompilePhases:
         assert (build_dir / "esphome_pch.h").is_file()
 
     def test_prepare_failure_strict_raises(
-        self, monkeypatch: pytest.MonkeyPatch, compile_ctx
+        self, monkeypatch: pytest.MonkeyPatch, compile_ctx: CompileCtx
     ) -> None:
         monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
         run_cmd, prepare, _ = compile_ctx
