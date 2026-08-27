@@ -8,7 +8,7 @@
 
 namespace esphome::modbus_controller {
 
-class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem {
+class ModbusSwitch final : public Component, public switch_::Switch, public SensorItem, public WriterEntity {
  public:
   ModbusSwitch(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                bool force_new_range) {
@@ -30,17 +30,16 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
   void set_assumed_state(bool assumed_state);
   void set_state(bool state) { this->state = state; }
   void parse_and_publish(std::span<const uint8_t> data) override;
-  void set_parent(ModbusController *parent) { this->parent_ = parent; }
+  void set_parent(ModbusController *parent) { this->set_controller_(parent); }
 
   using transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, std::span<const uint8_t>);
-  using write_transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, std::vector<uint8_t> &);
+  using write_transform_func_t = optional<bool> (*)(ModbusSwitch *, bool, modbus::helpers::PduBuffer &);
   void set_template(transform_func_t f) { this->publish_transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
   void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   bool assumed_state() override;
-  ModbusController *parent_{nullptr};
   bool use_write_multiple_{false};
   optional<transform_func_t> publish_transform_func_{nullopt};
   optional<write_transform_func_t> write_transform_func_{nullopt};
