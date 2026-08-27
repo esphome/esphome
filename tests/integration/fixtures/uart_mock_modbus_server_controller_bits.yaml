@@ -1,0 +1,147 @@
+esphome:
+  name: uart-mock-modbus-srv-bits
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    # auto_start must be true for loopback fixtures: the modbus controller
+    # polls on its update_interval immediately at boot, so the uart_mock
+    # forwarding must already be active or early requests are lost and
+    # generate modbus warnings.
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
+  - id: virtual_uart_controller
+    baud_rate: 9600
+    auto_start: true # See comment on virtual_uart_server above
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+globals:
+  - id: stored_bit_2
+    type: bool
+    initial_value: "false"
+  - id: stored_bit_3
+    type: bool
+    initial_value: "true"
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_controller
+    id: virtual_modbus_controller
+    role: client
+    turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_controller
+    update_interval: 1s
+    id: modbus_controller_1
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    bits:
+      - address: 0x00
+        read_lambda: return true;
+      - address: 0x01
+        read_lambda: return false;
+      - address: 0x02
+        read_lambda: return id(stored_bit_2);
+        write_lambda: id(stored_bit_2) = x; return true;
+      - address: 0x03
+        read_lambda: return id(stored_bit_3);
+        write_lambda: id(stored_bit_3) = x; return true;
+
+# The same four bits are read both as coils (FC 0x01) and as discrete inputs
+# (FC 0x02): the server serves both from one shared bit table, so the two
+# views must always agree.
+binary_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_coil_0"
+    address: 0x00
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_coil_1"
+    address: 0x01
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_coil_2"
+    address: 0x02
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_coil_3"
+    address: 0x03
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_di_0"
+    address: 0x00
+    register_type: discrete_input
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_di_1"
+    address: 0x01
+    register_type: discrete_input
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_di_2"
+    address: 0x02
+    register_type: discrete_input
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "bit_di_3"
+    address: 0x03
+    register_type: discrete_input
+
+# write_bit_2 uses the single-coil write (FC 0x05); write_bit_3 opts into the
+# multiple-coils write (FC 0x0F) so both server write paths are exercised.
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_bit_2"
+    address: 0x02
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_bit_3"
+    address: 0x03
+    register_type: coil
+    use_write_multiple: true
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    # This test does not have anything to start (mock is autostart)

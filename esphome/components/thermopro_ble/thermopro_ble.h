@@ -2,9 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
-
-#ifdef USE_ESP32
+#include "esphome/components/ble_device_base/ble_device.h"
 
 namespace esphome::thermopro_ble {
 
@@ -17,11 +15,11 @@ struct ParseResult {
 
 using DeviceParser = optional<ParseResult> (*)(const uint8_t *data, std::size_t data_size);
 
-class ThermoProBLE final : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class ThermoProBLE final : public Component, public ble_device_base::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { this->address_ = address; };
 
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
   void dump_config() override;
   void set_signal_strength(sensor::Sensor *signal_strength) { this->signal_strength_ = signal_strength; }
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; }
@@ -41,9 +39,7 @@ class ThermoProBLE final : public Component, public esp32_ble_tracker::ESPBTDevi
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 
-  void update_device_type_(const std::string &device_name);
+  void update_device_type_(StringRef device_name);
 };
 
 }  // namespace esphome::thermopro_ble
-
-#endif

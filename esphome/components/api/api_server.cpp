@@ -123,7 +123,9 @@ void APIServer::setup() {
         // Best-effort: if the send buffer is full the reason is dropped, but the
         // client still learns the window is closed when it reconnects (rejected at
         // hello) or via the socket close.
-        c->send_message(req);
+        if (!c->send_message(req)) {
+          API_LOG_MSG_DROPPED(TAG, "Disconnect request");
+        }
       }
     });
   }
@@ -394,8 +396,11 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
   // We could add code to manage a second subscription type, but, since this message type is
   //  very infrequent and small, we simply send it to all clients
-  for (auto &c : this->active_clients())
-    c->send_message(msg);
+  for (auto &c : this->active_clients()) {
+    if (!c->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "Home ID notification");
+    }
+  }
 }
 #endif
 
@@ -417,12 +422,6 @@ void APIServer::send_infrared_rf_receive_event([[maybe_unused]] uint32_t device_
 #ifdef USE_ALARM_CONTROL_PANEL
 API_DISPATCH_UPDATE(alarm_control_panel::AlarmControlPanel, alarm_control_panel)
 #endif
-
-float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
-
-void APIServer::set_port(uint16_t port) { this->port_ = port; }
-
-void APIServer::set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
 
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void APIServer::send_homeassistant_action(const HomeassistantActionRequest &call) {
@@ -548,10 +547,6 @@ const std::vector<APIServer::HomeAssistantStateSubscription> &APIServer::get_sta
 }
 #endif
 
-uint16_t APIServer::get_port() const { return this->port_; }
-
-void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-
 #ifdef USE_API_NOISE
 bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg,
                                   const LogString *fail_log_msg, bool make_active) {
@@ -576,7 +571,9 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
       for (auto &c : this->active_clients()) {
         DisconnectRequest req;
-        c->send_message(req);
+        if (!c->send_message(req)) {
+          API_LOG_MSG_DROPPED(TAG, "Disconnect request");
+        }
       }
     });
   }
@@ -591,7 +588,7 @@ bool APIServer::load_and_apply_noise_psk_() {
   return true;
 }
 
-bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
+bool APIServer::save_noise_psk(noise::psk_t psk, bool make_active) {
 #ifdef USE_API_NOISE_PSK_FROM_YAML
   // When PSK is set from YAML, this function should never be called
   // but if it is, reject the change

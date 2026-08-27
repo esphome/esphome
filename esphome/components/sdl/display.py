@@ -1,4 +1,6 @@
+from collections.abc import Callable
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import display
@@ -14,6 +16,7 @@ from esphome.const import (
     CONF_Y,
     PLATFORM_HOST,
 )
+from esphome.types import ConfigType
 
 sdl_ns = cg.esphome_ns.namespace("sdl")
 Sdl = sdl_ns.class_("Sdl", display.Display, cg.Component)
@@ -35,7 +38,7 @@ WINDOW_OPTIONS = (
 SDL_WINDOWPOS_CENTERED_MASK = 0x2FFF0000
 
 
-def get_sdl_options(value):
+def get_sdl_options(value: str) -> str:
     if value != "":
         return value
     try:
@@ -46,7 +49,7 @@ def get_sdl_options(value):
         raise cv.Invalid("Unable to run sdl2-config - have you installed sdl2?") from e
 
 
-def get_window_options():
+def get_window_options() -> dict[cv.Optional, Callable[[Any], Any]]:
     return {cv.Optional(option, default=False): cv.boolean for option in WINDOW_OPTIONS}
 
 
@@ -100,7 +103,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for option in config[CONF_SDL_OPTIONS].split():
         cg.add_build_flag(option)
     cg.add_build_flag("-DSDL_BYTEORDER=4321")

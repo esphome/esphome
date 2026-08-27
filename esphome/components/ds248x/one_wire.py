@@ -12,6 +12,7 @@ import esphome.codegen as cg
 from esphome.components.one_wire import OneWireBus
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+from esphome.types import ConfigType
 
 from . import CONF_DS248X_ID, DS248xComponent, ds248x_ns, get_channel_count
 
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-def _final_validate(config):
+def _final_validate(config: ConfigType) -> None:
     """Validate that the channel is within the parent's channel count."""
     fconf = fv.full_config.get()
     path = fconf.get_path_for_id(config[CONF_DS248X_ID])[:-1]
@@ -47,7 +48,7 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

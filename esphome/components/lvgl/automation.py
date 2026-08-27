@@ -416,7 +416,7 @@ async def obj_set_z_index_to_code(config, action_id, template_arg, args):
                 widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} + 1")
             )
         elif position == "DOWN":
-            with LvConditional(f"{lv_expr.obj_get_index(widget.obj)} > 0"):
+            with LvConditional(literal(f"{lv_expr.obj_get_index(widget.obj)} > 0")):
                 lv_obj.move_to_index(
                     widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} - 1")
                 )

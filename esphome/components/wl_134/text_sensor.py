@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_RESET, ICON_FINGERPRINT
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@hobbypunk90"]
 DEPENDENCIES = ["uart"]
@@ -21,7 +22,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await text_sensor.new_text_sensor(config)
     await cg.register_component(var, config)
     cg.add(var.set_do_reset(config[CONF_RESET]))

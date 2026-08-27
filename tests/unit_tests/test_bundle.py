@@ -25,13 +25,13 @@ from esphome.bundle import (
     add_bundle_file,
     add_secret_scan_dir,
     extract_bundle,
-    is_bundle_path,
     prepare_bundle_for_compile,
     read_bundle_manifest,
     remap_bundle_path,
 )
+from esphome.components.substitutions import do_substitution_pass
 from esphome.core import CORE, EsphomeError
-from esphome.yaml_util import force_load_include_files
+from esphome.yaml_util import force_load_include_files, load_yaml
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -97,26 +97,6 @@ def _setup_config_dir(
 
     CORE.config_path = config_dir / "test.yaml"
     return config_dir
-
-
-# ---------------------------------------------------------------------------
-# is_bundle_path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    ("filename", "expected"),
-    [
-        (f"my_device{BUNDLE_EXTENSION}", True),
-        (f"MY_DEVICE{BUNDLE_EXTENSION.upper()}", True),
-        ("my_device.yaml", False),
-        ("my_device.tar.gz", False),
-        ("my_device.zip", False),
-        ("", False),
-    ],
-)
-def test_is_bundle_path(filename: str, expected: bool) -> None:
-    assert is_bundle_path(Path(filename)) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -1296,6 +1276,59 @@ def test_discover_files_bundles_all_include_candidates(tmp_path: Path) -> None:
     assert "includes/keys/device-a.yaml" in paths
     assert "includes/keys/device-b.yaml" in paths
     assert "includes/empty.yaml" in paths
+
+
+@pytest.mark.parametrize("enable_proxy", [True, False])
+def test_bundle_roundtrip_templated_include_with_path_separator(
+    tmp_path: Path, enable_proxy: bool
+) -> None:
+    r"""The issue-18545 flow: a Jinja !include whose branches contain "/" still
+    resolves after the bundle is extracted on the build server.
+
+    Windows is the leg that regresses: the raw expression text must survive
+    verbatim, or its separators get rewritten to "\" and Jinja decodes
+    sequences like "\b" as string escapes.
+    """
+    config_dir = _setup_config_dir(
+        tmp_path,
+        files={
+            "includes/boards/board.yaml": (
+                "packages:\n"
+                '  - !include ${ "bluetooth/bluetooth_proxy_single_core.yaml"'
+                ' if enable_bluetooth_proxy else "../empty.yaml" }\n'
+            ),
+            "includes/boards/bluetooth/bluetooth_proxy_single_core.yaml": (
+                "bluetooth_proxy:\n  active: true\n"
+            ),
+            "includes/empty.yaml": "{}\n",
+        },
+    )
+    (config_dir / "test.yaml").write_text(
+        "substitutions:\n"
+        f"  enable_bluetooth_proxy: {str(enable_proxy).lower()}\n"
+        "esphome:\n  name: test\n"
+        "packages:\n  - !include includes/boards/board.yaml\n"
+    )
+
+    result = ConfigBundleCreator({}).create_bundle()
+    bundle_path = tmp_path / "device.esphomebundle.tar.gz"
+    bundle_path.write_bytes(result.data)
+
+    # Both conditional branches must ship in the bundle.
+    paths = [f.path for f in result.files]
+    assert "includes/boards/bluetooth/bluetooth_proxy_single_core.yaml" in paths
+    assert "includes/empty.yaml" in paths
+
+    # Extract to a fresh directory and resolve the config from there, as a
+    # remote build server would.
+    extracted_config = extract_bundle(bundle_path, tmp_path / "remote")
+    config = do_substitution_pass(load_yaml(extracted_config))
+
+    board_pkg = config["packages"][0]["packages"][0]
+    if enable_proxy:
+        assert board_pkg == {"bluetooth_proxy": {"active": True}}
+    else:
+        assert board_pkg == {}
 
 
 def test_discover_files_candidate_outside_config_dir_skipped(

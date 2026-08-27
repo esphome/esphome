@@ -39,14 +39,14 @@ class ESPHomeOTAComponent final : public ota::OTAComponent {
 #endif  // USE_OTA_PASSWORD
 
   /// Manually set the port OTA should listen on
-  void set_port(uint16_t port);
+  void set_port(uint16_t port) { this->port_ = port; }
 
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void loop() override;
 
-  uint16_t get_port() const;
+  uint16_t get_port() const { return this->port_; }
 
  protected:
   void handle_handshake_();

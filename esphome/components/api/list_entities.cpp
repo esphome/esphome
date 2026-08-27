@@ -95,9 +95,17 @@ bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 
 #ifdef USE_API_USER_DEFINED_ACTIONS
+// Yield after every Nth service; bounds direct (non-batched) writes per loop pass
+static constexpr uint8_t SERVICE_YIELD_INTERVAL = 3;
+
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
-  return this->client_->send_message(resp);
+  if (!this->client_->send_message(resp))
+    return false;
+  // at_ is this service's index
+  if ((this->at_ + 1) % SERVICE_YIELD_INTERVAL == 0)
+    this->yield_after_step_();
+  return true;
 }
 #endif
 

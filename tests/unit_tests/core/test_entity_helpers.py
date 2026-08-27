@@ -1,4 +1,4 @@
-"""Tests for entity helpers: name selection, entity key hashing, duplicate checks."""
+"""Test get_base_entity_object_id function matches C++ behavior."""
 
 from collections.abc import Callable, Generator
 from pathlib import Path
@@ -25,17 +25,16 @@ from esphome.core.entity_helpers import (
     _setup_entity_impl,
     entity_duplicate_validator,
     finalize_entity_strings,
-    get_base_entity_name,
+    get_base_entity_object_id,
     register_device_class,
     register_icon,
     register_unit_of_measurement,
     setup_device_class,
     setup_entity,
     setup_unit_of_measurement,
-    validate_no_object_id_conflicts,
 )
 from esphome.cpp_generator import MockObj
-from esphome.helpers import fnv1_hash_name, sanitize, snake_case
+from esphome.helpers import fnv1_hash, sanitize, snake_case
 
 from .common import load_config_from_fixture
 
@@ -58,26 +57,206 @@ def restore_core_state() -> Generator[None, None, None]:
     CORE.friendly_name = original_friendly_name
 
 
-def test_get_base_entity_name_priority_order() -> None:
+def test_with_entity_name() -> None:
+    """Test when entity has its own name - should use entity name."""
+    # Simple name
+    assert get_base_entity_object_id("Temperature Sensor", None) == "temperature_sensor"
+    assert (
+        get_base_entity_object_id("Temperature Sensor", "Device Name")
+        == "temperature_sensor"
+    )
+    # Even with device name, entity name takes precedence
+    assert (
+        get_base_entity_object_id("Temperature Sensor", "Device Name", "Sub Device")
+        == "temperature_sensor"
+    )
+
+    # Name with special characters
+    assert (
+        get_base_entity_object_id("Temp!@#$%^&*()Sensor", None)
+        == "temp__________sensor"
+    )
+    assert get_base_entity_object_id("Temp-Sensor_123", None) == "temp-sensor_123"
+
+    # Already snake_case
+    assert get_base_entity_object_id("temperature_sensor", None) == "temperature_sensor"
+
+    # Mixed case
+    assert get_base_entity_object_id("TemperatureSensor", None) == "temperaturesensor"
+    assert get_base_entity_object_id("TEMPERATURE SENSOR", None) == "temperature_sensor"
+
+
+def test_empty_name_with_device_name() -> None:
+    """Test when entity has empty name and is on a sub-device - should use device name."""
+    # C++ behavior: when has_own_name is false and device is set, uses device->get_name()
+    assert (
+        get_base_entity_object_id("", "Friendly Device", "Sub Device 1")
+        == "sub_device_1"
+    )
+    assert (
+        get_base_entity_object_id("", "Kitchen Controller", "controller_1")
+        == "controller_1"
+    )
+    assert get_base_entity_object_id("", None, "Test-Device_123") == "test-device_123"
+
+
+def test_empty_name_with_friendly_name() -> None:
+    """Test when entity has empty name and no device - should use friendly name."""
+    # C++ behavior: when has_own_name is false, uses App.get_friendly_name()
+    assert get_base_entity_object_id("", "Friendly Device") == "friendly_device"
+    assert get_base_entity_object_id("", "Kitchen Controller") == "kitchen_controller"
+    assert get_base_entity_object_id("", "Test-Device_123") == "test-device_123"
+
+    # Special characters in friendly name
+    assert get_base_entity_object_id("", "Device!@#$%") == "device_____"
+
+
+def test_empty_name_no_friendly_name() -> None:
+    """Test when entity has empty name and no friendly name - should use device name."""
+    # Test with CORE.name set
+    CORE.name = "device-name"
+    assert get_base_entity_object_id("", None) == "device-name"
+
+    CORE.name = "Test Device"
+    assert get_base_entity_object_id("", None) == "test_device"
+
+
+def test_edge_cases() -> None:
+    """Test edge cases."""
+    # Only spaces
+    assert get_base_entity_object_id("   ", None) == "___"
+
+    # Unicode characters (should be replaced)
+    assert get_base_entity_object_id("Température", None) == "temp_rature"
+    assert get_base_entity_object_id("测试", None) == "__"
+
+    # Empty string with empty friendly name (empty friendly name is treated as None)
+    # Falls back to CORE.name
+    CORE.name = "device"
+    assert get_base_entity_object_id("", "") == "device"
+
+    # Very long name (should work fine)
+    long_name = "a" * 100 + " " + "b" * 100
+    expected = "a" * 100 + "_" + "b" * 100
+    assert get_base_entity_object_id(long_name, None) == expected
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("Temperature Sensor", "temperature_sensor"),
+        ("Living Room Light", "living_room_light"),
+        ("Test-Device_123", "test-device_123"),
+        ("Special!@#Chars", "special___chars"),
+        ("UPPERCASE NAME", "uppercase_name"),
+        ("lowercase name", "lowercase_name"),
+        ("Mixed Case Name", "mixed_case_name"),
+        ("   Spaces   ", "___spaces___"),
+    ],
+)
+def test_matches_cpp_helpers(name: str, expected: str) -> None:
+    """Test that the logic matches using snake_case and sanitize directly."""
+    # For non-empty names, verify our function produces same result as direct snake_case + sanitize
+    assert get_base_entity_object_id(name, None) == sanitize(snake_case(name))
+    assert get_base_entity_object_id(name, None) == expected
+
+
+def test_empty_name_fallback() -> None:
+    """Test empty name handling which falls back to friendly_name or CORE.name."""
+    # Empty name is handled specially - it doesn't just use sanitize(snake_case(""))
+    # Instead it falls back to friendly_name or CORE.name
+    assert sanitize(snake_case("")) == ""  # Direct conversion gives empty string
+    # But our function returns a fallback
+    CORE.name = "device"
+    assert get_base_entity_object_id("", None) == "device"  # Uses device name
+
+
+def test_name_add_mac_suffix_behavior() -> None:
+    """Test behavior related to name_add_mac_suffix.
+
+    In C++, an entity's object_id is computed from its name_ via
+    write_object_id_to() (sanitized snake_case). When an entity has no name,
+    configure_entity_() sets name_ from the friendly name, with the MAC suffix
+    appended when name_add_mac_suffix is enabled. Our function always returns
+    the same result since we're calculating the base for duplicate tracking.
+    """
+    # The function should always return the same result regardless of
+    # name_add_mac_suffix setting, as we're calculating the base object_id
+    assert get_base_entity_object_id("", "Test Device") == "test_device"
+    assert get_base_entity_object_id("Entity Name", "Test Device") == "entity_name"
+
+
+def test_priority_order() -> None:
     """Test the priority order: entity name > device name > friendly name > CORE.name."""
     CORE.name = "core-device"
 
-    # 1. Entity name has highest priority and is used as-is, no transformations
+    # 1. Entity name has highest priority
     assert (
-        get_base_entity_name("Entity Name", "Friendly Name", "Device Name")
-        == "Entity Name"
+        get_base_entity_object_id("Entity Name", "Friendly Name", "Device Name")
+        == "entity_name"
     )
-    assert get_base_entity_name("Température", None) == "Température"
 
     # 2. Device name is next priority (when entity name is empty)
-    assert get_base_entity_name("", "Friendly Name", "Device Name") == "Device Name"
+    assert (
+        get_base_entity_object_id("", "Friendly Name", "Device Name") == "device_name"
+    )
 
     # 3. Friendly name is next (when entity and device names are empty)
-    assert get_base_entity_name("", "Friendly Name", None) == "Friendly Name"
+    assert get_base_entity_object_id("", "Friendly Name", None) == "friendly_name"
 
-    # 4. CORE.name is last resort; an empty friendly name falls through to it
-    assert get_base_entity_name("", None, None) == "core-device"
-    assert get_base_entity_name("", "") == "core-device"
+    # 4. CORE.name is last resort
+    assert get_base_entity_object_id("", None, None) == "core-device"
+
+
+@pytest.mark.parametrize(
+    ("name", "friendly_name", "device_name", "expected"),
+    [
+        # name, friendly_name, device_name, expected
+        ("Living Room Light", None, None, "living_room_light"),
+        ("", "Kitchen Controller", None, "kitchen_controller"),
+        (
+            "",
+            "ESP32 Device",
+            "controller_1",
+            "controller_1",
+        ),  # Device name takes precedence
+        ("GPIO2 Button", None, None, "gpio2_button"),
+        ("WiFi Signal", "My Device", None, "wifi_signal"),
+        ("", None, "esp32_node", "esp32_node"),
+        ("Front Door Sensor", "Home Assistant", "door_controller", "front_door_sensor"),
+    ],
+)
+def test_real_world_examples(
+    name: str, friendly_name: str | None, device_name: str | None, expected: str
+) -> None:
+    """Test real-world entity naming scenarios."""
+    result = get_base_entity_object_id(name, friendly_name, device_name)
+    assert result == expected
+
+
+def test_issue_6953_scenarios() -> None:
+    """Test specific scenarios from issue #6953."""
+    # Scenario 1: Multiple empty names on main device with name_add_mac_suffix
+    # The Python code calculates the base, C++ might append MAC suffix dynamically
+    CORE.name = "device-name"
+    CORE.friendly_name = "Friendly Device"
+
+    # All empty names should resolve to same base
+    assert get_base_entity_object_id("", CORE.friendly_name) == "friendly_device"
+    assert get_base_entity_object_id("", CORE.friendly_name) == "friendly_device"
+    assert get_base_entity_object_id("", CORE.friendly_name) == "friendly_device"
+
+    # Scenario 2: Empty names on sub-devices
+    assert (
+        get_base_entity_object_id("", "Main Device", "controller_1") == "controller_1"
+    )
+    assert (
+        get_base_entity_object_id("", "Main Device", "controller_2") == "controller_2"
+    )
+
+    # Scenario 3: xyz duplicates
+    assert get_base_entity_object_id("xyz", None) == "xyz"
+    assert get_base_entity_object_id("xyz", "Device") == "xyz"
 
 
 # Tests for setup_entity function
@@ -336,10 +515,9 @@ def test_entity_duplicate_validator() -> None:
     config1 = {CONF_NAME: "Temperature"}
     validated1 = validator(config1)
     assert validated1 == config1
-    temperature_key = ("", "sensor", fnv1_hash_name("Temperature"))
-    assert temperature_key in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
     # Check metadata was stored
-    metadata = CORE.unique_ids[temperature_key]
+    metadata = CORE.unique_ids[("", "sensor", fnv1_hash("temperature"))]
     assert metadata["name"] == "Temperature"
     assert metadata["platform"] == "sensor"
 
@@ -347,9 +525,8 @@ def test_entity_duplicate_validator() -> None:
     config2 = {CONF_NAME: "Humidity"}
     validated2 = validator(config2)
     assert validated2 == config2
-    humidity_key = ("", "sensor", fnv1_hash_name("Humidity"))
-    assert humidity_key in CORE.unique_ids
-    metadata2 = CORE.unique_ids[humidity_key]
+    assert ("", "sensor", fnv1_hash("humidity")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("", "sensor", fnv1_hash("humidity"))]
     assert metadata2["name"] == "Humidity"
 
     # Duplicate entity should fail
@@ -358,6 +535,34 @@ def test_entity_duplicate_validator() -> None:
         Invalid, match=r"Duplicate sensor entity with name 'Temperature' found"
     ):
         validator(config3)
+
+
+def test_entity_duplicate_validator_hash_collision() -> None:
+    """Test that two different object_ids with the same FNV-1 hash are rejected."""
+    # Brute-forced FNV-1 32-bit collision pair; both object_ids hash to 0xe95747e4
+    name_a = "Sensor aooxzi"
+    name_b = "Sensor baraia"
+    object_id_a = sanitize(snake_case(name_a))
+    object_id_b = sanitize(snake_case(name_b))
+    assert object_id_a != object_id_b
+    assert fnv1_hash(object_id_a) == fnv1_hash(object_id_b)
+
+    validator = entity_duplicate_validator("sensor")
+
+    config1 = {CONF_NAME: name_a}
+    validated1 = validator(config1)
+    assert validated1 == config1
+
+    config2 = {CONF_NAME: name_b}
+    with pytest.raises(
+        Invalid,
+        match=re.compile(
+            r"Duplicate sensor entity with name 'Sensor baraia' found.*"
+            r"produce the same entity key hash \(0xe95747e4\)",
+            re.DOTALL,
+        ),
+    ):
+        validator(config2)
 
 
 def test_entity_duplicate_validator_with_devices() -> None:
@@ -370,19 +575,18 @@ def test_entity_duplicate_validator_with_devices() -> None:
     device2 = ID("device2", type="Device")
 
     # Same name on different devices should pass
-    name_hash = fnv1_hash_name("Temperature")
     config1 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device1}
     validated1 = validator(config1)
     assert validated1 == config1
-    assert ("device1", "sensor", name_hash) in CORE.unique_ids
-    metadata1 = CORE.unique_ids[("device1", "sensor", name_hash)]
+    assert ("device1", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata1 = CORE.unique_ids[("device1", "sensor", fnv1_hash("temperature"))]
     assert metadata1["device_id"] == "device1"
 
     config2 = {CONF_NAME: "Temperature", CONF_DEVICE_ID: device2}
     validated2 = validator(config2)
     assert validated2 == config2
-    assert ("device2", "sensor", name_hash) in CORE.unique_ids
-    metadata2 = CORE.unique_ids[("device2", "sensor", name_hash)]
+    assert ("device2", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
+    metadata2 = CORE.unique_ids[("device2", "sensor", fnv1_hash("temperature"))]
     assert metadata2["device_id"] == "device2"
 
     # Duplicate on same device should fail
@@ -429,33 +633,6 @@ def test_entity_different_platforms_yaml_validation(
     """Test that same entity name on different platforms is allowed."""
     result = load_config_from_fixture(
         yaml_file, "entity_different_platforms.yaml", FIXTURES_DIR
-    )
-    # This should succeed
-    assert result is not None
-
-
-def test_object_id_conflict_mqtt_yaml_validation(
-    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Test that names sanitizing to the same object_id fail when mqtt is configured."""
-    result = load_config_from_fixture(
-        yaml_file, "object_id_conflict_mqtt.yaml", FIXTURES_DIR
-    )
-    assert result is None
-
-    captured = capsys.readouterr()
-    assert (
-        "mqtt builds default topics and discovery topics from the entity object_id"
-        in captured.out
-    )
-
-
-def test_object_id_conflict_without_mqtt_yaml_validation(
-    yaml_file: Callable[[str], str],
-) -> None:
-    """Test that names sanitizing to the same object_id pass without mqtt/prometheus."""
-    result = load_config_from_fixture(
-        yaml_file, "object_id_conflict_no_mqtt.yaml", FIXTURES_DIR
     )
     # This should succeed
     assert result is not None
@@ -519,8 +696,7 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated1 = validator(config1)
     assert validated1 == config1
     # New format includes device_id (empty string for main device)
-    temperature_key = ("", "sensor", fnv1_hash_name("Temperature"))
-    assert temperature_key in CORE.unique_ids
+    assert ("", "sensor", fnv1_hash("temperature")) in CORE.unique_ids
 
     # Internal entity with same name should pass (not added to unique_ids)
     config2 = {CONF_NAME: "Temperature", CONF_INTERNAL: True}
@@ -528,7 +704,9 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     assert validated2 == config2
     # Internal entity should not be added to unique_ids
     # Count how many times the key appears (should still be 1)
-    count = sum(1 for k in CORE.unique_ids if k == temperature_key)
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
     assert count == 1
 
     # Another internal entity with same name should also pass
@@ -536,7 +714,9 @@ def test_entity_duplicate_validator_internal_entities() -> None:
     validated3 = validator(config3)
     assert validated3 == config3
     # Still only one entry in unique_ids (from the non-internal entity)
-    count = sum(1 for k in CORE.unique_ids if k == temperature_key)
+    count = sum(
+        1 for k in CORE.unique_ids if k == ("", "sensor", fnv1_hash("temperature"))
+    )
     assert count == 1
 
     # Non-internal entity with same name should fail
@@ -564,146 +744,28 @@ def test_empty_or_null_device_id_on_entity() -> None:
 
 
 def test_entity_duplicate_validator_non_ascii_names() -> None:
-    """Test that distinct non-ASCII names no longer collide.
-
-    These names used to be rejected because both sanitize to only underscores;
-    the entity key now hashes the raw name so they stay distinct.
-    """
+    """Test that non-ASCII names show helpful error messages."""
     # Create validator for binary_sensor platform
     validator = entity_duplicate_validator("binary_sensor")
 
-    # Both Russian sensors should pass even though they sanitize identically
+    # First Russian sensor should pass
     config1 = {CONF_NAME: "Датчик открытия основного крана"}
     validated1 = validator(config1)
     assert validated1 == config1
 
+    # Second Russian sensor with different text but same ASCII conversion should fail
     config2 = {CONF_NAME: "Датчик закрытия основного крана"}
-    validated2 = validator(config2)
-    assert validated2 == config2
-
-    # An exact duplicate still fails
-    config3 = {CONF_NAME: "Датчик открытия основного крана"}
-    with pytest.raises(
-        Invalid,
-        match=r"Duplicate binary_sensor entity with name 'Датчик открытия основного крана' found",
-    ):
-        validator(config3)
-
-
-def test_entity_duplicate_validator_hash_collision() -> None:
-    """Test that two different names with the same FNV-1 hash are rejected."""
-    # Brute-forced FNV-1 32-bit collision pair; both hash to 0x0ee5ff7b
-    name_a = "Sensor m2CZ"
-    name_b = "Sensor qCaa"
-    assert name_a != name_b
-    assert fnv1_hash_name(name_a) == fnv1_hash_name(name_b)
-
-    validator = entity_duplicate_validator("sensor")
-
-    config1 = {CONF_NAME: name_a}
-    validated1 = validator(config1)
-    assert validated1 == config1
-
-    config2 = {CONF_NAME: name_b}
     with pytest.raises(
         Invalid,
         match=re.compile(
-            rf"Duplicate sensor entity with name '{name_b}' found.*"
-            rf"The names '{name_b}' and '{name_a}' produce the.*"
-            r"same entity key hash \(0x0ee5ff7b\).*"
-            r"To fix: Rename one of the entities",
+            r"Duplicate binary_sensor entity with name 'Датчик закрытия основного крана' found.*"
+            r"Original names: 'Датчик закрытия основного крана' and 'Датчик открытия основного крана'.*"
+            r"Both convert to ASCII ID: '_______________________________'.*"
+            r"To fix: Add unique ASCII characters \(e\.g\., '1', '2', or 'A', 'B'\)",
             re.DOTALL,
         ),
     ):
         validator(config2)
-
-
-def test_object_id_conflicts_rejected_by_component_validator() -> None:
-    """Test that object_id conflicts pass entity validation but fail for mqtt/prometheus."""
-    validator = entity_duplicate_validator("sensor")
-
-    # Both names validate fine in general (distinct raw names, distinct keys)
-    validator({CONF_NAME: "Датчик открытия"})
-    validator({CONF_NAME: "Датчик закрытия"})
-
-    # A component that addresses entities by object_id must reject the config
-    component_validator = validate_no_object_id_conflicts(
-        "mqtt builds default topics from the entity object_id"
-    )
-    with pytest.raises(
-        Invalid,
-        match=re.compile(
-            r"mqtt builds default topics from the entity object_id.*"
-            r"sensor entities 'Датчик открытия', 'Датчик закрытия' "
-            r"share the object_id '_______________'.*"
-            r"To fix: Add unique ASCII characters",
-            re.DOTALL,
-        ),
-    ):
-        component_validator({})
-
-
-def test_object_id_conflicts_skipped_in_testing_mode() -> None:
-    """Test that testing_mode skips the conflict check, as used for grouped testing."""
-    validator = entity_duplicate_validator("sensor")
-    validator({CONF_NAME: "Датчик открытия"})
-    validator({CONF_NAME: "Датчик закрытия"})
-
-    component_validator = validate_no_object_id_conflicts(
-        "mqtt builds default topics from the entity object_id"
-    )
-    CORE.testing_mode = True
-    try:
-        config: dict = {}
-        assert component_validator(config) is config
-    finally:
-        CORE.testing_mode = False
-
-
-def test_object_id_conflicts_none_recorded() -> None:
-    """Test that distinct object_ids produce no conflicts."""
-    validator = entity_duplicate_validator("sensor")
-    validator({CONF_NAME: "Temperature"})
-    validator({CONF_NAME: "Humidity"})
-
-    component_validator = validate_no_object_id_conflicts(
-        "mqtt builds default topics from the entity object_id"
-    )
-    config: dict = {}
-    assert component_validator(config) is config
-
-
-def test_object_id_conflicts_device_scoped() -> None:
-    """Test that the object_id conflict check is scoped per device.
-
-    Same-named entities on different sub-devices were accepted before entity keys
-    moved to raw names, so the check keeps that scope; conflicts within one device
-    are still reported with the device named in the message.
-    """
-    validator = entity_duplicate_validator("sensor")
-    validator({CONF_NAME: "Temperature", CONF_DEVICE_ID: ID("device1", type="Device")})
-    validator({CONF_NAME: "Temperature", CONF_DEVICE_ID: ID("device2", type="Device")})
-
-    component_validator = validate_no_object_id_conflicts(
-        "prometheus builds metric labels from the entity object_id"
-    )
-    config: dict = {}
-    assert component_validator(config) is config
-
-    # Two names sanitizing identically on the same sub-device still conflict
-    validator(
-        {CONF_NAME: "Датчик открытия", CONF_DEVICE_ID: ID("device1", type="Device")}
-    )
-    validator(
-        {CONF_NAME: "Датчик закрытия", CONF_DEVICE_ID: ID("device1", type="Device")}
-    )
-    with pytest.raises(
-        Invalid,
-        match=re.compile(
-            r"prometheus builds metric labels.*on device 'device1'", re.DOTALL
-        ),
-    ):
-        component_validator({})
 
 
 def test_entity_duplicate_validator_same_name_no_enhanced_message() -> None:
@@ -763,7 +825,7 @@ async def test_setup_entity_empty_name_with_device(
 
     # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
     assert config.get("_entity_name") == ""
-    assert config.get("_entity_key") == 0
+    assert config.get("_entity_object_id_hash") == 0
 
 
 @pytest.mark.asyncio
@@ -792,7 +854,7 @@ async def test_setup_entity_empty_name_with_mac_suffix(
 
     # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
     assert config.get("_entity_name") == ""
-    assert config.get("_entity_key") == 0
+    assert config.get("_entity_object_id_hash") == 0
 
 
 @pytest.mark.asyncio
@@ -822,7 +884,7 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
 
     # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
     assert config.get("_entity_name") == ""
-    assert config.get("_entity_key") == 0
+    assert config.get("_entity_object_id_hash") == 0
 
 
 @pytest.mark.asyncio
@@ -853,7 +915,7 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
 
     # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
     assert config.get("_entity_name") == ""
-    assert config.get("_entity_key") == 0
+    assert config.get("_entity_object_id_hash") == 0
 
 
 def test_register_string_overflow() -> None:

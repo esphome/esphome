@@ -30,7 +30,23 @@ class RadioFrequency;
 class ComponentIterator {
  public:
   void begin(bool include_internal = false);
-  void advance();
+  /// Run up to max_steps iteration steps; stops early when iteration
+  /// completes or a callback refuses (that step is retried on the next
+  /// call). Inline so an idle (completed) iterator costs one compare, no call.
+  ESPHOME_ALWAYS_INLINE void try_advance(size_t max_steps) {
+    size_t steps = 0;
+    while (steps < max_steps && !this->completed()) {
+      this->yield_requested_ = false;
+      if (!this->advance_step_())
+        break;
+      steps++;
+      if (this->yield_requested_)
+        break;
+    }
+  }
+  // Remove before 2027.3.0
+  ESPDEPRECATED("Use try_advance() instead. Removed in 2027.3.0", "2026.8.1")
+  void advance() { this->try_advance(1); }
   bool completed() const { return this->state_ == IteratorState::NONE; }
   virtual bool on_begin();
 // Pure virtual entity callbacks (generated from entity_types.h)
@@ -73,22 +89,33 @@ class ComponentIterator {
 #endif
     MAX,
   };
+  /// End the current try_advance() pass after this step; lets callbacks
+  /// that write directly to the socket cap direct writes per pass.
+  void yield_after_step_() { this->yield_requested_ = true; }
+
   uint16_t at_{0};  // Supports up to 65,535 entities per type
   IteratorState state_{IteratorState::NONE};
-  bool include_internal_{false};
+  bool yield_requested_ : 1 {false};
+  bool include_internal_ : 1 {false};
 
   template<typename Container>
-  void process_platform_item_(const Container &items,
+  bool process_platform_item_(const Container &items,
                               bool (ComponentIterator::*on_item)(typename Container::value_type)) {
     if (this->at_ >= items.size()) {
       this->advance_platform_();
-    } else {
-      typename Container::value_type item = items[this->at_];
-      if ((item->is_internal() && !this->include_internal_) || (this->*on_item)(item)) {
-        this->at_++;
-      }
+      return true;
     }
+    typename Container::value_type item = items[this->at_];
+    if ((item->is_internal() && !this->include_internal_) || (this->*on_item)(item)) {
+      this->at_++;
+      return true;
+    }
+    return false;
   }
+
+  /// One iteration step; false if no progress was made (callback refused
+  /// or iterator not running).
+  bool advance_step_();
 
   void advance_platform_();
 };

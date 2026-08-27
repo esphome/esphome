@@ -2,6 +2,7 @@
 
 #ifdef USE_RP2040_BLE
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <BluetoothLock.h>
@@ -15,29 +16,18 @@ static const char *const TAG = "rp2040_ble";
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 RP2040BLE *global_ble = nullptr;
 
-// The analyzer cannot see that release() always retains the pointer here: the
-// pool's free list is sized SIZE + 1, so its push cannot hit the ring-full
-// drop branch for at most SIZE releases.
-// NOLINTBEGIN(clang-analyzer-unix.Malloc)
 void RP2040BLE::setup() {
   global_ble = this;
 
   // Pre-create every pool entry so the packet handler's allocate() is always a
-  // free-list pop — the IRQ path must never reach malloc() (heap allocation
-  // after setup is forbidden, and the newlib malloc lock is not IRQ-safe).
-  // Deliberately unconditional: warming lazily on the first scan would move
-  // the allocations after setup, and doing it here keeps the pool's RAM cost
-  // visible at startup instead of appearing once scanning begins.
-  BLEScanReport *warm[MAX_SCAN_REPORT_QUEUE_SIZE - 1];
-  size_t warmed = 0;
-  while (warmed < MAX_SCAN_REPORT_QUEUE_SIZE - 1 && (warm[warmed] = this->report_pool_.allocate()) != nullptr)
-    warmed++;
-  for (size_t i = 0; i < warmed; i++)
-    this->report_pool_.release(warm[i]);
-  if (warmed != MAX_SCAN_REPORT_QUEUE_SIZE - 1) {
-    // An incomplete warm would silently put malloc() back on the IRQ path once
-    // the free list runs dry; refuse to run instead (the stack is never
-    // enabled, so the packet handler cannot fire).
+  // free-list pop — the IRQ path must never reach malloc() (the newlib malloc
+  // lock is not IRQ-safe). Deliberately
+  // unconditional: warming lazily on the first scan would move the allocations
+  // after setup, and doing it here keeps the pool's RAM cost visible at
+  // startup instead of appearing once scanning begins. On an incomplete warm,
+  // refuse to run instead (the stack is never enabled, so the packet handler
+  // cannot fire).
+  if (!this->report_pool_.warm()) {
     ESP_LOGE(TAG, "Scan report pool warm-up failed");
     this->mark_failed();
     return;
@@ -49,7 +39,6 @@ void RP2040BLE::setup() {
     this->state_ = BLEComponentState::DISABLED;
   }
 }
-// NOLINTEND(clang-analyzer-unix.Malloc)
 
 void RP2040BLE::enable() {
   if (this->state_ == BLEComponentState::ACTIVE || this->state_ == BLEComponentState::ENABLING) {
@@ -68,6 +57,17 @@ void RP2040BLE::enable() {
     // BTstack init functions are not idempotent — only call once
     l2cap_init();
     sm_init();
+
+#ifdef USE_BLE_GATT_CLIENT
+    gatt_client_init();
+    // The GATT engine kicks the MTU exchange explicitly right after a
+    // connection completes (auto negotiation would only run on the first
+    // query, which a with-cache connection never issues).
+    gatt_client_mtu_enable_auto_negotiation(0);
+    // Just-works security for peripheral-initiated pairing.
+    sm_set_io_capabilities(IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
+    sm_set_authentication_requirements(SM_AUTHREQ_BONDING);
+#endif
 
     this->hci_event_callback_registration_.callback = &RP2040BLE::packet_handler;
     hci_add_event_handler(&this->hci_event_callback_registration_);
@@ -181,7 +181,7 @@ void RP2040BLE::packet_handler(uint8_t type, uint16_t channel, uint8_t *packet, 
       // ESPHome main loop: bounded copy into the lock-free queue only.
       bd_addr_t addr;  // accessor returns printable (MSB-first) order
       gap_event_advertising_report_get_address(packet, addr);
-      uint8_t mac_lsb[6];
+      uint8_t mac_lsb[MAC_ADDRESS_SIZE];
       reverse_bd_addr(addr, mac_lsb);  // LSB-first, the BLE convention consumers expect
       global_ble->enqueue_scan_report_(mac_lsb, static_cast<int8_t>(gap_event_advertising_report_get_rssi(packet)),
                                        gap_event_advertising_report_get_address_type(packet),
@@ -207,7 +207,7 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
     this->report_queue_.increment_dropped_count();
     return;
   }
-  memcpy(report->mac, mac_lsb_first, 6);
+  memcpy(report->mac, mac_lsb_first, MAC_ADDRESS_SIZE);
   report->rssi = rssi;
   report->addr_type = addr_type;
   report->adv_event_type = adv_event_type;
@@ -218,7 +218,9 @@ void RP2040BLE::enqueue_scan_report_(const uint8_t *mac_lsb_first, int8_t rssi, 
 }
 // NOLINTEND(clang-analyzer-unix.Malloc)
 
-void RP2040BLE::get_mac_msb_first(uint8_t out[6]) const { memcpy(out, this->ble_mac_, 6); }
+void RP2040BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
+  memcpy(out, this->ble_mac_, MAC_ADDRESS_SIZE);
+}
 
 bool RP2040BLE::scan_start(uint16_t interval, uint16_t window, bool active) {
   if (!this->is_active()) {
@@ -227,6 +229,18 @@ bool RP2040BLE::scan_start(uint16_t interval, uint16_t window, bool active) {
     // the moment a tracker retries. Callers retry until the stack is up.
     return false;
   }
+#ifdef USE_BLE_GATT_CLIENT
+  this->scan_interval_ = interval;
+  this->scan_window_ = window;
+  this->scan_active_mode_ = active;
+  this->scan_desired_ = true;
+  if (this->scan_inhibit_count_ > 0) {
+    // A connect attempt owns the radio; the scan starts physically when the
+    // inhibit is released. Report success — the controller will run it.
+    ESP_LOGV(TAG, "Scan start deferred (connect in progress)");
+    return true;
+  }
+#endif
   // Serialize with the BTstack background worker (arduino-pico's BluetoothHCI
   // takes the same lock around its gap_* calls).
   BluetoothLock lock;
@@ -236,12 +250,41 @@ bool RP2040BLE::scan_start(uint16_t interval, uint16_t window, bool active) {
 }
 
 void RP2040BLE::scan_stop() {
+#ifdef USE_BLE_GATT_CLIENT
+  this->scan_desired_ = false;
+#endif
   if (!this->is_active()) {
     return;  // nothing can be scanning on a stack that is not up
   }
   BluetoothLock lock;
   gap_stop_scan();
 }
+
+#ifdef USE_BLE_GATT_CLIENT
+void RP2040BLE::inhibit_scan() {
+  if (this->scan_inhibit_count_++ != 0) {
+    return;  // another connect attempt already owns the radio
+  }
+  if (this->scan_desired_ && this->is_active()) {
+    BluetoothLock lock;
+    gap_stop_scan();
+  }
+}
+
+void RP2040BLE::release_scan_inhibit() {
+  if (this->scan_inhibit_count_ == 0) {
+    return;
+  }
+  this->scan_inhibit_count_--;
+  if (this->scan_inhibit_count_ != 0) {
+    return;
+  }
+  if (this->scan_desired_) {
+    // One physical-start path: scan_start re-applies the remembered params.
+    this->scan_start(this->scan_interval_, this->scan_window_, this->scan_active_mode_);
+  }
+}
+#endif  // USE_BLE_GATT_CLIENT
 
 }  // namespace esphome::rp2040_ble
 

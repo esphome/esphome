@@ -10,6 +10,9 @@ from esphome.const import (
     CONF_NUM_CHIPS,
     CONF_STATE,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@rspaargaren"]
 DEPENDENCIES = ["spi"]
@@ -84,7 +87,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await spi.register_spi_device(var, config, write_only=True)
     await display.register_display(var, config)
@@ -144,7 +147,12 @@ MAX7219_ON_ACTION_SCHEMA = automation.maybe_simple_id(
     MAX7219_ON_ACTION_SCHEMA,
     synchronous=True,
 )
-async def max7219digit_invert_to_code(config, action_id, template_arg, args):
+async def max7219digit_invert_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
@@ -164,7 +172,12 @@ async def max7219digit_invert_to_code(config, action_id, template_arg, args):
     MAX7219_ON_ACTION_SCHEMA,
     synchronous=True,
 )
-async def max7219digit_visible_to_code(config, action_id, template_arg, args):
+async def max7219digit_visible_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
@@ -184,7 +197,12 @@ async def max7219digit_visible_to_code(config, action_id, template_arg, args):
     MAX7219_ON_ACTION_SCHEMA,
     synchronous=True,
 )
-async def max7219digit_reverse_to_code(config, action_id, template_arg, args):
+async def max7219digit_reverse_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
@@ -209,7 +227,12 @@ MAX7219_INTENSITY_SCHEMA = cv.maybe_simple_value(
     MAX7219_INTENSITY_SCHEMA,
     synchronous=True,
 )
-async def max7219digit_intensity_to_code(config, action_id, template_arg, args):
+async def max7219digit_intensity_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_INTENSITY], args, cg.uint8)

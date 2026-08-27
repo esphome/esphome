@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, pn532
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["pn532"]
 CODEOWNERS = ["@OttoWinter", "@jesserockz"]
@@ -20,7 +21,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await pn532.setup_pn532(var, config)
     await i2c.register_i2c_device(var, config)

@@ -4,6 +4,7 @@ from esphome.components import binary_sensor, esp32_ble, improv_base, output
 from esphome.components.esp32_ble import BTLoggers
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_START, CONF_ON_STATE, CONF_TRIGGER_ID
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["esp32_ble_server", "improv_base"]
 CODEOWNERS = ["@jesserockz"]
@@ -106,7 +107,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Register the loggers this component needs
     esp32_ble.register_bt_logger(BTLoggers.GATT, BTLoggers.SMP)
 

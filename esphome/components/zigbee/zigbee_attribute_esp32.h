@@ -66,6 +66,7 @@ class ZigbeeAttribute final : public Component {
   float scale_;
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
+  bool report_requested_{false};
   bool force_report_{false};
 };
 

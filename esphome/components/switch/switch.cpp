@@ -69,9 +69,6 @@ void Switch::publish_state(bool state) {
 }
 bool Switch::assumed_state() { return false; }
 
-void Switch::set_inverted(bool inverted) { this->inverted_ = inverted; }
-bool Switch::is_inverted() const { return this->inverted_; }
-
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj) {
   if (obj != nullptr) {
     // Prepare restore mode string

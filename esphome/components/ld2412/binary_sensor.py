@@ -13,6 +13,7 @@ from esphome.const import (
     ICON_ACCOUNT,
     ICON_MOTION_SENSOR,
 )
+from esphome.types import ConfigType
 
 from . import CONF_LD2412_ID, LD2412Component
 
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     LD2412_component = await cg.get_variable(config[CONF_LD2412_ID])
     if dynamic_background_correction_status_config := config.get(
         CONF_DYNAMIC_BACKGROUND_CORRECTION_STATUS

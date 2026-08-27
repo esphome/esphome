@@ -4,7 +4,7 @@
 namespace esphome::spi {
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
-static const char *const TAG = "spi-esp-arduino";
+static const char *const TAG = "spi";
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIInterface channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)

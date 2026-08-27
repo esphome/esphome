@@ -124,9 +124,9 @@ class SprinklerValveOperator {
   void set_stop_delay(uint32_t stop_delay, bool stop_delay_is_valve_delay);
   void start();
   void stop();
-  uint32_t run_duration();         // returns the desired run duration in seconds
-  uint32_t time_remaining();       // returns seconds remaining (does not include stop_delay_)
-  SprinklerState state();          // returns the valve's state/status
+  uint32_t run_duration();    // returns the desired run duration in seconds
+  uint32_t time_remaining();  // returns seconds remaining (does not include stop_delay_)
+  SprinklerState state() { return this->state_; }
   switch_::Switch *pump_switch();  // returns this SprinklerValveOperator's pump switch
 
  protected:
@@ -152,18 +152,18 @@ class SprinklerValveRunRequest {
  public:
   SprinklerValveRunRequest();
   SprinklerValveRunRequest(size_t valve_number, uint32_t run_duration, SprinklerValveOperator *valve_op);
-  bool has_request();
+  bool has_request() { return this->has_valve_; }
   bool has_valve_operator();
-  void set_request_from(SprinklerValveRunRequestOrigin origin);
+  void set_request_from(SprinklerValveRunRequestOrigin origin) { this->origin_ = origin; }
   void set_run_duration(uint32_t run_duration);
   void set_valve(size_t valve_number);
   void set_valve_operator(SprinklerValveOperator *valve_op);
   void reset();
   uint32_t run_duration();
-  size_t valve();
+  size_t valve() { return this->valve_number_; }
   optional<size_t> valve_as_opt();
   SprinklerValveOperator *valve_operator();
-  SprinklerValveRunRequestOrigin request_is_from();
+  SprinklerValveRunRequestOrigin request_is_from() { return this->origin_; }
 
  protected:
   bool has_valve_{false};
@@ -189,14 +189,20 @@ class Sprinkler final : public Component {
 
   /// configure important controller switches
   void set_controller_main_switch(SprinklerControllerSwitch *controller_switch);
-  void set_controller_auto_adv_switch(SprinklerControllerSwitch *auto_adv_switch);
-  void set_controller_queue_enable_switch(SprinklerControllerSwitch *queue_enable_switch);
-  void set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch);
+  void set_controller_auto_adv_switch(SprinklerControllerSwitch *auto_adv_switch) {
+    this->auto_adv_sw_ = auto_adv_switch;
+  }
+  void set_controller_queue_enable_switch(SprinklerControllerSwitch *queue_enable_switch) {
+    this->queue_enable_sw_ = queue_enable_switch;
+  }
+  void set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch) { this->reverse_sw_ = reverse_switch; }
   void set_controller_standby_switch(SprinklerControllerSwitch *standby_switch);
 
   /// configure important controller number components
-  void set_controller_multiplier_number(SprinklerControllerNumber *multiplier_number);
-  void set_controller_repeat_number(SprinklerControllerNumber *repeat_number);
+  void set_controller_multiplier_number(SprinklerControllerNumber *multiplier_number) {
+    this->multiplier_number_ = multiplier_number;
+  }
+  void set_controller_repeat_number(SprinklerControllerNumber *repeat_number) { this->repeat_number_ = repeat_number; }
 
   /// configure a valve's switch object and run duration. run_duration is time in seconds.
   void configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration);
@@ -214,7 +220,9 @@ class Sprinkler final : public Component {
   void set_multiplier(optional<float> multiplier);
 
   /// enable/disable skipping of disabled valves by the next and previous actions
-  void set_next_prev_ignore_disabled_valves(bool ignore_disabled);
+  void set_next_prev_ignore_disabled_valves(bool ignore_disabled) {
+    this->next_prev_ignore_disabled_ = ignore_disabled;
+  }
 
   /// set how long the pump should start after the valve (when the pump is starting)
   void set_pump_start_delay(uint32_t start_delay);
@@ -230,7 +238,9 @@ class Sprinkler final : public Component {
 
   /// if pump_switch_off_during_valve_open_delay is true, the controller will switch off the pump during the
   ///  valve_open_delay interval
-  void set_pump_switch_off_during_valve_open_delay(bool pump_switch_off_during_valve_open_delay);
+  void set_pump_switch_off_during_valve_open_delay(bool pump_switch_off_during_valve_open_delay) {
+    this->pump_switch_off_during_valve_open_delay_ = pump_switch_off_during_valve_open_delay;
+  }
 
   /// set how long the controller should wait to open/switch on the valve after it becomes active
   void set_valve_open_delay(uint32_t valve_open_delay);
@@ -335,17 +345,17 @@ class Sprinkler final : public Component {
   optional<size_t> active_valve();
 
   /// returns the number of the valve that is paused, if any. check with 'has_value()'
-  optional<size_t> paused_valve();
+  optional<size_t> paused_valve() { return this->paused_valve_; }
 
   /// returns the number of the next valve in the queue, if any. check with 'has_value()'
   optional<size_t> queued_valve();
 
   /// returns the number of the valve that is manually selected, if any. check with 'has_value()'
   ///  this is set by next_valve() and previous_valve() when manual_selection_delay_ > 0
-  optional<size_t> manual_valve();
+  optional<size_t> manual_valve() { return this->manual_valve_; }
 
   /// returns the number of valves the controller is configured with
-  size_t number_of_valves();
+  size_t number_of_valves() { return this->valve_.size(); }
 
   /// returns true if valve number is valid
   bool is_a_valid_valve(size_t valve_number);

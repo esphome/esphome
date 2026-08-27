@@ -65,7 +65,7 @@ void PZEMDC::dump_config() {
 
 void PZEMDC::reset_energy() {
   const uint8_t pdu[] = {PZEM_CMD_RESET_ENERGY};
-  this->send_pdu(pdu);
+  this->queue_pdu(pdu);
 }
 
 }  // namespace esphome::pzemdc

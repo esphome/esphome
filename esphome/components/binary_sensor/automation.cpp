@@ -1,7 +1,12 @@
+#include "esphome/core/defines.h"
+#if defined(USE_BINARY_SENSOR_CLICK_TRIGGER) || defined(USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER)
+
 #include "automation.h"
 #include "esphome/core/log.h"
 
 namespace esphome::binary_sensor {
+
+#ifdef USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
 
 static const char *const TAG = "binary_sensor.automation";
 
@@ -120,6 +125,9 @@ void MultiClickTriggerBase::trigger_() {
   this->trigger();
 }
 
+#endif  // USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
+
+#ifdef USE_BINARY_SENSOR_CLICK_TRIGGER
 bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length) {
   if (max_length == 0) {
     return length >= min_length;
@@ -127,4 +135,8 @@ bool match_interval(uint32_t min_length, uint32_t max_length, uint32_t length) {
     return length >= min_length && length <= max_length;
   }
 }
+#endif  // USE_BINARY_SENSOR_CLICK_TRIGGER
+
 }  // namespace esphome::binary_sensor
+
+#endif  // USE_BINARY_SENSOR_CLICK_TRIGGER || USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER

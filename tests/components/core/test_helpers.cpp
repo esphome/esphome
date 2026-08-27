@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <cstring>
 
+#include "esphome/core/alloc_helpers.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::core::testing {
@@ -211,6 +212,72 @@ TEST(BufAppendSepStr, Truncation) {
   *end = '\0';
   EXPECT_STREQ(buf, "val lon");
   EXPECT_EQ(end - buf, 7);
+}
+
+// --- base64 encode/decode ---
+
+static const char BASE64_ALPHABET[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+// Pack 6-bit indices 0..63 into 48 bytes so encoding yields the full alphabet in order
+TEST(Base64, EncodeProducesCanonicalAlphabet) {
+  uint8_t bytes[48];
+  size_t n = 0;
+  for (uint8_t i = 0; i < 64; i += 4) {
+    bytes[n++] = (i << 2) | ((i + 1) >> 4);
+    bytes[n++] = ((i + 1) & 0x0F) << 4 | ((i + 2) >> 2);
+    bytes[n++] = ((i + 2) & 0x03) << 6 | (i + 3);
+  }
+  std::string encoded = base64_encode(bytes, sizeof(bytes));  // NOLINT(esphome-heap-allocation) - host test
+  EXPECT_EQ(encoded, BASE64_ALPHABET);
+}
+
+// Decode the alphabet then re-encode: locks the encode and decode mappings together
+TEST(Base64, DecodeCanonicalAlphabetRoundTrip) {
+  uint8_t buf[48];
+  size_t len = base64_decode(std::string(BASE64_ALPHABET), buf, sizeof(buf));
+  EXPECT_EQ(len, 48u);
+  std::string reencoded = base64_encode(buf, len);  // NOLINT(esphome-heap-allocation) - host test
+  EXPECT_EQ(reencoded, BASE64_ALPHABET);
+}
+
+TEST(Base64, DecodeBase64UrlMatchesStandard) {
+  std::string url = BASE64_ALPHABET;
+  for (char &c : url) {
+    if (c == '+')
+      c = '-';
+    if (c == '/')
+      c = '_';
+  }
+  uint8_t standard[48], urlsafe[48];
+  size_t len_standard = base64_decode(std::string(BASE64_ALPHABET), standard, sizeof(standard));
+  size_t len_url = base64_decode(url, urlsafe, sizeof(urlsafe));
+  EXPECT_EQ(len_standard, len_url);
+  EXPECT_EQ(memcmp(standard, urlsafe, len_standard), 0);
+}
+
+// RFC 4648 vectors cover both padding cases (len % 3 == 1 and len % 3 == 2)
+TEST(Base64, Rfc4648Vectors) {
+  const struct {
+    const char *plain;
+    const char *encoded;
+  } vectors[] = {
+      {"", ""},
+      {"f", "Zg=="},
+      {"fo", "Zm8="},
+      {"foo", "Zm9v"},
+      {"foob", "Zm9vYg=="},
+      {"fooba", "Zm9vYmE="},
+      {"foobar", "Zm9vYmFy"},
+  };
+  for (const auto &v : vectors) {
+    const auto *plain = reinterpret_cast<const uint8_t *>(v.plain);
+    std::string encoded = base64_encode(plain, strlen(v.plain));  // NOLINT(esphome-heap-allocation) - host test
+    EXPECT_EQ(encoded, v.encoded);
+    uint8_t buf[8];
+    size_t len = base64_decode(reinterpret_cast<const uint8_t *>(v.encoded), strlen(v.encoded), buf, sizeof(buf));
+    EXPECT_EQ(len, strlen(v.plain));
+    EXPECT_EQ(memcmp(buf, v.plain, len), 0);
+  }
 }
 
 }  // namespace esphome::core::testing

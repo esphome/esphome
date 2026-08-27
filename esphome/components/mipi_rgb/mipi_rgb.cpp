@@ -345,7 +345,7 @@ int MipiRgb::get_height() {
   }
 }
 
-static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
+[[maybe_unused]] static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
   if (pin == nullptr)
     return "None";
   pin->dump_summary(buffer.data(), buffer.size());

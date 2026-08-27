@@ -236,7 +236,7 @@ static void ble_scan_callback(void *param) {
   // downstream the value is used exactly like on ESP32.
   const int8_t raw = info->rssi;
 
-  memcpy(slot->mac, info->trans_addr, 6);
+  memcpy(slot->mac, info->trans_addr, MAC_ADDRESS_SIZE);
   slot->rssi = (raw > 20) ? static_cast<int8_t>(-raw) : raw;
   slot->addr_type = info->trans_addr_type;
   slot->is_scan_response = report_type == GAPM_REPORT_TYPE_SCAN_RSP_LEG;
@@ -407,7 +407,7 @@ void LN882HBLE::resolve_mac_() {
     ESP_LOGW(TAG, "BLE address KV unavailable; deriving address from WiFi MAC");
   }
   if (!have_unique_addr) {
-    uint8_t wifi_mac[6] = {0};
+    uint8_t wifi_mac[MAC_ADDRESS_SIZE] = {0};
     get_mac_address_raw(wifi_mac);  // MSB-first
     // Reverse into controller (LSB-first) order, then BLE = WiFi + 1: increment
     // the NIC low byte (addr[0] once reversed), no carry, OUI unchanged — the
@@ -421,7 +421,7 @@ void LN882HBLE::resolve_mac_() {
       ESP_LOGD(TAG, "MAC derived (WiFi+1) and stored");
     }
   }
-  memcpy(this->ble_mac_, bt_addr.addr, 6);
+  memcpy(this->ble_mac_, bt_addr.addr, MAC_ADDRESS_SIZE);
 }
 
 // ---------------------------------------------------------------------------

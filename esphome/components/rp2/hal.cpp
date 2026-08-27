@@ -7,6 +7,7 @@
 #include "crash_handler.h"
 #endif
 
+#include "hardware/clocks.h"
 #include "hardware/watchdog.h"
 
 // Empty rp2 namespace block to satisfy ci-custom's lint_namespace check.
@@ -33,7 +34,8 @@ void arch_init() {
 #endif
 }
 
-uint32_t arch_get_cpu_freq_hz() { return RP2040::f_cpu(); }
+// clock_get_hz(clk_sys) is the SDK query for the current system clock frequency in Hz.
+uint32_t arch_get_cpu_freq_hz() { return clock_get_hz(clk_sys); }
 
 }  // namespace esphome
 

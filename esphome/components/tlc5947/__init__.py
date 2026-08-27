@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_NUM_CHIPS,
     CONF_OE_PIN,
 )
+from esphome.types import ConfigType
 
 CONF_LAT_PIN = "lat_pin"
 
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

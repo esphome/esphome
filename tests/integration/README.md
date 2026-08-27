@@ -7,6 +7,7 @@ This directory contains end-to-end integration tests for ESPHome, focusing on te
 - `conftest.py` - Common fixtures and utilities
 - `const.py` - Constants used throughout the integration tests
 - `types.py` - Type definitions for fixtures and functions
+- `raw_api_client.py` - Minimal plaintext api client whose reads happen only on request (for backpressure tests)
 - `state_utils.py` - State handling utilities (e.g., `InitialStateHelper`, `find_entity`, `require_entity`)
 - `fixtures/` - YAML configuration files for tests
 - `test_*.py` - Individual test files
@@ -347,6 +348,7 @@ Create C++ components in `fixtures/external_components/` for:
 - Custom entity behaviors
 - Scheduler testing
 - Memory management tests
+- Deterministic network backpressure (`sndbuf_pin_component` pins socket send buffers; assert on its log line to prove the pin took effect)
 
 ##### Log Line Monitoring
 ```python

@@ -4,23 +4,22 @@
 #include "esphome/components/modbus_controller/modbus_controller.h"
 #include "esphome/core/component.h"
 
-#include <vector>
+#include <span>
 
 namespace esphome::modbus_controller {
 
 class ModbusBinarySensor final : public Component, public binary_sensor::BinarySensor, public SensorItem {
  public:
   ModbusBinarySensor(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
-                     uint16_t skip_updates, bool force_new_range) {
+                     bool force_new_range) {
     this->register_type = register_type;
     this->set_address(start_address);
     this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
-    this->skip_updates = skip_updates;
     this->force_new_range = force_new_range;
 
-    if (register_type == modbus::EntityType::COIL || register_type == modbus::EntityType::DISCRETE_INPUT) {
+    if (modbus::helpers::is_entity_type_binary(register_type)) {
       this->register_count = offset + 1;
     } else {
       this->register_count = 1;

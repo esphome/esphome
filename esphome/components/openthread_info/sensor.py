@@ -9,6 +9,7 @@ from esphome.const import (
     UNIT_DECIBEL_MILLIWATT,
     UNIT_EMPTY,
 )
+from esphome.types import ConfigType
 
 CONF_PARENT_AVERAGE_RSSI = "parent_average_rssi"
 CONF_PARENT_LAST_RSSI = "parent_last_rssi"
@@ -166,13 +167,13 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config: dict, key: str):
+async def setup_conf(config: dict, key: str) -> None:
     if conf := config.get(key):
         var = await sensor.new_sensor(conf)
         await cg.register_component(var, conf)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     await setup_conf(config, CONF_PARENT_AVERAGE_RSSI)
     await setup_conf(config, CONF_PARENT_LAST_RSSI)
     await setup_conf(config, CONF_PARENT_LINK_QUALITY_IN)

@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -16,6 +18,7 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER, PLATFORM_ESP8266
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -225,12 +228,13 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
 }
 
 
-def validate_adc_pin(value):
+def validate_adc_pin(value: Any) -> ConfigType | str:
     if str(value).upper() == "VCC":
         if CORE.is_rp2:
             return pins.internal_gpio_input_pin_schema(29)
         return cv.only_on([PLATFORM_ESP8266])("VCC")
 
+    # Deprecated in favour of the `internal_temperature` platform, remove before 2027.2.0
     if str(value).upper() == "TEMPERATURE":
         return cv.only_on_rp2("TEMPERATURE")
 

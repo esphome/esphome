@@ -115,10 +115,10 @@ class Fan : public EntityBase {
   /// The current direction of the fan
   FanDirection direction{FanDirection::FORWARD};
 
-  FanCall turn_on();
-  FanCall turn_off();
-  FanCall toggle();
-  FanCall make_call();
+  FanCall turn_on() { return this->make_call().set_state(true); }
+  FanCall turn_off() { return this->make_call().set_state(false); }
+  FanCall toggle() { return this->make_call().set_state(!this->state); }
+  FanCall make_call() { return FanCall(*this); }
 
   /// Register a callback that will be called each time the state changes.
   template<typename F> void add_on_state_callback(F &&callback) {

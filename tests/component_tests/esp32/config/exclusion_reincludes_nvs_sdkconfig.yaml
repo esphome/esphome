@@ -1,0 +1,11 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_NVS_ENCRYPTION: y
+      CONFIG_NVS_SEC_KEY_PROTECT_USING_HMAC: y
+      CONFIG_NVS_SEC_HMAC_EFUSE_KEY_ID: "0"

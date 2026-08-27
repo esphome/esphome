@@ -32,6 +32,9 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 # Import ICONS not included in esphome's const.py, from the local components const.py
 from .const import ICON_ENERGY, ICON_FREQUENCY, ICON_VOLTAGE
@@ -145,13 +148,18 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     ),
     synchronous=True,
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
+async def reset_energy_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)

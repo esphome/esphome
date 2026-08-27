@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.spi import CONF_SPI_MODE
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 from ..spa06_base import CONFIG_SCHEMA_BASE, to_code_base
 
@@ -21,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 VALID_SPI_MODES = {3: "MODE3", "3": "MODE3", "MODE3": "MODE3"}
 
 
-def check_spi_mode(config):
+def check_spi_mode(config: ConfigType) -> ConfigType:
     spi_mode = config.get(CONF_SPI_MODE)
     if spi_mode not in VALID_SPI_MODES:
         raise cv.Invalid("SPA06 only supports SPI mode 3")
@@ -36,6 +37,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await to_code_base(config)
     await spi.register_spi_device(var, config)

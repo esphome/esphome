@@ -64,9 +64,15 @@ modbus_server:
       - address: 0x01
         value_type: U_WORD
         read_lambda: return 99;
+      - address: 0x02
+        value_type: U_WORD_S
+        read_lambda: return 4660;
       - address: 0x03
         value_type: S_WORD
         read_lambda: return -99;
+      - address: 0x04
+        value_type: S_WORD_S
+        read_lambda: return -2;
       - address: 0x05
         value_type: U_DWORD
         read_lambda: return 16909060;
@@ -107,10 +113,28 @@ sensor:
     value_type: U_WORD
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
+    name: "reg_u_word_s"
+    address: 0x02
+    register_type: holding
+    value_type: U_WORD_S
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_u_word_s_raw"
+    address: 0x02
+    register_type: holding
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_s_word"
     address: 0x03
     register_type: holding
     value_type: S_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_s_word_s"
+    address: 0x04
+    register_type: holding
+    value_type: S_WORD_S
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "reg_u_dword"

@@ -140,11 +140,6 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-  uint8_t mac[6];
-  if (has_custom_mac_address()) {
-    get_mac_address_raw(mac);
-    set_mac_address(mac);
-  }
   // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
@@ -580,7 +575,14 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
     // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
     // https://github.com/esphome/issues/issues/2299
-    sntp_servermode_dhcp(false);
+    {
+#if SNTP_GET_SERVERS_FROM_DHCP || SNTP_GET_SERVERS_FROM_DHCPV6
+      // sntp_servermode_dhcp() is an empty macro unless lwIP is built with
+      // DHCP-supplied NTP servers, so only that build needs the core lock.
+      LwIPLock lock;
+#endif
+      sntp_servermode_dhcp(false);
+    }
 
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
@@ -619,6 +621,8 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
 
   return true;
 }
+
+esp_netif_t *WiFiComponent::get_esp_netif_sta() { return s_sta_netif; }
 
 network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
@@ -825,6 +829,19 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (const char *) it.ssid, bssid_buf, it.channel, get_auth_mode_str(it.authmode));
 #endif
     s_sta_connected = true;
+    if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
+      // Driver-initiated roam: the WIFI_REASON_ROAMING disconnect was ignored,
+      // so the state machine never left STA_CONNECTED.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
+      char roam_bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+      format_mac_addr_upper(it.bssid, roam_bssid_s);
+      ESP_LOGI(TAG, "Roamed ssid='%.*s' bssid=" LOG_SECRET("%s") " channel=%u", it.ssid_len, (const char *) it.ssid,
+               roam_bssid_s, it.channel);
+#endif
+      bssid_t roam_bssid;
+      std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
+      this->handle_driver_roam_(roam_bssid, it.channel);
+    }
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Defer listener notification until state machine reaches STA_CONNECTED
     // This ensures wifi.connected condition returns true in listener automations
@@ -847,7 +864,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     } else {
-      char bssid_s[18];
+      char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       format_mac_addr_upper(it.bssid, bssid_s);
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                (const char *) it.ssid, bssid_s, get_disconnect_reason_str(it.reason));
@@ -1042,7 +1059,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   // When scanning while connected (roaming), return to home channel between
   // each scanned channel to maintain the connection (helps with BLE/WiFi coexistence)
 #ifdef CONFIG_SOC_WIFI_SUPPORTED
-  if (this->roaming_state_ == RoamingState::SCANNING) {
+  if (this->is_roaming_scan_active()) {
     config.coex_background_scan = true;
   }
 #endif
@@ -1214,18 +1231,6 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   std::copy(info.bssid, info.bssid + 6, bssid.begin());
   return bssid;
-}
-std::string WiFiComponent::wifi_ssid() {
-  wifi_ap_record_t info{};
-  esp_err_t err = esp_wifi_sta_get_ap_info(&info);
-  if (err != ESP_OK) {
-    // Very verbose only: this is expected during dump_config() before connection is established (PR #9823)
-    ESP_LOGVV(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
-    return "";
-  }
-  auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
-  size_t len = strnlen(ssid_s, sizeof(info.ssid));
-  return {ssid_s, len};
 }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   wifi_ap_record_t info{};

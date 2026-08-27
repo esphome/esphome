@@ -211,8 +211,6 @@ uint32_t SprinklerValveOperator::time_remaining() {
   return 0;  // run completed
 }
 
-SprinklerState SprinklerValveOperator::state() { return this->state_; }
-
 switch_::Switch *SprinklerValveOperator::pump_switch() {
   if ((this->controller_ == nullptr) || (this->valve_ == nullptr)) {
     return nullptr;
@@ -288,10 +286,7 @@ SprinklerValveRunRequest::SprinklerValveRunRequest(size_t valve_number, uint32_t
                                                    SprinklerValveOperator *valve_op)
     : valve_number_(valve_number), run_duration_(run_duration), valve_op_(valve_op) {}
 
-bool SprinklerValveRunRequest::has_request() { return this->has_valve_; }
 bool SprinklerValveRunRequest::has_valve_operator() { return !(this->valve_op_ == nullptr); }
-
-void SprinklerValveRunRequest::set_request_from(SprinklerValveRunRequestOrigin origin) { this->origin_ = origin; }
 
 void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
 
@@ -317,8 +312,6 @@ void SprinklerValveRunRequest::reset() {
 
 uint32_t SprinklerValveRunRequest::run_duration() { return this->run_duration_; }
 
-size_t SprinklerValveRunRequest::valve() { return this->valve_number_; }
-
 optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
   if (this->has_valve_) {
     return this->valve_number_;
@@ -327,8 +320,6 @@ optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
 }
 
 SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this->valve_op_; }
-
-SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
 Sprinkler::Sprinkler() : Sprinkler("") {}
 Sprinkler::Sprinkler(const char *name) : name_(name) {
@@ -414,32 +405,12 @@ void Sprinkler::set_controller_main_switch(SprinklerControllerSwitch *controller
   this->sprinkler_turn_on_automation_->add_actions({sprinkler_resumeorstart_action_.get()});
 }
 
-void Sprinkler::set_controller_auto_adv_switch(SprinklerControllerSwitch *auto_adv_switch) {
-  this->auto_adv_sw_ = auto_adv_switch;
-}
-
-void Sprinkler::set_controller_queue_enable_switch(SprinklerControllerSwitch *queue_enable_switch) {
-  this->queue_enable_sw_ = queue_enable_switch;
-}
-
-void Sprinkler::set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch) {
-  this->reverse_sw_ = reverse_switch;
-}
-
 void Sprinkler::set_controller_standby_switch(SprinklerControllerSwitch *standby_switch) {
   this->standby_sw_ = standby_switch;
 
   this->sprinkler_standby_turn_on_automation_ = make_unique<Automation<>>(standby_switch->get_turn_on_trigger());
   this->sprinkler_standby_shutdown_action_ = make_unique<sprinkler::ShutdownAction<>>(this);
   this->sprinkler_standby_turn_on_automation_->add_actions({sprinkler_standby_shutdown_action_.get()});
-}
-
-void Sprinkler::set_controller_multiplier_number(SprinklerControllerNumber *multiplier_number) {
-  this->multiplier_number_ = multiplier_number;
-}
-
-void Sprinkler::set_controller_repeat_number(SprinklerControllerNumber *repeat_number) {
-  this->repeat_number_ = repeat_number;
 }
 
 void Sprinkler::configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration) {
@@ -498,10 +469,6 @@ void Sprinkler::set_multiplier(const optional<float> multiplier) {
   call.perform();
 }
 
-void Sprinkler::set_next_prev_ignore_disabled_valves(bool ignore_disabled) {
-  this->next_prev_ignore_disabled_ = ignore_disabled;
-}
-
 void Sprinkler::set_pump_start_delay(uint32_t start_delay) {
   this->start_delay_is_valve_delay_ = false;
   this->start_delay_ = start_delay;
@@ -520,10 +487,6 @@ void Sprinkler::set_valve_start_delay(uint32_t start_delay) {
 void Sprinkler::set_valve_stop_delay(uint32_t stop_delay) {
   this->stop_delay_is_valve_delay_ = true;
   this->stop_delay_ = stop_delay;
-}
-
-void Sprinkler::set_pump_switch_off_during_valve_open_delay(bool pump_switch_off_during_valve_open_delay) {
-  this->pump_switch_off_during_valve_open_delay_ = pump_switch_off_during_valve_open_delay;
 }
 
 void Sprinkler::set_valve_open_delay(const uint32_t valve_open_delay) {
@@ -945,18 +908,12 @@ optional<size_t> Sprinkler::active_valve() {
   return this->active_req_.valve_as_opt();
 }
 
-optional<size_t> Sprinkler::paused_valve() { return this->paused_valve_; }
-
 optional<size_t> Sprinkler::queued_valve() {
   if (!this->queued_valves_.empty()) {
     return this->queued_valves_.back().valve_number;
   }
   return nullopt;
 }
-
-optional<size_t> Sprinkler::manual_valve() { return this->manual_valve_; }
-
-size_t Sprinkler::number_of_valves() { return this->valve_.size(); }
 
 bool Sprinkler::is_a_valid_valve(const size_t valve_number) { return (valve_number < this->number_of_valves()); }
 

@@ -5,7 +5,10 @@
 #include "api_buffer.h"
 // Must precede clients_ so APIConnection is complete for default_delete (libc++).
 #include "api_connection.h"
-#include "api_noise_context.h"
+#ifdef USE_API_NOISE
+// Only present in the build when the noise component is loaded
+#include "esphome/components/noise/noise.h"
+#endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "esphome/components/socket/socket.h"
@@ -37,7 +40,7 @@ class UserServiceDescriptor;
 
 #ifdef USE_API_NOISE
 struct SavedNoisePsk {
-  psk_t psk;
+  noise::psk_t psk;
 } PACKED;  // NOLINT
 #endif
 
@@ -51,8 +54,8 @@ class APIServer final : public Component,
  public:
   APIServer();
   void setup() override;
-  uint16_t get_port() const;
-  float get_setup_priority() const override;
+  uint16_t get_port() const { return this->port_; }
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
@@ -63,9 +66,9 @@ class APIServer final : public Component,
 #ifdef USE_CAMERA
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
 #endif
-  void set_port(uint16_t port);
-  void set_reboot_timeout(uint32_t reboot_timeout);
-  void set_batch_delay(uint16_t batch_delay);
+  void set_port(uint16_t port) { this->port_ = port; }
+  void set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
+  void set_batch_delay(uint16_t batch_delay) { this->batch_delay_ = batch_delay; }
   uint16_t get_batch_delay() const { return batch_delay_; }
   void set_listen_backlog(uint8_t listen_backlog) { this->listen_backlog_ = listen_backlog; }
 
@@ -73,10 +76,10 @@ class APIServer final : public Component,
   APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
-  bool save_noise_psk(psk_t psk, bool make_active = true);
+  bool save_noise_psk(noise::psk_t psk, bool make_active = true);
   bool clear_noise_psk(bool make_active = true);
-  void set_noise_psk(psk_t psk) { this->noise_ctx_.set_psk(psk); }
-  APINoiseContext &get_noise_ctx() { return this->noise_ctx_; }
+  void set_noise_psk(noise::psk_t psk) { this->noise_ctx_.set_psk(psk); }
+  noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
@@ -354,7 +357,7 @@ class APIServer final : public Component,
 #endif
 
 #ifdef USE_API_NOISE
-  APINoiseContext noise_ctx_;
+  noise::NoiseContext noise_ctx_;
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
 };

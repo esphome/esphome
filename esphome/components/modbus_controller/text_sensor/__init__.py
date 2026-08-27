@@ -10,6 +10,7 @@ from .. import (
     add_modbus_base_properties,
     modbus_calc_properties,
     modbus_controller_ns,
+    validate_custom_pdu_item,
     validate_modbus_register,
 )
 from ..const import (
@@ -19,7 +20,6 @@ from ..const import (
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
-    CONF_SKIP_UPDATES,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -55,6 +55,8 @@ CONFIG_SCHEMA = cv.All(
     validate_modbus_register,
 )
 
+FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
+
 
 async def to_code(config):
     byte_offset, reg_count = modbus_calc_properties(config)
@@ -70,7 +72,6 @@ async def to_code(config):
         reg_count,
         config[CONF_RESPONSE_SIZE],
         config[CONF_RAW_ENCODE],
-        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
 

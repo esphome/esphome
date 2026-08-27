@@ -18,6 +18,7 @@ from .const_esp32 import (
     DEVICE_TYPE,
     KEY_ZIGBEE_EP,
     KEY_ZIGBEE_EP_NO_NUM,
+    KEY_ZIGBEE_FIRST_EP_CL,
     ROLE,
 )
 
@@ -83,7 +84,7 @@ ep_configs: dict[str, dict[str, Any]] = {
 }
 
 
-def get_next_ep_num(eps: list[int]) -> int:
+def _get_next_ep_num(eps: list[int]) -> int:
     try:
         ep_num = [i for i in range(1, CONF_MAX_EP_NUMBER + 1) if i not in eps][0]
         eps.append(ep_num)
@@ -94,23 +95,23 @@ def get_next_ep_num(eps: list[int]) -> int:
     return ep_num
 
 
-def compare_clusters(
-    existing_ep: dict[str, Any],
-    ep: dict[str, Any],
+def _compare_clusters(
+    existing_cl_list: list[dict[str, Any]],
+    cl_list: list[dict[str, Any]],
 ) -> tuple[str | int, str] | None:
-    existing_clusters = [(cl[CONF_ID], cl[ROLE]) for cl in existing_ep[CONF_CLUSTERS]]
-    for cl in [(cl[CONF_ID], cl[ROLE]) for cl in ep[CONF_CLUSTERS]]:
+    existing_clusters = [(cl[CONF_ID], cl[ROLE]) for cl in existing_cl_list]
+    for cl in [(cl[CONF_ID], cl[ROLE]) for cl in cl_list]:
         if cl in existing_clusters:
             return cl
     return None
 
 
-def merge_endpoints(
+def _merge_endpoints(
     existing_ep: dict[str, Any],
     ep: dict[str, Any],
     use_type: bool | None,
 ) -> bool:
-    if compare_clusters(existing_ep, ep):
+    if _compare_clusters(existing_ep.get(CONF_CLUSTERS, []), ep.get(CONF_CLUSTERS, [])):
         return False
     if (
         ep.get(DEVICE_TYPE)
@@ -134,7 +135,12 @@ def merge_endpoints(
     return True
 
 
-def validate_endpoints(ep_dict: dict[int, dict]) -> None:
+def _validate_endpoints(ep_dict: dict[int, dict]) -> None:
+    """Validate endpoint device type selection before endpoint creation.
+
+    This resolves any deferred device type selections stored in CONF_USE_DEVICE_TYPE,
+    ensuring each endpoint has at most one active device type.
+    """
     for num, ep in ep_dict.items():
         types_dict = ep.get(CONF_USE_DEVICE_TYPE)
         if not types_dict:
@@ -157,10 +163,18 @@ def validate_endpoints(ep_dict: dict[int, dict]) -> None:
 
 
 def create_ep(router: bool) -> None:
+    """Finalize Zigbee endpoint creation and normalize endpoint storage.
+
+    Validate endpoints, merge endpoints, and assign numbers to endpoints without an explicit number.
+    This is called from final_validate.
+
+    Args:
+        router: Whether the device is acting as a Zigbee router.
+    """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     ep_dict: dict[int, dict] = zb_data.setdefault(KEY_ZIGBEE_EP, {})
     ep_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_EP_NO_NUM, [])
-    validate_endpoints(ep_dict)
+    _validate_endpoints(ep_dict)
     # create dummy endpoint if list is empty
     if not ep_dict and not ep_list:
         ep_type = "CUSTOM_ATTR"
@@ -173,7 +187,7 @@ def create_ep(router: bool) -> None:
         for ep in ep_list:
             added = False
             for existing_ep in ep_list_new:
-                if merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
+                if _merge_endpoints(existing_ep, ep, ep.get(CONF_USE_DEVICE_TYPE)):
                     added = True
                     break
             if not added:
@@ -182,11 +196,22 @@ def create_ep(router: bool) -> None:
         # Add endpoints with no number to the endpoint dict with a new number
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
-            ep_num = get_next_ep_num(eps)
+            ep_num = _get_next_ep_num(eps)
             ep_dict[ep_num] = ep
 
         # clear list so that it is not processed again
         del zb_data[KEY_ZIGBEE_EP_NO_NUM]
+    # Add clusters to first ep
+    cl_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_FIRST_EP_CL, [])
+    if cl_list:
+        first_ep = ep_dict[get_first_ep_num()]
+        first_ep.setdefault(CONF_CLUSTERS, [])
+        if cl := _compare_clusters(first_ep[CONF_CLUSTERS], cl_list):
+            raise cv.Invalid(
+                f"Endpoint {get_first_ep_num()} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
+            )
+        first_ep[CONF_CLUSTERS] += cl_list
+        del zb_data[KEY_ZIGBEE_FIRST_EP_CL]
 
     # Add default device type to endpoints that have none
     for ep in ep_dict.values():
@@ -194,7 +219,24 @@ def create_ep(router: bool) -> None:
             ep[DEVICE_TYPE] = "CUSTOM_ATTR"
 
 
+def get_first_ep_num() -> int | None:
+    """Return the number of the first endpoint."""
+    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+    ep_dict: dict[int, dict] = zb_data.setdefault(KEY_ZIGBEE_EP, {})
+    if ep_dict:
+        return min(ep_dict.keys())
+    return None
+
+
 def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> None:
+    """Add a Zigbee endpoint configuration to CORE.data.
+
+    Args:
+        ep: Endpoint configuration dictionary.
+        ep_num: Optional explicit endpoint number.
+        use_type: Optional boolean indicating whether this component's device type should be
+        used for the endpoint (True claims it, False drops it, None leaves it as a candidate).
+    """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     if use_type is False:
         ep.pop(DEVICE_TYPE, None)
@@ -208,9 +250,9 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
         if ep_num in ep_dict:
             # check if the existing endpoint has same clusters
             existing_ep = ep_dict[ep_num]
-            if cl := compare_clusters(
-                existing_ep,
-                ep,
+            if cl := _compare_clusters(
+                existing_ep.get(CONF_CLUSTERS, []),
+                ep.get(CONF_CLUSTERS, []),
             ):
                 raise cv.Invalid(
                     f"Endpoint {ep_num} has more than one cluster with cluster id {cl[0]} and role {cl[1]}."
@@ -224,3 +266,21 @@ def add_ep(ep: dict[str, Any], ep_num: int | None, use_type: bool | None) -> Non
             if use_type or ep.get(DEVICE_TYPE):
                 ep[CONF_USE_DEVICE_TYPE] = {ep.get(DEVICE_TYPE): use_type}
             ep_dict[ep_num] = ep
+
+
+def add_clusters_to_first_ep(cl: list[dict[str, Any]]) -> None:
+    """Add a list of Zigbee clusters to CORE.data.
+
+    Args:
+        cl: list of cluster dictonaries.
+    """
+    zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
+    cl_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_FIRST_EP_CL, [])
+    if cluster := _compare_clusters(
+        cl_list,
+        cl,
+    ):
+        raise cv.Invalid(
+            f"Only one cluster with cluster id {cluster[0]} and role {cluster[1]} can be added to first endpoint."
+        )
+    cl_list += cl

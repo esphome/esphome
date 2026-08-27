@@ -34,11 +34,7 @@ void SendspinMediaPlayer::setup() {
           new_state = media_player::MEDIA_PLAYER_STATE_IDLE;
           break;
       }
-      if (this->state != new_state) {
-        this->state = new_state;
-        this->publish_state();
-        ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
-      }
+      this->set_playback_state_(new_state);
     }
   });
 
@@ -52,9 +48,25 @@ void SendspinMediaPlayer::setup() {
     }
   });
 
+  // The connection dropped, so nothing is playing. The server never gets to send a final "stopped" group update, so
+  // without this the entity keeps reporting playing indefinitely. Volume and mute keep their last values, since
+  // media_player has no way to express an unknown volume.
+  this->parent_->add_controller_state_clear_callback(
+      [this]() { this->set_playback_state_(media_player::MEDIA_PLAYER_STATE_IDLE); });
+
   // Publish an initial state
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
   this->publish_state();
+}
+
+// THREAD CONTEXT: Main loop (called from the callbacks registered in setup())
+void SendspinMediaPlayer::set_playback_state_(media_player::MediaPlayerState new_state) {
+  if (this->state == new_state) {
+    return;
+  }
+  this->state = new_state;
+  this->publish_state();
+  ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
 }
 
 // THREAD CONTEXT: Main loop (invoked by the media_player framework)

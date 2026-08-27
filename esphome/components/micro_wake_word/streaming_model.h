@@ -3,9 +3,11 @@
 #ifdef USE_ESP32
 
 #include "preprocessor_settings.h"
+#include "model_data.h"
 
 #include "esphome/core/preferences.h"
 
+#include <memory>
 #include <tensorflow/lite/core/c/common.h>
 #include <tensorflow/lite/micro/micro_interpreter.h>
 #include <tensorflow/lite/micro/micro_mutable_op_resolver.h>
@@ -27,6 +29,10 @@ struct DetectionEvent {
 
 class StreamingModel {
  public:
+  // Runtime models are heap owned and destroyed while the device is running, so freeing the arenas cannot
+  // depend on the owner calling unload_model() first. unload_model() is not virtual and is safe to repeat.
+  virtual ~StreamingModel() { this->unload_model(); }
+
   virtual void log_model_config() = 0;
   virtual DetectionEvent determine_detected() = 0;
 
@@ -50,6 +56,9 @@ class StreamingModel {
 
   /// @brief Return true if the model is enabled.
   bool is_enabled() const { return this->enabled_; }
+
+  /// @brief Return true if the model has usable data. A model without it can never be loaded or run.
+  bool has_model_data() const { return this->model_start_ != nullptr; }
 
   bool get_unprocessed_probability_status() const { return this->unprocessed_probability_status_; }
 
@@ -86,7 +95,7 @@ class StreamingModel {
   size_t tensor_arena_size_;
   std::vector<uint8_t> recent_streaming_probabilities_;
 
-  const uint8_t *model_start_;
+  const uint8_t *model_start_{nullptr};
   uint8_t *tensor_arena_{nullptr};
   uint8_t *var_arena_{nullptr};
   std::unique_ptr<tflite::MicroInterpreter> interpreter_;
@@ -96,7 +105,7 @@ class StreamingModel {
 
 class WakeWordModel final : public StreamingModel {
  public:
-  /// @brief Constructs a wake word model object
+  /// @brief Constructs a wake word model object with compile-time model data
   /// @param id (std::string) identifier for this model
   /// @param model_start (const uint8_t *) pointer to the start of the model's TFLite FlatBuffer
   /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
@@ -109,6 +118,23 @@ class WakeWordModel final : public StreamingModel {
   WakeWordModel(const std::string &id, const uint8_t *model_start, uint8_t default_probability_cutoff,
                 size_t sliding_window_average_size, const std::string &wake_word, size_t tensor_arena_size,
                 bool default_enabled, bool internal_only);
+
+  /// @brief Constructs a wake word model object with a runtime-downloaded model
+  /// @param id (std::string) identifier for this model
+  /// @param model_data (std::shared_ptr<ModelData>) owning handle to the downloaded model buffer; must be valid
+  /// @param default_probability_cutoff (uint8_t) probability cutoff for acceping the wake word has been said
+  /// @param sliding_window_average_size (size_t) the length of the sliding window computing the mean rolling
+  ///                                    probability
+  /// @param wake_word (std::string) Friendly name of the wake word
+  /// @param trained_languages (std::vector<std::string>) Languages the model was trained on
+  /// @param tensor_arena_size (size_t) Size in bytes for allocating the tensor arena
+  WakeWordModel(const std::string &id, std::shared_ptr<ModelData> model_data, uint8_t default_probability_cutoff,
+                size_t sliding_window_average_size, const std::string &wake_word,
+                std::vector<std::string> trained_languages, size_t tensor_arena_size);
+
+  // model_data_ is a member of this class, so it is destroyed before ~StreamingModel() runs. Unload here, while
+  // the buffer is still alive, so the interpreter is never torn down over freed model data.
+  ~WakeWordModel() override { this->unload_model(); }
 
   void log_model_config() override;
 
@@ -132,6 +158,10 @@ class WakeWordModel final : public StreamingModel {
   bool get_internal_only() { return this->internal_only_; }
 
  protected:
+  // Kept for runtime-downloaded models so the model buffer stays alive for the model's lifetime.
+  // Null for compiled-in models (their data lives in flash).
+  std::shared_ptr<ModelData> model_data_;
+
   std::string id_;
   std::string wake_word_;
   std::vector<std::string> trained_languages_;

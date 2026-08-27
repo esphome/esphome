@@ -31,7 +31,7 @@ MDNSTXTRecord = mdns_ns.struct("MDNSTXTRecord")
 MDNSService = mdns_ns.struct("MDNSService")
 
 
-def _remove_id_if_disabled(value):
+def _remove_id_if_disabled(value: ConfigType) -> ConfigType:
     value = value.copy()
     if value[CONF_DISABLED]:
         value.pop(CONF_ID)
@@ -62,7 +62,7 @@ def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def _require_network_interface(config: ConfigType) -> ConfigType:
+def _require_network_interface(config: ConfigType) -> None:
     """Require a network interface for mDNS on Arduino/LEAmDNS platforms.
 
     On ESP8266 and RP2040 the C++ implementation needs at least one IP state
@@ -71,7 +71,7 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
     that never initializes.
     """
     if config.get(CONF_DISABLED) or not (CORE.is_esp8266 or CORE.is_rp2):
-        return config
+        return
     full_config = fv.full_config.get()
     has_wifi = "wifi" in full_config
     has_ethernet = CORE.is_rp2 and "ethernet" in full_config
@@ -81,7 +81,6 @@ def _require_network_interface(config: ConfigType) -> ConfigType:
             "mdns on this platform requires a network interface — "
             f"add a {options} component to your configuration."
         )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -118,7 +117,7 @@ def mdns_txt_record(key: str, value: str) -> cg.RawExpression:
 
 
 async def _mdns_txt_record_templated(
-    mdns_comp: cg.Pvariable, key: str, value: Lambda | str
+    mdns_comp: cg.MockObj, key: str, value: Lambda | str
 ) -> cg.RawExpression:
     """Create a mDNS TXT record with support for templated values.
 
@@ -173,7 +172,7 @@ def mdns_service(
     )
 
 
-def enable_mdns_storage():
+def enable_mdns_storage() -> None:
     """Enable persistent storage of mDNS services in the MDNSComponent.
 
     Called by external components (like OpenThread) that need access to
@@ -185,7 +184,7 @@ def enable_mdns_storage():
 
 
 @coroutine_with_priority(CoroPriority.NETWORK_SERVICES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if config[CONF_DISABLED] is True:
         return
 

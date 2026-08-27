@@ -12,6 +12,9 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -47,7 +50,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -73,7 +76,12 @@ CALIBRATION_ACTION_SCHEMA = cv.Schema(
     CALIBRATION_ACTION_SCHEMA,
     synchronous=True,
 )
-async def hc8_calibration_to_code(config, action_id, template_arg, args):
+async def hc8_calibration_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_BASELINE], args, cg.uint16)

@@ -226,7 +226,7 @@ static const Pl2303InitStep PL2303_INIT[] = {
 };
 static constexpr uint8_t PL2303_INIT_COUNT = sizeof(PL2303_INIT) / sizeof(PL2303_INIT[0]);
 
-bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   bool is_legacy = (this->chip_type_ == PL2303_TYPE_H);
   bool is_hxn = (this->chip_type_ == PL2303_TYPE_HXN);
@@ -292,8 +292,8 @@ bool USBUartTypePL2303::config_step(USBUartChannel *channel, uint8_t step, bool 
       // Data bits
       line_coding[6] = channel->get_data_bits();
 
-      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
-               line_coding[6]);
+      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%" PRIu32 " stop=%u parity=%u data=%u", baud, line_coding[4],
+               line_coding[5], line_coding[6]);
 
       std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
       this->config_transfer_(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, iface, lc_vec);

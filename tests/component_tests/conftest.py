@@ -57,6 +57,14 @@ def reset_core() -> Generator[None]:
     CORE.reset()
 
 
+@pytest.fixture(autouse=True)
+def reset_full_config() -> Generator[None]:
+    """Give each test a clean final-validate config and restore it after."""
+    token = final_validate.full_config.set({})
+    yield
+    final_validate.full_config.reset(token)
+
+
 @pytest.fixture
 def set_core_config() -> Generator[SetCoreConfigCallable]:
     """Fixture to set up the core configuration for tests."""

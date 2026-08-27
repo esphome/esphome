@@ -4,6 +4,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include <esp_sleep.h>
 #include <esp_idf_version.h>
 
@@ -249,7 +250,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reset_buffer));
   const char *wakeup_cause = get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE>(wakeup_buffer));
 
-  uint8_t mac[6];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
 
   ESP_LOGD(TAG,

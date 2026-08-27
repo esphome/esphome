@@ -193,11 +193,7 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := get_theme_widget_map().get(self.name):
-            for part, states in theme.items():
-                for target, target_part in self.part_targets(w, part):
-                    for state, style in states.items():
-                        target.add_style(style, style_selector(target_part, state))
+        apply_theme_styles(w)
         await set_obj_properties(w, config)
         await add_widgets(w, config)
         await self.to_code(w, config)
@@ -257,7 +253,7 @@ class WidgetType:
         """
         return [(w, part)]
 
-    def get_uses(self):
+    def get_uses(self) -> tuple:
         """
         Get a list of other widgets used by this one
         :return:
@@ -292,6 +288,14 @@ class WidgetType:
         :param widget_config: The configuration for the widget itself
         :param path: The path to the widget, for error reporting
         """
+
+
+def apply_theme_styles(w: "Widget") -> None:
+    """Apply the current theme's styles for this widget's type"""
+    for part, states in get_theme_widget_map().get(w.type.name, {}).items():
+        for target, target_part in w.type.part_targets(w, part):
+            for state, style in states.items():
+                target.add_style(style, style_selector(target_part, state))
 
 
 class Widget:

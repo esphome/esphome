@@ -49,14 +49,10 @@ uart_mock:
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0x41, 0x79, 0xE4] # 0x101 = 0x0141 = 321
       - expect_tx: [0x01, 0x03, 0x01, 0x03, 0x00, 0x01, 0x75, 0xF6] # Read holding 0x103 count 1
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0xA5, 0x79, 0xAF] # 0x103 = 0x01A5 = 421
-      # A widened shared-address range at 0x200 plus a sensor at 0x201 carrying its own skip_updates.
-      # The sensor must keep its own range so the polling rates stay independent; if it were folded into
-      # the widened range it would decode 0x201 from THAT response (2, not 777) and drag the range's
-      # rate down to its own.
+      # Two sensors sharing start address 0x200 (a word and a dword) widen the range to 2 registers
+      # and both decode from the single response.
       - expect_tx: [0x01, 0x03, 0x02, 0x00, 0x00, 0x02, 0xC5, 0xB3] # Read holding 0x200 count 2
         inject_rx: [0x01, 0x03, 0x04, 0x01, 0x41, 0x00, 0x02, 0x2A, 0x1A] # 0x200=0x0141, 0x201=0x0002
-      - expect_tx: [0x01, 0x03, 0x02, 0x01, 0x00, 0x01, 0xD4, 0x72] # Read holding 0x201 count 1
-        inject_rx: [0x01, 0x03, 0x02, 0x03, 0x09, 0x78, 0xB2] # 0x201 = 0x0309 = 777
 
 modbus:
   uart_id: virtual_uart_dev
@@ -128,25 +124,16 @@ sensor:
     modbus_controller_id: modbus_controller_ok
   # Shared address 0x200: the dword widens the range the word opened (or vice versa)
   - platform: modbus_controller
-    name: "rate_word"
+    name: "widen_word"
     address: 0x200
     register_type: holding
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok
   - platform: modbus_controller
-    name: "rate_dword"
+    name: "widen_dword"
     address: 0x200
     register_type: holding
     value_type: U_DWORD
-    modbus_controller_id: modbus_controller_ok
-  # Inside the widened range but with its own skip_updates: must NOT be folded in, or the two sensors
-  # above would silently drop to this sensor's polling rate
-  - platform: modbus_controller
-    name: "own_rate"
-    address: 0x201
-    register_type: holding
-    value_type: U_WORD
-    skip_updates: 100
     modbus_controller_id: modbus_controller_ok
 
 button:

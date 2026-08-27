@@ -5,7 +5,10 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AFTER,
@@ -521,7 +524,7 @@ async def final_step():
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "uart_component_esp_idf.cpp": {
             PlatformFramework.ESP32_IDF,
@@ -537,3 +540,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
     }
 )
+
+# uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
+# debug block is configured.
+_define_filter = filter_source_files_from_defines(
+    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+)
+
+
+def FILTER_SOURCE_FILES() -> list[str]:
+    return _platform_filter() + _define_filter()

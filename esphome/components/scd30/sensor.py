@@ -22,6 +22,9 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
@@ -82,7 +85,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
@@ -131,8 +134,11 @@ async def to_code(config):
     synchronous=True,
 )
 async def scd30_force_recalibration_with_reference_to_code(
-    config, action_id, template_arg, args
-):
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)

@@ -685,9 +685,6 @@ void Display::show_page(DisplayPage *page) {
   }
 }
 
-void Display::show_next_page() { this->page_->show_next(); }
-void Display::show_prev_page() { this->page_->show_prev(); }
-
 void Display::do_update_() {
   if (this->auto_clear_enabled_) {
     this->clear();
@@ -892,9 +889,6 @@ void DisplayPage::show_prev() {
   this->prev_->show();
 }
 
-void DisplayPage::set_parent(Display *parent) { this->parent_ = parent; }
-void DisplayPage::set_prev(DisplayPage *prev) { this->prev_ = prev; }
-void DisplayPage::set_next(DisplayPage *next) { this->next_ = next; }
 const display_writer_t &DisplayPage::get_writer() const { return this->writer_; }
 
 const LogString *text_align_to_string(TextAlign textalign) {

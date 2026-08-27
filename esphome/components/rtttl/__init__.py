@@ -6,7 +6,10 @@ from esphome.components.output import FloatOutput
 from esphome.components.speaker import Speaker
 import esphome.config_validation as cv
 from esphome.const import CONF_GAIN, CONF_ID, CONF_OUTPUT, CONF_PLATFORM, CONF_SPEAKER
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_parent_output_config(value):
+def validate_parent_output_config(value: ConfigType) -> None:
     platform = value.get(CONF_PLATFORM)
     PWM_GOOD = ["esp8266_pwm", "ledc"]
     PWM_BAD = [
@@ -78,7 +81,7 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -110,7 +113,12 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def rtttl_play_to_code(config, action_id, template_arg, args):
+async def rtttl_play_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_RTTTL], args, cg.std_string)
@@ -128,7 +136,12 @@ async def rtttl_play_to_code(config, action_id, template_arg, args):
     ),
     synchronous=True,
 )
-async def rtttl_stop_to_code(config, action_id, template_arg, args):
+async def rtttl_stop_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
@@ -143,7 +156,12 @@ async def rtttl_stop_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def rtttl_is_playing_to_code(config, condition_id, template_arg, args):
+async def rtttl_is_playing_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var

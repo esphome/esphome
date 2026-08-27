@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import abc
-from contextlib import contextmanager
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 import contextvars
 import copy
 import functools
 import heapq
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 
@@ -39,6 +40,9 @@ from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
+
+if TYPE_CHECKING:
+    from esphome.external_files import RemoteFile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -616,6 +620,23 @@ class LoadValidationStep(ConfigValidationStep):
             elif not isinstance(self.conf, list):
                 result[self.domain] = self.conf = [self.conf]
 
+            # Permanent expansion hook: a platform-tagged entry may expand into
+            # several (e.g. `image`'s `defaults:`/`files:`), for `platform:`-tagged dicts only.
+            if (expand := component.expand_platform_config) is not None and all(
+                isinstance(entry, dict) and CONF_PLATFORM in entry
+                for entry in self.conf
+            ):
+                with result.catch_error(path):
+                    expanded = expand(self.conf)
+                    if not isinstance(expanded, list):
+                        # A non-list return is a component bug (not a user error):
+                        # raise explicitly (survives -O/-OO) so it escapes catch_error.
+                        raise TypeError(
+                            f"{self.domain}: EXPAND_PLATFORM_CONFIG must "
+                            f"return a list, got {type(expanded).__name__}"
+                        )
+                    result[self.domain] = self.conf = expanded
+
         # Process AUTO_LOAD
         _process_auto_load(result, component, path)
 
@@ -715,6 +736,125 @@ class AutoLoadValidationStep(ConfigValidationStep):
         _process_platform_config(
             result, component_name, platform_name, platform_conf, path
         )
+
+
+# Backstop against a runaway PREFETCH_FILES generator; no real component
+# needs anywhere near this many stages (font, the deepest, uses two).
+_MAX_PREFETCH_STAGES = 10
+
+
+class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
+    """Batch-download remote files referenced by the raw config.
+
+    Each round, the batches yielded by every ``PREFETCH_FILES`` hook (see
+    ``ComponentManifest.prefetch_files``) download in one parallel pass, so
+    per-entry schema validators find a warm cache. Must run between
+    AutoLoadValidationStep (-1.0) and MetadataValidationStep (-2.0):
+    metadata steps push priority-0 schema steps that pop immediately, so
+    this is the last point where every raw entry list is intact. Best
+    effort: failures are logged and memoized per run; the per-entry
+    validators stay authoritative.
+    """
+
+    priority = -1.5
+
+    def run(self, result: Config) -> None:
+        active: list[tuple[str, Iterator[list[RemoteFile]]]] = []
+
+        def warn_hook_failed(name: str, err: Exception) -> None:
+            # A broken hook must not fail validation; it only loses the
+            # batching speedup.
+            _LOGGER.warning("Remote file prefetch for %s failed: %s", name, err)
+            _LOGGER.debug("Prefetch hook traceback", exc_info=err)
+
+        def start_hook(
+            name: str, manifest: ComponentManifest, entries: list[ConfigType]
+        ) -> None:
+            if (hook := manifest.prefetch_files) is None:
+                return
+            try:
+                active.append((name, iter(hook(entries))))
+            except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+                warn_hook_failed(name, err)
+
+        for domain, conf in result.items():
+            if not isinstance(domain, str) or domain.startswith("."):
+                continue
+            if (component := get_component(domain)) is None:
+                continue
+            if component.prefetch_files is None and not component.is_platform_component:
+                continue
+            if conf is None or isinstance(conf, core.AutoLoad):
+                continue
+            entries = [
+                entry
+                for entry in (conf if isinstance(conf, list) else [conf])
+                if isinstance(entry, dict)
+            ]
+            if not entries:
+                continue
+            # A domain-level hook on a platform component receives every
+            # entry; overlap with per-platform hooks dedupes by path.
+            start_hook(domain, component, entries)
+            if not component.is_platform_component:
+                continue
+            by_platform: dict[str, list[ConfigType]] = {}
+            for entry in entries:
+                if isinstance(p_name := entry.get(CONF_PLATFORM), str):
+                    by_platform.setdefault(p_name, []).append(entry)
+            for p_name, p_entries in by_platform.items():
+                if (platform := get_platform(domain, p_name)) is not None:
+                    start_hook(f"{domain}.{p_name}", platform, p_entries)
+
+        # One stage per round; later stages can read what earlier ones
+        # fetched.
+        for _ in range(_MAX_PREFETCH_STAGES):
+            if not active:
+                break
+            items: list[RemoteFile] = []
+            still_active: list[tuple[str, Iterator[list[RemoteFile]]]] = []
+            for name, generator in active:
+                try:
+                    batch = list(next(generator))
+                except StopIteration:
+                    continue
+                except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+                    warn_hook_failed(name, err)
+                    continue
+                items.extend(batch)
+                still_active.append((name, generator))
+            active = still_active
+            self._download(items)
+        for name, generator in active:
+            # A tripped backstop means a broken hook.
+            _LOGGER.warning(
+                "Remote file prefetch for %s stopped after %d stages",
+                name,
+                _MAX_PREFETCH_STAGES,
+            )
+            if (close := getattr(generator, "close", None)) is not None:
+                # close() runs hook code too; it must not fail validation.
+                with suppress(Exception):
+                    close()
+
+    @staticmethod
+    def _download(items: list[RemoteFile]) -> None:
+        if not items:
+            return
+        # Imported lazily: requests is a heavy import (~85ms) and is only
+        # needed when a config actually references remote files.
+        from esphome import external_files
+
+        try:
+            external_files.download_content_many(items, description="remote file(s)")
+        except cv.Invalid as err:
+            # INFO: the trace if an extractor's cache path ever drifts from
+            # its validator's, hiding the memoized failure replay.
+            _LOGGER.info("Remote file prefetch download failed: %s", err)
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-except
+            # The batch downloader itself broke; make it visible.
+            _LOGGER.warning("Remote file prefetch failed: %s", err)
+            _LOGGER.debug("Prefetch download traceback", exc_info=err)
 
 
 class MetadataValidationStep(ConfigValidationStep):
@@ -1108,6 +1248,7 @@ def validate_config(
     config: dict[str, Any],
     command_line_substitutions: dict[str, Any] | None,
     skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config:
     result = Config()
 
@@ -1218,11 +1359,13 @@ def validate_config(
     # Snapshot the user's config before any schema validation defaults are
     # applied. preload_core_config and later validation steps rewrite entries
     # in-place with defaulted values; deep-copying here preserves the
-    # user-supplied keys for `esphome config --no-defaults`.
-    result.user_config = copy.deepcopy(config)
-    if substitutions is not None:
-        result.user_config[CONF_SUBSTITUTIONS] = copy.deepcopy(substitutions)
-        result.user_config.move_to_end(CONF_SUBSTITUTIONS, last=False)
+    # user-supplied keys for `esphome config --no-defaults`. The deep copy is
+    # expensive, so it is only taken when that command actually asked for it.
+    if snapshot_user_config:
+        result.user_config = copy.deepcopy(config)
+        if substitutions is not None:
+            result.user_config[CONF_SUBSTITUTIONS] = copy.deepcopy(substitutions)
+            result.user_config.move_to_end(CONF_SUBSTITUTIONS, last=False)
 
     # 2. Load partial core config
     import esphome.core.config as core_config
@@ -1256,6 +1399,7 @@ def validate_config(
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
+    result.add_validation_step(PrefetchRemoteFilesValidationStep())
     result.add_validation_step(IDPassValidationStep())
     result.add_validation_step(CoreFinalValidateStep())
     result.add_validation_step(PinUseValidationCheck())
@@ -1335,7 +1479,9 @@ class InvalidYAMLError(EsphomeError):
 
 
 def _load_config(
-    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config:
     """Load the configuration file."""
     try:
@@ -1344,7 +1490,12 @@ def _load_config(
         raise InvalidYAMLError(e) from e
 
     try:
-        return validate_config(config, command_line_substitutions, skip_external_update)
+        return validate_config(
+            config,
+            command_line_substitutions,
+            skip_external_update=skip_external_update,
+            snapshot_user_config=snapshot_user_config,
+        )
     except EsphomeError:
         raise
     except Exception:
@@ -1353,10 +1504,16 @@ def _load_config(
 
 
 def load_config(
-    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config:
     try:
-        return _load_config(command_line_substitutions, skip_external_update)
+        return _load_config(
+            command_line_substitutions,
+            skip_external_update=skip_external_update,
+            snapshot_user_config=snapshot_user_config,
+        )
     except vol.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}") from err
 
@@ -1497,11 +1654,17 @@ def strip_default_ids(config):
 
 
 def read_config(
-    command_line_substitutions: dict[str, Any], skip_external_update: bool = False
+    command_line_substitutions: dict[str, Any],
+    skip_external_update: bool = False,
+    snapshot_user_config: bool = False,
 ) -> Config | None:
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
-        res = load_config(command_line_substitutions, skip_external_update)
+        res = load_config(
+            command_line_substitutions,
+            skip_external_update=skip_external_update,
+            snapshot_user_config=snapshot_user_config,
+        )
     except EsphomeError as err:
         _LOGGER.error("Error while reading config: %s", err)
         return None

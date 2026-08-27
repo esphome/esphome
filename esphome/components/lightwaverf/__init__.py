@@ -11,7 +11,10 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_WRITE_PIN,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.cpp_helpers import gpio_pin_expression
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@max246"]
 
@@ -57,7 +60,12 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
     LIGHTWAVE_SEND_SCHEMA,
     synchronous=True,
 )
-async def send_raw_to_code(config, action_id, template_arg, args):
+async def send_raw_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -71,7 +79,7 @@ async def send_raw_to_code(config, action_id, template_arg, args):
     return var
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

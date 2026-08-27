@@ -7,6 +7,7 @@ from esphome.const import (
     ICON_CHIP,
     ICON_RESTART,
 )
+from esphome.types import ConfigType
 
 from . import (  # noqa: F401  pylint: disable=unused-import
     CONF_DEBUG_ID,
@@ -33,7 +34,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     debug_component = await cg.get_variable(config[CONF_DEBUG_ID])
 
     if CONF_DEVICE in config:

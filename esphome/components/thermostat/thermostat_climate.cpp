@@ -76,11 +76,6 @@ void ThermostatClimate::loop() {
   }
 }
 
-float ThermostatClimate::cool_deadband() { return this->cooling_deadband_; }
-float ThermostatClimate::cool_overrun() { return this->cooling_overrun_; }
-float ThermostatClimate::heat_deadband() { return this->heating_deadband_; }
-float ThermostatClimate::heat_overrun() { return this->heating_overrun_; }
-
 void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode, false);
   this->switch_to_action_(this->compute_action_(), false);
@@ -120,8 +115,6 @@ bool ThermostatClimate::fan_mode_change_delayed() {
 }
 
 climate::ClimateAction ThermostatClimate::delayed_climate_action() { return this->compute_action_(true); }
-
-climate::ClimateFanMode ThermostatClimate::locked_fan_mode() { return this->prev_fan_mode_; }
 
 bool ThermostatClimate::hysteresis_valid() {
   if ((this->supports_cool_ || (this->supports_fan_only_ && this->supports_fan_only_cooling_)) &&
@@ -1286,10 +1279,6 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
   return something_changed;
 }
 
-void ThermostatClimate::set_preset_config(std::initializer_list<PresetEntry> presets) {
-  this->preset_config_ = presets;
-}
-
 void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPresetEntry> presets) {
   this->custom_preset_config_ = presets;
   // Populate Climate base class custom presets vector
@@ -1316,19 +1305,6 @@ void ThermostatClimate::set_default_preset(const char *custom_preset) {
 }
 
 void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
-
-void ThermostatClimate::set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from) {
-  this->on_boot_restore_from_ = on_boot_restore_from;
-}
-void ThermostatClimate::set_set_point_minimum_differential(float differential) {
-  this->set_point_minimum_differential_ = differential;
-}
-void ThermostatClimate::set_cool_deadband(float deadband) { this->cooling_deadband_ = deadband; }
-void ThermostatClimate::set_cool_overrun(float overrun) { this->cooling_overrun_ = overrun; }
-void ThermostatClimate::set_heat_deadband(float deadband) { this->heating_deadband_ = deadband; }
-void ThermostatClimate::set_heat_overrun(float overrun) { this->heating_overrun_ = overrun; }
-void ThermostatClimate::set_supplemental_cool_delta(float delta) { this->supplemental_cool_delta_ = delta; }
-void ThermostatClimate::set_supplemental_heat_delta(float delta) { this->supplemental_heat_delta_ = delta; }
 
 void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time) {
   uint32_t new_duration_ms = 1000 * (time < this->min_timer_duration_ ? this->min_timer_duration_ : time);
@@ -1389,79 +1365,8 @@ void ThermostatClimate::set_heating_minimum_run_time_in_sec(uint32_t time) {
 void ThermostatClimate::set_idle_minimum_time_in_sec(uint32_t time) {
   this->set_timer_duration_in_sec_(thermostat::THERMOSTAT_TIMER_IDLE_ON, time);
 }
-void ThermostatClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-void ThermostatClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) {
-  this->humidity_sensor_ = humidity_sensor;
-}
 void ThermostatClimate::set_humidity_hysteresis(float humidity_hysteresis) {
   this->humidity_hysteresis_ = std::clamp<float>(humidity_hysteresis, 0.0f, 100.0f);
-}
-void ThermostatClimate::set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
-void ThermostatClimate::set_supports_heat_cool(bool supports_heat_cool) {
-  this->supports_heat_cool_ = supports_heat_cool;
-}
-void ThermostatClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
-void ThermostatClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-void ThermostatClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
-void ThermostatClimate::set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
-void ThermostatClimate::set_supports_fan_only_action_uses_fan_mode_timer(
-    bool supports_fan_only_action_uses_fan_mode_timer) {
-  this->supports_fan_only_action_uses_fan_mode_timer_ = supports_fan_only_action_uses_fan_mode_timer;
-}
-void ThermostatClimate::set_supports_fan_only_cooling(bool supports_fan_only_cooling) {
-  this->supports_fan_only_cooling_ = supports_fan_only_cooling;
-}
-void ThermostatClimate::set_supports_fan_with_cooling(bool supports_fan_with_cooling) {
-  this->supports_fan_with_cooling_ = supports_fan_with_cooling;
-}
-void ThermostatClimate::set_supports_fan_with_heating(bool supports_fan_with_heating) {
-  this->supports_fan_with_heating_ = supports_fan_with_heating;
-}
-void ThermostatClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-void ThermostatClimate::set_supports_fan_mode_on(bool supports_fan_mode_on) {
-  this->supports_fan_mode_on_ = supports_fan_mode_on;
-}
-void ThermostatClimate::set_supports_fan_mode_off(bool supports_fan_mode_off) {
-  this->supports_fan_mode_off_ = supports_fan_mode_off;
-}
-void ThermostatClimate::set_supports_fan_mode_auto(bool supports_fan_mode_auto) {
-  this->supports_fan_mode_auto_ = supports_fan_mode_auto;
-}
-void ThermostatClimate::set_supports_fan_mode_low(bool supports_fan_mode_low) {
-  this->supports_fan_mode_low_ = supports_fan_mode_low;
-}
-void ThermostatClimate::set_supports_fan_mode_medium(bool supports_fan_mode_medium) {
-  this->supports_fan_mode_medium_ = supports_fan_mode_medium;
-}
-void ThermostatClimate::set_supports_fan_mode_high(bool supports_fan_mode_high) {
-  this->supports_fan_mode_high_ = supports_fan_mode_high;
-}
-void ThermostatClimate::set_supports_fan_mode_middle(bool supports_fan_mode_middle) {
-  this->supports_fan_mode_middle_ = supports_fan_mode_middle;
-}
-void ThermostatClimate::set_supports_fan_mode_focus(bool supports_fan_mode_focus) {
-  this->supports_fan_mode_focus_ = supports_fan_mode_focus;
-}
-void ThermostatClimate::set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) {
-  this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse;
-}
-void ThermostatClimate::set_supports_fan_mode_quiet(bool supports_fan_mode_quiet) {
-  this->supports_fan_mode_quiet_ = supports_fan_mode_quiet;
-}
-void ThermostatClimate::set_supports_swing_mode_both(bool supports_swing_mode_both) {
-  this->supports_swing_mode_both_ = supports_swing_mode_both;
-}
-void ThermostatClimate::set_supports_swing_mode_off(bool supports_swing_mode_off) {
-  this->supports_swing_mode_off_ = supports_swing_mode_off;
-}
-void ThermostatClimate::set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal) {
-  this->supports_swing_mode_horizontal_ = supports_swing_mode_horizontal;
-}
-void ThermostatClimate::set_supports_swing_mode_vertical(bool supports_swing_mode_vertical) {
-  this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
-}
-void ThermostatClimate::set_supports_two_points(bool supports_two_points) {
-  this->supports_two_points_ = supports_two_points;
 }
 void ThermostatClimate::set_supports_dehumidification(bool supports_dehumidification) {
   this->supports_dehumidification_ = supports_dehumidification;

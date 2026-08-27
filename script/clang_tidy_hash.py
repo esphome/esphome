@@ -18,6 +18,7 @@ from pathlib import Path
 # Root-relative paths whose contents affect clang-tidy results.
 CLANG_TIDY_GLOBAL_FILES = (
     ".clang-tidy",
+    "script/clang-tidy",
     "platformio.ini",
     "requirements_dev.txt",
     "esphome/idf_component.yml",

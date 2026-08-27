@@ -23,6 +23,12 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from esphome.build_helpers.idedata import (
+    get_toolchain_includes,
+    parse_entry,
+    reject_launcher_compiler,
+)
+
 TIDY_PROJECT_NAME = "esphome_tidy"
 
 # A do-nothing C++ app: just enough for IDF to configure a valid project. It's
@@ -415,13 +421,12 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
     """
     import json
 
-    from esphome.espidf.idedata import _get_toolchain_includes, _parse_entry
-
     entries = json.loads(Path(compile_commands).read_text(encoding="utf-8"))
     entry = next((e for e in entries if e["file"].endswith("tidy.cpp")), None)
     if entry is None:
         raise RuntimeError(f"tidy.cpp not found in {compile_commands}")
-    cxx_path, defines, includes, cxx_flags = _parse_entry(entry)
+    cxx_path, defines, includes, cxx_flags = parse_entry(entry)
+    reject_launcher_compiler(cxx_path)
 
     return {
         "cxx_path": cxx_path,
@@ -429,7 +434,7 @@ def _idedata_from_tidy_project(compile_commands: Path) -> dict:
         "defines": defines,
         "includes": {
             "build": includes,
-            "toolchain": _get_toolchain_includes(cxx_path),
+            "toolchain": get_toolchain_includes(cxx_path),
         },
     }
 
