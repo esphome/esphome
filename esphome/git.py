@@ -460,12 +460,8 @@ def _clone_complete_marker_path(repo_dir: Path) -> Path:
 def has_complete_clone(
     url: str, ref: str | None, domain: str, subpath: Path | None = None
 ) -> bool:
-    """Whether a complete, quiescent clone exists for this cache entry.
-
-    A lock-free probe: the answer can go stale the moment it is returned, so
-    use it only for best-effort decisions (e.g. skipping a prefetch), never
-    as a substitute for ``clone_or_update``.
-    """
+    """Lock-free probe for a complete clone; can go stale immediately, so
+    best-effort decisions only, never a substitute for ``clone_or_update``."""
     repo_dir = _repo_entry_dir(_cache_key(url, ref), domain, subpath)
     return _clone_complete_marker_path(repo_dir).is_file()
 

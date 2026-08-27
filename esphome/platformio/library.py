@@ -95,22 +95,14 @@ class Source:
         raise NotImplementedError
 
     def prefetch_key(self, dir_suffix: str) -> Hashable | None:
-        """Identity used to prefetch each source once per wave.
-
-        Sources that could write the same cache directory must return equal
-        keys (two workers must never share a directory); a coarser key only
-        costs a skipped prefetch (URLSource dedupes per remote URL). None
-        means not prefetchable (local sources; archives without a known
-        size).
-        """
+        """Prefetch dedup identity; None = not prefetchable. Sources that
+        could write one cache dir must return equal keys (workers must never
+        share a dir); a coarser key only skips a prefetch."""
         return None
 
     def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
-        """Whether a completed fetch already exists for this source.
-
-        Only consulted for sources whose ``prefetch_key()`` is not None;
-        True (nothing to prefetch) is the safe default for the rest.
-        """
+        """Whether a completed fetch exists; only consulted when
+        ``prefetch_key()`` is not None, True is the safe default."""
         return True
 
     def source_root(self, build_path: Path) -> Path:
@@ -970,8 +962,7 @@ def _clone_source(
     namespace: str,
     tracker: Callable[[int], None],
 ) -> None:
-    # Git has no byte progress; one tick so a cancelled batch stops
-    # before starting a clone rather than waiting one out
+    # No byte progress from git; one tick so a cancelled batch stops here
     tracker(0)
     component.source.download(
         component.get_sanitized_name(), salt=salt, namespace=namespace
