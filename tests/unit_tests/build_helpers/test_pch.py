@@ -289,12 +289,14 @@ def test_discard_pch_raises_when_gch_survives(
         pch.discard_pch(tmp_path)
 
 
-def test_discard_pch_warns_when_only_sidecar_unlink_fails(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
+def test_discard_pch_raises_when_sum_survives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The .sum is ccache's pch identity; one that survives is as unsafe
+    as a surviving .gch."""
     from pathlib import Path as _P
+
+    from esphome.core import EsphomeError
 
     (tmp_path / "esphome_pch.h").write_text("")
     (tmp_path / "esphome_pch.h.gch").write_bytes(b"gch")
@@ -307,5 +309,28 @@ def test_discard_pch_warns_when_only_sidecar_unlink_fails(
         return real_unlink(self, missing_ok=missing_ok)
 
     monkeypatch.setattr(_P, "unlink", failing_unlink)
+    with pytest.raises(EsphomeError, match="Could not discard"):
+        pch.discard_pch(tmp_path)
+
+
+def test_discard_pch_warns_when_file_vanished_concurrently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unlink error on a file that is nonetheless gone only warns."""
+    from pathlib import Path as _P
+
+    (tmp_path / "esphome_pch.h").write_text("")
+    (tmp_path / "esphome_pch.h.gch").write_bytes(b"gch")
+    real_unlink = _P.unlink
+
+    def racing_unlink(self, missing_ok=False):
+        if self.name.endswith(".sum"):
+            # Racer removed it, then our unlink errored
+            raise OSError("stale handle")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(_P, "unlink", racing_unlink)
     pch.discard_pch(tmp_path)
     assert "Could not discard the pch sidecars" in caplog.text

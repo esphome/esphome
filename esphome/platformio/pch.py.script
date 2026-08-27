@@ -166,7 +166,9 @@ def _probe_gch(cxx, flags, header: Path, proj_dir: Path):
         return None
     baseline = _probe_run(cxx, flags, dep_redirect, proj_dir)
     if baseline.returncode != 0:
-        raise OSError(f"probe cannot run at all: {baseline.stderr.strip()[:200]}")
+        # Deterministic and latchable; the transient filter at the caller
+        # keeps resource exhaustion from latching
+        return f"probe cannot run at all: {baseline.stderr.strip()[:200]}"
     return f"toolchain cannot load the pch: {probe.stderr.strip()}"
 
 
