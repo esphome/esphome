@@ -107,6 +107,14 @@ class _Resolved(NamedTuple):
     cached: bool
 
 
+class _Group(NamedTuple):
+    """The installable ``(name, spec)`` entries of one package manager."""
+
+    manager: Any
+    entries: list[tuple[str, Any]]
+    is_platform: bool
+
+
 # Child records a no-work run; the parent skips the next spawn while valid
 _SENTINEL_NAME = ".esphome_prefetch.json"
 _SENTINEL_SCHEMA = 1
@@ -856,7 +864,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
 
     seen: set[str] = set()
     jobs: list[tuple[str, int, Any]] = []
-    groups: list[tuple[Any, list[tuple[str, Any]], bool]] = []
+    groups: list[_Group] = []
     unresolved = 0
     for mgr, batch, is_platform in ((p.pm, specs, True), (lm, lib_specs, False)):
         entries: list[tuple[str, Any]] = []
@@ -866,7 +874,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             unresolved += failed
             entries += installable
         if entries:
-            groups.append((mgr, entries, is_platform))
+            groups.append(_Group(mgr, entries, is_platform))
 
     sentinel = build_dir / _SENTINEL_NAME
     if jobs or groups:
