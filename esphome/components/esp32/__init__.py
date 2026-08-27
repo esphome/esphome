@@ -10,6 +10,7 @@ import subprocess
 from typing import Any
 
 from esphome import yaml_util
+from esphome.build_helpers.pch import PCH_PREFIX_HEADER, pch_enabled, pch_extra_scripts
 import esphome.codegen as cg
 from esphome.components.const import CONF_ENABLE_OTA_DOWNGRADE_PROTECTION
 from esphome.config_helpers import filter_source_files_from_defines
@@ -57,6 +58,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_components
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
+from esphome.platformio.toolchain import copy_pch_script
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
@@ -2433,6 +2435,11 @@ async def to_code(config):
 
         cg.add_platformio_option("lib_ldf_mode", "off")
         cg.add_platformio_option("lib_compat_mode", "strict")
+        # CI-speed only: this toolchain is being dropped, so the pch gets
+        # the same curated prefix as host with no further investment
+        cg.add_platformio_option("extra_scripts", pch_extra_scripts())
+        if pch_enabled():
+            cg.add_platformio_option("build_src_flags", f"-include {PCH_PREFIX_HEADER}")
         cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
         cg.add_platformio_option("board", config[CONF_BOARD])
         cg.add_platformio_option("board_upload.flash_size", config[CONF_FLASH_SIZE])
@@ -3350,6 +3357,8 @@ def _write_idf_component_yml():
 def copy_files():
     _write_sdkconfig()
     _write_idf_component_yml()
+    if not CORE.using_toolchain_esp_idf:
+        copy_pch_script()
 
     if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
         flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]

@@ -64,6 +64,10 @@ PCH_ARTIFACT_NAMES = (
 # The core defines header every backend anchors its prefix on.
 PCH_CORE_HEADER = "esphome/core/defines.h"
 
+# Guarded curated-prefix wrapper for PlatformIO backends without framework
+# force-includes (host, esp32); folded by the pch script via build_src_flags.
+PCH_PREFIX_HEADER = "esphome/core/pch_prefix.h"
+
 # Prefix-header contents for backends that inject a curated set (rather
 # than mirroring the TUs' own force-includes), defines.h first so USE_*
 # macros exist for the rest. Deliberately hard-coded: frequency-derived
