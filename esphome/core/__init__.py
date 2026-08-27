@@ -783,7 +783,9 @@ class EsphomeCore:
         can compare a locally computed hash against the one a device
         advertises. Machine-local data is kept out of the input: build_path
         (which embeds ESPHOME_BUILD_PATH and OS path separators) is excluded,
-        and Path values are dumped relative to the config directory.
+        and Path values are dumped relative to the config directory. Paths
+        under the data directory are dumped at the default ``.esphome``
+        location so the add-on's ``/data`` mount hashes the same as the CLI.
         """
         if self._config_hash is None:
             from esphome import yaml_util
@@ -799,6 +801,7 @@ class EsphomeCore:
                 show_secrets=True,
                 sort_keys=True,
                 relative_to=self.config_dir if self.config_path is not None else None,
+                data_dir=self.data_dir if self.config_path is not None else None,
             )
             self._config_hash = fnv1a_32bit_hash(config_str)
         return self._config_hash

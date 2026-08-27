@@ -1057,11 +1057,19 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
-def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = None):
+def dump(
+    dict_,
+    show_secrets=False,
+    sort_keys=False,
+    relative_to: Path | None = None,
+    data_dir: Path | None = None,
+):
     """Dump YAML to a string and remove null.
 
     When ``relative_to`` is given, Path values are dumped relative to that
-    directory (POSIX form) so the output is machine independent.
+    directory (POSIX form) so the output is machine independent. Path values
+    under ``data_dir`` are dumped at the default ``.esphome`` location so the
+    output does not depend on where the data dir is mounted.
     """
     if show_secrets:
         _SECRET_VALUES.clear()
@@ -1073,6 +1081,7 @@ def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = 
     class _Dumper(ESPHomeDumper):
         _redact_sensitive = not show_secrets
         _relative_to = relative_to
+        _data_dir = data_dir
 
     return yaml.dump(
         dict_,
@@ -1231,6 +1240,10 @@ class ESPHomeDumper(yaml.SafeDumper):
     # directory (in POSIX form) so the output does not depend on where the
     # config lives on the machine that produced it.
     _relative_to: Path | None = None
+    # When set alongside ``_relative_to``, paths under this directory are
+    # dumped as ``.esphome/<rest>`` (the default data dir location) so the
+    # HA add-on's ``/data`` mount produces the same output as the CLI.
+    _data_dir: Path | None = None
 
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
@@ -1274,6 +1287,11 @@ class ESPHomeDumper(yaml.SafeDumper):
             # path that still cannot be relativized (e.g. a different drive)
             # keeps its POSIX form so separators stay stable across OSes.
             path = Path(os.path.normpath(value))
+            # Checked first: the default data dir sits inside the config dir.
+            if self._data_dir is not None:
+                with suppress(ValueError):
+                    rel = path.relative_to(os.path.normpath(self._data_dir))
+                    return self.represent_stringify((Path(".esphome") / rel).as_posix())
             with suppress(ValueError):
                 path = path.relative_to(
                     os.path.normpath(self._relative_to), walk_up=True

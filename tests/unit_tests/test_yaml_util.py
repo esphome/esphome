@@ -1706,6 +1706,57 @@ def test_dump_path_dotdot_reference_outside_anchor() -> None:
     assert output.strip() == "file: ../shared/font.ttf"
 
 
+def test_dump_path_under_data_dir_uses_default_location() -> None:
+    """Test that Path values under data_dir dump as .esphome/<rest>.
+
+    The HA add-on mounts the data dir at /data, outside the config dir;
+    without this it would dump as ../data/... and hash differently from
+    the CLI, whose data dir is <config>/.esphome.
+    """
+    anchor = Path("/config").absolute()
+    data_dir = Path("/data").absolute()
+    path = data_dir / "image" / "c44630d6"
+    output = yaml_util.dump({"file": path}, relative_to=anchor, data_dir=data_dir)
+    assert output.strip() == "file: .esphome/image/c44630d6"
+
+
+def test_dump_path_data_dir_layouts_match() -> None:
+    """Test that the add-on /data layout dumps the same as the CLI layout."""
+    anchor = Path("/config").absolute()
+    cli_data_dir = anchor / ".esphome"
+    addon_data_dir = Path("/data").absolute()
+    cli = yaml_util.dump(
+        {"file": cli_data_dir / "image" / "c44630d6"},
+        relative_to=anchor,
+        data_dir=cli_data_dir,
+    )
+    addon = yaml_util.dump(
+        {"file": addon_data_dir / "image" / "c44630d6"},
+        relative_to=anchor,
+        data_dir=addon_data_dir,
+    )
+    assert cli == addon
+    assert cli.strip() == "file: .esphome/image/c44630d6"
+
+
+def test_dump_path_outside_data_dir_still_relative_to_anchor() -> None:
+    """Test that data_dir does not affect paths that are not under it."""
+    anchor = Path("/config").absolute()
+    path = anchor / "fonts" / "arial.ttf"
+    output = yaml_util.dump(
+        {"file": path}, relative_to=anchor, data_dir=Path("/data").absolute()
+    )
+    assert output.strip() == "file: fonts/arial.ttf"
+
+
+def test_dump_path_data_dir_without_relative_to_is_unchanged() -> None:
+    """Test that data_dir alone does not change the output."""
+    data_dir = Path("/data").absolute()
+    path = data_dir / "image" / "c44630d6"
+    output = yaml_util.dump({"file": path}, data_dir=data_dir)
+    assert output.strip() == f"file: {path}"
+
+
 def test_dump_relative_to_does_not_leak_between_calls() -> None:
     """Test that the relative_to flag is scoped to a single dump call."""
     anchor = Path("/config/esphome").absolute()
