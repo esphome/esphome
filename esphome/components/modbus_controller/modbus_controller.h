@@ -298,7 +298,8 @@ class WriterDevice final : public ControllerDevice {
 /// dispatch, so the write path can tell "the lambda sent it itself" from "use the default write".
 class WriterEntity {
  public:
-  /// Whether the lambda queued a frame to the hub since the last clear_dispatched_().
+  /// Whether the lambda called a request helper since the last clear_dispatched_(). Deliberately records
+  /// the call, not the hub's accept/refuse: a refused lambda write must not fall through to the default write.
   bool dispatched() const { return this->device_.dispatched(); }
   bool write_single_register(uint16_t address, uint16_t value) {
     this->device_.set_dispatched();
