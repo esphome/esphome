@@ -117,12 +117,18 @@ def _compile_gch(cxx, flags, header: Path, gch: Path, proj_dir: Path):
         raise OSError(f"compiler killed by signal {-result.returncode}")
     if result.returncode != 0:
         return result.stderr
+    # -MF is only legal alongside a dependency flag; pass it solely to
+    # redirect a depfile that -MD/-MMD in the flags would otherwise write
+    dep_redirect = (
+        ["-MF", os.devnull]
+        if any(f in ("-MD", "-MMD", "-M", "-MM") for f in flags)
+        else []
+    )
     probe = subprocess.run(  # noqa: PLW1510
         [
             cxx,
             *flags,
-            "-MF",
-            os.devnull,
+            *dep_redirect,
             "-Winvalid-pch",
             "-include",
             str(header),
