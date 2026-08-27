@@ -401,18 +401,7 @@ def prepare_pch(
         discard_pch(build_dir)
         pch_degraded(f"identity unknown: {err}")
         return
-    if gch.is_file() and _read_stamp(sum_path) == checksum:
-        _log_pch_in_use()
-        return
     failed_marker = Path(f"{gch}.failed")
-    if _read_stamp(failed_marker) == checksum:
-        _LOGGER.info(
-            "Precompiled header disabled after an earlier failure; delete %s to retry",
-            failed_marker,
-        )
-        pch_degraded("earlier failure latched")
-        return
-    _log_pch_in_use()
 
     def _run(run_cmd: list[str], what: str) -> subprocess.CompletedProcess | None:
         """Spawn one pch tool step; environmental failures discard and
@@ -463,6 +452,35 @@ def prepare_pch(
         os.utime(header)
         pch_degraded(f"{reason}: {error[:200]}")
 
+    def _probe() -> None:
+        """Load-check the built .gch: some toolchains build one they then
+        refuse to load (per-process ASLR). Dep flags are already stripped
+        from cmd, so no -MF is needed; cmd ends with the fixed
+        "-x c++-header -c -o" tail."""
+        probe = _run([*cmd[:-6], *pch_probe_args(str(header))], "probe")
+        if probe is None:
+            return
+        if probe.returncode != 0 or ".gch" in probe.stderr:
+            _fail(
+                probe.stderr.strip() or f"exit code {probe.returncode}",
+                "toolchain cannot load the pch",
+            )
+
+    if gch.is_file() and _read_stamp(sum_path) == checksum:
+        _log_pch_in_use()
+        if pch_strict():
+            # Rejection is per-process, so a cached .gch must re-prove
+            # loadability for the strict gate (CI-only cost)
+            _probe()
+        return
+    if _read_stamp(failed_marker) == checksum:
+        _LOGGER.info(
+            "Precompiled header disabled after an earlier failure; delete %s to retry",
+            failed_marker,
+        )
+        pch_degraded("earlier failure latched")
+        return
+    _log_pch_in_use()
     result = _run(cmd, "compile")
     if result is None:
         return
@@ -474,14 +492,9 @@ def prepare_pch(
     if error is not None:
         _fail(error, "compile failed")
         return
-    # Load probe: some toolchains build a .gch they then refuse to load
-    # (per-process ASLR); dep flags are already stripped from cmd, so no
-    # -MF is needed. cmd ends with the fixed "-x c++-header -c -o" tail.
-    probe = _run([*cmd[:-6], *pch_probe_args(str(header))], "probe")
-    if probe is None:
-        return
-    if probe.returncode != 0 or ".gch" in probe.stderr:
-        _fail(probe.stderr.strip(), "toolchain cannot load the pch")
+    _probe()
+    if not gch.is_file():
+        # The probe discarded a rejected or unrunnable .gch
         return
     failed_marker.unlink(missing_ok=True)
     sum_path.write_text(checksum + "\n", encoding="utf-8")

@@ -1257,3 +1257,42 @@ def test_prepare_pch_probe_rejection_latches_and_degrades(
         pytest.raises(EsphomeError, match="cannot load the pch"),
     ):
         prepare_pch()
+
+
+def test_prepare_pch_strict_reprobes_cached_gch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Rejection is per-process: strict must re-prove a cached .gch loads."""
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    dev = _make_pch_device(tmp_path, "dev_rc")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def ok(cmd, **kwargs):
+        if "-fsyntax-only" not in cmd:
+            gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=ok),
+    ):
+        prepare_pch()
+    assert gch.exists()
+
+    def reject(cmd, **kwargs):
+        assert "-fsyntax-only" in cmd, "cached path must not recompile"
+        return subprocess.CompletedProcess(
+            cmd, 0, "", "warning: esphome_pch.h.gch: had text segment "
+        )
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=reject),
+        pytest.raises(EsphomeError, match="cannot load the pch"),
+    ):
+        prepare_pch()
+    assert not gch.exists()

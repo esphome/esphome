@@ -472,8 +472,15 @@ def test_pch_script_strict_reraises_internal_errors(tmp_path: Path) -> None:
         _run_script(tmp_path, env_vars={"ESPHOME_PCH_STRICT": "1"}, platform_cls=None)
 
 
-def test_pch_script_strict_allows_nobuild_skip(tmp_path: Path) -> None:
-    """-t nobuild compiles nothing; the skip is expected even in strict."""
+@pytest.mark.parametrize(("targets", "passes"), [(["nobuild"], True), ([], False)])
+def test_pch_script_strict_projenv_skip_gated_on_nobuild(
+    tmp_path: Path, targets: list[str], passes: bool
+) -> None:
+    """-t nobuild compiles nothing, so the skip passes strict; a missing
+    projenv on a real compile must not."""
+    import sys
+    import types
+
     proj = tmp_path / "dev"
     (proj / "src").mkdir(parents=True)
 
@@ -481,12 +488,23 @@ def test_pch_script_strict_allows_nobuild_skip(tmp_path: Path) -> None:
         if "projenv" in names:
             raise RuntimeError("Import of non-existent variable 'projenv'")
 
+    scons = types.ModuleType("SCons")
+    scons_script = types.ModuleType("SCons.Script")
+    scons_script.COMMAND_LINE_TARGETS = targets
     env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
-    with patch.dict(os.environ, {"ESPHOME_PCH_STRICT": "1"}, clear=True):
-        exec(  # noqa: S102
+    with (
+        patch.dict(sys.modules, {"SCons": scons, "SCons.Script": scons_script}),
+        patch.dict(os.environ, {"ESPHOME_PCH_STRICT": "1"}, clear=True),
+    ):
+        run = lambda: exec(  # noqa: S102, E731
             compile(_SCRIPT.read_text(), "pch.py", "exec"),
             {"Import": strict_import, "env": env},
         )
+        if passes:
+            run()
+        else:
+            with pytest.raises(RuntimeError, match="not used"):
+                run()
     assert not (proj / "esphome_pch.h").exists()
 
 

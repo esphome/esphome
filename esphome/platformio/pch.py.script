@@ -164,12 +164,12 @@ def _setup_pch() -> bool | None:
         print(f"ESPHome: projenv unavailable ({_projenv_error}); skipping pch")
         try:
             from SCons.Script import COMMAND_LINE_TARGETS
-
-            # Expected under -t nobuild (nothing compiles); a missing
-            # projenv on a real compile must not pass strict
-            return "nobuild" in [str(t) for t in COMMAND_LINE_TARGETS]
-        except Exception:  # noqa: BLE001 -- no SCons: cannot tell, stay lenient
+        except ImportError:
+            # No SCons: cannot tell, stay lenient
             return True
+        # Expected under -t nobuild (nothing compiles); a missing
+        # projenv on a real compile must not pass strict
+        return "nobuild" in [str(t) for t in COMMAND_LINE_TARGETS]
     # Project root: SCons compiles run here, so the relative -include
     # resolves; an absolute path would break cross-device ccache sharing.
     proj_dir = Path(env.subst("$PROJECT_DIR"))  # noqa: F821
