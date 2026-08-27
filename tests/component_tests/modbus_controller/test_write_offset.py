@@ -50,6 +50,15 @@ def test_odd_offset_on_coil_switch_accepted() -> None:
     assert config[CONF_OFFSET] == 3
 
 
+def test_odd_byte_offset_on_holding_switch_rejected() -> None:
+    """byte_offset is the alias the validator must also catch."""
+    config = _switch_config("holding", 0)
+    del config[CONF_OFFSET]
+    config["byte_offset"] = 3
+    with pytest.raises((Invalid, MultipleInvalid), match="byte_offset"):
+        SWITCH_CONFIG_SCHEMA(config)
+
+
 def test_odd_offset_on_holding_output_rejected() -> None:
     with pytest.raises((Invalid, MultipleInvalid), match="odd"):
         OUTPUT_CONFIG_SCHEMA(_output_config("holding", 3))

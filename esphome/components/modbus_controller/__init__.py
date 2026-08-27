@@ -283,11 +283,12 @@ def reject_odd_holding_write_offset(config: ConfigType) -> ConfigType:
 
     A 16-bit register write cannot target half a register, so the residual byte is inexpressible.
     """
-    offset = config.get(CONF_BYTE_OFFSET, config.get(CONF_OFFSET, 0))
-    if offset % 2:
+    key = CONF_BYTE_OFFSET if CONF_BYTE_OFFSET in config else CONF_OFFSET
+    if config.get(key, 0) % 2:
         raise cv.Invalid(
-            f"An odd '{CONF_OFFSET}'/'{CONF_BYTE_OFFSET}' cannot be used with holding-register "
-            "writes: a 16-bit register write cannot target half a register"
+            f"An odd '{key}' cannot be used with holding-register writes: a 16-bit register "
+            "write cannot target half a register. Use an even offset, or fold it into 'address'",
+            path=[key],
         )
     return config
 
