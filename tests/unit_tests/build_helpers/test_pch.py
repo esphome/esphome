@@ -264,3 +264,48 @@ def test_pch_strict_rejects_unrecognized_values(
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "yolo")
     with pytest.raises(EsphomeError, match="Unrecognized ESPHOME_PCH_STRICT"):
         pch.pch_strict()
+
+
+def test_discard_pch_raises_when_gch_survives(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A .gch an unlink failure leaves behind would be consumed silently."""
+    from pathlib import Path as _P
+
+    from esphome.core import EsphomeError
+
+    (tmp_path / "esphome_pch.h").write_text("")
+    gch = tmp_path / "esphome_pch.h.gch"
+    gch.write_bytes(b"gch")
+    real_unlink = _P.unlink
+
+    def failing_unlink(self, missing_ok=False):
+        if self.name.endswith(".gch"):
+            raise OSError("readonly")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(_P, "unlink", failing_unlink)
+    with pytest.raises(EsphomeError, match="Could not discard"):
+        pch.discard_pch(tmp_path)
+
+
+def test_discard_pch_warns_when_only_sidecar_unlink_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from pathlib import Path as _P
+
+    (tmp_path / "esphome_pch.h").write_text("")
+    (tmp_path / "esphome_pch.h.gch").write_bytes(b"gch")
+    (tmp_path / "esphome_pch.h.gch.sum").write_text("x")
+    real_unlink = _P.unlink
+
+    def failing_unlink(self, missing_ok=False):
+        if self.name.endswith(".sum"):
+            raise OSError("readonly")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(_P, "unlink", failing_unlink)
+    pch.discard_pch(tmp_path)
+    assert "Could not discard the pch sidecars" in caplog.text

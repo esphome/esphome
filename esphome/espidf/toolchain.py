@@ -535,21 +535,10 @@ def run_compile(config, verbose: bool) -> int:
     try:
         prepare_pch()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Discard so a stale .gch can never be consumed
-        try:
-            discard_pch()
-        except OSError as discard_err:
-            # A stale .gch that survives would be consumed silently: that
-            # is wrong output, not a slow build, so it must abort
-            from esphome.build_helpers.pch import PCH_HEADER_NAME
-
-            if CORE.relative_build_path("build", f"{PCH_HEADER_NAME}.gch").is_file():
-                raise EsphomeError(
-                    f"Could not discard the stale precompiled header: {discard_err}"
-                ) from discard_err
-            _LOGGER.warning("Could not discard the stale pch: %s", discard_err)
         from esphome.build_helpers.pch import pch_strict
 
+        # Raises itself if a stale .gch survives (silently wrong output)
+        discard_pch()
         if pch_strict():
             raise
         _LOGGER.warning(

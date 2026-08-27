@@ -39,6 +39,7 @@ from esphome.build_helpers.pch import (
     PCH_HEADER_NAME,
     mark_pch_emitted,
     pch_checksum,
+    pch_consumer_escalation,
     pch_degraded,
     pch_disabled_degraded,
     pch_enabled,
@@ -1292,9 +1293,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             # strict inverts it so any consumer rejection reds the build
             # (rejection is per-process, so the probe alone cannot prove
             # the consumers)
-            escalation = (
-                "-Werror=invalid-pch" if pch_strict() else "-Wno-error=invalid-pch"
-            )
+            escalation = pch_consumer_escalation()
             cxx_parts = src_other + [
                 f"-Winvalid-pch {escalation} -include {PCH_HEADER_NAME}"
             ]
@@ -1303,9 +1302,7 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             if pch_strict():
                 # Consumers wait on the probe stamp, so an unloadable .gch
                 # reds the build here instead of warning ~100 times
-                probe = " ".join(
-                    pch_probe_args(PCH_HEADER_NAME, source=str(Path(os.devnull)))
-                )
+                probe = " ".join(pch_probe_args(PCH_HEADER_NAME, source=os.devnull))
                 lines.append("rule pchprobe")
                 # $out only expands in rule text, hence the inline stamp
                 lines.append(
