@@ -354,14 +354,27 @@ def _registry_jobs(
     return jobs, failed, installable
 
 
+def _is_vcs_spec_uri(url: str) -> bool:
+    """Whether pio's ``install_from_uri`` would clone this URI rather than
+    copy or download it (PackageSpec normalizes git URLs to ``git+``)."""
+    return not url.startswith(("file://", "symlink://", "http://", "https://"))
+
+
+def _spec_name(spec: Any, url: str) -> str:
+    """The spec's name; the URL basename fallback is defensive only
+    (PackageSpec derives a name from the URI itself)."""
+    return spec.name or url.split("#", 1)[0].rsplit("/", 1)[-1]
+
+
 def _uri_jobs(
     manager: Any, specs: list[Any], seen: set[str]
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
     """Jobs for direct-URL specs; a HEAD sizes each for the combined bar.
 
     Also returns how many HEAD probes errored (an absent length is not an
-    error) and the ``(name, spec)`` pairs whose archives will be
-    installable.
+    error) and the ``(name, spec)`` pairs to pre-install: downloaded
+    archives, plus VCS specs, which have no archive -- the pre-install
+    itself clones them, in parallel instead of one at a time in pio run.
     """
     from esphome.net_retry import fetch_with_retry, http_request
 
@@ -369,13 +382,17 @@ def _uri_jobs(
     installable: list[tuple[str, Any]] = []
     for spec in specs:
         url = spec.uri
-        if not url or not url.startswith(("http://", "https://")):
-            continue  # git+/file specs are cloned/copied, not downloaded
-        if url.split("#", 1)[0].endswith(".git"):
-            continue  # bare-URL VCS spec; PlatformIO clones it
+        if not url:
+            continue
+        is_vcs = _is_vcs_spec_uri(url)
+        if not is_vcs and not url.startswith(("http://", "https://")):
+            continue  # file/symlink specs are copied in place by pio run
         if manager.get_package(spec):
             continue
-        name = spec.name or url.rsplit("/", 1)[-1]
+        name = _spec_name(spec, url)
+        if is_vcs:
+            installable.append((name, spec))
+            continue
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
         if dl_path.is_file():
@@ -899,8 +916,14 @@ def _prefetch(build_dir: Path, env: str) -> None:
             if name not in failed_names
         }
         if to_install:
+            # Clones first: they wait on the network, so they must not
+            # queue behind CPU-bound archive extractions
+            ordered = sorted(
+                to_install.values(),
+                key=lambda entry: not ((url := entry[1].uri) and _is_vcs_spec_uri(url)),
+            )
             try:
-                _preinstall(mgr, list(to_install.values()))
+                _preinstall(mgr, ordered)
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Each group degrades independently; pio run installs
                 # whatever this one did not

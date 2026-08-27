@@ -587,7 +587,8 @@ def test_registry_jobs_one_bad_spec_keeps_the_rest(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
-    """HEAD sizes direct-URL specs; git and unreachable URLs are skipped."""
+    """HEAD sizes direct-URL specs; VCS specs skip the download but are
+    still installable (the pre-install clones them in parallel)."""
     m = _fake_manager(tmp_path)
     resp = MagicMock()
     resp.headers = {"content-length": "2222"}
@@ -597,19 +598,47 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
             [
                 _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
                 _FakeSpec(uri="git+https://x/repo.git", name="repo"),
-                _FakeSpec(uri="https://x/repo.git#v1", name="barevcs"),
                 _FakeSpec(name="registry"),
             ],
             set(),
         )
     assert failed == 0
     assert [(n, s) for n, s, _ in jobs] == [("big", 2222)]
-    assert [n for n, _ in installable] == ["big"]
+    assert [n for n, _ in installable] == ["repo", "big"]
     # a successful HEAD with no Content-Length is a clean skip
     resp.headers = {}
     with patch("esphome.net_retry.http_request", return_value=resp):
         assert pf._uri_jobs(
             m, [_FakeSpec(uri="https://x/nolen.zip", name="nolen")], set()
+        ) == ([], 0, [])
+
+
+def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
+    """VCS specs never probe the network here (there is no archive); an
+    uninstalled one is handed to the pre-install, an installed one and
+    file/symlink specs are skipped."""
+    m = _fake_manager(tmp_path)
+    with patch("esphome.net_retry.http_request") as mock_head:
+        jobs, failed, installable = pf._uri_jobs(
+            m,
+            [
+                _FakeSpec(uri="git+https://x/tool.git#1.0", name="tool"),
+                _FakeSpec(uri="hg+https://x/old", name="mercurial"),
+                # Name falls back to the URL basename, fragment excluded
+                _FakeSpec(uri="git+https://x/noname#v2", name=None),
+                _FakeSpec(uri="file:///local/dir", name="local"),
+                _FakeSpec(uri="symlink:///local/dir", name="link"),
+            ],
+            set(),
+        )
+    mock_head.assert_not_called()
+    assert (jobs, failed) == ([], 0)
+    assert [n for n, _ in installable] == ["tool", "mercurial", "noname"]
+
+    m.get_package.return_value = object()  # already installed: warm and silent
+    with patch("esphome.net_retry.http_request"):
+        assert pf._uri_jobs(
+            m, [_FakeSpec(uri="git+https://x/tool.git#1.0", name="tool")], set()
         ) == ([], 0, [])
 
 
