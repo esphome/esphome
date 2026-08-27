@@ -16,6 +16,12 @@ PIDResetIntegralTermAction = pid_ns.class_(
 PIDSetControlParametersAction = pid_ns.class_(
     "PIDSetControlParametersAction", automation.Action
 )
+PIDSetDeadbandControlParametersMultipliersAction = pid_ns.class_(
+    "PIDSetDeadbandControlParametersMultipliersAction", automation.Action
+)
+PIDSetDeadbandThresholdParametersAction = pid_ns.class_(
+    "PIDSetDeadbandThresholdParametersAction", automation.Action
+)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 
@@ -215,5 +221,71 @@ async def set_control_parameters(
 
     kd_template_ = await cg.templatable(config[CONF_KD], args, cg.float_)
     cg.add(var.set_kd(kd_template_))
+
+    return var
+
+
+@automation.register_action(
+    "climate.pid.set_deadband_control_parameters_multipliers",
+    PIDSetDeadbandControlParametersMultipliersAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(PIDClimate),
+            cv.Required(CONF_KP_MULTIPLIER): cv.templatable(cv.float_),
+            cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.templatable(cv.float_),
+            cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.templatable(cv.float_),
+        }
+    ),
+    synchronous=True,
+)
+async def set_deadband_control_parameters_multipliers(
+    config, action_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    kp_multiplier_template_ = await cg.templatable(
+        config[CONF_KP_MULTIPLIER], args, float
+    )
+    cg.add(var.set_kp_multiplier(kp_multiplier_template_))
+
+    ki_multiplier_template_ = await cg.templatable(
+        config[CONF_KI_MULTIPLIER], args, float
+    )
+    cg.add(var.set_ki_multiplier(ki_multiplier_template_))
+
+    kd_multiplier_template_ = await cg.templatable(
+        config[CONF_KD_MULTIPLIER], args, float
+    )
+    cg.add(var.set_kd_multiplier(kd_multiplier_template_))
+
+    return var
+
+
+@automation.register_action(
+    "climate.pid.set_deadband_threshold_parameters",
+    PIDSetDeadbandThresholdParametersAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(PIDClimate),
+            cv.Required(CONF_THRESHOLD_HIGH): cv.templatable(cv.temperature_delta),
+            cv.Required(CONF_THRESHOLD_LOW): cv.templatable(cv.temperature_delta),
+        }
+    ),
+    synchronous=True,
+)
+async def set_deadband_threshold_parameters(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    threshold_high_template_ = await cg.templatable(
+        config[CONF_THRESHOLD_HIGH], args, float
+    )
+    cg.add(var.set_threshold_high(threshold_high_template_))
+
+    threshold_low_template_ = await cg.templatable(
+        config[CONF_THRESHOLD_LOW], args, float
+    )
+    cg.add(var.set_threshold_low(threshold_low_template_))
 
     return var

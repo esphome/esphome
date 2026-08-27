@@ -12,6 +12,15 @@ esphome:
           kp: 0.0
           ki: 0.0
           kd: 0.0
+      - climate.pid.set_deadband_control_parameters_multipliers:
+          id: pid_climate
+          kp_multiplier: 0.0
+          ki_multiplier: 0.0
+          kd_multiplier: 0.0
+      - climate.pid.set_deadband_threshold_parameters:
+          id: pid_climate
+          threshold_high: 0.0
+          threshold_low: 0.0
       - climate.pid.reset_integral_term: pid_climate
 
 output:
@@ -30,6 +39,26 @@ sensor:
       }
       return 0.0;
     update_interval: 60s
+  - platform: pid
+    id: pid_kp_multiplier
+    climate_id: pid_climate
+    type: KP_DEADBAND_MULTIPLIER
+  - platform: pid
+    id: pid_ki_multiplier
+    climate_id: pid_climate
+    type: KI_DEADBAND_MULTIPLIER
+  - platform: pid
+    id: pid_kd_multiplier
+    climate_id: pid_climate
+    type: KD_DEADBAND_MULTIPLIER
+  - platform: pid
+    id: pid_threshold_high
+    climate_id: pid_climate
+    type: DEADBAND_THRESHOLD_HIGH
+  - platform: pid
+    id: pid_threshold_low
+    climate_id: pid_climate
+    type: DEADBAND_THRESHOLD_LOW
 
 climate:
   - platform: pid
