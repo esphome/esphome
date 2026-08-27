@@ -107,11 +107,9 @@ def patch_file_downloader() -> None:
 
 
 def patch_registry_private_packages() -> None:
-    """Answer PlatformIO's private-package probe without the network.
+    """Skip PlatformIO's private-package probe; it sleeps ~500 ms per lookup.
 
-    ``RegistryClient.get_package()`` runs the probe before checking its HTTP
-    cache, and the throttled account request behind it sleeps up to 500 ms
-    before failing without a login. ESPHome never uses private packages.
+    ESPHome never uses private packages, so the answer is always False.
     """
     from platformio.registry.client import RegistryClient
 
