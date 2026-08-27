@@ -45,6 +45,28 @@ static constexpr uint8_t READ_OUT_STAGE_DONE = 4;
 static constexpr int16_t FACE_ID_INCOMPLETE = -1;
 static constexpr int16_t FACE_STATE_IDLE = -1;
 
+/// Length of the leading run of printable ASCII in a fixed width text field.
+///
+/// The module pads these fields to a fixed width and is not consistent about what it pads
+/// with: names come back NUL padded, but the serial number is padded with arbitrary bytes
+/// (0xFF and friends). Those bytes are not valid UTF-8, and publishing them produces a
+/// state string that clients such as Home Assistant refuse to decode, so stop at the first
+/// byte that cannot be part of a plain text string.
+static size_t printable_length(const char *text, size_t max_length) {
+  size_t length = 0;
+  while (length < max_length) {
+    const auto c = static_cast<unsigned char>(text[length]);
+    if (c < 0x20 || c > 0x7E) {
+      break;
+    }
+    length++;
+  }
+  while (length > 0 && text[length - 1] == ' ') {
+    length--;
+  }
+  return length;
+}
+
 static const LogString *result_to_string(uint8_t result) {
   switch (result) {
     case HlkFm22xResult::SUCCEEDED:
@@ -266,9 +288,8 @@ bool HlkFm22xComponent::parse_face_record_(const uint8_t *data, size_t length, i
     return false;
   }
   face_id = (int16_t) encode_uint16(data[2], data[3]);
-  // The name is NUL padded to a fixed width
   name = reinterpret_cast<const char *>(data + 4);
-  name_length = strnlen(name, HLK_FM22X_NAME_SIZE);
+  name_length = printable_length(name, HLK_FM22X_NAME_SIZE);
   admin = length > FACE_RECORD_ADMIN_OFFSET && data[FACE_RECORD_ADMIN_OFFSET] != 0;
   return true;
 }
@@ -698,9 +719,8 @@ void HlkFm22xComponent::handle_face_details_reply_(uint8_t result, const uint8_t
 }
 
 void HlkFm22xComponent::publish_text_(text_sensor::TextSensor *text_sensor, const uint8_t *data, size_t length) {
-  // Strings are NUL padded to a fixed width; publish only the text in front of the padding
   const char *text = reinterpret_cast<const char *>(data);
-  const size_t text_length = strnlen(text, length);
+  const size_t text_length = printable_length(text, length);
   ESP_LOGD(TAG, "Module reports: %.*s", (int) text_length, text);
   if (text_sensor != nullptr) {
     text_sensor->publish_state(text, text_length);
