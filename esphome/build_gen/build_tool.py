@@ -85,7 +85,11 @@ def _run_copy(src: str, dst: str) -> int:
 
 
 def _run_touch(path: str) -> int:
-    Path(path).touch()
+    try:
+        Path(path).touch()
+    except OSError as err:
+        print(f"touch: {path} failed: {err}", file=sys.stderr)
+        return 1
     return 0
 
 

@@ -478,7 +478,10 @@ def test_pch_script_strict_tables_match_helpers(tmp_path: Path) -> None:
 
     proj = tmp_path / "dev"
     (proj / "src").mkdir(parents=True)
-    env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
+    # Hermetic: the constants are module-level, but the exec still runs
+    # _setup_pch, which must not touch the host toolchain
+    cxx = _fake_cxx(tmp_path)
+    env = _FakeSConsEnv(proj, proj / "src", str(cxx), ["-DX=1"])
     namespace = {"Import": lambda *_names: None, "env": env, "projenv": env}
     with patch.dict(os.environ, {}, clear=True):
         exec(compile(_SCRIPT.read_text(), "pch.py", "exec"), namespace)  # noqa: S102
