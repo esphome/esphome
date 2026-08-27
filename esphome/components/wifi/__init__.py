@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
+    include_builtin_idf_component,
     only_on_variant,
     request_wifi,
 )
@@ -652,6 +653,8 @@ async def to_code(config):
     # drops SoftAP support / the LWIP DHCP server when AP mode is unused.
     if CORE.is_esp32:
         request_wifi(ap=CONF_AP in config)
+        include_builtin_idf_component("esp_wifi")
+        include_builtin_idf_component("wpa_supplicant")  # esp_eap_client.h
 
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:

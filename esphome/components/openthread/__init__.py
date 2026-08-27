@@ -282,6 +282,7 @@ async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
+        include_builtin_idf_component("ieee802154")
 
     cg.add_define("USE_OPENTHREAD")
     if config.get(CONF_FORCE_DATASET):

@@ -214,6 +214,7 @@ COMPILER_OPTIMIZATIONS = {
 # builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "app_trace",  # CPU trace/SystemView support - unused by ESPHome
+    "bt",  # Bluetooth stack - re-included by request_bluetooth(); it requires esp_wifi
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
     "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
@@ -233,9 +234,13 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_sdmmc",  # SD/MMC host driver - unused by ESPHome
     "esp_driver_sdspi",  # SD-over-SPI driver - unused by ESPHome
     "esp_driver_touch_sens",  # Touch sensor driver - only needed by esp32_touch
+    "esp_coex",  # WiFi/BT coexistence - esp_wifi, bt and ieee802154 pull it back
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
     "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
+    "esp_hal_ieee802154",  # 802.15.4 HAL - ieee802154 pulls it back
+    "esp_phy",  # Radio PHY - esp_wifi, bt and ieee802154 pull it back
+    "esp_wifi",  # WiFi stack (and wpa_supplicant/mbedtls with it) - re-included by wifi, espnow; bt pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
     "esp_http_server",  # HTTP server - re-included by web_server_idf, esp32_camera_web_server
@@ -245,6 +250,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "ieee802154",  # 802.15.4 radio - openthread and zigbee pull it back; it requires esp_phy
     "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
     "nvs_sec_provider",  # NVS encryption key provider - re-included when CONFIG_NVS_ENCRYPTION is set
@@ -258,6 +264,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "tcp_transport",  # Transport layer - esp_http_client/mqtt pull it back when re-included
     "ulp",  # ULP coprocessor - not currently used by any ESPHome component
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
+    "wpa_supplicant",  # WiFi authentication - esp_wifi pulls it back
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
     "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
 )
@@ -720,6 +727,7 @@ def request_bluetooth() -> None:
     """Request the Bluetooth controller."""
     net = _network_sdkconfig()
     net.bluetooth = True
+    include_builtin_idf_component("bt")
 
 
 def request_software_coexistence() -> None:
@@ -2304,6 +2312,8 @@ async def _reconcile_network_sdkconfig() -> None:
 
     # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
     # relies on the IDF default (enabled), so it is never written True here.
+    # On IDF esp_wifi is excluded outright; this still matters where Arduino
+    # or bt pulls it back, and is ignored otherwise.
     wifi_disabled = net.ethernet and not net.wifi
     if wifi_disabled:
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENABLED", False)

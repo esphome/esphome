@@ -3,6 +3,7 @@ from typing import Any
 from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import wifi
+from esphome.components.esp32 import include_builtin_idf_component
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -154,6 +155,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("USE_ESPNOW")
     cg.add_define("USE_ESPNOW_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
+    include_builtin_idf_component("esp_wifi")
 
     if CONF_WIFI in CORE.config:
         # Track the Wi-Fi channel via connect events instead of polling every loop

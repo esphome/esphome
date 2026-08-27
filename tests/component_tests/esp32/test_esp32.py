@@ -298,6 +298,13 @@ def test_esp32_configuration_errors(
             ("esp-tls", "esp_http_client"),
             id="nextion",
         ),
+        pytest.param(
+            "network_wifi_only.yaml", ("esp_wifi", "wpa_supplicant"), id="wifi"
+        ),
+        pytest.param("exclusion_reincludes_espnow.yaml", ("esp_wifi",), id="espnow"),
+        pytest.param(
+            "network_wifi_ble_coexistence.yaml", ("esp_wifi", "bt"), id="wifi_ble"
+        ),
     ],
 )
 def test_default_exclusions_reincluded_by_owning_components(
@@ -322,6 +329,19 @@ def test_default_exclusions_reincluded_by_owning_components(
     assert "fatfs" in excluded
     # The HTTP server only comes back for configs that run one.
     assert ("esp_http_server" in excluded) == ("esp_http_server" not in reincluded)
+
+
+def test_wifi_stack_stays_excluded_without_wifi(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Ethernet-only builds keep the WiFi stack (and mbedtls with it) out."""
+    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
+
+    generate_main(component_config_path("network_ethernet_only.yaml"))
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+    assert {"esp_wifi", "wpa_supplicant", "esp_phy", "esp_coex", "bt"} <= excluded
 
 
 def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
