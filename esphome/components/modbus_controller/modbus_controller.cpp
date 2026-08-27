@@ -360,8 +360,10 @@ void ModbusController::create_polling_commands_() {
   // force_new_range ahead of the rest, then address - so the walk is not purely address-ordered.
   // Each keeps the address it was configured with; what is resolved here is its `offset`, the position
   // of its data within the response of whichever range it ends up in.
-  std::vector<RegisterRange> ranges;
-  ranges.reserve(this->sensorset_.size());  // one range per sensor is a strict upper bound
+  // One range per sensor is a strict upper bound: each walk step closes at most one range, plus one
+  // closed after the walk. Sized to that bound so no push is ever silently dropped, then handed on by move.
+  FixedVector<RegisterRange> ranges;
+  ranges.init(this->sensorset_.size());
   RegisterRange r = {};
   bool have_range = false;
   // Set while the open range belongs to a force_new_range sensor: a range the user asked to keep
