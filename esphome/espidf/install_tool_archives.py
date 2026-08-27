@@ -1,7 +1,8 @@
 """Extract prefetched ESP-IDF tool archives in parallel.
 
 Run via ``python <this file> <idf_framework_root> <targets-csv> <workers>
-<tool-spec>...`` with idf_tools on PYTHONPATH and IDF_TOOLS_PATH set.
+<tool-spec>...`` with idf_tools and the esphome package root on PYTHONPATH
+and IDF_TOOLS_PATH set.
 Drives idf_tools' own ``IDFTool.install()`` so extraction semantics match
 the sequential installer, which still runs afterwards as the authority and
 redoes anything this best-effort pass failed on. Archives are trusted from
@@ -11,15 +12,13 @@ the prefetch's sha256 verification, not re-hashed here.
 # pylint: disable=import-error  # idf_tools is on PYTHONPATH at runtime only
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
-import os
 from pathlib import Path
-import shutil
-import stat
 import sys
 
 from _tool_resolution import archive_name, init_idf_tools, iter_tool_downloads
 from idf_tools import ToolBinaryError, g
+
+from esphome.helpers import rmtree
 
 
 def collect_pending(
@@ -46,36 +45,26 @@ def collect_pending(
     return pending
 
 
-def _rmtree(path: str) -> None:
-    """Best-effort removal; clears the read-only bits that block deletion on
-    Windows (esphome.helpers.rmtree is not importable here)."""
-
-    def _onexc(func, p, exc):  # pragma: no cover  # Windows read-only files
-        if os.access(p, os.W_OK):
-            raise exc
-        # Preserve the mode: 0o600 would strip a directory's execute bit
-        # and make the installer's own rmtree fail on the survivor
-        Path(p).chmod(Path(p).stat().st_mode | stat.S_IWUSR)
-        func(p)
-
-    with suppress(OSError):
-        shutil.rmtree(path, onexc=_onexc)
-    if Path(path).exists():  # pragma: no cover
-        # A surviving torn dir may pass the installer's binary probe
-        print(f"could not remove {path}", file=sys.stderr)
-
-
-def install_one(tool: object, name: str, version: str) -> bool:
+def install_one(tool: object, name: str, version: str) -> bool | None:
+    """True on success, False on a cleaned-up failure, None when the torn
+    dest dir survived and could fool the installer's binary probe."""
     try:
         tool.install(version)
     # check_binary_valid exits via SystemExit; the installer redoes failures
     except (Exception, SystemExit) as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # A torn dest dir must not look installed to the installer
-        _rmtree(tool.get_path_for_version(version))
         print(
             f"pre-extracting {name}@{version} failed, leaving it to the installer: {e}",
             file=sys.stderr,
         )
+        # A torn dest dir must not look installed to the installer
+        dest = tool.get_path_for_version(version)
+        try:
+            rmtree(dest)
+        except FileNotFoundError:  # pragma: no cover  # failed before mkdir
+            pass
+        except OSError as cleanup_err:
+            print(f"could not remove {dest}: {cleanup_err}", file=sys.stderr)
+            return None
         return False
     return True
 
@@ -99,12 +88,13 @@ def main() -> None:
             ex.submit(install_one, tool, name, version)
             for (name, version), tool in pending.items()
         ]
-    # Every job failing is a systematic fault; a nonzero exit makes the
-    # caller log it instead of silently degrading to a sequential install
-    failed = sum(not future.result() for future in futures)
+    # A survivor could fool the installer; every job failing is systematic.
+    # Either way a nonzero exit makes the caller warn
+    results = [future.result() for future in futures]
+    failed = sum(result is not True for result in results)
     if failed:
-        print(f"{failed} of {len(futures)} pre-extractions failed", file=sys.stderr)
-        if failed == len(futures):
+        print(f"{failed} of {len(results)} pre-extractions failed", file=sys.stderr)
+        if None in results or failed == len(results):
             sys.exit(1)
 
 

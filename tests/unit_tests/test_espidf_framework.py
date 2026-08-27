@@ -1026,7 +1026,9 @@ def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
     assert download.call_count == 6
 
 
-def test_prefetch_skips_already_downloaded_archives(tmp_path: Path) -> None:
+def test_prefetch_reverifies_already_downloaded_archives(tmp_path: Path) -> None:
+    """A pre-existing archive is not skipped: download_with_resume keeps it
+    only when the sha256 matches, so the pre-extraction can trust it."""
     dist = get_idf_tools_path() / "dist"
     dist.mkdir(parents=True)
     (dist / "cmake-3.30.2.tar.gz").write_bytes(b"cached")
@@ -1040,9 +1042,10 @@ def test_prefetch_skips_already_downloaded_archives(tmp_path: Path) -> None:
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
 
-    # only the missing archive is downloaded
-    assert download.call_count == 1
-    assert download.call_args[0][1] == dist / "ninja.zip"
+    assert sorted(call[0][1] for call in download.call_args_list) == [
+        dist / "cmake-3.30.2.tar.gz",
+        dist / "ninja.zip",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1163,10 +1166,17 @@ def test_prefetch_passes_targets_and_tools_to_script(tmp_path: Path) -> None:
     cmd = run.call_args[0][0]
     assert cmd[-3:] == ["esp32,esp32c3", "required", "cmake"]
     assert cmd[1].endswith("get_tool_downloads.py")
-    # the script inherits the caller's env plus the framework tools PYTHONPATH
+    # the script inherits the caller's env plus an explicit PYTHONPATH:
+    # sibling scripts, the esphome package root, the framework's idf_tools
     env = run.call_args[1]["env"]
     assert env["IDF_TOOLS_PATH"] == "/x"
-    assert env["PYTHONPATH"] == str(tmp_path / "tools")
+    assert env["PYTHONPATH"] == os.pathsep.join(
+        (
+            str(_ESPIDF_SCRIPTS_DIR),
+            str(_ESPIDF_SCRIPTS_DIR.parents[1]),
+            str(tmp_path / "tools"),
+        )
+    )
 
 
 def test_framework_install_prefetches_before_installer(
@@ -2202,3 +2212,28 @@ def test_install_tool_archives_inprocess_dedupes_and_skips(
     assert (tools / "ninja" / "1.12.1" / ".installed").is_file()
     assert not (tools / "installed-tool").exists()
     assert not (tools / "broken-tool").exists()
+
+
+def test_install_tool_archives_surviving_torn_dir_escalates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A torn dir that survives cleanup could fool the installer; the exit
+    is nonzero even though the other tool succeeded."""
+    import esphome.helpers
+
+    _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
+    monkeypatch.setenv("TEST_FAIL_INSTALL", "ninja")
+    monkeypatch.setattr(
+        esphome.helpers, "rmtree", MagicMock(side_effect=OSError("busy"))
+    )
+    with pytest.raises(SystemExit) as excinfo:
+        _run_espidf_script_inprocess(
+            tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
+        )
+    assert excinfo.value.code == 1
+    err = capsys.readouterr().err
+    assert "could not remove" in err
+    assert "1 of 2 pre-extractions failed" in err
+    assert (tmp_path / "tp" / "tools" / "cmake" / "3.30.2" / ".installed").is_file()

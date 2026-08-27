@@ -306,11 +306,19 @@ def _run_idf_tools_script(
         str(idf_framework_root),
         *(args or []),
     ]
+    # Explicit paths: the scripts dir (sibling imports must survive
+    # PYTHONSAFEPATH), the esphome package root, and the framework's idf_tools
+    pythonpath = os.pathsep.join(
+        (
+            str(_SCRIPTS_DIR),
+            str(_SCRIPTS_DIR.parents[1]),
+            str(Path(idf_framework_root) / "tools"),
+        )
+    )
     return run_command(
         cmd,
         msg=msg,
-        env=(env or os.environ)
-        | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
+        env=(env or os.environ) | {"PYTHONPATH": pythonpath},
         stream_output=stream_output,
     )
 
@@ -729,9 +737,9 @@ def _prefetch_idf_tool_archives(
         dist_path = get_idf_tools_path() / "dist"
         entries = []
         seen_dests: set[str] = set()
+        # Pre-existing archives are not skipped: download_with_resume keeps
+        # them only on a sha256 match, so the pre-extraction can trust dist/
         for entry in json.loads(stdout):
-            if (dist_path / entry["dest"]).is_file():
-                continue
             # Never download unverified: an entry without sha256/size is
             # left to the installer, which fails loudly on a bad archive.
             # Checked before the dedupe so it cannot shadow a verifiable
