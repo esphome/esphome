@@ -267,7 +267,7 @@ TEST(MS8607Test, Category4MathematicalEdgeCases) {
     // these values are above what the data sheet accepts, but should avoid Undefined Behavior
     auto temp_res = MS8607Component::compensated_temperature(10491904, calibration_values);
     float const pressure = MS8607Component::compensated_pressure(6857823, calibration_values, temp_res);
-    float const hum = MS8607Component::compensated_humidity(0xFFFB, temp_res.temperature_float);
+    float const hum = MS8607Component::compensated_humidity(0xFFFC, temp_res.temperature_float);
 
     EXPECT_NEAR(temp_res.temperature_float, 100.0f, 1e-2f);
     EXPECT_NEAR(pressure, 1500.0f, 1e-2f);
