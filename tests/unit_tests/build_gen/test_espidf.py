@@ -665,6 +665,31 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
     assert cmd_dir == build
 
 
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_pch_compile_command_matches_src_through_symlink(tmp_path: Path) -> None:
+    """Find the src TU when CMake spells paths through a different symlink (macOS /tmp)."""
+    from esphome.build_helpers.pch import pch_compile_command
+
+    real = tmp_path / "real"
+    (real / "src" / "esphome").mkdir(parents=True)
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    CORE.build_path = str(real)
+    build = real / "build"
+    build.mkdir()
+    header = build / "esphome_pch.h"
+    gch = build / "esphome_pch.h.gch"
+    src_file = str(link / "src" / "esphome" / "a.cpp")
+    (build / "compile_commands.json").write_text(
+        json.dumps([{"command": f"g++ -DX=1 -o a.obj -c {src_file}", "file": src_file}])
+    )
+
+    cmd, cmd_dir = pch_compile_command(build, header, gch)
+
+    assert cmd[:2] == ["g++", "-DX=1"]
+    assert cmd_dir == build
+
+
 def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
     """Malformed DB shapes and command-less entries skip cleanly instead of
     producing a compiler-less argv retried every build."""
