@@ -1875,6 +1875,9 @@ def test_write_project_pch_strict_emits_probe_edge(
     # bare stamp command and fail every strict build
     assert "&& $python $buildtool touch $out" in content
     assert "$stamp" not in content
+    # Strict consumers escalate: a per-TU rejection must red the build
+    assert "srccxxflags = -Winvalid-pch -Werror=invalid-pch" in content
+    assert "-Wno-error=invalid-pch" not in content
 
     # With extra src flags the probe edge carries them like the .gch edge
     CORE.platformio_options["build_src_flags"] = (

@@ -460,10 +460,42 @@ def test_pch_script_unreadable_local_header_skips_pch(
     assert "skipping precompiled header" in capsys.readouterr().out
 
 
+def test_pch_script_strict_reprobes_cached_gch(tmp_path: Path) -> None:
+    """Rejection is per-process: strict re-proves a cached .gch loads."""
+    _run_script(tmp_path)
+    proj = tmp_path / "dev"
+    assert (proj / "esphome_pch.h.gch").is_file()
+    (tmp_path / "fake-gxx.argv").unlink(missing_ok=True)
+    # Second run: cache fresh, but the toolchain now rejects loads
+    with pytest.raises(RuntimeError, match="not used"):
+        _run_script(tmp_path, reject_pch=True, env_vars={"ESPHOME_PCH_STRICT": "1"})
+    assert not (proj / "esphome_pch.h.gch").exists()
+
+
 def test_pch_script_strict_raises_when_pch_not_used(tmp_path: Path) -> None:
     """ESPHOME_PCH_STRICT fails the build instead of degrading."""
     with pytest.raises(RuntimeError, match="ESPHOME_PCH_STRICT"):
         _run_script(tmp_path, fail=True, env_vars={"ESPHOME_PCH_STRICT": "1"})
+
+
+def test_pch_script_strict_fails_without_scons(tmp_path: Path) -> None:
+    """No SCons under PlatformIO is an anomaly; strict must not pass."""
+    proj = tmp_path / "dev"
+    (proj / "src").mkdir(parents=True)
+
+    def strict_import(*names: str) -> None:
+        if "projenv" in names:
+            raise RuntimeError("Import of non-existent variable 'projenv'")
+
+    env = _FakeSConsEnv(proj, proj / "src", "g++", ["-DX=1"])
+    with (
+        patch.dict(os.environ, {"ESPHOME_PCH_STRICT": "1"}, clear=True),
+        pytest.raises(RuntimeError, match="not used"),
+    ):
+        exec(  # noqa: S102
+            compile(_SCRIPT.read_text(), "pch.py", "exec"),
+            {"Import": strict_import, "env": env},
+        )
 
 
 def test_pch_script_strict_reraises_internal_errors(tmp_path: Path) -> None:

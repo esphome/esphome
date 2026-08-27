@@ -1,6 +1,5 @@
 """ESP-IDF direct build API for ESPHome."""
 
-from contextlib import suppress
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -537,8 +536,10 @@ def run_compile(config, verbose: bool) -> int:
         prepare_pch()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Discard so a stale .gch can never be consumed
-        with suppress(OSError):
+        try:
             discard_pch()
+        except OSError as discard_err:
+            _LOGGER.warning("Could not discard the stale pch: %s", discard_err)
         from esphome.build_helpers.pch import pch_strict
 
         if pch_strict():

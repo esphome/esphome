@@ -669,6 +669,26 @@ def test_get_core_framework_version_from_core_data():
     assert toolchain._get_core_framework_version() == "5.5.4"
 
 
+def test_run_compile_logs_failed_pch_discard(
+    setup_core: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A discard failure in the catch-all must be visible, not silent."""
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
+    _setup_build(setup_core)
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+        patch("esphome.build_gen.espidf.prepare_pch", side_effect=RuntimeError("boom")),
+        patch("esphome.build_gen.espidf.discard_pch", side_effect=OSError("readonly")),
+    ):
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    assert "Could not discard the stale pch" in caplog.text
+
+
 def test_run_compile_strict_reraises_pch_failure(
     setup_core: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
