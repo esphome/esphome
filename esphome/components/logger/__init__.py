@@ -20,6 +20,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
     require_usb_serial_jtag_secondary,
     require_vfs_termios,
 )
@@ -459,6 +460,16 @@ async def _late_logger_init(config: ConfigType) -> None:
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
             cg.add_define("USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG")
+        # Log V2 formats centrally in esp_log() (~4KB flash, ~180B RAM). 6.1
+        # adds CONSTRAINED_ENV_SAFE=n, keeping early/DRAM logs on
+        # esp_rom_printf instead of pulling ~1.2KB esp_rom_vprintf into IRAM.
+        if idf_version() >= cv.Version(6, 1, 0):
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
+            add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
+            add_idf_sdkconfig_option("CONFIG_LOG_API_CONSTRAINED_ENV_SAFE", False)
+            cg.add_define("USE_ESP32_LOG_V2")
+            # --wrap: a strong definition collides; see logger_esp32.cpp
+            cg.add_build_flag("-Wl,--wrap=esp_log_format")
     # Define platform support flags for components that need auto-detection
     try:
         uart_selection(USB_SERIAL_JTAG)
