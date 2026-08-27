@@ -326,7 +326,21 @@ void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
   }
 
   const uint32_t d1_raw_pressure = encode_uint32(0, bytes[0], bytes[1], bytes[2]);
-  this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
+
+  if (d1_raw_pressure == 0) {
+    // Sensor returns all zeros if the ADC conversion isn't done yet. Check the timeout in request_read_pressure
+    ESP_LOGW(TAG, "ADC Read of pressure returned all zeros, indicated it was still converting the value");
+    this->status_set_warning();
+    this->nonterminal_warning_generated_this_update_ = true;
+
+    // delay the call to calculate to give the pressure conversion more time to finish, which hopefully reduces
+    // the chances of any issues if there's a humidity reading needed
+    this->set_timeout("calculate", 20, [this, d2_raw_temperature]() {
+      this->calculate_values_(d2_raw_temperature, INVALID_RAW_PRESSURE_SENTINEL);
+    });
+  } else {
+    this->calculate_values_(d2_raw_temperature, d1_raw_pressure);
+  }
 }
 
 void MS8607Component::request_read_humidity_(float temperature_float) {
