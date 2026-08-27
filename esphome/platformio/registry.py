@@ -196,7 +196,9 @@ def _batched_download_progress(
 
     def progress(done: int) -> None:
         nonlocal announced
-        if not announced and size and done < size:
+        # size-less registry entries still announce: streaming starts at
+        # done=0, while a verify no-op credits the full file in one tick
+        if not announced and done < (size or 1):
             _LOGGER.info("Re-downloading %s %s ...", name, version)
             announced = True
         extract_progress(0.0)
@@ -419,5 +421,7 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         max_workers=workers,
     )
     if failures:
-        warn_batch_failures(failures[1:], "Could not install %s: %s")
+        # Warn on the first failure too: the raised exception's message may
+        # not name which package failed
+        warn_batch_failures(failures, "Could not install %s: %s")
         raise failures[0][1]

@@ -815,7 +815,10 @@ def test_install_packages_first_failure_reraised(
         registry.install_packages(
             [_spec("a", "1.0", tmp_path / "a"), _spec("b", "2.0", tmp_path / "b")], dl
         )
-    assert "Could not install" in caplog.text
+    # Every failure is named, including the re-raised one: its exception
+    # message may not identify the package
+    assert "Could not install a" in caplog.text
+    assert "Could not install b" in caplog.text
 
 
 @contextmanager
@@ -937,3 +940,41 @@ def test_install_package_batched_refetch_announced_once(
         progress(10)
         progress(20)
     assert caplog.text.count("Re-downloading pkg 1.0.0") == 1
+
+
+def test_install_package_batched_refetch_announced_without_size(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A size-less registry entry still announces its refetch on the first
+    streaming tick."""
+    with (
+        caplog.at_level(logging.INFO),
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(registry, "archive_extract_all") as mock_extract,
+        patch.object(
+            registry,
+            "registry_download",
+            return_value=("http://x/pkg.tar.gz", "abc123", None),
+        ),
+    ):
+        dest = tmp_path / "pkg"
+        (tmp_path / "dl").mkdir()
+        (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            [],
+            tmp_path / "dl",
+            expect=("payload",),
+            extract_progress=lambda _frac: None,
+        )
+        progress = mock_download.call_args[1]["progress"]
+        # A verify no-op credits the whole (nonempty) file in one tick
+        progress(1)
+        assert "Re-downloading pkg 1.0.0" not in caplog.text
+        progress(0)
+    assert "Re-downloading pkg 1.0.0" in caplog.text
