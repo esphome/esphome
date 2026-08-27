@@ -498,11 +498,7 @@ ESP32_PLATFORMIO_TEST_COMPONENTS = frozenset(
 # drives every PlatformIO build). The esp32 platform component is already in
 # ESP32_PLATFORMIO_TEST_COMPONENTS, so its changes are covered by the normal
 # component-narrowing path.
-ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = (
-    "esphome/platformio/",
-    # The pch wiring the strict smoke jobs police lives here
-    "esphome/build_helpers/",
-)
+ESP32_PLATFORMIO_TRIGGER_PATH_PREFIXES = ("esphome/platformio/",)
 
 # Standalone files that, when changed, trigger the PlatformIO compile test:
 #   - esphome/build_gen/platformio.py -- the PlatformIO build generator
@@ -519,6 +515,11 @@ _SMOKE_HARNESS_TRIGGER_FILES = frozenset(
 
 ESP32_PLATFORMIO_TRIGGER_FILES = _SMOKE_HARNESS_TRIGGER_FILES | {
     "esphome/build_gen/platformio.py",
+    # The pch machinery the strict smoke job polices, and the modules it
+    # imports; the rest of build_helpers/ does not affect PlatformIO builds
+    "esphome/build_helpers/pch.py",
+    "esphome/build_helpers/ccache.py",
+    "esphome/build_helpers/idedata.py",
 }
 
 
