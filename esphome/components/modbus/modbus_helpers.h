@@ -185,10 +185,13 @@ inline uint8_t pdu_function_code(std::span<const uint8_t> pdu) {
   return pdu.empty() ? 0 : (pdu[0] & FUNCTION_CODE_MASK);
 }
 
-/// Start address of a standard client request PDU ([fc, addr_hi, addr_lo, ...]); 0 when the PDU is too
-/// short to carry one (custom frames need not follow the standard layout).
+/// Start address of a standard client request PDU ([fc, addr_hi, addr_lo, ...]). 0 when the PDU is too
+/// short, or when its function code has no known layout (a custom frame's bytes 1-2 need not be an
+/// address, so they are not misread as one).
 inline uint16_t client_pdu_start_address(std::span<const uint8_t> pdu) {
-  return pdu.size() >= 3 ? get_data<uint16_t>(pdu.data(), 1) : 0;
+  if (pdu.size() < 3 || is_function_code_unknown_length(pdu[0]))
+    return 0;
+  return get_data<uint16_t>(pdu.data(), 1);
 }
 
 enum class SensorValueType : uint8_t {
@@ -294,7 +297,6 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
   return static_cast<uint64_t>(dword_from_hex_str(value, pos)) << 32 | dword_from_hex_str(value, pos + 4);
 }
 
-// Extract data from modbus response buffer
 template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return get_data<T>(data.data(), buffer_offset);
 }

@@ -33,14 +33,14 @@ void ControllerDevice::set_controller(ModbusController *controller) {
 }
 
 void ControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
-  if (this->controller_ != nullptr)
+  if (this->controller_ != nullptr) {
     this->controller_->set_online(true, modbus::helpers::pdu_function_code(request_pdu),
                                   modbus::helpers::client_pdu_start_address(request_pdu));
+  }
 }
 
 void ControllerDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   this->notify_online_(request_pdu);
-  this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
 }
 
 void ControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
@@ -48,26 +48,36 @@ void ControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::Ex
            modbus::helpers::pdu_function_code(request_pdu), modbus::helpers::client_pdu_start_address(request_pdu),
            static_cast<uint8_t>(exception_code));
   this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
+}
+
+void WriterDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  ControllerDevice::on_response(request_pdu, response_pdu);
+  this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
+}
+
+void WriterDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
+  ControllerDevice::on_error(request_pdu, exception_code);
   this->dispatch_response_(request_pdu, {}, exception_code);
 }
 
 // Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent trigger
 // reflects when the frame actually went out, not when it was queued.
 void ControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
-  if (this->controller_ != nullptr)
+  if (this->controller_ != nullptr) {
     this->controller_->command_sent(modbus::helpers::pdu_function_code(request_pdu),
                                     modbus::helpers::client_pdu_start_address(request_pdu));
+  }
 }
 
 void ControllerDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
+  const uint8_t fc = modbus::helpers::pdu_function_code(request_pdu);
+  const uint16_t addr = modbus::helpers::client_pdu_start_address(request_pdu);
   // Only the offline teardown reaches this (a supersede retires silently), so the frame is genuinely
   // lost; a dropped write was already published optimistically, so surface it.
-  if (modbus::helpers::is_function_code_write(modbus::helpers::pdu_function_code(request_pdu))) {
-    ESP_LOGW(TAG, "Write not sent: function 0x%X register 0x%X", modbus::helpers::pdu_function_code(request_pdu),
-             modbus::helpers::client_pdu_start_address(request_pdu));
+  if (modbus::helpers::is_function_code_write(fc)) {
+    ESP_LOGW(TAG, "Write not sent: function 0x%X register 0x%X", fc, addr);
   } else {
-    ESP_LOGD(TAG, "Request not sent: function 0x%X register 0x%X", modbus::helpers::pdu_function_code(request_pdu),
-             modbus::helpers::client_pdu_start_address(request_pdu));
+    ESP_LOGD(TAG, "Request not sent: function 0x%X register 0x%X", fc, addr);
   }
 }
 
@@ -82,23 +92,15 @@ bool ControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
   return false;
 }
 
-PollingDevice::PollingDevice(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
-                             RegisterRange &&range)
-    : range_(std::move(range)) {
-  this->controller_ = &controller;
-  this->set_parent(parent);
-  this->set_address(address);
-  // A custom range polls its first sensor's custom_pdu (referenced, not copied); its first byte is the
-  // real function code, so the request PDU carries it to the callbacks like any other read.
-  if (this->range_.register_type == EntityType::CUSTOM && !this->range_.sensors.empty()) {
-    this->custom_pdu_ = &(*this->range_.sensors.begin())->custom_pdu;
-  }
-}
+PollingDevice::PollingDevice(ModbusController &controller, RegisterRange &&range)
+    : ControllerDevice(&controller), range_(std::move(range)) {}
 
 bool PollingDevice::queue(modbus::CommandOptions options) {
   bool accepted;
-  if (this->custom_pdu_ != nullptr) {
-    accepted = this->queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
+  if (this->range_.custom_pdu != nullptr) {
+    // The PDU's first byte is the real function code, so the request PDU carries it to the callbacks
+    // like any other read.
+    accepted = this->queue_pdu(std::span<const uint8_t>(*this->range_.custom_pdu), options);
   } else {
     accepted = this->queue_pdu(
         modbus::helpers::create_client_pdu(modbus::helpers::modbus_register_read_function(this->range_.register_type),
@@ -355,6 +357,7 @@ void ModbusController::create_polling_commands_() {
   // Each keeps the address it was configured with; what is resolved here is its `offset`, the position
   // of its data within the response of whichever range it ends up in.
   std::vector<RegisterRange> ranges;
+  ranges.reserve(this->sensorset_.size());  // one range per sensor is a strict upper bound
   RegisterRange r = {};
   bool have_range = false;
   // Set while the open range belongs to a force_new_range sensor: a range the user asked to keep
@@ -448,6 +451,8 @@ void ModbusController::create_polling_commands_() {
       r.start_address = curr->start_address;
       r.register_count = curr->register_count;
       r.register_type = curr->register_type;
+      if (curr->register_type == modbus::EntityType::CUSTOM)
+        r.custom_pdu = &curr->custom_pdu;
       have_range = true;
     }
 
@@ -465,7 +470,7 @@ void ModbusController::create_polling_commands_() {
   // FixedVector never reallocates, so the hub's device pointers stay valid once polls start sending.
   this->polling_devices_.init(ranges.size());
   for (auto &range : ranges) {
-    this->polling_devices_.emplace_back(*this, this->hub_, this->address_, std::move(range));
+    this->polling_devices_.emplace_back(*this, std::move(range));
   }
 }
 

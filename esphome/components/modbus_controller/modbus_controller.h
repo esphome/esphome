@@ -231,6 +231,9 @@ struct RegisterRange {
   modbus::EntityType register_type;
   uint8_t register_count;
   SensorSet sensors;  // all sensors of this range
+  /// A custom range polls this ready-made PDU, referenced from the anchor sensor by the range builder
+  /// (the builder knows which sensor opened the range; readers need no set-ordering assumptions).
+  const SmallInlineBuffer<8> *custom_pdu{nullptr};
 };
 
 /// The shared feedback half of a controller-owned hub device: online/offline tracking, retry counting
@@ -244,6 +247,10 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
   void set_controller(ModbusController *controller);
 
  protected:
+  /// Default for the late-bound case (WriterEntity's member, wired by set_controller from codegen).
+  ControllerDevice() = default;
+  explicit ControllerDevice(ModbusController *controller) { this->set_controller(controller); }
+
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
   void on_sent(std::span<const uint8_t> request_pdu) override;
@@ -270,6 +277,13 @@ class WriterDevice final : public ControllerDevice {
   /// Send a legacy raw frame (address + function code + data) to the frame's own address.
   /// Serves only the deprecated write_lambda buffer path. Remove before 2027.3.0.
   bool send_raw_frame_deprecated(std::span<const uint8_t> frame);
+
+ protected:
+  // Forward to the typed response callbacks so a lambda's item->queue_pdu() can be answered. Only the
+  // write side dispatches: a poll parses its response itself, and dispatching its errors would trip the
+  // base unhandled-custom-response warning for custom PDUs.
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
 };
 
 /// Gives a writer entity the write API of the WriterDevice it owns. The device is a member, not a base:
@@ -324,15 +338,12 @@ class WriterEntity {
   bool write_buffer_deprecated_warned_{false};
 };
 
-/// A single modbus command. Each command is its own ModbusClientDevice: it sends its frame to the hub
-/// and the hub routes the response back to this object's on_modbus_* callbacks, so the controller no
-/// longer has to match responses to a FIFO queue.
 /// A persistent hub device that polls one register range - the read-side mirror of WriterDevice.
 /// Owned by the controller, one per range; the response is parsed straight to the range's sensors and
 /// the shared ControllerDevice base feeds the controller's online/offline and trigger machinery.
 class PollingDevice final : public ControllerDevice {
  public:
-  PollingDevice(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address, RegisterRange &&range);
+  PollingDevice(ModbusController &controller, RegisterRange &&range);
 
   /// Queue this range's read (or its sensor's custom PDU) on the hub. False = refused, no callback follows.
   bool queue(modbus::CommandOptions options = {});
@@ -346,10 +357,11 @@ class PollingDevice final : public ControllerDevice {
 
   /// The range this device polls, exactly as create_polling_commands_ built it.
   RegisterRange range_;
-  /// A custom range references the PDU bytes owned by its first SensorItem instead of copying them.
-  const SmallInlineBuffer<8> *custom_pdu_{nullptr};
 };
 
+/// A single modbus command. Each command is its own ModbusClientDevice: it sends its frame to the hub
+/// and the hub routes the response back to this object's on_modbus_* callbacks, so the controller no
+/// longer has to match responses to a FIFO queue.
 // The deprecated class body stays as-is until removal and references other deprecated names.
 // Remove before 2027.3.0.
 #pragma GCC diagnostic push
