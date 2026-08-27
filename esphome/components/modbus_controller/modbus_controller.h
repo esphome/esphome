@@ -353,12 +353,15 @@ class PollingDevice final : public ControllerDevice {
   EntityType register_type_{EntityType::CUSTOM};
   uint16_t start_address_{0};
   uint16_t register_count_{0};
-  FunctionCode function_code_{FunctionCode::CUSTOM};
+  FunctionCode function_code_{FunctionCode::INVALID};
   /// A custom range references the PDU bytes owned by its first SensorItem instead of copying them.
   const SmallInlineBuffer<8> *custom_pdu_{nullptr};
 };
 
-// Remove before 2027.3.0
+// The deprecated class body stays as-is until removal and references other deprecated names.
+// Remove before 2027.3.0.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 class ESPDEPRECATED(
     "One-shot writes go through the entity write helpers (WriterDevice) or the modbus_client actions, and "
     "polling runs through PollingDevice. Removed in 2027.3.0",
@@ -507,6 +510,7 @@ class ESPDEPRECATED(
   const SmallInlineBuffer<8> *custom_pdu_{nullptr};
   ModbusController *controller_{nullptr};
 };
+#pragma GCC diagnostic pop
 
 /// Whether an offline probe is due this update cycle: every offline_skip_updates + 1 cycles,
 /// anchored at the cycle the device went offline. Pure so the cadence (including update_counter
