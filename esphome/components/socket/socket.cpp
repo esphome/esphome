@@ -8,6 +8,14 @@
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
+#if defined(USE_HOST)
+#include <ifaddrs.h>
+#include <net/if.h>
+#elif defined(USE_ZEPHYR)
+#include <zephyr/net/net_if.h>
+#else
+#include "lwip/netif.h"
+#endif
 
 namespace esphome::socket {
 
@@ -135,6 +143,195 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 #endif /* USE_NETWORK_IPV6 */
 }
 #endif
+
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+template<typename F> static bool foreach_eligible_ipv6_if(F &&callback) {
+#if defined(USE_HOST)
+  struct ifaddrs *ifaddr;
+  if (getifaddrs(&ifaddr) != 0) {
+    return false;
+  }
+  bool found_any = false;
+  for (struct ifaddrs *ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == nullptr || ifa->ifa_addr->sa_family != AF_INET6) {
+      continue;
+    }
+    if ((ifa->ifa_flags & IFF_LOOPBACK) || !(ifa->ifa_flags & IFF_UP) || !(ifa->ifa_flags & IFF_MULTICAST)) {
+      continue;
+    }
+    unsigned int idx = if_nametoindex(ifa->ifa_name);
+    if (idx == 0) {
+      continue;
+    }
+    found_any = true;
+    if (callback(idx)) {
+      break;
+    }
+  }
+  freeifaddrs(ifaddr);
+  if (!found_any) {
+    errno = EADDRNOTAVAIL;
+  }
+  return found_any;
+#elif defined(USE_ZEPHYR)
+  // Zephyr has no getifaddrs()/ifaddrs.h; enumerate interfaces via the native net_if API.
+  // NET_IF_IPV6_NO_MLD is the direct analog of the LwIP branch's NETIF_FLAG_MLD6 check below.
+  struct EligibleIfContext {
+    F *callback;
+    bool found_any = false;
+  };
+  EligibleIfContext ctx{&callback};
+  net_if_foreach(
+      [](struct net_if *iface, void *user_data) {
+        auto *ctx = static_cast<EligibleIfContext *>(user_data);
+        if (!net_if_flag_is_set(iface, NET_IF_UP) || !net_if_flag_is_set(iface, NET_IF_IPV6) ||
+            net_if_flag_is_set(iface, NET_IF_IPV6_NO_MLD)) {
+          return;
+        }
+        int idx = net_if_get_by_iface(iface);
+        if (idx <= 0) {
+          return;
+        }
+        ctx->found_any = true;
+        (*ctx->callback)(static_cast<unsigned int>(idx));
+      },
+      &ctx);
+  if (!ctx.found_any) {
+    errno = EADDRNOTAVAIL;
+  }
+  return ctx.found_any;
+#else
+  bool found_any = false;
+  struct netif *netif;
+  NETIF_FOREACH(netif) {
+    if (netif->name[0] == 'l' && netif->name[1] == 'o') {
+      continue;
+    }
+    if (!(netif->flags & NETIF_FLAG_UP) || !(netif->flags & NETIF_FLAG_MLD6)) {
+      continue;
+    }
+    found_any = true;
+    if (callback(netif_get_index(netif))) {
+      break;
+    }
+  }
+  if (!found_any) {
+    errno = EADDRNOTAVAIL;
+  }
+  return found_any;
+#endif
+}
+
+bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out) {
+  if (strchr(ip_address, ':') == nullptr) {
+    struct in_addr ipv4mc {};
+#ifdef USE_ZEPHYR
+    if (zsock_inet_pton(AF_INET, ip_address, &ipv4mc) != 1) {
+#else
+    if (inet_aton(ip_address, &ipv4mc) == 0) {
+#endif
+      errno = EINVAL;
+      return false;
+    }
+#ifdef USE_ZEPHYR
+    // Zephyr's setsockopt(IP_ADD_MEMBERSHIP) requires exactly sizeof(struct ip_mreqn); it has
+    // no plain "struct ip_mreq" at all (unlike POSIX/lwIP).
+    struct ip_mreqn imreq {};
+    imreq.imr_address.s_addr = ESPHOME_INADDR_ANY;
+    imreq.imr_ifindex = 0;
+#else
+    struct ip_mreq imreq {};
+    imreq.imr_interface.s_addr = ESPHOME_INADDR_ANY;
+#endif
+    imreq.imr_multiaddr = ipv4mc;
+    if (sock->setsockopt(IPPROTO_IP, IP_ADD_MEMBERSHIP, &imreq, sizeof(imreq)) < 0) {
+      return false;
+    }
+    if (if_index_out != nullptr) {
+      *if_index_out = 0;
+    }
+    return true;
+  }
+#if USE_NETWORK_IPV6
+  struct ipv6_mreq imreq6 {};
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+#ifdef USE_ZEPHYR
+  if (zsock_inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
+#else
+  if (inet_pton(AF_INET6, ip_address, &imreq6.ipv6mr_multiaddr) != 1) {
+#endif
+    errno = EINVAL;
+    return false;
+  }
+#else
+  ip6_addr_t ip6;
+  if (!inet6_aton(ip_address, &ip6)) {
+    errno = EINVAL;
+    return false;
+  }
+  memcpy(imreq6.ipv6mr_multiaddr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
+#endif
+  // POSIX: interface=0 fails for link-local multicast (ff02::) and may select loopback for
+  // other scopes. LwIP: NETIF_NO_INDEX=0 is always rejected.
+  bool joined = false;
+  foreach_eligible_ipv6_if([&](unsigned int idx) {
+#ifdef USE_ZEPHYR
+    // This Zephyr fork's struct ipv6_mreq has no "ipv6mr_interface" (POSIX name) and no
+    // IPV6_JOIN_GROUP alias -- only the RFC 3678 legacy ipv6mr_ifindex/IPV6_ADD_MEMBERSHIP names.
+    imreq6.ipv6mr_ifindex = idx;
+    if (sock->setsockopt(IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP, &imreq6, sizeof(imreq6)) == 0) {
+#else
+    imreq6.ipv6mr_interface = idx;
+    if (sock->setsockopt(IPPROTO_IPV6, IPV6_JOIN_GROUP, &imreq6, sizeof(imreq6)) == 0) {
+#endif
+      joined = true;
+      return true;
+    }
+    return false;
+  });
+  if (!joined) {
+    return false;
+  }
+  if (if_index_out != nullptr) {
+#ifdef USE_ZEPHYR
+    *if_index_out = imreq6.ipv6mr_ifindex;
+#else
+    *if_index_out = imreq6.ipv6mr_interface;
+#endif
+  }
+  return true;
+#else
+  errno = EINVAL;
+  return false;
+#endif  // USE_NETWORK_IPV6
+}
+
+#if USE_NETWORK_IPV6
+bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in) {
+#ifdef USE_ZEPHYR
+  // This Zephyr fork has no IPV6_MULTICAST_IF setsockopt at all. That's not a gap to work
+  // around: nRF52 is a Thread/OpenThread device with exactly one IPv6-capable interface, so
+  // there is nothing to select between -- whatever the stack already sends on is "the"
+  // multicast interface. Treat this as trivially already satisfied.
+  (void) sock;
+  (void) if_index_in;
+  return true;
+#else
+  uint32_t ifindex = if_index_in;
+  if (ifindex == 0) {
+    foreach_eligible_ipv6_if([&](unsigned int idx) {
+      ifindex = idx;
+      return true;
+    });
+    if (ifindex == 0) {
+      return false;
+    }
+  }
+  return sock->setsockopt(IPPROTO_IPV6, IPV6_MULTICAST_IF, &ifindex, sizeof(ifindex)) == 0;
+#endif
+}
+#endif  // USE_NETWORK_IPV6
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port) {
 #if USE_NETWORK_IPV6

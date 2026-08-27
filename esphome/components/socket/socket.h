@@ -94,6 +94,7 @@ inline bool Socket::ready() const {
 /// Create a socket of the given domain, type and protocol.
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 /// Create a socket in the newest available IP domain (IPv6 or IPv4) of the given type and protocol.
+/// Unlike socket_ip_loop_monitored(), IPV6_V6ONLY is not cleared — use for outgoing connections only.
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
 
 /// Create a socket and monitor it for data in the main loop.
@@ -144,6 +145,25 @@ inline socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const st
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
+
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+/// Join a multicast group on the given socket.
+/// @param sock         The socket to join on
+/// @param ip_address   Null-terminated multicast address string (IPv4 or IPv6)
+/// @param if_index_out If non-null, receives the interface index used (IPv4 always writes 0)
+/// @return true on success, false on failure (errno set)
+bool join_multicast_group(Socket *sock, const char *ip_address, uint32_t *if_index_out = nullptr);
+
+#if USE_NETWORK_IPV6
+/// Configure the outgoing IPv6 multicast interface on the given socket.
+/// @param sock        The socket to configure
+/// @param if_index_in Non-zero: use this interface index directly. Zero (default): probe for the first eligible
+/// interface via foreach_eligible_ipv6_if(). On single-interface devices (typical for ESP32/ESP8266) this is always
+/// correct. On multi-homed hosts the "first eligible" interface is arbitrary; pass the desired index explicitly.
+/// @return true on success, false on failure (errno set)
+bool set_ipv6_multicast_if(Socket *sock, uint32_t if_index_in = 0);
+#endif  // USE_NETWORK_IPV6
+#endif  // USE_SOCKET_IMPL_BSD_SOCKETS || USE_SOCKET_IMPL_LWIP_SOCKETS
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
