@@ -10,7 +10,9 @@
 #include <improv.h>
 #include <vector>
 
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+#include "esphome/components/uart/uart_component.h"
+#elif defined(USE_ESP32)
 #include <driver/uart.h>
 #ifdef USE_LOGGER_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
@@ -53,6 +55,10 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+#ifdef USE_IMPROV_SERIAL_UART
+  void set_uart(uart::UARTComponent *uart) { this->uart_ = uart; }
+#endif
+
  protected:
   bool parse_improv_serial_byte_(uint8_t byte);
   bool parse_improv_payload_(improv::ImprovCommand &command);
@@ -69,7 +75,11 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   ESPHOME_ALWAYS_INLINE optional<uint8_t> read_byte_() {
     optional<uint8_t> byte;
     uint8_t data = 0;
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+    if (this->uart_->available() && this->uart_->read_byte(&data)) {
+      byte = data;
+    }
+#elif defined(USE_ESP32)
     switch (this->uart_selection_) {
       case logger::UART_SELECTION_UART0:
       case logger::UART_SELECTION_UART1:
@@ -129,7 +139,9 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
       '\n',
   };
 
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+  uart::UARTComponent *uart_{nullptr};
+#elif defined(USE_ESP32)
   uart_port_t uart_num_;
   logger::UARTSelection uart_selection_{logger::UART_SELECTION_UART0};
 #elif defined(USE_ARDUINO)
