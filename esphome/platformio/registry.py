@@ -19,7 +19,9 @@ from esphome.framework_helpers import (
     download_with_resume,
     rmdir,
     run_batch_downloads,
+    warn_prefetch_failures,
 )
+from esphome.helpers import get_usable_cpu_count
 from esphome.net_retry import fetch_with_retry, http_request
 
 _LOGGER = logging.getLogger(__name__)
@@ -160,6 +162,14 @@ def _check_layout(name: str, dest: Path, expect: Collection[str]) -> None:
             )
 
 
+# (name, version, dest, mirrors, expect) as accepted by install_packages
+PackageSpec = tuple[str, str, Path, list[str], Collection[str]]
+
+
+def _archive_path(downloads_dir: Path, name: str, version: str) -> Path:
+    return downloads_dir / f"{name}-{version}"
+
+
 class _PendingArchive(NamedTuple):
     name: str
     version: str
@@ -259,6 +269,7 @@ def install_package(
     mirrors: list[str],
     downloads_dir: Path,
     expect: Collection[str],
+    extract_progress: Callable[[float], None] | None = None,
 ) -> None:
     """Download, verify, and extract one package if not already installed.
 
@@ -266,6 +277,9 @@ def install_package(
     publishes; a mirror override (URL templates with ``{VERSION}``/``{SYSTEM}``
     substitution) is trusted as configured. ``downloads_dir`` holds the
     archive between runs so an interrupted download resumes.
+
+    ``extract_progress`` receives extraction fractions in [0, 1] instead of
+    the private per-file bars (see ``install_packages``).
     """
     if not expect:
         # Layout validation before marker.touch() is the only guard against
@@ -288,8 +302,10 @@ def install_package(
         rmdir(dest, msg=f"Clean up incomplete {name} install")
         # Persistent location so an interrupted download resumes across runs.
         downloads_dir.mkdir(parents=True, exist_ok=True)
-        archive = downloads_dir / f"{name}-{version}"
-        _LOGGER.info("Downloading %s %s ...", name, version)
+        archive = _archive_path(downloads_dir, name, version)
+        # The batch header already names each package
+        log = _LOGGER.debug if extract_progress is not None else _LOGGER.info
+        log("Downloading %s %s ...", name, version)
         if mirrors:
             _LOGGER.warning(
                 "Downloading %s from a mirror override; checksum verification "
@@ -301,11 +317,81 @@ def install_package(
             )
         else:
             url, sha256, size = registry_download(name, version)
-            download_with_resume(url, archive, sha256=sha256, size=size)
-        _LOGGER.info("Extracting %s ...", name)
-        archive_extract_all(archive, dest, progress_header="Extracting")
+            # Batched: no private bar, no bytes (the shared bar must never
+            # run backwards), but the zero tick keeps cancellation observable
+            download_progress = (
+                None
+                if extract_progress is None
+                else lambda _done: extract_progress(0.0)
+            )
+            download_with_resume(
+                url, archive, sha256=sha256, size=size, progress=download_progress
+            )
+        log("Extracting %s ...", name)
+        archive_extract_all(
+            archive, dest, progress_header="Extracting", progress=extract_progress
+        )
         # Validate the layout before recording success, so an unexpected
         # package is never cached as a working install.
         _check_layout(name, dest, expect)
         marker.touch()
         archive.unlink(missing_ok=True)
+
+
+def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> None:
+    """Install several packages, extracting verified archives in parallel.
+
+    Prefetched archives extract concurrently under one shared bar; the rest
+    (marker hits, mirror overrides, missing archives) take the sequential
+    ``install_package`` path. The first failure is re-raised.
+    """
+    pending: list[tuple[PackageSpec, int]] = []
+    rest: list[PackageSpec] = []
+    for spec in specs:
+        name, version, dest, mirrors, _expect = spec
+        if _already_installed(dest) or mirrors:
+            rest.append(spec)
+            continue
+        try:
+            # An archive at its final name already passed sha256/size
+            # verification
+            size = _archive_path(downloads_dir, name, version).stat().st_size
+        except OSError:
+            rest.append(spec)
+            continue
+        pending.append((spec, size))
+    if len(pending) < 2:
+        rest = list(specs)
+        pending = []
+    for name, version, dest, mirrors, expect in rest:
+        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
+    if not pending:
+        return
+    workers = min(get_usable_cpu_count(), len(pending))
+    _LOGGER.info(
+        "Extracting %d package archive(s) with %d worker(s): %s",
+        len(pending),
+        workers,
+        ", ".join(spec[0] for spec, _ in pending),
+    )
+
+    def _install(spec: PackageSpec, size: int, tracker: Callable[[int], None]) -> None:
+        name, version, dest, mirrors, expect = spec
+        install_package(
+            name,
+            version,
+            dest,
+            mirrors,
+            downloads_dir,
+            expect=expect,
+            extract_progress=lambda frac: tracker(int(frac * size)),
+        )
+
+    failures = run_batch_downloads(
+        "Extracting packages",
+        [(spec[0], size, partial(_install, spec, size)) for spec, size in pending],
+        max_workers=workers,
+    )
+    if failures:
+        warn_prefetch_failures(failures[1:], "Could not install %s: %s")
+        raise failures[0][1]

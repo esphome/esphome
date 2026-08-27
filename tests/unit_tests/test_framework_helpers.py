@@ -523,6 +523,17 @@ class TestArchiveExtractAll:
         archive_extract_all(archive, dest)
         assert (dest / "file.txt").read_text() == "hi"
 
+    def test_progress_callback_passed_through(self, tmp_path: Path) -> None:
+        """The progress kwarg reaches the dispatched extractor."""
+        archive = tmp_path / "test.tar.gz"
+        archive.write_bytes(_gzip_tar_bytes({"file.txt": b"hello"}))
+        dest = tmp_path / "out"
+        dest.mkdir()
+        fractions: list[float] = []
+        archive_extract_all(archive, dest, progress=fractions.append)
+        assert fractions[-1] == 1
+        assert (dest / "file.txt").read_bytes() == b"hello"
+
     def test_invalid_type_raises_type_error(self) -> None:
         with pytest.raises(TypeError, match="archive must be"):
             archive_extract_all(42, ".")  # type: ignore[arg-type]
@@ -1951,6 +1962,19 @@ class TestTarExtractAllBranches:
         mock_pb.assert_called_once_with("Extracting")
         mock_pb.return_value.update.assert_called()
 
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header and ends at 1.0."""
+        buf = _make_tar([_reg("a.txt"), _reg("b.txt")], {"a.txt": b"x", "b.txt": b"y"})
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _tar_extract_all(
+                buf, tmp_path, progress_header="Extracting", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == sorted(fractions)
+        assert fractions[-1] == 1
+        assert (tmp_path / "a.txt").is_file()
+
 
 # ---------------------------------------------------------------------------
 # _zip_extract_all — additional branch coverage
@@ -1979,6 +2003,19 @@ class TestZipExtractAllBranches:
             _zip_extract_all(buf, tmp_path, progress_header="Unzipping")
         mock_pb.assert_called_once_with("Unzipping")
         mock_pb.return_value.update.assert_called()
+
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header and ends at 1.0."""
+        buf = _make_zip([("a.txt", "aaa"), ("b.txt", "bbb")])
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _zip_extract_all(
+                buf, tmp_path, progress_header="Unzipping", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == sorted(fractions)
+        assert fractions[-1] == 1
+        assert (tmp_path / "a.txt").is_file()
 
 
 # ---------------------------------------------------------------------------
@@ -2136,6 +2173,20 @@ class TestSevenZipExtractAll:
             _7z_extract_all(buf, out, progress_header="Unpacking 7z")
         mock_pb.assert_called_once_with("Unpacking 7z")
         mock_pb.return_value.update.assert_called()
+
+    def test_progress_callback_replaces_bar(self, tmp_path: Path) -> None:
+        """A progress callback wins over progress_header; 7z reports 1.0 once."""
+        buf = self._make_7z({"file.txt": b"x"})
+        out = tmp_path / "out"
+        out.mkdir()
+        fractions: list[float] = []
+        with patch("esphome.framework_helpers.ProgressBar") as mock_pb:
+            _7z_extract_all(
+                buf, out, progress_header="Unpacking 7z", progress=fractions.append
+            )
+        mock_pb.assert_not_called()
+        assert fractions == [1]
+        assert (out / "file.txt").is_file()
 
     def test_absolute_path_in_names_skipped(self, tmp_path: Path) -> None:
         """Names that resolve as absolute are silently skipped."""

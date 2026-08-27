@@ -287,10 +287,25 @@ def _detect_archive_root(names: Iterable[str]) -> str | None:
     return root if has_descendant else None
 
 
+def _resolve_progress(
+    progress: Callable[[float], None] | None,
+    progress_header: str | None,
+    has_work: bool,
+) -> Callable[[float], None] | None:
+    """Fraction reporter for an extractor: the caller's callback wins over a
+    private ``progress_header`` bar."""
+    if progress is not None:
+        return progress
+    if progress_header and has_work:
+        return ProgressBar(progress_header).update
+    return None
+
+
 def _tar_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a TAR archive to the specified directory.
@@ -305,6 +320,8 @@ def _tar_extract_all(
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: If set, receives fractions in [0, 1] ending at 1.0 and
+            overrides ``progress_header``
     """
     import tarfile
 
@@ -363,21 +380,20 @@ def _tar_extract_all(
             safe_members.append(member)
 
         total = len(safe_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
+        report = _resolve_progress(progress, progress_header, total > 0)
         for i, member in enumerate(safe_members, 1):
             tar_ref.extract(member, abs_dest)
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
+            if report is not None:
+                report(i / total)
+        if report is not None:
+            report(1)
 
 
 def _zip_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a ZIP archive to the specified directory.
@@ -386,6 +402,8 @@ def _zip_extract_all(
         data: File-like object containing the ZIP archive
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: If set, receives fractions in [0, 1] ending at 1.0 and
+            overrides ``progress_header``
     """
     import zipfile
 
@@ -402,9 +420,7 @@ def _zip_extract_all(
         strip_prefix = f"{strip_root}/" if strip_root is not None else None
 
         total = len(all_members)
-        progress = (
-            ProgressBar(progress_header) if progress_header and total > 0 else None
-        )
+        report = _resolve_progress(progress, progress_header, total > 0)
 
         for i, member in enumerate(all_members, 1):
             # 1. Normalize name
@@ -437,10 +453,10 @@ def _zip_extract_all(
             # 6. Extract
             zip_ref.extract(member, extract_dir)
 
-            if progress is not None:
-                progress.update(i / total)
-        if progress is not None:
-            progress.update(1)
+            if report is not None:
+                report(i / total)
+        if report is not None:
+            report(1)
 
 
 def _rename_with_retry(
@@ -471,6 +487,7 @@ def _7z_extract_all(
     data: io.BufferedIOBase,
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract a 7z archive to the specified directory.
@@ -485,6 +502,8 @@ def _7z_extract_all(
         data: File-like object containing the 7z archive (must be seekable)
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: If set, called with 1.0 on completion and overrides
+            ``progress_header``
     """
     import py7zr
 
@@ -523,19 +542,15 @@ def _7z_extract_all(
                     continue
                 safe_targets.append(raw)
 
-            progress = (
-                ProgressBar(progress_header)
-                if progress_header and safe_targets
-                else None
-            )
+            report = _resolve_progress(progress, progress_header, bool(safe_targets))
 
             if len(safe_targets) == len(all_names):
                 z.extractall(path=staging)
             else:
                 z.extract(path=staging, targets=safe_targets)
 
-            if progress is not None:
-                progress.update(1)
+            if report is not None:
+                report(1)
 
         src_root = staging / strip_root if strip_root else staging
         for item in src_root.iterdir():
@@ -566,6 +581,7 @@ def archive_extract_all(
     archive: PathType | io.RawIOBase | IO[bytes],
     extract_dir: PathType = ".",
     progress_header: str | None = None,
+    progress: Callable[[float], None] | None = None,
 ):
     """
     Extract an archive file to the specified directory.
@@ -574,6 +590,8 @@ def archive_extract_all(
         archive: Path to archive file or file-like object
         extract_dir: Directory to extract contents to
         progress_header: If set, show a progress bar with this header
+        progress: If set, receives fractions in [0, 1] ending at 1.0 and
+            overrides ``progress_header``
 
     Raises:
         TypeError: If archive is not a valid type
@@ -604,7 +622,9 @@ def archive_extract_all(
                 break
         if matched_fct is None:
             raise ValueError("Unsupported archive format")
-        matched_fct(archive_ref, extract_dir, progress_header=progress_header)
+        matched_fct(
+            archive_ref, extract_dir, progress_header=progress_header, progress=progress
+        )
 
 
 def _open_ranged(
@@ -774,7 +794,7 @@ def run_batch_downloads(
     jobs: list[tuple[str, int, Callable[[Callable[[int], None]], None]]],
     max_workers: int = BATCH_DOWNLOAD_WORKERS,
 ) -> list[tuple[str, BaseException]]:
-    """Run ``(name, size, fetch)`` download jobs concurrently under one bar.
+    """Run ``(name, size, fetch)`` jobs concurrently under one bar.
 
     Each ``fetch(tracker)`` reports absolute byte counts; the bar total is
     the sum of the sizes. Failures are returned after the bar is done so

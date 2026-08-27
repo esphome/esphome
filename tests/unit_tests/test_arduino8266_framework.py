@@ -62,7 +62,7 @@ def test_tools_path_default_and_prefix(tmp_path: Path) -> None:
 def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     with (
         patch.dict(os.environ, {"ESPHOME_ARDUINO8266_PREFIX": str(tmp_path)}),
-        patch.object(framework, "install_package") as mock_install,
+        patch.object(framework, "install_packages") as mock_install,
         patch.object(framework, "prefetch_packages") as mock_prefetch,
         patch.object(framework, "find_ninja", return_value=tmp_path / "ninja"),
     ):
@@ -70,26 +70,27 @@ def test_check_and_install_returns_paths(tmp_path: Path) -> None:
     assert paths.framework == tmp_path / "frameworks" / "3.30102.0"
     assert paths.toolchain == tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION
     assert paths.ninja == tmp_path / "ninja"
-    assert mock_install.call_count == 2
     # Full argument pinning: a copy-paste swap between the two near-identical
-    # calls (mirrors, destination) must not stay green
-    fw_call, tc_call = mock_install.call_args_list
-    assert fw_call.args == (
-        framework.FRAMEWORK_PACKAGE,
-        "3.30102.0",
-        tmp_path / "frameworks" / "3.30102.0",
-        framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+    # specs (mirrors, destination) must not stay green
+    assert mock_install.call_args.args == (
+        (
+            (
+                framework.FRAMEWORK_PACKAGE,
+                "3.30102.0",
+                tmp_path / "frameworks" / "3.30102.0",
+                framework.ESPHOME_ARDUINO8266_FRAMEWORK_MIRRORS,
+                ("cores/esp8266", "tools/sdk", "libraries"),
+            ),
+            (
+                framework.TOOLCHAIN_PACKAGE,
+                framework.TOOLCHAIN_VERSION,
+                tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION,
+                framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
+                ("bin", "xtensa-lx106-elf"),
+            ),
+        ),
         tmp_path / "downloads",
     )
-    assert fw_call.kwargs["expect"] == ("cores/esp8266", "tools/sdk", "libraries")
-    assert tc_call.args == (
-        framework.TOOLCHAIN_PACKAGE,
-        framework.TOOLCHAIN_VERSION,
-        tmp_path / "toolchains" / framework.TOOLCHAIN_VERSION,
-        framework.ESPHOME_ARDUINO8266_TOOLCHAIN_MIRRORS,
-        tmp_path / "downloads",
-    )
-    assert tc_call.kwargs["expect"] == ("bin", "xtensa-lx106-elf")
     # The prefetch sees the same package specs as the installs
     assert mock_prefetch.call_args.args == (
         [
