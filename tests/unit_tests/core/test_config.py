@@ -19,7 +19,6 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
-    CONF_SUSPEND_LOOP,
     KEY_CORE,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
@@ -28,6 +27,7 @@ from esphome.const import (
 from esphome.core import CORE, config
 from esphome.core.config import (
     Area,
+    CONF_SUSPEND_LOOP,
     make_app_name_cpp,
     preload_core_config,
     valid_include,

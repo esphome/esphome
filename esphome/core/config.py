@@ -26,7 +26,6 @@ from esphome.const import (
     CONF_INCLUDES,
     CONF_INCLUDES_C,
     CONF_LIBRARIES,
-    CONF_LOOP_INTERVAL,
     CONF_MERGE_WARNINGS,
     CONF_MIN_VERSION,
     CONF_NAME,
@@ -39,7 +38,6 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
-    CONF_SUSPEND_LOOP,
     CONF_TRIGGER_ID,
     CONF_VERSION,
     CONF_WATCHDOG_TIMEOUT,
@@ -65,6 +63,9 @@ from esphome.helpers import (
     walk_files,
 )
 from esphome.types import ConfigType
+
+CONF_LOOP_INTERVAL = "loop_interval"
+CONF_SUSPEND_LOOP = "suspend_loop"
 
 _LOGGER = logging.getLogger(__name__)
 
