@@ -1124,6 +1124,20 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
     assert bar.enabled is True
 
 
+def test_progressbar_interrupt_keeps_finished_bar_done(monkeypatch) -> None:
+    """interrupt() on a bar whose 100% frame already ended its own line
+    must not reset it, or the next tick would redraw a second Done row."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = True
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    bar.update(1)
+    assert bar.last_progress == 100
+    bar.interrupt()
+    assert bar.last_progress == 100
+
+
 @pytest.mark.parametrize(
     ("seconds", "expected"),
     [

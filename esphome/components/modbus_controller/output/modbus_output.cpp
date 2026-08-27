@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <array>
+
 namespace esphome::modbus_controller {
 
 static const char *const TAG = "modbus_controller.output";
@@ -13,25 +15,33 @@ static constexpr size_t MODBUS_OUTPUT_MAX_LOG_BYTES = 64;
  *
  */
 void ModbusFloatOutput::write_state(float value) {
-  std::vector<uint16_t> data;
+  this->clear_dispatched_();
+  // A new write supersedes this entity's own not-yet-sent writes: drop them (and detach any in-flight one)
+  // so a rapidly-changing value writes the latest, not every intermediate.
+  this->clear_tx_queue_for_device();
+  modbus::RegisterValues data;
   auto original_value = value;
-  // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
-    // data is passed by reference
-    // the lambda can fill the empty vector directly
-    // in that case the return value is ignored
+    // The lambda may drive the write itself via item->write_*(), override the value (return a value), or
+    // (deprecated) fill `data` with the register words to write.
     auto val = (*this->write_transform_func_)(this, value, data);
-    if (val.has_value()) {
-      ESP_LOGV(TAG, "Value overwritten by lambda");
-      value = val.value();
-    } else {
+    if (this->dispatched()) {
+      return;
+    }
+    if (!data.empty()) {
+      // Deprecated buffer path (frozen): the lambda supplied the register words for the shared write below.
+      this->warn_write_buffer_deprecated_(LOG_STR("float output"), this->start_address);
+    } else if (!val.has_value()) {
       ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
+    } else {
+      ESP_LOGV(TAG, "Value overwritten by lambda");
+      value = val.value();
     }
   } else {
     value = this->multiply_by_ * value;
   }
-  // lambda didn't set payload
+
   if (data.empty()) {
     modbus::helpers::float_to_payload(data, value, this->sensor_value_type);
   }
@@ -57,16 +67,15 @@ void ModbusFloatOutput::write_state(float value) {
     return;
   }
 
-  // Create and send the write command
-  optional<ModbusCommandItem> write_cmd;
+  bool queued;
   if (this->register_count == 1 && !this->use_write_multiple_) {
-    write_cmd.emplace(
-        ModbusCommandItem::create_write_single_command(this->parent_, this->start_address + this->offset, data[0]));
+    queued = this->write_single_register(this->write_address(), data[0]);
   } else {
-    write_cmd.emplace(ModbusCommandItem::create_write_multiple_command(
-        this->parent_, this->start_address + this->offset, data.size(), data));
+    queued = this->write_multiple_registers(this->write_address(), data);
   }
-  this->parent_->queue_command(std::move(*write_cmd));
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->write_address());
+  }
 }
 
 void ModbusFloatOutput::dump_config() {
@@ -81,50 +90,52 @@ void ModbusFloatOutput::dump_config() {
 
 // ModbusBinaryOutput
 void ModbusBinaryOutput::write_state(bool state) {
-  // This will be called every time the user requests a state change.
-  optional<ModbusCommandItem> cmd;
-  std::vector<uint8_t> data;
+  this->clear_dispatched_();
+  // A new write supersedes this entity's own not-yet-sent writes: drop them (and detach any in-flight one)
+  // so a rapidly-changing value writes the latest, not every intermediate.
+  this->clear_tx_queue_for_device();
+  modbus::helpers::PduBuffer data;
 
-  // Is there are lambda configured?
   if (this->write_transform_func_.has_value()) {
-    // data is passed by reference
-    // the lambda can fill the empty vector directly
-    // in that case the return value is ignored
+    // The lambda may drive the write itself via item->write_*/queue_pdu(), override the value (return a value),
+    // or (deprecated) fill `data` with a custom PDU.
     auto val = (*this->write_transform_func_)(this, state, data);
-    if (val.has_value()) {
-      ESP_LOGV(TAG, "Value overwritten by lambda");
-      state = val.value();
-    } else {
+    if (this->dispatched()) {
+      return;
+    }
+    if (!data.empty()) {
+      this->warn_write_buffer_deprecated_(LOG_STR("binary output"), this->start_address);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(MODBUS_OUTPUT_MAX_LOG_BYTES)];
+#endif
+      ESP_LOGV(TAG, "Modbus binary output write raw: %s",
+               format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+      // The lambda filled a legacy raw frame (device address + function code + data).
+      if (!this->send_raw_frame_deprecated_(data)) {
+        ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->write_address());
+      }
+      return;
+    }
+    if (!val.has_value()) {
       ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
     }
+    ESP_LOGV(TAG, "Value overwritten by lambda");
+    state = val.value();
   }
-  if (!data.empty()) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MODBUS_OUTPUT_MAX_LOG_BYTES)];
-#endif
-    ESP_LOGV(TAG, "Modbus binary output write raw: %s",
-             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
-    cmd.emplace(ModbusCommandItem::create_custom_command(
-        this->parent_, data,
-        [this](modbus::EntityType register_type, uint16_t start_address, std::span<const uint8_t> data) {
-          this->parent_->on_write_register_response(register_type, this->start_address, data);
-        }));
+  ESP_LOGV(TAG, "Write new state: value is %s, type is %d address = %X, offset = %x", ONOFF(state),
+           (int) this->register_type, this->start_address, this->offset);
+  // offset for coil and discrete inputs is the coil/register number not bytes
+  bool queued;
+  if (this->use_write_multiple_) {
+    std::array<bool, 1> states{state};
+    queued = this->write_multiple_coils(this->write_address(), states);
   } else {
-    ESP_LOGV(TAG, "Write new state: value is %s, type is %d address = %X, offset = %x", ONOFF(state),
-             (int) this->register_type, this->start_address, this->offset);
-
-    // offset for coil and discrete inputs is the coil/register number not bytes
-    if (this->use_write_multiple_) {
-      std::vector<bool> states{state};
-      cmd.emplace(
-          ModbusCommandItem::create_write_multiple_coils(this->parent_, this->start_address + this->offset, states));
-    } else {
-      cmd.emplace(
-          ModbusCommandItem::create_write_single_coil(this->parent_, this->start_address + this->offset, state));
-    }
+    queued = this->write_single_coil(this->write_address(), state);
   }
-  this->parent_->queue_command(std::move(*cmd));
+  if (!queued) {
+    ESP_LOGW(TAG, "Modbus output write (address 0x%X) was refused by the hub", this->write_address());
+  }
 }
 
 void ModbusBinaryOutput::dump_config() {
