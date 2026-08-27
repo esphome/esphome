@@ -38,7 +38,7 @@ from esphome.framework_helpers import (
     failure_reason,
     resume_fetch_job,
     run_batch_downloads,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
 from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
 
@@ -877,7 +877,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
         )
         # PlatformIO retries failed packages itself, without resume
         failures = run_batch_downloads("Downloading PlatformIO packages", jobs)
-        warn_prefetch_failures(failures)
+        warn_batch_failures(failures)
         failed_names = {name for name, _ in failures}
     elif not groups and not unresolved:
         # Record the no-work run so the parent skips the next spawn.

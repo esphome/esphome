@@ -1735,44 +1735,12 @@ def test_preinstall_caps_workers(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A high core count is capped; the workers share one disk."""
-
-    class _Mgr:
-        package_dir = str(tmp_path)
-        compatibility = None
-
-        def __init__(self, package_dir, **kwargs) -> None:
-            pass
-
-        def lock(self) -> None:
-            pass
-
-        def unlock(self) -> None:
-            pass
-
-        def memcache_reset(self) -> None:
-            pass
-
-        def get_tmp_dir(self) -> str:
-            return str(tmp_path)
-
-        def get_download_dir(self) -> str:
-            return str(tmp_path)
-
-        def get_package(self, spec):
-            return None
-
-        def get_pkg_dependencies(self, pkg):
-            return None
-
-        def _install(self, spec, skip_dependencies, compatibility=None) -> None:
-            pass
-
     with (
         caplog.at_level(logging.INFO),
         patch.object(pf, "get_usable_cpu_count", return_value=64),
     ):
         pf._preinstall(
-            _Mgr(str(tmp_path)),
+            _fake_manager(tmp_path),
             [(f"p{i}@1", _FakeSpec(name=f"p{i}")) for i in range(11)],
         )
     assert "Installing 11 PlatformIO package(s) with 10 extraction worker(s)" in (

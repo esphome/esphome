@@ -35,7 +35,7 @@ from esphome.framework_helpers import (
     failure_reason,
     rmdir,
     run_batch_downloads,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -1040,7 +1040,7 @@ def _prefetch_wave(
             ],
         )
         # The sequential call below retries and raises the real error
-        warn_prefetch_failures(
+        warn_batch_failures(
             failures, "Prefetch of %s failed (retrying sequentially): %s"
         )
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught

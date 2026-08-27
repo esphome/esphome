@@ -2345,35 +2345,34 @@ def test_resume_fetch_job_threads_tracker(tmp_path: Path) -> None:
     )
 
 
-def test_warn_prefetch_failures_names_each_failure(
+def test_warn_batch_failures_names_each_failure(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """The shared failure loop warns per job with the failure reason."""
-    from esphome.framework_helpers import warn_prefetch_failures
+    from esphome.framework_helpers import warn_batch_failures
 
-    warn_prefetch_failures([("toolchain-x@1", OSError("down"))])
+    warn_batch_failures([("toolchain-x@1", OSError("down"))])
     assert "Could not prefetch toolchain-x@1: down" in caplog.text
-    warn_prefetch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
+    warn_batch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
     assert "Prefetch of lib failed: gone" in caplog.text
 
 
-def test_warn_prefetch_failures_unexpected_error_keeps_traceback(
+def test_warn_batch_failures_unexpected_error_keeps_traceback(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An unexpected error type is not reduced to a bare message; expected
     download failures stay message-only at WARNING."""
-    from esphome.framework_helpers import warn_prefetch_failures
+    from esphome.framework_helpers import warn_batch_failures
 
     with caplog.at_level(logging.DEBUG):
-        warn_prefetch_failures(
+        warn_batch_failures(
             [("pkg", TypeError("bad call")), ("lib", OSError("down"))],
             "Could not install %s: %s",
-            detail="Install failure detail",
         )
     warnings = {r.getMessage(): r for r in caplog.records if r.levelname == "WARNING"}
     assert warnings["Could not install pkg: bad call"].exc_info is not None
     assert warnings["Could not install lib: down"].exc_info is None
-    assert "Install failure detail" in caplog.text
+    assert "Failure detail" in caplog.text
 
 
 @pytest.mark.parametrize(
