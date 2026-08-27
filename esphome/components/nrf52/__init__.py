@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import suppress
 import logging
 from pathlib import Path
 import re
@@ -816,7 +815,7 @@ def _generate_cmake_lists() -> bool:
         ]
 
     if consumer := pch_cmake_consumer("app", "${APP_SOURCES}"):
-        lines += consumer.rstrip("\n").splitlines()
+        lines += consumer.splitlines()
 
     if link_flags:
         lines += [
@@ -838,7 +837,10 @@ def _app_build_dir(build_dir: Path) -> Path:
     Sysbuild (SDK >= 2.9.2) nests the app in a domain dir named after the
     app source dir ("zephyr"); older SDKs configure it at the top level.
     In the non-sysbuild layout build_dir/zephyr is the Zephyr output dir,
-    which has no CMakeCache.txt, so the probe cannot misfire."""
+    which has no CMakeCache.txt, so the probe cannot misfire. A probe of
+    the on-disk layout (rather than the SDK-version check the artifact
+    copy uses) stays truthful mid-build and if sysbuild is ever toggled
+    independently of the version."""
     sysbuild_app = build_dir / "zephyr"
     if (sysbuild_app / "CMakeCache.txt").is_file():
         return sysbuild_app
@@ -858,17 +860,12 @@ def _prepare_pch(app_dir: Path) -> None:
     )
     # New layout first (Zephyr >= 3.4 nests under zephyr/); fixed candidates
     # keep the .sum identity deterministic and skip walking generated/
-    autoconf = next(
-        (
-            candidate
-            for candidate in (
-                app_dir / "zephyr" / "include" / "generated" / "zephyr" / "autoconf.h",
-                app_dir / "zephyr" / "include" / "generated" / "autoconf.h",
-            )
-            if candidate.exists()
-        ),
-        None,
-    )
+    generated = app_dir / "zephyr" / "include" / "generated"
+    autoconf = None
+    for candidate in (generated / "zephyr" / "autoconf.h", generated / "autoconf.h"):
+        if candidate.exists():
+            autoconf = candidate
+            break
     if autoconf is None:
         # Fail closed: autoconf.h is the .sum's Kconfig identity
         _LOGGER.warning("No autoconf.h found; compiling without the pch")
@@ -960,7 +957,8 @@ def run_compile(args, config: ConfigType) -> bool:
         # so an existing DB is settled, and --cmake-only reconfigures.
         # Sysbuild configures the app image during its own configure, so the
         # app's flags and autoconf.h are settled after this phase too.
-        if not (_app_build_dir(build_dir) / "compile_commands.json").is_file():
+        app_dir = _app_build_dir(build_dir)
+        if not (app_dir / "compile_commands.json").is_file():
             if not run_command_ok(
                 west_cmd + ["--cmake-only", "--", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
                 env=env,
@@ -968,13 +966,17 @@ def run_compile(args, config: ConfigType) -> bool:
                 cwd=str(paths["framework_path"]),
             ):
                 raise EsphomeError("nRF52 native build configure failed")
+            # The configure phase creates the sysbuild domain dir: re-resolve
+            app_dir = _app_build_dir(build_dir)
             # The pch includes zephyr/kernel.h, whose syscall headers are
-            # generated at build time (same target the clang-tidy flow uses)
+            # generated at build time. clang_tidy.py gets them with a single
+            # `west build -t`, but under sysbuild that target only exists in
+            # the app domain's ninja, not the top-level one, so build it there
             if not run_command_ok(
                 [
                     "cmake",
                     "--build",
-                    str(_app_build_dir(build_dir)),
+                    str(app_dir),
                     "--target",
                     "zephyr_generated_headers",
                 ],
@@ -983,24 +985,10 @@ def run_compile(args, config: ConfigType) -> bool:
                 cwd=str(paths["framework_path"]),
             ):
                 raise EsphomeError("nRF52 Zephyr header generation failed")
+    else:
+        app_dir = _app_build_dir(build_dir)
 
-    # An optional speedup must never abort the build
-    app_dir = _app_build_dir(build_dir)
-    try:
-        _prepare_pch(app_dir)
-    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        # Strict first: its own knob error must not mask the real failure
-        strict = pch.pch_strict()
-        # Raises itself if a stale .gch survives (silently wrong output)
-        pch.discard_pch(app_dir)
-        if strict:
-            raise
-        # Best effort: OBJECT_DEPENDS needs the header even without a pch
-        with suppress(OSError):
-            (app_dir / PCH_HEADER_NAME).touch()
-        _LOGGER.warning(
-            "Precompiled header setup failed; compiling without it", exc_info=True
-        )
+    pch.guarded_prepare(app_dir, lambda: _prepare_pch(app_dir))
 
     if not run_command_ok(
         west_cmd,

@@ -7,7 +7,7 @@ it too; Arduino.h visibility there is intended (esphome#8693).
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from dataclasses import dataclass
 import hashlib
@@ -211,6 +211,30 @@ def ccache_pch_env() -> dict[str, str]:
             ",".join(missing),
         )
     return env
+
+
+def guarded_prepare(build_dir: Path, prepare: Callable[[], None]) -> None:
+    """Run a backend's pch preparation; an optional speedup must never
+    abort the build. Owns the failure ordering both native backends need:
+    strict is read first so its own knob error cannot mask the real
+    failure, discard_pch raises itself if a stale .gch survives (silently
+    wrong output), and the header is ensured afterwards so a consumer-side
+    OBJECT_DEPENDS stays satisfiable without forcing rebuilds when the
+    header already exists."""
+    try:
+        prepare()
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        strict = pch_strict()
+        discard_pch(build_dir)
+        if strict:
+            raise
+        header = build_dir / PCH_HEADER_NAME
+        if not header.exists():
+            with suppress(OSError):
+                header.touch()
+        _LOGGER.warning(
+            "Precompiled header setup failed; compiling without it", exc_info=True
+        )
 
 
 def pch_extra_scripts() -> list[str]:

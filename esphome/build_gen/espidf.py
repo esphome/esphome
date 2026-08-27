@@ -300,11 +300,6 @@ def _pch_cmake() -> str:
     return pch.pch_cmake_consumer("${COMPONENT_LIB}", "${app_sources}")
 
 
-def discard_pch() -> None:
-    """Drop the pch sidecars in the IDF build dir."""
-    pch.discard_pch(CORE.relative_build_path("build"))
-
-
 def prepare_pch() -> None:
     """Build the .gch right before ninja, after every reconfigure, so the
     compile_commands.json flags and the sdkconfig are the settled ones."""

@@ -25,10 +25,13 @@ def build_dir(tmp_path: Path) -> Path:
     return d
 
 
-def _write_autoconf(build_dir: Path, text: str = "#define CONFIG_GPIO 1\n") -> Path:
+_AUTOCONF_TEXT = "#define CONFIG_GPIO 1\n"
+
+
+def _write_autoconf(build_dir: Path) -> Path:
     autoconf = build_dir / "zephyr" / "include" / "generated" / "zephyr" / "autoconf.h"
     autoconf.parent.mkdir(parents=True)
-    autoconf.write_text(text)
+    autoconf.write_text(_AUTOCONF_TEXT)
     return autoconf
 
 
@@ -58,6 +61,8 @@ def test_prepare_pch_missing_autoconf_degrades(
         nrf52._prepare_pch(build_dir)
     assert not prepare.called
     assert "No autoconf.h found" in caplog.text
+    # The header is written first so OBJECT_DEPENDS stays satisfied
+    assert (build_dir / "esphome_pch.h").is_file()
 
 
 def test_prepare_pch_missing_autoconf_strict_raises(
@@ -93,15 +98,8 @@ def test_app_build_dir_top_level_layout(build_dir: Path) -> None:
     assert nrf52._app_build_dir(build_dir) == build_dir
 
 
-def test_prepare_pch_writes_header_before_degrading(build_dir: Path) -> None:
-    # OBJECT_DEPENDS must be satisfied even when the pch degrades
-    with patch.object(nrf52.pch, "prepare_pch"):
-        nrf52._prepare_pch(build_dir)
-    assert (build_dir / "esphome_pch.h").is_file()
-
-
 def test_prepare_pch_extras_carry_build_identity(build_dir: Path) -> None:
-    _write_autoconf(build_dir, "#define CONFIG_GPIO 1\n")
+    _write_autoconf(build_dir)
     with (
         patch.dict(CORE.data, {KEY_CORE: {KEY_FRAMEWORK_VERSION: "2.9.2"}}),
         patch.object(
@@ -115,12 +113,7 @@ def test_prepare_pch_extras_carry_build_identity(build_dir: Path) -> None:
     (passed_dir, headers, extras) = prepare.call_args.args
     assert passed_dir == build_dir
     assert headers == nrf52.PCH_DEFAULT_HEADERS
-    assert list(extras) == [
-        "2.9.2",
-        "adafruit_feather",
-        "#define CONFIG_GPIO 1\n",
-        "-Os",
-    ]
+    assert list(extras) == ["2.9.2", "adafruit_feather", _AUTOCONF_TEXT, "-Os"]
 
 
 def _generate_cmake(tmp_path: Path) -> str:
@@ -139,27 +132,19 @@ def _generate_cmake(tmp_path: Path) -> str:
     return (tmp_path / "build" / "zephyr" / "CMakeLists.txt").read_text()
 
 
-def test_cmake_lists_pch_block_default(tmp_path: Path) -> None:
+def test_cmake_lists_include_pch_consumer_block(tmp_path: Path) -> None:
+    # Content contract is pinned by the shared pch_cmake_consumer tests;
+    # here only that the block reaches the generated CMakeLists
     text = _generate_cmake(tmp_path)
-    assert "-Winvalid-pch" in text
-    assert "-Wno-error=invalid-pch" in text
-    # Relative -include; the only build-dir reference is the OBJECT_DEPENDS
-    assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in text
+    assert "target_compile_options(app PRIVATE" in text
     assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in text
-
-
-def test_cmake_lists_pch_block_strict_escalates(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
-    assert "-Werror=invalid-pch" in _generate_cmake(tmp_path)
 
 
 def test_cmake_lists_pch_block_disabled(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
-    assert "invalid-pch" not in _generate_cmake(tmp_path)
+    assert "esphome_pch.h" not in _generate_cmake(tmp_path)
 
 
 class TestRunCompilePhases:
@@ -245,23 +230,13 @@ class TestRunCompilePhases:
         assert env["CCACHE_PCH_EXTSUM"] == "true"
         assert env["CCACHE_SLOPPINESS"] == "pch_defines,time_macros"
 
-    def test_settled_db_skips_cmake_phase(self, compile_ctx) -> None:
+    @pytest.mark.parametrize("sysbuild", [False, True])
+    def test_settled_db_skips_cmake_phase(self, sysbuild: bool, compile_ctx) -> None:
         run_cmd, prepare, build_dir = compile_ctx
-        build_dir.mkdir(parents=True)
-        # A present cache keeps the pristine wipe from dropping the DB
-        (build_dir / "CMakeCache.txt").write_text("")
-        (build_dir / "compile_commands.json").write_text("[]")
-        run_cmd.side_effect = [False]
-        with pytest.raises(EsphomeError, match="nRF52 native build failed"):
-            self._run()
-        assert run_cmd.call_count == 1
-        assert "--cmake-only" not in run_cmd.call_args.args[0]
-        assert prepare.called
-
-    def test_settled_sysbuild_db_skips_cmake_phase(self, compile_ctx) -> None:
-        run_cmd, prepare, build_dir = compile_ctx
-        app = build_dir / "zephyr"
+        app = build_dir / "zephyr" if sysbuild else build_dir
         app.mkdir(parents=True)
+        # A present top-level cache keeps the pristine wipe from dropping
+        # the DB; the app-dir cache is the sysbuild layout marker
         (build_dir / "CMakeCache.txt").write_text("")
         (app / "CMakeCache.txt").write_text("")
         (app / "compile_commands.json").write_text("[]")
