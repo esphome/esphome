@@ -604,6 +604,11 @@ def test_component_cmakelists_pch_block(monkeypatch: pytest.MonkeyPatch) -> None
 
     content = get_component_cmakelists()
     assert '"$<$<COMPILE_LANGUAGE:CXX>:-include>"' in content
+    assert "-Wno-error=invalid-pch" in content
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    strict_content = get_component_cmakelists()
+    assert "-Werror=invalid-pch" in strict_content
+    monkeypatch.delenv("ESPHOME_PCH_STRICT")
     assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in content
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     assert "-include" not in get_component_cmakelists()
@@ -1296,3 +1301,6 @@ def test_prepare_pch_strict_reprobes_cached_gch(
     ):
         prepare_pch()
     assert not gch.exists()
+    # Per-process rejection may not reproduce: the cached path must not
+    # latch the pch off for later non-strict builds
+    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()

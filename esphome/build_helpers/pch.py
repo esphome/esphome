@@ -120,15 +120,15 @@ def pch_disabled_degraded() -> None:
     pch_degraded("pch disabled by ESPHOME_PCH_ENABLE")
 
 
-def pch_probe_args(header: str, fatal: bool = False) -> list[str]:
+def pch_probe_args(header: str) -> list[str]:
     """Flags that load-check a built .gch via a syntax-only compile.
 
-    ``fatal`` escalates a rejected pch to an error for consumers that
-    cannot inspect stderr (the ninja probe edge).
+    Rejection must be a nonzero exit (never just a wording match), so the
+    invalid-pch class is always escalated.
     """
     return [
         "-Winvalid-pch",
-        *(["-Werror=invalid-pch"] if fatal else []),
+        "-Werror=invalid-pch",
         "-include",
         header,
         "-fsyntax-only",
@@ -452,30 +452,37 @@ def prepare_pch(
         os.utime(header)
         pch_degraded(f"{reason}: {error[:200]}")
 
-    def _probe() -> None:
+    def _probe(latch: bool = True) -> None:
         """Load-check the built .gch: some toolchains build one they then
         refuse to load (per-process ASLR). Dep flags are already stripped
         from cmd, so no -MF is needed; cmd ends with the fixed
-        "-x c++-header -c -o" tail."""
+        "-x c++-header -c -o" tail. A cached-header rejection may not
+        reproduce (per-process), so that caller passes latch=False."""
         # The fixed tail pch_compile_command appends; the slice below
         # depends on it
         assert cmd[-6:-4] == ["-x", "c++-header"], cmd[-6:]
-        # fatal: rejection must be a nonzero exit, not a wording match
-        probe = _run([*cmd[:-6], *pch_probe_args(str(header), fatal=True)], "probe")
+        probe = _run([*cmd[:-6], *pch_probe_args(str(header))], "probe")
         if probe is None:
             return
         if probe.returncode != 0 or ".gch" in probe.stderr:
-            _fail(
-                probe.stderr.strip() or f"exit code {probe.returncode}",
-                "toolchain cannot load the pch",
-            )
+            error = probe.stderr.strip() or f"exit code {probe.returncode}"
+            if latch:
+                _fail(error, "toolchain cannot load the pch")
+            else:
+                _LOGGER.warning(
+                    "Precompiled header failed; compiling without it: %s",
+                    error[:400],
+                )
+                discard_pch(build_dir)
+                pch_degraded(f"toolchain cannot load the pch: {error[:200]}")
 
     if gch.is_file() and _read_stamp(sum_path) == checksum:
         _log_pch_in_use()
         if pch_strict():
             # Rejection is per-process, so a cached .gch must re-prove
-            # loadability for the strict gate (CI-only cost)
-            _probe()
+            # loadability for the strict gate (CI-only cost); no latch,
+            # since the rejection may not reproduce either
+            _probe(latch=False)
         return
     if _read_stamp(failed_marker) == checksum:
         _LOGGER.info(

@@ -298,12 +298,15 @@ def _pch_cmake() -> str:
     """
     if not pch_enabled():
         return ""
+    # Strict inverts: a per-process consumer rejection reds the build
+    escalation = "-Werror=invalid-pch" if pch.pch_strict() else "-Wno-error=invalid-pch"
     return f"""
 # ESPHome precompiled header (see esphome/build_helpers/pch.py).
 # OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
 # out of TU depfiles, and prepare_pch() touches the header on rebuild.
 target_compile_options(${{COMPONENT_LIB}} PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:-Winvalid-pch>"
+    "$<$<COMPILE_LANGUAGE:CXX>:{escalation}>"
     "$<$<COMPILE_LANGUAGE:CXX>:-include>"
     "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
 )
