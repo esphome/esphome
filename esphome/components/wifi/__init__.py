@@ -445,10 +445,15 @@ def _report_provisioning_credentials(config):
     about this, since a device that uses a provisioning window should get its
     credentials on first connection instead.
     """
-    if config.get(CONF_NETWORKS):
-        from esphome.components import provisioning
+    from esphome.components import provisioning
 
+    if config.get(CONF_NETWORKS):
         provisioning.report_hardcoded_credentials("wifi")
+    elif CONF_AP in config:
+        # An access point with no station credentials: the AP shuts down when the
+        # provisioning window closes, so `provisioning:` warns that the device may
+        # become unreachable until power-cycled.
+        provisioning.report_ap_without_sta()
     return config
 
 
