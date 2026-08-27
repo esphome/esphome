@@ -855,6 +855,11 @@ def _format_framework_pio_espidf_version(
 ) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
     # a PIO platformio/framework-espidf value
+    # TEMP: pioarduino has no 6.1 package yet; use a repack of espressif v6.1
+    # built the same way (shallow recursive clone, docs removed, package.json added).
+    # Remove before merge once pioarduino publishes v6.1.
+    if ver == cv.Version(6, 1, 0):
+        return "pioarduino/framework-espidf@https://github.com/bdraco/esp-idf/releases/download/v6.1.0/esp-idf-v6.1.0.tar.xz"
     if ver == cv.Version(5, 4, 3) or ver >= cv.Version(5, 5, 1):
         ext = "tar.xz"
     else:
@@ -945,12 +950,16 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 5),
-    "latest": cv.Version(5, 5, 5),
-    "dev": cv.Version(5, 5, 5),
+    # TEMP: default to 6.1.0 for CI testing of Log V2; revert to 5.5.5 before merge
+    "recommended": cv.Version(6, 1, 0),
+    "latest": cv.Version(6, 1, 0),
+    "dev": cv.Version(6, 1, 0),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 1, 0
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 1
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
