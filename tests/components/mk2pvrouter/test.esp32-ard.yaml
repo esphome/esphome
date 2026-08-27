@@ -1,3 +1,0 @@
-packages:
-  uart_9600_even_7bits: !include ../../test_build_components/common/uart_9600_even_7bits/esp32-ard.yaml
-  mk2pvrouter: !include common.yaml
