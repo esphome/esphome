@@ -7,6 +7,7 @@
 #include "esphome/core/version.h"
 
 #include "esphome/components/logger/logger.h"
+#include "esphome/components/wifi/scan_list.h"
 
 namespace esphome::improv_serial {
 
@@ -14,8 +15,11 @@ static const char *const TAG = "improv_serial";
 
 void ImprovSerialComponent::setup() {
   global_improv_serial_component = this;
-#ifdef USE_ESP32
+#ifdef USE_IMPROV_SERIAL_UART
+  // Transport is a dedicated UART bus set via set_uart() in generated code
+#elif defined(USE_ESP32)
   this->uart_num_ = logger::global_logger->get_uart_num();
+  this->uart_selection_ = logger::global_logger->get_uart();
 #elif defined(USE_ARDUINO)
   this->hw_serial_ = logger::global_logger->get_hw_serial();
 #endif
@@ -30,21 +34,23 @@ void ImprovSerialComponent::setup() {
 }
 
 void ImprovSerialComponent::loop() {
-  if (this->last_read_byte_ && (millis() - this->last_read_byte_ > IMPROV_SERIAL_TIMEOUT)) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_read_byte_ && (now - this->last_read_byte_ > IMPROV_SERIAL_TIMEOUT)) {
     this->last_read_byte_ = 0;
     this->rx_buffer_.clear();
     ESP_LOGV(TAG, "Timeout");
   }
 
-  auto byte = this->read_byte_();
-  while (byte.has_value()) {
+  while (true) {
+    auto byte = this->read_byte_();
+    if (!byte.has_value())
+      break;
     if (this->parse_improv_serial_byte_(byte.value())) {
-      this->last_read_byte_ = millis();
+      this->last_read_byte_ = now;
     } else {
       this->last_read_byte_ = 0;
       this->rx_buffer_.clear();
     }
-    byte = this->read_byte_();
   }
 
   if (this->state_ == improv::STATE_PROVISIONING) {
@@ -62,53 +68,6 @@ void ImprovSerialComponent::loop() {
 }
 
 void ImprovSerialComponent::dump_config() { ESP_LOGCONFIG(TAG, "Improv Serial:"); }
-
-optional<uint8_t> ImprovSerialComponent::read_byte_() {
-  optional<uint8_t> byte;
-  uint8_t data = 0;
-#ifdef USE_ESP32
-  switch (logger::global_logger->get_uart()) {
-    case logger::UART_SELECTION_UART0:
-    case logger::UART_SELECTION_UART1:
-#if defined(USE_ESP32_VARIANT_ESP32)
-    case logger::UART_SELECTION_UART2:
-#endif
-      if (this->uart_num_ >= 0) {
-        size_t available;
-        uart_get_buffered_data_len(this->uart_num_, &available);
-        if (available) {
-          uart_read_bytes(this->uart_num_, &data, 1, 0);
-          byte = data;
-        }
-      }
-      break;
-#if defined(USE_LOGGER_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
-    case logger::UART_SELECTION_USB_CDC:
-      if (esp_usb_console_available_for_read()) {
-        esp_usb_console_read_buf((char *) &data, 1);
-        byte = data;
-      }
-      break;
-#endif  // USE_LOGGER_USB_CDC
-#ifdef USE_LOGGER_USB_SERIAL_JTAG
-    case logger::UART_SELECTION_USB_SERIAL_JTAG: {
-      if (usb_serial_jtag_read_bytes((char *) &data, 1, 0)) {
-        byte = data;
-      }
-      break;
-    }
-#endif  // USE_LOGGER_USB_SERIAL_JTAG
-    default:
-      break;
-  }
-#elif defined(USE_ARDUINO)
-  if (this->hw_serial_->available()) {
-    this->hw_serial_->readBytes(&data, 1);
-    byte = data;
-  }
-#endif
-  return byte;
-}
 
 void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) {
   // First, set length field
@@ -132,8 +91,14 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
   }
   this->tx_header_[TX_CHECKSUM_IDX] = checksum;
 
-#ifdef USE_ESP32
-  switch (logger::global_logger->get_uart()) {
+#ifdef USE_IMPROV_SERIAL_UART
+  this->uart_->write_array(this->tx_header_, header_tx_len);
+  if (there_is_data) {
+    this->uart_->write_array(data, size);
+    this->uart_->write_array(&this->tx_header_[TX_CHECKSUM_IDX], 2);  // Footer: checksum and newline
+  }
+#elif defined(USE_ESP32)
+  switch (this->uart_selection_) {
     case logger::UART_SELECTION_UART0:
     case logger::UART_SELECTION_UART1:
 #if defined(USE_ESP32_VARIANT_ESP32)
@@ -274,31 +239,17 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       return true;
     }
     case improv::GET_WIFI_NETWORKS: {
-      std::vector<std::string> networks;
       const auto &results = wifi::global_wifi_component->get_scan_result();
-      for (auto &scan : results) {
-        if (scan.get_is_hidden())
+      for (const auto &scan : results) {
+        bool with_auth = false;
+        if (!wifi::should_show_scan_entry(results, scan, with_auth))
           continue;
-        const char *ssid_cstr = scan.get_ssid().c_str();
-        // Check if we've already sent this SSID
-        bool duplicate = false;
-        for (const auto &seen : networks) {
-          if (strcmp(seen.c_str(), ssid_cstr) == 0) {
-            duplicate = true;
-            break;
-          }
-        }
-        if (duplicate)
-          continue;
-        // Only allocate std::string after confirming it's not a duplicate
-        std::string ssid(ssid_cstr);
         // Send each ssid separately to avoid overflowing the buffer
         char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
         *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
-        std::vector<uint8_t> data =
-            improv::build_rpc_response(improv::GET_WIFI_NETWORKS, {ssid, rssi_buf, YESNO(scan.get_with_auth())}, false);
+        std::vector<uint8_t> data = improv::build_rpc_response(
+            improv::GET_WIFI_NETWORKS, {scan.get_ssid().str(), rssi_buf, YESNO(with_auth)}, false);
         this->send_response_(data);
-        networks.push_back(std::move(ssid));
       }
       // Send empty response to signify the end of the list.
       std::vector<uint8_t> data =

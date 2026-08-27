@@ -74,6 +74,7 @@ sensor:
     id: espnow_temp_sensor
 
   - platform: packet_transport
+    transport_id: transport1
     provider: test-provider
     remote_id: espnow_temp_sensor
     id: remote_temp

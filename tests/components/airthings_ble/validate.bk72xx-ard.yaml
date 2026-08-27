@@ -1,0 +1,8 @@
+# Config-only: the CI base board (generic-bk7252, BLE 4.2) cannot compile the
+# BLE 5.x tracker, so this fixture proves validation (schema + neutral binding)
+# on a non-esp32 platform; codegen and compilation are not exercised here.
+bk72xx_ble_tracker:
+  id: ble_tracker_hub
+
+airthings_ble:
+  ble_hub_id: ble_tracker_hub

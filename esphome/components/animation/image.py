@@ -1,13 +1,20 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_LOOP
+from esphome.components.file import image as file_image
 from esphome.components.file.image import image_schema, write_image
 from esphome.components.image import Image_, validate_settings
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_REPEAT
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@syndlex"]
+
+# The animation platform shares the file platform's remote file handling,
+# including its batch-download hook.
+PREFETCH_FILES = file_image.PREFETCH_FILES
 AUTO_LOAD = ["file"]
 DEPENDENCIES = ["display"]
 
@@ -74,7 +81,12 @@ SET_FRAME_SCHEMA = cv.Schema(
 @automation.register_action(
     "animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA, synchronous=True
 )
-async def animation_action_to_code(config, action_id, template_arg, args):
+async def animation_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 

@@ -5,10 +5,12 @@ from esphome.components.const import CONF_BYTE_ORDER
 from esphome.components.image import (
     IMAGE_TYPE,
     Image_,
+    validate_byte_order,
     validate_settings,
     validate_transparency,
     validate_type,
 )
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_FORMAT, CONF_ID, CONF_RESIZE, CONF_TYPE
 from esphome.core import CORE
@@ -26,6 +28,7 @@ ImageDecoder = runtime_image_ns.class_("ImageDecoder")
 BmpDecoder = runtime_image_ns.class_("BmpDecoder", ImageDecoder)
 JpegDecoder = runtime_image_ns.class_("JpegDecoder", ImageDecoder)
 PngDecoder = runtime_image_ns.class_("PngDecoder", ImageDecoder)
+QoiDecoder = runtime_image_ns.class_("QoiDecoder", ImageDecoder)
 
 # Runtime image class
 RuntimeImage = runtime_image_ns.class_(
@@ -35,9 +38,10 @@ RuntimeImage = runtime_image_ns.class_(
 # Image format enum
 ImageFormat = runtime_image_ns.enum("ImageFormat")
 IMAGE_FORMAT_AUTO = ImageFormat.AUTO
+IMAGE_FORMAT_BMP = ImageFormat.BMP
 IMAGE_FORMAT_JPEG = ImageFormat.JPEG
 IMAGE_FORMAT_PNG = ImageFormat.PNG
-IMAGE_FORMAT_BMP = ImageFormat.BMP
+IMAGE_FORMAT_QOI = ImageFormat.QOI
 
 # Export enum for decode errors
 DecodeError = runtime_image_ns.enum("DecodeError")
@@ -57,10 +61,22 @@ class Format:
         """Add defines and libraries needed for this format."""
 
 
+class AUTOFormat(Format):
+    """AUTO format - detect from MIME type."""
+
+    def __init__(self) -> None:
+        super().__init__("AUTO", None)
+
+    def actions(self) -> None:
+        # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
+        for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
+            image_format.actions()
+
+
 class BMPFormat(Format):
     """BMP format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("BMP", BmpDecoder)
 
     def actions(self) -> None:
@@ -70,25 +86,30 @@ class BMPFormat(Format):
 class JPEGFormat(Format):
     """JPEG format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("JPEG", JpegDecoder)
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        if CORE.is_host:
+            # JPEGDEC's host detection checks __MACH__/__LINUX__, but gcc only
+            # predefines the lowercase __linux__; without this a Linux host
+            # build tries to include Arduino.h.
+            cg.add_build_flag("-D__LINUX__")
         if CORE.is_esp32:
             from esphome.components.esp32 import add_idf_component
 
             # JPEGDEC uses ESP32-S3 SIMD optimizations (guarded by board-level
             # ARDUINO_ESP32S3_DEV define) that require esp-dsp headers.
             # On Arduino this overwrites the stub; on IDF it adds the component.
-            add_idf_component(name="espressif/esp-dsp", ref="1.7.1")
+            add_idf_component(name="espressif/esp-dsp", ref="1.8.2")
 
 
 class PNGFormat(Format):
     """PNG format decoder configuration."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("PNG", PngDecoder)
 
     def actions(self) -> None:
@@ -96,18 +117,47 @@ class PNGFormat(Format):
         cg.add_library("pngle", "1.1.0")
 
 
+class QOIFormat(Format):
+    """QOI format decoder configuration."""
+
+    def __init__(self):
+        super().__init__("QOI", QoiDecoder)
+
+    def actions(self) -> None:
+        cg.add_define("USE_RUNTIME_IMAGE_QOI")
+
+
+# Decodable formats only; platforms that support runtime detection accept
+# "AUTO" in their own schema and get_format() resolves it
+_JPEG_FORMAT = JPEGFormat()
+
 # Registry of available formats
 IMAGE_FORMATS = {
     "BMP": BMPFormat(),
-    "JPEG": JPEGFormat(),
+    "JPEG": _JPEG_FORMAT,
+    "JPG": _JPEG_FORMAT,  # Alias for JPEG
     "PNG": PNGFormat(),
-    "JPG": JPEGFormat(),  # Alias for JPEG
+    "QOI": QOIFormat(),
 }
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "bmp_decoder.cpp": "USE_RUNTIME_IMAGE_BMP",
+        "jpeg_decoder.cpp": "USE_RUNTIME_IMAGE_JPEG",
+        "png_decoder.cpp": "USE_RUNTIME_IMAGE_PNG",
+        "qoi_decoder.cpp": "USE_RUNTIME_IMAGE_QOI",
+    }
+)
+
+AUTO_FORMAT = AUTOFormat()
 
 
 def get_format(format_name: str) -> Format | None:
     """Get a format instance by name."""
-    return IMAGE_FORMATS.get(format_name.upper())
+    name = format_name.upper()
+    if name == "AUTO":
+        return AUTO_FORMAT
+    return IMAGE_FORMATS.get(name)
 
 
 def enable_format(format_name: str) -> Format | None:
@@ -128,9 +178,7 @@ def runtime_image_schema(image_class: cg.MockObjClass = RuntimeImage) -> cv.Sche
             cv.Required(CONF_FORMAT): cv.one_of(*IMAGE_FORMATS, upper=True),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             cv.Required(CONF_TYPE): validate_type(IMAGE_TYPE),
-            cv.Optional(CONF_BYTE_ORDER): cv.one_of(
-                "BIG_ENDIAN", "LITTLE_ENDIAN", upper=True
-            ),
+            cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
             cv.Optional(CONF_TRANSPARENCY, default="OPAQUE"): validate_transparency(),
             cv.Optional(CONF_PLACEHOLDER): cv.use_id(Image_),
         }
