@@ -212,6 +212,18 @@ _PCH_STRIP_FLAGS_WITH_ARG = frozenset({"-o", "-c", "-MT", "-MF", "-MQ"})
 _PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
 
 
+def _db_source_path(entry: dict, build_dir: Path) -> Path:
+    """A compile database entry's source file as a resolved absolute path."""
+    path = Path(entry["file"])
+    if not path.is_absolute():
+        directory = entry.get("directory")
+        base = (
+            Path(directory) if isinstance(directory, str) and directory else build_dir
+        )
+        path = base / path
+    return path.resolve()
+
+
 def pch_compile_command(
     build_dir: Path, header: Path, gch: Path
 ) -> tuple[list[str], Path] | None:
@@ -232,16 +244,17 @@ def pch_compile_command(
     if not isinstance(entries, list):
         _LOGGER.warning("Malformed compile database, skipping pch")
         return None
-    # Windows compile DBs use backslashes; normalize both sides
-    src_prefix = str(CORE.relative_src_path()).replace("\\", "/")
+    # CMake may spell paths through a symlink differently than CORE does
+    # (macOS /tmp vs /private/tmp), so compare resolved paths
+    src_root = Path(CORE.relative_src_path()).resolve()
     entry = next(
         (
             e
             for e in entries
             if isinstance(e, dict)
             and isinstance(e.get("file"), str)
-            and e["file"].replace("\\", "/").startswith(src_prefix)
             and e["file"].endswith(CXX_SOURCE_SUFFIXES)
+            and _db_source_path(e, build_dir).is_relative_to(src_root)
         ),
         None,
     )
