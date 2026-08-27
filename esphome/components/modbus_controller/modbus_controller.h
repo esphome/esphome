@@ -556,11 +556,16 @@ class ModbusController final : public PollingComponent {
   void queue_command(ModbusCommandItem command);
   /// Flags a finished one-shot command for removal. Called by the command as the last action of its own
   /// callback, so the item is not destroyed here (send() and the hub still touch it) but swept later.
+  /// Remove with ModbusCommandItem before 2027.3.0.
+  ESPDEPRECATED("Serves only ModbusCommandItem's own callbacks. Removed in 2027.3.0", "2026.9.0")
   void unqueue_command(const ModbusCommandItem *command);
 #pragma GCC diagnostic pop
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
   /// Handles a write command acknowledgement (used by write command on_data_func handlers).
+  /// Remove with ModbusCommandItem before 2027.3.0.
+  ESPDEPRECATED("Write acknowledgements are handled by the writing entity's own device. Removed in 2027.3.0",
+                "2026.9.0")
   void on_write_register_response(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data);
   /// Update the online/offline state after a response or a run of timeouts, firing the callbacks.
   void set_online(bool online, int function_code, int register_address);
