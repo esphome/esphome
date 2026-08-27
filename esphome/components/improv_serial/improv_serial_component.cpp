@@ -173,11 +173,11 @@ void ImprovSerialComponent::send_version_info_() {
     static const char progmem_str[] PROGMEM = lit; \
     char tmp[sizeof(lit)]; \
     progmem_memcpy(tmp, progmem_str, sizeof(lit)); \
-    ok &= builder.add_string(tmp, sizeof(lit) - 1); \
+    ok = ok && builder.add_string(tmp, sizeof(lit) - 1); \
   }
 #else
   // Literals are directly flash mapped on all other platforms
-#define IMPROV_ADD_INFO(lit) ok &= builder.add_string(lit, sizeof(lit) - 1)
+#define IMPROV_ADD_INFO(lit) ok = ok && builder.add_string(lit, sizeof(lit) - 1)
 #endif
 #ifdef ESPHOME_PROJECT_NAME
   IMPROV_ADD_INFO(ESPHOME_PROJECT_NAME);
@@ -189,9 +189,10 @@ void ImprovSerialComponent::send_version_info_() {
   IMPROV_ADD_INFO(ESPHOME_VARIANT);
 #undef IMPROV_ADD_INFO
   const auto &name = App.get_name();
-  ok &= builder.add_string(name.c_str(), name.size());
+  ok = ok && builder.add_string(name.c_str(), name.size());
   if (!ok) {
-    // Fields are positional, so a dropped one misaligns the rest for the client
+    // Fields are positional, so stop at the first one that does not fit; the
+    // prefix stays aligned and only trailing fields are missing
     ESP_LOGW(TAG, "Response full; device info incomplete");
   }
   this->send_response_(builder.finish(false));

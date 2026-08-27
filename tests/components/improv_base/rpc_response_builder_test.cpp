@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 
-#include "esphome/components/improv_base/improv_base.h"
-
 #include <improv.h>
 
 namespace esphome::improv_base::testing {
