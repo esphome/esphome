@@ -57,7 +57,7 @@ void OpenThreadComponent::setup() {
 
   ESP_ERROR_CHECK(esp_openthread_start(&config));
   // Mark lock as initialized so InstanceLock callers know it's safe to acquire.
-  // Must be set after esp_openthread_init() which creates the internal semaphore.
+  // Must be set after esp_openthread_start() which creates the internal semaphore.
   this->lock_initialized_ = true;
   // Fetch OT instance once to avoid repeated call into OT stack
   otInstance *instance = esp_openthread_get_instance();
@@ -154,7 +154,7 @@ InstanceLock InstanceLock::acquire() {
     abort();
   }
   // Wait for the lock to be created before attempting to acquire it.
-  // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
+  // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_start().
   constexpr uint32_t lock_init_timeout_ms = 10000;
   uint32_t start = millis();
   while (!global_openthread_component->is_lock_initialized()) {

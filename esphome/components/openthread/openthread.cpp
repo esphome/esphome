@@ -264,7 +264,8 @@ bool OpenThreadComponent::teardown() {
       }
     } break;
     case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
-      // Unreachable today; kept as a hook for a future use.
+      // Unreachable today; teardown is synchronous on both platforms. Kept for a future
+      // graceful-exit path, or a platform whose teardown() cannot be made synchronous.
       break;
     case TeardownStage::TEARDOWN_STAGE_COMPLETED:
       ESP_LOGV(TAG, "OpenThreadComponent Teardown Complete");
