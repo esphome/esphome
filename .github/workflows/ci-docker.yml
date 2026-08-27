@@ -206,7 +206,7 @@ jobs:
         # platforms where it must work. Excluded: bk72xx/rtl87xx/ln882x
         # (libretiny GCC rejects its own pch until a toolchain bump),
         # esp32-*-platformio (no pch; the toolchain is being dropped),
-        # nrf52 and host (no pch)
+        # nrf52 (no pch)
         include:
           - id: esp8266-arduino
             pch_strict: "1"
@@ -217,6 +217,8 @@ jobs:
           - id: esp32-arduino-esp-idf
             pch_strict: "1"
           - id: rp2040-arduino
+            pch_strict: "1"
+          - id: host
             pch_strict: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
