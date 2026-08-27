@@ -1,4 +1,4 @@
-from esphome.build_helpers.pch import pch_extra_scripts
+from esphome.build_helpers.pch import pch_enabled, pch_extra_scripts
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -18,6 +18,9 @@ from .const import KEY_HOST
 
 # force import gpio to register pin schema
 from .gpio import host_pin_to_code  # noqa: F401
+
+# Guarded wrapper: build_src_flags reaches C/assembly edges too
+HOST_PCH_PREFIX = "esphome/core/pch_prefix.h"
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]
@@ -57,14 +60,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add_platformio_option("lib_ldf_mode", "off")
     cg.add_platformio_option("lib_compat_mode", "strict")
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py", *pch_extra_scripts()])
-    # Curated prefix for the pch (the script folds these plus defines.h):
-    # host has no framework force-includes, and the per-TU cost is the STL
-    # closure behind these core headers. Measured -43% compile CPU.
-    # macOS system clang cannot load a GCC .gch; the load probe falls back.
-    cg.add_platformio_option(
-        "build_src_flags",
-        "-include esphome/core/application.h -include esphome/core/automation.h",
-    )
+    if pch_enabled():
+        # Curated prefix for the pch (the script folds it plus defines.h):
+        # host has no framework force-includes, and the per-TU cost is the
+        # STL closure behind the core headers. Measured -43% compile CPU.
+        # Gated so ESPHOME_PCH_ENABLE=0 restores the strict view; a
+        # toolchain that cannot load its own pch hits the script's probe.
+        cg.add_platformio_option("build_src_flags", f"-include {HOST_PCH_PREFIX}")
 
 
 # Called by writer.py
