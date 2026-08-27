@@ -63,15 +63,15 @@ def initialize(
 def prepare(
     config, subscriptions, on_message, on_connect, username, password, client_id
 ):
-    def on_connect_(client, userdata, flags, return_code):
+    def on_connect_(client, userdata, flags, reason_code, properties):
         _LOGGER.info("Connected to MQTT broker!")
         for topic in subscriptions:
             client.subscribe(topic)
         if on_connect is not None:
-            on_connect(client, userdata, flags, return_code)
+            on_connect(client, userdata, flags, reason_code, properties)
 
-    def on_disconnect(client, userdata, result_code):
-        if result_code == 0:
+    def on_disconnect(client, userdata, flags, reason_code, properties):
+        if reason_code == 0:
             return
 
         tries = 0
@@ -86,13 +86,13 @@ def prepare(
             wait_time = min(2**tries, 300)
             _LOGGER.warning(
                 "Disconnected from MQTT (%s). Trying to reconnect in %s s",
-                result_code,
+                reason_code,
                 wait_time,
             )
             time.sleep(wait_time)
             tries += 1
 
-    client = mqtt.Client(client_id or "")
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id or "")
     client.on_connect = on_connect_
     client.on_message = on_message
     client.on_disconnect = on_disconnect
@@ -153,7 +153,7 @@ def show_discover(config, username=None, password=None, client_id=None):
             message = time_ + " " + payload
             safe_print(message)
 
-    def on_connect(client, userdata, flags, return_code):
+    def on_connect(client, userdata, flags, reason_code, properties):
         _LOGGER.info("Send discover via MQTT broker")
         client.publish("esphome/discover", None, retain=False)
 
@@ -241,7 +241,7 @@ def get_esphome_device_ip(
             failed = False  # a complete answer wins over an earlier empty one
             client.disconnect()
 
-    def on_connect(client, userdata, flags, return_code):
+    def on_connect(client, userdata, flags, reason_code, properties):
         topic = "esphome/ping/" + dev_name
         _LOGGER.info("Send discover via MQTT broker topic: %s", topic)
         client.publish(topic, None, retain=False)
@@ -250,10 +250,10 @@ def get_esphome_device_ip(
         # Teardown already started; don't open a broker connection at all
         return []
 
-    def on_disconnect(client, userdata, result_code):
+    def on_disconnect(client, userdata, flags, reason_code, properties):
         nonlocal failed
-        if result_code != 0:
-            _LOGGER.warning("Disconnected from MQTT broker (%s)", result_code)
+        if reason_code != 0:
+            _LOGGER.warning("Disconnected from MQTT broker (%s)", reason_code)
             failed = True
 
     mqtt_client = prepare(
