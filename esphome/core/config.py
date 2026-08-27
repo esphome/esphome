@@ -55,6 +55,7 @@ from esphome.helpers import (
     cpp_string_escape,
     fnv1a_32bit_hash,
     get_str_env,
+    get_usable_cpu_count,
     walk_files,
 )
 from esphome.types import ConfigType
@@ -203,16 +204,6 @@ def valid_project_name(value: str):
     if value.count(".") != 1:
         raise cv.Invalid("project name needs to have a namespace")
     return value
-
-
-def get_usable_cpu_count() -> int:
-    """Return the number of CPUs that can be used for processes.
-    On Python 3.13+ this is the number of CPUs that can be used for processes.
-    On older Python versions this is the number of CPUs.
-    """
-    return (
-        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
-    )
 
 
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
