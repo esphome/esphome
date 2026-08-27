@@ -285,16 +285,17 @@ def pch_compile_command(
     if not isinstance(entries, list):
         _LOGGER.warning("Malformed compile database, skipping pch")
         return None
-    # Windows compile DBs use backslashes; normalize both sides
-    src_prefix = str(CORE.relative_src_path()).replace("\\", "/")
+    # CMake may spell paths through a symlink differently than CORE does
+    # (macOS /tmp vs /private/tmp), so compare resolved paths
+    src_root = Path(CORE.relative_src_path()).resolve()
     entry = next(
         (
             e
             for e in entries
             if isinstance(e, dict)
             and isinstance(e.get("file"), str)
-            and e["file"].replace("\\", "/").startswith(src_prefix)
             and e["file"].endswith(CXX_SOURCE_SUFFIXES)
+            and Path(e["file"]).resolve().is_relative_to(src_root)
         ),
         None,
     )
