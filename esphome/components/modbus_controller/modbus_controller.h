@@ -255,6 +255,10 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
 
   void notify_online_(std::span<const uint8_t> request_pdu);
 
+  /// Write-path state owned by WriterEntity's forwarders, stored here so both bools land in the base's
+  /// tail padding instead of adding a word to every writer entity. The warn flag leaves in 2027.3.0.
+  bool dispatched_{false};
+  bool write_buffer_deprecated_warned_{false};
   ModbusController *controller_{nullptr};
 };
 
@@ -273,6 +277,13 @@ class WriterDevice final : public ControllerDevice {
   /// Serves only the deprecated write_lambda buffer path. Remove before 2027.3.0.
   bool send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
+  bool dispatched() const { return this->dispatched_; }
+  void set_dispatched() { this->dispatched_ = true; }
+  void clear_dispatched() { this->dispatched_ = false; }
+  /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
+  /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
+  void warn_write_buffer_deprecated(const LogString *platform, uint16_t address);
+
  protected:
   // Only the write side forwards to the typed callbacks (for item->queue_pdu() replies): a poll parses
   // its own response, and dispatching its errors would trip the base unhandled-custom-response warning.
@@ -288,48 +299,47 @@ class WriterDevice final : public ControllerDevice {
 class WriterEntity {
  public:
   /// Whether the lambda queued a frame to the hub since the last clear_dispatched_().
-  bool dispatched() const { return this->dispatched_; }
+  bool dispatched() const { return this->device_.dispatched(); }
   bool write_single_register(uint16_t address, uint16_t value) {
-    this->dispatched_ = true;
+    this->device_.set_dispatched();
     return this->device_.write_single_register(address, value);
   }
   bool write_single_coil(uint16_t address, bool value) {
-    this->dispatched_ = true;
+    this->device_.set_dispatched();
     return this->device_.write_single_coil(address, value);
   }
   bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
-    this->dispatched_ = true;
+    this->device_.set_dispatched();
     return this->device_.write_multiple_registers(address, values);
   }
   bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
-    this->dispatched_ = true;
+    this->device_.set_dispatched();
     return this->device_.write_multiple_coils(address, values);
   }
   bool write_multiple_coils(uint16_t address, modbus::PackedBits bits) {
-    this->dispatched_ = true;
+    this->device_.set_dispatched();
     return this->device_.write_multiple_coils(address, bits);
   }
   bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
-    this->dispatched_ = true;
+    this->device_.set_dispatched();
     return this->device_.queue_pdu(pdu, options);
   }
   void clear_tx_queue_for_device() { this->device_.clear_tx_queue_for_device(); }
 
  protected:
   bool send_raw_frame_deprecated_(std::span<const uint8_t> frame) {
-    this->dispatched_ = true;
+    this->device_.set_dispatched();
     return this->device_.send_raw_frame_deprecated(frame);
   }
   void set_controller_(ModbusController *controller) { this->device_.set_controller(controller); }
-  void clear_dispatched_() { this->dispatched_ = false; }
-  /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
-  /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
-  void warn_write_buffer_deprecated_(const LogString *platform, uint16_t address);
+  void clear_dispatched_() { this->device_.clear_dispatched(); }
+  void warn_write_buffer_deprecated_(const LogString *platform, uint16_t address) {
+    this->device_.warn_write_buffer_deprecated(platform, address);
+  }
 
+ private:
+  // Private so a derived entity cannot reach the device except through the recording forwarders above.
   WriterDevice device_;
-  bool dispatched_{false};
-  /// Warn-once for the legacy write_lambda buffer parameter. Remove before 2027.3.0.
-  bool write_buffer_deprecated_warned_{false};
 };
 
 /// A persistent hub device that polls one register range - the read-side mirror of WriterDevice.

@@ -10,7 +10,7 @@ static const char *const TAG = "modbus_controller";
 
 void ModbusController::setup() { this->create_polling_commands_(); }
 
-void WriterEntity::warn_write_buffer_deprecated_(const LogString *platform, uint16_t address) {
+void WriterDevice::warn_write_buffer_deprecated(const LogString *platform, uint16_t address) {
   if (this->write_buffer_deprecated_warned_)
     return;
   this->write_buffer_deprecated_warned_ = true;
@@ -103,10 +103,8 @@ bool PollingDevice::queue(modbus::CommandOptions options) {
   if (this->range_.custom_pdu != nullptr) {
     accepted = this->queue_pdu(std::span<const uint8_t>(*this->range_.custom_pdu), options);
   } else {
-    accepted = this->queue_pdu(
-        modbus::helpers::create_client_pdu(modbus::helpers::modbus_register_read_function(this->range_.register_type),
-                                           this->range_.start_address, this->range_.register_count),
-        options);
+    accepted = this->read_entities(this->range_.register_type, this->range_.start_address, this->range_.register_count,
+                                   options);
   }
   if (accepted) {
     ESP_LOGV(TAG, "Poll queued type=%u 0x%X %d", static_cast<uint8_t>(this->range_.register_type),
@@ -255,6 +253,8 @@ bool ModbusCommandItem::on_no_response(std::span<const uint8_t> request_pdu) {
   return false;
 }
 
+#pragma GCC diagnostic pop
+
 void ModbusController::set_online(bool online, int function_code, int register_address) {
   if (online) {
     this->cmd_non_responses_ = 0;
@@ -276,6 +276,8 @@ void ModbusController::set_online(bool online, int function_code, int register_a
   }
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 void ModbusController::queue_command(ModbusCommandItem command) {
   this->sweep_completed_one_shots_();  // reclaim finished one-shots before adding a new one
   // Duplicates are the caller's to manage; the controller only holds the item until its terminal callback.
@@ -309,6 +311,8 @@ void ModbusController::sweep_completed_one_shots_() {
   this->one_shot_command_items_.remove_if(
       [](const std::unique_ptr<ModbusCommandItem> &item) { return item->pending_removal; });
 }
+
+#pragma GCC diagnostic pop
 
 void ModbusController::update() {
   this->sweep_completed_one_shots_();  // reclaim one-shots deferred out of their own callbacks
@@ -496,6 +500,8 @@ void ModbusController::dump_config() {
 #endif
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 void ModbusController::on_write_register_response(EntityType register_type, uint16_t start_address,
                                                   std::span<const uint8_t> data) {
   // A well-formed write ACK echoes address and value, but a truncated PDU yields a short/empty span.
