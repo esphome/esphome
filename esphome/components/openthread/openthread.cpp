@@ -77,7 +77,9 @@ void OpenThreadComponent::on_address_changed(const otIp6AddressInfo *address_inf
     return;
   }
 
-  if (otIp6IsLinkLocalUnicast(address_info->mAddress)) {
+  const uint8_t *address = address_info->mAddress->mFields.m8;
+  const bool link_local = address[0] == 0xFE && (address[1] & 0xC0) == 0x80;
+  if (link_local) {
     ESP_LOGCONFIG(TAG, "Address added: %s (link-local)", addr_str);
   } else if (address_info->mMeshLocal) {
     ESP_LOGCONFIG(TAG, "Address added: %s (mesh-local)", addr_str);
