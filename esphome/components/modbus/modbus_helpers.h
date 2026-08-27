@@ -153,6 +153,44 @@ inline std::span<const uint8_t> server_pdu_payload(std::span<const uint8_t> pdu)
 
 inline uint8_t client_frame_data_offset(const uint8_t *, size_t) { return 2; }
 
+/** Extract data from modbus response buffer
+ * @param T one of supported integer data types int_8,int_16,int_32,int_64
+ * @param data modbus response buffer (uint8_t)
+ * @param buffer_offset  offset in bytes.
+ * @return value of type T extracted from buffer
+ */
+template<typename T> T get_data(const uint8_t *data, size_t buffer_offset) {
+  if (sizeof(T) == sizeof(uint8_t)) {
+    return T(data[buffer_offset]);
+  }
+  if (sizeof(T) == sizeof(uint16_t)) {
+    return T((uint16_t(data[buffer_offset + 0]) << 8) | (uint16_t(data[buffer_offset + 1]) << 0));
+  }
+  if (sizeof(T) == sizeof(uint32_t)) {
+    return static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset)) << 16 |
+           static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset + 2));
+  }
+  if (sizeof(T) == sizeof(uint64_t)) {
+    return static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset)) << 32 |
+           (static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset + 4)));
+  }
+  static_assert(sizeof(T) == sizeof(uint8_t) || sizeof(T) == sizeof(uint16_t) || sizeof(T) == sizeof(uint32_t) ||
+                    sizeof(T) == sizeof(uint64_t),
+                "Unsupported type size in get_data; only 1, 2, 4, or 8-byte integer types are supported.");
+  return T{};
+}
+
+/// Function code of a PDU, exception flag masked; 0 for an empty PDU.
+inline uint8_t pdu_function_code(std::span<const uint8_t> pdu) {
+  return pdu.empty() ? 0 : (pdu[0] & FUNCTION_CODE_MASK);
+}
+
+/// Start address of a standard client request PDU ([fc, addr_hi, addr_lo, ...]); 0 when the PDU is too
+/// short to carry one (custom frames need not follow the standard layout).
+inline uint16_t client_pdu_start_address(std::span<const uint8_t> pdu) {
+  return pdu.size() >= 3 ? get_data<uint16_t>(pdu.data(), 1) : 0;
+}
+
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
   U_WORD = 0x1,   // 1 Register unsigned
@@ -257,33 +295,6 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
 }
 
 // Extract data from modbus response buffer
-/** Extract data from modbus response buffer
- * @param T one of supported integer data types int_8,int_16,int_32,int_64
- * @param data modbus response buffer (uint8_t)
- * @param buffer_offset  offset in bytes.
- * @return value of type T extracted from buffer
- */
-template<typename T> T get_data(const uint8_t *data, size_t buffer_offset) {
-  if (sizeof(T) == sizeof(uint8_t)) {
-    return T(data[buffer_offset]);
-  }
-  if (sizeof(T) == sizeof(uint16_t)) {
-    return T((uint16_t(data[buffer_offset + 0]) << 8) | (uint16_t(data[buffer_offset + 1]) << 0));
-  }
-  if (sizeof(T) == sizeof(uint32_t)) {
-    return static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset)) << 16 |
-           static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset + 2));
-  }
-  if (sizeof(T) == sizeof(uint64_t)) {
-    return static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset)) << 32 |
-           (static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset + 4)));
-  }
-  static_assert(sizeof(T) == sizeof(uint8_t) || sizeof(T) == sizeof(uint16_t) || sizeof(T) == sizeof(uint32_t) ||
-                    sizeof(T) == sizeof(uint64_t),
-                "Unsupported type size in get_data; only 1, 2, 4, or 8-byte integer types are supported.");
-  return T{};
-}
-
 template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return get_data<T>(data.data(), buffer_offset);
 }

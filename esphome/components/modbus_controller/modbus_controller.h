@@ -251,11 +251,6 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
   bool on_no_response(std::span<const uint8_t> request_pdu) override;
 
   void notify_online_(std::span<const uint8_t> request_pdu);
-  /// Function code / register address decoded from a request PDU ([fc, addr_hi, addr_lo, ...]).
-  static int fc_of(std::span<const uint8_t> pdu) { return pdu.empty() ? 0 : (pdu[0] & modbus::FUNCTION_CODE_MASK); }
-  static int addr_of(std::span<const uint8_t> pdu) {
-    return pdu.size() >= 3 ? modbus::helpers::get_data<uint16_t>(pdu.data(), 1) : 0;
-  }
 
   ModbusController *controller_{nullptr};
 };
