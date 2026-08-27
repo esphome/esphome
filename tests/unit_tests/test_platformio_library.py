@@ -696,6 +696,37 @@ def test_prefetch_wave_clones_git_sources_in_parallel(
     assert "Prefetch of h failed (retrying sequentially)" in caplog.text
 
 
+def test_source_base_prefetch_defaults() -> None:
+    """The base Source is not prefetchable and reports cached (nothing to do)."""
+    source = Source()
+    assert source.prefetch_key("x") is None
+    assert source.is_cached("x") is True
+
+
+def test_prefetch_wave_single_clone_uses_the_batch(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A wave with only git sources still clones through the batch runner."""
+    caplog.set_level("INFO")
+    calls: list[str] = []
+    monkeypatch.setattr(GitSource, "is_cached", lambda self, *a, **kw: False)
+    monkeypatch.setattr(
+        GitSource,
+        "download",
+        lambda self, dir_suffix, force=False, salt="", namespace="": calls.append(
+            self.url
+        ),
+    )
+    lib._prefetch_wave(
+        [("g", ConvertedLibrary("g", "*", GitSource("https://x/g.git", None)))],
+        "",
+        "idf",
+    )
+    assert calls == ["https://x/g.git"]
+    assert "Cloning 1 library repo(s): g" in caplog.text
+    assert "Downloading" not in caplog.text
+
+
 def test_prefetch_wave_warm_git_cache_is_silent(
     setup_core, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
