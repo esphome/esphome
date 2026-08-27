@@ -249,6 +249,7 @@ def test_pch_cmake_consumer_substitutes_target_and_sources(
 def test_pch_cmake_consumer_strict_escalates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE", raising=False)
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
     assert "-Werror=invalid-pch" in pch.pch_cmake_consumer("app", "${APP_SOURCES}")
 

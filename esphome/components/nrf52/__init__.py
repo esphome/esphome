@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 
 from esphome import pins
@@ -838,9 +839,12 @@ def _app_build_dir(build_dir: Path) -> Path:
     non-sysbuild zephyr/ output dir has no CMakeCache.txt) so it stays
     truthful mid-build, unlike an SDK-version check."""
     sysbuild_app = build_dir / "zephyr"
-    if (sysbuild_app / "CMakeCache.txt").is_file():
-        return sysbuild_app
-    return build_dir
+    try:
+        cache = (sysbuild_app / "CMakeCache.txt").stat()
+    except (FileNotFoundError, NotADirectoryError):
+        return build_dir
+    # Other stat errors propagate; is_file() would silently mislocate the pch
+    return sysbuild_app if stat.S_ISREG(cache.st_mode) else build_dir
 
 
 def _prepare_pch(app_dir: Path) -> None:
@@ -976,7 +980,12 @@ def run_compile(args, config: ConfigType) -> bool:
                 stream_output=True,
                 cwd=str(paths["framework_path"]),
             ):
-                raise EsphomeError("nRF52 Zephyr header generation failed")
+                # A pch-only prerequisite: degrade, let the real build report
+                _LOGGER.warning(
+                    "Zephyr header generation failed; compiling without the pch"
+                )
+                pch.discard_pch(app_dir)
+                pch.pch_degraded("zephyr_generated_headers failed")
     else:
         app_dir = _app_build_dir(build_dir)
 
