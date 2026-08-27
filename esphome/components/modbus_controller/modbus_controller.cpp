@@ -371,7 +371,8 @@ class RangeBuilder {
         curr->get_register_size() != this->prev_->get_register_size()) {
       return false;
     }
-    curr->offset = static_cast<uint8_t>(this->prev_->offset + curr->offset_from_start_address);
+    if (!place_(curr, static_cast<uint32_t>(this->prev_->offset) + curr->offset_from_start_address))
+      return false;
     ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
     return true;
   }
@@ -392,12 +393,11 @@ class RangeBuilder {
         (curr->addresses_bits() ? static_cast<uint32_t>(curr->start_address - this->r_.start_address)
                                 : static_cast<uint32_t>(this->range_bytes_) + gap * 2) +
         curr->offset_from_start_address;
-    if (new_count > max_quantity || prospective_offset > std::numeric_limits<uint8_t>::max()) {
+    if (new_count > max_quantity || !place_(curr, prospective_offset)) {
       return false;
     }
     if (!curr->addresses_bits())
       this->range_bytes_ += static_cast<size_t>(gap) * 2;
-    curr->offset = static_cast<uint8_t>(prospective_offset);
     this->range_bytes_ += curr->get_register_size();
     this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
     this->r_.register_count = static_cast<uint16_t>(new_count);
@@ -411,9 +411,9 @@ class RangeBuilder {
         has_custom_size(curr)) {
       return false;
     }
-    const uint16_t addr_delta = curr->start_address - this->r_.start_address;
-    curr->offset =
-        static_cast<uint8_t>((curr->addresses_bits() ? addr_delta : addr_delta * 2) + curr->offset_from_start_address);
+    const uint32_t addr_delta = curr->start_address - this->r_.start_address;
+    if (!place_(curr, (curr->addresses_bits() ? addr_delta : addr_delta * 2) + curr->offset_from_start_address))
+      return false;
     ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, this->r_.start_address);
     return true;
   }
@@ -472,6 +472,13 @@ class RangeBuilder {
 
  private:
   uint32_t range_end_() const { return this->r_.start_address + this->r_.register_count; }
+  // The resolved offset must fit its uint8_t field or the sensor would parse the wrong slice.
+  static bool place_(SensorItem *curr, uint32_t offset) {
+    if (offset > std::numeric_limits<uint8_t>::max())
+      return false;
+    curr->offset = static_cast<uint8_t>(offset);
+    return true;
+  }
   static bool has_custom_size(const SensorItem *item) {
     return item->get_register_size() != static_cast<size_t>(item->register_width()) * 2;
   }

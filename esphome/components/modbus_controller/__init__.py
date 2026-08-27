@@ -233,14 +233,20 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
                 f"'{CONF_FORCE_NEW_RANGE}' and '{CONF_REUSE_PREVIOUS_RANGE}' can't be used together; "
                 f"remove '{CONF_FORCE_NEW_RANGE}'"
             )
-        _LOGGER.warning(
-            "%s: '%s' is deprecated, use '%s: false' instead. Removed in 2027.3.0",
-            _entity_label(config),
-            CONF_FORCE_NEW_RANGE,
-            CONF_REUSE_PREVIOUS_RANGE,
-        )
         if force_new_range:
+            _LOGGER.warning(
+                "%s: '%s' is deprecated, use '%s: false' instead. Removed in 2027.3.0",
+                _entity_label(config),
+                CONF_FORCE_NEW_RANGE,
+                CONF_REUSE_PREVIOUS_RANGE,
+            )
             config[CONF_REUSE_PREVIOUS_RANGE] = False
+        else:
+            _LOGGER.warning(
+                "%s: '%s: false' has no effect; remove it. Removed in 2027.3.0",
+                _entity_label(config),
+                CONF_FORCE_NEW_RANGE,
+            )
     if (register_count := config.pop(CONF_REGISTER_COUNT, None)) is not None:
         if (
             register_count not in _derived_register_widths(config)
@@ -256,7 +262,7 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
                 "https://esphome.io/components/modbus_controller/"
             )
         response_size = config.get(CONF_RESPONSE_SIZE, 0)
-        if response_size % 2 == 1 and register_count == response_size // 2:
+        if response_size % 2 == 1 and register_count in (0, response_size // 2):
             _LOGGER.warning(
                 "%s: '%s' is removed and the read now spans ceil(%s / 2) = %d registers, one more than "
                 "before. Removed in 2027.3.0",
@@ -265,7 +271,7 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
                 CONF_RESPONSE_SIZE,
                 (response_size + 1) // 2,
             )
-        else:
+        elif register_count != 0:
             _LOGGER.warning(
                 "%s: '%s' matches the derived register width and is redundant; remove it. Removed in 2027.3.0",
                 _entity_label(config),
