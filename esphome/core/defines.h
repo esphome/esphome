@@ -221,6 +221,7 @@
 #define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #define API_MAX_SEND_QUEUE 8
 #define MAX_API_CONNECTIONS 6
+// The Improv library is not in the Zephyr tidy environment
 #define USE_IMPROV_SERIAL
 #define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_MD5

@@ -170,22 +170,29 @@ void ImprovSerialComponent::send_settings_response_(improv::Command command) {
 }
 
 void ImprovSerialComponent::send_version_info_() {
+// Entry cost per field is sizeof(lit): a length byte plus the string
+#ifdef ESPHOME_PROJECT_NAME
+  static constexpr size_t INFO_ENTRIES_LEN =
+      sizeof(ESPHOME_PROJECT_NAME) + sizeof(ESPHOME_PROJECT_VERSION) + sizeof(ESPHOME_VARIANT);
+#else
+  static constexpr size_t INFO_ENTRIES_LEN = sizeof("ESPHome") + sizeof(ESPHOME_VERSION) + sizeof(ESPHOME_VARIANT);
+#endif
+  static_assert(INFO_ENTRIES_LEN < MAX_SERIAL_PAYLOAD, "device info literals exceed the serial frame");
   std::array<uint8_t, improv::RPC_RESPONSE_MAX_SIZE> buf;
   improv::RpcResponseBuilder builder(buf, improv::GET_DEVICE_INFO);
-  bool ok = true;
 #ifdef USE_ESP8266
   // Keep each literal in flash and copy it through an exact size stack buffer,
   // so a long project name or version can never be truncated
 #define IMPROV_ADD_INFO(lit) \
-  { \
+  do { \
     static const char progmem_str[] PROGMEM = lit; \
     char tmp[sizeof(lit)]; \
     progmem_memcpy(tmp, progmem_str, sizeof(lit)); \
-    ok = ok && builder.add_string(tmp, sizeof(lit) - 1); \
-  }
+    builder.add_string(tmp, sizeof(lit) - 1); \
+  } while (0)
 #else
   // Literals are directly flash mapped on all other platforms
-#define IMPROV_ADD_INFO(lit) ok = ok && builder.add_string(lit, sizeof(lit) - 1)
+#define IMPROV_ADD_INFO(lit) builder.add_string(lit, sizeof(lit) - 1)
 #endif
 #ifdef ESPHOME_PROJECT_NAME
   IMPROV_ADD_INFO(ESPHOME_PROJECT_NAME);
@@ -196,12 +203,12 @@ void ImprovSerialComponent::send_version_info_() {
 #endif
   IMPROV_ADD_INFO(ESPHOME_VARIANT);
 #undef IMPROV_ADD_INFO
+  // Only the device name length is unknown at compile time
   const auto &name = App.get_name();
-  ok = ok && builder.add_string(name.c_str(), name.size());
-  if (!ok) {
-    // Fields are positional, so stop at the first one that does not fit; the
-    // prefix stays aligned and only trailing fields are missing
-    ESP_LOGW(TAG, "Response full; device info incomplete");
+  if (INFO_ENTRIES_LEN + 1 + name.size() <= MAX_SERIAL_PAYLOAD) {
+    builder.add_string(name.c_str(), name.size());
+  } else {
+    ESP_LOGW(TAG, "Response full; device name dropped");
   }
   this->send_response_(builder.finish(false));
 }
@@ -274,6 +281,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         char *rssi_end = int8_to_str(rssi_buf, scan.get_rssi());
         *rssi_end = '\0';
         improv::RpcResponseBuilder builder(buf, improv::GET_WIFI_NETWORKS);
+        // SSID(32) + RSSI(4) + YESNO(3) entries always fit the payload
         const auto &ssid = scan.get_ssid();
         builder.add_string(ssid.c_str(), ssid.size());
         builder.add_string(rssi_buf, rssi_end - rssi_buf);
@@ -314,6 +322,8 @@ void ImprovSerialComponent::send_response_(std::span<const uint8_t> response) {
   // The serial frame length field is a single byte
   if (response.size() > MAX_SERIAL_RESPONSE) {
     ESP_LOGE(TAG, "Response too long");
+    // Fail fast instead of leaving the client to wait out its timeout
+    this->set_error_(improv::ERROR_UNKNOWN);
     return;
   }
   this->tx_header_[TX_TYPE_IDX] = TYPE_RPC_RESPONSE;
