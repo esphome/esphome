@@ -435,6 +435,42 @@ def prepare_pch(
         os.utime(header)
         pch_degraded(f"compile failed: {error[:200]}")
         return
+    # Load probe: some toolchains build a .gch they then refuse to load
+    # (per-process ASLR); dep flags are already stripped from cmd, so no
+    # -MF is needed
+    probe_cmd = [
+        *cmd[: cmd.index("-x")],
+        "-Winvalid-pch",
+        "-include",
+        str(header),
+        "-fsyntax-only",
+        "-x",
+        "c++",
+        os.devnull,
+    ]
+    try:
+        probe = subprocess.run(
+            probe_cmd,
+            cwd=cmd_dir,
+            env={**os.environ, "LC_ALL": "C"},
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=300,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        _LOGGER.warning("Precompiled header probe did not run: %s", err)
+        discard_pch(build_dir)
+        pch_degraded(f"probe did not run: {err}")
+        return
+    if probe.returncode != 0 or ".gch" in probe.stderr:
+        error = f"toolchain cannot load the pch: {probe.stderr.strip()[:400]}"
+        _LOGGER.warning("Precompiled header failed; compiling without it: %s", error)
+        discard_pch(build_dir)
+        failed_marker.write_text(checksum + "\n", encoding="utf-8")
+        os.utime(header)
+        pch_degraded(error)
+        return
     failed_marker.unlink(missing_ok=True)
     sum_path.write_text(checksum + "\n", encoding="utf-8")
     # Consumers depend on the header (depfiles cannot see through a .gch);

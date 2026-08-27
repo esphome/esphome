@@ -550,6 +550,9 @@ def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
     gch = dev / "build" / "esphome_pch.h.gch"
 
     def fake_compile(cmd, **kwargs):
+        if "-fsyntax-only" in cmd:
+            # The load probe follows a successful .gch build
+            return subprocess.CompletedProcess(cmd, 0, "", "")
         # The compile must target the header, not the stub TU
         assert cmd[-5:-3] == ["c++-header", "-c"]
         gch.write_bytes(b"gch")
@@ -1095,5 +1098,43 @@ def test_prepare_pch_strict_raises_on_missing_db(
         patch.object(CORE, "name", "test"),
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
         pytest.raises(EsphomeError, match="no usable compile command"),
+    ):
+        prepare_pch()
+
+
+def test_prepare_pch_probe_rejection_latches_and_degrades(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A toolchain that cannot load its own .gch discards it, latches the
+    marker, and fails strict mode."""
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    dev = _make_pch_device(tmp_path, "dev_p")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def rejecting(cmd, **kwargs):
+        if "-fsyntax-only" in cmd:
+            return subprocess.CompletedProcess(
+                cmd, 0, "", "warning: esphome_pch.h.gch: had text segment "
+            )
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=rejecting),
+    ):
+        prepare_pch()
+    assert not gch.exists()
+    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    (dev / "build" / "esphome_pch.h.gch.failed").unlink()
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=rejecting),
+        pytest.raises(EsphomeError, match="cannot load the pch"),
     ):
         prepare_pch()

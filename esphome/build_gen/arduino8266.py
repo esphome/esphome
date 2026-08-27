@@ -42,6 +42,7 @@ from esphome.build_helpers.pch import (
     pch_degraded,
     pch_enabled,
     pch_header_text,
+    pch_strict,
 )
 from esphome.components.esp8266 import build_surgery
 from esphome.components.esp8266.boards import (
@@ -1290,7 +1291,27 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
                 f"-Winvalid-pch -Wno-error=invalid-pch -include {PCH_HEADER_NAME}"
             ]
             lines.append(f"srccxxflags = {' '.join(cxx_parts)}")
-            src_cxx_override = ("$srccxxflags", gch)
+            pch_dep = gch
+            if pch_strict():
+                # Consumers wait on the probe stamp, so an unloadable .gch
+                # reds the build here instead of warning ~100 times
+                lines.append("rule pchprobe")
+                lines.append(
+                    "  command = $cxx $cxxflags $flags -Winvalid-pch"
+                    " -Werror=invalid-pch"
+                    f" -include {PCH_HEADER_NAME} -fsyntax-only -x c++"
+                    f" {_q(Path(os.devnull))} && $stamp"
+                )
+                lines.append("  description = PCHPROBE $out")
+                lines.append(f"build esphome_pch.probe: pchprobe {gch}")
+                if src_other:
+                    lines.append(f"  flags = {' '.join(src_other)}")
+                stamp = (
+                    "cmd /c copy /y nul $out >nul" if os.name == "nt" else "touch $out"
+                )
+                lines.append(f"  stamp = {stamp}")
+                pch_dep = f"{gch} esphome_pch.probe"
+            src_cxx_override = ("$srccxxflags", pch_dep)
             mark_pch_emitted()
     src_objs = _ninja_compile_edges(
         lines,

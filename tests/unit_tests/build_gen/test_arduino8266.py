@@ -1856,3 +1856,21 @@ def test_write_project_pch_strict_raises_on_skip(
     )
     with pytest.raises(EsphomeError, match="precedes the pch"):
         _write_ninja(paths, ccache="/usr/bin/ccache")
+
+
+def test_write_project_pch_strict_emits_probe_edge(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict mode gates C++ src edges on a hard-failing load probe."""
+    paths = _make_framework(tmp_path)
+    _set_flags("-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "pchprobe" not in content
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "build esphome_pch.probe: pchprobe esphome_pch.h.gch" in content
+    assert "-Werror=invalid-pch" in content
+    for line in content.splitlines():
+        if line.startswith("build obj/src/main.cpp.o:"):
+            assert line.endswith("| esphome_pch.h.gch esphome_pch.probe")
