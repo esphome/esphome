@@ -266,7 +266,8 @@ void SafeModeComponent::write_rtc_(uint32_t val) {
 
 uint32_t SafeModeComponent::read_rtc_() {
   uint32_t val = 0;
-  this->rtc_.load(&val);
+  if (!this->rtc_.load(&val))
+    return 0;
   return val;
 }
 
@@ -276,8 +277,7 @@ void SafeModeComponent::clean_rtc() {
   // before sync, the boot wasn't really successful anyway and the counter should
   // remain incremented.
   uint32_t val = 0;
-  bool ok = this->rtc_.save(&val);
-  if (!ok) {
+  if (!this->rtc_.save(&val)) {
     ESP_LOGE(TAG, "Failed to clear boot loop counter");
   }
 }
