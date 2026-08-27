@@ -1871,6 +1871,13 @@ def test_write_project_pch_strict_emits_probe_edge(
     content = _write_ninja(paths, ccache="/usr/bin/ccache")
     assert "build esphome_pch.probe: pchprobe esphome_pch.h.gch" in content
     assert "-Werror=invalid-pch" in content
+
+    # With extra src flags the probe edge carries them like the .gch edge
+    CORE.platformio_options["build_src_flags"] = (
+        "-include esphome/components/esp8266/throw_stubs.h -DSRC_EXTRA"
+    )
+    content = _write_ninja(paths, ccache="/usr/bin/ccache")
+    assert "pchprobe esphome_pch.h.gch\n  flags = " in content
     for line in content.splitlines():
         if line.startswith("build obj/src/main.cpp.o:"):
             assert line.endswith("| esphome_pch.h.gch esphome_pch.probe")

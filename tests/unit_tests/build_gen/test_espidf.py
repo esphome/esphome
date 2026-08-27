@@ -869,6 +869,40 @@ def test_prepare_pch_signal_kill_is_transient(tmp_path: Path) -> None:
     assert len(calls) == 2
 
 
+def test_prepare_pch_probe_spawn_failure_degrades(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A probe that cannot run discards the pch; strict raises."""
+    from esphome.build_gen.espidf import prepare_pch
+    from esphome.core import EsphomeError
+
+    dev = _make_pch_device(tmp_path, "dev_pf")
+    CORE.build_path = dev
+    gch = dev / "build" / "esphome_pch.h.gch"
+
+    def probe_dies(cmd, **kwargs):
+        if "-fsyntax-only" in cmd:
+            raise OSError("probe spawn failed")
+        gch.write_bytes(b"gch")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=probe_dies),
+    ):
+        prepare_pch()
+    assert not gch.exists()
+    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    with (
+        patch.object(CORE, "name", "test"),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=probe_dies),
+        pytest.raises(EsphomeError, match="probe did not run"),
+    ):
+        prepare_pch()
+
+
 def test_prepare_pch_signal_kill_strict_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
