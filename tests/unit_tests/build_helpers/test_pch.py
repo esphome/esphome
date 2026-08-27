@@ -261,6 +261,20 @@ def test_pch_cmake_consumer_empty_when_disabled(
     assert pch.pch_cmake_consumer("app", "${APP_SOURCES}") == ""
 
 
+def test_guarded_prepare_logs_placeholder_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failed placeholder touch must be traceable, not silent."""
+    monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+
+    def boom() -> None:
+        raise RuntimeError("boom")
+
+    # Missing build dir: the touch raises and only warns
+    pch.guarded_prepare(tmp_path / "missing", boom)
+    assert "Could not create the pch placeholder" in caplog.text
+
+
 def test_pch_degraded_raises_only_in_strict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
