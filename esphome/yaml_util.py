@@ -1068,7 +1068,8 @@ def dump(
 
     When ``relative_to`` is given, Path values are dumped relative to that
     directory (POSIX form) so the output is machine independent; Path values
-    under ``data_dir`` are then dumped as ``.esphome/<rest>``.
+    under ``data_dir`` are then dumped as ``.esphome/<rest>``. ``data_dir``
+    has no effect unless ``relative_to`` is also given.
     """
     if show_secrets:
         _SECRET_VALUES.clear()
