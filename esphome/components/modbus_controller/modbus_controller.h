@@ -231,24 +231,20 @@ struct RegisterRange {
   modbus::EntityType register_type;
   uint8_t register_count;
   SensorSet sensors;  // all sensors of this range
-  /// A custom range polls this ready-made PDU, referenced from the anchor sensor by the range builder
-  /// (the builder knows which sensor opened the range; readers need no set-ordering assumptions).
+  /// A custom range polls this PDU, referenced from the sensor that opened the range.
   const SmallInlineBuffer<8> *custom_pdu{nullptr};
 };
 
 /// The shared feedback half of a controller-owned hub device: online/offline tracking, retry counting
 /// and the on_command_sent trigger all route to the controller from here. The hub base is inherited
-/// protected, so a subclass chooses exactly what request API it exposes. WriterDevice (the entities'
-/// write side) and PollingDevice (the controller's range polls) both derive it.
+/// protected, so a subclass chooses exactly what request API it exposes.
 class ControllerDevice : protected modbus::ModbusClientDevice {
  public:
-  // Plumbing, public because the owner holds the only reachable instance (WriterEntity's device_ is
-  // protected and the hub sees just the masked base) - reachability is the access gate, not a friend.
+  // Public: only the owner can reach this instance, so reachability is the access gate.
   void set_controller(ModbusController *controller);
 
  protected:
-  /// Default for the late-bound case (WriterEntity's member, wired by set_controller from codegen).
-  ControllerDevice() = default;
+  ControllerDevice() = default;  // WriterEntity's member is wired later via set_controller()
   explicit ControllerDevice(ModbusController *controller) { this->set_controller(controller); }
 
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
@@ -262,9 +258,8 @@ class ControllerDevice : protected modbus::ModbusClientDevice {
   ModbusController *controller_{nullptr};
 };
 
-/// The write side of a ControllerDevice, owned by the writer entities through WriterEntity, which
-/// re-exposes exactly the request API a write lambda may use. Dispatch recording lives in WriterEntity,
-/// whose forwarders are the only reachable path to this object.
+/// The write side of a ControllerDevice, owned by the writer entities through WriterEntity, whose
+/// forwarders re-expose exactly the request API a write lambda may use and record every dispatch.
 class WriterDevice final : public ControllerDevice {
  public:
   using modbus::ModbusClientDevice::clear_tx_queue_for_device;
@@ -279,9 +274,8 @@ class WriterDevice final : public ControllerDevice {
   bool send_raw_frame_deprecated(std::span<const uint8_t> frame);
 
  protected:
-  // Forward to the typed response callbacks so a lambda's item->queue_pdu() can be answered. Only the
-  // write side dispatches: a poll parses its response itself, and dispatching its errors would trip the
-  // base unhandled-custom-response warning for custom PDUs.
+  // Only the write side forwards to the typed callbacks (for item->queue_pdu() replies): a poll parses
+  // its own response, and dispatching its errors would trip the base unhandled-custom-response warning.
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
 };
@@ -339,8 +333,7 @@ class WriterEntity {
 };
 
 /// A persistent hub device that polls one register range - the read-side mirror of WriterDevice.
-/// Owned by the controller, one per range; the response is parsed straight to the range's sensors and
-/// the shared ControllerDevice base feeds the controller's online/offline and trigger machinery.
+/// Owned by the controller, one per range; the response is parsed straight to the range's sensors.
 class PollingDevice final : public ControllerDevice {
  public:
   PollingDevice(ModbusController &controller, RegisterRange &&range);
@@ -355,15 +348,13 @@ class PollingDevice final : public ControllerDevice {
  protected:
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
-  /// The range this device polls, exactly as create_polling_commands_ built it.
   RegisterRange range_;
 };
 
 /// A single modbus command. Each command is its own ModbusClientDevice: it sends its frame to the hub
 /// and the hub routes the response back to this object's on_modbus_* callbacks, so the controller no
 /// longer has to match responses to a FIFO queue.
-// The deprecated class body stays as-is until removal and references other deprecated names.
-// Remove before 2027.3.0.
+// The deprecated class references other deprecated names. Remove before 2027.3.0.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 class ESPDEPRECATED(

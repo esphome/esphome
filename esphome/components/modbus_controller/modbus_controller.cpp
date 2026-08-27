@@ -32,8 +32,7 @@ void ControllerDevice::set_controller(ModbusController *controller) {
   this->set_address(controller->device_address());
 }
 
-// The address handed to the triggers and logs: a request whose layout carries no start address (a
-// custom PDU) reports -1, so 0 stays distinguishable as a real address.
+// A request whose layout carries no start address (a custom PDU) reports -1; 0 stays a real address.
 static int trigger_address(std::span<const uint8_t> request_pdu) {
   const auto addr = modbus::helpers::client_pdu_start_address(request_pdu);
   return addr.has_value() ? *addr : -1;
@@ -102,8 +101,6 @@ PollingDevice::PollingDevice(ModbusController &controller, RegisterRange &&range
 bool PollingDevice::queue(modbus::CommandOptions options) {
   bool accepted;
   if (this->range_.custom_pdu != nullptr) {
-    // The PDU's first byte is the real function code, so the request PDU carries it to the callbacks
-    // like any other read.
     accepted = this->queue_pdu(std::span<const uint8_t>(*this->range_.custom_pdu), options);
   } else {
     accepted = this->queue_pdu(
@@ -125,8 +122,7 @@ void PollingDevice::on_response(std::span<const uint8_t> request_pdu, std::span<
     sensor->parse_and_publish(data);
 }
 
-// The deprecated class's own machinery stays as-is until removal; silence its self-references.
-// Remove with ModbusCommandItem before 2027.3.0.
+// ModbusCommandItem's machinery stays as-is until its removal in 2027.3.0; silence its self-references.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
@@ -470,8 +466,7 @@ void ModbusController::create_polling_commands_() {
     ESP_LOGV(TAG, "Add last range 0x%X %d", r.start_address, r.register_count);
     ranges.push_back(std::move(r));
   }
-  // The ranges are staged in a setup-time vector so the device storage can be sized exactly:
-  // FixedVector never reallocates, so the hub's device pointers stay valid once polls start sending.
+  // Staged in a setup-time vector so the device storage can be sized exactly (see polling_devices_).
   this->polling_devices_.init(ranges.size());
   for (auto &range : ranges) {
     this->polling_devices_.emplace_back(*this, std::move(range));

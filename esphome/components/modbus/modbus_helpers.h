@@ -186,8 +186,7 @@ inline uint8_t pdu_function_code(std::span<const uint8_t> pdu) {
 }
 
 /// Start address of a standard client request PDU ([fc, addr_hi, addr_lo, ...]). Empty when the PDU is
-/// too short, or when its function code has no known layout - a custom frame's bytes 1-2 need not be an
-/// address, so they are not misread as one, and 0 stays available as a real address.
+/// too short or its function code has no known layout - custom-frame bytes are not misread as an address.
 inline std::optional<uint16_t> client_pdu_start_address(std::span<const uint8_t> pdu) {
   if (pdu.size() < 3 || is_function_code_unknown_length(pdu[0]))
     return std::nullopt;
