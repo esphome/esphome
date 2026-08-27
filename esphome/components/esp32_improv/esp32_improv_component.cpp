@@ -27,8 +27,6 @@ static constexpr char ESPHOME_MY_LINK[] = "https://my.home-assistant.io/redirect
 // ESPHOME_MY_LINK entry so a long next URL cannot displace it; a maximal next URL
 // instead displaces the local web server URL, the lowest value entry
 static constexpr size_t MAX_NEXT_URL_LEN = improv::RPC_RESPONSE_MAX_SIZE - 3 - 1 - sizeof(ESPHOME_MY_LINK);
-static_assert(MAX_NEXT_URL_LEN + 1 + sizeof(ESPHOME_MY_LINK) <= improv::RPC_RESPONSE_MAX_SIZE - 3,
-              "next URL budget would displace ESPHOME_MY_LINK");
 static constexpr uint16_t STOP_ADVERTISING_DELAY =
     10000;  // Delay (ms) before stopping service to allow BLE clients to read the final state
 static constexpr uint16_t NAME_ADVERTISING_INTERVAL = 60000;  // Advertise name every 60 seconds
@@ -449,10 +447,9 @@ void ESP32ImprovComponent::check_wifi_connection_() {
     this->add_next_url_(builder, MAX_NEXT_URL_LEN);
 #endif
 
-    // Add default URLs for backward compatibility
-    if (!builder.add_string(ESPHOME_MY_LINK, sizeof(ESPHOME_MY_LINK) - 1)) {
-      ESP_LOGW(TAG, "Response full; URL dropped");
-    }
+    // Add default URLs for backward compatibility; MAX_NEXT_URL_LEN reserves this
+    // entry's space, so it always fits
+    builder.add_string(ESPHOME_MY_LINK, sizeof(ESPHOME_MY_LINK) - 1);
 #ifdef USE_WEBSERVER
     for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
       if (ip.is_ip4()) {

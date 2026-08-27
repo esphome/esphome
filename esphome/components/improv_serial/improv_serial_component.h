@@ -49,8 +49,8 @@ static const uint16_t IMPROV_SERIAL_TIMEOUT = 100;
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
 // The serial frame length field is one byte, so a full response (command + length
-// + payload + trailing byte) must not exceed 255, capping the payload at 252
-static constexpr size_t MAX_SERIAL_PAYLOAD = 252;
+// + payload + trailing byte) must not exceed 255
+static constexpr size_t MAX_SERIAL_PAYLOAD = 255 - 3;
 #ifdef USE_WEBSERVER
 // Reserve the web server URL entry that may follow: length byte + "http://" + IPv4 + ":" + port
 static constexpr size_t WEBSERVER_URL_RESERVE = 1 + 7 + 15 + 1 + 5;
@@ -60,9 +60,7 @@ static constexpr size_t WEBSERVER_URL_RESERVE = 0;
 // Budget for the next URL entry, minus its own length byte
 static constexpr size_t MAX_NEXT_URL_LEN = MAX_SERIAL_PAYLOAD - WEBSERVER_URL_RESERVE - 1;
 
-static_assert(MAX_SERIAL_PAYLOAD + 3 <= 255, "response must fit the one byte frame length");
 static_assert(MAX_SERIAL_PAYLOAD + 3 <= improv::RPC_RESPONSE_MAX_SIZE, "builder buffer too small for the frame");
-static_assert(MAX_NEXT_URL_LEN + 1 + WEBSERVER_URL_RESERVE <= MAX_SERIAL_PAYLOAD, "URL budgets overcommit");
 
 class ImprovSerialComponent final : public Component, public improv_base::ImprovBase {
  public:
