@@ -108,15 +108,7 @@ def pch_strict() -> bool:
     A set-but-unrecognized value raises: a typo must not silently turn
     the gate into a no-op that proves nothing.
     """
-    parsed = parse_enable_env("ESPHOME_PCH_STRICT")
-    if parsed is None and os.environ.get("ESPHOME_PCH_STRICT") is not None:
-        from esphome.core import EsphomeError
-
-        raise EsphomeError(
-            f"Unrecognized ESPHOME_PCH_STRICT="
-            f"{os.environ['ESPHOME_PCH_STRICT']!r}; use 1 or 0"
-        )
-    return parsed is True
+    return parse_enable_env("ESPHOME_PCH_STRICT", strict=True) is True
 
 
 def pch_degraded(reason: str) -> None:
@@ -132,6 +124,11 @@ def pch_disabled_degraded() -> None:
     pch_degraded("pch disabled by ESPHOME_PCH_ENABLE")
 
 
+def pch_probe_tail(source: str = "-") -> list[str]:
+    """The syntax-only compile shared by the probe and its baseline."""
+    return ["-fsyntax-only", "-x", "c++", source]
+
+
 def pch_probe_args(header: str, source: str = "-") -> list[str]:
     """Flags that load-check a built .gch via a syntax-only compile.
 
@@ -144,11 +141,14 @@ def pch_probe_args(header: str, source: str = "-") -> list[str]:
         "-Werror=invalid-pch",
         "-include",
         header,
-        "-fsyntax-only",
-        "-x",
-        "c++",
-        source,
+        *pch_probe_tail(source),
     ]
+
+
+def pch_consumer_escalation() -> str:
+    """Consumer-side invalid-pch flag: strict reds the build on rejection
+    (per-process, so the probe alone cannot prove the consumers)."""
+    return "-Werror=invalid-pch" if pch_strict() else "-Wno-error=invalid-pch"
 
 
 def ccache_pch_env() -> dict[str, str]:
@@ -354,13 +354,24 @@ def discard_pch(build_dir: Path) -> None:
 
     Bumps the header only when a .gch was actually removed: TUs compiled
     against it have incomplete depfiles, while a repeat failure with no
-    .gch must not force a full rebuild every build.
+    .gch must not force a full rebuild every build. A .gch that survives
+    an unlink failure would be consumed silently (wrong output, not a
+    slow build), so that raises.
     """
     header = build_dir / PCH_HEADER_NAME
     gch = Path(f"{header}.gch")
     had_gch = gch.is_file()
-    gch.unlink(missing_ok=True)
-    Path(f"{gch}.sum").unlink(missing_ok=True)
+    try:
+        gch.unlink(missing_ok=True)
+        Path(f"{gch}.sum").unlink(missing_ok=True)
+    except OSError as err:
+        if gch.is_file():
+            from esphome.core import EsphomeError
+
+            raise EsphomeError(
+                f"Could not discard the stale precompiled header: {err}"
+            ) from err
+        _LOGGER.warning("Could not discard the pch sidecars: %s", err)
     if had_gch and header.is_file():
         os.utime(header)
 
@@ -451,21 +462,18 @@ def prepare_pch(
             return None
         return proc
 
-    def _fail(error: str, reason: str) -> None:
-        """Discard and degrade; deterministic failures also latch."""
+    def _fail(error: str, reason: str, latch: bool) -> None:
+        """Discard and degrade; deterministic failures latch when asked."""
         _LOGGER.warning(
             "Precompiled header failed; compiling without it: %s", error[:400]
         )
         # Latching paths keep the full compiler output recoverable
         _LOGGER.debug("Full pch output: %s", error)
         discard_pch(build_dir)
-        if any(m in error for m in _TRANSIENT_ERRORS):
-            # Resource exhaustion clears on its own; retry next build
-            pch_degraded(f"transient {reason}: {error[:200]}")
-            return
-        # Skip retries until a header/flag/backend-identity/command change
-        failed_marker.write_text(checksum + "\n", encoding="utf-8")
-        os.utime(header)
+        if latch and not any(m in error for m in _TRANSIENT_ERRORS):
+            # Skip retries until a header/flag/backend-identity/command change
+            failed_marker.write_text(checksum + "\n", encoding="utf-8")
+            os.utime(header)
         pch_degraded(f"{reason}: {error[:200]}")
 
     def _probe(latch: bool = True) -> None:
@@ -486,23 +494,16 @@ def prepare_pch(
             return
         if probe.returncode != 0:
             error = probe.stderr.strip() or f"exit code {probe.returncode}"
-            # Disambiguate: only blame the pch when the same compile passes
-            # without it; anything else is environmental and must not latch
-            # pch_probe_args minus the warning flags and the -include pair
-            baseline = _run(
-                [*base, *pch_probe_args(str(header))[4:]], "probe baseline", stdin=""
-            )
+            # Disambiguate: only blame (and latch on) the pch when the same
+            # compile passes without it; anything else is environmental
+            baseline = _run([*base, *pch_probe_tail()], "probe baseline", stdin="")
             if baseline is None:
                 return
-            if latch and baseline.returncode == 0:
-                _fail(error, "toolchain cannot load the pch")
-            else:
-                _LOGGER.warning(
-                    "Precompiled header failed; compiling without it: %s",
-                    error[:400],
-                )
-                discard_pch(build_dir)
-                pch_degraded(f"toolchain cannot load the pch: {error[:200]}")
+            _fail(
+                error,
+                "toolchain cannot load the pch",
+                latch=latch and baseline.returncode == 0,
+            )
 
     if gch.is_file() and _read_stamp(sum_path) == checksum:
         _log_pch_in_use()
@@ -529,7 +530,7 @@ def prepare_pch(
     elif not gch.is_file():
         error = "compiler produced no .gch"
     if error is not None:
-        _fail(error, "compile failed")
+        _fail(error, "compile failed", latch=True)
         return
     _probe()
     if not gch.is_file():

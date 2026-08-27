@@ -301,7 +301,7 @@ def _pch_cmake() -> str:
     # Strict inverts: a per-process consumer rejection reds the build.
     # Baked at generation: a knob flip takes effect when the CMakeLists is
     # rewritten (every esphome compile); a hand-run idf.py keeps the old one
-    escalation = "-Werror=invalid-pch" if pch.pch_strict() else "-Wno-error=invalid-pch"
+    escalation = pch.pch_consumer_escalation()
     return f"""
 # ESPHome precompiled header (see esphome/build_helpers/pch.py).
 # OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop

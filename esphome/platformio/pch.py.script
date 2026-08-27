@@ -27,14 +27,12 @@ except Exception as err:  # noqa: BLE001 -- not exported under -t nobuild
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
 
 # Keep in sync with helpers.TRUTHY_ENV_STRINGS / FALSY_ENV_STRINGS
+_TRUTHY = ("1", "true", "yes", "on", "enable")
+_FALSY = ("", "0", "false", "no", "off", "disable")
 _STRICT_RAW = os.environ.get("ESPHOME_PCH_STRICT")
 _STRICT_VALUE = (_STRICT_RAW or "").strip().lower()
-_STRICT = _STRICT_VALUE in ("1", "true", "yes", "on", "enable")
-if (
-    _STRICT_RAW is not None
-    and not _STRICT
-    and _STRICT_VALUE not in ("", "0", "false", "no", "off", "disable")
-):
+_STRICT = _STRICT_VALUE in _TRUTHY
+if _STRICT_RAW is not None and _STRICT_VALUE not in _TRUTHY + _FALSY:
     # A typo must not silently turn the gate into a no-op
     raise RuntimeError(f"Unrecognized ESPHOME_PCH_STRICT={_STRICT_RAW!r}; use 1 or 0")
 
@@ -186,9 +184,9 @@ def _setup_pch() -> bool | None:
         try:
             from SCons.Script import COMMAND_LINE_TARGETS
         except ImportError:
-            # No SCons is an anomaly under PlatformIO: strict must not
-            # read the unknown state as success
-            return not _STRICT
+            # No SCons is an anomaly under PlatformIO: the unknown state
+            # must not read as success (strict decides fatality at the gate)
+            return False
         # Expected under -t nobuild (nothing compiles); a missing
         # projenv on a real compile must not pass strict
         return "nobuild" in [str(t) for t in COMMAND_LINE_TARGETS]

@@ -21,12 +21,13 @@ def _ccache_runs(ccache: str) -> bool:
     )
 
 
-def parse_enable_env(name: str) -> bool | None:
+def parse_enable_env(name: str, strict: bool = False) -> bool | None:
     """Strictly parse an on/off environment knob; None when unset or invalid.
 
     ``bool(str)`` truthiness would flip ``no``/``off`` to enabled, so only
     1/true/yes/on and 0/false/no/off count; anything else warns and reads
-    as unset so the caller's default policy applies.
+    as unset so the caller's default policy applies — or raises when
+    ``strict`` (a typo must not silently disable a CI gate).
     """
     raw = os.environ.get(name)
     if raw is None:
@@ -39,6 +40,10 @@ def parse_enable_env(name: str) -> bool | None:
         return True
     if lowered in FALSY_ENV_STRINGS:
         return False
+    if strict:
+        from esphome.core import EsphomeError
+
+        raise EsphomeError(f"Unrecognized {name}={raw!r}; use 1 or 0")
     _LOGGER.warning("Ignoring unrecognized %s=%r; use 1 or 0", name, raw)
     return None
 
