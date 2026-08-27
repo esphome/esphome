@@ -102,6 +102,12 @@ lvgl:
         width: 100
         sliders: hue
 
+    # A colour wheel in place of the hue and saturation sliders
+    - color_picker:
+        id: picker_wheel
+        width: 100
+        wheel: true
+
     # Colour given as the id of a colour defined above
     - color_picker:
         id: picker_colour_id

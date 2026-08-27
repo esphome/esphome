@@ -10,6 +10,7 @@ from ..defines import (
     CONF_KNOB,
     CONF_MAIN,
     CONF_STYLES,
+    add_define,
     add_lv_use,
     literal,
 )
@@ -38,6 +39,7 @@ lv_color_picker_t = LvType(
 lv_color_picker_t.value_property = CONF_COLOR
 
 CONF_SLIDERS = "sliders"
+CONF_WHEEL = "wheel"
 
 CONF_BG_COLOR = "bg_color"
 
@@ -58,6 +60,10 @@ SLIDER_GROUPS = {
     "hsb": ("hue", "saturation", "brightness"),
     "rgb": ("red", "green", "blue"),
 }
+
+# The wheel draws hue and saturation itself, and the layout drops the RGB sliders and the
+# colour swatch to make room for it, leaving brightness as the only slider that still fits.
+WHEEL_EXCLUDED_SLIDERS = ("hue", "saturation", "red", "green", "blue")
 
 
 def validate_sliders(value: Any) -> list[str]:
@@ -80,6 +86,7 @@ COLOR_PICKER_SCHEMA = COLOR_PICKER_MODIFY_SCHEMA.extend(
         cv.Optional(CONF_WIDTH, default="SIZE_CONTENT"): size,
         cv.Optional(CONF_HEIGHT): cv.invalid("Height will be set to the same as width"),
         cv.Optional(CONF_SLIDERS, default=list(SLIDER_NAMES)): validate_sliders,
+        cv.Optional(CONF_WHEEL, default=False): cv.boolean,
     }
 )
 
@@ -102,6 +109,24 @@ class ColorPickerType(WidgetType):
 
     def validate(self, value: Any) -> Any:
         add_lv_use(CONF_COLOR_PICKER)
+        value = dict(value)
+        if cv.boolean(value.get(CONF_WHEEL, False)):
+            # The wheel is a conical hue gradient under a radial white-to-transparent one;
+            # LVGL's software renderer only draws either kind when this is enabled.
+            add_define("LV_USE_DRAW_SW_COMPLEX_GRADIENTS")
+            if CONF_SLIDERS in value:
+                sliders = validate_sliders(value[CONF_SLIDERS])
+                if any(name in sliders for name in WHEEL_EXCLUDED_SLIDERS):
+                    raise cv.Invalid(
+                        "the color wheel already shows hue and saturation, and replaces "
+                        "the red, green and blue sliders with it; remove them from "
+                        "'sliders' or set 'wheel: false'"
+                    )
+            else:
+                # Otherwise the schema default would build every slider including these.
+                value[CONF_SLIDERS] = [
+                    name for name in SLIDER_NAMES if name not in WHEEL_EXCLUDED_SLIDERS
+                ]
         return super().validate(value)
 
     async def get_ctor_args(self, config: dict) -> list:
@@ -113,7 +138,8 @@ class ColorPickerType(WidgetType):
                     f"{lv_color_picker_t}::SLIDER_FLAG_{name.upper()}"
                     for name in _sliders(config)
                 )
-            )
+            ),
+            config[CONF_WHEEL],
         ]
 
     @staticmethod

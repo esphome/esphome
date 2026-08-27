@@ -157,6 +157,50 @@ class TestColorPickerSliderChoice:
             update_schema({"id": "picker", "sliders": "rgb"})
 
 
+class TestColorPickerWheel:
+    """Test the `wheel` option, which replaces the hue and saturation sliders, and the RGB
+    sliders and colour swatch besides, with a circular hue/saturation picker.
+
+    The exclusion of these sliders happens in `ColorPickerType.validate()`, which runs
+    before the schema itself (see `WIDGET_TYPES` validation in schemas.py), so these tests
+    reproduce that order rather than using the `container_schema` fixture alone.
+    """
+
+    @pytest.fixture()
+    def schema(self) -> Callable[[dict], dict]:
+        container = container_schema(color_picker_spec)
+
+        def _validate(value: dict) -> dict:
+            return container(color_picker_spec.validate(value))
+
+        return _validate
+
+    def test_wheel_defaults_to_false(self, schema: Callable[[dict], dict]) -> None:
+        assert schema({"width": 100})["wheel"] is False
+
+    def test_wheel_leaves_only_brightness_by_default(
+        self, schema: Callable[[dict], dict]
+    ) -> None:
+        assert schema({"width": 100, "wheel": True})["sliders"] == ["brightness"]
+
+    def test_wheel_is_compatible_with_an_explicit_slider_list(
+        self, schema: Callable[[dict], dict]
+    ) -> None:
+        assert schema({"width": 100, "wheel": True, "sliders": "brightness"})[
+            "sliders"
+        ] == ["brightness"]
+
+    @pytest.mark.parametrize(
+        "sliders",
+        ["hue", "saturation", "red", "green", "blue", "rgb", ["hue", "red"], "hsv"],
+    )
+    def test_wheel_conflicts_with_sliders_it_replaces(
+        self, schema: Callable[[dict], dict], sliders: str | list[str]
+    ) -> None:
+        with pytest.raises(Invalid, match="color wheel"):
+            schema({"width": 100, "wheel": True, "sliders": sliders})
+
+
 # ---------------------------------------------------------------------------
 # Code generation
 # ---------------------------------------------------------------------------
@@ -239,6 +283,23 @@ class TestColorPickerCodeGeneration:
         generate_main(component_config_path("named_styles.yaml"))
 
         assert get_defines()["LV_GRADIENT_MAX_STOPS"] == "2"
+
+    def test_complex_gradients_are_enabled_for_a_wheel(self, main_cpp: str) -> None:
+        """The wheel is a conical and a radial gradient, which need this to render at all."""
+        from esphome.components.lvgl.defines import get_defines
+
+        assert get_defines()["LV_USE_DRAW_SW_COMPLEX_GRADIENTS"] == "1"
+
+    def test_complex_gradients_are_left_alone_without_a_wheel(
+        self,
+        generate_main: Callable[[str | Path], str],
+        component_config_path: Callable[[str], Path],
+    ) -> None:
+        from esphome.components.lvgl.defines import get_defines
+
+        generate_main(component_config_path("named_styles.yaml"))
+
+        assert "LV_USE_DRAW_SW_COMPLEX_GRADIENTS" not in get_defines()
 
 
 # The widget's own object is a plain container, so styles for the parts a slider has are
@@ -478,4 +539,14 @@ class TestColorPickerSliderConstruction:
             f"LvColorPickerType::SLIDER_FLAG_{name}" for name in expected
         )
 
-        assert f"new({var}) LvColorPickerType({flags});" in main_cpp
+        assert f"new({var}) LvColorPickerType({flags}, false);" in main_cpp
+
+    def test_constructor_passes_wheel_true(self, main_cpp: str) -> None:
+        assert (
+            "new(picker_wheel) LvColorPickerType("
+            "LvColorPickerType::SLIDER_FLAG_BRIGHTNESS, true);"
+        ) in main_cpp
+
+    def test_constructor_passes_wheel_false_by_default(self, main_cpp: str) -> None:
+        assert "new(picker_hue) LvColorPickerType(" in main_cpp
+        assert "LvColorPickerType::SLIDER_FLAG_HUE, false);" in main_cpp
