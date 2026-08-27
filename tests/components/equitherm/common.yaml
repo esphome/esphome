@@ -1,0 +1,83 @@
+sensor:
+  - platform: template
+    id: outdoor_sensor
+    lambda: return 12.0;
+    update_interval: 60s
+
+  - platform: template
+    id: indoor_sensor
+    lambda: return 19.5;
+    update_interval: 60s
+
+# Output-safety binary sensor
+binary_sensor:
+  - platform: equitherm
+    climate_id: heating_controller
+    rate_limiting_active:
+      name: "Rate Limiting Active"
+      id: rate_limiting_sensor
+
+output:
+  - platform: slow_pwm
+    pin: 4
+    id: heat_output
+    period: 15s
+
+# Runtime tuning numbers for output safety
+number:
+  - platform: equitherm
+    climate_id: heating_controller
+    fallback_outdoor_temp:
+      name: "Fallback Outdoor Temperature"
+      id: fallback_outdoor_temp_number
+    rate_limit_rising:
+      name: "Rate Limit Rising"
+      id: rate_limit_rising_number
+    rate_limit_falling:
+      name: "Rate Limit Falling"
+      id: rate_limit_falling_number
+
+climate:
+  - platform: equitherm
+    id: heating_controller
+    name: Equitherm Climate
+    outdoor_sensor: outdoor_sensor
+    indoor_sensor: indoor_sensor
+    default_target_temperature: 20°C
+    fallback_outdoor_temp: 0.0
+    heat_output: heat_output
+    control_parameters:
+      heat_curve_coefficient: 3.0
+      heat_curve_exponent: 1.5
+      heat_curve_shift: 0.0
+      kp: 2.0
+      ki: 0.5
+      kd: 0.0
+      min_integral: -5.0
+      max_integral: 5.0
+      derivative_averaging_samples: 4
+    output_parameters:
+      min_flow_temp: 25.0
+      max_flow_temp: 70.0
+      rate_limit_rising: 0.5
+      rate_limit_falling: 2.0
+    deadband_parameters:
+      threshold_high: 0.5
+      threshold_low: -0.5
+      kp_multiplier: 0.1
+      ki_multiplier: 0.0
+
+# Test action
+wifi:
+  ssid: "test"
+
+api:
+  actions:
+    - action: test_force_recalculate
+      then:
+        - climate.equitherm.force_recalculate: heating_controller
+    - action: test_force_recalculate_no_pid
+      then:
+        - climate.equitherm.force_recalculate:
+            id: heating_controller
+            update_pid: false
