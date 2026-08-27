@@ -16,6 +16,7 @@ name and promote with an atomic rename.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 import hashlib
@@ -45,7 +46,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @contextmanager
-def _preserved_sys_path():
+def _preserved_sys_path() -> Iterator[None]:
     """Platform setup may rewrite sys.path (pioarduino's penv does); undo it."""
     saved = list(sys.path)
     try:
