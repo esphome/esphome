@@ -95,11 +95,13 @@ class Source:
         raise NotImplementedError
 
     def prefetch_key(self, dir_suffix: str) -> Hashable | None:
-        """Identity of this source's cache entry, for the wave prefetch.
+        """Identity used to prefetch each source once per wave.
 
-        Sources returning the same key share a cache directory, so the
-        prefetch must fetch each key once. None means not prefetchable
-        (local sources; archives without a known size).
+        Sources that could write the same cache directory must return equal
+        keys (two workers must never share a directory); a coarser key only
+        costs a skipped prefetch (URLSource dedupes per remote URL). None
+        means not prefetchable (local sources; archives without a known
+        size).
         """
         return None
 
@@ -966,10 +968,11 @@ def _clone_source(
     component: ConvertedLibrary,
     salt: str,
     namespace: str,
-    _tracker: Callable[[int], None],
+    tracker: Callable[[int], None],
 ) -> None:
-    # Git has no byte progress to report; the tracker is ignored, so a
-    # batch cancel waits for in-flight clones to finish
+    # Git has no byte progress; one tick so a cancelled batch stops
+    # before starting a clone rather than waiting one out
+    tracker(0)
     component.source.download(
         component.get_sanitized_name(), salt=salt, namespace=namespace
     )
