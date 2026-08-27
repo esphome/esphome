@@ -129,12 +129,10 @@ def channel_schema(type_: "Type", baud_rate_required):
     max_channels = type_.max_channels
 =======
 def channel_schema(type_: "Type") -> cv.Schema:
->>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
                 cv.ensure_list(
-<<<<<<< HEAD
                     cv.All(
                         cv.Schema(
                             {
@@ -172,46 +170,11 @@ def channel_schema(type_: "Type") -> cv.Schema:
                             }
                         ),
                         _validate_debug_add_uart_settings,
-=======
-                    cv.Schema(
-                        {
-                            cv.GenerateID(): cv.declare_id(USBUartChannel),
-                            cv.Optional(CONF_BUFFER_SIZE, default=256): cv.int_range(
-                                min=64, max=8192
-                            ),
-                            (
-                                cv.Required(CONF_BAUD_RATE)
-                                if type_.baud_rate_required
-                                else cv.Optional(
-                                    CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
-                                )
-                            ): cv.int_range(min=300, max=type_.max_baud),
-                            cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
-                                UART_STOP_BITS_OPTIONS, upper=True
-                            ),
-                            cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
-                                UART_PARITY_OPTIONS, upper=True
-                            ),
-                            cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(
-                                min=5, max=8
-                            ),
-                            cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
-                            cv.Optional(CONF_DEBUG, default=False): cv.boolean,
-                            cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
-                            cv.Optional(
-                                CONF_FLUSH_TIMEOUT, default="100ms"
-                            ): cv.positive_time_period_milliseconds,
-                        }
->>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
                     )
                 ),
                 cv.Length(
                     max=type_.max_channels,
-<<<<<<< HEAD
                     msg=f"{type_.name} supports a maximum of {max_channels} channels on this ESP32 variant",
-=======
-                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
->>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
                 ),
             )
         }
@@ -222,11 +185,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-<<<<<<< HEAD
                 channel_schema(it, it.baud_rate_required)
-=======
-                channel_schema(it)
->>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
             )
             for it in uart_types
         },
