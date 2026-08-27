@@ -582,9 +582,8 @@ def _make_registry_client() -> Any:
         def __init__(self) -> None:
             self.pkg_type = "library"
             self._registry_client = RegistryClient()
-            # PlatformIO's account probe sleeps ~500 ms per lookup (see
-            # runner.patch_registry_private_packages); override it on our own
-            # instance so the ESPHome process never patches PlatformIO's class
+            # The probe sleeps ~500 ms per lookup (see runner.patch_registry_private_packages);
+            # instance-level so the ESPHome process never patches PlatformIO's class
             self._registry_client.allowed_private_packages = lambda: False
 
         @staticmethod
