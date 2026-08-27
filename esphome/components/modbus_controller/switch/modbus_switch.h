@@ -18,14 +18,11 @@ class ModbusSwitch final : public Component, public switch_::Switch, public Sens
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
     this->register_count = 1;
-    // Apply the configured byte offset byte-accurately (the same meaning as on sensor/number). For holding
-    // registers a byte offset is folded into the address as a whole-register shift plus a residual byte, so
-    // both the write (write_address()) and the state read-back target the right register; an odd residual
-    // straddles into the next register, so read one more. For coils the offset is a coil count.
+    // A holding byte offset folds into the address as whole registers (odd offsets are rejected at
+    // validation: a 16-bit register write cannot target half a register); a coil offset is a coil count.
     if (register_type == modbus::EntityType::HOLDING) {
       this->set_address(start_address + offset / 2);
-      this->set_offset_from_start_address(offset % 2);
-      this->register_count += this->offset;
+      this->set_offset_from_start_address(0);
     } else if (register_type == modbus::EntityType::COIL) {
       this->set_address(start_address + offset);
       this->set_offset_from_start_address(0);

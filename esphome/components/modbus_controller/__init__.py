@@ -278,6 +278,20 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def reject_odd_holding_write_offset(config: ConfigType) -> ConfigType:
+    """Reject an odd byte offset on a holding-register write entity.
+
+    A 16-bit register write cannot target half a register, so the residual byte is inexpressible.
+    """
+    offset = config.get(CONF_BYTE_OFFSET, config.get(CONF_OFFSET, 0))
+    if offset % 2:
+        raise cv.Invalid(
+            f"An odd '{CONF_OFFSET}'/'{CONF_BYTE_OFFSET}' cannot be used with holding-register "
+            "writes: a 16-bit register write cannot target half a register"
+        )
+    return config
+
+
 def modbus_calc_properties(config: ConfigType) -> tuple[int, int]:
     byte_offset = 0
     reg_count = 0
