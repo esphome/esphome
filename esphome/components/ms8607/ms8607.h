@@ -79,7 +79,6 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
   MS8607HumidityDevice *humidity_device_{nullptr};
 
  public:  // for testability
-  /// This device's pressure & temperature calibration values, read from PROM
   struct CalibrationValues {
     /// Pressure sensitivity | SENS-T1. [C1]
     uint16_t pressure_sensitivity;
@@ -93,9 +92,12 @@ class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
     uint16_t reference_temperature;
     /// Temperature coefficient of the temperature | TEMPSENS. [C6]
     uint16_t temperature_coefficient_of_temperature;
-  } calibration_values_{};
+  };
 
  protected:
+  /// This device's pressure & temperature calibration values, read from PROM
+  CalibrationValues calibration_values_{};
+
   /// Possible failure reasons of this component
   enum class ErrorCode {
     /// Component hasn't failed (yet?)
