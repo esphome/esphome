@@ -12,7 +12,8 @@ class ModbusFloatOutput final : public output::FloatOutput, public Component, pu
  public:
   ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = modbus::EntityType::HOLDING;
-    this->set_address(start_address + offset);
+    // A byte offset folds into the address as whole registers; odd offsets are rejected at validation.
+    this->set_address(start_address + offset / 2);
     this->set_offset_from_start_address(0);
     this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
