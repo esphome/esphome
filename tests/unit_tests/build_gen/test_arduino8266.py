@@ -1871,6 +1871,10 @@ def test_write_project_pch_strict_emits_probe_edge(
     content = _write_ninja(paths, ccache="/usr/bin/ccache")
     assert "build esphome_pch.probe: pchprobe esphome_pch.h.gch" in content
     assert "-Werror=invalid-pch" in content
+    # $out only expands in rule text; an edge-level binding would emit a
+    # bare "touch " and fail every strict build
+    assert "&& touch $out" in content
+    assert "$stamp" not in content
 
     # With extra src flags the probe edge carries them like the .gch edge
     CORE.platformio_options["build_src_flags"] = (

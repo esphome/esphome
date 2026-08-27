@@ -1295,21 +1295,22 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
             if pch_strict():
                 # Consumers wait on the probe stamp, so an unloadable .gch
                 # reds the build here instead of warning ~100 times
+                # $out only expands in rule text, so the stamp command is
+                # baked into the rule (generation host == build host)
+                stamp = (
+                    "cmd /c copy /y nul $out >nul" if os.name == "nt" else "touch $out"
+                )
                 lines.append("rule pchprobe")
                 lines.append(
                     "  command = $cxx $cxxflags $flags -Winvalid-pch"
                     " -Werror=invalid-pch"
                     f" -include {PCH_HEADER_NAME} -fsyntax-only -x c++"
-                    f" {_q(Path(os.devnull))} && $stamp"
+                    f" {_q(Path(os.devnull))} && {stamp}"
                 )
                 lines.append("  description = PCHPROBE $out")
                 lines.append(f"build esphome_pch.probe: pchprobe {gch}")
                 if src_other:
                     lines.append(f"  flags = {' '.join(src_other)}")
-                stamp = (
-                    "cmd /c copy /y nul $out >nul" if os.name == "nt" else "touch $out"
-                )
-                lines.append(f"  stamp = {stamp}")
                 pch_dep = f"{gch} esphome_pch.probe"
             src_cxx_override = ("$srccxxflags", pch_dep)
             mark_pch_emitted()
