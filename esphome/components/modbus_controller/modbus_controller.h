@@ -4,6 +4,7 @@
 
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/components/modbus/modbus_helpers.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/automation.h"
 
 #include <list>
@@ -232,12 +233,16 @@ struct RegisterRange {
   SensorSet sensors;  // all sensors of this range
 };
 
-/// A hub device owned by a writer entity (switch/number/select/output) through WriterEntity.
-/// Centralises the feedback to the controller - online/offline tracking, retry counting and the
-/// on_command_sent trigger - and records every dispatch, so a write lambda can tell "I sent it myself"
-/// from "use the default write". The hub base is inherited protected, so the public members below are
-/// the entity's whole request API and nothing can bypass the recording or re-target the device.
-class WriterDevice final : protected modbus::ModbusClientDevice {
+/// The shared feedback half of a controller-owned hub device: online/offline tracking, retry counting
+/// and the on_command_sent trigger all route to the controller from here. The hub base is inherited
+/// protected, so a subclass chooses exactly what request API it exposes. WriterDevice (the entities'
+/// write side) and PollingDevice (the controller's range polls) both derive it.
+class ControllerDevice : protected modbus::ModbusClientDevice {
+ public:
+  // Plumbing, public because the owner holds the only reachable instance (WriterEntity's device_ is
+  // protected and the hub sees just the masked base) - reachability is the access gate, not a friend.
+  void set_controller(ModbusController *controller);
+
  protected:
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
   void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
@@ -252,14 +257,20 @@ class WriterDevice final : protected modbus::ModbusClientDevice {
     return pdu.size() >= 3 ? modbus::helpers::get_data<uint16_t>(pdu.data(), 1) : 0;
   }
 
-  /// Declared before controller_ so they land in the padding after ModbusClientDevice::custom_response_warned_
-  /// instead of adding a word to every entity that owns a device.
-  /// dispatched_: a frame was queued since the last clear_dispatched_().
-  /// write_buffer_deprecated_warned_: warn-once for the legacy write_lambda buffer parameter.
+  /// Write-path state, but declared here before controller_ so both land in the padding after
+  /// ModbusClientDevice::custom_response_warned_ - in WriterDevice they would sit after controller_ and
+  /// cost a word on every writer entity. write_buffer_deprecated_warned_ leaves with the deprecated
+  /// buffer parameter in 2027.3.0.
   bool dispatched_{false};
   bool write_buffer_deprecated_warned_{false};
   ModbusController *controller_{nullptr};
+};
 
+/// The write side of a ControllerDevice, owned by the writer entities through WriterEntity. Records
+/// every dispatch, so a write lambda can tell "I sent it myself" from "use the default write"; the
+/// public members below are the entity's whole request API and nothing can bypass the recording or
+/// re-target the device.
+class WriterDevice final : public ControllerDevice {
  public:
   /// Whether a frame was queued to the hub since the last clear_dispatched_().
   bool dispatched() const { return this->dispatched_; }
@@ -294,9 +305,6 @@ class WriterDevice final : protected modbus::ModbusClientDevice {
 
   void clear_tx_queue_for_device() { modbus::ModbusClientDevice::clear_tx_queue_for_device(); }
 
-  // Entity plumbing, public because the owning WriterEntity holds the only reachable instance (device_ is
-  // protected there and the hub sees just the masked base) - reachability is the access gate, not a friend.
-  void set_controller(ModbusController *controller);
   void clear_dispatched() { this->dispatched_ = false; }
   /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
   /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
@@ -344,7 +352,37 @@ class WriterEntity {
 /// A single modbus command. Each command is its own ModbusClientDevice: it sends its frame to the hub
 /// and the hub routes the response back to this object's on_modbus_* callbacks, so the controller no
 /// longer has to match responses to a FIFO queue.
-class ModbusCommandItem : public modbus::ModbusClientDevice {
+/// A persistent hub device that polls one register range - the read-side mirror of WriterDevice.
+/// Owned by the controller, one per range; the response is parsed straight to the range's sensors and
+/// the shared ControllerDevice base feeds the controller's online/offline and trigger machinery.
+class PollingDevice final : public ControllerDevice {
+ public:
+  PollingDevice(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address, RegisterRange &&range);
+
+  /// Queue this range's read (or its sensor's custom PDU) on the hub. False = refused, no callback follows.
+  bool send(modbus::CommandOptions options = {});
+
+  uint16_t register_address() const { return this->start_address_; }
+  uint16_t register_count() const { return this->register_count_; }
+  EntityType register_type() const { return this->register_type_; }
+
+ protected:
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+
+  SensorSet sensors_;
+  EntityType register_type_{EntityType::CUSTOM};
+  uint16_t start_address_{0};
+  uint16_t register_count_{0};
+  FunctionCode function_code_{FunctionCode::CUSTOM};
+  /// A custom range references the PDU bytes owned by its first SensorItem instead of copying them.
+  const SmallInlineBuffer<8> *custom_pdu_{nullptr};
+};
+
+// Remove before 2027.3.0
+class ESPDEPRECATED(
+    "One-shot writes go through the entity write helpers (WriterDevice) or the modbus_client actions, and "
+    "polling runs through PollingDevice. Removed in 2027.3.0",
+    "2026.9.0") ModbusCommandItem : public modbus::ModbusClientDevice {
  public:
   /// Empty command with no controller connection (kept for source compatibility with value-type usage).
   ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address)
@@ -522,11 +560,16 @@ class ModbusController final : public PollingComponent {
   modbus::ModbusClientHub *hub() const { return this->hub_; }
   uint8_t device_address() const { return this->address_; }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   /// Queues a one-shot modbus command (writes, custom commands); taken by value, so std::move to avoid a copy.
+  /// Remove with ModbusCommandItem before 2027.3.0.
+  ESPDEPRECATED("Use the entity write helpers or the modbus_client actions instead. Removed in 2027.3.0", "2026.9.0")
   void queue_command(ModbusCommandItem command);
   /// Flags a finished one-shot command for removal. Called by the command as the last action of its own
   /// callback, so the item is not destroyed here (send() and the hub still touch it) but swept later.
   void unqueue_command(const ModbusCommandItem *command);
+#pragma GCC diagnostic pop
   /// Registers a sensor with the controller. Called by esphomes code generator
   void add_sensor_item(SensorItem *item) { sensorset_.insert(item); }
   /// Handles a write command acknowledgement (used by write command on_data_func handlers).
@@ -568,32 +611,22 @@ class ModbusController final : public PollingComponent {
   const modbus::CommandOptions &read_options() const { return this->read_options_; }
 
  protected:
-  /// parse sensormap_ and create range of sequential addresses
-  /// Group the registered sensors into contiguous ranges and create one polling command per range.
+  /// Group the registered sensors into contiguous ranges and create one PollingDevice per range.
   void create_polling_commands_();
-  /// build one persistent polling command from a range and add it to polling_command_items_
-  void create_polling_command_(RegisterRange &&range) {
-    // A custom range polls the first sensor's custom_pdu (referenced, not copied); the sensor constructor
-    // decodes the real function code. The response still dispatches to every sensor in the range.
-    if (range.register_type == EntityType::CUSTOM && !range.sensors.empty()) {
-      auto &cmd = this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, *range.sensors.begin());
-      cmd.sensors = std::move(range.sensors);
-    } else {
-      this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, std::move(range));
-    }
-  }
   /// The hub this controller's commands/entities send through, and the modbus address they target.
   modbus::ModbusClientHub *hub_{nullptr};
   uint8_t address_{0};
   /// Collection of all sensors for this component
   SensorSet sensorset_;
-  /// One persistent command per register range, each its own ModbusClientDevice. Built once in setup()
-  /// (create_polling_commands_ feeds each range straight in; the vector may reallocate as it grows, which
-  /// is safe because no command has registered with the hub yet) and never appended to afterward, so the
-  /// hub's device pointers stay valid once commands start sending.
-  std::vector<ModbusCommandItem> polling_command_items_{};
+  /// One persistent PollingDevice per register range. Built once in setup() with the exact count
+  /// (FixedVector never reallocates), so the hub's device pointers stay valid once polls start sending.
+  FixedVector<PollingDevice> polling_devices_;
   /// Dynamically queued one-shot commands (writes, custom commands). std::list keeps stable addresses.
+  /// Remove with ModbusCommandItem before 2027.3.0.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   std::list<std::unique_ptr<ModbusCommandItem>> one_shot_command_items_;
+#pragma GCC diagnostic pop
   /// Erases one-shot commands flagged by unqueue_command(). Safe even when reached from inside a hub
   /// callback (via an on_online/on_offline/on_command_sent automation that queues a command): the
   /// destructor detaches via clear_tx_queue_for_device(), which the hub allows from callbacks, and the

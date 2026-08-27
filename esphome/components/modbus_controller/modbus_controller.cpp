@@ -27,23 +27,23 @@ bool WriterDevice::send_raw_frame_deprecated(std::span<const uint8_t> frame) {
   return this->parent_->queue_pdu(frame[0], frame.subspan(1), this);
 }
 
-void WriterDevice::set_controller(ModbusController *controller) {
+void ControllerDevice::set_controller(ModbusController *controller) {
   this->controller_ = controller;
   this->set_parent(controller->hub());
   this->set_address(controller->device_address());
 }
 
-void WriterDevice::notify_online_(std::span<const uint8_t> request_pdu) {
+void ControllerDevice::notify_online_(std::span<const uint8_t> request_pdu) {
   if (this->controller_ != nullptr)
     this->controller_->set_online(true, fc_of(request_pdu), addr_of(request_pdu));
 }
 
-void WriterDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+void ControllerDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   this->notify_online_(request_pdu);
   this->dispatch_response_(request_pdu, response_pdu, std::nullopt);
 }
 
-void WriterDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
+void ControllerDevice::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
   ESP_LOGW(TAG, "Modbus error function code: 0x%X register 0x%X exception: %d", fc_of(request_pdu),
            addr_of(request_pdu), static_cast<uint8_t>(exception_code));
   this->notify_online_(request_pdu);  // an exception is still a legitimate reply -> device is online
@@ -52,12 +52,12 @@ void WriterDevice::on_error(std::span<const uint8_t> request_pdu, modbus::Except
 
 // Fired once per wire transmission (including hub re-queues from a retry), so the on_command_sent trigger
 // reflects when the frame actually went out, not when it was queued.
-void WriterDevice::on_sent(std::span<const uint8_t> request_pdu) {
+void ControllerDevice::on_sent(std::span<const uint8_t> request_pdu) {
   if (this->controller_ != nullptr)
     this->controller_->command_sent(fc_of(request_pdu), addr_of(request_pdu));
 }
 
-void WriterDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
+void ControllerDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
   // Only the offline teardown reaches this (a supersede retires silently), so the frame is genuinely
   // lost; a dropped write was already published optimistically, so surface it.
   if (modbus::helpers::is_function_code_write(fc_of(request_pdu))) {
@@ -67,7 +67,7 @@ void WriterDevice::on_not_sent(std::span<const uint8_t> request_pdu) {
   }
 }
 
-bool WriterDevice::on_no_response(std::span<const uint8_t> request_pdu) {
+bool ControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
   if (this->controller_ == nullptr)
     return false;
   this->controller_->increment_non_response_count();
@@ -77,6 +77,53 @@ bool WriterDevice::on_no_response(std::span<const uint8_t> request_pdu) {
   return false;
 }
 
+PollingDevice::PollingDevice(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
+                             RegisterRange &&range)
+    : sensors_(std::move(range.sensors)),
+      register_type_(range.register_type),
+      start_address_(range.start_address),
+      register_count_(range.register_count) {
+  this->controller_ = &controller;
+  this->set_parent(parent);
+  this->set_address(address);
+  if (this->register_type_ == EntityType::CUSTOM && !this->sensors_.empty()) {
+    // A custom range polls its first sensor's custom_pdu (referenced, not copied). The PDU's first byte
+    // is its real function code; carry it so logs and the on_command_sent trigger report the actual code.
+    const auto &pdu = (*this->sensors_.begin())->custom_pdu;
+    this->custom_pdu_ = &pdu;
+    if (!pdu.empty())
+      this->function_code_ = static_cast<FunctionCode>(pdu.data()[0]);
+  } else {
+    this->function_code_ = modbus::helpers::modbus_register_read_function(this->register_type_);
+  }
+}
+
+bool PollingDevice::send(modbus::CommandOptions options) {
+  bool accepted;
+  if (this->custom_pdu_ != nullptr) {
+    accepted = this->queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
+  } else {
+    accepted = this->queue_pdu(
+        modbus::helpers::create_client_pdu(this->function_code_, this->start_address_, this->register_count_), options);
+  }
+  if (accepted) {
+    ESP_LOGV(TAG, "Poll queued %d 0x%X %d", static_cast<uint8_t>(this->function_code_), this->start_address_,
+             this->register_count_);
+  }
+  return accepted;
+}
+
+void PollingDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+  this->notify_online_(request_pdu);
+  auto data = modbus::helpers::server_pdu_payload(response_pdu);
+  for (auto *sensor : this->sensors_)
+    sensor->parse_and_publish(data);
+}
+
+// The deprecated class's own machinery stays as-is until removal; silence its self-references.
+// Remove with ModbusCommandItem before 2027.3.0.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
                                      RegisterRange &&range)
     : modbus::ModbusClientDevice(parent, address),
@@ -270,11 +317,11 @@ void ModbusController::update() {
     if (offline_retry_due(this->update_counter_, this->module_offline_at_, this->offline_skip_updates_)) {
       ESP_LOGV(TAG, "Module offline - retrying");
       this->cmd_non_responses_ = 0;  // allow the probe through can_send()
-      for (auto &cmd : this->polling_command_items_) {
+      for (auto &poll : this->polling_devices_) {
         // Probes carry the read-side options too, so a recovering device resumes streaming on the
         // probe itself rather than waiting for the next update_interval.
-        if (!cmd.send(this->read_options_)) {
-          ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", cmd.register_address());
+        if (!poll.send(this->read_options_)) {
+          ESP_LOGD(TAG, "Probe refused by hub for range 0x%X", poll.register_address());
         }
       }
     } else {
@@ -285,12 +332,12 @@ void ModbusController::update() {
   }
 
   if (this->can_send()) {
-    for (auto &cmd : this->polling_command_items_) {
-      ESP_LOGVV(TAG, "Updating range 0x%X", cmd.register_address());
+    for (auto &poll : this->polling_devices_) {
+      ESP_LOGVV(TAG, "Updating range 0x%X", poll.register_address());
       // read_options_ carries the controller's continuous flag (the offline probe above sends it too).
       // A refusal is already logged by the hub; note the affected range for controller-level diagnostics.
-      if (!cmd.send(this->read_options_)) {
-        ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", cmd.register_address());
+      if (!poll.send(this->read_options_)) {
+        ESP_LOGD(TAG, "Poll refused by hub for range 0x%X", poll.register_address());
       }
     }
   }
@@ -308,6 +355,7 @@ void ModbusController::create_polling_commands_() {
   // force_new_range ahead of the rest, then address - so the walk is not purely address-ordered.
   // Each keeps the address it was configured with; what is resolved here is its `offset`, the position
   // of its data within the response of whichever range it ends up in.
+  std::vector<RegisterRange> ranges;
   RegisterRange r = {};
   bool have_range = false;
   // Set while the open range belongs to a force_new_range sensor: a range the user asked to keep
@@ -390,7 +438,7 @@ void ModbusController::create_polling_commands_() {
     if (!join) {
       if (have_range) {
         ESP_LOGV(TAG, "Add range 0x%X %d", r.start_address, r.register_count);
-        this->create_polling_command_(std::move(r));
+        ranges.push_back(std::move(r));
       }
       r = {};
       range_bytes = curr->get_register_size();
@@ -412,11 +460,14 @@ void ModbusController::create_polling_commands_() {
   }
   if (have_range) {
     ESP_LOGV(TAG, "Add last range 0x%X %d", r.start_address, r.register_count);
-    this->create_polling_command_(std::move(r));
+    ranges.push_back(std::move(r));
   }
-  // Reclaim growth slack; safe here because nothing has registered with the hub yet (see the
-  // lifetime note on polling_command_items_).
-  this->polling_command_items_.shrink_to_fit();
+  // The ranges are staged in a setup-time vector so the device storage can be sized exactly:
+  // FixedVector never reallocates, so the hub's device pointers stay valid once polls start sending.
+  this->polling_devices_.init(ranges.size());
+  for (auto &range : ranges) {
+    this->polling_devices_.emplace_back(*this, this->hub_, this->address_, std::move(range));
+  }
 }
 
 void ModbusController::dump_config() {
@@ -435,7 +486,7 @@ void ModbusController::dump_config() {
                   it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");
-  for (auto &it : this->polling_command_items_) {
+  for (auto &it : this->polling_devices_) {
     ESP_LOGCONFIG(TAG, "  Range type=%u start=0x%X count=%d", static_cast<uint8_t>(it.register_type()),
                   it.register_address(), it.register_count());
   }
@@ -598,5 +649,6 @@ bool ModbusCommandItem::send(modbus::CommandOptions options) {
   }
   return accepted;
 }
+#pragma GCC diagnostic pop
 
 }  // namespace esphome::modbus_controller
