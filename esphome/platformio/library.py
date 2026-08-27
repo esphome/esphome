@@ -577,6 +577,11 @@ def _make_registry_client() -> Any:
     """
     from platformio.package.manager._registry import PackageManagerRegistryMixin
 
+    from esphome.platformio.runner import patch_registry_private_packages
+
+    # Every lookup would otherwise sleep ~500 ms in PlatformIO's account probe
+    patch_registry_private_packages()
+
     class _Registry(PackageManagerRegistryMixin):
         def __init__(self) -> None:
             self._registry_client = None

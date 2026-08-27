@@ -30,6 +30,7 @@ def _prepare_main(
     monkeypatch.setattr(sys, "stderr", stream)
     monkeypatch.setattr(runner, "patch_structhash", lambda: None)
     monkeypatch.setattr(runner, "patch_file_downloader", lambda: None)
+    monkeypatch.setattr(runner, "patch_registry_private_packages", lambda: None)
 
     platformio = ModuleType("platformio")
     platformio_main = ModuleType("platformio.__main__")
@@ -91,3 +92,62 @@ def test_main_still_filters_a_drained_partial_line(
 
     assert runner.main() == 0
     assert buf.getvalue() == b""
+
+
+def test_main_applies_registry_private_packages_patch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The probe patch is installed before PlatformIO gets control."""
+    order: list[str] = []
+    _prepare_main(monkeypatch, lambda: order.append("pio") or 0)
+    monkeypatch.setattr(
+        runner, "patch_registry_private_packages", lambda: order.append("patch")
+    )
+
+    assert runner.main() == 0
+    assert order == ["patch", "pio"]
+
+
+def _restore_registry_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Undo the class-level patch after the test so other tests see PlatformIO's own probe."""
+    from platformio.registry.client import RegistryClient
+
+    monkeypatch.setattr(
+        RegistryClient,
+        "allowed_private_packages",
+        RegistryClient.__dict__["allowed_private_packages"],
+    )
+
+
+def test_patch_registry_private_packages_skips_account_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The patched probe answers False without touching the account client."""
+    from platformio.account.client import AccountClient
+    from platformio.registry.client import RegistryClient
+
+    _restore_registry_probe(monkeypatch)
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError("account probe must not run")
+
+    monkeypatch.setattr(AccountClient, "get_account_info", fail)
+
+    runner.patch_registry_private_packages()
+
+    assert RegistryClient.allowed_private_packages() is False
+    assert RegistryClient().allowed_private_packages() is False
+
+
+def test_patch_registry_private_packages_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from platformio.registry.client import RegistryClient
+
+    _restore_registry_probe(monkeypatch)
+
+    runner.patch_registry_private_packages()
+    patched = RegistryClient.allowed_private_packages
+    runner.patch_registry_private_packages()
+
+    assert RegistryClient.allowed_private_packages is patched
