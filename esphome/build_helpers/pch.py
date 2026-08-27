@@ -442,8 +442,9 @@ def prepare_pch(
     # Load probe: some toolchains build a .gch they then refuse to load
     # (per-process ASLR); dep flags are already stripped from cmd, so no
     # -MF is needed
+    # cmd ends with the fixed "-x c++-header -c <header> -o <gch>" tail
     probe_cmd = [
-        *cmd[: cmd.index("-x")],
+        *cmd[:-6],
         "-Winvalid-pch",
         "-include",
         str(header),
@@ -467,12 +468,22 @@ def prepare_pch(
         discard_pch(build_dir)
         pch_degraded(f"probe did not run: {err}")
         return
+    if probe.returncode < 0:
+        # Killed by a signal (OOM, ^C): environmental, do not latch
+        _LOGGER.warning(
+            "Precompiled header probe was killed (signal %d); retrying next build",
+            -probe.returncode,
+        )
+        discard_pch(build_dir)
+        pch_degraded(f"probe killed by signal {-probe.returncode}")
+        return
     if probe.returncode != 0 or ".gch" in probe.stderr:
         error = f"toolchain cannot load the pch: {probe.stderr.strip()[:400]}"
         _LOGGER.warning("Precompiled header failed; compiling without it: %s", error)
         discard_pch(build_dir)
-        failed_marker.write_text(checksum + "\n", encoding="utf-8")
-        os.utime(header)
+        if not any(m in error for m in _TRANSIENT_ERRORS):
+            failed_marker.write_text(checksum + "\n", encoding="utf-8")
+            os.utime(header)
         pch_degraded(error)
         return
     failed_marker.unlink(missing_ok=True)

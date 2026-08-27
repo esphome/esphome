@@ -1878,6 +1878,10 @@ def test_write_project_pch_strict_emits_probe_edge(
     )
     content = _write_ninja(paths, ccache="/usr/bin/ccache")
     assert "pchprobe esphome_pch.h.gch\n  flags = " in content
-    for line in content.splitlines():
-        if line.startswith("build obj/src/main.cpp.o:"):
-            assert line.endswith("| esphome_pch.h.gch esphome_pch.probe")
+    edges = [
+        line
+        for line in content.splitlines()
+        if line.startswith("build obj/src/") and ".cpp.o:" in line
+    ]
+    assert edges
+    assert all(line.endswith("| esphome_pch.h.gch esphome_pch.probe") for line in edges)
