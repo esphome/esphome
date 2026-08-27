@@ -58,6 +58,10 @@ static constexpr size_t WEBSERVER_URL_RESERVE = 0;
 // Budget for the next URL entry, minus its own length byte
 static constexpr size_t MAX_NEXT_URL_LEN = MAX_SERIAL_PAYLOAD - WEBSERVER_URL_RESERVE - 1;
 
+static_assert(MAX_SERIAL_PAYLOAD + 3 <= 255, "response must fit the one byte frame length");
+static_assert(MAX_SERIAL_PAYLOAD + 3 <= improv::RPC_RESPONSE_MAX_SIZE, "builder buffer too small for the frame");
+static_assert(MAX_NEXT_URL_LEN + 1 + WEBSERVER_URL_RESERVE <= MAX_SERIAL_PAYLOAD, "URL budgets overcommit");
+
 class ImprovSerialComponent final : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;

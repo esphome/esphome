@@ -24,8 +24,11 @@ static constexpr size_t IMPROV_MAX_LOG_BYTES = 128;
 static constexpr char ESPHOME_MY_LINK[] = "https://my.home-assistant.io/redirect/config_flow_start?domain=esphome";
 // Budget for the next URL entry: the payload (RPC_RESPONSE_MAX_SIZE minus command,
 // length and trailing bytes) minus this entry's length byte, reserving room for the
-// ESPHOME_MY_LINK entry so a long next URL cannot displace it
+// ESPHOME_MY_LINK entry so a long next URL cannot displace it; a maximal next URL
+// instead displaces the local web server URL, the lowest value entry
 static constexpr size_t MAX_NEXT_URL_LEN = improv::RPC_RESPONSE_MAX_SIZE - 3 - 1 - sizeof(ESPHOME_MY_LINK);
+static_assert(MAX_NEXT_URL_LEN + 1 + sizeof(ESPHOME_MY_LINK) <= improv::RPC_RESPONSE_MAX_SIZE - 3,
+              "next URL budget would displace ESPHOME_MY_LINK");
 static constexpr uint16_t STOP_ADVERTISING_DELAY =
     10000;  // Delay (ms) before stopping service to allow BLE clients to read the final state
 static constexpr uint16_t NAME_ADVERTISING_INTERVAL = 60000;  // Advertise name every 60 seconds
