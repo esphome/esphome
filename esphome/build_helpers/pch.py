@@ -221,8 +221,11 @@ def guarded_prepare(build_dir: Path, prepare: Callable[[], None]) -> None:
             raise
         header = build_dir / PCH_HEADER_NAME
         if not header.exists():
-            with suppress(OSError):
+            try:
                 header.touch()
+            except OSError as err:
+                # The coming OBJECT_DEPENDS error would hide the real cause
+                _LOGGER.warning("Could not create the pch placeholder: %s", err)
         _LOGGER.warning(
             "Precompiled header setup failed; compiling without it", exc_info=True
         )

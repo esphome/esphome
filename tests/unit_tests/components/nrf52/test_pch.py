@@ -98,6 +98,20 @@ def test_app_build_dir_top_level_layout(build_dir: Path) -> None:
     assert nrf52._app_build_dir(build_dir) == build_dir
 
 
+def test_app_build_dir_ignores_cache_directory(build_dir: Path) -> None:
+    (build_dir / "zephyr" / "CMakeCache.txt").mkdir(parents=True)
+    assert nrf52._app_build_dir(build_dir) == build_dir
+
+
+def test_app_build_dir_propagates_stat_errors(build_dir: Path) -> None:
+    # is_file() would swallow this and mislocate the pch
+    with (
+        patch.object(Path, "stat", side_effect=PermissionError("denied")),
+        pytest.raises(PermissionError),
+    ):
+        nrf52._app_build_dir(build_dir)
+
+
 def test_prepare_pch_extras_carry_build_identity(build_dir: Path) -> None:
     _write_autoconf(build_dir)
     with (
@@ -203,10 +217,24 @@ class TestRunCompilePhases:
         # The pch is prepared in the app domain dir, not the sysbuild root
         assert prepare.call_args.args[0] == build_dir / "zephyr"
 
-    def test_generated_headers_failure_raises(self, compile_ctx) -> None:
+    def test_generated_headers_failure_degrades(
+        self, compile_ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        run_cmd, prepare, _ = compile_ctx
+        # headers target fails, the real build still runs (and fails here)
+        run_cmd.side_effect = [True, False, False]
+        with pytest.raises(EsphomeError, match="nRF52 native build failed"):
+            self._run()
+        assert "Zephyr header generation failed" in caplog.text
+        assert prepare.called
+
+    def test_generated_headers_failure_strict_raises(
+        self, monkeypatch: pytest.MonkeyPatch, compile_ctx
+    ) -> None:
+        monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
         run_cmd, prepare, _ = compile_ctx
         run_cmd.side_effect = [True, False]
-        with pytest.raises(EsphomeError, match="header generation failed"):
+        with pytest.raises(EsphomeError, match="ESPHOME_PCH_STRICT"):
             self._run()
         assert not prepare.called
 
