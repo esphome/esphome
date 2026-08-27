@@ -600,9 +600,7 @@ size_t value_accuracy_with_uom_to_buf(std::span<char, VALUE_ACCURACY_MAX_LEN> bu
 }
 
 int8_t step_to_accuracy_decimals(float step) {
-  // Matches counting the decimals of "%.5g" (five significant digits, trailing zeros dropped) over the range
-  // where %g prints fixed notation. Outside it %g switched to exponent form and the old count was meaningless;
-  // now steps below 1e-4 report their real decimals and steps of 1e5 and above report 0.
+  // Decimals needed to show the step at five significant digits, trailing zeros dropped.
   if (!std::isfinite(step) || step == 0.0f)
     return 0;
   float mantissa = std::fabs(step);
