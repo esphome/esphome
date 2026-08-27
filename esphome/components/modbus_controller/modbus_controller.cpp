@@ -78,17 +78,14 @@ bool ControllerDevice::on_no_response(std::span<const uint8_t> request_pdu) {
 
 PollingDevice::PollingDevice(ModbusController &controller, modbus::ModbusClientHub *parent, uint8_t address,
                              RegisterRange &&range)
-    : sensors_(std::move(range.sensors)),
-      register_type_(range.register_type),
-      start_address_(range.start_address),
-      register_count_(range.register_count) {
+    : range_(std::move(range)) {
   this->controller_ = &controller;
   this->set_parent(parent);
   this->set_address(address);
   // A custom range polls its first sensor's custom_pdu (referenced, not copied); its first byte is the
   // real function code, so the request PDU carries it to the callbacks like any other read.
-  if (this->register_type_ == EntityType::CUSTOM && !this->sensors_.empty()) {
-    this->custom_pdu_ = &(*this->sensors_.begin())->custom_pdu;
+  if (this->range_.register_type == EntityType::CUSTOM && !this->range_.sensors.empty()) {
+    this->custom_pdu_ = &(*this->range_.sensors.begin())->custom_pdu;
   }
 }
 
@@ -98,13 +95,13 @@ bool PollingDevice::queue(modbus::CommandOptions options) {
     accepted = this->queue_pdu(std::span<const uint8_t>(*this->custom_pdu_), options);
   } else {
     accepted = this->queue_pdu(
-        modbus::helpers::create_client_pdu(modbus::helpers::modbus_register_read_function(this->register_type_),
-                                           this->start_address_, this->register_count_),
+        modbus::helpers::create_client_pdu(modbus::helpers::modbus_register_read_function(this->range_.register_type),
+                                           this->range_.start_address, this->range_.register_count),
         options);
   }
   if (accepted) {
-    ESP_LOGV(TAG, "Poll queued type=%u 0x%X %d", static_cast<uint8_t>(this->register_type_), this->start_address_,
-             this->register_count_);
+    ESP_LOGV(TAG, "Poll queued type=%u 0x%X %d", static_cast<uint8_t>(this->range_.register_type),
+             this->range_.start_address, this->range_.register_count);
   }
   return accepted;
 }
@@ -112,7 +109,7 @@ bool PollingDevice::queue(modbus::CommandOptions options) {
 void PollingDevice::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
   this->notify_online_(request_pdu);
   auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  for (auto *sensor : this->sensors_)
+  for (auto *sensor : this->range_.sensors)
     sensor->parse_and_publish(data);
 }
 

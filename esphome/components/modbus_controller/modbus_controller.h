@@ -342,17 +342,15 @@ class PollingDevice final : public ControllerDevice {
   /// Queue this range's read (or its sensor's custom PDU) on the hub. False = refused, no callback follows.
   bool queue(modbus::CommandOptions options = {});
 
-  uint16_t register_address() const { return this->start_address_; }
-  uint16_t register_count() const { return this->register_count_; }
-  EntityType register_type() const { return this->register_type_; }
+  uint16_t register_address() const { return this->range_.start_address; }
+  uint16_t register_count() const { return this->range_.register_count; }
+  EntityType register_type() const { return this->range_.register_type; }
 
  protected:
   void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
 
-  SensorSet sensors_;
-  EntityType register_type_{EntityType::CUSTOM};
-  uint16_t start_address_{0};
-  uint16_t register_count_{0};
+  /// The range this device polls, exactly as create_polling_commands_ built it.
+  RegisterRange range_;
   /// A custom range references the PDU bytes owned by its first SensorItem instead of copying them.
   const SmallInlineBuffer<8> *custom_pdu_{nullptr};
 };
