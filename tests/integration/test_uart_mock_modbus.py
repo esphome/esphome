@@ -1059,6 +1059,61 @@ async def test_uart_mock_modbus_lambda_write(
 
 
 @pytest.mark.asyncio
+async def test_uart_mock_modbus_lambda_invert(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test that a write_lambda's return value is the wire value only.
+
+    `invert_switch` is an active-low holding switch whose write_lambda returns !x. Turning it ON must
+    write 0x0000 to the register (observed through the independent reg_40 sensor) while the entity
+    reports ON - the requested state, not the inverted wire value. Turning it OFF writes 0xFFFF and
+    reports OFF. The switch is assumed_state, so the published state comes only from write_state().
+    """
+
+    tracker = SensorTracker(["reg_40"])
+    initial = tracker.expect("reg_40", 5)
+    wrote_on = tracker.expect("reg_40", 0)
+    wrote_off = tracker.expect("reg_40", 65535)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities = await tracker.setup_and_start_scenario(client)
+        await tracker.await_change(initial, "reg_40", timeout=4.0)
+
+        switch = find_entity(entities, "invert_switch", SwitchInfo)
+        assert switch is not None, "invert_switch not found"
+
+        client.switch_command(switch.key, True)
+        # The wire byte carries the inverted value...
+        await tracker.await_change(wrote_on, "reg_40", timeout=4.0)
+        # ...while the entity reports the requested state. Switch states are deduped, so this relies on
+        # wait_for_state's fresh subscribe_states re-dumping every entity's current state.
+        await wait_for_state(
+            client,
+            lambda s: (
+                getattr(s, "key", None) == switch.key
+                and getattr(s, "state", None) is True
+            ),
+            timeout=6.0,
+        )
+
+        client.switch_command(switch.key, False)
+        await tracker.await_change(wrote_off, "reg_40", timeout=4.0)
+        await wait_for_state(
+            client,
+            lambda s: (
+                getattr(s, "key", None) == switch.key
+                and getattr(s, "state", None) is False
+            ),
+            timeout=6.0,
+        )
+
+
+@pytest.mark.asyncio
 async def test_uart_mock_modbus_deprecated_write_buffer(
     yaml_config: str,
     run_compiled: RunCompiledFunction,

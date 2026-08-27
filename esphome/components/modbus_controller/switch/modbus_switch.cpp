@@ -93,12 +93,14 @@ void ModbusSwitch::write_state(bool state) {
       ESP_LOGV(TAG, "Communication handled by lambda - exiting control");
       return;
     }
-    // The returned bool is the wire value only; the entity still reports the requested state.
+    // The returned bool is the wire value only; the entity still reports the requested state. A polled
+    // entity needs the read lambda inverted to match, or the next poll flips the display back.
     ESP_LOGV(TAG, "Value overwritten by lambda");
     write_value = val.value();
   }
-  ESP_LOGV(TAG, "write_state '%s': new value = %s type = %d address = %X offset = %x", this->get_name().c_str(),
-           ONOFF(write_value), (int) this->register_type, this->start_address, this->offset);
+  ESP_LOGV(TAG, "write_state '%s': new value = %s (wire = %s) type = %d address = %X offset = %x",
+           this->get_name().c_str(), ONOFF(state), ONOFF(write_value), (int) this->register_type, this->start_address,
+           this->offset);
   bool queued;
   if (this->register_type == EntityType::COIL) {
     // offset for coil and discrete inputs is the coil/register number not bytes
