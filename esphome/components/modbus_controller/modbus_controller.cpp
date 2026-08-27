@@ -363,8 +363,10 @@ void ModbusController::create_polling_commands_() {
   // and never past a non-standard response_size register, ALWAYS joins across address gaps and
   // response_size surpluses too (gap registers are read and ignored), NEVER always starts a new range
   // (later items may still extend it).
-  std::vector<RegisterRange> ranges;
-  ranges.reserve(this->sensorset_.size());  // one range per sensor is a strict upper bound
+  // One range per sensor is a strict upper bound: each walk step closes at most one range, plus one
+  // closed after the walk. Sized to that bound so no push is ever silently dropped, then handed on by move.
+  FixedVector<RegisterRange> ranges;
+  ranges.init(this->sensorset_.size());
   RegisterRange r = {};
   bool have_range = false;
   // Set while the open range belongs to a reuse_previous_range: false sensor: a range the user asked
