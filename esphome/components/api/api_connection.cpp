@@ -1,6 +1,6 @@
 #include "api_connection.h"
 #ifdef USE_API
-#include "api_connection_buffer.h"  // for encode_to_buffer / get_batch_delay_ms_ inlines
+#include "api_connection_buffer.h"  // for the APIServer-dependent APIConnection inlines
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
 #endif
@@ -1099,7 +1099,6 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
   auto *media_player = static_cast<media_player::MediaPlayer *>(entity);
   ListEntitiesMediaPlayerResponse msg;
   auto traits = media_player->get_traits();
-  msg.supports_pause = traits.get_supports_pause();
   msg.feature_flags = traits.get_feature_flags();
   for (auto &supported_format : traits.get_supported_formats()) {
     msg.supported_formats.emplace_back();
@@ -2240,10 +2239,17 @@ bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, 
     this->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
   }
 #endif
+  if (!this->prepare_first_message_buffer(payload_size)) [[unlikely]] {
+    this->fatal_out_of_memory_();
+    return false;
+  }
   auto &shared_buf = this->parent_->get_shared_buffer_ref();
-  this->prepare_first_message_buffer(shared_buf, payload_size);
   size_t write_start = shared_buf.size();
-  shared_buf.resize(write_start + payload_size);
+#ifdef ESPHOME_DEBUG_API
+  assert(shared_buf.capacity() >= write_start + payload_size);
+#endif
+  // Capacity reserved above, cannot fail
+  (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
   encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
@@ -2279,6 +2285,9 @@ void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("no connection setup"));
 }
+void APIConnection::fatal_out_of_memory_() {
+  this->fatal_error_with_log_(LOG_STR("Out of memory"), APIError::OUT_OF_MEMORY);
+}
 void APIConnection::on_fatal_error() {
   // Don't close socket here - keep it open so getpeername() works for logging
   // Socket will be closed when client is removed from the list in APIServer::loop()
@@ -2293,16 +2302,25 @@ bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message
 bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
-    auto &shared_buf = this->parent_->get_shared_buffer_ref();
-    this->prepare_first_message_buffer(shared_buf, estimated_size);
+    // No local for the shared buffer here: keeping it live across
+    // dispatch_message_ costs a register and spills message_type into the
+    // batching path's dedup loop (measured on x86 GCC -Os)
+    if (!this->prepare_first_message_buffer(estimated_size)) [[unlikely]] {
+      this->fatal_out_of_memory_();
+      return false;
+    }
     DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
     if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
-        this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
+        this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_batch_item_(item);
 #endif
       return true;
     }
+    // An OOM during the immediate attempt marks the connection for removal;
+    // don't queue more work (schedule_message_'s push_back may allocate again)
+    if (this->flags_.remove) [[unlikely]]
+      return false;
   }
   return this->schedule_message_(entity, message_type, estimated_size, aux_data_index);
 }
@@ -2352,7 +2370,11 @@ void APIConnection::process_batch_() {
     total_estimated_size = MAX_BATCH_PACKET_SIZE;
   }
 
-  this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
+  if (!this->prepare_first_message_buffer(header_padding, total_estimated_size)) [[unlikely]] {
+    this->fatal_out_of_memory_();
+    this->clear_batch_();
+    return;
+  }
 
   // Fast path for single message - buffer already allocated above
   if (num_items == 1) {
@@ -2367,8 +2389,10 @@ void APIConnection::process_batch_() {
 #endif
       this->clear_batch_();
     } else if (payload_size == 0) {
-      // Message too large to fit in available space
-      ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
+      // payload_size == 0 with remove set means encoding hit OOM and the
+      // connection is being dropped; warn only for a genuinely oversized message
+      if (!this->flags_.remove)
+        ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
       this->clear_batch_();
     }
     return;
@@ -2431,8 +2455,10 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
 
   if (items_processed > 0) {
     // Add footer space for the last message (for Noise protocol MAC)
-    if (footer_size > 0) {
-      shared_buf.resize(shared_buf.size() + footer_size);
+    if (footer_size > 0 && !shared_buf.resize(shared_buf.size() + footer_size)) [[unlikely]] {
+      this->fatal_out_of_memory_();
+      this->clear_batch_();
+      return;
     }
 
     // Send all collected messages
