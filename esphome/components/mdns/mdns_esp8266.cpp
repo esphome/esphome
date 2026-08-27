@@ -41,7 +41,19 @@ static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SER
 #ifdef USE_MDNS_EVENT_DRIVEN_POLLING
 void MDNSComponent::start_polling_window_() {
   // uint32_t-ID set_interval/set_timeout already does atomic cancel-and-add.
-  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+  this->set_interval(MDNS_POLL_ID, MDNS_UPDATE_INTERVAL_MS, []() {
+#ifdef USE_MDNS_WIFI_LISTENER
+    // MDNS.update() can suspend the loop in UdpContext::sendTimeout() while a send is
+    // failing (radio off-channel during a roam scan, or mid reconnect); an incoming
+    // packet then re-enters LEAmDNS from lwIP and corrupts shared UdpContext state.
+    // Skip the tick while the radio cannot transmit (#18760), but keep polling while
+    // the AP is serving clients (AP-only or fallback AP with the STA down).
+    auto *wifi = wifi::global_wifi_component;
+    if (wifi->is_roaming() || (!wifi->is_connected() && !wifi->is_ap_active()))
+      return;
+#endif
+    MDNS.update();
+  });
   this->set_timeout(MDNS_POLL_STOP_ID, MDNS_POLL_WINDOW_MS, [this]() { this->cancel_interval(MDNS_POLL_ID); });
 }
 #endif

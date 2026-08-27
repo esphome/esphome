@@ -2,7 +2,6 @@
 
 from collections.abc import Callable
 from ctypes.util import find_library
-from functools import partial
 import json
 import logging
 import os
@@ -24,16 +23,17 @@ from esphome.framework_helpers import (
     create_venv,
     download_and_extract,
     download_from_mirrors,
-    download_with_resume,
     failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
+    resume_fetch_job,
     rmdir,
     run_batch_downloads,
     run_command,
     run_command_ok,
     str_to_lst_of_str,
     tool_version_runs,
+    warn_prefetch_failures,
 )
 from esphome.helpers import write_file_if_changed
 
@@ -686,18 +686,6 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
-def _download_tool(
-    dist_path: Path, entry: dict, tracker: Callable[[int], None]
-) -> None:
-    download_with_resume(
-        entry["url"],
-        dist_path / entry["dest"],
-        sha256=entry["sha256"],
-        size=entry["size"],
-        progress=tracker,
-    )
-
-
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -775,15 +763,17 @@ def _prefetch_idf_tool_archives(
                 (
                     entry["name"],
                     entry["size"],
-                    partial(_download_tool, dist_path, entry),
+                    resume_fetch_job(
+                        entry["url"],
+                        dist_path / entry["dest"],
+                        sha256=entry["sha256"],
+                        size=entry["size"],
+                    ),
                 )
                 for entry in entries
             ],
         )
-        for name, e in failures:
-            # failure_reason: a message-less exception must not log blank
-            _LOGGER.warning("Could not prefetch %s: %s", name, failure_reason(e))
-            _LOGGER.debug("Prefetch failure detail", exc_info=e)
+        warn_prefetch_failures(failures)
         if len(failures) == len(entries):
             # A systematic fault, not one flaky mirror: the resume
             # workaround (#17703) is off for this whole install
