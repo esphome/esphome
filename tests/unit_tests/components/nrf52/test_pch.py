@@ -80,6 +80,26 @@ def test_prepare_pch_unreadable_autoconf_fails_closed(
     assert "Could not read" in caplog.text
 
 
+def test_app_build_dir_sysbuild_layout(build_dir: Path) -> None:
+    app = build_dir / "zephyr"
+    app.mkdir()
+    (app / "CMakeCache.txt").write_text("")
+    assert nrf52._app_build_dir(build_dir) == app
+
+
+def test_app_build_dir_top_level_layout(build_dir: Path) -> None:
+    # Non-sysbuild: build_dir/zephyr is the Zephyr output dir, no cache
+    (build_dir / "zephyr").mkdir()
+    assert nrf52._app_build_dir(build_dir) == build_dir
+
+
+def test_prepare_pch_writes_header_before_degrading(build_dir: Path) -> None:
+    # OBJECT_DEPENDS must be satisfied even when the pch degrades
+    with patch.object(nrf52.pch, "prepare_pch"):
+        nrf52._prepare_pch(build_dir)
+    assert (build_dir / "esphome_pch.h").is_file()
+
+
 def test_prepare_pch_extras_carry_build_identity(build_dir: Path) -> None:
     _write_autoconf(build_dir, "#define CONFIG_GPIO 1\n")
     with (
@@ -91,6 +111,7 @@ def test_prepare_pch_extras_carry_build_identity(build_dir: Path) -> None:
         patch.object(nrf52.pch, "prepare_pch") as prepare,
     ):
         nrf52._prepare_pch(build_dir)
+    assert (build_dir / "esphome_pch.h").is_file()
     (passed_dir, headers, extras) = prepare.call_args.args
     assert passed_dir == build_dir
     assert headers == nrf52.PCH_DEFAULT_HEADERS
@@ -174,13 +195,22 @@ class TestRunCompilePhases:
 
     def test_missing_db_runs_cmake_phase(self, compile_ctx) -> None:
         run_cmd, prepare, build_dir = compile_ctx
-        run_cmd.side_effect = [True, False]  # cmake-only ok, final build fails
+        results = iter([True, False])  # cmake-only ok, final build fails
+
+        def west(cmd, **kwargs):
+            # Phase 1 configures the sysbuild app domain
+            app = build_dir / "zephyr"
+            app.mkdir(parents=True, exist_ok=True)
+            (app / "CMakeCache.txt").write_text("")
+            return next(results)
+
+        run_cmd.side_effect = west
         with pytest.raises(EsphomeError, match="nRF52 native build failed"):
             self._run()
         assert "--cmake-only" in run_cmd.call_args_list[0].args[0]
         assert "--cmake-only" not in run_cmd.call_args_list[1].args[0]
-        assert prepare.called
-        assert (build_dir / "esphome_pch.h").is_file()
+        # The pch is prepared in the app domain dir, not the sysbuild root
+        assert prepare.call_args.args[0] == build_dir / "zephyr"
 
     def test_cmake_phase_failure_raises(self, compile_ctx) -> None:
         run_cmd, prepare, _ = compile_ctx
@@ -201,6 +231,20 @@ class TestRunCompilePhases:
         assert run_cmd.call_count == 1
         assert "--cmake-only" not in run_cmd.call_args.args[0]
         assert prepare.called
+
+    def test_settled_sysbuild_db_skips_cmake_phase(self, compile_ctx) -> None:
+        run_cmd, prepare, build_dir = compile_ctx
+        app = build_dir / "zephyr"
+        app.mkdir(parents=True)
+        (build_dir / "CMakeCache.txt").write_text("")
+        (app / "CMakeCache.txt").write_text("")
+        (app / "compile_commands.json").write_text("[]")
+        run_cmd.side_effect = [False]
+        with pytest.raises(EsphomeError, match="nRF52 native build failed"):
+            self._run()
+        assert run_cmd.call_count == 1
+        assert "--cmake-only" not in run_cmd.call_args.args[0]
+        assert prepare.call_args.args[0] == app
 
     def test_disabled_skips_header_and_cmake_phase(
         self, monkeypatch: pytest.MonkeyPatch, compile_ctx

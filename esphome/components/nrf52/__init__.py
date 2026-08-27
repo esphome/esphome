@@ -847,17 +847,35 @@ def _generate_cmake_lists() -> bool:
     )
 
 
-def _prepare_pch(build_dir: Path) -> None:
+def _app_build_dir(build_dir: Path) -> Path:
+    """The CMake binary dir of the application image.
+
+    Sysbuild (SDK >= 2.9.2) nests the app in a domain dir named after the
+    app source dir ("zephyr"); older SDKs configure it at the top level.
+    In the non-sysbuild layout build_dir/zephyr is the Zephyr output dir,
+    which has no CMakeCache.txt, so the probe cannot misfire."""
+    sysbuild_app = build_dir / "zephyr"
+    if (sysbuild_app / "CMakeCache.txt").is_file():
+        return sysbuild_app
+    return build_dir
+
+
+def _prepare_pch(app_dir: Path) -> None:
     """Build the .gch between the cmake and compile phases of west."""
     if not pch_enabled():
-        pch.discard_pch(build_dir)
+        pch.discard_pch(app_dir)
         pch.pch_disabled_degraded()
         return
-    autoconf = next(build_dir.glob("zephyr/include/generated/**/autoconf.h"), None)
+    # First, so OBJECT_DEPENDS is satisfied even when the pch degrades
+    app_dir.mkdir(parents=True, exist_ok=True)
+    write_file_if_changed(
+        app_dir / PCH_HEADER_NAME, pch_header_text(PCH_DEFAULT_HEADERS)
+    )
+    autoconf = next(app_dir.glob("zephyr/include/generated/**/autoconf.h"), None)
     if autoconf is None:
         # Fail closed: autoconf.h is the .sum's Kconfig identity
         _LOGGER.warning("No autoconf.h found; compiling without the pch")
-        pch.discard_pch(build_dir)
+        pch.discard_pch(app_dir)
         pch.pch_degraded("autoconf.h missing")
         return
     try:
@@ -866,11 +884,11 @@ def _prepare_pch(build_dir: Path) -> None:
         _LOGGER.warning(
             "Could not read %s; compiling without the pch: %s", autoconf, err
         )
-        pch.discard_pch(build_dir)
+        pch.discard_pch(app_dir)
         pch.pch_degraded(f"autoconf unreadable: {err}")
         return
     pch.prepare_pch(
-        build_dir,
+        app_dir,
         PCH_DEFAULT_HEADERS,
         (
             str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
@@ -934,11 +952,6 @@ def run_compile(args, config: ConfigType) -> bool:
     ]
 
     if pch_enabled():
-        # Before the cmake phase: OBJECT_DEPENDS names the header
-        build_dir.mkdir(parents=True, exist_ok=True)
-        write_file_if_changed(
-            build_dir / PCH_HEADER_NAME, pch_header_text(PCH_DEFAULT_HEADERS)
-        )
         # Consumers carry the -include; gate the ccache relaxation on it
         # (Zephyr auto-enables ccache as the compiler launcher when found)
         mark_pch_emitted()
@@ -946,9 +959,13 @@ def run_compile(args, config: ConfigType) -> bool:
 
         # Split west into configure + build so the .gch is compiled from the
         # settled compile_commands.json flags between the two phases. Only
-        # when the DB is missing: any input change wipes the build dir, so
-        # an existing DB is settled, and --cmake-only always reconfigures
-        if not (build_dir / "compile_commands.json").is_file() and not run_command_ok(
+        # when the app DB is missing: any input change wipes the build dir,
+        # so an existing DB is settled, and --cmake-only reconfigures.
+        # Sysbuild configures the app image during its own configure, so the
+        # app's flags and autoconf.h are settled after this phase too.
+        if not (
+            _app_build_dir(build_dir) / "compile_commands.json"
+        ).is_file() and not run_command_ok(
             west_cmd + ["--cmake-only", "--", "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"],
             env=env,
             stream_output=True,
@@ -957,13 +974,14 @@ def run_compile(args, config: ConfigType) -> bool:
             raise EsphomeError("nRF52 native build failed")
 
     # An optional speedup must never abort the build
+    app_dir = _app_build_dir(build_dir)
     try:
-        _prepare_pch(build_dir)
+        _prepare_pch(app_dir)
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Strict first: its own knob error must not mask the real failure
         strict = pch.pch_strict()
         # Raises itself if a stale .gch survives (silently wrong output)
-        pch.discard_pch(build_dir)
+        pch.discard_pch(app_dir)
         if strict:
             raise
         _LOGGER.warning(
