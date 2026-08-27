@@ -3,6 +3,8 @@ substitutions:
   rst_pin: GPIO13
   busy_pin: GPIO25
   dio1_pin: GPIO26
+  rx_enable_pin: GPIO27
+  tx_enable_pin: GPIO14
 
 packages:
   spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
