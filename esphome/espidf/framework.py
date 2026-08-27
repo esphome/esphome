@@ -1053,15 +1053,28 @@ def _check_esp_idf_python_env_install(
             constraint_file_path,
         )
 
-        cmd_pip_install = [
-            str(env_python_path),
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--constraint",
-            constraint_file_path,
-        ]
+        # uv (much faster than pip) when available, e.g. in the docker image
+        if uv_path := shutil.which("uv"):
+            cmd_pip_install = [
+                uv_path,
+                "pip",
+                "install",
+                "--python",
+                str(env_python_path),
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
+        else:
+            cmd_pip_install = [
+                str(env_python_path),
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "--constraint",
+                str(constraint_file_path),
+            ]
 
         _LOGGER.info("Installing ESP-IDF %s Python dependencies ...", version)
         cmd = cmd_pip_install + [
