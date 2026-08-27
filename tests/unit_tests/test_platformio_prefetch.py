@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from filelock import Timeout
+from platformio.dependencies import get_core_dependencies
 from platformio.package.manager._install import PackageManagerInstallMixin
 from platformio.package.manager.base import BasePackageManager
 from platformio.package.manager.library import LibraryPackageManager
@@ -1786,8 +1787,6 @@ def test_platformio_private_api_contract() -> None:
     # The dependency wave mirrors install_dependency's builtin skip
     assert callable(LibraryPackageManager.is_builtin_lib)
     # The prefetch keys tool-scons on this core dependency
-    from platformio.dependencies import get_core_dependencies
-
     assert "tool-scons" in get_core_dependencies()
     # The pre-install passes these positionally / by keyword
     assert "compatibility" in inspect.signature(BasePackageManager.__init__).parameters
