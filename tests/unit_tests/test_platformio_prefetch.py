@@ -10,7 +10,7 @@ import signal
 import sys
 import threading
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from filelock import Timeout
 from platformio.package.manager._install import PackageManagerInstallMixin
@@ -1417,42 +1417,28 @@ def test_prefetch_installs_cached_archives_without_downloads(
     assert not (tmp_path / pf._SENTINEL_NAME).exists()
 
 
-def test_prefetch_reconfigures_after_platform_installs(tmp_path: Path) -> None:
-    """Platform installs get a second configure pass, sys.path restored."""
-    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
-    fake_platform = MagicMock()
-    fake_platform.packages = {}
-    bogus = str(tmp_path / "penv-site-packages")
-    fake_platform.configure_project_packages.side_effect = lambda env, targets: (
-        sys.path.insert(0, bogus)
-    )
-    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
-    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    with (
-        patch.dict("sys.modules", modules),
-        patch.object(
-            pf,
-            "_registry_jobs",
-            side_effect=[
-                ([], 0, [("toolchain-x@1", _FakeSpec(name="toolchain-x"))]),
-                ([], 0, []),
-            ],
+@pytest.mark.parametrize(
+    ("platform_group", "lib_group", "expected"),
+    [
+        (
+            [("toolchain-x@1", _FakeSpec(name="toolchain-x"))],
+            [],
+            ["configure", "install", "configure"],
         ),
-        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
-        patch.object(pf, "_preinstall"),
-    ):
-        pf._prefetch(tmp_path, "testenv")
-    assert fake_platform.configure_project_packages.call_args_list == [
-        call("testenv", ["run"]),
-        call("testenv", ["run"]),
-    ]
-    assert bogus not in sys.path
-
-
-def test_prefetch_library_installs_do_not_reconfigure(tmp_path: Path) -> None:
+        ([], [("noise-c@1.0", _FakeSpec(name="noise-c"))], ["configure", "install"]),
+    ],
+)
+def test_prefetch_reconfigures_only_after_platform_installs(
+    tmp_path: Path, platform_group: list, lib_group: list, expected: list[str]
+) -> None:
+    """Installed platform packages get a second configure pass; libraries do not."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    order: list[str] = []
     fake_platform = MagicMock()
     fake_platform.packages = {}
+    fake_platform.configure_project_packages.side_effect = lambda env, targets: (
+        order.append("configure")
+    )
     config = _fake_config(
         tmp_path, {"platform": "fake/p@1", "lib_deps": ["esphome/noise-c@1.0"]}
     )
@@ -1462,17 +1448,13 @@ def test_prefetch_library_installs_do_not_reconfigure(tmp_path: Path) -> None:
         patch.object(
             pf,
             "_registry_jobs",
-            side_effect=[
-                ([], 0, []),
-                ([], 0, [("noise-c@1.0", _FakeSpec(name="noise-c"))]),
-            ],
+            side_effect=[([], 0, platform_group), ([], 0, lib_group)],
         ),
         patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
-        patch.object(pf, "_preinstall") as mock_install,
+        patch.object(pf, "_preinstall", side_effect=lambda *_: order.append("install")),
     ):
         pf._prefetch(tmp_path, "testenv")
-    mock_install.assert_called_once()
-    fake_platform.configure_project_packages.assert_called_once_with("testenv", ["run"])
+    assert order == expected
 
 
 def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:

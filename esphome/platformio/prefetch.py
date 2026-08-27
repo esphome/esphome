@@ -17,7 +17,7 @@ name and promote with an atomic rename.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 import hashlib
 import json
 import logging
@@ -42,6 +42,17 @@ from esphome.framework_helpers import (
 from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@contextmanager
+def _preserved_sys_path():
+    """Platform setup may rewrite sys.path (pioarduino's penv does); undo it."""
+    saved = list(sys.path)
+    try:
+        yield
+    finally:
+        sys.path[:] = saved
+
 
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
@@ -772,13 +783,9 @@ def _preinstall(
         # poison the next wave; pio run installs the rest cleanly
         _LOGGER.warning("Skipping the dependency wave")
         return
-    # The builtin probe may construct platforms whose setup rewrites
-    # sys.path (see _prefetch); restore it for later imports
-    saved_sys_path = list(sys.path)
-    try:
+    # The builtin probe may construct platforms
+    with _preserved_sys_path():
         next_entries = _dependency_entries(manager, installed, seen)
-    finally:
-        sys.path[:] = saved_sys_path
     if next_entries:
         # Terminates without a cap: every wave admits only never-seen
         # names, so a cycle yields an empty next wave
@@ -803,15 +810,13 @@ def _prefetch(build_dir: Path, env: str) -> None:
         return
 
     # The platform (manifest plus build scripts) installs first and
-    # resolves the rest. Its setup may rewrite sys.path (pioarduino's penv
-    # setup does); restore it so later imports here still resolve.
-    saved_sys_path = list(sys.path)
+    # resolves the rest
     pm = PlatformPackageManager()
     _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
     pkg = pm.install(platform_spec, skip_dependencies=True)
     p = PlatformFactory.new(pkg)
-    p.configure_project_packages(env, ["run"])
-    sys.path[:] = saved_sys_path
+    with _preserved_sys_path():
+        p.configure_project_packages(env, ["run"])
 
     specs = [
         p.get_package_spec(name)
@@ -890,7 +895,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             encoding="utf-8",
         )
 
-    platform_installed = False
+    platform_packages_installed = False
     for mgr, entries in groups:
         # One install per destination: pio derives the directory from
         # the package name, so key on the name part
@@ -902,7 +907,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
         if to_install:
             try:
                 _preinstall(mgr, list(to_install.values()))
-                platform_installed |= mgr is p.pm
+                if mgr is p.pm:
+                    platform_packages_installed = True
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Each group degrades independently; pio run installs
                 # whatever this one did not
@@ -912,12 +918,18 @@ def _prefetch(build_dir: Path, env: str) -> None:
                     failure_reason(err),
                 )
                 _LOGGER.debug("Pre-install group failure detail", exc_info=True)
-    if platform_installed:
+    if platform_packages_installed:
         # pioarduino installs its real toolchains from configure (the registry
-        # package is a stub); run it again so pio run does not redo the install
-        saved_sys_path = list(sys.path)
-        p.configure_project_packages(env, ["run"])
-        sys.path[:] = saved_sys_path
+        # package is a stub); settle that here so pio run does not reinstall
+        # the stubs and copy every toolchain again
+        try:
+            with _preserved_sys_path():
+                p.configure_project_packages(env, ["run"])
+        except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+            _LOGGER.warning(
+                "Could not settle platform packages: %s", failure_reason(err)
+            )
+            _LOGGER.debug("Platform settle failure detail", exc_info=True)
 
 
 def _sigterm(_signum, _frame) -> None:
