@@ -71,12 +71,17 @@ class _Tool:
         if self._broken:
             raise ToolBinaryError("broken binary")
 
+    def get_path_for_version(self, version: str) -> str:
+        return str(pathlib.Path(g.idf_tools_path) / "tools" / self.name / version)
+
     def install(self, version: str) -> None:
-        # Real idf_tools' check_binary_valid failure path exits the process
-        if os.environ.get("TEST_FAIL_INSTALL") == self.name:
-            raise SystemExit(1)
-        dest = pathlib.Path(g.idf_tools_path) / "tools" / self.name / version
+        dest = pathlib.Path(self.get_path_for_version(version))
         dest.mkdir(exist_ok=True, parents=True)
+        if self.name in os.environ.get("TEST_FAIL_INSTALL", "").split(","):
+            # Fail mid-install like a torn unpack: the partial dir is left
+            # behind and check_binary_valid's failure path exits the process
+            (dest / ".partial").write_text("torn", encoding="utf-8")
+            raise SystemExit(1)
         (dest / ".installed").write_text("ok", encoding="utf-8")
 
 

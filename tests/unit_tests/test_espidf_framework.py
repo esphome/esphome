@@ -2136,8 +2136,8 @@ def test_install_tool_archives_failed_install_left_to_installer(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A per-tool failure (SystemExit from the binary check) warns and moves
-    on; the other tools still install."""
+    """A per-tool failure warns, removes the torn dest dir so the installer
+    cannot trust it, and moves on; the other tools still install."""
     _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
     monkeypatch.setenv("TEST_FAIL_INSTALL", "ninja")
     _run_espidf_script_inprocess(
@@ -2145,8 +2145,30 @@ def test_install_tool_archives_failed_install_left_to_installer(
     )
     tools = tmp_path / "tp" / "tools"
     assert (tools / "cmake" / "3.30.2" / ".installed").is_file()
-    assert not (tools / "ninja").exists()
-    assert "pre-extracting ninja@1.12.1 failed" in capsys.readouterr().err
+    assert not (tools / "ninja" / "1.12.1").exists()
+    err = capsys.readouterr().err
+    assert "pre-extracting ninja@1.12.1 failed" in err
+    assert "1 of 2 pre-extractions failed" in err
+
+
+def test_install_tool_archives_all_failed_exits_nonzero(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Every job failing is a systematic fault; the nonzero exit lets the
+    caller log it."""
+    _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
+    monkeypatch.setenv("TEST_FAIL_INSTALL", "cmake,ninja")
+    with pytest.raises(SystemExit) as excinfo:
+        _run_espidf_script_inprocess(
+            tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
+        )
+    assert excinfo.value.code == 1
+    assert "2 of 2 pre-extractions failed" in capsys.readouterr().err
+    tools = tmp_path / "tp" / "tools"
+    assert not (tools / "cmake" / "3.30.2").exists()
+    assert not (tools / "ninja" / "1.12.1").exists()
 
 
 def test_install_tool_archives_inprocess_dedupes_and_skips(
