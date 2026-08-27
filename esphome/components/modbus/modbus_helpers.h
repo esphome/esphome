@@ -119,7 +119,9 @@ enum class SensorValueType : uint8_t {
   U_QWORD_R = 0xA,
   S_QWORD_R = 0xB,
   FP32 = 0xC,
-  FP32_R = 0xD
+  FP32_R = 0xD,
+  U_WORD_S = 0xE,  // 1 Register unsigned, bytes swapped
+  S_WORD_S = 0xF,  // 1 Register signed, bytes swapped
 };
 
 inline bool value_type_is_float(SensorValueType v) {
@@ -283,6 +285,10 @@ template<typename Container> void number_to_payload(Container &data, int64_t val
     case SensorValueType::U_WORD:
     case SensorValueType::S_WORD:
       data.push_back(value & 0xFFFF);
+      break;
+    case SensorValueType::U_WORD_S:
+    case SensorValueType::S_WORD_S:
+      data.push_back(byteswap(static_cast<uint16_t>(value & 0xFFFF)));
       break;
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:

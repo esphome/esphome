@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from esphome.helpers import fnv1_hash_object_id, sanitize, snake_case
+from esphome.helpers import fnv1_hash_name, sanitize, snake_case
 
 if TYPE_CHECKING:
     from aioesphomeapi import DeviceInfo, EntityInfo
@@ -25,15 +25,16 @@ def infer_name_add_mac_suffix(device_info: DeviceInfo) -> bool:
     return device_info.name.endswith(f"-{mac_suffix}")
 
 
-def _get_name_for_object_id(
+def _resolve_entity_name(
     entity: EntityInfo,
     device_info: DeviceInfo,
     device_id_to_name: dict[int, str],
 ) -> str:
-    """Get the name used for object_id computation.
+    """Resolve the effective name for an entity.
 
     This is the algorithm that aioesphomeapi will use to determine which
-    name to use for computing object_id client-side from API data.
+    name to use for computing object_id client-side from API data; the same
+    name is what the device hashes into the entity key.
 
     Args:
         entity: The entity to get name for
@@ -72,27 +73,27 @@ def compute_entity_object_id(
     Returns:
         The computed object_id string
     """
-    name_for_id = _get_name_for_object_id(entity, device_info, device_id_to_name)
-    return compute_object_id(name_for_id)
+    name = _resolve_entity_name(entity, device_info, device_id_to_name)
+    return compute_object_id(name)
 
 
-def compute_entity_hash(
+def compute_entity_key(
     entity: EntityInfo,
     device_info: DeviceInfo,
     device_id_to_name: dict[int, str],
 ) -> int:
-    """Compute expected object_id hash for an entity.
+    """Compute expected entity key for an entity.
 
     Args:
-        entity: The entity to compute hash for
+        entity: The entity to compute the key for
         device_info: Device info from the API
         device_id_to_name: Mapping of device_id to device name for sub-devices
 
     Returns:
-        The computed FNV-1 hash
+        The computed FNV-1 hash of the raw name
     """
-    name_for_id = _get_name_for_object_id(entity, device_info, device_id_to_name)
-    return fnv1_hash_object_id(name_for_id)
+    name = _resolve_entity_name(entity, device_info, device_id_to_name)
+    return fnv1_hash_name(name)
 
 
 def verify_entity_object_id(
@@ -118,7 +119,7 @@ def verify_entity_object_id(
         f"expected '{expected_object_id}', got '{entity.object_id}'"
     )
 
-    expected_hash = compute_entity_hash(entity, device_info, device_id_to_name)
+    expected_hash = compute_entity_key(entity, device_info, device_id_to_name)
     assert entity.key == expected_hash, (
         f"hash mismatch for entity '{entity.name}': "
         f"expected {expected_hash:#x}, got {entity.key:#x}"

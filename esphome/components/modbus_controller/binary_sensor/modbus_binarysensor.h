@@ -13,8 +13,8 @@ class ModbusBinarySensor final : public Component, public binary_sensor::BinaryS
   ModbusBinarySensor(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                      uint16_t skip_updates, bool force_new_range) {
     this->register_type = register_type;
-    this->start_address = start_address;
-    this->offset = offset;
+    this->set_address(start_address);
+    this->set_offset_from_start_address(offset);
     this->bitmask = bitmask;
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = skip_updates;
@@ -27,12 +27,12 @@ class ModbusBinarySensor final : public Component, public binary_sensor::BinaryS
     }
   }
 
-  void parse_and_publish(const std::vector<uint8_t> &data) override;
+  void parse_and_publish(std::span<const uint8_t> data) override;
   void set_state(bool state) { this->state = state; }
 
   void dump_config() override;
 
-  using transform_func_t = optional<bool> (*)(ModbusBinarySensor *, bool, const std::vector<uint8_t> &);
+  using transform_func_t = optional<bool> (*)(ModbusBinarySensor *, bool, std::span<const uint8_t>);
   void set_template(transform_func_t f) { this->transform_func_ = f; }
 
  protected:

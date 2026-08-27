@@ -171,9 +171,11 @@ void BK72xxBLETracker::on_scan_report(const bk72xx_ble::BLEScanReport &report) {
   ble_device_base::ESPBTDevice device;
   device.from_scan_result(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
   bool found = false;
-  for (auto *listener : this->listeners_)
-    if (listener->parse_device(device))
+  for (auto *listener : this->listeners_) {
+    if (listener->parse_device(device)) {
       found = true;
+    }
+  }
   // Mirror esp32_ble_tracker: log a newly-seen device only when nothing claimed
   // it and the scan is one-shot (continuous scans would spam).
   if (!found && !this->scan_continuous_)

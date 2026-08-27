@@ -17,7 +17,11 @@ pip3 install -r requirements.txt -r requirements_test.txt -r requirements_dev.tx
 pip3 install setuptools wheel
 pip3 install -e ".[dev,test]" --config-settings editable_mode=compat
 
-pre-commit install
+rem --overwrite replaces any hook already in place. Without it, prek finds a
+rem previously installed pre-commit hook, moves it aside to
+rem .git/hooks/pre-commit.legacy and keeps calling it, so every commit would
+rem run both tools.
+prek install --overwrite
 
 echo .
 echo .

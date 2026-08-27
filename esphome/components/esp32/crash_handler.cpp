@@ -4,6 +4,7 @@
 #ifdef USE_ESP32_CRASH_HANDLER
 
 #include "crash_handler.h"
+#include "esphome/core/build_info_data.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -122,7 +123,7 @@ static uint8_t IRAM_ATTR capture_riscv_backtrace(RvExcFrame *frame, uint32_t *ou
 // Magic is second to validate the data. Remaining fields can change between versions.
 // Version is uint32_t because it would be padded to 4 bytes anyway before the next
 // uint32_t field, so we use the full width rather than wasting 3 bytes of padding.
-static constexpr uint32_t CRASH_DATA_VERSION = 3;
+static constexpr uint32_t CRASH_DATA_VERSION = 4;
 struct RawCrashData {
   uint32_t version;
   uint32_t magic;
@@ -134,6 +135,7 @@ struct RawCrashData {
   uint32_t backtrace[MAX_BACKTRACE];
   uint32_t cause;       // Architecture-specific: exccause (Xtensa) or mcause (RISC-V)
   uint32_t fault_addr;  // Faulting memory address: excvaddr (Xtensa) or mtval (RISC-V)
+  uint32_t build_time;  // ESPHOME_BUILD_TIME of the firmware that captured this record
   uint8_t crashed_core;
 #if SOC_CPU_CORES_NUM > 1
   static_assert(SOC_CPU_CORES_NUM == 2, "Dual-core logic assumes exactly 2 cores");
@@ -151,6 +153,16 @@ static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-c
 namespace esphome::esp32 {
 
 static const char *const TAG = "esp32.crash";
+
+// RAM copy of the build timestamp. The generated constant lives in flash,
+// which the panic handler must not read (cache may be disabled during
+// cache-error panics), so the wrapper stamps the record from this mirror
+// instead. Filled during C++ dynamic initialization, well before arch_init();
+// ESPHOME_BUILD_TIME itself is constant-initialized, so the read is ordered.
+// Unqualified name on purpose: the runtime header declares it in namespace
+// esphome, while the static-analysis stub defines it as a macro.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static uint32_t s_current_build_time = static_cast<uint32_t>(ESPHOME_BUILD_TIME);
 
 void crash_handler_read_and_clear() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
@@ -331,6 +343,66 @@ static int append_addrs_to_hint(char *buf, int size, int pos, const uint32_t *ad
   return pos;
 }
 
+// Register holding the faulting memory address, named as in ESP-IDF's live
+// register dump. The lowercase form is for old-build reports, where the
+// stacktrace decoders must not match the line.
+#if CONFIG_IDF_TARGET_ARCH_XTENSA
+static const char *const FAULT_ADDR_REG = "EXCVADDR";
+static const char *const FAULT_ADDR_REG_LOWER = "excvaddr";
+#elif CONFIG_IDF_TARGET_ARCH_RISCV
+static const char *const FAULT_ADDR_REG = "MTVAL";
+static const char *const FAULT_ADDR_REG_LOWER = "mtval";
+#endif
+
+// Whether the fault address is meaningful — real CPU faults only, not
+// aborts/watchdogs or SoC-level pseudo exceptions.
+static bool has_fault_addr() {
+  return s_raw_crash_data.exception == PANIC_EXCEPTION_FAULT && !s_raw_crash_data.pseudo_excause;
+}
+
+// Append both cores' backtrace addresses to buf; returns the new position.
+static int append_all_backtraces(char *buf, int size, int pos) {
+  pos = append_addrs_to_hint(buf, size, pos, s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
+                             s_raw_crash_data.reg_frame_count);
+#if SOC_CPU_CORES_NUM > 1
+  pos = append_addrs_to_hint(buf, size, pos, s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count,
+                             s_raw_crash_data.other_reg_frame_count);
+#endif
+  return pos;
+}
+
+// The record was captured by a different firmware build (it survives soft
+// resets, including the OTA reboot), so symbolizing its addresses against the
+// current ELF would produce misleading symbols. Print them with lowercase
+// labels the stacktrace decoders deliberately do not match, and skip the
+// addr2line hint. One line per address so nothing is lost to a shared buffer.
+// No is_return_addr() filtering here: it would inspect the current build's
+// code bytes, which say nothing about addresses captured by the old build.
+static uint8_t log_foreign_backtrace(const uint32_t *addrs, uint8_t count, uint8_t bt_num) {
+  for (uint8_t i = 0; i < count; i++) {
+    ESP_LOGE(TAG, "  bt%d: 0x%08" PRIX32, bt_num++, addrs[i]);
+  }
+  return bt_num;
+}
+
+static void log_foreign_addresses() {
+  ESP_LOGE(TAG, "  Captured by a different firmware build; addresses belong to that build's ELF");
+  ESP_LOGE(TAG, "  pc: 0x%08" PRIX32, s_raw_crash_data.pc);
+  if (has_fault_addr()) {
+    ESP_LOGE(TAG, "  %s: 0x%08" PRIX32, FAULT_ADDR_REG_LOWER, s_raw_crash_data.fault_addr);
+  }
+  uint8_t bt_num = log_foreign_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count, 0);
+#if SOC_CPU_CORES_NUM > 1
+  if (s_raw_crash_data.other_backtrace_count > 0) {
+    // Lowercase like the address labels: carries no address, matches no decoder.
+    ESP_LOGE(TAG, "  other core (%d):", 1 - s_raw_crash_data.crashed_core);
+    log_foreign_backtrace(s_raw_crash_data.other_backtrace, s_raw_crash_data.other_backtrace_count, bt_num);
+  }
+#else
+  (void) bt_num;  // Single-core targets have no second list to continue numbering into.
+#endif
+}
+
 // Intentionally uses separate ESP_LOGE calls per line instead of combining into
 // one multi-line log message. This ensures each address appears as its own line
 // on the serial console, making it possible to see partial output if the device
@@ -348,18 +420,17 @@ void crash_handler_log() {
     ESP_LOGE(TAG, "  Reason: %s", get_exception_type());
   }
   ESP_LOGE(TAG, "  Crashed core: %d", s_raw_crash_data.crashed_core);
+  if (s_raw_crash_data.build_time != s_current_build_time) {
+    // Captured by a different firmware build: the record survives soft resets
+    // including the OTA reboot, so its addresses belong to a previous ELF.
+    log_foreign_addresses();
+    return;
+  }
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_raw_crash_data.pc);
-  // Faulting memory address — only meaningful for real CPU faults, not
-  // aborts/watchdogs or SoC-level pseudo exceptions. Uses the same register
-  // name as ESP-IDF's live register dump for the architecture (EXCVADDR on
-  // Xtensa, MTVAL on RISC-V) so the CLI decodes it when it happens to be a
-  // code address.
-  if (s_raw_crash_data.exception == PANIC_EXCEPTION_FAULT && !s_raw_crash_data.pseudo_excause) {
-#if CONFIG_IDF_TARGET_ARCH_XTENSA
-    ESP_LOGE(TAG, "  EXCVADDR: 0x%08" PRIX32 "  (faulting address)", s_raw_crash_data.fault_addr);
-#elif CONFIG_IDF_TARGET_ARCH_RISCV
-    ESP_LOGE(TAG, "  MTVAL: 0x%08" PRIX32 "  (faulting address)", s_raw_crash_data.fault_addr);
-#endif
+  // Uses the same register name as ESP-IDF's live register dump so the CLI
+  // decodes the address when it happens to be a code address.
+  if (has_fault_addr()) {
+    ESP_LOGE(TAG, "  %s: 0x%08" PRIX32 "  (faulting address)", FAULT_ADDR_REG, s_raw_crash_data.fault_addr);
   }
   log_backtrace(s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count, s_raw_crash_data.reg_frame_count);
 
@@ -375,14 +446,7 @@ void crash_handler_log() {
   // Build addr2line hint with all captured addresses for easy copy-paste
   char hint[256];
   int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, s_raw_crash_data.pc);
-  pos = append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
-                             s_raw_crash_data.reg_frame_count);
-#if SOC_CPU_CORES_NUM > 1
-  append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
-                       s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
-#else
-  (void) pos;  // There is no second-core append on single-core targets, so pos would otherwise be unread.
-#endif
+  append_all_backtraces(hint, sizeof(hint), pos);
   ESP_LOGE(TAG, "%s", hint);
 }
 
@@ -408,6 +472,11 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Zero unconditionally so a null frame doesn't leave stale .noinit data from a previous boot
   s_raw_crash_data.cause = 0;
   s_raw_crash_data.fault_addr = 0;
+  // Record which build's ELF the captured addresses belong to (RAM read, panic-safe).
+  // Still 0 if the panic precedes C++ dynamic initialization, so such a crash
+  // reports as a foreign build — conservative: addresses are shown raw instead
+  // of decoded.
+  s_raw_crash_data.build_time = esphome::esp32::s_current_build_time;
 #if SOC_CPU_CORES_NUM > 1
   s_raw_crash_data.other_backtrace_count = 0;
   s_raw_crash_data.other_reg_frame_count = 0;

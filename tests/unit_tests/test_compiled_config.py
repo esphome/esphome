@@ -20,11 +20,13 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_NAME,
     KEY_CORE,
+    KEY_ESP32,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     KEY_VARIANT,
 )
 from esphome.core import CORE
+from esphome.yaml_util import ESPHomeDataBase
 
 _VALIDATED_CONFIG_YAML = """\
 esphome:
@@ -124,21 +126,21 @@ def test_load_compiled_config_happy_path(fresh_cache_files: Path) -> None:
     assert config[CONF_API]["encryption"]["key"] == "6dGhpcyBpcyBhIHRlc3Q="
     assert config["ota"][0]["password"] == "secret"
 
+    # The fast path loads without per-node source ranges (the full
+    # contract lives in test_yaml_util; this checks the flag is wired up).
+    assert not isinstance(config[CONF_ESPHOME][CONF_NAME], ESPHomeDataBase)
+
     # apply_to_core populated exactly what upload/logs read off CORE.
     assert CORE.name == "lite_test"
     assert CORE.build_path == Path("/build/lite_test")
     assert CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] == "esp32"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "arduino"
     # upload_using_esptool reads get_esp32_variant() off CORE.data[KEY_ESP32].
-    from esphome.components.esp32.const import KEY_ESP32
-
     assert CORE.data[KEY_ESP32][KEY_VARIANT] == "ESP32"
 
 
 def test_load_compiled_config_populates_esp32_variant(tmp_path: Path) -> None:
     """ESP32 variants survive the cache fast path so esptool gets the right --chip."""
-    from esphome.components.esp32.const import KEY_ESP32
-
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path
@@ -156,8 +158,6 @@ def test_load_compiled_config_skips_esp32_block_for_other_platforms(
     tmp_path: Path,
 ) -> None:
     """Non-esp32 targets shouldn't fabricate an esp32 data block."""
-    from esphome.components.esp32.const import KEY_ESP32
-
     yaml_path = tmp_path / "lite_test.yaml"
     yaml_path.write_text("esphome:\n  name: lite_test\n")
     CORE.config_path = yaml_path

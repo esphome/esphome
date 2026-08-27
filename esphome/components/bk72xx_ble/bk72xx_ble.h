@@ -6,10 +6,10 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/event_pool.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/lock_free_queue.h"
 
 #include <cstdint>
-#include <vector>
 
 namespace esphome::bk72xx_ble {
 
@@ -62,8 +62,12 @@ class BK72xxBLE final : public Component {
   /// Controller BLE address, least-significant octet first (BLE convention).
   void get_mac_lsb_first(uint8_t out[6]) const;
 
+#ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
   /// Register a consumer for scan reports (delivered on the main task via loop()).
+  /// Storage is codegen-sized: the consumer's codegen requests a slot via
+  /// request_scan_listener_slot(), which emits BK72XX_BLE_SCAN_LISTENER_COUNT.
   void register_scan_listener(BLEScanListener *listener) { this->scan_listeners_.push_back(listener); }
+#endif
 
   /// Start the controller scan. Interval/window are in BLE units (0.625 ms).
   /// Enables the stack first if needed. Returns false on controller failure.
@@ -78,7 +82,11 @@ class BK72xxBLE final : public Component {
  protected:
   void resolve_mac_();
 
-  std::vector<BLEScanListener *> scan_listeners_;
+#ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
+  // Codegen-sized: no heap allocation, no std::vector template instantiation —
+  // the same StaticVector pattern as the tracker's ble_device_base listeners.
+  StaticVector<BLEScanListener *, BK72XX_BLE_SCAN_LISTENER_COUNT> scan_listeners_;
+#endif
   // Report ring: the BDK notice callback (BLE task) allocates a report from the
   // pool, fills it and pushes the pointer; loop() pops, dispatches and releases.
   // Lock-free SPSC, zero allocation at steady state — the esp32_ble pattern.

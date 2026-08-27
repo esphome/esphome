@@ -13,8 +13,7 @@ from typing import Any, NoReturn
 
 import platformdirs
 
-from esphome.config_validation import Version
-from esphome.core import CORE
+from esphome.core import CORE, Version
 from esphome.framework_helpers import (
     PathType,
     archive_extract_all,

@@ -1,12 +1,11 @@
 import esphome.codegen as cg
-from esphome.components.api import CONF_ENCRYPTION
 from esphome.components.packet_transport import (
     CONF_PING_PONG_ENABLE,
     PacketTransport,
     new_packet_transport,
     transport_schema,
 )
-from esphome.const import CONF_BINARY_SENSORS, CONF_SENSORS
+from esphome.const import CONF_BINARY_SENSORS, CONF_ENCRYPTION, CONF_SENSORS
 from esphome.cpp_types import PollingComponent
 
 from .. import UDP_SCHEMA, register_udp_client, udp_ns

@@ -443,9 +443,11 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
   this->state_version_++;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_SCANNER_STATE_LISTENER_COUNT
   for (auto *listener : this->scanner_state_listeners_) {
     listener->on_scanner_state(state);
   }
+#endif
 }
 
 void ESP32BLETracker::dump_config() {

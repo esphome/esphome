@@ -5,7 +5,14 @@ from esphome import automation
 from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
+from esphome.const import (
+    CONF_ACTION,
+    CONF_GROUP,
+    CONF_ID,
+    CONF_POSITION,
+    CONF_ROTATION,
+    CONF_TIMEOUT,
+)
 from esphome.core import Lambda
 from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
@@ -28,6 +35,7 @@ from .defines import (
     get_focused_widgets,
     get_options,
     get_refreshed_widgets,
+    literal,
 )
 from .layout import layout_validator
 from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
@@ -36,6 +44,7 @@ from .lvcode import (
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
+    LvConditional,
     LvglComponent,
     ReturnStatement,
     add_line_marks,
@@ -374,6 +383,48 @@ async def obj_show_to_code(config, action_id, template_arg, args):
 
     widgets = [widget.outer or widget for widget in await get_widgets(config)]
     return await action_to_code(widgets, do_show, action_id, template_arg, args)
+
+
+SET_Z_INDEX_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.ensure_list(
+            cv.maybe_simple_value(
+                {cv.Required(CONF_ID): cv.use_id(lv_obj_t)},
+                key=CONF_ID,
+            )
+        ),
+        cv.Required(CONF_POSITION): cv.Any(
+            cv.one_of("TOP", "BOTTOM", "UP", "DOWN", upper=True), cv.int_
+        ),
+    }
+)
+
+
+@automation.register_action(
+    "lvgl.widget.set_z_index", ObjUpdateAction, SET_Z_INDEX_SCHEMA, synchronous=True
+)
+async def obj_set_z_index_to_code(config, action_id, template_arg, args):
+    position = config[CONF_POSITION]
+
+    async def do_set_z_index(widget: Widget):
+        if position == "TOP":
+            lv_obj.move_foreground(widget.obj)
+        elif position == "BOTTOM":
+            lv_obj.move_background(widget.obj)
+        elif position == "UP":
+            lv_obj.move_to_index(
+                widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} + 1")
+            )
+        elif position == "DOWN":
+            with LvConditional(f"{lv_expr.obj_get_index(widget.obj)} > 0"):
+                lv_obj.move_to_index(
+                    widget.obj, literal(f"{lv_expr.obj_get_index(widget.obj)} - 1")
+                )
+        else:
+            lv_obj.move_to_index(widget.obj, position)
+
+    widgets = [widget.outer or widget for widget in await get_widgets(config[CONF_ID])]
+    return await action_to_code(widgets, do_set_z_index, action_id, template_arg, args)
 
 
 def focused_id(value):

@@ -134,7 +134,7 @@ void ModbusController::on_register_data(modbus::EntityType register_type, uint16
                                         const std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "data for register address : 0x%X : ", start_address);
 
-  // loop through all sensors with the same start address
+  // loop through all sensors in this range; each reads its own bytes from the position resolved for it.
   auto sensors = find_sensors_(register_type, start_address);
   for (auto *sensor : sensors) {
     sensor->parse_and_publish(data);
@@ -211,100 +211,122 @@ size_t ModbusController::create_register_ranges_() {
     return 0;
   }
 
-  // iterator is sorted see SensorItemsComparator for details
-  auto ix = this->sensorset_.begin();
+  // Sensors are walked in the sensor set's order (see SensorItemsComparator): register type, then
+  // force_new_range ahead of the rest, then address - so the walk is not purely address-ordered.
+  // Each keeps the address it was configured with; what is resolved here is its `offset`, the position
+  // of its data within the response of whichever range it ends up in.
   RegisterRange r = {};
-  uint8_t buffer_offset = 0;
+  bool have_range = false;
+  // Set while the open range belongs to a force_new_range sensor: a range the user asked to keep
+  // separate must not quietly absorb other sensors.
+  bool range_forced = false;
+  // Set once a sensor has joined by sharing the range's start address, which widens the read. Only a
+  // widened range can absorb a later sensor by coverage: ranges that were kept apart before stay apart,
+  // so their frames and polling rates are untouched.
+  bool range_shared = false;
+  // Bytes the range's registers have consumed so far. An extending sensor starts after them, so a
+  // register that returns more bytes than its count implies pushes the sensors after it along.
+  // range_custom_size records whether any of them returns something other than two bytes per register,
+  // which is what makes a position inside the range impossible to work out from addresses alone. Coils
+  // count as such: they carry one bit per address, so bit ranges never take the coverage join.
+  size_t range_bytes = 0;
+  bool range_custom_size = false;
   SensorItem *prev = nullptr;
-  while (ix != this->sensorset_.end()) {
-    SensorItem *curr = *ix;
+  for (SensorItem *curr : this->sensorset_) {
+    ESP_LOGV(TAG, "Register: 0x%X count=%d size=%zu offset=%u skip=%u addr=%p", curr->start_address,
+             curr->register_count, curr->get_register_size(), curr->offset, curr->skip_updates, curr);
 
-    ESP_LOGV(TAG, "Register: 0x%X %d %d %zu offset=%u skip=%u addr=%p", curr->start_address, curr->register_count,
-             curr->offset, curr->get_register_size(), curr->offset, curr->skip_updates, curr);
+    const bool custom_size = curr->get_register_size() != static_cast<size_t>(curr->register_count) * 2;
 
-    if (r.register_count == 0) {
-      // this is the first register in range
+    bool join = false;
+    if (have_range && !curr->force_new_range && r.register_type == curr->register_type &&
+        curr->register_type != modbus::EntityType::CUSTOM) {
+      if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
+          prev->start_address + prev->register_count == r.start_address + r.register_count &&
+          curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
+        // A second sensor on the register(s) the previous one covers: it reads those same bytes,
+        // starting where that sensor's offset pointed, so a chain configured 0/2/4 resolves to 0/2/6.
+        // Both address tests matter. The first identifies the previous sensor's register by working back
+        // from the range's end, which only describes it while it actually sits there - hence the second.
+        // A sensor that joined mid-range must never anchor this, or the next one inherits its offset.
+        curr->offset = static_cast<uint8_t>(prev->offset + curr->offset_from_start_address);
+        join = true;
+        ESP_LOGV(TAG, "Re-use previous register 0x%X", curr->start_address);
+      } else if (curr->start_address == (r.start_address + r.register_count)) {
+        // The next contiguous register(s): the data begins after what the range has consumed so far -
+        // the byte cursor for registers, the distance in bits for coils.
+        curr->offset =
+            static_cast<uint8_t>((curr->addresses_bits() ? curr->start_address - r.start_address : range_bytes) +
+                                 curr->offset_from_start_address);
+        range_bytes += curr->get_register_size();
+        range_custom_size = range_custom_size || custom_size;
+        r.register_count += curr->register_count;
+        join = true;
+        ESP_LOGV(TAG, "Extend range to include 0x%X", curr->start_address);
+      } else if (range_shared && !range_forced && curr->start_address >= r.start_address &&
+                 curr->start_address + curr->register_count <= r.start_address + r.register_count &&
+                 !range_custom_size && !custom_size && curr->skip_updates == r.skip_updates) {
+        // The registers already fall inside a range that a shared-address join widened, so this sensor
+        // reads its slice of that response instead of adding an overlapping second poll. The guards keep
+        // it narrow: only a widened range, never a force-isolated one; only where every register in the
+        // range returns two bytes, so interior positions follow from the addresses; only sensors genuinely
+        // inside it, which is why the lower bound is needed given the walk is not address-ordered; and
+        // only where the polling rates already match, since joining runs this sensor through the rate
+        // merge below and would otherwise change one of them.
+        const uint16_t addr_delta = curr->start_address - r.start_address;
+        curr->offset = static_cast<uint8_t>((curr->addresses_bits() ? addr_delta : addr_delta * 2) +
+                                            curr->offset_from_start_address);
+        join = true;
+        ESP_LOGV(TAG, "Register 0x%X already covered by range 0x%X", curr->start_address, r.start_address);
+      }
+    }
+
+    // Sensors on the same start address have to share one range: a response is dispatched to a single
+    // range per (start_address, register_type), so a second range with that key would never receive
+    // data. This holds for force_new_range and custom entities too. The read widens to cover whichever
+    // sensor needs the most registers, which also fixes a short read for coils that use offset.
+    if (!join && have_range && r.register_type == curr->register_type && r.start_address == curr->start_address) {
+      curr->offset = curr->offset_from_start_address;  // shares the range start
+      r.register_count = std::max(r.register_count, curr->register_count);
+      range_bytes = std::max(range_bytes, curr->get_register_size());
+      range_custom_size = range_custom_size || custom_size;
+      range_shared = true;
+      range_forced = range_forced || curr->force_new_range;
+      join = true;
+      ESP_LOGV(TAG, "Share range start 0x%X", curr->start_address);
+    }
+
+    if (!join) {
+      if (have_range) {
+        ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
+        this->register_ranges_.push_back(std::move(r));
+      }
+      r = {};
+      range_bytes = curr->get_register_size();
+      range_custom_size = custom_size;
+      range_forced = curr->force_new_range;
+      range_shared = false;
+      curr->offset = curr->offset_from_start_address;
       r.start_address = curr->start_address;
       r.register_count = curr->register_count;
       r.register_type = curr->register_type;
-      r.sensors.insert(curr);
       r.skip_updates = curr->skip_updates;
       r.skip_updates_counter = 0;
-      buffer_offset = curr->get_register_size();
-
-      ESP_LOGV(TAG, "Started new range");
-    } else {
-      // this is not the first register in range so it might be possible
-      // to reuse the last register or extend the current range
-      if (!curr->force_new_range && r.register_type == curr->register_type &&
-          curr->register_type != modbus::EntityType::CUSTOM) {
-        if (curr->start_address == (r.start_address + r.register_count - prev->register_count) &&
-            curr->register_count == prev->register_count && curr->get_register_size() == prev->get_register_size()) {
-          // this register can re-use the data from the previous register
-
-          // remove this sensore because start_address is changed (sort-order)
-          ix = this->sensorset_.erase(ix);
-
-          curr->start_address = r.start_address;
-          curr->offset += prev->offset;
-
-          this->sensorset_.insert(curr);
-          // move iterator backwards because it will be incremented later
-          ix--;
-
-          ESP_LOGV(TAG, "Re-use previous register - change to register: 0x%X %d offset=%u", curr->start_address,
-                   curr->register_count, curr->offset);
-        } else if (curr->start_address == (r.start_address + r.register_count)) {
-          // this register can extend the current range
-
-          // remove this sensore because start_address is changed (sort-order)
-          ix = this->sensorset_.erase(ix);
-
-          curr->start_address = r.start_address;
-          curr->offset += buffer_offset;
-          buffer_offset += curr->get_register_size();
-          r.register_count += curr->register_count;
-
-          this->sensorset_.insert(curr);
-          // move iterator backwards because it will be incremented later
-          ix--;
-
-          ESP_LOGV(TAG, "Extend range - change to register: 0x%X %d offset=%u", curr->start_address,
-                   curr->register_count, curr->offset);
-        }
-      }
+      have_range = true;
+    } else if (curr->skip_updates != 0) {
+      // use the lowest non-zero skip_updates for the whole range (0 is the default and is excluded)
+      r.skip_updates = (r.skip_updates != 0) ? std::min(r.skip_updates, curr->skip_updates) : curr->skip_updates;
     }
 
-    if (curr->start_address == r.start_address && curr->register_type == r.register_type) {
-      // use the lowest non zero value for the whole range
-      // Because zero is the default value for skip_updates it is excluded from getting the min value.
-      if (curr->skip_updates != 0) {
-        if (r.skip_updates != 0) {
-          r.skip_updates = std::min(r.skip_updates, curr->skip_updates);
-        } else {
-          r.skip_updates = curr->skip_updates;
-        }
-      }
-
-      // add sensor to this range
-      r.sensors.insert(curr);
-
-      ix++;
-    } else {
-      ESP_LOGV(TAG, "Add range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
-      this->register_ranges_.push_back(r);
-      r = {};
-      buffer_offset = 0;
-      // do not increment the iterator here because the current sensor has to be re-evaluated
-    }
-
+    // Every member records its range's first register. The resolved offset is relative to it, so the
+    // two together give the sensor's real position, and the address a write entity targets.
+    curr->range_start_address = r.start_address;
+    r.sensors.insert(curr);
     prev = curr;
   }
-
-  if (r.register_count > 0) {
-    // Add the last range
+  if (have_range) {
     ESP_LOGV(TAG, "Add last range 0x%X %d skip:%d", r.start_address, r.register_count, r.skip_updates);
-    this->register_ranges_.push_back(r);
+    this->register_ranges_.push_back(std::move(r));
   }
 
   return this->register_ranges_.size();

@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WIFI,
 )
-from esphome.core import HexInt
+from esphome.core import CORE, HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -151,6 +151,10 @@ async def to_code(config):
 
     cg.add_define("USE_ESPNOW")
     cg.add_define("USE_ESPNOW_MAX_PAYLOAD_SIZE", config[CONF_MAX_PAYLOAD_SIZE])
+
+    if CONF_WIFI in CORE.config:
+        # Track the Wi-Fi channel via connect events instead of polling every loop
+        wifi.request_wifi_connect_state_listener()
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 

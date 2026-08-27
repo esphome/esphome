@@ -9,20 +9,18 @@ import re
 import shutil
 import subprocess
 
-from esphome.components.esp32.const import (
-    KEY_ESP32,
-    KEY_FLASH_SIZE,
-    KEY_IDF_VERSION,
-    KEY_VARIANT,
-    variant_to_idf_target,
-)
 from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_SOURCE,
+    KEY_ESP32,
+    KEY_FLASH_SIZE,
+    KEY_IDF_VERSION,
+    KEY_VARIANT,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.espidf import variant_to_idf_target
 from esphome.espidf.framework import check_esp_idf_install, get_framework_env
 from esphome.espidf.size_summary import print_summary
 from esphome.helpers import add_git_ceiling_directory

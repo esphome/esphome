@@ -29,6 +29,7 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.util import filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -128,6 +129,9 @@ class BundleData:
     """Files components asked to include, keyed under DOMAIN in CORE.data."""
 
     extra_files: list[Path] = field(default_factory=list)
+    # Directories whose YAML files are scanned for !secret references but
+    # never bundled, e.g. git package checkouts the builder re-fetches.
+    secret_scan_dirs: set[Path] = field(default_factory=set)
     # Original config dir parsed from an extracted bundle's manifest.json,
     # kept in the path flavor of the machine the bundle was created on.
     # The checked flag makes the manifest lookup happen at most once per run;
@@ -153,6 +157,30 @@ def add_bundle_file(path: Path) -> None:
     config directory are skipped when the bundle is built.
     """
     _get_data().extra_files.append(CORE.relative_config_path(path))
+
+
+def add_secret_scan_dir(path: Path) -> None:
+    """Register a directory to scan for ``!secret`` references when bundling.
+
+    The directory's files are not added to the bundle. Components call this
+    for YAML the build consumes without bundling it — such as git-fetched
+    packages, which the builder re-fetches — so the secrets those files
+    reference are still shipped in the filtered secrets file.
+
+    A relative path is taken as relative to the config directory.
+    """
+    if not path.is_absolute():
+        path = CORE.relative_config_path(path)
+    _get_data().secret_scan_dirs.add(path)
+
+
+def _secret_scan_yaml_files() -> list[Path]:
+    """Return the YAML files inside registered secret-scan directories."""
+    return filter_yaml_files(
+        f
+        for scan_dir in _get_data().secret_scan_dirs
+        for f in yaml_util.find_files(scan_dir, "*")
+    )
 
 
 # Windows paths start with a drive letter or contain backslashes; POSIX
@@ -310,6 +338,7 @@ class ConfigBundleCreator:
         yaml_sources = [
             bf.source for bf in files if bf.source.suffix in (".yaml", ".yml")
         ]
+        yaml_sources.extend(_secret_scan_yaml_files())
         used_secret_keys = _find_used_secret_keys(yaml_sources)
         filtered_secrets = self._build_filtered_secrets(used_secret_keys)
 
@@ -394,6 +423,13 @@ class ConfigBundleCreator:
         """
         discovered = yaml_util.discover_user_yaml_files(self._config_path)
         self._secrets_paths.update(discovered.secrets)
+        # A !secret inside a file this re-parse does not reach (for example
+        # a git-fetched package the builder re-fetches) still resolves
+        # against the config-dir secrets.yaml at build time, so always
+        # consider that file; filtering no-ops when no key matches.
+        default_secrets = self._config_dir / yaml_util.SECRET_YAML
+        if default_secrets.is_file():
+            self._secrets_paths.add(default_secrets.resolve())
         config_resolved = self._config_path.resolve()
         for fpath in discovered.files:
             if fpath == config_resolved:

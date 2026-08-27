@@ -55,17 +55,38 @@ lvgl:
           bg_color: 0x112233
           radius: 4
           styles: [picker_style]
+          # One value for six sliders: it must not be generated once per slider. The body
+          # is more than an expression so that it stays a lambda rather than being folded
+          # into a constant.
+          border_width: !lambda |-
+            int width = 3;
+            return width;
           pressed:
             styles: [picker_style]
           # Belongs to the widget as a whole, so it is reported and ignored here
           ext_click_area: 8
 
-    # Only the red, green and blue sliders, with a margin making them easier to press
+    # Only the red, green and blue sliders, with a margin making them easier to press.
+    # The scrolling options belong to the widget's own object, not to the sliders.
     - color_picker:
         id: picker_rgb
         width: 100
         sliders: rgb
         ext_click_area: 12
+        scrollbar_mode: "OFF"
+
+    # Black must not be mistaken for no colour at all
+    - color_picker:
+        id: picker_black
+        width: 100
+        color: 0x000000
+
+    # The knob background arrives through a named style rather than directly
+    - color_picker:
+        id: picker_knob_style
+        width: 100
+        knob:
+          styles: [picker_style]
 
     # Only the hue, saturation and brightness sliders, styled
     - color_picker:

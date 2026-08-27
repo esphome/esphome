@@ -25,7 +25,11 @@ fi
 uv pip install setuptools wheel
 uv pip install -e ".[dev,test]" --config-settings editable_mode=compat
 
-pre-commit install
+# --overwrite replaces any hook already in place. Without it, prek finds a
+# previously installed pre-commit hook, moves it aside to
+# .git/hooks/pre-commit.legacy and keeps calling it, so every commit would
+# run both tools.
+prek install --overwrite
 
 mkdir -p .temp
 

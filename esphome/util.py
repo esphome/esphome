@@ -1,5 +1,5 @@
 import collections
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 import io
 import logging
@@ -329,13 +329,6 @@ def is_dev_esphome_version():
     return "dev" in const.__version__
 
 
-def parse_esphome_version() -> tuple[int, int, int]:
-    match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
-    if match is None:
-        raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
-
-
 # Custom OrderedDict with nicer repr method for debugging
 class OrderedDict(collections.OrderedDict):
     def __repr__(self):
@@ -356,7 +349,7 @@ def list_yaml_files(configs: list[str | Path]) -> list[Path]:
     return sorted(files)
 
 
-def filter_yaml_files(files: list[Path]) -> list[Path]:
+def filter_yaml_files(files: Iterable[Path]) -> list[Path]:
     return [
         f
         for f in files

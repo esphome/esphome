@@ -177,7 +177,9 @@ bool is_client_pdu_standard(const uint8_t *pdu, size_t size) {
 static size_t required_payload_size(SensorValueType sensor_value_type) {
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
+    case SensorValueType::U_WORD_S:
     case SensorValueType::S_WORD:
+    case SensorValueType::S_WORD_S:
       return 2;
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
@@ -228,6 +230,11 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
     case SensorValueType::U_WORD:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
+    case SensorValueType::U_WORD_S: {
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
+      value = mask_and_shift_by_rightbit(word, bitmask);
+      break;
+    }
     case SensorValueType::U_DWORD:
     case SensorValueType::FP32:
       value = get_data<uint32_t>(data, offset);
@@ -242,6 +249,11 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
     case SensorValueType::S_WORD:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset), bitmask);  // default is 0xFFFF ;
       break;
+    case SensorValueType::S_WORD_S: {
+      uint16_t word = byteswap(get_data<uint16_t>(data, offset));
+      value = mask_and_shift_by_rightbit(static_cast<int16_t>(word), bitmask);
+      break;
+    }
     case SensorValueType::S_DWORD:
       value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
       break;

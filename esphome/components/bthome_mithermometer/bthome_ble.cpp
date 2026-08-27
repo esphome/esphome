@@ -25,6 +25,9 @@ static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
 
+// Both callers are log macros (LOGCONFIG / LOGVV); below CONFIG level they
+// compile away and an ungated helper trips -Wunused-function.
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
 static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buffer, uint64_t address) {
   std::array<uint8_t, MAC_ADDRESS_SIZE> mac{};
   for (size_t i = 0; i < MAC_ADDRESS_SIZE; i++) {
@@ -34,6 +37,7 @@ static const char *format_mac_address(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_
   format_mac_addr_upper(mac.data(), buffer.data());
   return buffer.data();
 }
+#endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
 
 static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
   switch (obj_type) {

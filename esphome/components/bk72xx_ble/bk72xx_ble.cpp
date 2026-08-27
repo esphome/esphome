@@ -179,8 +179,10 @@ void BK72xxBLE::loop() {
   if (report == nullptr)
     return;
   do {
+#ifdef BK72XX_BLE_SCAN_LISTENER_COUNT
     for (auto *listener : this->scan_listeners_)
       listener->on_scan_report(*report);
+#endif
     this->report_pool_.release(report);
   } while ((report = this->report_queue_.pop()) != nullptr);
 

@@ -8,7 +8,7 @@ namespace esphome {
 
 static const char *const TAG = "entity_base";
 
-void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
+void EntityBase::configure_entity_(const char *name, uint32_t entity_key, uint32_t entity_fields) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
@@ -30,15 +30,15 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
       }
     }
     this->flags_.has_own_name = false;
-    // Dynamic name - must calculate hash at runtime
-    this->calc_object_id_();
+    // Dynamic name - must calculate key at runtime
+    this->calc_entity_key_();
   } else {
     this->flags_.has_own_name = true;
-    // Static name - use pre-computed hash if provided
-    if (object_id_hash != 0) {
-      this->object_id_hash_ = object_id_hash;
+    // Static name - use pre-computed key if provided
+    if (entity_key != 0) {
+      this->entity_key_ = entity_key;
     } else {
-      this->calc_object_id_();
+      this->calc_entity_key_();
     }
   }
   // Unpack entity string table indices and flags from entity_fields.
@@ -147,9 +147,15 @@ std::string EntityBase::get_icon() const {
 }
 #endif  // !USE_ESP8266
 
-// Calculate Object ID Hash directly from name using snake_case + sanitize
-void EntityBase::calc_object_id_() {
-  this->object_id_hash_ = fnv1_hash_object_id(this->name_.c_str(), this->name_.size());
+// Calculate the entity key directly from the raw name (no transformations)
+void EntityBase::calc_entity_key_() { this->entity_key_ = fnv1_hash_bytes(this->name_.c_str(), this->name_.size()); }
+
+// Reconstruct the OLD (pre-2026.8.0) object_id-based hash for preference key compatibility.
+// Named entities historically used the hash pre-computed by Python code generation, which
+// sanitized per UTF-8 code point; entities without their own name computed the hash at
+// runtime per byte. See https://github.com/esphome/backlog/issues/85
+uint32_t EntityBase::calc_old_object_id_hash_() const {
+  return fnv1_hash_object_id(this->name_.c_str(), this->name_.size(), this->flags_.has_own_name);
 }
 
 size_t EntityBase::write_object_id_to(char *buf, size_t buf_size) const {
@@ -166,46 +172,23 @@ StringRef EntityBase::get_object_id_to(std::span<char, OBJECT_ID_MAX_LEN> buf) c
   return StringRef(buf.data(), len);
 }
 
-// Migrate preference data from old_key to new_key if they differ.
-// This helper is exposed so callers with custom key computation (like TextPrefs)
-// can use it for manual migration. See: https://github.com/esphome/backlog/issues/85
-//
-// FUTURE IMPLEMENTATION:
-// This will require raw load/save methods on ESPPreferenceObject that take uint8_t* and size.
-//   void EntityBase::migrate_entity_preference_(size_t size, uint32_t old_key, uint32_t new_key) {
-//     if (old_key == new_key)
-//       return;
-//     auto old_pref = global_preferences->make_preference(size, old_key);
-//     auto new_pref = global_preferences->make_preference(size, new_key);
-//     SmallBufferWithHeapFallback<64> buffer(size);
-//     if (old_pref.load(buffer.data(), size)) {
-//       new_pref.save(buffer.data(), size);
-//     }
-//   }
-
 ESPPreferenceObject EntityBase::make_entity_preference_(size_t size, uint32_t version) {
-  // This helper centralizes preference creation to enable fixing hash collisions.
+  // The old key hashed the sanitized object_id, so multiple entity names could collide on
+  // one key and overwrite each other's stored preferences; the new key hashes the raw name.
   // See: https://github.com/esphome/backlog/issues/85
-  //
-  // COLLISION PROBLEM: get_preference_hash() uses fnv1_hash on sanitized object_id.
-  // Multiple entity names can sanitize to the same object_id:
-  //   - "Living Room" and "living_room" both become "living_room"
-  //   - UTF-8 names like "温度" and "湿度" both become "__" (underscores)
-  // This causes entities to overwrite each other's stored preferences.
-  //
-  // FUTURE MIGRATION: When implementing get_preference_hash_v2() that hashes
-  // the original entity name (not sanitized object_id):
-  //
-  //   uint32_t old_key = this->get_preference_hash() ^ version;
-  //   uint32_t new_key = this->get_preference_hash_v2() ^ version;
-  //   this->migrate_entity_preference_(size, old_key, new_key);
-  //   return global_preferences->make_preference(size, new_key);
-  //
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  uint32_t key = this->get_preference_hash() ^ version;
-#pragma GCC diagnostic pop
-  return global_preferences->make_preference(size, key);
+  uint32_t old_key = this->old_preference_key_base_() ^ version;
+#ifdef USE_PREFERENCE_KEY_LOOKUP
+  uint32_t new_key = this->preference_key_base_() ^ version;
+  auto pref = global_preferences->make_preference(size, new_key);
+  // All in-tree entity preferences fit the stack buffer, so migration never hits the heap
+  SmallBufferWithHeapFallback<64> buffer(size);
+  migrate_preference(pref, buffer.get(), size, old_key, new_key);
+  return pref;
+#else
+  // Slot-based backends keep the old key: it is only a validity tag on a positional slot,
+  // so collisions cannot corrupt data there and keeping it preserves stored state.
+  return global_preferences->make_preference(size, old_key);
+#endif
 }
 
 #ifdef USE_ENTITY_ICON

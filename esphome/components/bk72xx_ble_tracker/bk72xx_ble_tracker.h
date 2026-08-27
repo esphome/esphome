@@ -91,7 +91,14 @@ class BK72xxBLETracker : public Component,
     // controller never solicits scan responses and never merges them; consumers
     // relying on scan-response fields (device names) get them only where the
     // receiver merges per address (Home Assistant does). No GATT client either.
-    return {.active_scan = false, .merges_scan_response = false, .gatt = false};
+    // scan_mode_switch stays false for the same reason: with no active-scan
+    // path there is no mode to switch to.
+    return {.active_scan = false, .merges_scan_response = false, .gatt = false, .scan_mode_switch = false};
+  }
+  bool request_scan_mode(bool active) override {
+    // Passive-only controller: a passive request is already honored, an active
+    // one cannot be.
+    return !active;
   }
   // The controller stores the address LSB-first (BLE convention); the contract
   // wants printable (MSB-first) order.

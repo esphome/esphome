@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import ExitStack
 import sys
 from typing import Any
 
@@ -53,6 +54,7 @@ from ..defines import (
 )
 from ..lv_validation import lv_int
 from ..lvcode import (
+    LocalVariable,
     LvConditional,
     add_line_marks,
     lv,
@@ -233,12 +235,13 @@ class WidgetType:
         """
         return []
 
-    def obj_targets(self, w: "Widget") -> list["Widget"]:
+    def obj_targets(self, w: "Widget", prop: str) -> list["Widget"]:
         """
-        Get the widgets an object property, as opposed to a style, applies to. A widget built
-        out of other widgets can point these at the ones that are actually pressed, since its
-        own object may not react to touch at all.
+        Get the widgets one object property, as opposed to a style, applies to. A widget
+        built out of other widgets can point a property at the ones it really concerns, such
+        as sending a touch margin to the parts that are actually pressed.
         :param w: The widget being configured
+        :param prop: The property name, one of OBJ_PROPERTIES
         :return:
         """
         return [w]
@@ -688,18 +691,34 @@ async def set_obj_properties(w: Widget, config):
         )
     parts = collect_parts(config)
     for part, states in parts.items():
-        for target, target_part in w.type.part_targets(w, part):
-            for state, props in states.items():
-                lv_state = style_selector(target_part, state)
-                for style_id in props.get(CONF_STYLES, ()):
-                    target.add_style(style_id, lv_state)
+        targets = w.type.part_targets(w, part)
+        for state, props in states.items():
+            style_ids = props.get(CONF_STYLES, ())
+            # Each value is worked out once and then given to every target. A widget built
+            # out of others has one target per part, and a lambda is written out in full
+            # wherever it appears, so with more than one target it goes into a variable
+            # rather than being repeated. The blocks holding those variables stay open
+            # until every target has been dealt with.
+            with ExitStack() as stack:
+                values = []
                 for prop, value in {
                     k: v for k, v in props.items() if k in ALL_STYLES
                 }.items():
-                    if isinstance(ALL_STYLES[prop], LValidator):
-                        value = await ALL_STYLES[prop].process(value)
-                    prop_r = remap_property(prop)
-                    target.set_style(prop_r, value, lv_state)
+                    validator = ALL_STYLES[prop]
+                    if isinstance(validator, LValidator):
+                        is_lambda = isinstance(value, cv.Lambda)
+                        value = await validator.process(value)
+                        if is_lambda and len(targets) > 1:
+                            value = stack.enter_context(
+                                LocalVariable(prop, validator.rtype, value, modifier="")
+                            )
+                    values.append((remap_property(prop), value))
+                for target, target_part in targets:
+                    lv_state = style_selector(target_part, state)
+                    for style_id in style_ids:
+                        target.add_style(style_id, lv_state)
+                    for prop_r, value in values:
+                        target.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):
         group = await cg.get_variable(group)
         lv.group_add_obj(group, w.obj)
@@ -736,8 +755,8 @@ async def set_obj_properties(w: Widget, config):
         state = getattr(LV_STATE, key.upper())
         w.set_state(state, value)
 
-    for target in w.type.obj_targets(w):
-        for property in OBJ_PROPERTIES:
+    for property in OBJ_PROPERTIES:
+        for target in w.type.obj_targets(w, property):
             await target.set_property(property, config, lv_name="obj")
 
 

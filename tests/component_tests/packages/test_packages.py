@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome import bundle
 from esphome.components.packages import (
     CONFIG_SCHEMA,
     _substitute_package_definition,
@@ -1694,3 +1695,34 @@ def test_resolve_packages_does_not_apply_extend_remove() -> None:
     # over the package value during merge), and the marker is not
     # resolved by this wrapper.
     assert isinstance(result[CONF_WIFI], Remove)
+
+
+@patch("esphome.git.clone_or_update")
+def test_remote_package_registers_checkout_for_secret_scan(
+    mock_clone_or_update, tmp_path: Path
+) -> None:
+    """Loading a remote package registers its path-narrowed checkout dir
+    as a bundle secret-scan dir (issue 18023)."""
+    repo_root = tmp_path / "repo"
+    package_dir = repo_root / "packages"
+    package_dir.mkdir(parents=True)
+    (package_dir / "base.yml").write_text(
+        f"sensor:\n  - platform: {TEST_SENSOR_PLATFORM_1}\n    name: {TEST_SENSOR_NAME_1}\n"
+    )
+    mock_clone_or_update.return_value = (repo_root, None)
+
+    config = {
+        CONF_PACKAGES: {
+            "package1": {
+                CONF_URL: "https://github.com/esphome/non-existant-repo",
+                CONF_REF: "main",
+                CONF_PATH: "packages",
+                CONF_FILES: ["base.yml"],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    packages_pass(config)
+
+    assert package_dir in bundle._get_data().secret_scan_dirs
+    assert repo_root not in bundle._get_data().secret_scan_dirs

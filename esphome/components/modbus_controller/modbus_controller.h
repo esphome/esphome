@@ -72,9 +72,29 @@ T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return modbus::helpers::get_data<T>(data, buffer_offset);
 }
 
+// Span overloads of the deprecated helpers below: read lambdas receive their payload as a
+// std::span<const uint8_t> (previously a const std::vector<uint8_t> &), and a span does not convert to
+// a vector, so existing lambdas calling these by name need an overload that accepts one. These carry
+// this release's deprecation window, since the span forms only exist from it.
+// payload_to_number() deliberately has no such overload: one of its arguments is a modbus::helpers
+// type, so a span call already reaches the helper by argument-dependent lookup, and a forwarder here
+// would only make that call ambiguous.
+// Remove before 2027.2.0.
+template<typename T>
+ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2027.2.0", "2026.8.0")
+T get_data(std::span<const uint8_t> data, size_t buffer_offset) {
+  return modbus::helpers::get_data<T>(data.data(), buffer_offset);
+}
+
 // Remove before 2027.2.0 (window restarted when the migration target changed to bit_from_packed())
 ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2.0", "2026.4.0")
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
+  return modbus::helpers::bit_from_packed(coil, data);
+}
+
+// Remove before 2027.2.0
+ESPDEPRECATED("Use modbus::helpers::bit_from_packed() instead. Removed in 2027.2.0", "2026.8.0")
+inline bool coil_from_vector(int coil, std::span<const uint8_t> data) {
   return modbus::helpers::bit_from_packed(coil, data);
 }
 
@@ -107,11 +127,41 @@ class ModbusController;
 
 class SensorItem {
  public:
-  virtual void parse_and_publish(const std::vector<uint8_t> &data) = 0;
+  /// Parse this sensor's slice out of its range's response and publish it. The span points into the
+  /// response buffer and is only valid for the duration of the call. Read the sensor's data from
+  /// `offset` within it.
+  virtual void parse_and_publish(std::span<const uint8_t> data) = 0;
+
+  /// Coils and discrete inputs address individual bits; every other type addresses 16-bit registers.
+  bool addresses_bits() const {
+    return this->register_type == modbus::EntityType::COIL || this->register_type == modbus::EntityType::DISCRETE_INPUT;
+  }
+
+  /// Address a write entity (switch/number/select) targets, derived from its resolved position within
+  /// the range so that a write lands on the register the sensor reads from.
+  uint16_t write_address() const {
+    return this->range_start_address + (this->addresses_bits() ? this->offset : this->offset / 2);
+  }
+
+  /// Records the offset as configured, and seeds the resolved position with it. Building the ranges
+  /// overwrites `offset` with the position within the range; an item that is never polled keeps this
+  /// value, which is what its own address arithmetic expects.
+  void set_offset_from_start_address(uint8_t offset) {
+    this->offset_from_start_address = offset;
+    this->offset = offset;
+  }
+
+  /// Sets the configured address, and points the range base at it. Building the ranges moves the base
+  /// to the range's first register; an item that is never polled (an output, or a switch with
+  /// assumed_state) keeps its own address, so write_address() stays correct for it.
+  void set_address(uint16_t address) {
+    this->start_address = address;
+    this->range_start_address = address;
+  }
 
   void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
   size_t virtual get_register_size() const {
-    if (register_type == modbus::EntityType::COIL || register_type == modbus::EntityType::DISCRETE_INPUT) {
+    if (this->addresses_bits()) {
       return 1;
     } else {  // if CONF_RESPONSE_BYTES is used override the default
       return response_bytes > 0 ? response_bytes : register_count * 2;
@@ -123,9 +173,21 @@ class SensorItem {
   SensorValueType sensor_value_type{SensorValueType::RAW};
   uint16_t start_address{0};
   uint32_t bitmask{0};
+  /// Position of this sensor's data within its range's response - a byte offset for registers, a bit
+  /// index for coils and discrete inputs. Resolved while the ranges are built, so it already accounts
+  /// for the registers ahead of it (including wide response_size ones) and for any offset inherited
+  /// from an earlier sensor sharing the same register.
   uint8_t offset{0};
   uint8_t register_count{0};
   uint8_t response_bytes{0};
+  /// The offset exactly as configured: measured from this sensor's own start_address, where `offset`
+  /// is measured from the first register of the range it ends up polled in. Same units as `offset` -
+  /// bytes for registers, bits for coils and discrete inputs. Kept so the resolution can be recomputed,
+  /// and so the sort order of the sensor set never depends on the resolved value.
+  /// Declared before range_start_address so it lands in the padding after response_bytes.
+  uint8_t offset_from_start_address{0};
+  /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
+  uint16_t range_start_address{0};
   uint16_t skip_updates{0};
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
@@ -151,9 +213,11 @@ class SensorItemsComparator {
       return lhs->start_address < rhs->start_address;
     }
 
-    // sort by offset (ensures update of sensors in ascending order)
-    if (lhs->offset != rhs->offset) {
-      return lhs->offset < rhs->offset;
+    // sort by the offset as configured (ensures update of sensors in ascending order). The resolved
+    // `offset` is deliberately not used: ranges are built while iterating this set and assign it, and
+    // a sort key that changed under the iteration would corrupt the set's ordering.
+    if (lhs->offset_from_start_address != rhs->offset_from_start_address) {
+      return lhs->offset_from_start_address < rhs->offset_from_start_address;
     }
 
     // The pointer to the sensor is used last to ensure that
@@ -398,9 +462,8 @@ class ModbusController final : public PollingComponent, public modbus::ModbusCli
  * @param item SensorItem object
  * @return float value of data
  */
-inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
-  int64_t number =
-      modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask).value_or(0);
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item, size_t offset) {
+  int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, offset, item.bitmask).value_or(0);
 
   float float_value;
   if (modbus::helpers::value_type_is_float(item.sensor_value_type)) {
@@ -410,6 +473,14 @@ inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &i
   }
 
   return float_value;
+}
+
+// Remove before 2027.2.0 (window opened when this helper gained an explicit offset). item.offset is
+// the item's resolved position within its range's response, so this decodes the same bytes as passing
+// that offset explicitly.
+ESPDEPRECATED("Pass the offset explicitly: payload_to_float(data, item, item.offset). Removed in 2027.2.0", "2026.8.0")
+inline float payload_to_float(std::span<const uint8_t> data, const SensorItem &item) {
+  return payload_to_float(data, item, item.offset);
 }
 
 }  // namespace esphome::modbus_controller

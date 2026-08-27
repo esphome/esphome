@@ -51,7 +51,11 @@ def _set_core_data(config):
     return config
 
 
-CONFIG_SCHEMA = libretiny.BASE_SCHEMA
+# extend({}) makes this platform's own schema instance: BASE_SCHEMA is shared
+# by every LibreTiny platform, and prepending this platform's _set_core_data
+# onto the shared object would run it for every platform's validation once two
+# platform modules are imported in one process (device-builder, tests).
+CONFIG_SCHEMA = libretiny.BASE_SCHEMA.extend({})
 
 PIN_SCHEMA = libretiny.gpio.BASE_PIN_SCHEMA
 

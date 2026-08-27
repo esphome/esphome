@@ -23,17 +23,16 @@ import esphome.codegen as cg
 from esphome.components.const import CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import CONF_ACTIVE, CONF_CONTINUOUS, CONF_DURATION, CONF_INTERVAL
-from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Bl00d-B0b"]
 
 CONF_BLE_HUB_ID = "ble_hub_id"
 
-# CORE.data key: number of parsed-advertisement listeners registered in this
-# build. Trackers whose codegen sizes storage at compile time (esp32's
-# StaticVector count define) read it in their final coroutine.
-KEY_BLE_LISTENER_COUNT = "ble_device_base_listener_count"
+# Number of parsed-advertisement listeners registered in this build; read via
+# cg.get_slot_count() by esp32_ble_tracker's feature coupling.
+LISTENER_COUNT_DEFINE = "ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT"
+
 
 ble_device_base_ns = cg.esphome_ns.namespace("ble_device_base")
 
@@ -64,16 +63,14 @@ def request_irk_support() -> None:
     cg.add_define("USE_BLE_DEVICE_IRK")
 
 
-def get_listener_count() -> int:
-    """Number of parsed listeners registered so far (for tracker codegen)."""
-    return CORE.data.get(KEY_BLE_LISTENER_COUNT, 0)
+_request_listener_slot = cg.slot_counter(LISTENER_COUNT_DEFINE)
 
 
 async def register_ble_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj:
     """Register `var` as a parsed-advertisement listener on the configured hub."""
     hub = await cg.get_variable(config[CONF_BLE_HUB_ID])
     cg.add(hub.register_listener(var))
-    CORE.data[KEY_BLE_LISTENER_COUNT] = CORE.data.get(KEY_BLE_LISTENER_COUNT, 0) + 1
+    _request_listener_slot()
     return var
 
 

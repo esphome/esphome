@@ -201,6 +201,14 @@ def _process_remote_package(config: dict[str, Any]) -> dict[str, Any]:
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
 
+    # Deferred import: keeps esphome.bundle off the device builder's
+    # startup path, since packages is loaded on every config parse.
+    from esphome.bundle import add_secret_scan_dir
+
+    # Register the path-narrowed dir, not repo_root, so example configs
+    # elsewhere in the repo do not widen the shipped secrets.
+    add_secret_scan_dir(repo_dir)
+
     for file in config[CONF_FILES]:
         if isinstance(file, str):
             files.append({CONF_PATH: file, CONF_VARS: {}})
