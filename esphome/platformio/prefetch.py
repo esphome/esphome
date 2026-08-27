@@ -406,7 +406,7 @@ def _uri_jobs(
         if str(dl_path) in seen:
             continue  # another spec already claimed this .part
         seen.add(str(dl_path))
-        candidates.append((spec.name, url, dl_path, spec))
+        candidates.append((name, url, dl_path, spec))
 
     errors: list[str] = []
 
