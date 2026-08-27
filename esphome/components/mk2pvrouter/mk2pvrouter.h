@@ -18,13 +18,7 @@ static constexpr uint8_t MAX_TAG_SIZE = 8;     // S_MC (4) + digit (1) + null (1
 static constexpr uint8_t MAX_VAL_SIZE = 8;     // -10000 (6) + null (1) + margin (1)
 static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabled
 
-/**
- * @class Mk2PVRouterListener
- * @brief Listener interface for receiving updates from the Mk2PVRouter.
- *
- * This class allows other components to register as listeners to receive updates
- * for specific tags published by the Mk2PVRouter.
- */
+// Listener interface for entities that want updates for a specific tag.
 class Mk2PVRouterListener {
  public:
   explicit Mk2PVRouterListener(const char *tag) : tag_(tag) {}
@@ -36,13 +30,7 @@ class Mk2PVRouterListener {
   const char *tag_;
 };
 
-/**
- * @class Mk2PVRouter
- * @brief Main class for the Mk2PVRouter component.
- *
- * The Mk2PVRouter processes incoming data frames via UART, validates their CRC,
- * extracts tags and values, and publishes them to registered listeners.
- */
+// Reads frames via UART, validates their CRC, and publishes tag/value pairs to listeners.
 class Mk2PVRouter final : public Component, public uart::UARTDevice {
  public:
   void init_listeners(size_t count) { this->mk2pvrouter_listeners_.init(count); }

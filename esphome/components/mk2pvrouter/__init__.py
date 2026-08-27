@@ -53,7 +53,7 @@ def _get_data() -> Mk2PVRouterData:
     return CORE.data[DOMAIN]
 
 
-def final_validate(config: ConfigType) -> ConfigType:
+def final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
     # Count listeners (IDs are resolved at final_validate stage).
@@ -77,7 +77,7 @@ def final_validate(config: ConfigType) -> ConfigType:
         require_rx=True,
         require_tx=False,
     )
-    return schema(config)
+    schema(config)
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
