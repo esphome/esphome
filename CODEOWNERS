@@ -381,6 +381,7 @@ esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz @kbx81
 esphome/components/noblex/* @AGalfra
+esphome/components/noise/* @esphome/core
 esphome/components/npi19/* @bakerkj
 esphome/components/nrf52/* @tomaszduda23
 esphome/components/number/* @esphome/core
@@ -475,6 +476,7 @@ esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/serial_proxy/* @kbx81
 esphome/components/sfa30/* @ghsensdev
+esphome/components/sfa40/* @NoQuarrel
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sgp4x/* @martgras @SenexCrenshaw
 esphome/components/sha256/* @esphome/core

@@ -157,7 +157,7 @@ class SensorItem {
     this->range_start_address = address;
   }
 
-  void set_custom_data(const std::vector<uint8_t> &data) { custom_data = data; }
+  void set_custom_pdu(std::initializer_list<uint8_t> pdu) { this->custom_pdu.set(pdu.begin(), pdu.size()); }
   size_t virtual get_register_size() const {
     if (this->addresses_bits()) {
       return 1;
@@ -186,8 +186,7 @@ class SensorItem {
   uint8_t offset_from_start_address{0};
   /// First register of the range this sensor is polled in; equals start_address for an unpolled item.
   uint16_t range_start_address{0};
-  uint16_t skip_updates{0};
-  std::vector<uint8_t> custom_data{};
+  SmallInlineBuffer<8> custom_pdu{};
   bool force_new_range{false};
 };
 
@@ -230,8 +229,116 @@ struct RegisterRange {
   uint16_t start_address;
   modbus::EntityType register_type;
   uint8_t register_count;
-  uint16_t skip_updates;  // the config value
-  SensorSet sensors;      // all sensors of this range
+  SensorSet sensors;  // all sensors of this range
+};
+
+/// A hub device owned by a writer entity (switch/number/select/output) through WriterEntity.
+/// Centralises the feedback to the controller - online/offline tracking, retry counting and the
+/// on_command_sent trigger - and records every dispatch, so a write lambda can tell "I sent it myself"
+/// from "use the default write". The hub base is inherited protected, so the public members below are
+/// the entity's whole request API and nothing can bypass the recording or re-target the device.
+class WriterDevice final : protected modbus::ModbusClientDevice {
+ protected:
+  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+  void on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) override;
+  void on_sent(std::span<const uint8_t> request_pdu) override;
+  void on_not_sent(std::span<const uint8_t> request_pdu) override;
+  bool on_no_response(std::span<const uint8_t> request_pdu) override;
+
+  void notify_online_(std::span<const uint8_t> request_pdu);
+  /// Function code / register address decoded from a request PDU ([fc, addr_hi, addr_lo, ...]).
+  static int fc_of(std::span<const uint8_t> pdu) { return pdu.empty() ? 0 : (pdu[0] & modbus::FUNCTION_CODE_MASK); }
+  static int addr_of(std::span<const uint8_t> pdu) {
+    return pdu.size() >= 3 ? modbus::helpers::get_data<uint16_t>(pdu.data(), 1) : 0;
+  }
+
+  /// Declared before controller_ so they land in the padding after ModbusClientDevice::custom_response_warned_
+  /// instead of adding a word to every entity that owns a device.
+  /// dispatched_: a frame was queued since the last clear_dispatched_().
+  /// write_buffer_deprecated_warned_: warn-once for the legacy write_lambda buffer parameter.
+  bool dispatched_{false};
+  bool write_buffer_deprecated_warned_{false};
+  ModbusController *controller_{nullptr};
+
+ public:
+  /// Whether a frame was queued to the hub since the last clear_dispatched_().
+  bool dispatched() const { return this->dispatched_; }
+
+  bool write_single_register(uint16_t address, uint16_t value) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_single_register(address, value);
+  }
+  bool write_single_coil(uint16_t address, bool value) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_single_coil(address, value);
+  }
+  bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_multiple_registers(address, values);
+  }
+  bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_multiple_coils(address, values);
+  }
+  bool write_multiple_coils(uint16_t address, modbus::PackedBits bits) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::write_multiple_coils(address, bits);
+  }
+  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
+    this->dispatched_ = true;
+    return modbus::ModbusClientDevice::queue_pdu(pdu, options);
+  }
+  /// Send a legacy raw frame (address + function code + data) to the frame's own address.
+  /// Serves only the deprecated write_lambda buffer path. Remove before 2027.3.0.
+  bool send_raw_frame_deprecated(std::span<const uint8_t> frame);
+
+  void clear_tx_queue_for_device() { modbus::ModbusClientDevice::clear_tx_queue_for_device(); }
+
+  // Entity plumbing, public because the owning WriterEntity holds the only reachable instance (device_ is
+  // protected there and the hub sees just the masked base) - reachability is the access gate, not a friend.
+  void set_controller(ModbusController *controller);
+  void clear_dispatched() { this->dispatched_ = false; }
+  /// Warn once per entity that filling the write_lambda buffer parameter is deprecated (the entity is now the
+  /// command - call a write helper / queue_pdu() on `item` instead). The buffer parameter is removed in 2027.3.0.
+  void warn_write_buffer_deprecated(const LogString *platform, uint16_t address);
+};
+
+/// Gives a writer entity the write API of the WriterDevice it owns. The device is a member, not a base:
+/// the mixin declares no virtual function, so an entity mixing it in gains no second vtable and all the
+/// writer platforms share the single WriterDevice vtable instead of each emitting its own copy.
+/// The forwarders keep `item->write_*()` working unchanged inside a write_lambda.
+class WriterEntity {
+ public:
+  bool dispatched() const { return this->device_.dispatched(); }
+  bool write_single_register(uint16_t address, uint16_t value) {
+    return this->device_.write_single_register(address, value);
+  }
+  bool write_single_coil(uint16_t address, bool value) { return this->device_.write_single_coil(address, value); }
+  bool write_multiple_registers(uint16_t address, std::span<const uint16_t> values) {
+    return this->device_.write_multiple_registers(address, values);
+  }
+  bool write_multiple_coils(uint16_t address, std::span<const bool> values) {
+    return this->device_.write_multiple_coils(address, values);
+  }
+  bool write_multiple_coils(uint16_t address, modbus::PackedBits bits) {
+    return this->device_.write_multiple_coils(address, bits);
+  }
+  bool queue_pdu(std::span<const uint8_t> pdu, modbus::CommandOptions options = {}) {
+    return this->device_.queue_pdu(pdu, options);
+  }
+  void clear_tx_queue_for_device() { this->device_.clear_tx_queue_for_device(); }
+
+ protected:
+  bool send_raw_frame_deprecated_(std::span<const uint8_t> frame) {
+    return this->device_.send_raw_frame_deprecated(frame);
+  }
+  void set_controller_(ModbusController *controller) { this->device_.set_controller(controller); }
+  void clear_dispatched_() { this->device_.clear_dispatched(); }
+  void warn_write_buffer_deprecated_(const LogString *platform, uint16_t address) {
+    this->device_.warn_write_buffer_deprecated(platform, address);
+  }
+
+  WriterDevice device_;
 };
 
 /// A single modbus command. Each command is its own ModbusClientDevice: it sends its frame to the hub
@@ -257,7 +364,6 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   ModbusCommandItem &operator=(ModbusCommandItem &&) = delete;
 
   SensorSet sensors;  // sensors served by this command (empty for factory/write commands)
-  uint16_t skip_updates{0};
   std::function<void(EntityType register_type, uint16_t start_address, std::span<const uint8_t> data)> on_data_func;
   /// Write data bytes for the command (register/coil values), or the raw frame of a one-shot custom
   /// command; reads leave it empty. Small-buffer optimized: fixed-size commands (single-register/coil
@@ -287,7 +393,9 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   /// Queue this command's frame on the hub. Returns false when refused, in which case no callback ever comes.
   /// The item is the hub device, so it must stay alive until its terminal callback; a destroyed item's
   /// pending frame is silently retired.
-  bool send();
+  /// Options pass straight through to the hub; the polling path passes the controller's read-side
+  /// options so reads re-queue after each success, one-shot commands keep the default.
+  bool send(modbus::CommandOptions options = {});
 
   /// factory methods
   /** Create modbus read command
@@ -378,7 +486,7 @@ class ModbusCommandItem : public modbus::ModbusClientDevice {
   uint16_t register_count_{0};
   FunctionCode function_code_{FunctionCode::CUSTOM};
   /// Custom polling commands reference the PDU bytes owned by their SensorItem instead of copying them.
-  const std::vector<uint8_t> *custom_data_{nullptr};
+  const SmallInlineBuffer<8> *custom_pdu_{nullptr};
   ModbusController *controller_{nullptr};
 };
 
@@ -399,16 +507,15 @@ inline bool offline_retry_due(uint16_t update_counter, uint16_t module_offline_a
 
 class ModbusController final : public PollingComponent {
  public:
+  // The controller is not itself a modbus device - its commands and writer entities send as their own
+  // devices, built against this hub + address.
+  ModbusController(modbus::ModbusClientHub *hub, uint8_t address) : hub_(hub), address_(address) {}
+
   void dump_config() override;
   // No loop() override: the hub owns transmit/receive timing and each command routes its own
   // response, so the controller never joins the looping components at all.
   void setup() override;
   void update() override;
-
-  // The controller is not itself a modbus device - its commands and writer entities send as their own
-  // devices. It only owns the hub + address so those senders can be built against them.
-  void set_parent(modbus::ModbusClientHub *hub) { this->hub_ = hub; }
-  void set_address(uint8_t address) { this->address_ = address; }
 
   /// The hub and modbus address this controller talks to. Used to build commands/entities that send as
   /// their own device.
@@ -455,6 +562,10 @@ class ModbusController final : public PollingComponent {
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
   uint8_t get_max_cmd_retries() { return this->max_cmd_retries_; }
+  /// called by esphome generated code with the read-side command options applied to every poll
+  void set_read_options(modbus::CommandOptions options) { this->read_options_ = options; }
+  /// the read-side command options applied to every poll
+  const modbus::CommandOptions &read_options() const { return this->read_options_; }
 
  protected:
   /// parse sensormap_ and create range of sequential addresses
@@ -462,19 +573,15 @@ class ModbusController final : public PollingComponent {
   void create_polling_commands_();
   /// build one persistent polling command from a range and add it to polling_command_items_
   void create_polling_command_(RegisterRange &&range) {
-    // A custom range polls the first sensor's custom_data (a ready-made raw frame); it needs the
-    // sensor constructor so the command references those bytes and decodes the real function code.
-    // The response still dispatches to every sensor in the range.
+    // A custom range polls the first sensor's custom_pdu (referenced, not copied); the sensor constructor
+    // decodes the real function code. The response still dispatches to every sensor in the range.
     if (range.register_type == EntityType::CUSTOM && !range.sensors.empty()) {
       auto &cmd = this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, *range.sensors.begin());
       cmd.sensors = std::move(range.sensors);
-      cmd.skip_updates = range.skip_updates;  // the range's merged rate, not the first sensor's
     } else {
       this->polling_command_items_.emplace_back(*this, this->hub_, this->address_, std::move(range));
     }
   }
-  /// send a range's polling command if it is due this update
-  void update_range_(ModbusCommandItem &cmd);
   /// The hub this controller's commands/entities send through, and the modbus address they target.
   modbus::ModbusClientHub *hub_{nullptr};
   uint8_t address_{0};
@@ -496,7 +603,7 @@ class ModbusController final : public PollingComponent {
   bool module_offline_{false};
   /// update_counter_ value at which the module went offline (for offline_skip_updates timing)
   uint16_t module_offline_at_{0};
-  /// counts update() cycles; drives skip_updates and offline timing
+  /// counts update() cycles; drives the offline-retry cadence
   uint16_t update_counter_{0};
   /// consecutive non-responses; drives can_send() and offline detection
   uint8_t cmd_non_responses_{0};
@@ -504,6 +611,8 @@ class ModbusController final : public PollingComponent {
   uint16_t offline_skip_updates_{0};
   /// How many times we will retry a command if we get no response
   uint8_t max_cmd_retries_{4};
+  /// read-side command options applied to every poll
+  modbus::CommandOptions read_options_{};
   /// Command sent callback
   CallbackManager<void(int, int)> command_sent_callback_{};
   /// Server online callback
