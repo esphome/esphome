@@ -158,15 +158,9 @@ def pch_consumer_escalation() -> str:
 
 def pch_cmake_consumer(target: str, sources_var: str) -> str:
     """Emit the CMake block making ``target``'s C++ sources consume the
-    pch; empty when disabled. Shared by every CMake-based backend so the
-    consumer contract (flags, relative include, header dependency)
-    cannot drift between them.
-
-    OBJECT_DEPENDS is on the header, not the .gch: pch-baked headers drop
-    out of TU depfiles, and prepare_pch() touches the header on rebuild.
-    The -include stays relative (resolved from the compiler cwd, the build
-    dir); an absolute path would poison ccache keys.
-    """
+    pch; empty when disabled. OBJECT_DEPENDS is on the header, not the
+    .gch (pch-baked headers drop out of TU depfiles); the -include stays
+    relative — an absolute path would poison ccache keys."""
     if not pch_enabled():
         return ""
     escalation = pch_consumer_escalation()
@@ -215,12 +209,9 @@ def ccache_pch_env() -> dict[str, str]:
 
 def guarded_prepare(build_dir: Path, prepare: Callable[[], None]) -> None:
     """Run a backend's pch preparation; an optional speedup must never
-    abort the build. Owns the failure ordering both native backends need:
-    strict is read first so its own knob error cannot mask the real
-    failure, discard_pch raises itself if a stale .gch survives (silently
-    wrong output), and the header is ensured afterwards so a consumer-side
-    OBJECT_DEPENDS stays satisfiable without forcing rebuilds when the
-    header already exists."""
+    abort the build. Strict is read first so its own knob error cannot
+    mask the real failure; discard_pch raises if a stale .gch survives;
+    the header is ensured so OBJECT_DEPENDS stays satisfiable."""
     try:
         prepare()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught

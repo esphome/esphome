@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from functools import partial
 import logging
 from pathlib import Path
 import re
@@ -832,15 +833,10 @@ def _generate_cmake_lists() -> bool:
 
 
 def _app_build_dir(build_dir: Path) -> Path:
-    """The CMake binary dir of the application image.
-
-    Sysbuild (SDK >= 2.9.2) nests the app in a domain dir named after the
-    app source dir ("zephyr"); older SDKs configure it at the top level.
-    In the non-sysbuild layout build_dir/zephyr is the Zephyr output dir,
-    which has no CMakeCache.txt, so the probe cannot misfire. A probe of
-    the on-disk layout (rather than the SDK-version check the artifact
-    copy uses) stays truthful mid-build and if sysbuild is ever toggled
-    independently of the version."""
+    """The CMake binary dir of the app image: sysbuild nests it in a
+    domain dir named after the app source dir. Probed on disk (the
+    non-sysbuild zephyr/ output dir has no CMakeCache.txt) so it stays
+    truthful mid-build, unlike an SDK-version check."""
     sysbuild_app = build_dir / "zephyr"
     if (sysbuild_app / "CMakeCache.txt").is_file():
         return sysbuild_app
@@ -951,12 +947,10 @@ def run_compile(args, config: ConfigType) -> bool:
         mark_pch_emitted()
         env.update(pch.ccache_pch_env())
 
-        # Split west into configure + build so the .gch is compiled from the
-        # settled compile_commands.json flags between the two phases. Only
-        # when the app DB is missing: any input change wipes the build dir,
-        # so an existing DB is settled, and --cmake-only reconfigures.
-        # Sysbuild configures the app image during its own configure, so the
-        # app's flags and autoconf.h are settled after this phase too.
+        # Configure first so the .gch compiles from settled compile DB
+        # flags. Only when the app DB is missing: input changes wipe the
+        # build dir, so an existing DB is settled and --cmake-only would
+        # reconfigure for nothing.
         app_dir = _app_build_dir(build_dir)
         if not (app_dir / "compile_commands.json").is_file():
             if not run_command_ok(
@@ -968,10 +962,8 @@ def run_compile(args, config: ConfigType) -> bool:
                 raise EsphomeError("nRF52 native build configure failed")
             # The configure phase creates the sysbuild domain dir: re-resolve
             app_dir = _app_build_dir(build_dir)
-            # The pch includes zephyr/kernel.h, whose syscall headers are
-            # generated at build time. clang_tidy.py gets them with a single
-            # `west build -t`, but under sysbuild that target only exists in
-            # the app domain's ninja, not the top-level one, so build it there
+            # kernel.h needs the build-time syscall headers; under sysbuild
+            # the target exists only in the app domain's ninja
             if not run_command_ok(
                 [
                     "cmake",
@@ -988,7 +980,7 @@ def run_compile(args, config: ConfigType) -> bool:
     else:
         app_dir = _app_build_dir(build_dir)
 
-    pch.guarded_prepare(app_dir, lambda: _prepare_pch(app_dir))
+    pch.guarded_prepare(app_dir, partial(_prepare_pch, app_dir))
 
     if not run_command_ok(
         west_cmd,

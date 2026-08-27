@@ -291,12 +291,9 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 
 
 def _pch_cmake() -> str:
-    """Consumer block appended to the component CMakeLists.
-
-    Strict inverts: a per-process consumer rejection reds the build.
-    Baked at generation: a knob flip takes effect when the CMakeLists is
-    rewritten (every esphome compile); a hand-run idf.py keeps the old one
-    """
+    """Consumer block for the component CMakeLists. Baked at generation:
+    a strict-knob flip takes effect on the next esphome compile; a
+    hand-run idf.py keeps the old one."""
     return pch.pch_cmake_consumer("${COMPONENT_LIB}", "${app_sources}")
 
 
