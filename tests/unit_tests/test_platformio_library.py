@@ -225,11 +225,11 @@ def test_resolve_registry_version_raises_without_pkg_file(monkeypatch):
 
 
 def test_make_registry_client_skips_private_package_probe(monkeypatch):
-    """Resolving through our client never sleeps in PlatformIO's account probe."""
+    """Our client never calls PlatformIO's account probe."""
     from platformio.account.client import AccountClient
     from platformio.registry.client import RegistryClient
 
-    # Undo the class-level patch after the test so other tests see the original
+    # Restore PlatformIO's own probe after the test
     monkeypatch.setattr(
         RegistryClient,
         "allowed_private_packages",

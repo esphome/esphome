@@ -97,7 +97,7 @@ def test_main_still_filters_a_drained_partial_line(
 def test_main_applies_registry_private_packages_patch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The probe patch is installed before PlatformIO gets control."""
+    """The probe is patched before PlatformIO runs."""
     order: list[str] = []
     _prepare_main(monkeypatch, lambda: order.append("pio") or 0)
     monkeypatch.setattr(
@@ -109,7 +109,7 @@ def test_main_applies_registry_private_packages_patch(
 
 
 def _restore_registry_probe(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Undo the class-level patch after the test so other tests see PlatformIO's own probe."""
+    """Restore PlatformIO's own probe after the test."""
     from platformio.registry.client import RegistryClient
 
     monkeypatch.setattr(
@@ -122,7 +122,7 @@ def _restore_registry_probe(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_patch_registry_private_packages_skips_account_probe(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The patched probe answers False without touching the account client."""
+    """Answers False without touching the account client."""
     from platformio.account.client import AccountClient
     from platformio.registry.client import RegistryClient
 

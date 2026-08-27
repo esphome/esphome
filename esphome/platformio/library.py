@@ -579,7 +579,7 @@ def _make_registry_client() -> Any:
 
     from esphome.platformio.runner import patch_registry_private_packages
 
-    # Every lookup would otherwise sleep ~500 ms in PlatformIO's account probe
+    # Otherwise every lookup sleeps ~500 ms in PlatformIO's account probe
     patch_registry_private_packages()
 
     class _Registry(PackageManagerRegistryMixin):
