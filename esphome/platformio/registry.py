@@ -14,6 +14,7 @@ from typing import NamedTuple
 
 from esphome.core import EsphomeError
 from esphome.framework_helpers import (
+    BATCH_EXTRACT_WORKERS,
     archive_extract_all,
     download_from_mirrors,
     download_with_resume,
@@ -303,8 +304,14 @@ def install_package(
         # Persistent location so an interrupted download resumes across runs.
         downloads_dir.mkdir(parents=True, exist_ok=True)
         archive = _archive_path(downloads_dir, name, version)
-        # The batch header already names each package
-        log = _LOGGER.debug if extract_progress is not None else _LOGGER.info
+        # The batch header already names each package; a batched archive that
+        # unexpectedly needs a real download keeps the INFO line, since the
+        # shared bar shows no progress for it
+        log = (
+            _LOGGER.debug
+            if extract_progress is not None and archive.is_file()
+            else _LOGGER.info
+        )
         log("Downloading %s %s ...", name, version)
         if mirrors:
             _LOGGER.warning(
@@ -347,18 +354,22 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
     """
     pending: list[tuple[PackageSpec, int]] = []
     rest: list[PackageSpec] = []
+    seen: set[str] = set()
     for spec in specs:
         name, version, dest, mirrors, _expect = spec
-        if _already_installed(dest) or mirrors:
+        # Duplicate entries share one archive and would race each other
+        # between two workers; mirror prefetch_packages' dedupe
+        if _already_installed(dest) or mirrors or f"{name}-{version}" in seen:
             rest.append(spec)
             continue
         try:
             # An archive at its final name already passed sha256/size
             # verification
             size = _archive_path(downloads_dir, name, version).stat().st_size
-        except OSError:
+        except FileNotFoundError:
             rest.append(spec)
             continue
+        seen.add(f"{name}-{version}")
         pending.append((spec, size))
     if len(pending) < 2:
         rest = list(specs)
@@ -367,7 +378,7 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
     if not pending:
         return
-    workers = min(get_usable_cpu_count(), len(pending))
+    workers = min(get_usable_cpu_count(), len(pending), BATCH_EXTRACT_WORKERS)
     _LOGGER.info(
         "Extracting %d package archive(s) with %d worker(s): %s",
         len(pending),
@@ -393,5 +404,7 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         max_workers=workers,
     )
     if failures:
-        warn_prefetch_failures(failures[1:], "Could not install %s: %s")
+        warn_prefetch_failures(
+            failures[1:], "Could not install %s: %s", detail="Install failure detail"
+        )
         raise failures[0][1]

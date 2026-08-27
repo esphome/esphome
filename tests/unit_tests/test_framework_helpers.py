@@ -2357,6 +2357,25 @@ def test_warn_prefetch_failures_names_each_failure(
     assert "Prefetch of lib failed: gone" in caplog.text
 
 
+def test_warn_prefetch_failures_unexpected_error_keeps_traceback(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """An unexpected error type is not reduced to a bare message; expected
+    download failures stay message-only at WARNING."""
+    from esphome.framework_helpers import warn_prefetch_failures
+
+    with caplog.at_level(logging.DEBUG):
+        warn_prefetch_failures(
+            [("pkg", TypeError("bad call")), ("lib", OSError("down"))],
+            "Could not install %s: %s",
+            detail="Install failure detail",
+        )
+    warnings = {r.getMessage(): r for r in caplog.records if r.levelname == "WARNING"}
+    assert warnings["Could not install pkg: bad call"].exc_info is not None
+    assert warnings["Could not install lib: down"].exc_info is None
+    assert "Install failure detail" in caplog.text
+
+
 @pytest.mark.parametrize(
     ("platform", "input_path", "expected"),
     [

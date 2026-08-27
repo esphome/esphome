@@ -788,6 +788,10 @@ def _stream_response_to_file(
 # hammering the host or the mirrors.
 BATCH_DOWNLOAD_WORKERS = 4
 
+# Concurrent archive extractions per batch; unpacking stops scaling well
+# before high core counts since the workers share one disk.
+BATCH_EXTRACT_WORKERS = 10
+
 
 def run_batch_downloads(
     header: str,
@@ -972,12 +976,19 @@ def resume_fetch_job(
 def warn_prefetch_failures(
     failures: list[tuple[str, BaseException]],
     message: str = "Could not prefetch %s: %s",
+    detail: str = "Prefetch failure detail",
 ) -> None:
-    """Warn per failed batch-prefetch job; the caller's installer retries them."""
+    """Warn per failed batch job, keeping the traceback of unexpected errors."""
+    from esphome.core import EsphomeError  # local import avoids circular dependency
+
     for name, err in failures:
+        # A programming error must not be reduced to a bare message
+        expected = isinstance(err, (EsphomeError, OSError))
         # failure_reason: a message-less exception must not log blank
-        _LOGGER.warning(message, name, failure_reason(err))
-        _LOGGER.debug("Prefetch failure detail", exc_info=err)
+        _LOGGER.warning(
+            message, name, failure_reason(err), exc_info=None if expected else err
+        )
+        _LOGGER.debug(detail, exc_info=err)
 
 
 def download_with_resume(

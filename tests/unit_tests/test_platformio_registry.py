@@ -824,6 +824,8 @@ def test_install_package_extract_progress_suppresses_bars(
     """A batched install routes extraction fractions to the caller and keeps
     both private bars and per-package INFO lines off the shared bar."""
     dest = tmp_path / "pkg"
+    (tmp_path / "dl").mkdir()
+    (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
     fractions: list[float] = []
     with (
         caplog.at_level(logging.INFO),
@@ -855,3 +857,73 @@ def test_install_package_extract_progress_suppresses_bars(
     assert fractions == [0.0]
     assert "Downloading pkg" not in caplog.text
     assert "Extracting pkg" not in caplog.text
+
+
+def test_install_package_batched_missing_archive_keeps_info_log(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batched archive that unexpectedly needs a real download keeps the
+    INFO line; the shared bar shows no progress for it."""
+    dest = tmp_path / "pkg"
+    with (
+        caplog.at_level(logging.INFO),
+        patch.object(registry, "download_with_resume"),
+        patch.object(registry, "archive_extract_all") as mock_extract,
+        patch.object(
+            registry,
+            "registry_download",
+            return_value=("http://x/pkg.tar.gz", "abc123", 42),
+        ),
+    ):
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            [],
+            tmp_path / "dl",
+            expect=("payload",),
+            extract_progress=lambda _frac: None,
+        )
+    assert "Downloading pkg 1.0.0" in caplog.text
+
+
+def test_install_packages_dedupes_duplicate_specs(tmp_path: Path) -> None:
+    """Duplicate (name, version) entries share one archive and would race
+    each other; the duplicate takes the sequential path."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    (dl / "a-1.0").write_bytes(b"x")
+    (dl / "b-2.0").write_bytes(b"y")
+    specs = [
+        _spec("a", "1.0", tmp_path / "a"),
+        _spec("a", "1.0", tmp_path / "a2"),
+        _spec("b", "2.0", tmp_path / "b"),
+    ]
+    with patch.object(registry, "install_package") as mock_install:
+        registry.install_packages(specs, dl)
+    sequential = [
+        c for c in mock_install.call_args_list if "extract_progress" not in c[1]
+    ]
+    batched = [c for c in mock_install.call_args_list if "extract_progress" in c[1]]
+    assert [(c[0][0], c[0][2]) for c in sequential] == [("a", tmp_path / "a2")]
+    assert sorted(c[0][0] for c in batched) == ["a", "b"]
+
+
+def test_install_packages_caps_workers(tmp_path: Path) -> None:
+    """A high core count is capped; the workers share one disk."""
+    dl = tmp_path / "dl"
+    dl.mkdir()
+    specs = []
+    for i in range(12):
+        (dl / f"p{i}-1.0").write_bytes(b"x")
+        specs.append(_spec(f"p{i}", "1.0", tmp_path / f"p{i}"))
+    with (
+        patch.object(registry, "get_usable_cpu_count", return_value=64),
+        patch.object(registry, "run_batch_downloads", return_value=[]) as batch,
+        patch.object(registry, "install_package"),
+    ):
+        registry.install_packages(specs, dl)
+    assert batch.call_args.kwargs["max_workers"] == 10
