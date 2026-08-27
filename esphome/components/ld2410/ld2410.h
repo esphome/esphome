@@ -44,6 +44,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   SUB_BINARY_SENSOR(moving_target)
   SUB_BINARY_SENSOR(still_target)
   SUB_BINARY_SENSOR(target)
+  SUB_BINARY_SENSOR(calibration)
 #endif
 #ifdef USE_SENSOR
   SUB_SENSOR_WITH_DEDUP(light, uint8_t)
@@ -77,6 +78,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   SUB_BUTTON(factory_reset)
   SUB_BUTTON(query)
   SUB_BUTTON(restart)
+  SUB_BUTTON(background_correction)
 #endif
 
  public:
@@ -102,6 +104,15 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void set_distance_resolution(const char *state);
   void set_baud_rate(const char *state);
   void factory_reset();
+  // Duration (in seconds) the module measures the background noise floor before
+  // it rewrites every gate threshold; see start_background_correction().
+  void set_background_correction_duration(uint16_t seconds) { this->bg_correction_duration_ = seconds; }
+  // Kick off the module's native automatic background-noise correction (command
+  // 0x000B). The module measures the noise floor for the configured duration and
+  // rewrites its gate thresholds. Progress is polled via command 0x001B so the
+  // optional calibration binary sensor reflects the module's real state rather
+  // than a fixed timer. No-op if a correction is already running.
+  void start_background_correction();
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
@@ -115,6 +126,9 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   void get_distance_resolution_();
   void query_light_control_();
   void restart_();
+  void query_background_correction_();
+  void finish_background_correction_(bool completed);
+  void set_background_correction_running_(bool running);
 
   uint8_t light_function_ = 0;
   uint8_t light_threshold_ = 0;
@@ -124,6 +138,10 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
+  uint16_t bg_correction_duration_{10};  // seconds; HiLink's tool default
+  bool bg_correction_running_{false};
+  uint32_t bg_correction_next_poll_{0};  // millis() of next 0x1B poll while running
+  uint32_t bg_correction_deadline_{0};   // millis() after which we stop waiting
 #ifdef USE_NUMBER
   std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};

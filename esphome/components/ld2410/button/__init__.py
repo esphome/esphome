@@ -19,8 +19,12 @@ from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 FactoryResetButton = ld2410_ns.class_("FactoryResetButton", button.Button)
 QueryButton = ld2410_ns.class_("QueryButton", button.Button)
 RestartButton = ld2410_ns.class_("RestartButton", button.Button)
+BackgroundCorrectionButton = ld2410_ns.class_(
+    "BackgroundCorrectionButton", button.Button
+)
 
 CONF_QUERY_PARAMS = "query_params"
+CONF_BACKGROUND_CORRECTION = "background_correction"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
@@ -42,6 +46,11 @@ CONFIG_SCHEMA = {
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         icon=ICON_DATABASE,
     ),
+    cv.Optional(CONF_BACKGROUND_CORRECTION): button.button_schema(
+        BackgroundCorrectionButton,
+        entity_category=ENTITY_CATEGORY_CONFIG,
+        icon="mdi:broom",
+    ),
 }
 
 
@@ -59,3 +68,7 @@ async def to_code(config: ConfigType) -> None:
         b = await button.new_button(query_params_config)
         await cg.register_parented(b, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_query_button(b))
+    if background_correction_config := config.get(CONF_BACKGROUND_CORRECTION):
+        b = await button.new_button(background_correction_config)
+        await cg.register_parented(b, config[CONF_LD2410_ID])
+        cg.add(ld2410_component.set_background_correction_button(b))
