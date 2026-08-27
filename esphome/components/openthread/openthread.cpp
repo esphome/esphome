@@ -232,13 +232,14 @@ bool OpenThreadComponent::teardown() {
   switch (this->teardown_stage_) {
     case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
       auto lock = InstanceLock::try_acquire(100);
-      // Try again on next teardown loop
       if (!lock) {
+        // Try again on next teardown loop
+        ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
         return false;
       }
       // Start tearing down
       this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
-      ESP_LOGV(TAG, "Clear Srp");
+      ESP_LOGV(TAG, "Clear SRP");
       otInstance *instance = lock.get_instance();
       otSrpClientClearHostAndServices(instance);
       otSrpClientBuffersFreeAllServices(instance);
