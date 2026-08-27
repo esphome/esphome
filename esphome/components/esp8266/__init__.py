@@ -1,3 +1,4 @@
+import functools
 import logging
 from pathlib import Path
 import platform
@@ -261,7 +262,7 @@ CONFIG_SCHEMA = cv.All(
     # reject a --toolchain this platform cannot serve yet.
     cv.require_platformio_toolchain("ESP8266"),
     set_core_data,
-    network.require_ipv4,
+    functools.partial(network.require_ipv4, name=PLATFORM_ESP8266),
 )
 
 

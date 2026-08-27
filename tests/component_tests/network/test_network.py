@@ -50,7 +50,7 @@ def test_require_ipv4_sets_requirement() -> None:
 def test_require_ipv4_is_idempotent() -> None:
     require_ipv4({})
     require_ipv4({})
-    assert CORE.data[KEY_REQUIRE_IPV4] is True
+    assert CORE.data[KEY_REQUIRE_IPV4] == {"a component"}
 
 
 def test_ipv4_dropped_when_explicitly_disabled(
@@ -154,7 +154,7 @@ def test_final_validate_rejects_explicit_ipv6_disable_when_required() -> None:
     defaults enable_ipv6 to False, an explicit False and an absent/defaulted value are
     distinguishable directly on the config dict -- no separate raw-config detection pass
     is needed."""
-    CORE.data[KEY_REQUIRE_IPV6] = True
+    CORE.data[KEY_REQUIRE_IPV6] = {"test"}
     with pytest.raises(Invalid, match="explicitly disables it"):
         _final_validate({CONF_ENABLE_IPV6: False})
 
@@ -179,7 +179,7 @@ def test_final_validate_resolves_ipv6_default_when_required() -> None:
         KEY_TARGET_FRAMEWORK: "host",
         KEY_FRAMEWORK_VERSION: Version(0, 0, 0),
     }
-    CORE.data[KEY_REQUIRE_IPV6] = True
+    CORE.data[KEY_REQUIRE_IPV6] = {"test"}
     config = {CONF_ENABLE_IPV4: True}
     _final_validate(config)
     assert config[CONF_ENABLE_IPV6] is True
@@ -189,7 +189,7 @@ def test_final_validate_rejects_explicit_ipv4_disable_when_required() -> None:
     """A component's require_ipv4() conflicting with an explicit 'enable_ipv4: false'
     is a config violation -- the user must opt into disabling IPv4, but that choice
     still can't override an actual requirement."""
-    CORE.data[KEY_REQUIRE_IPV4] = True
+    CORE.data[KEY_REQUIRE_IPV4] = {"test"}
     with pytest.raises(Invalid, match="explicitly disables it"):
         _final_validate({CONF_ENABLE_IPV4: False})
 
@@ -202,7 +202,7 @@ def test_final_validate_accepts_explicit_ipv4_disable_when_not_required() -> Non
 
 def test_final_validate_accepts_ipv4_default_when_required() -> None:
     """The default 'enable_ipv4: true' never conflicts with a require_ipv4() call."""
-    CORE.data[KEY_REQUIRE_IPV4] = True
+    CORE.data[KEY_REQUIRE_IPV4] = {"test"}
     _final_validate({CONF_ENABLE_IPV4: True})  # must not raise
 
 

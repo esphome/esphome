@@ -93,11 +93,7 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
   }
 #endif /* USE_NETWORK_IPV4 */
 #if USE_NETWORK_IPV6
-#if USE_NETWORK_IPV4
-  else if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
-#else
   if (addr_ptr->sa_family == AF_INET6 && len >= sizeof(sockaddr_in6)) {
-#endif
     const auto *addr = reinterpret_cast<const struct sockaddr_in6 *>(addr_ptr);
 #ifdef USE_HOST
 #if USE_NETWORK_IPV4
@@ -120,12 +116,12 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
 #endif /* USE_NETWORK_IPV4 */
 #elif !defined(USE_SOCKET_IMPL_LWIP_TCP)
 #if USE_NETWORK_IPV4
-  // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
-  if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
-      addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
-      esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
-    return strlen(buf.data());
-  }
+    // Format IPv4-mapped IPv6 addresses as regular IPv4 (LWIP layout)
+    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
+        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
+        esphome_inet_ntop4(&addr->sin6_addr.un.u32_addr[3], buf.data(), buf.size()) != nullptr) {
+      return strlen(buf.data());
+    }
 #endif /* USE_NETWORK_IPV4 */
 #endif
     if (esphome_inet_ntop6(&addr->sin6_addr, buf.data(), buf.size()) != nullptr)

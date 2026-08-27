@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import functools
 from typing import Any, NoReturn
 
 from esphome import automation
@@ -110,7 +111,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(RELOCATED),
     _consume_udp_sockets,
-    network.require_ipv4,
+    functools.partial(network.require_ipv4, name="udp"),
 )
 
 

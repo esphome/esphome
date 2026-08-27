@@ -206,50 +206,52 @@ def has_high_performance_networking() -> bool:
     return CORE.data.get(KEY_HIGH_PERFORMANCE_NETWORKING, False)
 
 
-def require_ipv4(config: ConfigType) -> ConfigType:
+def require_ipv4(config: ConfigType, name: str | None = None) -> ConfigType:
     """Declare that a component cannot compile or function with IPv4 disabled.
 
     Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
     already a (config) -> config validator, so no wrapper function is needed.
+    Pass `name` via functools.partial to identify the caller in the error message.
 
     Example:
         from esphome.components import network
 
         CONFIG_SCHEMA = cv.All(
             ...,
-            network.require_ipv4,
+            functools.partial(network.require_ipv4, name="wifi"),
         )
     """
-    CORE.data[KEY_REQUIRE_IPV4] = True
+    CORE.data.setdefault(KEY_REQUIRE_IPV4, set()).add(name or "a component")
     return config
 
 
 def has_ipv4_requirement() -> bool:
     """Check if any configured component called require_ipv4()."""
-    return CORE.data.get(KEY_REQUIRE_IPV4, False)
+    return bool(CORE.data.get(KEY_REQUIRE_IPV4))
 
 
-def require_ipv6(config: ConfigType) -> ConfigType:
+def require_ipv6(config: ConfigType, name: str | None = None) -> ConfigType:
     """Declare that a component cannot compile or function with IPv6 disabled.
 
     Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
     already a (config) -> config validator, so no wrapper function is needed.
+    Pass `name` via functools.partial to identify the caller in the error message.
 
     Example:
         from esphome.components import network
 
         CONFIG_SCHEMA = cv.All(
             ...,
-            network.require_ipv6,
+            functools.partial(network.require_ipv6, name="nrf52"),
         )
     """
-    CORE.data[KEY_REQUIRE_IPV6] = True
+    CORE.data.setdefault(KEY_REQUIRE_IPV6, set()).add(name or "a component")
     return config
 
 
 def has_ipv6_requirement() -> bool:
     """Check if any configured component called require_ipv6()."""
-    return CORE.data.get(KEY_REQUIRE_IPV6, False)
+    return bool(CORE.data.get(KEY_REQUIRE_IPV6))
 
 
 def get_network_priority(iface: str) -> float | None:
@@ -373,10 +375,10 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
 
-    if has_ipv6_requirement():
+    if ipv6_requirers := CORE.data.get(KEY_REQUIRE_IPV6):
         if config.get(CONF_ENABLE_IPV6) is False:
             raise cv.Invalid(
-                "IPv6 is required by at least 1 component in this configuration, but "
+                f"IPv6 is required by {', '.join(sorted(ipv6_requirers))}, but "
                 "'network: enable_ipv6: false' explicitly disables it"
             )
         # Flipping to True must not bypass the version gate cv.Any() enforces.
@@ -387,9 +389,11 @@ def _final_validate(config: ConfigType) -> None:
         # unconditionally, matching enable_ipv4's default=True schema entry.
         config.setdefault(CONF_ENABLE_IPV6, False)
 
-    if has_ipv4_requirement() and not config[CONF_ENABLE_IPV4]:
+    if (ipv4_requirers := CORE.data.get(KEY_REQUIRE_IPV4)) and not config[
+        CONF_ENABLE_IPV4
+    ]:
         raise cv.Invalid(
-            "IPv4 is required by at least 1 component in this configuration, but "
+            f"IPv4 is required by {', '.join(sorted(ipv4_requirers))}, but "
             "'network: enable_ipv4: false' explicitly disables it"
         )
 
@@ -581,10 +585,15 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define(
             "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
         )
-    # esp32-arduino enable_ipv6 is always true
     if CORE.is_esp32:
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
-        add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
+        # pioarduino's esp-idf core is prebuilt against an IPv6-enabled lwIP,
+        # so the sdkconfig option is pinned regardless of enable_ipv6.
+        if CORE.using_arduino:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", True)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", True)
+        else:
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
     elif enable_ipv6:
         cg.add_build_flag("-DCONFIG_LWIP_IPV6")
         cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")

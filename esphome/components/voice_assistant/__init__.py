@@ -1,3 +1,5 @@
+import functools
+
 from esphome import automation
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
@@ -192,7 +194,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     tts_stream_validate,
-    network.require_ipv4,
+    functools.partial(network.require_ipv4, name="voice_assistant"),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(

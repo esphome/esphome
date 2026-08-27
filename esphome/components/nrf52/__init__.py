@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 from pathlib import Path
 import re
@@ -268,7 +269,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _resolve_toolchain,
     set_framework,
-    network.require_ipv6,
+    functools.partial(network.require_ipv6, name=PLATFORM_NRF52),
 )
 
 

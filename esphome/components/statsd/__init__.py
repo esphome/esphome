@@ -1,3 +1,5 @@
+import functools
+
 import esphome.codegen as cg
 from esphome.components import binary_sensor, network, sensor
 import esphome.config_validation as cv
@@ -47,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.polling_component_schema("10s")),
-    network.require_ipv4,
+    functools.partial(network.require_ipv4, name="statsd"),
 )
 
 

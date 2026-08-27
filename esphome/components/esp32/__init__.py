@@ -554,12 +554,14 @@ def set_core_data(config):
 
 
 def _require_ip_on_arduino(config):
-    """Arduino's esp-idf core requires both IPv4 and IPv6"""
+    """Arduino's esp-idf core requires IPv4; its lwIP is prebuilt with IPv6
+    support too, but that's pinned directly in network's to_code(), not via
+    require_ipv6(), so enable_ipv6 stays user-controlled.
+    """
     if CORE.using_arduino:
         from esphome.components import network
 
-        network.require_ipv4(config)
-        network.require_ipv6(config)
+        network.require_ipv4(config, name=PLATFORM_ESP32)
     return config
 
 

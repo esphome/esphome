@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import functools
 import logging
 
 from esphome import automation, pins
@@ -25,6 +26,7 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_ON_BOOT,
+    CONF_ETHERNET,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -560,7 +562,7 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
     ),
     _validate,
-    require_ipv4,
+    functools.partial(require_ipv4, name=CONF_ETHERNET),
 )
 
 

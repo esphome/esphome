@@ -1,3 +1,4 @@
+import functools
 import ipaddress
 import re
 
@@ -101,7 +102,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_LN882X,
         ]
     ),
-    network.require_ipv4,
+    functools.partial(network.require_ipv4, name="wireguard"),
 )
 
 

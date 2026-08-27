@@ -1,3 +1,4 @@
+import functools
 from typing import Any
 
 from esphome import automation
@@ -25,6 +26,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_LOG_LEVEL,
+    CONF_OPENTHREAD,
     CONF_OUTPUT_POWER,
     CONF_USE_ADDRESS,
     PLATFORM_ESP32,
@@ -242,7 +244,7 @@ CONFIG_SCHEMA = cv.All(
     _validate_platform,
     _validate,
     _require_vfs_select,
-    require_ipv6,
+    functools.partial(require_ipv6, name=CONF_OPENTHREAD),
 )
 
 

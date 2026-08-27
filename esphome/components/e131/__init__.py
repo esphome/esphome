@@ -1,3 +1,5 @@
+import functools
+
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.light.effects import register_addressable_effect
@@ -37,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    network.require_ipv4,
+    functools.partial(network.require_ipv4, name="e131"),
 )
 
 
