@@ -74,6 +74,11 @@ class USBStorageClient : public usb_host::USBClient {
   void on_removed(usb_device_handle_t handle) override;
 
   bool parse_msc_endpoints_();
+  // Bulk IN transfers must ask for a whole number of max-size packets. The BOT/SCSI
+  // responses are 8, 13 or 36 bytes, none of which is a multiple of any legal
+  // wMaxPacketSize, so every IN request is rounded up here. The device answers with a
+  // short packet and TransferStatus::data_len reports what actually arrived.
+  uint16_t round_up_to_in_mps_(uint16_t len) const;
 
   bool scsi_inquiry_();
   bool scsi_read_capacity_();
@@ -94,6 +99,9 @@ class USBStorageClient : public usb_host::USBClient {
 
   uint8_t bulk_in_ep_{0};
   uint8_t bulk_out_ep_{0};
+  // wMaxPacketSize of the bulk IN endpoint, taken from the descriptor rather than assumed.
+  // A bulk IN transfer has to request a whole number of these, see round_up_to_in_mps_().
+  uint16_t bulk_in_mps_{0};
   uint8_t msc_interface_{0xFF};
 
   uint32_t sector_count_{0};
