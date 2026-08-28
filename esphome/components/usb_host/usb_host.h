@@ -27,6 +27,22 @@ namespace esphome::usb_host {
 //
 // Transfer submission engine (USBHost) is stateless w.r.t. client memory -- the
 // Linux URB model: client owns the pool, fills a slot, hands it to USBHost.
+//
+// TransferRequest pool access pattern:
+// - get_trq_() [allocate]: called from BOTH the USB task and the main loop
+//   * USB task: via input callbacks that restart their transfer immediately
+//   * Main loop: for output transfers and flow-controlled input restarts
+// - release_trq() [deallocate]: called from BOTH the USB task and the main loop
+//   * USB task: right after a transfer callback completes (this is what keeps the
+//     pool from running dry under load)
+//   * Main loop: when a submission fails
+//
+// The dual-threaded allocation/deallocation is intentional rather than an oversight:
+// - the USB task can restart an input transfer and give the slot back without a
+//   context switch to the main loop
+// - the main loop keeps control of backpressure by deciding when to restart after
+//   it has consumed the data
+// The atomic bitmask makes that safe without taking a mutex on either side.
 
 static const char *const TAG = "usb_host";
 
@@ -50,6 +66,9 @@ static constexpr size_t SETUP_PACKET_SIZE = 8;
 static constexpr size_t MAX_REQUESTS = USB_HOST_MAX_REQUESTS;
 static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be between 1 and 32");
 
+// Bitmask type tracking which TransferRequest slots are in use. It needs at least as many
+// bits as MAX_REQUESTS, hence uint16_t up to 16 requests and uint32_t for 17-32. This is
+// tied to the static_assert above: raising MAX_REQUESTS beyond 32 means changing both.
 using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
 static constexpr trq_bitmask_t ALL_REQUESTS_IN_USE = MAX_REQUESTS == 32 ? ~0 : (1 << MAX_REQUESTS) - 1;
 
@@ -195,6 +214,9 @@ class USBClient : public Component {
   void on_opened(uint8_t addr);
   virtual void on_removed(usb_device_handle_t handle);
   void dump_config() override;
+  // THREAD CONTEXT: both the USB task and the main loop
+  // - USB task: immediately after a transfer callback completes
+  // - Main loop: when a transfer submission failed
   void release_trq(TransferRequest *trq);
   trq_bitmask_t get_trq_in_use() const { return trq_in_use_; }
 
@@ -205,11 +227,21 @@ class USBClient : public Component {
 
   // Lock-free event queue and pool -- public for static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
+  // The pool is one entry smaller than the queue because LockFreeQueue<T, N> is a ring
+  // buffer holding N-1 elements. Sizing it that way makes allocate() return nullptr before
+  // push() can fail, so a pool slot is never leaked on a full queue. The "- 1" is that
+  // guarantee, not an off-by-one.
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
   // -- Bulk / interrupt transfers ----------------------------------------------
 #ifdef USE_USB_BULK_TRANSFERS
+  // THREAD CONTEXT: both the USB task and the main loop
+  // - USB task: an input callback restarting its own transfer for immediate reception
+  // - Main loop: initial setup, and flow-controlled restarts after data was consumed
   bool transfer_in(uint8_t ep_address, const transfer_cb_t &callback, uint16_t length);
+  // THREAD CONTEXT: both the USB task and the main loop
+  // - USB task: an output callback restarting output directly, without a defer
+  // - Main loop: the initial output trigger from write_array() and loop()
   bool transfer_out(uint8_t ep_address, const transfer_cb_t &callback, const uint8_t *data, uint16_t length);
 #endif
 
@@ -281,6 +313,8 @@ class USBClient : public Component {
   const usb_config_desc_t *config_desc_{nullptr};
   int device_addr_{-1};
   int state_{USB_CLIENT_INIT};
+  // Lock-free pool management, no dynamic allocation: bit i set means requests_[i] is in
+  // use. Both threads allocate and deallocate, hence the atomic (see the header comment).
   std::atomic<trq_bitmask_t> trq_in_use_;
   uint16_t vid_{};
   uint16_t pid_{};

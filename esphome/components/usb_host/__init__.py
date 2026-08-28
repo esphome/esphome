@@ -51,7 +51,9 @@ def usb_device_schema(
     return schema
 
 
-def _set_max_packet_size(config: dict) -> dict:
+def _store_host_options(config: dict) -> dict:
+    """Publish the host-wide sizing options so consumer components can read them
+    from their own validation and codegen."""
     domain_data = CORE.data.setdefault(DOMAIN, {})
     domain_data[CONF_MAX_PACKET_SIZE] = config[CONF_MAX_PACKET_SIZE]
     domain_data[CONF_MAX_TRANSFER_REQUESTS] = config[CONF_MAX_TRANSFER_REQUESTS]
@@ -100,7 +102,7 @@ CONFIG_SCHEMA = cv.All(
             VARIANT_ESP32S31,
         ]
     ),
-    _set_max_packet_size,
+    _store_host_options,
 )
 
 

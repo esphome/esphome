@@ -239,8 +239,16 @@ void USBClient::setup() {
   // A control transfer keeps the 8 byte setup packet in the same buffer as its data stage,
   // so the buffer has to be that much larger than the largest packet or the data stage is
   // capped below one packet. That bites on a 64 byte configuration, where it would leave 56.
+  // A failure here leaves request.transfer null, and the first get_trq_() handing out that
+  // slot would dereference it. Fail the component instead of crashing on the first transfer.
   for (auto &request : this->requests_) {
-    usb_host_transfer_alloc(SETUP_PACKET_SIZE + USB_MAX_PACKET_SIZE, 0, &request.transfer);
+    err = usb_host_transfer_alloc(SETUP_PACKET_SIZE + USB_MAX_PACKET_SIZE, 0, &request.transfer);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Transfer buffer alloc failed: %s", esp_err_to_name(err));
+      this->status_set_error(LOG_STR("Transfer buffer alloc failed"));
+      this->mark_failed();
+      return;
+    }
     request.client = this;
   }
   xTaskCreate(usb_task_fn, "usb_task", USB_TASK_STACK_SIZE, this, USB_TASK_PRIORITY, &this->usb_task_handle_);
@@ -314,7 +322,9 @@ void USBClient::handle_open_state_() {
   }
   {
     const usb_config_desc_t *cfg_desc;
-    if (usb_host_get_active_config_descriptor(this->device_handle_, &cfg_desc) != ESP_OK) {
+    err = usb_host_get_active_config_descriptor(this->device_handle_, &cfg_desc);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Device get_config_desc failed: %s", esp_err_to_name(err));
       this->disconnect();
       return;
     }
