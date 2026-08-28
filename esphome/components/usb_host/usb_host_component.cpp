@@ -305,7 +305,7 @@ bool USBHost::stream_start_urbs(IsocStream &stream, USBClient *cb, usb_device_ha
 }
 
 void USBHost::stream_release(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
-                              usb_device_handle_t device_handle) {
+                             usb_device_handle_t device_handle) {
   if (!stream.owns_interface)
     return;
   // Only the owner may touch the alt-setting: a feedback stream shares its interface with

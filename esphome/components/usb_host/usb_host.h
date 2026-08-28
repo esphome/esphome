@@ -381,7 +381,7 @@ class USBHost final : public Component {
   // shares its interface with another one, and skips the alt-setting reset when there is
   // nothing to reset.
   void stream_release(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
-                       usb_device_handle_t device_handle);
+                      usb_device_handle_t device_handle);
 
   // Static trampoline stored as xfer->callback for every ISOC URB.
   // Iterates isoc_packet_desc[], calls client->on_isoc_packet() per packet, resubmits.

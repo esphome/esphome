@@ -7,7 +7,6 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
-    get_esp32_variant,
     idf_version,
     only_on_variant,
 )
@@ -93,17 +92,6 @@ def get_max_packet_size() -> int:
 
 def get_max_transfer_requests() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_TRANSFER_REQUESTS, 16)
-
-
-def _dual_host_validator(value):
-    """dual_host requires ESP32-P4 and IDF >= 6.0 (needs espressif/usb 1.4.1)."""
-    value = cv.boolean(value)
-    if value:
-        if get_esp32_variant() != VARIANT_ESP32P4:
-            raise cv.Invalid("dual_host is only supported on ESP32-P4")
-        if idf_version() < cv.Version(6, 0, 0):
-            raise cv.Invalid("dual_host requires IDF >= 6.0.0")
-    return value
 
 
 CONFIG_SCHEMA = cv.All(
