@@ -304,8 +304,9 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
     return std::nullopt;
   }
   // Registers are the wire's own unit, so decode them directly rather than serializing back to bytes.
-  // Every case defers to registers_to_value(), keeping one implementation of the word order and sign
-  // rules; the float types yield their bit pattern here, as the byte decoder does.
+  // Each case defers to registers_to_value() so the word order and sign rules have one definition, with
+  // two deliberate exceptions matching what the byte decoder returned: the float types yield their bit
+  // pattern rather than a float, and U_QWORD shares the signed branch because the return type is int64_t.
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
       return registers_to_value<SensorValueType::U_WORD>(registers);
@@ -327,6 +328,7 @@ std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t cou
       return registers_to_uint32(registers[0], registers[1]);
     case SensorValueType::FP32_R:
       return registers_to_uint32(registers[1], registers[0]);
+    // Signed for both: an unsigned QWORD above INT64_MAX has to come back as a negative int64_t.
     case SensorValueType::U_QWORD:
     case SensorValueType::S_QWORD:
       return registers_to_value<SensorValueType::S_QWORD>(registers);

@@ -504,7 +504,7 @@ TEST(ModbusHelpersTest, ValueAtDecodesByAbsoluteAddress) {
   EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 100), std::optional<uint16_t>(0x1111));
   EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 102), std::optional<uint16_t>(0x3333));
   EXPECT_EQ(value_at<SensorValueType::U_DWORD>(span, 100, 101), std::optional<uint32_t>(0x22223333u));
-  // Types whose RegisterValue<> is not an unsigned integer, and the widest bounds check.
+  // Types whose RegisterValueType<> is not an unsigned integer, and the widest bounds check.
   const uint16_t floats[] = {0x4048, 0xF5C3, 0xF5C3, 0x4048};
   const std::span<const uint16_t> float_span(floats, 4);
   EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32>(float_span, 10, 10).value_or(0.0f), 3.14f);

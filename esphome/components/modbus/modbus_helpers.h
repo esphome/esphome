@@ -531,9 +531,10 @@ template<SensorValueType VALUE_TYPE> constexpr auto registers_to_value(const uin
   }
 }
 
-/// The type registers_to_value() yields for a given value type.
+/// The type registers_to_value() yields for a given value type. Distinct from modbus::RegisterValues,
+/// which is a container of raw words.
 template<SensorValueType VALUE_TYPE>
-using RegisterValue = decltype(registers_to_value<VALUE_TYPE>(static_cast<const uint16_t *>(nullptr)));
+using RegisterValueType = decltype(registers_to_value<VALUE_TYPE>(static_cast<const uint16_t *>(nullptr)));
 
 /** The value stored at an absolute register address, or nullopt when it is not wholly inside this
  * response. Lets a device decode by address rather than by offset, so a poll split across several
@@ -543,8 +544,8 @@ using RegisterValue = decltype(registers_to_value<VALUE_TYPE>(static_cast<const 
  * @param address the address of the wanted value
  */
 template<SensorValueType VALUE_TYPE>
-constexpr std::optional<RegisterValue<VALUE_TYPE>> value_at(std::span<const uint16_t> registers, uint16_t start_address,
-                                                            uint16_t address) {
+constexpr std::optional<RegisterValueType<VALUE_TYPE>> value_at(std::span<const uint16_t> registers,
+                                                                uint16_t start_address, uint16_t address) {
   if (address < start_address)
     return std::nullopt;
   const size_t offset = static_cast<size_t>(address) - start_address;
