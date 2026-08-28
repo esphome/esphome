@@ -509,7 +509,7 @@ TEST(ModbusHelpersTest, ValueAtDecodesByAbsoluteAddress) {
   const std::span<const uint16_t> float_span(floats, 4);
   EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32>(float_span, 10, 10).value_or(0.0f), 3.14f);
   EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32_R>(float_span, 10, 12).value_or(0.0f), 3.14f);
-  EXPECT_EQ(value_at<SensorValueType::U_QWORD>(float_span, 10, 10), std::optional<uint64_t>(0x4048F5C3F5C34048ull));
+  EXPECT_EQ(value_at<SensorValueType::U_QWORD>(float_span, 10, 10), std::optional<uint64_t>(0x4048F5C3F5C34048ULL));
   EXPECT_FALSE(value_at<SensorValueType::U_QWORD>(float_span, 10, 11).has_value());
 }
 
@@ -539,18 +539,18 @@ TEST(ModbusHelpersTest, ValueAtHandlesAnEmptyResponse) {
 
 TEST(ModbusHelpersTest, RegistersToValueDecodesQwordBothWordOrders) {
   const uint16_t registers[] = {0x0123, 0x4567, 0x89AB, 0xCDEF};
-  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(registers), 0x0123456789ABCDEFull);
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(registers), 0x0123456789ABCDEFULL);
   const uint16_t reversed[] = {0xCDEF, 0x89AB, 0x4567, 0x0123};
-  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD_R>(reversed), 0x0123456789ABCDEFull);
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD_R>(reversed), 0x0123456789ABCDEFULL);
   // Signed reading of the same bits, and the sign-extreme case.
-  EXPECT_EQ(registers_to_value<SensorValueType::S_QWORD>(registers), 0x0123456789ABCDEFll);
+  EXPECT_EQ(registers_to_value<SensorValueType::S_QWORD>(registers), 0x0123456789ABCDEFLL);
   const uint16_t negative[] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFE};
   EXPECT_EQ(registers_to_value<SensorValueType::S_QWORD>(negative), -2);
-  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(negative), 0xFFFFFFFFFFFFFFFEull);
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(negative), 0xFFFFFFFFFFFFFFFEULL);
 }
 
 TEST(ModbusHelpersTest, RegistersToUint64CombinesWordsHighFirst) {
-  EXPECT_EQ(registers_to_uint64(0x0123, 0x4567, 0x89AB, 0xCDEF), 0x0123456789ABCDEFull);
+  EXPECT_EQ(registers_to_uint64(0x0123, 0x4567, 0x89AB, 0xCDEF), 0x0123456789ABCDEFULL);
 }
 
 // --- packed bit helpers ------------------------------------------------------
