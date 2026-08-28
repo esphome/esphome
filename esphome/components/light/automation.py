@@ -26,8 +26,8 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_WHITE,
 )
-from esphome.core import CORE, EsphomeError, Lambda
-from esphome.cpp_generator import LambdaExpression
+from esphome.core import CORE, ID, EsphomeError, Lambda
+from esphome.cpp_generator import LambdaExpression, MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 from .types import (
@@ -39,11 +39,14 @@ from .types import (
     DimRelativeAction,
     LightCall,
     LightControlAction,
+    LightEffectCycleAction,
     LightIsOffCondition,
     LightIsOnCondition,
     LightState,
     ToggleAction,
 )
+
+CONF_INCLUDE_NONE = "include_none"
 
 
 @automation.register_action(
@@ -251,6 +254,75 @@ async def light_control_to_code(config, action_id, template_arg, args):
         return_type=cg.void,
     )
     return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
+
+
+def _record_effect_cycle_ref(config: ConfigType) -> ConfigType:
+    """Record a cycle-action reference for later validation against the target light."""
+    from . import EffectCycleRef, _get_data
+
+    _get_data().effect_cycle_refs.append(
+        EffectCycleRef(
+            light_id=config[CONF_ID],
+            component_path=path_context.get(),
+        )
+    )
+    return config
+
+
+LIGHT_EFFECT_CYCLE_ACTION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(LightState),
+        cv.Optional(CONF_INCLUDE_NONE, default=False): cv.boolean,
+    }
+)
+LIGHT_EFFECT_CYCLE_ACTION_BASE_SCHEMA.add_extra(_record_effect_cycle_ref)
+
+LIGHT_EFFECT_CYCLE_ACTION_SCHEMA = automation.maybe_simple_id(
+    LIGHT_EFFECT_CYCLE_ACTION_BASE_SCHEMA
+)
+
+
+@automation.register_action(
+    "light.effect.next",
+    LightEffectCycleAction,
+    LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def light_effect_next_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await _light_effect_cycle_to_code(config, action_id, template_arg, True)
+
+
+@automation.register_action(
+    "light.effect.previous",
+    LightEffectCycleAction,
+    LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def light_effect_previous_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await _light_effect_cycle_to_code(config, action_id, template_arg, False)
+
+
+async def _light_effect_cycle_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    forward: bool,
+) -> MockObj:
+    paren = await cg.get_variable(config[CONF_ID])
+    cycle_template_arg = cg.TemplateArguments(forward, *template_arg)
+    var = cg.new_Pvariable(action_id, cycle_template_arg, paren)
+    cg.add(var.set_include_none(config[CONF_INCLUDE_NONE]))
+    return var
 
 
 CONF_RELATIVE_BRIGHTNESS = "relative_brightness"

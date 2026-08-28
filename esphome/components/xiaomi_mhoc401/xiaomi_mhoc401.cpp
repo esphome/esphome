@@ -2,8 +2,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
 namespace esphome::xiaomi_mhoc401 {
 
 static const char *const TAG = "xiaomi_mhoc401";
@@ -21,7 +19,7 @@ void XiaomiMHOC401::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiMHOC401::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMHOC401::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -49,7 +47,7 @@ bool XiaomiMHOC401::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     }
     if (res->humidity.has_value() && this->humidity_ != nullptr) {
       // see https://github.com/custom-components/sensor.mitemp_bt/issues/7#issuecomment-595948254
-      *res->humidity = trunc(*res->humidity);
+      *res->humidity = truncf(*res->humidity);
     }
     if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
       continue;
@@ -69,5 +67,3 @@ bool XiaomiMHOC401::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 void XiaomiMHOC401::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
 }  // namespace esphome::xiaomi_mhoc401
-
-#endif

@@ -126,7 +126,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         break;
       }
 
-      // Else fall thru ...
+      [[fallthrough]];
     }
     case STATE_CHECK_SMS:
       send_cmd_("AT+CMGL=\"ALL\"");

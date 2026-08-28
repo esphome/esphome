@@ -1,4 +1,4 @@
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)
 
 #include "fastled_light.h"
 #include "esphome/core/log.h"
@@ -19,7 +19,7 @@ void FastLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "FastLED light:\n"
                 "  Num LEDs: %u\n"
-                "  Max refresh rate: %u",
+                "  Max refresh rate: %" PRIu32,
                 this->num_leds_, this->max_refresh_rate_.value_or(0));
 }
 void FastLEDLightOutput::write_state(light::LightState *state) {

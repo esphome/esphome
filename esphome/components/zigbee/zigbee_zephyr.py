@@ -117,6 +117,14 @@ async def zephyr_to_code(config: ConfigType) -> "MockObj":
 
     cg.add_build_flag("-Wl,--wrap=zb_zcl_put_reporting_info_from_req")
 
+    # Wrap the transceiver sleep/receive/transmit calls to measure how long the
+    # radio is powered down. The span between a zb_trans_enter_sleep() and the
+    # following zb_trans_enter_receive() or zb_trans_transmit() is time the
+    # radio spent asleep.
+    cg.add_build_flag("-Wl,--wrap=zb_trans_enter_sleep")
+    cg.add_build_flag("-Wl,--wrap=zb_trans_enter_receive")
+    cg.add_build_flag("-Wl,--wrap=zb_trans_transmit")
+
     if CONF_IEEE802154_VENDOR_OUI in config:
         zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
         random_number = config[CONF_IEEE802154_VENDOR_OUI]
@@ -161,11 +169,14 @@ async def _attr_to_code(config: ConfigType) -> None:
         zigbee_set_string(basic_attrs.mf_name, "esphome"),
         zigbee_set_string(basic_attrs.model_id, config[CONF_MODEL]),
         zigbee_set_string(
-            basic_attrs.date_code, datetime.datetime.now().strftime("%Y%m%d %H%M%S")
+            basic_attrs.date_code,
+            # Local build time, matching the esp32 implementation
+            # (App.get_build_time() in C++).
+            datetime.datetime.now().astimezone().strftime("%Y%m%d %H%M%S"),
         ),
         zigbee_assign(
             basic_attrs.power_source,
-            cg.RawExpression(POWER_SOURCE[config[CONF_POWER_SOURCE]]),
+            POWER_SOURCE[config[CONF_POWER_SOURCE]],
         ),
         zigbee_set_string(basic_attrs.location_id, ""),
         zigbee_assign(

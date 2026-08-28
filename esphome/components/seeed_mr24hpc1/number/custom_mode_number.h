@@ -5,7 +5,7 @@
 
 namespace esphome::seeed_mr24hpc1 {
 
-class CustomModeNumber : public number::Number, public Parented<MR24HPC1Component> {
+class CustomModeNumber final : public number::Number, public Parented<MR24HPC1Component> {
  public:
   CustomModeNumber() = default;
 

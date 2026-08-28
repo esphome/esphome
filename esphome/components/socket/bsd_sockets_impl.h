@@ -76,7 +76,7 @@ class BSDSocketImpl {
 #endif
   }
   ssize_t recvfrom(void *buf, size_t len, sockaddr *addr, socklen_t *addr_len) {
-#if defined(USE_ESP32) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR)
     return ::recvfrom(this->fd_, buf, len, 0, addr, addr_len);
 #else
     return ::lwip_recvfrom(this->fd_, buf, len, 0, addr, addr_len);
@@ -85,6 +85,19 @@ class BSDSocketImpl {
   ssize_t readv(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_readv(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not provide readv(); emulate with a read() loop. Stream sockets only:
+    // on a datagram socket each read() would consume a separate datagram, not scatter one.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t n = ::read(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;
+    }
+    return total;
 #else
     return ::readv(this->fd_, iov, iovcnt);
 #endif
@@ -100,6 +113,19 @@ class BSDSocketImpl {
   ssize_t writev(const struct iovec *iov, int iovcnt) {
 #if defined(USE_ESP32)
     return ::lwip_writev(this->fd_, iov, iovcnt);
+#elif defined(USE_ZEPHYR)
+    // Zephyr does not provide writev(); emulate with a write() loop. Stream sockets only:
+    // on a datagram socket each write() would emit a separate datagram, not gather one.
+    ssize_t total = 0;
+    for (int i = 0; i < iovcnt; i++) {
+      ssize_t n = ::write(this->fd_, iov[i].iov_base, iov[i].iov_len);
+      if (n < 0)
+        return total > 0 ? total : n;
+      total += n;
+      if (static_cast<size_t>(n) < iov[i].iov_len)
+        break;  // partial write: stop so caller resumes from the correct stream offset
+    }
+    return total;
 #else
     return ::writev(this->fd_, iov, iovcnt);
 #endif

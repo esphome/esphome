@@ -7,7 +7,7 @@
 
 namespace esphome::grove_gas_mc_v2 {
 
-class GroveGasMultichannelV2Component : public PollingComponent, public i2c::I2CDevice {
+class GroveGasMultichannelV2Component final : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(tvoc)
   SUB_SENSOR(carbon_monoxide)
   SUB_SENSOR(nitrogen_dioxide)

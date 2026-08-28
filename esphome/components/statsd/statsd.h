@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "esphome/core/defines.h"
-#ifdef USE_NETWORK
+#if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/core/component.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/network/ip_address.h"
@@ -27,7 +27,7 @@
 
 namespace esphome::statsd {
 
-class StatsdComponent : public PollingComponent {
+class StatsdComponent final : public PollingComponent {
  public:
   ~StatsdComponent();
 
@@ -83,4 +83,4 @@ class StatsdComponent : public PollingComponent {
 
 }  // namespace esphome::statsd
 
-#endif
+#endif  // USE_NETWORK && !USE_ZEPHYR

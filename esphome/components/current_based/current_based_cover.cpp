@@ -39,7 +39,7 @@ void CurrentBasedCover::control(const CoverCall &call) {
   auto opt_pos = call.get_position();
   if (opt_pos.has_value()) {
     auto pos = *opt_pos;
-    if (fabsf(this->position - pos) < 0.01) {
+    if (fabsf(this->position - pos) < 0.01f) {
       // already at target
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;

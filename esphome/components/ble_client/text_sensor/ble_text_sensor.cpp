@@ -61,7 +61,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       }
       this->handle = chr->handle;
-      if (this->descr_uuid_.get_uuid().len > 0) {
+      if (this->descr_uuid_.is_set()) {
         auto *descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
           this->status_set_warning();
@@ -77,8 +77,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->handle = descr->handle;
       }
       if (this->notify_) {
-        auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(),
-                                                        this->parent()->get_remote_bda(), chr->handle);
+        auto status = this->parent()->register_for_notify(chr->handle);
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }

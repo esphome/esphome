@@ -7,7 +7,7 @@
 
 namespace esphome::rgbct {
 
-class RGBCTLightOutput : public light::LightOutput {
+class RGBCTLightOutput final : public light::LightOutput {
  public:
   void set_red(output::FloatOutput *red) { red_ = red; }
   void set_green(output::FloatOutput *green) { green_ = green; }

@@ -6,7 +6,7 @@
 
 namespace esphome::audio_adc {
 
-template<typename... Ts> class SetMicGainAction : public Action<Ts...> {
+template<typename... Ts> class SetMicGainAction final : public Action<Ts...> {
  public:
   explicit SetMicGainAction(AudioAdc *audio_adc) : audio_adc_(audio_adc) {}
 

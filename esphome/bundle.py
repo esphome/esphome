@@ -7,12 +7,12 @@ and compiled directly: ``esphome compile my_device.esphomebundle.tar.gz``
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 import io
 import json
 import logging
-from pathlib import Path
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 import re
 import shutil
 import tarfile
@@ -20,6 +20,7 @@ from typing import Any
 
 from esphome import const, yaml_util
 from esphome.const import (
+    BUNDLE_EXTENSION,
     CONF_ESPHOME,
     CONF_EXTERNAL_COMPONENTS,
     CONF_INCLUDES,
@@ -29,10 +30,12 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.util import filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
 
-BUNDLE_EXTENSION = ".esphomebundle.tar.gz"
+DOMAIN = "bundle"
+
 MANIFEST_FILENAME = "manifest.json"
 CURRENT_MANIFEST_VERSION = 1
 MAX_DECOMPRESSED_SIZE = 500 * 1024 * 1024  # 500 MB
@@ -49,6 +52,7 @@ class ManifestKey(StrEnum):
     MANIFEST_VERSION = "manifest_version"
     ESPHOME_VERSION = "esphome_version"
     CONFIG_FILENAME = "config_filename"
+    CONFIG_DIR = "config_dir"
     FILES = "files"
     HAS_SECRETS = "has_secrets"
 
@@ -121,6 +125,153 @@ def _find_used_secret_keys(yaml_files: list[Path]) -> set[str]:
 
 
 @dataclass
+class BundleData:
+    """Files components asked to include, keyed under DOMAIN in CORE.data."""
+
+    extra_files: list[Path] = field(default_factory=list)
+    # Directories whose YAML files are scanned for !secret references but
+    # never bundled, e.g. git package checkouts the builder re-fetches.
+    secret_scan_dirs: set[Path] = field(default_factory=set)
+    # Original config dir parsed from an extracted bundle's manifest.json,
+    # kept in the path flavor of the machine the bundle was created on.
+    # The checked flag makes the manifest lookup happen at most once per run;
+    # CORE.data is cleared between runs.
+    original_config_dir: PurePath | None = None
+    original_config_dir_checked: bool = False
+
+
+def _get_data() -> BundleData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = BundleData()
+    return CORE.data[DOMAIN]
+
+
+def add_bundle_file(path: Path) -> None:
+    """Register a file that a bundle must include.
+
+    Bundle discovery walks the validated config, so it only finds files the config
+    names. Components call this during validation for files it cannot see, such as a
+    file that is referenced from inside another file.
+
+    A relative path is taken as relative to the config directory. Files outside the
+    config directory are skipped when the bundle is built.
+    """
+    _get_data().extra_files.append(CORE.relative_config_path(path))
+
+
+def add_secret_scan_dir(path: Path) -> None:
+    """Register a directory to scan for ``!secret`` references when bundling.
+
+    The directory's files are not added to the bundle. Components call this
+    for YAML the build consumes without bundling it — such as git-fetched
+    packages, which the builder re-fetches — so the secrets those files
+    reference are still shipped in the filtered secrets file.
+
+    A relative path is taken as relative to the config directory.
+    """
+    if not path.is_absolute():
+        path = CORE.relative_config_path(path)
+    _get_data().secret_scan_dirs.add(path)
+
+
+def _secret_scan_yaml_files() -> list[Path]:
+    """Return the YAML files inside registered secret-scan directories."""
+    return filter_yaml_files(
+        f
+        for scan_dir in _get_data().secret_scan_dirs
+        for f in yaml_util.find_files(scan_dir, "*")
+    )
+
+
+# Windows paths start with a drive letter or contain backslashes; POSIX
+# paths do neither in practice, so this is how the flavor of a recorded
+# path string is recognized on any host.
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+
+
+def _path_flavor(value: str) -> type[PurePath]:
+    """Pick the pure path class matching the flavor ``value`` was written in."""
+    if "\\" in value or _WINDOWS_DRIVE_RE.match(value):
+        return PureWindowsPath
+    return PurePosixPath
+
+
+def _load_original_config_dir() -> PurePath | None:
+    """Read the original config dir from an extracted bundle's manifest.
+
+    Returns None when the current config dir is not an extracted bundle or
+    the manifest does not record the original config dir.
+    """
+    manifest_path = CORE.config_dir / MANIFEST_FILENAME
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        # The common case: this config dir is not an extracted bundle.
+        return None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as err:
+        # A manifest.json is present but unreadable or malformed. Say so
+        # instead of letting it look identical to "not a bundle".
+        _LOGGER.warning("Bundle: ignoring unreadable %s: %s", manifest_path, err)
+        return None
+    if not isinstance(manifest, dict):
+        return None
+    # A manifest.json in the config dir does not have to be ours. Only trust
+    # one that looks like a bundle manifest for exactly this config file.
+    version = manifest.get(ManifestKey.MANIFEST_VERSION)
+    if not isinstance(version, int) or version < 1:
+        return None
+    if manifest.get(ManifestKey.CONFIG_FILENAME) != CORE.config_path.name:
+        return None
+    config_dir = manifest.get(ManifestKey.CONFIG_DIR)
+    if not isinstance(config_dir, str) or not config_dir:
+        return None
+    return _path_flavor(config_dir)(config_dir)
+
+
+def remap_bundle_path(value: str) -> Path | None:
+    """Remap an absolute path from the machine a bundle was created on.
+
+    A bundled config may reference files by absolute path. The referenced
+    files ship inside the bundle at their config-relative locations, but the
+    YAML text is copied verbatim, so after extraction on another machine the
+    absolute reference points at a path that only existed on the creating
+    machine. The bundle manifest records that machine's config dir; when
+    ``value`` names a path that lived under it, return the corresponding
+    file next to the extracted config.
+
+    ``value`` is the raw path string from the config. It is parsed with the
+    original machine's path flavor, so a bundle created on Windows remaps on
+    a POSIX build server and vice versa.
+
+    Returns None when not compiling an extracted bundle, when ``value`` was
+    not under the original config dir, or when the bundle does not contain
+    the file.
+    """
+    data = _get_data()
+    if not data.original_config_dir_checked:
+        data.original_config_dir_checked = True
+        data.original_config_dir = _load_original_config_dir()
+    original_dir = data.original_config_dir
+    if original_dir is None:
+        return None
+    path = type(original_dir)(value)
+    if not path.is_absolute():
+        return None
+    try:
+        rel = path.relative_to(original_dir)
+    except ValueError:
+        return None
+    # relative_to is lexical, so ".." segments survive it. Refuse them: the
+    # remapped file must land strictly inside the extracted config tree.
+    if ".." in rel.parts:
+        return None
+    remapped = CORE.relative_config_path(Path(*rel.parts))
+    if not remapped.exists():
+        return None
+    return remapped
+
+
+@dataclass
 class BundleFile:
     """A file to include in the bundle."""
 
@@ -146,6 +297,7 @@ class BundleManifest:
     config_filename: str
     files: list[str]
     has_secrets: bool
+    config_dir: str | None = None
 
 
 class ConfigBundleCreator:
@@ -186,6 +338,7 @@ class ConfigBundleCreator:
         yaml_sources = [
             bf.source for bf in files if bf.source.suffix in (".yaml", ".yml")
         ]
+        yaml_sources.extend(_secret_scan_yaml_files())
         used_secret_keys = _find_used_secret_keys(yaml_sources)
         filtered_secrets = self._build_filtered_secrets(used_secret_keys)
 
@@ -260,42 +413,27 @@ class ConfigBundleCreator:
     def _discover_yaml_includes(self) -> None:
         """Discover YAML files loaded during config parsing.
 
-        Deliberately uses a fresh re-parse and force-loads every deferred
-        ``IncludeFile`` to include *all* potentially-reachable includes,
-        even branches not selected by the local substitutions. Bundles are
-        meant to be compiled on another system where command-line
-        substitution overrides may choose a different branch — e.g.
-        ``!include network/${eth_model}/config.yaml`` must ship every
-        candidate so the remote build can pick any one.
-
-        Entries with unresolved substitution variables in the filename
-        path are skipped with a warning (they cannot be resolved without
-        the substitution pass).
-
-        Secrets files are tracked separately so we can filter them to
-        only include the keys this config actually references.
+        Delegates to :func:`yaml_util.discover_user_yaml_files`, which does a
+        fresh re-parse and force-loads every deferred ``IncludeFile`` so that
+        *all* potentially-reachable includes are captured (even branches not
+        selected by local substitutions). Bundles are meant to be compiled on
+        another system where command-line substitution overrides may choose a
+        different branch — e.g. ``!include network/${eth_model}/config.yaml``
+        must ship every candidate so the remote build can pick any one.
         """
-        # Must be a fresh parse: IncludeFile.load() caches its result in
-        # _content, and we discover files by listening for loader calls. On
-        # an already-parsed tree the cache is populated, .load() returns
-        # without calling the loader, the listener never fires, and the
-        # referenced files would be silently dropped from the bundle.
-        with yaml_util.track_yaml_loads() as loaded_files:
-            try:
-                data = yaml_util.load_yaml(self._config_path)
-            except EsphomeError:
-                _LOGGER.debug(
-                    "Bundle: re-loading YAML for include discovery failed, "
-                    "proceeding with partial file list"
-                )
-            else:
-                _force_load_include_files(data)
-
-        for fpath in loaded_files:
-            if fpath == self._config_path.resolve():
+        discovered = yaml_util.discover_user_yaml_files(self._config_path)
+        self._secrets_paths.update(discovered.secrets)
+        # A !secret inside a file this re-parse does not reach (for example
+        # a git-fetched package the builder re-fetches) still resolves
+        # against the config-dir secrets.yaml at build time, so always
+        # consider that file; filtering no-ops when no key matches.
+        default_secrets = self._config_dir / yaml_util.SECRET_YAML
+        if default_secrets.is_file():
+            self._secrets_paths.add(default_secrets.resolve())
+        config_resolved = self._config_path.resolve()
+        for fpath in discovered.files:
+            if fpath == config_resolved:
                 continue  # Already added as config
-            if fpath.name in const.SECRETS_FILES:
-                self._secrets_paths.add(fpath)
             self._add_file(fpath)
 
     def _discover_component_files(self) -> None:
@@ -308,12 +446,17 @@ class ConfigBundleCreator:
         with known file extensions are also resolved and checked.
 
         Core ESPHome concepts that use relative paths or directories
-        are handled explicitly.
+        are handled explicitly. Files the config does not name at all are
+        registered by their component with add_bundle_file().
         """
         config = self._config
 
         # Generic walk: find all file paths in the validated config
         self._walk_config_for_files(config)
+
+        # Files registered by components during validation
+        for extra_file in _get_data().extra_files:
+            self._add_file(extra_file)
 
         # --- Core ESPHome concepts needing explicit handling ---
 
@@ -427,6 +570,7 @@ class ConfigBundleCreator:
             ManifestKey.MANIFEST_VERSION: CURRENT_MANIFEST_VERSION,
             ManifestKey.ESPHOME_VERSION: const.__version__,
             ManifestKey.CONFIG_FILENAME: self._config_path.name,
+            ManifestKey.CONFIG_DIR: str(self._config_dir),
             ManifestKey.FILES: [f.path for f in files],
             ManifestKey.HAS_SECRETS: has_secrets,
         }
@@ -434,7 +578,7 @@ class ConfigBundleCreator:
     @staticmethod
     def _add_to_tar(tar: tarfile.TarFile, bf: BundleFile) -> None:
         """Add a BundleFile to the tar archive with deterministic metadata."""
-        with open(bf.source, "rb") as f:
+        with bf.source.open("rb") as f:
             _add_bytes_to_tar(tar, bf.path, f.read())
 
 
@@ -511,12 +655,14 @@ def read_bundle_manifest(bundle_path: Path) -> BundleManifest:
     except tarfile.TarError as err:
         raise EsphomeError(f"Failed to read bundle: {err}") from err
 
+    config_dir = manifest.get(ManifestKey.CONFIG_DIR)
     return BundleManifest(
         manifest_version=manifest[ManifestKey.MANIFEST_VERSION],
         esphome_version=manifest.get(ManifestKey.ESPHOME_VERSION, "unknown"),
         config_filename=manifest[ManifestKey.CONFIG_FILENAME],
         files=manifest.get(ManifestKey.FILES, []),
         has_secrets=manifest.get(ManifestKey.HAS_SECRETS, False),
+        config_dir=config_dir if isinstance(config_dir, str) else None,
     )
 
 
@@ -609,11 +755,6 @@ def _validate_tar_members(tar: tarfile.TarFile, target_dir: Path) -> None:
             )
 
 
-def is_bundle_path(path: Path) -> bool:
-    """Check if a path looks like a bundle file."""
-    return path.name.lower().endswith(BUNDLE_EXTENSION)
-
-
 def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
     """Add in-memory bytes to a tar archive with deterministic metadata."""
     info = tarfile.TarInfo(name=name)
@@ -623,57 +764,6 @@ def _add_bytes_to_tar(tar: tarfile.TarFile, name: str, data: bytes) -> None:
     info.gid = 0
     info.mode = 0o644
     tar.addfile(info, io.BytesIO(data))
-
-
-def _force_load_include_files(obj: Any, _seen: set[int] | None = None) -> None:
-    """Recursively resolve any ``IncludeFile`` instances in a YAML tree.
-
-    Nested ``!include`` returns a deferred ``IncludeFile`` that is only
-    resolved during the substitution pass. During bundle discovery we need
-    the referenced files to actually load so the ``track_yaml_loads``
-    listener fires for them.
-
-    ``IncludeFile`` instances with unresolved substitution variables in the
-    filename cannot be loaded — we skip and warn about those.
-    """
-    if _seen is None:
-        _seen = set()
-
-    if isinstance(obj, yaml_util.IncludeFile):
-        if id(obj) in _seen:
-            return
-        _seen.add(id(obj))
-        if obj.has_unresolved_expressions():
-            _LOGGER.warning(
-                "Bundle: cannot resolve !include %s (referenced from %s) "
-                "with substitutions in path",
-                obj.file,
-                obj.parent_file,
-            )
-            return
-        try:
-            loaded = obj.load()
-        except EsphomeError as err:
-            _LOGGER.warning(
-                "Bundle: failed to load !include %s (referenced from %s): %s",
-                obj.file,
-                obj.parent_file,
-                err,
-            )
-            return
-        _force_load_include_files(loaded, _seen)
-    elif isinstance(obj, dict):
-        if id(obj) in _seen:
-            return
-        _seen.add(id(obj))
-        for value in obj.values():
-            _force_load_include_files(value, _seen)
-    elif isinstance(obj, (list, tuple)):
-        if id(obj) in _seen:
-            return
-        _seen.add(id(obj))
-        for item in obj:
-            _force_load_include_files(item, _seen)
 
 
 def _resolve_include_path(include_path: Any) -> Path | None:

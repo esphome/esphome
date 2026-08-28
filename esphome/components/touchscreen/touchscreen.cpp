@@ -78,7 +78,7 @@ void Touchscreen::add_raw_touch_position_(uint8_t id, int16_t x_raw, int16_t y_r
   if (this->swap_x_y_) {
     std::swap(x_raw, y_raw);
   }
-  if (this->touches_.count(id) == 0) {
+  if (!this->touches_.contains(id)) {
     tp.state = STATE_PRESSED;
     tp.id = id;
   } else {

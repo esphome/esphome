@@ -104,7 +104,7 @@ class ActionResponse {
 template<typename... Ts> using ActionResponseCallback = std::function<void(const ActionResponse &, Ts...)>;
 #endif
 
-template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts...> {
+template<typename... Ts> class HomeAssistantServiceCallAction final : public Action<Ts...> {
  public:
   explicit HomeAssistantServiceCallAction(APIServer *parent, bool is_event) : parent_(parent) {
     this->flags_.is_event = is_event;

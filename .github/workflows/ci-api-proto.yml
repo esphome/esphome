@@ -21,20 +21,55 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+      - name: Set up uv
+        # ``--system`` (below) installs into the setup-python interpreter;
+        # no venv is created or restored by this workflow.
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: true
+          # Pull-request-only workflow: a save could never be shared and
+          # would only consume quota.
+          save-cache: "false"
+          # Pin uv version so the action does not have to fetch the
+          # manifest from raw.githubusercontent.com on every cache
+          # miss; that fetch flakes on Windows runners.
+          version: "0.11.15"
 
       - name: Install apt dependencies
+        # PR-only workflow, so nothing on dev could seed a shared apt cache
+        # entry; the cached apt action would save one copy per PR. Plain apt
+        # with every call bounded: the apt.conf.d timeouts make a dead
+        # mirror fail over in seconds, and timeout runs under sudo so it can
+        # kill apt-get itself. Install without update first: image lists are
+        # fresh, and the index refresh is what a congested mirror makes slow.
+        timeout-minutes: 15
         run: |
-          sudo apt update
-          sudo apt-cache show protobuf-compiler
-          sudo apt install -y protobuf-compiler
+          sudo tee /etc/apt/apt.conf.d/99ci-acquire-timeouts >/dev/null <<'EOF'
+          Acquire::Retries "1";
+          Acquire::http::Timeout "15";
+          Acquire::https::Timeout "15";
+          EOF
+          # Common path: the image's package lists are fresh enough.
+          if sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 90 \
+              apt-get install -y protobuf-compiler; then
+            protoc --version
+            exit 0
+          fi
+          # Rescue path: refresh the lists once with a generous bound; the
+          # apt config already fails a stalled mirror over quickly.
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 10 30 \
+            dpkg --configure -a || true
+          sudo timeout -k 15 300 apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive timeout -k 15 300 \
+            apt-get install -y protobuf-compiler
           protoc --version
       - name: Install python dependencies
-        run: pip install aioesphomeapi -c requirements.txt -r requirements_dev.txt
+        run: uv pip install --system aioesphomeapi -c requirements.txt -r requirements_dev.txt
       - name: Generate files
         run: script/api_protobuf/api_protobuf.py
       - name: Check for changes

@@ -11,7 +11,7 @@ const uint8_t MIDEA_TEMPC_MAX = 30;  // Celsius
 const uint8_t MIDEA_TEMPF_MIN = 62;  // Fahrenheit
 const uint8_t MIDEA_TEMPF_MAX = 86;  // Fahrenheit
 
-class MideaIR : public climate_ir::ClimateIR {
+class MideaIR final : public climate_ir::ClimateIR {
  public:
   MideaIR()
       : climate_ir::ClimateIR(

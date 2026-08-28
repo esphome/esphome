@@ -33,7 +33,7 @@
 #include <pgmspace.h>
 #endif
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
 #include <Arduino.h>
 #endif
 
@@ -184,8 +184,15 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
   SmallInlineBuffer(const SmallInlineBuffer &) = delete;
   SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
 
-  /// Set buffer contents, allocating heap if needed
-  void set(const uint8_t *src, size_t size) {
+  bool empty() const { return this->len_ == 0; }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<const uint8_t>() const { return std::span<const uint8_t>(this->data(), this->len_); }
+
+  /// Resize to `size` bytes of (uninitialized) storage and return a writable pointer to fill.
+  /// Allocates heap only when `size` exceeds the inline capacity. Use this when the contents are
+  /// built in place (e.g. assembling a frame and appending a checksum) to avoid a staging copy.
+  uint8_t *init(size_t size) {
     // Free existing heap allocation if switching from heap to inline or different heap size
     if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
       delete[] this->heap_;
@@ -196,8 +203,11 @@ template<size_t InlineSize = 8> class SmallInlineBuffer {
       this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
     }
     this->len_ = size;
-    memcpy(this->data(), src, size);
+    return this->data();
   }
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) { memcpy(this->init(size), src, size); }
 
   uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
   const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
@@ -244,6 +254,11 @@ template<typename T, size_t N> class StaticVector {
         break;
       data_[count_++] = val;
     }
+  }
+
+  // Converting constructor from a smaller StaticVector of the same element type
+  template<size_t M> StaticVector(const StaticVector<T, M> &other) : StaticVector(other.begin(), other.end()) {
+    static_assert(M <= N, "Source StaticVector cannot be larger than the destination");
   }
 
   // Minimal vector-compatible interface - only what we actually use
@@ -683,6 +698,15 @@ template<typename T> class FixedVector {
   T &back() { return data_[size_ - 1]; }
   const T &back() const { return data_[size_ - 1]; }
 
+  /// Remove the last element in place (no reallocation, keeps capacity)
+  /// Caller must ensure vector is not empty (size() > 0)
+  void pop_back() {
+    if constexpr (!std::is_trivially_destructible<T>::value) {
+      data_[size_ - 1].~T();
+    }
+    size_--;
+  }
+
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
   size_t capacity() const { return capacity_; }
@@ -957,6 +981,35 @@ inline bool str_endswith_ignore_case(const std::string &str, const char *suffix)
   return str_endswith_ignore_case(str.c_str(), str.size(), suffix, strlen(suffix));
 }
 
+/// Fallback implementation for case insensitive substring comparison.
+bool str_contains_ignore_case_fallback(const char *haystack, const char *needle);
+
+#ifdef USE_ESP8266
+/// ESP8266 internal implementation reading the needle from flash — prefer the
+/// `str_contains_ignore_case` macro which wraps needle literals with PSTR() automatically.
+bool str_contains_ignore_case_p(const char *haystack, PGM_P needle);
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+/// On ESP8266 the needle is wrapped with PSTR() so it stays in flash, which requires it to be
+/// a string literal; a runtime needle needs str_contains_ignore_case_p behind #ifdef USE_ESP8266.
+#define str_contains_ignore_case(haystack, needle) str_contains_ignore_case_p(haystack, PSTR(needle))
+#else
+/// Case-insensitive check if needle string is contained in haystack (no heap allocation).
+inline bool str_contains_ignore_case(const char *haystack, const char *needle) {
+  if (!needle || !haystack) {
+    return false;
+  }
+
+// strcasestr is a GNU extension: newlib only declares it when _GNU_SOURCE is set.
+// ESP32/host builds get it from their framework or from g++ on Linux;
+// LibreTiny, RP2 and Zephyr do not, so they use the hand-rolled fallback.
+#if defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return str_contains_ignore_case_fallback(haystack, needle);
+#else   // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+  return strcasestr(haystack, needle) != nullptr;
+#endif  // defined(USE_LIBRETINY) || defined(USE_RP2) || defined(USE_ZEPHYR)
+}
+#endif  // USE_ESP8266
+
 // str_truncate moved to alloc_helpers.h - remove this include before 2026.11.0
 
 // str_until, str_lower_case, str_upper_case moved to alloc_helpers.h - remove this comment before 2026.11.0
@@ -1100,28 +1153,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
 }
 #endif
 
-/// Concatenate a name with a separator and suffix using an efficient stack-based approach.
-/// This avoids multiple heap allocations during string construction.
-/// Maximum name length supported is 120 characters for friendly names.
-/// @param name The base name string
-/// @param sep The separator character (e.g., '-', ' ', or '.')
-/// @param suffix_ptr Pointer to the suffix characters
-/// @param suffix_len Length of the suffix
-/// @return The concatenated string: name + sep + suffix
-std::string make_name_with_suffix(const std::string &name, char sep, const char *suffix_ptr, size_t suffix_len);
+/// Maximum size for name with suffix: 120 (max friendly name) + 1 (separator) + 6 (MAC suffix) + 1 (null term)
+static constexpr size_t MAX_NAME_WITH_SUFFIX_SIZE = 128;
 
-/// Optimized string concatenation: name + separator + suffix (const char* overload)
-/// Uses a fixed stack buffer to avoid heap allocations.
-/// @param name The base name string
-/// @param name_len Length of the name
-/// @param sep Single character separator
-/// @param suffix_ptr Pointer to the suffix characters
-/// @param suffix_len Length of the suffix
-/// @return The concatenated string: name + sep + suffix
-std::string make_name_with_suffix(const char *name, size_t name_len, char sep, const char *suffix_ptr,
-                                  size_t suffix_len);
-
-/// Zero-allocation version: format name + separator + suffix directly into buffer.
+/// Format name + separator + suffix directly into buffer without heap allocation.
 /// @param buffer Output buffer (must have space for result + null terminator)
 /// @param buffer_size Size of the output buffer
 /// @param name The base name string
@@ -1253,6 +1288,22 @@ ESPHOME_ALWAYS_INLINE inline char format_hex_char(uint8_t v) { return format_hex
 
 /// Convert a nibble (0-15) to uppercase hex char (used for pretty printing)
 ESPHOME_ALWAYS_INLINE inline char format_hex_pretty_char(uint8_t v) { return format_hex_char(v, 'A'); }
+
+/// Largest number of output bytes a single input byte can expand to when JSON escaped (a \u00XX sequence).
+static constexpr size_t JSON_ESCAPE_MAX_EXPANSION = 6;
+
+/// Copy value into buf, escaping the characters that cannot appear raw inside a JSON string literal.
+///
+/// Escapes " and \ along with the control characters below 0x20. Bytes >= 0x20 are copied verbatim, so text
+/// containing valid UTF-8 survives intact. The result is always null terminated; anything that would not fit is
+/// dropped rather than written partially. Returns buf so the call can be used directly as an argument.
+///
+/// With short_control_escapes the five control characters JSON gives a short form get it (\n \r \t \b \f) and the
+/// rest become \u00XX. Pass false to write every control character as \u00XX, which some consumers expect.
+///
+/// To size buf so that no input is ever dropped, allow JSON_ESCAPE_MAX_EXPANSION bytes per input byte plus one for
+/// the null terminator.
+const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool short_control_escapes = true);
 
 /// Write int8 value to buffer without modulo operations.
 /// Buffer must have at least 4 bytes free. Returns pointer past last char written.
@@ -1587,15 +1638,6 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 /// @name Colors
 ///@{
 
-/// Applies gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_correct(float value, float gamma);
-/// Reverts gamma correction of \p gamma to \p value.
-// Remove before 2026.9.0
-ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
-float gamma_uncorrect(float value, float gamma);
-
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value);
 /// Convert \p hue (0-360), \p saturation (0-1) and \p value (0-1) to \p red, \p green and \p blue (all 0-1).
@@ -1610,6 +1652,12 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 constexpr float celsius_to_fahrenheit(float value) { return value * 1.8f + 32.0f; }
 /// Convert degrees Fahrenheit to degrees Celsius.
 constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.8f; }
+
+enum class TemperatureUnit : uint8_t {
+  CELSIUS = 0,
+  FAHRENHEIT = 1,
+  KELVIN = 2,
+};
 
 ///@}
 
@@ -1886,7 +1934,7 @@ class Mutex {
   Mutex(const Mutex &) = delete;
   Mutex &operator=(const Mutex &) = delete;
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2)
   // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
   Mutex() = default;
   ~Mutex() = default;
@@ -1955,7 +2003,7 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_ZEPHYR)
   uint32_t state_;
 #endif
 };
@@ -1973,7 +2021,7 @@ class LwIPLock {
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
 
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_RP2)
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
@@ -2023,6 +2071,11 @@ const char *get_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETT
 #ifdef USE_ESP32
 /// Set the MAC address to use from the provided byte array (6 bytes).
 void set_mac_address(uint8_t *mac);
+
+/// Read the custom MAC address from eFuse into the provided byte array (6 bytes).
+/// Must not use the ESPHome logger (may run before it is initialized); IDF itself may still log.
+/// @return True if a valid custom MAC address was read; on false, the contents of mac are undefined.
+bool get_custom_mac_address(uint8_t *mac);
 #endif
 
 /// Check if a custom MAC address is set (ESP32 & variants)
@@ -2123,7 +2176,7 @@ template<class T> class RAMAllocator {
     auto max_external =
         this->flags_ & ALLOC_EXTERNAL ? heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_SPIRAM) : 0;
     return max_internal + max_external;
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2)
     return ::rp2040.getFreeHeap();
 #elif defined(USE_LIBRETINY)
     return lt_heap_get_free();

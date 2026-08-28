@@ -6,7 +6,7 @@
 
 namespace esphome::lock {
 
-template<typename... Ts> class LockAction : public Action<Ts...> {
+template<typename... Ts> class LockAction final : public Action<Ts...> {
  public:
   explicit LockAction(Lock *a_lock) : lock_(a_lock) {}
 
@@ -16,7 +16,7 @@ template<typename... Ts> class LockAction : public Action<Ts...> {
   Lock *lock_;
 };
 
-template<typename... Ts> class UnlockAction : public Action<Ts...> {
+template<typename... Ts> class UnlockAction final : public Action<Ts...> {
  public:
   explicit UnlockAction(Lock *a_lock) : lock_(a_lock) {}
 
@@ -26,7 +26,7 @@ template<typename... Ts> class UnlockAction : public Action<Ts...> {
   Lock *lock_;
 };
 
-template<typename... Ts> class OpenAction : public Action<Ts...> {
+template<typename... Ts> class OpenAction final : public Action<Ts...> {
  public:
   explicit OpenAction(Lock *a_lock) : lock_(a_lock) {}
 
@@ -36,7 +36,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
   Lock *lock_;
 };
 
-template<typename... Ts> class LockCondition : public Condition<Ts...> {
+template<typename... Ts> class LockCondition final : public Condition<Ts...> {
  public:
   LockCondition(Lock *parent, bool state) : parent_(parent), state_(state) {}
   bool check(const Ts &...x) override {

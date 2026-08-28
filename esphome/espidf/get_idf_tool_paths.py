@@ -10,6 +10,7 @@ not installed.
 
 import json
 import os
+from pathlib import Path
 import sys
 from types import SimpleNamespace
 
@@ -25,7 +26,7 @@ from idf_tools import (
 
 g.idf_path = sys.argv[1]
 g.idf_tools_path = os.environ.get("IDF_TOOLS_PATH")
-g.tools_json = os.path.join(g.idf_path, TOOLS_FILE)
+g.tools_json = str(Path(g.idf_path) / TOOLS_FILE)
 
 tools_info = filter_tools_info(IDFEnv.get_idf_env(), load_tools_info())
 args = SimpleNamespace(prefer_system=False)

@@ -9,6 +9,8 @@
 
 #include "esphome/components/audio/audio_transfer_buffer.h"
 
+#include <algorithm>
+
 #ifdef USE_OTA
 #include "esphome/components/ota/ota_backend.h"
 #endif
@@ -33,21 +35,35 @@ static const uint32_t INFERENCE_TASK_STACK_SIZE = 3072;
 static const UBaseType_t INFERENCE_TASK_PRIORITY = 3;
 
 enum EventGroupBits : uint32_t {
-  COMMAND_STOP = (1 << 0),  // Signals the inference task should stop
+  COMMAND_STOP = (1 << 0),               // Signals the inference task should stop
+  COMMAND_RESET_RING_BUFFER = (1 << 1),  // Signals the inference task to discard buffered audio
+  COMMAND_PAUSE_MODELS = (1 << 2),       // Asks the inference task to pause at a safe point so the model lists can be
+                                         // mutated from the main loop
 
   TASK_STARTING = (1 << 3),
   TASK_RUNNING = (1 << 4),
   TASK_STOPPING = (1 << 5),
   TASK_STOPPED = (1 << 6),
 
+  MODELS_PAUSED = (1 << 7),          // Inference task acknowledges it is paused and holds no iterators
+  COMMAND_RESUME_MODELS = (1 << 8),  // Main loop signals the inference task it may resume iterating
+
   ERROR_MEMORY = (1 << 9),
   ERROR_INFERENCE = (1 << 10),
 
   WARNING_FULL_RING_BUFFER = (1 << 13),
+  WARNING_MODELS_RESUME_TIMEOUT = (1 << 14),  // The paused inference task gave up waiting to be released
 
   ERROR_BITS = ERROR_MEMORY | ERROR_INFERENCE,
   ALL_BITS = 0xfffff,  // 24 total bits available in an event group
 };
+
+// How long the main loop waits for the inference task to acknowledge a pause request before giving up.
+// The task checks for the command at the top of its loop, which runs at least every DATA_TIMEOUT_MS.
+static const uint32_t MODELS_PAUSE_TIMEOUT_MS = 500;
+// How long the paused inference task waits to be resumed before rechecking on its own. Only reached if
+// the main loop abandoned the handshake (e.g. it timed out first), so recovery just needs to be bounded.
+static const uint32_t MODELS_RESUME_TIMEOUT_MS = 1000;
 
 float MicroWakeWord::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
@@ -114,13 +130,13 @@ void MicroWakeWord::setup() {
     }
     std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
     if (this->ring_buffer_.use_count() > 1) {
-      size_t bytes_free = temp_ring_buffer->free();
-
-      if (bytes_free < data.size()) {
-        xEventGroupSetBits(this->event_group_, EventGroupBits::WARNING_FULL_RING_BUFFER);
-        temp_ring_buffer->reset();
+      // Producer-only write: never touches consumer state. If the buffer is full, ask the inference task
+      // to drain it - reset() is a consumer operation and must run on the inference task's thread.
+      // Disable partial writes so audio chunks are either fully accepted or rejected and handled below.
+      if (temp_ring_buffer->write_without_replacement(data.data(), data.size(), 0, false) == 0) {
+        xEventGroupSetBits(this->event_group_,
+                           EventGroupBits::WARNING_FULL_RING_BUFFER | EventGroupBits::COMMAND_RESET_RING_BUFFER);
       }
-      temp_ring_buffer->write((void *) data.data(), data.size());
     }
   });
 
@@ -146,56 +162,79 @@ void MicroWakeWord::inference_task(void *params) {
 
   {  // Ensures any C++ objects fall out of scope to deallocate before deleting the task
 
-    const size_t new_bytes_to_process =
-        this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(this_mww->features_step_size_);
-    std::unique_ptr<audio::AudioSourceTransferBuffer> audio_buffer;
+    const auto &stream_info = this_mww->microphone_source_->get_audio_stream_info();
+    const size_t bytes_per_frame = stream_info.frames_to_bytes(1);
+    const size_t max_fill_bytes = stream_info.ms_to_bytes(this_mww->features_step_size_);
+    std::unique_ptr<audio::RingBufferAudioSource> audio_source;
     int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE];
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
-      // Allocate audio transfer buffer
-      audio_buffer = audio::AudioSourceTransferBuffer::create(new_bytes_to_process);
-
-      if (audio_buffer == nullptr) {
+      // Round ring buffer size down to a frame multiple so the wrap boundary never splits an int16 sample.
+      const size_t ring_buffer_size =
+          (stream_info.ms_to_bytes(RING_BUFFER_DURATION_MS) / bytes_per_frame) * bytes_per_frame;
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(ring_buffer_size);
+      if (temp_ring_buffer == nullptr) {
         xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
+      } else {
+        audio_source = audio::RingBufferAudioSource::create(temp_ring_buffer, max_fill_bytes,
+                                                            static_cast<uint8_t>(bytes_per_frame));
+        if (audio_source == nullptr) {
+          xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
+        } else {
+          this_mww->ring_buffer_ = temp_ring_buffer;
+        }
       }
-    }
-
-    if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
-      // Allocate ring buffer
-      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = ring_buffer::RingBuffer::create(
-          this_mww->microphone_source_->get_audio_stream_info().ms_to_bytes(RING_BUFFER_DURATION_MS));
-      if (temp_ring_buffer.use_count() == 0) {
-        xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_MEMORY);
-      }
-      audio_buffer->set_source(temp_ring_buffer);
-      this_mww->ring_buffer_ = temp_ring_buffer;
     }
 
     if (!(xEventGroupGetBits(this_mww->event_group_) & ERROR_BITS)) {
       this_mww->microphone_source_->start();
       xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_RUNNING);
 
-      while (!(xEventGroupGetBits(this_mww->event_group_) & COMMAND_STOP)) {
-        audio_buffer->transfer_data_from_source(pdMS_TO_TICKS(DATA_TIMEOUT_MS));
-
-        if (audio_buffer->available() < new_bytes_to_process) {
-          // Insufficient data to generate new spectrogram features, read more next iteration
+      while (!(xEventGroupGetBits(this_mww->event_group_) & (COMMAND_STOP | ERROR_BITS))) {
+        if (xEventGroupGetBits(this_mww->event_group_) & EventGroupBits::COMMAND_PAUSE_MODELS) {
+          // Safe point: no iterators into wake_word_models_ are held here. Acknowledge the pause and wait for the
+          // main loop to finish mutating the model lists before resuming.
+          xEventGroupSetBits(this_mww->event_group_, EventGroupBits::MODELS_PAUSED);
+          EventBits_t resume_bits = xEventGroupWaitBits(this_mww->event_group_, EventGroupBits::COMMAND_RESUME_MODELS,
+                                                        pdTRUE, pdTRUE, pdMS_TO_TICKS(MODELS_RESUME_TIMEOUT_MS));
+          if (!(resume_bits & EventGroupBits::COMMAND_RESUME_MODELS)) {
+            // Nobody released us, so the main loop abandoned the handshake and did not mutate the lists.
+            // Rechecking the pause command below is safe, but the wait cost a second of detection, so report it.
+            xEventGroupSetBits(this_mww->event_group_, EventGroupBits::WARNING_MODELS_RESUME_TIMEOUT);
+          }
           continue;
         }
 
-        // Generate new spectrogram features
-        uint32_t processed_samples = this_mww->generate_features_(
-            (int16_t *) audio_buffer->get_buffer_start(), audio_buffer->available() / sizeof(int16_t), features_buffer);
-        audio_buffer->decrease_buffer_length(processed_samples * sizeof(int16_t));
-
-        // Run inference using the new spectorgram features
-        if (!this_mww->update_model_probabilities_(features_buffer)) {
-          xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_INFERENCE);
-          break;
+        if (xEventGroupGetBits(this_mww->event_group_) & EventGroupBits::COMMAND_RESET_RING_BUFFER) {
+          // Producer asked us to drain; run the consumer-side reset from this thread.
+          audio_source->clear_buffered_data();
+          xEventGroupClearBits(this_mww->event_group_, EventGroupBits::COMMAND_RESET_RING_BUFFER);
         }
 
-        // Process each model's probabilities and possibly send a Detection Event to the queue
-        this_mww->process_probabilities_();
+        audio_source->fill(pdMS_TO_TICKS(DATA_TIMEOUT_MS), false);
+
+        // The frontend buffers samples internally and only emits a feature once it has a full window, so we can
+        // hand it whatever the source exposes. The frontend consumes at least one sample per call, so available()
+        // strictly decreases and this loop always terminates.
+        while (audio_source->available() >= sizeof(int16_t)) {
+          const size_t samples_available = audio_source->available() / sizeof(int16_t);
+          const int16_t *audio_data = reinterpret_cast<const int16_t *>(audio_source->data());
+
+          size_t processed_samples = 0;
+          const bool feature_generated =
+              this_mww->generate_features_(audio_data, samples_available, features_buffer, &processed_samples);
+          audio_source->consume(processed_samples * sizeof(int16_t));
+
+          if (feature_generated) {
+            if (!this_mww->update_model_probabilities_(features_buffer)) {
+              xEventGroupSetBits(this_mww->event_group_, EventGroupBits::ERROR_INFERENCE);
+              break;
+            }
+
+            // Process each model's probabilities and possibly send a Detection Event to the queue
+            this_mww->process_probabilities_();
+          }
+        }
       }
     }
   }
@@ -207,10 +246,7 @@ void MicroWakeWord::inference_task(void *params) {
   FrontendFreeStateContents(&this_mww->frontend_state_);
 
   xEventGroupSetBits(this_mww->event_group_, EventGroupBits::TASK_STOPPED);
-  while (true) {
-    // Continuously delay until the main loop deletes the task
-    delay(10);
-  }
+  vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
 std::vector<WakeWordModel *> MicroWakeWord::get_wake_words() {
@@ -225,6 +261,130 @@ std::vector<WakeWordModel *> MicroWakeWord::get_wake_words() {
 
 void MicroWakeWord::add_wake_word_model(WakeWordModel *model) { this->wake_word_models_.push_back(model); }
 
+bool MicroWakeWord::try_lock_models_() {
+  // When the inference task isn't running it holds no iterators into wake_word_models_, so the lists can be
+  // mutated without a handshake. The main loop is the only caller, so this state cannot change between here
+  // and the matching unlock_models_() call.
+  if (!this->inference_task_.is_created() || this->state_ == State::STOPPED) {
+    return true;
+  }
+
+  // The task is running and iterates wake_word_models_. Ask it to pause at a safe point before we mutate.
+  // Clear any stale acknowledgement from an abandoned handshake first.
+  xEventGroupClearBits(this->event_group_, EventGroupBits::MODELS_PAUSED);
+  xEventGroupSetBits(this->event_group_, EventGroupBits::COMMAND_PAUSE_MODELS);
+
+  EventBits_t bits = xEventGroupWaitBits(this->event_group_, EventGroupBits::MODELS_PAUSED, pdFALSE, pdTRUE,
+                                         pdMS_TO_TICKS(MODELS_PAUSE_TIMEOUT_MS));
+
+  if (!(bits & EventGroupBits::MODELS_PAUSED)) {
+    // The task never acknowledged (e.g. it is busy stopping). Withdraw the request and refuse to mutate a
+    // list it might be iterating.
+    xEventGroupClearBits(this->event_group_, EventGroupBits::COMMAND_PAUSE_MODELS);
+    return false;
+  }
+  return true;
+}
+
+void MicroWakeWord::unlock_models_() {
+  if (!this->inference_task_.is_created() || this->state_ == State::STOPPED) {
+    return;  // Nothing was paused
+  }
+  xEventGroupClearBits(this->event_group_, EventGroupBits::MODELS_PAUSED | EventGroupBits::COMMAND_PAUSE_MODELS);
+  xEventGroupSetBits(this->event_group_, EventGroupBits::COMMAND_RESUME_MODELS);
+}
+
+bool MicroWakeWord::add_runtime_model(std::unique_ptr<WakeWordModel> model) {
+  if (!model) {
+    ESP_LOGE(TAG, "Cannot add null runtime model");
+    return false;
+  }
+
+  const std::string model_id = model->get_id();
+
+  // A model without usable data can never load, so keep it out of the lists entirely. Otherwise it would be
+  // advertised to Home Assistant as selectable and the inference task would silently disable it again every
+  // time it was enabled.
+  if (!model->has_model_data()) {
+    ESP_LOGE(TAG, "Runtime model '%s' has no valid data", model_id.c_str());
+    return false;
+  }
+
+  // Reject a duplicate id against every model (compiled or runtime). The inference task only ever reads
+  // wake_word_models_, so scanning it here (on the main loop) needs no synchronization.
+  for (auto *existing : this->wake_word_models_) {
+    if (existing->get_id() == model_id) {
+      ESP_LOGW(TAG, "Wake word model '%s' already exists", model_id.c_str());
+      return false;
+    }
+  }
+
+  if (!this->try_lock_models_()) {
+    ESP_LOGE(TAG, "Timed out pausing inference task; not adding runtime model '%s'", model_id.c_str());
+    return false;
+  }
+
+  this->wake_word_models_.push_back(model.get());
+  this->runtime_models_.push_back(std::move(model));
+
+  this->unlock_models_();
+  ESP_LOGD(TAG, "Added runtime model '%s'", model_id.c_str());
+  return true;
+}
+
+bool MicroWakeWord::remove_runtime_model(const std::string &model_id) {
+  // Only runtime-downloaded models can be removed; compiled-in models never appear in runtime_models_.
+  auto runtime_it =
+      std::find_if(this->runtime_models_.begin(), this->runtime_models_.end(),
+                   [&model_id](const std::unique_ptr<WakeWordModel> &m) { return m->get_id() == model_id; });
+  if (runtime_it == this->runtime_models_.end()) {
+    return false;
+  }
+
+  if (!this->try_lock_models_()) {
+    ESP_LOGE(TAG, "Timed out pausing inference task; not removing runtime model '%s'", model_id.c_str());
+    return false;
+  }
+
+  WakeWordModel *raw = runtime_it->get();
+  auto models_it = std::find(this->wake_word_models_.begin(), this->wake_word_models_.end(), raw);
+  if (models_it != this->wake_word_models_.end()) {
+    this->wake_word_models_.erase(models_it);
+  }
+
+  // Queued detection events hold a pointer into the model being destroyed, so drop them. The inference task
+  // is parked, so no new events can be queued concurrently. Losing an undelivered detection from another
+  // model is acceptable for this rare operation.
+  xQueueReset(this->detection_queue_);
+
+  // Free the interpreter and arenas (safe: the task is parked, not mid-inference), then destroy the model.
+  // Its ModelData releases the PSRAM model buffer once the last shared_ptr reference drops.
+  raw->unload_model();
+  this->runtime_models_.erase(runtime_it);
+
+  this->unlock_models_();
+  ESP_LOGI(TAG, "Removed runtime model '%s'", model_id.c_str());
+  return true;
+}
+
+std::vector<std::string> MicroWakeWord::get_runtime_model_ids() {
+  std::vector<std::string> ids;
+  ids.reserve(this->runtime_models_.size());
+  for (const auto &model : this->runtime_models_) {
+    ids.push_back(model->get_id());
+  }
+  return ids;
+}
+
+WakeWordModel *MicroWakeWord::get_model_by_id(const std::string &model_id) {
+  for (auto *model : this->wake_word_models_) {
+    if (model->get_id() == model_id) {
+      return model;
+    }
+  }
+  return nullptr;
+}
+
 #ifdef USE_MICRO_WAKE_WORD_VAD
 void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probability_cutoff, size_t sliding_window_size,
                                   size_t tensor_arena_size) {
@@ -233,14 +393,14 @@ void MicroWakeWord::add_vad_model(const uint8_t *model_start, uint8_t probabilit
 #endif
 
 void MicroWakeWord::suspend_task_() {
-  if (this->inference_task_handle_ != nullptr) {
-    vTaskSuspend(this->inference_task_handle_);
+  if (this->inference_task_.is_created()) {
+    vTaskSuspend(this->inference_task_.get_handle());
   }
 }
 
 void MicroWakeWord::resume_task_() {
-  if (this->inference_task_handle_ != nullptr) {
-    vTaskResume(this->inference_task_handle_);
+  if (this->inference_task_.is_created()) {
+    vTaskResume(this->inference_task_.get_handle());
   }
 }
 
@@ -263,6 +423,12 @@ void MicroWakeWord::loop() {
                   "word detection accuracy will temporarily be reduced.");
   }
 
+  if (event_group_bits & EventGroupBits::WARNING_MODELS_RESUME_TIMEOUT) {
+    xEventGroupClearBits(this->event_group_, EventGroupBits::WARNING_MODELS_RESUME_TIMEOUT);
+    ESP_LOGW(TAG, "Inference task paused for %" PRIu32 " ms without being released, so it resumed on its own",
+             MODELS_RESUME_TIMEOUT_MS);
+  }
+
   if (event_group_bits & EventGroupBits::TASK_STARTING) {
     ESP_LOGD(TAG, "Inference task has started, attempting to allocate memory for buffers");
     xEventGroupClearBits(this->event_group_, EventGroupBits::TASK_STARTING);
@@ -282,8 +448,7 @@ void MicroWakeWord::loop() {
 
   if ((event_group_bits & EventGroupBits::TASK_STOPPED)) {
     ESP_LOGD(TAG, "Inference task is finished, freeing task resources");
-    vTaskDelete(this->inference_task_handle_);
-    this->inference_task_handle_ = nullptr;
+    this->inference_task_.deallocate();
     xEventGroupClearBits(this->event_group_, ALL_BITS);
     xQueueReset(this->detection_queue_);
     this->set_state_(State::STOPPED);
@@ -301,7 +466,7 @@ void MicroWakeWord::loop() {
 
   switch (this->state_) {
     case State::STARTING:
-      if ((this->inference_task_handle_ == nullptr) && !this->status_has_error()) {
+      if (!this->inference_task_.is_created() && !this->status_has_error()) {
         // Setup preprocesor feature generator. If done in the task, it would lock the task to its initial core, as it
         // uses floating point operations.
         if (!FrontendPopulateState(&this->frontend_config_, &this->frontend_state_,
@@ -310,10 +475,8 @@ void MicroWakeWord::loop() {
           return;
         }
 
-        xTaskCreate(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE, (void *) this,
-                    INFERENCE_TASK_PRIORITY, &this->inference_task_handle_);
-
-        if (this->inference_task_handle_ == nullptr) {
+        if (!this->inference_task_.create(MicroWakeWord::inference_task, "mww", INFERENCE_TASK_STACK_SIZE,
+                                          (void *) this, INFERENCE_TASK_PRIORITY, this->task_stack_in_psram_)) {
           FrontendFreeStateContents(&this->frontend_state_);  // Deallocate frontend state
           this->status_momentary_error("task_start", 1000);
         }
@@ -386,11 +549,15 @@ void MicroWakeWord::set_state_(State state) {
   }
 }
 
-size_t MicroWakeWord::generate_features_(int16_t *audio_buffer, size_t samples_available,
-                                         int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE]) {
-  size_t processed_samples = 0;
+bool MicroWakeWord::generate_features_(const int16_t *audio_buffer, size_t samples_available,
+                                       int8_t features_buffer[PREPROCESSOR_FEATURE_SIZE], size_t *processed_samples) {
+  *processed_samples = 0;
   struct FrontendOutput frontend_output =
-      FrontendProcessSamples(&this->frontend_state_, audio_buffer, samples_available, &processed_samples);
+      FrontendProcessSamples(&this->frontend_state_, audio_buffer, samples_available, processed_samples);
+
+  if (frontend_output.size == 0) {
+    return false;
+  }
 
   for (size_t i = 0; i < frontend_output.size; ++i) {
     // These scaling values are set to match the TFLite audio frontend int8 output.
@@ -415,7 +582,7 @@ size_t MicroWakeWord::generate_features_(int16_t *audio_buffer, size_t samples_a
     features_buffer[i] = static_cast<int8_t>(clamp<int32_t>(value, INT8_MIN, INT8_MAX));
   }
 
-  return processed_samples;
+  return true;
 }
 
 void MicroWakeWord::process_probabilities_() {

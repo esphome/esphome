@@ -6,7 +6,7 @@
 
 namespace esphome::ina2xx_i2c {
 
-class INA2XXI2C : public ina2xx_base::INA2XX, public i2c::I2CDevice {
+class INA2XXI2C final : public ina2xx_base::INA2XX, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;

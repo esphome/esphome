@@ -24,8 +24,6 @@ static constexpr uint16_t SPDIF_BLOCK_SIZE_BYTES = SPDIF_BLOCK_SAMPLES * (EMULAT
 static constexpr uint32_t SPDIF_BLOCK_SIZE_U32 = SPDIF_BLOCK_SIZE_BYTES / sizeof(uint32_t);  // 3072 bytes / 4 = 768
 // I2S frame count for one SPDIF block (for new driver where frame = 8 bytes for 32-bit stereo)
 static constexpr uint32_t SPDIF_BLOCK_I2S_FRAMES = SPDIF_BLOCK_SIZE_BYTES / 8;  // 3072 / 8 = 384 frames
-// PCM bytes needed for one complete SPDIF block (192 stereo frames * 2 bytes per sample * 2 channels)
-static constexpr uint16_t SPDIF_PCM_BYTES_PER_BLOCK = SPDIF_BLOCK_SAMPLES * 2 * 2;  // = 768 bytes
 
 /// Callback signature for block completion (raw function pointer for minimal overhead)
 /// @param user_ctx User context pointer passed during callback registration
@@ -64,8 +62,16 @@ class SPDIFEncoder {
   /// @brief Check if currently in preload mode
   bool is_preload_mode() const { return this->preload_mode_; }
 
+  /// @brief Set input PCM width: 2 = 16-bit, 3 = 24-bit, 4 = 32-bit (truncated to 24-bit on the wire).
+  /// Must be called before write() if input width changes from the default (16-bit). Triggers a
+  /// channel-status rebuild to reflect the new word length.
+  void set_bytes_per_sample(uint8_t bytes_per_sample);
+
+  /// @brief Get the configured input PCM width in bytes per sample
+  uint8_t get_bytes_per_sample() const { return this->bytes_per_sample_; }
+
   /// @brief Convert PCM audio data to SPDIF BMC encoded data
-  /// @param src Source PCM audio data (16-bit stereo)
+  /// @param src Source PCM audio data (stereo, width matches set_bytes_per_sample)
   /// @param size Size of source data in bytes
   /// @param ticks_to_wait Timeout for blocking writes
   /// @param blocks_sent Optional pointer to receive the number of complete SPDIF blocks sent
@@ -73,17 +79,6 @@ class SPDIFEncoder {
   /// @return esp_err_t as returned from the callback
   esp_err_t write(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent = nullptr,
                   size_t *bytes_consumed = nullptr);
-
-  /// @brief Get the number of PCM bytes currently pending in the partial block buffer
-  /// @return Number of pending PCM bytes (0 to SPDIF_PCM_BYTES_PER_BLOCK - 1)
-  size_t get_pending_pcm_bytes() const;
-
-  /// @brief Get the number of PCM frames currently pending in the partial block buffer
-  /// @return Number of pending PCM frames (0 to SPDIF_BLOCK_SAMPLES - 1)
-  uint32_t get_pending_frames() const { return this->get_pending_pcm_bytes() / 4; }
-
-  /// @brief Check if there is a partial block pending
-  bool has_pending_data() const { return this->spdif_block_ptr_ != this->spdif_block_buf_.get(); }
 
   /// @brief Emit one complete SPDIF block: pad any pending partial block with silence and send,
   /// or send a full silence block if nothing is pending. Always produces exactly one block on success.
@@ -95,7 +90,7 @@ class SPDIFEncoder {
   void reset();
 
   /// @brief Set the sample rate for Channel Status Block encoding
-  /// @param sample_rate Sample rate in Hz (e.g., 44100, 48000, 96000)
+  /// @param sample_rate Sample rate in Hz (e.g., 44100, 48000)
   /// Call this before writing audio data to ensure correct channel status.
   void set_sample_rate(uint32_t sample_rate);
 
@@ -103,23 +98,25 @@ class SPDIFEncoder {
   uint32_t get_sample_rate() const { return this->sample_rate_; }
 
  protected:
-  /// @brief Encode a single 16-bit PCM sample into the current block position
-  HOT void encode_sample_(const uint8_t *pcm_sample);
+  /// @brief Encode a single stereo silence frame at the current block position.
+  /// @note Used only by flush_with_silence_typed_ to pad; the hot write path inlines the
+  /// encoding body directly into write_typed_ to keep block_ptr / frame_in_block_ in registers.
+  template<uint8_t Bps> void encode_silence_frame_();
+
+  /// @brief Templated write loop. Called from the public write() via runtime dispatch on bytes_per_sample_.
+  template<uint8_t Bps>
+  HOT esp_err_t write_typed_(const uint8_t *src, size_t size, TickType_t ticks_to_wait, uint32_t *blocks_sent,
+                             size_t *bytes_consumed);
+
+  /// @brief Templated flush-with-silence. Pads the pending block with zeros at the configured width
+  /// (or builds a full silence block when nothing is pending) and sends it. Always emits one block.
+  template<uint8_t Bps> esp_err_t flush_with_silence_typed_(TickType_t ticks_to_wait);
 
   /// @brief Send the completed block via the appropriate callback
   esp_err_t send_block_(TickType_t ticks_to_wait);
 
   /// @brief Build the channel status block from current configuration
   void build_channel_status_();
-
-  /// @brief Get the channel status bit for a specific frame
-  /// @param frame Frame number (0-191)
-  /// @return The C bit value for this frame
-  ESPHOME_ALWAYS_INLINE inline bool get_channel_status_bit_(uint8_t frame) const {
-    // Channel status is 192 bits transmitted over 192 frames
-    // Bit N is transmitted in frame N, LSB-first within each byte
-    return (this->channel_status_[frame >> 3] >> (frame & 7)) & 1;
-  }
 
   // Member ordering optimized to minimize padding (largest alignment first)
 
@@ -133,9 +130,13 @@ class SPDIFEncoder {
   uint32_t sample_rate_{48000};                  // Sample rate for Channel Status Block encoding
 
   // 1-byte aligned members (grouped together to avoid internal padding)
-  uint8_t frame_in_block_{0};   // 0-191, tracks stereo frame position within block
-  bool is_left_channel_{true};  // Alternates L/R for stereo samples
-  bool preload_mode_{false};    // Whether to use preload callback vs write callback
+  uint8_t bytes_per_sample_{2};  // Input PCM width: 2/3/4 (16/24/32-bit). 32-bit truncates to 24-bit on the wire.
+  uint8_t frame_in_block_{0};    // 0-191, tracks stereo frame position within block
+  bool preload_mode_{false};     // Whether to use preload callback vs write callback
+  // True when spdif_block_buf_ currently holds a complete full-silence block valid for the active
+  // channel status. A full silence block is deterministic for a given sample rate and word length,
+  // so when this is set flush_with_silence() can re-send the buffer verbatim instead of re-encoding.
+  bool block_buf_is_silence_block_{false};
 
   // Channel Status Block (192 bits = 24 bytes, transmitted over 192 frames)
   // Placed last since std::array<uint8_t> has 1-byte alignment

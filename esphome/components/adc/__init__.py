@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -16,6 +18,7 @@ from esphome.components.esp32 import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER, PLATFORM_ESP8266
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -225,14 +228,15 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
 }
 
 
-def validate_adc_pin(value):
+def validate_adc_pin(value: Any) -> ConfigType | str:
     if str(value).upper() == "VCC":
-        if CORE.is_rp2040:
+        if CORE.is_rp2:
             return pins.internal_gpio_input_pin_schema(29)
         return cv.only_on([PLATFORM_ESP8266])("VCC")
 
+    # Deprecated in favour of the `internal_temperature` platform, remove before 2027.2.0
     if str(value).upper() == "TEMPERATURE":
-        return cv.only_on_rp2040("TEMPERATURE")
+        return cv.only_on_rp2("TEMPERATURE")
 
     if CORE.is_esp32:
         conf = pins.internal_gpio_input_pin_schema(value)
@@ -261,11 +265,11 @@ def validate_adc_pin(value):
             raise cv.Invalid("ESP8266: Only pin A0 (GPIO17) supports ADC")
         return conf
 
-    if CORE.is_rp2040:
+    if CORE.is_rp2:
         conf = pins.internal_gpio_input_pin_schema(value)
         number = conf[CONF_NUMBER]
         if number not in (26, 27, 28, 29):
-            raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC")
+            raise cv.Invalid("RP2: Only pins 26, 27, 28 and 29 support ADC")
         return conf
 
     if CORE.is_libretiny:

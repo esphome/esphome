@@ -1,4 +1,4 @@
-#ifdef USE_ARDUINO
+#if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -130,8 +130,8 @@ ClimateTraits AirConditioner::traits() {
 void AirConditioner::dump_config() {
   ESP_LOGCONFIG(Constants::TAG,
                 "MideaDongle:\n"
-                "  [x] Period: %dms\n"
-                "  [x] Response timeout: %dms\n"
+                "  [x] Period: %" PRIu32 "ms\n"
+                "  [x] Response timeout: %" PRIu32 "ms\n"
                 "  [x] Request attempts: %d",
                 this->base_.getPeriod(), this->base_.getTimeout(), this->base_.getNumAttempts());
 #ifdef USE_REMOTE_TRANSMITTER
@@ -197,4 +197,4 @@ void AirConditioner::do_display_toggle() {
 
 }  // namespace esphome::midea::ac
 
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO || USE_ESP_IDF

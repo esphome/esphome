@@ -37,7 +37,7 @@ esphome = cg.esphome_ns.namespace("esphome")
 ESPHomeOTAComponent = esphome.class_("ESPHomeOTAComponent", OTAComponent)
 
 
-def ota_esphome_final_validate(config):
+def ota_esphome_final_validate(config: ConfigType) -> None:
     full_conf = fv.full_config.get()
     full_ota_conf = full_conf[CONF_OTA]
     new_ota_conf = []
@@ -126,14 +126,14 @@ CONFIG_SCHEMA = cv.All(
                 CONF_PORT,
                 esp8266=8266,
                 esp32=3232,
-                rp2040=2040,
+                rp2=2040,
                 bk72xx=8892,
                 ln882x=8820,
                 rtl87xx=8892,
                 host=8082,
             ): cv.port,
             cv.Optional(CONF_ALLOW_PARTITION_ACCESS, default=False): cv.boolean,
-            cv.Optional(CONF_PASSWORD): cv.string,
+            cv.Optional(CONF_PASSWORD): cv.sensitive(),
             cv.Optional(CONF_NUM_ATTEMPTS): cv.invalid(
                 f"'{CONF_SAFE_MODE}' (and its related configuration variables) has moved from 'ota' to its own component. See https://esphome.io/components/safe_mode"
             ),

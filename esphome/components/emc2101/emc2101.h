@@ -25,7 +25,7 @@ enum Emc2101DACConversionRate {
 /// This class includes support for the EMC2101 i2c fan controller.
 /// The device has an output (PWM or DAC) and several sensors and this
 /// class is for the EMC2101 configuration.
-class Emc2101Component : public Component, public i2c::I2CDevice {
+class Emc2101Component final : public Component, public i2c::I2CDevice {
  public:
   /** Sets the mode of the output.
    *

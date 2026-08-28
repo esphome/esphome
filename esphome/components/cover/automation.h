@@ -6,7 +6,7 @@
 
 namespace esphome::cover {
 
-template<typename... Ts> class OpenAction : public Action<Ts...> {
+template<typename... Ts> class OpenAction final : public Action<Ts...> {
  public:
   explicit OpenAction(Cover *cover) : cover_(cover) {}
 
@@ -16,7 +16,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
   Cover *cover_;
 };
 
-template<typename... Ts> class CloseAction : public Action<Ts...> {
+template<typename... Ts> class CloseAction final : public Action<Ts...> {
  public:
   explicit CloseAction(Cover *cover) : cover_(cover) {}
 
@@ -26,7 +26,7 @@ template<typename... Ts> class CloseAction : public Action<Ts...> {
   Cover *cover_;
 };
 
-template<typename... Ts> class StopAction : public Action<Ts...> {
+template<typename... Ts> class StopAction final : public Action<Ts...> {
  public:
   explicit StopAction(Cover *cover) : cover_(cover) {}
 
@@ -36,7 +36,7 @@ template<typename... Ts> class StopAction : public Action<Ts...> {
   Cover *cover_;
 };
 
-template<typename... Ts> class ToggleAction : public Action<Ts...> {
+template<typename... Ts> class ToggleAction final : public Action<Ts...> {
  public:
   explicit ToggleAction(Cover *cover) : cover_(cover) {}
 
@@ -59,7 +59,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 // T &` if Ts already carries a const). This keeps trigger args no-copy
 // regardless of whether the trigger supplies `T`, `T &`, or `const T &`.
 
-template<typename... Ts> class ControlAction : public Action<Ts...> {
+template<typename... Ts> class ControlAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(CoverCall &, const std::remove_cvref_t<Ts> &...);
   ControlAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
@@ -75,7 +75,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   ApplyFn apply_;
 };
 
-template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
+template<typename... Ts> class CoverPublishAction final : public Action<Ts...> {
  public:
   using ApplyFn = void (*)(Cover *, const std::remove_cvref_t<Ts> &...);
   CoverPublishAction(Cover *cover, ApplyFn apply) : cover_(cover), apply_(apply) {}
@@ -90,7 +90,7 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
   ApplyFn apply_;
 };
 
-template<bool OPEN, typename... Ts> class CoverPositionCondition : public Condition<Ts...> {
+template<bool OPEN, typename... Ts> class CoverPositionCondition final : public Condition<Ts...> {
  public:
   CoverPositionCondition(Cover *cover) : cover_(cover) {}
 
@@ -103,7 +103,7 @@ template<bool OPEN, typename... Ts> class CoverPositionCondition : public Condit
 template<typename... Ts> using CoverIsOpenCondition = CoverPositionCondition<true, Ts...>;
 template<typename... Ts> using CoverIsClosedCondition = CoverPositionCondition<false, Ts...>;
 
-template<bool OPEN> class CoverPositionTrigger : public Trigger<> {
+template<bool OPEN> class CoverPositionTrigger final : public Trigger<> {
  public:
   CoverPositionTrigger(Cover *a_cover) : cover_(a_cover) {
     a_cover->add_on_state_callback([this]() {
@@ -123,7 +123,7 @@ template<bool OPEN> class CoverPositionTrigger : public Trigger<> {
 using CoverOpenedTrigger = CoverPositionTrigger<true>;
 using CoverClosedTrigger = CoverPositionTrigger<false>;
 
-template<CoverOperation OP> class CoverTrigger : public Trigger<> {
+template<CoverOperation OP> class CoverTrigger final : public Trigger<> {
  public:
   CoverTrigger(Cover *a_cover) : cover_(a_cover) {
     a_cover->add_on_state_callback([this]() {
