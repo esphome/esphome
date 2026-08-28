@@ -63,7 +63,12 @@ def install_one(tool: object, name: str, version: str) -> bool | None:
         except FileNotFoundError:  # pragma: no cover  # failed before mkdir
             pass
         except OSError as cleanup_err:
-            print(f"could not remove {dest}: {cleanup_err}", file=sys.stderr)
+            print(
+                f"could not remove {dest}: {cleanup_err}; the installer may "
+                "trust the partial tool dir, delete it manually if the build "
+                "fails",
+                file=sys.stderr,
+            )
             return None
         return False
     return True

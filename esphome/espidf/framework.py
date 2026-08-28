@@ -825,11 +825,9 @@ def _preinstall_idf_tool_archives(
             stream_output=True,
         )
         if not success:
-            # Detail already streamed to the terminal by the script
-            _LOGGER.warning(
-                "ESP-IDF tool pre-extraction failed; the installer will "
-                "extract sequentially"
-            )
+            # Detail already streamed to the terminal by the script; a
+            # surviving torn dir prints its own guidance there
+            _LOGGER.warning("ESP-IDF tool pre-extraction failed; see above")
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         _LOGGER.warning("ESP-IDF tool pre-extraction failed: %s", failure_reason(e))
         _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
