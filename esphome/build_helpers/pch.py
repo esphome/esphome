@@ -99,6 +99,12 @@ _CCACHE_PCH_ENV = {
 # Compiler failures that clear on their own must not latch the .failed marker
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
 
+
+def is_transient_error(text: str) -> bool:
+    """True for failures that clear on their own and must not latch."""
+    return any(marker in text for marker in _TRANSIENT_ERRORS)
+
+
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 
 
@@ -156,14 +162,19 @@ def pch_consumer_escalation() -> str:
     return "-Werror=invalid-pch" if pch_strict() else "-Wno-error=invalid-pch"
 
 
-def pch_cmake_consumer(target: str, sources_var: str) -> str:
+def pch_cmake_consumer(
+    target: str, sources_var: str, object_depends: str | None = None
+) -> str:
     """Emit the CMake block making ``target``'s C++ sources consume the
-    pch; empty when disabled. OBJECT_DEPENDS is on the header, not the
-    .gch (pch-baked headers drop out of TU depfiles); the -include stays
-    relative — an absolute path would poison ccache keys."""
+    pch; empty when disabled. OBJECT_DEPENDS defaults to the header, not
+    the .gch (pch-baked headers drop out of TU depfiles); a backend that
+    builds the .gch inside its build graph passes the .gch name instead
+    so TUs order after the edge. The -include stays relative — an
+    absolute path would poison ccache keys."""
     if not pch_enabled():
         return ""
     escalation = pch_consumer_escalation()
+    object_depends = object_depends or PCH_HEADER_NAME
     return f"""
 # ESPHome precompiled header (see esphome/build_helpers/pch.py).
 # The touch keeps OBJECT_DEPENDS satisfiable when the build system itself
@@ -178,7 +189,7 @@ target_compile_options({target} PRIVATE
     "$<$<COMPILE_LANGUAGE:CXX>:{PCH_HEADER_NAME}>"
 )
 set_source_files_properties({sources_var} PROPERTIES
-    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}")
+    OBJECT_DEPENDS "${{CMAKE_BINARY_DIR}}/{object_depends}")
 """
 
 
@@ -212,15 +223,32 @@ def ccache_pch_env() -> dict[str, str]:
     return env
 
 
-def guarded_prepare(build_dir: Path, prepare: Callable[[], None]) -> None:
+def guarded_prepare(
+    build_dir: Path,
+    prepare: Callable[[], None],
+    fallback: Callable[[], None] | None = None,
+) -> None:
     """Run a backend's pch preparation; an optional speedup must never
     abort the build. Strict is read first so its own knob error cannot
-    mask the real failure; discard_pch raises if a stale .gch survives;
-    the header is ensured so OBJECT_DEPENDS stays satisfiable."""
+    mask the real failure; ``fallback`` (when given) leaves the sidecars
+    in a degraded-but-consistent state instead of discarding them, for
+    backends whose build graph declares the sidecars as inputs;
+    discard_pch raises if a stale .gch survives; the header is ensured so
+    OBJECT_DEPENDS stays satisfiable."""
     try:
         prepare()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         strict = pch_strict()
+        if fallback is not None:
+            if strict:
+                raise
+            with suppress(Exception):
+                fallback()
+            _LOGGER.warning(
+                "Precompiled header setup failed; compiling without it",
+                exc_info=True,
+            )
+            return
         discard_pch(build_dir)
         if strict:
             raise
@@ -320,13 +348,13 @@ _PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
 
 
 def pch_compile_command(
-    build_dir: Path, header: Path, gch: Path
+    build_dir: Path, header: Path, gch: Path, src_dir: Path | None = None
 ) -> tuple[list[str], Path] | None:
     """The exact src C++ flags from compile_commands.json retargeted at the
     header, with the directory they resolve against (relative -I paths must
     be expanded and executed from the same root); None (logged) when no
-    configured C++ TU is available yet."""
-    from esphome.core import CORE
+    configured C++ TU is available yet. ``src_dir`` overrides the CORE
+    lookup for callers running outside an esphome process (the ninja shim)."""
 
     try:
         entries = json.loads(
@@ -341,7 +369,11 @@ def pch_compile_command(
         return None
     # CMake may spell paths through a symlink differently than CORE does
     # (macOS /tmp vs /private/tmp), so compare resolved paths
-    src_root = Path(CORE.relative_src_path()).resolve()
+    if src_dir is None:
+        from esphome.core import CORE
+
+        src_dir = Path(CORE.relative_src_path())
+    src_root = src_dir.resolve()
     entry = next(
         (
             e
@@ -397,12 +429,16 @@ def _log_pch_in_use() -> None:
     )
 
 
-def _read_stamp(path: Path) -> str:
+def read_stamp(path: Path) -> str:
     """A corrupt sidecar must read as stale, not kill the pch forever."""
     try:
         return path.read_text(encoding="utf-8").strip()
     except (OSError, UnicodeDecodeError):
         return ""
+
+
+# Kept for callers written against the private name
+_read_stamp = read_stamp
 
 
 def discard_pch(build_dir: Path) -> None:

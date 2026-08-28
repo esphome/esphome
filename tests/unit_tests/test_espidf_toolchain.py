@@ -669,27 +669,29 @@ def test_get_core_framework_version_from_core_data():
     assert toolchain._get_core_framework_version() == "5.5.4"
 
 
-def test_run_compile_aborts_when_stale_pch_survives_discard(
+def test_run_compile_pch_setup_failure_writes_degraded_sum(
     setup_core: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An undiscardable stale .gch means silently wrong output: abort."""
-    from esphome.core import EsphomeError
-
+    """A failed sidecar setup leaves a degraded sum for the ninja edge to
+    consume instead of a deleted edge input."""
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
     _setup_build(setup_core)
+    build = setup_core / "build" / "test" / "build"
+    build.mkdir(parents=True, exist_ok=True)
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
         patch.object(toolchain, "run_idf_py", return_value=0),
         patch.object(toolchain, "print_summary"),
-        patch("esphome.build_gen.espidf.prepare_pch", side_effect=RuntimeError("boom")),
         patch(
-            "esphome.build_helpers.pch.discard_pch",
-            side_effect=EsphomeError("Could not discard the stale precompiled header"),
-        ),
-        pytest.raises(EsphomeError, match="Could not discard"),
+            "esphome.build_gen.espidf.prepare_pch_sidecars",
+            side_effect=RuntimeError("boom"),
+        ) as prepare,
     ):
-        toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
+        assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
+    prepare.assert_called_once()
+    sum_text = (build / "esphome_pch.h.gch.sum").read_text()
+    assert sum_text.startswith("degraded:")
 
 
 def test_run_compile_strict_reraises_pch_failure(
@@ -707,7 +709,7 @@ def test_run_compile_strict_reraises_pch_failure(
         patch.object(toolchain, "run_idf_py", return_value=0),
         patch.object(toolchain, "print_summary"),
         patch(
-            "esphome.build_gen.espidf.prepare_pch",
+            "esphome.build_gen.espidf.prepare_pch_sidecars",
             side_effect=EsphomeError("ESPHOME_PCH_STRICT: no usable compile command"),
         ),
         pytest.raises(EsphomeError, match="no usable compile command"),
@@ -715,27 +717,21 @@ def test_run_compile_strict_reraises_pch_failure(
         toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False)
 
 
-def test_run_compile_invokes_prepare_pch_and_survives_failure(
+def test_run_compile_invokes_pch_sidecars_and_survives_failure(
     setup_core: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The pch hook runs before the build and a failure never aborts it."""
+    """The sidecar hook runs before the build and a failure never aborts it."""
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "1")
     _setup_build(setup_core)
-    # A stale .gch must be discarded on the failure path, never consumed
-    build = setup_core / "build" / "test" / "build"
-    build.mkdir(parents=True, exist_ok=True)
-    (build / "esphome_pch.h").write_text("")
-    stale_gch = build / "esphome_pch.h.gch"
-    stale_gch.write_bytes(b"stale")
 
     with (
         patch.object(toolchain, "need_reconfigure", return_value=False),
         patch.object(toolchain, "run_idf_py", return_value=0),
         patch.object(toolchain, "print_summary"),
         patch(
-            "esphome.build_gen.espidf.prepare_pch", side_effect=RuntimeError("boom")
+            "esphome.build_gen.espidf.prepare_pch_sidecars",
+            side_effect=RuntimeError("boom"),
         ) as prepare,
     ):
         assert toolchain.run_compile({CONF_ESPHOME: {}}, verbose=False) == 0
     prepare.assert_called_once()
-    assert not stale_gch.exists()

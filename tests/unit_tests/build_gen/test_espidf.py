@@ -542,41 +542,32 @@ def _make_pch_device(tmp_path: Path, name: str) -> Path:
     return dev
 
 
-def test_prepare_pch_writes_header_and_sum(tmp_path: Path) -> None:
-    from esphome.build_gen.espidf import prepare_pch
+def test_prepare_pch_sidecars_writes_sum(tmp_path: Path) -> None:
+    """The digest sidecar is written pre-ninja with no compiler spawn."""
+    from esphome.build_gen.espidf import prepare_pch_sidecars
 
     dev = _make_pch_device(tmp_path, "dev_a")
     CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
+    sum_path = dev / "build" / "esphome_pch.h.gch.sum"
 
-    def fake_compile(cmd, **kwargs):
-        if "-fsyntax-only" in cmd:
-            # The load probe follows a successful .gch build
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-        # The compile must target the header, not the stub TU
-        assert cmd[-5:-3] == ["c++-header", "-c"]
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
-    ):
-        prepare_pch()
-    checksum = (dev / "build" / "esphome_pch.h.gch.sum").read_text().strip()
-    assert len(checksum) == 64
-    # Unchanged inputs: the second call must not recompile
     with (
         patch.object(CORE, "name", "test"),
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
-        prepare_pch()
+        prepare_pch_sidecars()
+        checksum = sum_path.read_text().strip()
+        assert len(checksum) == 64
+        # Unchanged inputs: the second call must not rewrite (no mtime bump,
+        # so the ninja edge does not rerun)
+        before = sum_path.stat().st_mtime_ns
+        prepare_pch_sidecars()
+    assert sum_path.stat().st_mtime_ns == before
 
 
 def test_pch_no_device_path_poison(tmp_path: Path) -> None:
     """Regression: neither the injected -include nor the .sum may carry the
     per-device build path, or cross-device ccache sharing breaks."""
-    from esphome.build_gen.espidf import get_component_cmakelists, prepare_pch
+    from esphome.build_gen.espidf import get_component_cmakelists, prepare_pch_sidecars
 
     sums = []
     for name in ("dev_a", "dev_b"):
@@ -592,7 +583,7 @@ def test_pch_no_device_path_poison(tmp_path: Path) -> None:
             patch.object(CORE, "name", name),
             patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
         ):
-            prepare_pch()
+            prepare_pch_sidecars()
             content = get_component_cmakelists()
         assert str(dev) not in content
         sums.append((dev / "build" / "esphome_pch.h.gch.sum").read_text())
@@ -760,94 +751,22 @@ def test_pch_header_list_order_is_in_checksum(
         patch.object(CORE, "name", "test"),
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
     ):
-        espidf_mod.prepare_pch()
+        espidf_mod.prepare_pch_sidecars()
         first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
         monkeypatch.setattr(
             espidf_mod,
             "PCH_DEFAULT_HEADERS",
             tuple(reversed(espidf_mod.PCH_DEFAULT_HEADERS)),
         )
-        espidf_mod.prepare_pch()
+        espidf_mod.prepare_pch_sidecars()
     assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
 
 
-def test_prepare_pch_failure_writes_marker_and_skips_retry(tmp_path: Path) -> None:
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_f")
-    CORE.build_path = dev
-    calls = []
-
-    def failing_compile(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, 1, "", "boom")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=failing_compile),
-    ):
-        prepare_pch()
-        prepare_pch()
-    assert len(calls) == 1
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
-    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
-
-
-def test_prepare_pch_spawn_oserror_is_transient(tmp_path: Path) -> None:
-    """Spawn/IO failures retry on the next build instead of latching."""
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_o")
-    CORE.build_path = dev
-    calls = []
-
-    def raising(cmd, **kwargs):
-        calls.append(cmd)
-        raise OSError("no such compiler")
-
-    header = dev / "build" / "esphome_pch.h"
-    before = header.stat().st_mtime_ns
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=raising),
-    ):
-        prepare_pch()
-        prepare_pch()
-    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
-    assert len(calls) == 2
-    # No .gch was ever in play, so the header must not be re-touched into
-    # forcing a full rebuild on every failing build
-    assert header.stat().st_mtime_ns == before
-
-
-def test_prepare_pch_transient_with_stale_gch_bumps_header(tmp_path: Path) -> None:
-    """A stale .gch removed on a transient failure must dirty its consumers."""
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_s")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-    gch.write_bytes(b"stale")
-    header = dev / "build" / "esphome_pch.h"
-    os.utime(header, (1, 1))
-    with (
-        patch.object(CORE, "name", "test"),
-        patch(
-            "esphome.build_helpers.pch.subprocess.run",
-            side_effect=OSError("no such compiler"),
-        ),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-    assert header.stat().st_mtime_ns > 1_000_000_000
-
-
-def test_prepare_pch_disabled_discards_and_skips_compile(
+def test_prepare_pch_sidecars_disabled_discards(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The escape hatch is self-cleaning: a leftover .gch is removed."""
-    from esphome.build_gen.espidf import prepare_pch
+    from esphome.build_gen.espidf import prepare_pch_sidecars
 
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     dev = _make_pch_device(tmp_path, "dev_d")
@@ -855,139 +774,32 @@ def test_prepare_pch_disabled_discards_and_skips_compile(
     stale = dev / "build" / "esphome_pch.h.gch"
     stale.write_bytes(b"stale")
     with patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError):
-        prepare_pch()
+        prepare_pch_sidecars()
     assert not stale.exists()
 
 
-def test_prepare_pch_missing_sdkconfig_fails_closed(tmp_path: Path) -> None:
-    """No sdkconfig means no config identity for the .sum: no pch at all."""
-    from esphome.build_gen.espidf import prepare_pch
+def test_prepare_pch_sidecars_missing_sdkconfig_degrades(tmp_path: Path) -> None:
+    """No sdkconfig means no config identity: the sum marks degraded so the
+    ninja edge emits a placeholder instead of a keyed .gch."""
+    from esphome.build_gen.espidf import prepare_pch_sidecars
 
     dev = _make_pch_device(tmp_path, "dev_m")
     (dev / "sdkconfig.test").unlink()
     CORE.build_path = dev
-    stale = dev / "build" / "esphome_pch.h.gch"
-    stale.write_bytes(b"stale")
     with (
         patch.object(CORE, "name", "test"),
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
-        prepare_pch()
-    assert not stale.exists()
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
-
-
-def test_prepare_pch_signal_kill_is_transient(tmp_path: Path) -> None:
-    """A signal-killed compile (OOM) must not latch the .failed marker."""
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_k")
-    CORE.build_path = dev
-    calls = []
-
-    def killed(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(cmd, -9, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=killed),
-    ):
-        prepare_pch()
-        prepare_pch()
-    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
-    assert len(calls) == 2
-
-
-def test_prepare_pch_probe_spawn_failure_degrades(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A probe that cannot run discards the pch; strict raises."""
-    from esphome.build_gen.espidf import prepare_pch
-    from esphome.core import EsphomeError
-
-    dev = _make_pch_device(tmp_path, "dev_pf")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def probe_dies(cmd, **kwargs):
-        if "-fsyntax-only" in cmd:
-            raise OSError("probe spawn failed")
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=probe_dies),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
-
-    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=probe_dies),
-        pytest.raises(EsphomeError, match="probe did not run"),
-    ):
-        prepare_pch()
-
-
-@pytest.mark.parametrize(
-    ("stderr", "code"),
-    [("", -9), ("fatal: No space left on device", 1)],
-    ids=("signal-kill", "enospc"),
-)
-def test_prepare_pch_probe_environmental_failures_do_not_latch(
-    tmp_path: Path, stderr: str, code: int
-) -> None:
-    """A signal-killed or ENOSPC probe retries next build, no marker."""
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_pe")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def env_probe(cmd, **kwargs):
-        if "-fsyntax-only" in cmd:
-            return subprocess.CompletedProcess(cmd, code, "", stderr)
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=env_probe),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
-
-
-def test_prepare_pch_signal_kill_strict_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from esphome.build_gen.espidf import prepare_pch
-    from esphome.core import EsphomeError
-
-    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
-    dev = _make_pch_device(tmp_path, "dev_ks")
-    CORE.build_path = dev
-    with (
-        patch.object(CORE, "name", "test"),
-        patch(
-            "esphome.build_helpers.pch.subprocess.run",
-            side_effect=lambda cmd, **kw: subprocess.CompletedProcess(cmd, -9, "", ""),
-        ),
-        pytest.raises(EsphomeError, match="killed by signal"),
-    ):
-        prepare_pch()
+        prepare_pch_sidecars()
+    sum_text = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+    assert sum_text.startswith("degraded:")
 
 
 def test_prepare_pch_strict_raises_when_disabled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Strict must not read a disabled pch as success."""
-    from esphome.build_gen.espidf import prepare_pch
+    from esphome.build_gen.espidf import prepare_pch_sidecars
     from esphome.core import EsphomeError
 
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
@@ -998,13 +810,13 @@ def test_prepare_pch_strict_raises_when_disabled(
         patch.object(CORE, "name", "test"),
         pytest.raises(EsphomeError, match="disabled"),
     ):
-        prepare_pch()
+        prepare_pch_sidecars()
 
 
 def test_prepare_pch_missing_sdkconfig_strict_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from esphome.build_gen.espidf import prepare_pch
+    from esphome.build_gen.espidf import prepare_pch_sidecars
     from esphome.core import EsphomeError
 
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
@@ -1015,12 +827,13 @@ def test_prepare_pch_missing_sdkconfig_strict_raises(
         patch.object(CORE, "name", "test"),
         pytest.raises(EsphomeError, match="sdkconfig unreadable"),
     ):
-        prepare_pch()
+        prepare_pch_sidecars()
 
 
-def test_prepare_pch_without_compile_commands(tmp_path: Path) -> None:
-    """Stale checksum but no configured TU yet: no compile, no sidecars."""
-    from esphome.build_gen.espidf import prepare_pch
+def test_prepare_pch_sidecars_without_compile_commands(tmp_path: Path) -> None:
+    """No configured TU yet: the sum marks degraded, never deleted (it is
+    an input of the ninja edge)."""
+    from esphome.build_gen.espidf import prepare_pch_sidecars
 
     dev = _make_pch_device(tmp_path, "dev_n")
     (dev / "build" / "compile_commands.json").unlink()
@@ -1029,8 +842,9 @@ def test_prepare_pch_without_compile_commands(tmp_path: Path) -> None:
         patch.object(CORE, "name", "test"),
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
-        prepare_pch()
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
+        prepare_pch_sidecars()
+    sum_text = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+    assert sum_text.startswith("degraded:")
     assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
 
 
@@ -1068,76 +882,57 @@ def test_write_project_writes_pch_header(tmp_path: Path) -> None:
     )
 
 
-def test_prepare_pch_stale_bailout_removes_gch(tmp_path: Path) -> None:
-    """A stale .gch must not survive when no compile command is available."""
-    from esphome.build_gen.espidf import prepare_pch
+def test_prepare_pch_sidecars_latched_keeps_degraded_sum(tmp_path: Path) -> None:
+    """A latched failure keeps the sum degraded (edge stays quiet); deleting
+    the latch rewrites the plain digest, whose mtime bump retries the edge."""
+    from esphome.build_gen.espidf import prepare_pch_sidecars
 
-    dev = _make_pch_device(tmp_path, "dev_s")
+    dev = _make_pch_device(tmp_path, "dev_l")
     CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-    gch.write_bytes(b"stale")
-    (dev / "build" / "esphome_pch.h.gch.sum").write_text("stale-sum\n")
-    (dev / "build" / "compile_commands.json").unlink()
-    with patch.object(CORE, "name", "test"):
-        prepare_pch()
-    assert not gch.exists()
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
-
-
-def test_prepare_pch_zero_exit_without_gch_is_failure(tmp_path: Path) -> None:
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_z")
-    CORE.build_path = dev
-
-    def no_output(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 0, "", "")
+    sum_path = dev / "build" / "esphome_pch.h.gch.sum"
+    failed = dev / "build" / "esphome_pch.h.gch.failed"
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=no_output),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
-        prepare_pch()
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
-    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
-
-
-def test_prepare_pch_bumps_header_for_object_depends(tmp_path: Path) -> None:
-    """The OBJECT_DEPENDS edge watches the header; a rebuilt .gch must bump
-    it so pch-consuming TUs recompile."""
-    import os as _os
-
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_t")
-    CORE.build_path = dev
-    header = dev / "build" / "esphome_pch.h"
-    gch = dev / "build" / "esphome_pch.h.gch"
-    _os.utime(header, (0, 0))
-    before = header.stat().st_mtime
-
-    def fake_compile(cmd, **kwargs):
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
-    ):
-        prepare_pch()
-    assert header.stat().st_mtime > before
+        prepare_pch_sidecars()
+        digest = sum_path.read_text().strip()
+        failed.write_text(digest + "\n")
+        sum_path.write_text("degraded:earlier failure latched\n")
+        prepare_pch_sidecars()
+        assert sum_path.read_text().startswith("degraded:")
+        failed.unlink()
+        prepare_pch_sidecars()
+    assert sum_path.read_text().strip() == digest
 
 
 def test_component_cmakelists_pch_object_depends() -> None:
+    """Consumers order after the ninja pch edge via the .gch."""
     from esphome.build_gen.espidf import get_component_cmakelists
 
     content = get_component_cmakelists()
-    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h"' in content
+    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h.gch"' in content
+
+
+def test_component_cmakelists_pch_edge(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The .gch build edge is baked with the shim command and depfile."""
+    from esphome.build_gen.espidf import get_component_cmakelists
+
+    content = get_component_cmakelists()
+    assert "esphome.build_helpers.pch_compile" in content
+    assert 'DEPFILE "${CMAKE_BINARY_DIR}/esphome_pch.h.gch.d"' in content
+    assert "esphome_pch.h.gch.sum" in content
+    assert "cmake_policy(SET CMP0116 NEW)" in content
+    monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
+    disabled = get_component_cmakelists()
+    assert "pch_compile" not in disabled
+    assert "OBJECT_DEPENDS" not in disabled
 
 
 def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
     """A flag-only change in the compile DB must rebuild the .gch."""
-    from esphome.build_gen.espidf import prepare_pch
+    from esphome.build_gen.espidf import prepare_pch_sidecars
 
     dev = _make_pch_device(tmp_path, "dev_c")
     CORE.build_path = dev
@@ -1151,11 +946,11 @@ def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
         patch.object(CORE, "name", "test"),
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
     ):
-        prepare_pch()
+        prepare_pch_sidecars()
         first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
         db = dev / "build" / "compile_commands.json"
         db.write_text(db.read_text().replace("-DX=1", "-DX=2"))
-        prepare_pch()
+        prepare_pch_sidecars()
     assert (dev / "build" / "esphome_pch.h.gch.sum").read_text() != first
 
 
@@ -1185,14 +980,13 @@ def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
     assert "esphome_pch.h" not in " ".join(cmd[:-3])
 
 
-def test_prepare_pch_identity_unknown_discards(tmp_path: Path) -> None:
-    """An OSError from the checksum discards artifacts and skips the pch."""
-    from esphome.build_gen.espidf import prepare_pch
+def test_prepare_pch_identity_unknown_degrades(tmp_path: Path) -> None:
+    """An OSError from the checksum degrades the sum; a stale .gch is then
+    replaced with a placeholder by the ninja edge (sum mtime bumped)."""
+    from esphome.build_gen.espidf import prepare_pch_sidecars
 
     dev = _make_pch_device(tmp_path, "dev_i")
     CORE.build_path = dev
-    stale = dev / "build" / "esphome_pch.h.gch"
-    stale.write_bytes(b"stale")
     with (
         patch.object(CORE, "name", "test"),
         patch(
@@ -1201,42 +995,16 @@ def test_prepare_pch_identity_unknown_discards(tmp_path: Path) -> None:
         ),
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
-        prepare_pch()
-    assert not stale.exists()
-    assert not (dev / "build" / "esphome_pch.h.gch.sum").exists()
-
-
-def test_prepare_pch_transient_compiler_failure_does_not_latch(
-    tmp_path: Path,
-) -> None:
-    """ENOSPC-style failures clear on their own; no .failed marker."""
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_e")
-    CORE.build_path = dev
-    calls = []
-
-    def enospc(cmd, **kwargs):
-        calls.append(cmd)
-        return subprocess.CompletedProcess(
-            cmd, 1, "", "fatal error: No space left on device"
-        )
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=enospc),
-    ):
-        prepare_pch()
-        prepare_pch()
-    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
-    assert len(calls) == 2
+        prepare_pch_sidecars()
+    sum_text = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
+    assert sum_text.startswith("degraded:")
 
 
 def test_prepare_pch_strict_raises_on_missing_db(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """ESPHOME_PCH_STRICT turns the silent skip into a failure."""
-    from esphome.build_gen.espidf import prepare_pch
+    from esphome.build_gen.espidf import prepare_pch_sidecars
     from esphome.core import EsphomeError
 
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
@@ -1248,164 +1016,4 @@ def test_prepare_pch_strict_raises_on_missing_db(
         patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
         pytest.raises(EsphomeError, match="no usable compile command"),
     ):
-        prepare_pch()
-
-
-def test_prepare_pch_probe_rejection_latches_and_degrades(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A toolchain that cannot load its own .gch discards it, latches the
-    marker, and fails strict mode."""
-    from esphome.build_gen.espidf import prepare_pch
-    from esphome.core import EsphomeError
-
-    dev = _make_pch_device(tmp_path, "dev_p")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def rejecting(cmd, **kwargs):
-        if "-fsyntax-only" in cmd:
-            if "-include" not in cmd:
-                # Baseline without the pch passes: the pch is to blame
-                return subprocess.CompletedProcess(cmd, 0, "", "")
-            return subprocess.CompletedProcess(
-                cmd, 1, "", "error: esphome_pch.h.gch: had text segment "
-            )
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=rejecting),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-    assert (dev / "build" / "esphome_pch.h.gch.failed").exists()
-
-    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
-    (dev / "build" / "esphome_pch.h.gch.failed").unlink()
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=rejecting),
-        pytest.raises(EsphomeError, match="cannot load the pch"),
-    ):
-        prepare_pch()
-
-
-def test_prepare_pch_strict_reprobes_cached_gch(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Rejection is per-process: strict must re-prove a cached .gch loads."""
-    from esphome.build_gen.espidf import prepare_pch
-    from esphome.core import EsphomeError
-
-    dev = _make_pch_device(tmp_path, "dev_rc")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def ok(cmd, **kwargs):
-        if "-fsyntax-only" not in cmd:
-            gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=ok),
-    ):
-        prepare_pch()
-    assert gch.exists()
-
-    def reject(cmd, **kwargs):
-        assert "-fsyntax-only" in cmd, "cached path must not recompile"
-        if "-include" not in cmd:
-            return subprocess.CompletedProcess(cmd, 0, "", "")
-        return subprocess.CompletedProcess(
-            cmd, 1, "", "error: esphome_pch.h.gch: had text segment "
-        )
-
-    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=reject),
-        pytest.raises(EsphomeError, match="cannot load the pch"),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-    # Per-process rejection may not reproduce: the cached path must not
-    # latch the pch off for later non-strict builds
-    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
-
-
-def test_prepare_pch_unexpected_command_shape_degrades(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A tail the probe slice cannot trust discards and degrades."""
-    from esphome.build_gen.espidf import prepare_pch
-    from esphome.core import EsphomeError
-
-    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
-    dev = _make_pch_device(tmp_path, "dev_sh")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def ok(cmd, **kwargs):
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=ok),
-        patch(
-            "esphome.build_helpers.pch.pch_compile_command",
-            return_value=(
-                ["g++", "-DX=1", "-c", "x", "-o", "y", "extra"],
-                dev / "build",
-            ),
-        ),
-        pytest.raises(EsphomeError, match="command shape"),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-
-    # Non-strict: same shape problem degrades without raising
-    monkeypatch.delenv("ESPHOME_PCH_STRICT")
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=ok),
-        patch(
-            "esphome.build_helpers.pch.pch_compile_command",
-            return_value=(
-                ["g++", "-DX=1", "-c", "x", "-o", "y", "extra"],
-                dev / "build",
-            ),
-        ),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-
-
-def test_prepare_pch_probe_baseline_spawn_failure_is_transient(
-    tmp_path: Path,
-) -> None:
-    """A baseline that cannot spawn is environmental: no marker."""
-    from esphome.build_gen.espidf import prepare_pch
-
-    dev = _make_pch_device(tmp_path, "dev_bs")
-    CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def flaky(cmd, **kwargs):
-        if "-fsyntax-only" in cmd:
-            if "-include" in cmd:
-                return subprocess.CompletedProcess(cmd, 1, "", "boom")
-            raise OSError("baseline spawn failed")
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
-
-    with (
-        patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=flaky),
-    ):
-        prepare_pch()
-    assert not gch.exists()
-    assert not (dev / "build" / "esphome_pch.h.gch.failed").exists()
+        prepare_pch_sidecars()

@@ -248,6 +248,42 @@ def test_pch_cmake_consumer_substitutes_target_and_sources(
     assert 'file(TOUCH "${CMAKE_BINARY_DIR}/esphome_pch.h")' in block
 
 
+def test_pch_cmake_consumer_object_depends_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A backend building the .gch in its graph orders TUs after the edge."""
+    monkeypatch.delenv("ESPHOME_PCH_ENABLE", raising=False)
+    block = pch.pch_cmake_consumer(
+        "app", "${APP_SOURCES}", object_depends="esphome_pch.h.gch"
+    )
+    assert 'OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/esphome_pch.h.gch"' in block
+    # The -include and its placeholder guard still target the header
+    assert '"$<$<COMPILE_LANGUAGE:CXX>:esphome_pch.h>"' in block
+    assert 'file(TOUCH "${CMAKE_BINARY_DIR}/esphome_pch.h")' in block
+
+
+def test_guarded_prepare_fallback_runs_instead_of_discard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fallback leaves the sidecars consistent; strict still raises."""
+    monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
+    marker = tmp_path / "marker"
+    gch = tmp_path / "esphome_pch.h.gch"
+    gch.write_bytes(b"stale")
+
+    def boom() -> None:
+        raise RuntimeError("boom")
+
+    pch.guarded_prepare(tmp_path, boom, fallback=lambda: marker.write_text("x"))
+    assert marker.is_file()
+    # The fallback path must not discard: the .gch is a graph input/output
+    assert gch.is_file()
+
+    monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    with pytest.raises(RuntimeError):
+        pch.guarded_prepare(tmp_path, boom, fallback=lambda: marker.write_text("x"))
+
+
 def test_pch_cmake_consumer_strict_escalates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
