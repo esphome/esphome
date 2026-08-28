@@ -33,6 +33,7 @@ KEY_NAMED_STYLES = "named_styles"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
 KEY_STYLES_USED = "styles_used"
+KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
 KEY_THEME_WIDGET_MAP = "theme_widget_map"
 KEY_UPDATED_WIDGETS = "updated_widgets"
 KEY_WIDGET_MAP = "widget_map"
@@ -116,6 +117,14 @@ def get_updated_widgets() -> dict:
 
 def get_theme_widget_map() -> dict[str, Any]:
     return _get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_theme_update_requests() -> dict[str, dict[tuple[str, str], None]]:
+    # Values are dicts used as ordered sets (insertion order is deterministic,
+    # unlike a plain `set` of strings/tuples, whose iteration order depends on
+    # per-process string hash randomization) so codegen output doesn't churn
+    # between builds of the same config.
+    return _get_data(KEY_THEME_UPDATE_REQUESTS, {})
 
 
 def get_styles_used() -> set[str]:
@@ -214,11 +223,14 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype: MockObj, retmapper=None, requires=None):
+    def __init__(
+        self, validator, rtype: MockObj, retmapper=None, requires=None, animatable=False
+    ):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
         self.requires = requires
+        self.animatable = animatable
 
     def __call__(self, value):
         if self.requires:
@@ -228,7 +240,10 @@ class LValidator:
         return self.validator(value)
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         if value is None:
             return None
@@ -236,11 +251,15 @@ class LValidator:
             # Local import to avoid circular import
             from .lvcode import get_lambda_context_args
 
-            args = args or get_lambda_context_args()
+            # `args is None` means "inherit the enclosing lambda context"; an explicit
+            # empty list means "no parameters" and must be preserved as-is.
+            if args is None:
+                args = get_lambda_context_args()
 
-            return call_lambda(
-                await cg.process_lambda(value, args, return_type=self.rtype)
-            )
+            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
+            if raw_lambda:
+                return lamb
+            return call_lambda(lamb)
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
@@ -566,6 +585,21 @@ FLEX_FLOWS = LvConstant(
     "COLUMN_WRAP_REVERSE",
 )
 
+TRANSFORM_STYLE_PROPS = frozenset(
+    {"transform_rotation", "transform_scale", "transform_scale_x", "transform_scale_y"}
+)
+
+DROP_SHADOW_STYLE_PROPS = frozenset(
+    {
+        "drop_shadow_color",
+        "drop_shadow_offset_x",
+        "drop_shadow_offset_y",
+        "drop_shadow_opa",
+        "drop_shadow_quality",
+        "drop_shadow_radius",
+    }
+)
+
 OBJ_FLAGS = (
     "hidden",
     "clickable",
@@ -729,6 +763,7 @@ CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
+CONF_IMAGE = "image"
 CONF_INDICATORS = "indicators"
 CONF_INITIAL_FOCUS = "initial_focus"
 CONF_SELECTED_DIGIT = "selected_digit"
@@ -742,15 +777,19 @@ CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
+CONF_MAPPING = "mapping"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
 CONF_ON_DRAW_START = "on_draw_start"
 CONF_ON_DRAW_END = "on_draw_end"
+CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
+CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
+CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
@@ -758,12 +797,14 @@ CONF_PAD_COLUMN = "pad_column"
 CONF_PAGE = "page"
 CONF_PAGE_WRAP = "page_wrap"
 CONF_PASSWORD_MODE = "password_mode"
+CONF_PAUSED = "paused"
 CONF_PIVOT_X = "pivot_x"
 CONF_PIVOT_Y = "pivot_y"
 CONF_PLACEHOLDER_TEXT = "placeholder_text"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_RADIUS = "radius"
+CONF_REFRESH_INTERVAL = "refresh_interval"
 CONF_REPEAT_COUNT = "repeat_count"
 CONF_RECOLOR = "recolor"
 CONF_RESUME_ON_INPUT = "resume_on_input"

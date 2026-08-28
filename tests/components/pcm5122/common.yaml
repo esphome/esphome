@@ -4,6 +4,11 @@ audio_dac:
     i2c_id: i2c_bus
     address: 0x4D
     bits_per_sample: 32bit
+    analog_gain: -6db
+    channel_mix: swapped
+    volume_min_db: -60dB
+    volume_max_db: -3dB
+    enable_pin: GPIO12
 
 output:
   - platform: gpio
@@ -22,3 +27,9 @@ binary_sensor:
       number: 4
       mode:
         input: true
+
+switch:
+  - platform: pcm5122
+    pcm5122: pcm5122_dac
+    name: PCM5122 Power Down
+    power_mode: powerdown

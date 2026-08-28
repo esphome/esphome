@@ -1,0 +1,86 @@
+esphome:
+  name: wait-until-reentrant-restart
+
+host:
+
+api:
+  actions:
+    - action: start_self_restart
+      then:
+        - script.execute: retry_script
+    - action: start_stop_during_wait
+      then:
+        - globals.set:
+            id: gate_open
+            value: 'false'
+        # num 0 is a blocker: its condition never becomes true, so it is still
+        # waiting (already checked and set aside) when num 1 stops the script -
+        # it must be cancelled, not restored, so its timeout must never fire
+        - script.execute:
+            id: waiter
+            num: 0
+        - script.execute:
+            id: waiter
+            num: 1
+        - script.execute:
+            id: waiter
+            num: 2
+        - script.execute:
+            id: waiter
+            num: 3
+        # Give all three instances time to queue in the same wait_until
+        - delay: 100ms
+        - globals.set:
+            id: gate_open
+            value: 'true'
+        - delay: 200ms
+        - logger.log: "stop test complete"
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: attempt
+    type: int
+    initial_value: '0'
+  - id: gate_open
+    type: bool
+    initial_value: 'false'
+
+script:
+  # Self-restart retry pattern: when the wait_until times out, the rest of the
+  # script runs synchronously from inside the wait queue processing and restarts
+  # this same script - re-entering the same WaitUntilAction while it is still
+  # processing its queue. This used to corrupt the queue and crash.
+  - id: retry_script
+    mode: restart
+    then:
+      - wait_until:
+          condition:
+            lambda: 'return false;'
+          timeout: 20ms
+      - lambda: |-
+          id(attempt) += 1;
+          ESP_LOGD("test", "attempt %d done", id(attempt));
+      - if:
+          condition:
+            lambda: 'return id(attempt) < 5;'
+          then:
+            - script.execute: retry_script
+          else:
+            - logger.log: "retry test complete"
+
+  # Parallel waiters all queued in the same wait_until; the first one to pass the
+  # gate stops the script from its continuation, cancelling the other waiters
+  # while the queue is still being processed.
+  - id: waiter
+    mode: parallel
+    parameters:
+      num: int
+    then:
+      - wait_until:
+          condition:
+            lambda: 'return num != 0 && id(gate_open);'
+          timeout: 1s
+      - lambda: 'ESP_LOGD("test", "gate passed %d", num);'
+      - script.stop: waiter

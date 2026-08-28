@@ -134,7 +134,7 @@ class Infrared : public Component, public EntityBase, public remote_base::Remote
   const InfraredTraits &get_traits() const { return this->traits_; }
 
   /// Create a call object for transmitting
-  InfraredCall make_call();
+  InfraredCall make_call() { return InfraredCall(this); }
 
   /// Get capability flags for this infrared instance
   uint32_t get_capability_flags() const;

@@ -8,7 +8,7 @@
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/ota/ota_backend_esp8266.h"
 #include "esphome/components/ota/ota_backend_arduino_libretiny.h"
-#include "esphome/components/ota/ota_backend_arduino_rp2040.h"
+#include "esphome/components/ota/ota_backend_arduino_rp2.h"
 #include "esphome/components/ota/ota_backend_esp_idf.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -94,11 +94,12 @@ void ESPHomeOTAComponent::setup() {
 }
 
 void ESPHomeOTAComponent::dump_config() {
+  char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG,
                 "Over-The-Air updates:\n"
                 "  Address: %s:%u\n"
                 "  Version: %d",
-                network::get_use_address(), this->port_, USE_OTA_VERSION);
+                network::get_use_address_to(addr_buf), this->port_, USE_OTA_VERSION);
 #ifdef USE_OTA_PASSWORD
   if (!this->password_.empty()) {
     ESP_LOGCONFIG(TAG, "  Password configured");
@@ -397,7 +398,7 @@ void ESPHomeOTAComponent::handle_data_() {
   this->notify_state_(ota::OTA_STARTED, 0.0f, 0);
 #endif
 
-  // begin() may block for a few seconds while it locks flash.
+  // begin() returns quickly; flash sectors are erased incrementally during write().
   error_code = this->backend_->begin(ota_size, ota_type);
   if (error_code != ota::OTA_RESPONSE_OK)
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
@@ -587,8 +588,6 @@ bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
 }
 
 float ESPHomeOTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
-uint16_t ESPHomeOTAComponent::get_port() const { return this->port_; }
-void ESPHomeOTAComponent::set_port(uint16_t port) { this->port_ = port; }
 
 void ESPHomeOTAComponent::log_socket_error_(const LogString *msg) {
   ESP_LOGW(TAG, "Socket %s: errno %d", LOG_STR_ARG(msg), errno);

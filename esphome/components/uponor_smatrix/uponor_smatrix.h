@@ -62,7 +62,7 @@ struct UponorSmatrixData {
 
 class UponorSmatrixDevice;
 
-class UponorSmatrixComponent : public uart::UARTDevice, public Component {
+class UponorSmatrixComponent final : public uart::UARTDevice, public Component {
  public:
   UponorSmatrixComponent() = default;
 

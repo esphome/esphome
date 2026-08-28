@@ -1,0 +1,73 @@
+esphome:
+  name: lvgl-list-validate
+
+host:
+
+logger:
+
+display:
+  - platform: sdl
+    id: sdl0
+    dimensions:
+      width: 320
+      height: 240
+
+lvgl:
+  displays: sdl0
+  widgets:
+    # Two independent lists, each with their own on_add/on_remove and, for list_a,
+    # more than one automation under the same trigger key -- checks that the
+    # per-list trigger bookkeeping is keyed correctly and doesn't require exactly
+    # one automation.
+    - list:
+        id: validate_list_a
+        align: center
+        pad_row: 6
+        on_add:
+          - logger.log:
+              format: "a: added %d"
+              args: [list_index]
+          - logger.log:
+              format: "a: also added %d"
+              args: [list_index]
+        on_remove:
+          - logger.log:
+              format: "a: removed %d"
+              args: [list_index]
+        on_boot:
+          # lvgl.list.add_text and lvgl.list.add both take an optional, templatable index.
+          - lvgl.list.add_text:
+              id: validate_list_a
+              text: "Header"
+              index: !lambda return 0;
+          # any registered widget type is valid as the single lvgl.list.add key.
+          - lvgl.list.add:
+              id: validate_list_a
+              checkbox:
+                align: center
+                text: "Option"
+          - lvgl.list.add:
+              id: validate_list_a
+              index: !lambda return 0;
+              switch:
+                align: center
+          - lvgl.list.add:
+              id: validate_list_a
+              spinner:
+                align: center
+          - lvgl.list.add:
+              id: validate_list_a
+              obj:
+                align: center
+          - lvgl.list.remove:
+              id: validate_list_a
+              index: !lambda return 0;
+          - lvgl.list.clear:
+              id: validate_list_a
+    - list:
+        id: validate_list_b
+        align: center
+        on_remove:
+          - logger.log:
+              format: "b: removed %d"
+              args: [list_index]

@@ -123,9 +123,9 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   void set_autorange(bool autorange) { this->autorange_ = autorange; }
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   void set_is_temperature() { this->is_temperature_ = true; }
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
  protected:
   uint8_t sample_count_{1};
@@ -152,9 +152,9 @@ class ADCSensor final : public sensor::Sensor, public PollingComponent, public v
   static adc_oneshot_unit_handle_t shared_adc_handles[2];
 #endif  // USE_ESP32
 
-#ifdef USE_RP2040
+#ifdef USE_RP2
   bool is_temperature_{false};
-#endif  // USE_RP2040
+#endif  // USE_RP2
 
 #ifdef USE_ZEPHYR
   const struct adc_dt_spec *channel_ = nullptr;

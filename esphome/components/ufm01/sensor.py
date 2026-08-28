@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_CUBIC_METER_PER_HOUR,
     UNIT_LITRE,
 )
+from esphome.types import ConfigType
 
 from . import CONF_UFM01_ID, UFM01Component
 
@@ -47,7 +48,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     ufm01_component = await cg.get_variable(config[CONF_UFM01_ID])
 
     if CONF_ACCUMULATED_FLOW in config:
