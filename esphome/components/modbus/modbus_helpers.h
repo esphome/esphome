@@ -448,11 +448,15 @@ inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueTy
  */
 std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type);
 
+/// The widest standard numeric value (a QWORD) spans 4 registers, so one entity value never writes more.
+static constexpr uint16_t MAX_FEW_REGISTERS = 4;
+
 // Named PDU buffer types: the builders' storage strategy (currently stack-allocated StaticVector,
 // right-sized per shape) can be swapped in one place without touching every signature.
 using PduBuffer = StaticVector<uint8_t, MAX_PDU_SIZE>;
 using ReadPdu = StaticVector<uint8_t, READ_PDU_SIZE>;
 using WriteSinglePdu = StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE>;
+using WriteFewRegistersPdu = StaticVector<uint8_t, 6 + 2 * MAX_FEW_REGISTERS>;
 /// Scratch space for packing coils into wire layout: one bit per coil, sized for the spec maximum.
 using CoilPackBuffer = StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)>;
 
@@ -495,6 +499,15 @@ PduBuffer create_client_pdu(FunctionCode function_code, uint16_t start_address, 
  * @return PDU (function code + data, no address, no CRC)
  */
 PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
+
+/** Create modbus write multiple registers command (function 0x10) on a right-sized stack buffer.
+ * Identical wire bytes to create_write_registers_pdu() for any accepted input.
+ * @param start_address modbus address of the first register to write
+ * @param values register values to write, at most MAX_FEW_REGISTERS (an over-long or empty set is
+ *               rejected and an empty PDU is returned)
+ * @return PDU (function code + data, no address, no CRC)
+ */
+WriteFewRegistersPdu create_write_few_registers_pdu(uint16_t start_address, std::span<const uint16_t> values);
 
 /** Create modbus read/write multiple registers command
  *  Function 0x17 Read/Write Multiple Registers

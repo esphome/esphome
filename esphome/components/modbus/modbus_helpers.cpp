@@ -484,9 +484,10 @@ static bool register_block_in_range(const LogString *role, uint16_t start_addres
   return true;
 }
 
-PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
-  PduBuffer pdu;  // declared before every return so NRVO fires (all paths return the same object)
-  if (!register_block_in_range(LOG_STR("Write"), start_address, values.size(), MAX_NUM_OF_REGISTERS_TO_WRITE)) {
+template<typename Pdu>
+static Pdu build_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values, uint16_t max_registers) {
+  Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
+  if (!register_block_in_range(LOG_STR("Write"), start_address, values.size(), max_registers)) {
     return pdu;
   }
   append_pdu_header(pdu, FunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, values.size());
@@ -495,6 +496,14 @@ PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uin
     append_pdu_word(pdu, v);
   }
   return pdu;
+}
+
+PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  return build_write_registers_pdu<PduBuffer>(start_address, values, MAX_NUM_OF_REGISTERS_TO_WRITE);
+}
+
+WriteFewRegistersPdu create_write_few_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  return build_write_registers_pdu<WriteFewRegistersPdu>(start_address, values, MAX_FEW_REGISTERS);
 }
 
 PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,

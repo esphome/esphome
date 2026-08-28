@@ -607,6 +607,8 @@ class ModbusClientDevice {
     return this->queue_pdu(helpers::create_write_single_coil_pdu(address, value));
   }
   bool write_multiple_registers(uint16_t start_address, std::span<const uint16_t> values) {
+    if (values.size() <= helpers::MAX_FEW_REGISTERS)
+      return this->queue_pdu(helpers::create_write_few_registers_pdu(start_address, values));
     return this->queue_pdu(helpers::create_write_registers_pdu(start_address, values));
   }
   /// Note: std::vector<bool> cannot bind to std::span<const bool>; use a contiguous bool container or the packed
