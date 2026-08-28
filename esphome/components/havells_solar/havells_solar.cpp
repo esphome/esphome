@@ -25,13 +25,13 @@ void HavellsSolar::on_read_holding_registers(uint16_t start_address, std::span<c
   };
 
   auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
-    constexpr auto VALUE_TYPE = modbus::helpers::SensorValueType::U_DWORD;
+    constexpr auto value_type = modbus::helpers::SensorValueType::U_DWORD;
     if (sensor == nullptr || reg < start_address)
       return;
     size_t offset = reg - start_address;
-    if (offset + modbus::helpers::registers_for_value_type(VALUE_TYPE) > registers.size())
+    if (offset + modbus::helpers::registers_for_value_type(value_type) > registers.size())
       return;
-    sensor->publish_state(modbus::helpers::registers_to_value<VALUE_TYPE>(registers.data() + offset) * unit);
+    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) * unit);
   };
 
   for (uint8_t i = 0; i < 3; i++) {
