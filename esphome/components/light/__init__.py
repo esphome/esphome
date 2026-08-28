@@ -126,12 +126,6 @@ def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     the invariant that non-zero input always produces non-zero output. Without
     this, small brightness values (e.g. 1%) get quantized to exactly 0.0,
     which breaks zero_means_zero logic in FloatOutput.
-
-    This table is shared verbatim by LightState::gamma_correct_lut() (a float,
-    interpolated path with far more than 8-bit precision) as well as by
-    ESPColorCorrection's 8-bit conversion, so it must not be distorted to
-    accommodate the latter's lower precision -- see gamma_correct_() in
-    esp_color_correction.cpp for that.
     """
     if gamma_correct > 0:
         return [
