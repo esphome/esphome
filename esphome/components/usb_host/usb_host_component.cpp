@@ -365,13 +365,26 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
   // is a control transfer. Submit it and finish the open from its completion rather than
   // blocking the caller -- every caller here is the main loop.
   stream.open_state.store(IsocOpenState::SELECTING_ALT, std::memory_order_release);
-  const bool submitted = cb->set_interface(
-      stream.interface_num, stream.alt_setting,
-      [this, &stream, cb, client_handle, device_handle](const TransferStatus &status) {
+  const bool submitted =
+      cb->set_interface(stream.interface_num, stream.alt_setting, [this, &stream, cb](const TransferStatus &status) {
         // Completion runs on the USB task; hand the rest to the main loop so the whole open
         // sequence stays on the task that started it.
         const bool selected = status.success;
-        this->defer([this, &stream, cb, client_handle, device_handle, selected]() {
+        this->defer([this, &stream, cb, selected]() {
+          // Read the handles here rather than snapshotting them at submit time. A full
+          // control round trip fits in this window, and disconnect() runs on the main loop
+          // just like this lambda, so either the device is still open and the handles are
+          // valid, or it is gone and device_handle_ is null. A snapshot would turn that
+          // null into a stale handle and release an interface on a device the IDF freed.
+          const usb_host_client_handle_t client_handle = cb->handle_;
+          const usb_device_handle_t device_handle = cb->device_handle_;
+          if (device_handle == nullptr) {
+            // The device went away mid-switch. It took the claimed interface with it, so
+            // there is nothing to release.
+            stream.open_state.store(IsocOpenState::CLOSED, std::memory_order_release);
+            cb->on_stream_open(stream, false);
+            return;
+          }
           // The owner may have closed the stream while the device was being switched. Give
           // the interface back rather than starting URBs nobody asked for any more.
           if (stream.open_state.load(std::memory_order_acquire) != IsocOpenState::SELECTING_ALT) {
