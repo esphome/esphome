@@ -63,6 +63,27 @@ bool Mk2PVRouter::check_crc_(const char *grp, const char *grp_end) {
   return true;
 }
 
+// Validates, parses, and publishes a single tag/value group.
+void Mk2PVRouter::process_group_(const char *grp, const char *grp_end) {
+  if (!this->check_crc_(grp, grp_end))
+    return;
+
+  size_t field_len = get_field(this->tag_, grp, grp_end, MAX_TAG_SIZE);
+  if (!field_len || field_len >= MAX_TAG_SIZE) {
+    ESP_LOGE(TAG, "Invalid tag");
+    return;
+  }
+  const auto *val_start = grp + field_len + 1;  // Skip tag + TAB.
+
+  field_len = get_field(this->val_, val_start, grp_end, MAX_VAL_SIZE);
+  if (!field_len || field_len >= MAX_VAL_SIZE) {
+    ESP_LOGE(TAG, "Invalid value for tag %s", this->tag_);
+    return;
+  }
+
+  this->publish_value_(this->tag_, this->val_);
+}
+
 // Reads characters until `c` is found or the internal buffer is full.
 bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
   size_t j{0};
@@ -112,8 +133,6 @@ void Mk2PVRouter::loop() {
         break;
       }
 
-      size_t field_len;
-
       auto *buf_finger = this->buf_;
       auto *buf_end = this->buf_ + this->buf_index_;
 
@@ -128,23 +147,7 @@ void Mk2PVRouter::loop() {
           break;
         }
 
-        if (!this->check_crc_(buf_finger, grp_end))
-          continue;
-
-        field_len = get_field(this->tag_, buf_finger, grp_end, MAX_TAG_SIZE);
-        if (!field_len || field_len >= MAX_TAG_SIZE) {
-          ESP_LOGE(TAG, "Invalid tag");
-          continue;
-        }
-        buf_finger += field_len + 1;  // Skip tag + TAB.
-
-        field_len = get_field(this->val_, buf_finger, grp_end, MAX_VAL_SIZE);
-        if (!field_len || field_len >= MAX_VAL_SIZE) {
-          ESP_LOGE(TAG, "Invalid value for tag %s", this->tag_);
-          continue;
-        }
-
-        this->publish_value_(this->tag_, this->val_);
+        this->process_group_(buf_finger, grp_end);
 
         buf_finger = grp_end;  // grp_end is always < buf_end, so this stays in bounds.
       }
