@@ -1129,7 +1129,8 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         "rule elf2bin",
         # --flash_size deliberately stays board-derived, as under
         # PlatformIO (which reads upload.maximum_size, not the ldscript).
-        f"  command = $python {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
+        # -W: the framework's own elf2bin.py trips SyntaxWarning on 3.12+.
+        f"  command = $python -W ignore::SyntaxWarning {_q(framework / 'tools' / 'elf2bin.py')} --eboot {_q(framework / 'bootloaders' / 'eboot' / 'eboot.elf')} --app $in --flash_mode {flash_mode} --flash_freq {_FLASH_FREQ_MHZ} --flash_size {_flash_size_str(BOARDS[board][KEY_FLASH_SIZE])} --path {_q(toolchain_bin)} --out $out",
         "  description = BIN $out",
         "rule copy",
         "  command = $python $buildtool copy $in $out",
