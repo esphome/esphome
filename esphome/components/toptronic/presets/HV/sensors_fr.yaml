@@ -1,0 +1,181 @@
+sensor:
+  - platform: toptronic
+    name: Modulation de la ventilation normale
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40651
+    id: HV_50_0_40651
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Modulation de la ventilation \xE9conomique"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40686
+    id: HV_50_0_40686
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Modulation de la ventilation
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 38606
+    id: HV_50_0_38606
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: "Valeur de consigne humidit\xE9"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40687
+    id: HV_50_0_40687
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:water-percent
+    device_class: humidity
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Humidit\xE9 de l'air extrait"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 37600
+    id: HV_50_0_37600
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:water-percent
+    device_class: humidity
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature de l'air ext\xE9rieur"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 0
+    id: HV_50_0_0
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Temp\xE9rature de l'air extrait"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 37602
+    id: HV_50_0_37602
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Ventilateur air \xE9vacu\xE9 val. de consigne"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 38600
+    id: HV_50_0_38600
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Val compt maint message maint (sem expl)
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 0
+    function_number: 0
+    datapoint: 20037
+    id: HV_0_0_20037
+    type: U32
+  - platform: toptronic
+    name: Valeur compteur nettoyage message nett. (sem expl.)
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 0
+    function_number: 0
+    datapoint: 41613
+    id: HV_0_0_41613
+    type: U32
+text_sensor:
+  - platform: toptronic
+    name: "S\xE9lection de fonctionnement ventilation"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 40650
+    id: HV_50_0_40650
+    options:
+      - Stand-by
+      - Semaine 1
+      - Semaine 2
+      - Mode constant, valeur de consigne 40651
+      - "Mode \xE9conomique, valeur de consigne DAP40686"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+  - platform: toptronic
+    name: "\xC9tat r\xE9gulation de la ventilation"
+    device_type: HV
+    device_addr: ${TT_HV_addr}
+    function_group: 50
+    function_number: 0
+    datapoint: 39652
+    id: HV_50_0_39652
+    options:
+      - "Appareil \xE0 l\u2019arr\xEAt, mode stand-by par ex."
+      - Mode ventilation normale
+      - "Mode VOC activ\xE9"
+      - "Mode humidit\xE9 activ\xE9"
+      - "Protection antigel activ\xE9e"
+      - "CoolVet activ\xE9"
+      - "\xC9tat d\u2019erreur"
+      - "Humidit\xE9 d'\xE9t\xE9"
+      - "Arr\xEAt coupure valeur de consigne"
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8

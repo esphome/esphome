@@ -1,0 +1,384 @@
+sensor:
+  - platform: toptronic
+    name: AF1 - sensore esterno 1
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 0
+    function_number: 0
+    datapoint: 0
+    id: WEZ_0_0_0
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temp ambiente normale riscaldamento (1)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 0
+    datapoint: 3051
+    id: WEZ_1_0_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Temp ambiente risparmio riscaldamento (1)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 0
+    datapoint: 3053
+    id: WEZ_1_0_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Temp ambiente normale riscaldamento (2)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 1
+    datapoint: 3051
+    id: WEZ_1_1_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Temp ambiente risparmio riscaldamento (2)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 1
+    datapoint: 3053
+    id: WEZ_1_1_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Temp ambiente normale riscaldamento (3)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 2
+    datapoint: 3051
+    id: WEZ_1_2_3051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Temp ambiente risparmio riscaldamento (3)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 2
+    datapoint: 3053
+    id: WEZ_1_2_3053
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Temperatura acqua calda normale
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 2
+    function_number: 0
+    datapoint: 5051
+    id: WEZ_2_0_5051
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Temperatura di risparmio acqua calda
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 2
+    function_number: 0
+    datapoint: 5086
+    id: WEZ_2_0_5086
+    type: U8
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Acqua calda-nominale
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 2
+    function_number: 0
+    datapoint: 1004
+    id: WEZ_2_0_1004
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Acqua calda-effettivo SF
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 2
+    function_number: 0
+    datapoint: 4
+    id: WEZ_2_0_4
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Mandata-effettivo (1)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 0
+    datapoint: 2
+    id: WEZ_1_0_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Mandata-effettivo (2)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 1
+    datapoint: 2
+    id: WEZ_1_1_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Mandata-effettivo (3)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 2
+    datapoint: 2
+    id: WEZ_1_2_2
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Potenza WEZ
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 60
+    function_number: 254
+    datapoint: 30
+    id: WEZ_60_254_30
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Energia elettrica MWh
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 10
+    function_number: 1
+    datapoint: 23009
+    id: WEZ_10_1_23009
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: "Quantit\xE0 di calore riscaldamento"
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 60
+    function_number: 254
+    datapoint: 47
+    id: WEZ_60_254_47
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+  - platform: toptronic
+    name: "Quantit\xE0 di calore acqua calda"
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 60
+    function_number: 254
+    datapoint: 55
+    id: WEZ_60_254_55
+    type: U32
+    accuracy_decimals: 3
+    filters:
+      - multiply: 0.001
+    unit_of_measurement: MWh
+    icon: mdi:flash
+    device_class: energy
+    state_class: measurement
+text_sensor:
+  - platform: toptronic
+    name: Selezione modo funzionam.to riscaldam.to (1)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 0
+    datapoint: 3050
+    id: WEZ_1_0_3050
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - Risparmio
+      - Modo manuale riscaldare
+      - Modo manuale raffreddare
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Selezione modo funzionam.to riscaldam.to (2)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 1
+    datapoint: 3050
+    id: WEZ_1_1_3050
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - Risparmio
+      - Modo manuale riscaldare
+      - Modo manuale raffreddare
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Selezione modo funzionam.to riscaldam.to (3)
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 1
+    function_number: 2
+    datapoint: 3050
+    id: WEZ_1_2_3050
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - Risparmio
+      - Modo manuale riscaldare
+      - Modo manuale raffreddare
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+      - 7
+      - 8
+  - platform: toptronic
+    name: Selezione modo funzionamento acqua calda
+    device_type: WEZ
+    device_addr: ${TT_WEZ_addr}
+    function_group: 2
+    function_number: 0
+    datapoint: 5050
+    id: WEZ_2_0_5050
+    options:
+      - Stand-by
+      - Settimana 1
+      - Settimana 2
+      - Costante
+      - "Modalit\xE0 risparmio"
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 6
