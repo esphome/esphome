@@ -263,22 +263,14 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
                 f"'use_write_multiple: true'. See "
                 "https://esphome.io/components/modbus_controller/"
             )
-        response_size = config.get(CONF_RESPONSE_SIZE, 0)
-        if response_size % 2 == 1 and register_count in (0, response_size // 2):
-            _LOGGER.warning(
-                "%s: '%s' is removed and the read now spans ceil(%s / 2) = %d registers, one more than "
-                "before. Removed in 2027.3.0",
-                entity_label(config),
-                CONF_REGISTER_COUNT,
-                CONF_RESPONSE_SIZE,
-                (response_size + 1) // 2,
-            )
-        else:
-            _LOGGER.warning(
-                "%s: '%s' is now derived and has no effect; remove it. Removed in 2027.3.0",
-                entity_label(config),
-                CONF_REGISTER_COUNT,
-            )
+        _LOGGER.warning(
+            "%s: '%s' is now derived from '%s' (or '%s' for RAW values and text sensors) and has no "
+            "effect; remove it. Removed in 2027.3.0",
+            entity_label(config),
+            CONF_REGISTER_COUNT,
+            CONF_VALUE_TYPE,
+            CONF_RESPONSE_SIZE,
+        )
     return config
 
 
