@@ -43,6 +43,7 @@ int lwip_ip_to_sockaddr(sa_family_t family, const ip_addr_t *ip, uint16_t port_h
     return 0;
   }
 #endif
+  errno = EAFNOSUPPORT;
   return -1;
 }
 

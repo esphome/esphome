@@ -22,8 +22,6 @@ namespace esphome::socket {
 // On RP2040, it acquires cyw43_arch_lwip_begin/end. On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
-static const char *const TAG = "socket.lwip_udp";
-
 // ---- LWIPRawUDPSendImpl (send-only) methods ----
 
 LWIPRawUDPSendImpl::LWIPRawUDPSendImpl(sa_family_t family) : family_(family) {
@@ -234,6 +232,14 @@ int LWIPRawUDPSendImpl::setblocking(bool blocking) {
 
 // ---- LWIPRawUDPImpl methods ----
 
+LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : LWIPRawUDPSendImpl(family) {
+  // Register recv here (not in bind) so unbound client sockets can receive replies
+  if (this->pcb_ != nullptr) {
+    LWIP_LOCK();
+    udp_recv(this->pcb_, LWIPRawUDPImpl::s_recv_fn, this);
+  }
+}
+
 LWIPRawUDPImpl::~LWIPRawUDPImpl() {
   // Flush rx queue and unregister callback before base destructor removes pcb
   if (this->pcb_ != nullptr)
@@ -260,16 +266,6 @@ int LWIPRawUDPImpl::close() {
   return this->close_internal_locked_();
 }
 
-int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
-  LWIP_LOCK();
-  int ret = this->bind_internal_locked_(name, addrlen);
-  if (ret != 0)
-    return ret;
-  // Register recv callback now that we're bound and ready to receive
-  udp_recv(this->pcb_, LWIPRawUDPImpl::s_recv_fn, this);
-  return 0;
-}
-
 ssize_t LWIPRawUDPImpl::read(void *buf, size_t len) { return this->recvfrom(buf, len, nullptr, nullptr); }
 
 ssize_t LWIPRawUDPImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_addr, socklen_t *addrlen) {
@@ -292,17 +288,20 @@ ssize_t LWIPRawUDPImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_add
   size_t copy_len = std::min(len, pkt_len);
 
   // Fill in source address if requested.
-  // If ip2sockaddr_ fails (e.g., addrlen too small), fail the entire recvfrom
-  // rather than silently returning data without a source address.
+  // If ip2sockaddr_ fails (e.g., addrlen too small), fail the recvfrom but
+  // still consume the packet — the failure is deterministic (depends only on
+  // family_ and *addrlen), so keeping the packet would wedge the queue forever.
+  bool addr_ok = true;
   if (src_addr != nullptr && addrlen != nullptr &&
       this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen) != 0) {
-    // Don't consume the packet or modify the caller buffer on address conversion failure
-    return -1;
+    addr_ok = false;
   }
 
   // Copy data from pbuf chain — done after validation so caller buffer is
   // not modified on error paths.
-  pbuf_copy_partial(pkt.pb, buf, copy_len, 0);
+  if (addr_ok) {
+    pbuf_copy_partial(pkt.pb, buf, copy_len, 0);
+  }
 
   // Free the pbuf and advance the read pointer
   pbuf_free(pkt.pb);
@@ -310,7 +309,7 @@ ssize_t LWIPRawUDPImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_add
   this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
   this->rx_count_--;
 
-  return (ssize_t) copy_len;
+  return addr_ok ? (ssize_t) copy_len : -1;
 }
 
 void LWIPRawUDPImpl::s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
@@ -327,7 +326,10 @@ void LWIPRawUDPImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port)
 
   // Check if queue is full
   if (this->rx_count_ >= UDP_RX_QUEUE_SIZE) {
-    // Drop packet — queue full
+    // Drop packet — queue full. Can't log from IRQ context, so count it
+    // (saturating) for consumers to surface via get_rx_dropped().
+    if (this->rx_dropped_ != UINT16_MAX)
+      this->rx_dropped_++;
     pbuf_free(p);
     return;
   }
@@ -340,9 +342,7 @@ void LWIPRawUDPImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port)
   slot.src_port = port;
   this->rx_count_++;
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
   esphome::wake_loop_any_context();
-#endif
 }
 
 // ---- UDP Factory functions ----

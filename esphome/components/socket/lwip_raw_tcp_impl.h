@@ -16,8 +16,6 @@
 #include "lwip/opt.h"
 #include "lwip/tcp.h"
 
-#include "lwip_raw_udp_impl.h"
-
 namespace esphome::socket {
 
 // Forward declaration

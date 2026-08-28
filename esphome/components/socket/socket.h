@@ -20,6 +20,7 @@
 #include "lwip_sockets_impl.h"
 #elif defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "lwip_raw_tcp_impl.h"
+#include "lwip_raw_udp_impl.h"
 #endif
 
 namespace esphome::socket {

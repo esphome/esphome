@@ -55,22 +55,23 @@ class LWIPRawUDPSendImpl {
 
 /// UDP socket with receive support for LWIP raw API.
 /// Extends LWIPRawUDPSendImpl with a fixed-size ring buffer for incoming packets.
-/// The recv callback is registered on bind().
-///
-/// Note: close() and bind() intentionally hide the base class methods to add
-/// recv callback registration/cleanup. This is safe because these classes are
-/// never used polymorphically (no virtual dispatch) — callers always use the
-/// concrete LWIPRawUDPImpl type via the UDPSocket alias.
-class LWIPRawUDPImpl : public LWIPRawUDPSendImpl {
+/// Inheritance is private (base dtor is non-virtual; converting to a base
+/// pointer would leak queued pbufs on destruction).
+class LWIPRawUDPImpl : private LWIPRawUDPSendImpl {
  public:
-  using LWIPRawUDPSendImpl::LWIPRawUDPSendImpl;
+  LWIPRawUDPImpl(sa_family_t family);
   ~LWIPRawUDPImpl();
+
+  using LWIPRawUDPSendImpl::bind;
+  using LWIPRawUDPSendImpl::get_fd;
+  using LWIPRawUDPSendImpl::getsockopt;
+  using LWIPRawUDPSendImpl::is_valid;
+  using LWIPRawUDPSendImpl::sendto;
+  using LWIPRawUDPSendImpl::setblocking;
+  using LWIPRawUDPSendImpl::setsockopt;
 
   /// Close the socket, flushing any queued rx packets first.
   int close();
-
-  /// Bind and register the recv callback for incoming packets.
-  int bind(const struct sockaddr *name, socklen_t addrlen);
 
   /// Read the next queued packet, discarding source address info.
   /// If buf is smaller than the packet, data is silently truncated (returns bytes copied).
@@ -85,6 +86,9 @@ class LWIPRawUDPImpl : public LWIPRawUDPSendImpl {
   /// Intentionally unlocked — same rationale as LWIPRawImpl::ready().
   bool ready() const { return this->rx_count_ > 0; }
 
+  /// Number of packets dropped because the rx queue was full (saturating).
+  uint16_t get_rx_dropped() const { return this->rx_dropped_; }
+
  protected:
   static void s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port);
   void recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port);
@@ -98,11 +102,12 @@ class LWIPRawUDPImpl : public LWIPRawUDPSendImpl {
   static constexpr uint8_t UDP_RX_MASK = UDP_RX_QUEUE_SIZE - 1;
   static_assert((UDP_RX_QUEUE_SIZE & UDP_RX_MASK) == 0, "UDP_RX_QUEUE_SIZE must be power of 2");
   struct UDPRxPacket {
-    struct pbuf *pb{nullptr};
     ip_addr_t src_addr{};
+    struct pbuf *pb{nullptr};
     uint16_t src_port{0};
   };
   std::array<UDPRxPacket, UDP_RX_QUEUE_SIZE> rx_queue_{};
+  uint16_t rx_dropped_{0};
   uint8_t rx_read_idx_{0};
   uint8_t rx_count_{0};
 };
