@@ -108,7 +108,8 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
     """Print PlatformIO-shaped RAM and Flash one-liners.
 
     Failures are non-fatal: the build has already succeeded, we just couldn't
-    summarize. Logs the cause at debug level.
+    summarize. Anomalies (missing region, unreadable ELF) warn; expected
+    optional inputs (no size json, no partitions.csv) log at debug.
     """
     if not size_json.is_file():
         _LOGGER.debug("Skipping size summary: %s not found", size_json)
