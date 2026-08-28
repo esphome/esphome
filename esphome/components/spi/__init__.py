@@ -17,6 +17,14 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     only_on_variant,
 )
+from esphome.components.zephyr import (
+    zephyr_add_prj_conf,
+    zephyr_data,
+    zephyr_dts_board_id,
+    zephyr_setup_spi_pinctrl,
+)
+from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.zephyr.dts_lookup import resolve_zephyr_bus
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -36,6 +44,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2,
+    PLATFORM_ZEPHYR,
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -83,16 +92,32 @@ def _render_hz(value: float) -> str:
     return formatted + unit
 
 
+# Sanity ceiling only, used when the target platform's achievable SPI rate isn't
+# modeled (see _frequency_validator's Zephyr branch below).
+_ZEPHYR_SPI_SANITY_MAX_HZ = 80e6
+
+
 def _frequency_validator(value):
+    value = cv.frequency(value)
+    if value < 1000:
+        raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
+    if CORE.is_zephyr:
+        # Zephyr's actually-achievable SPI rate depends on the variant's clock tree
+        # and driver (e.g. nRF52 SPIM only has discrete steps; STM32 derives from APB
+        # prescalers) -- not modeled per-family here yet, so only sanity-bound the
+        # request instead of asserting a specific divisor grid we haven't verified.
+        if value > _ZEPHYR_SPI_SANITY_MAX_HZ:
+            raise cv.Invalid(
+                f"The configured SPI data rate ({_render_hz(value)}) exceeds the sanity "
+                f"ceiling ({_render_hz(_ZEPHYR_SPI_SANITY_MAX_HZ)})"
+            )
+        return value
     platform = get_target_platform()
     frequency = PLATFORM_SPI_CLOCKS[platform]
-    value = cv.frequency(value)
     if value > frequency:
         raise cv.Invalid(
             f"The configured SPI data rate ({_render_hz(value)}) exceeds the maximum for this platform ({_render_hz(frequency)})"
         )
-    if value < 1000:
-        raise cv.Invalid("The configured SPI data rate must be at least 1000Hz")
     divisor = round(frequency / value)
     actual = frequency / divisor
     error = abs(actual - value) / value
@@ -126,6 +151,9 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
 CONF_RELEASE_DEVICE = "release_device"
+# Same name/value as i2c's own module-local constant -- not shared via const.py since
+# only two component files define it (lint_constants_usage's threshold is 3+).
+CONF_DTS_NODE_OVERRIDE = "dts_node_override"
 TYPE_SINGLE = "single"
 TYPE_QUAD = "quad"
 TYPE_OCTAL = "octal"
@@ -274,6 +302,18 @@ def get_hw_spi(config, available):
 
 
 def validate_spi_config(config):
+    if CORE.is_zephyr:
+        # Zephyr has exactly one selectable hardware SPI interface for now (see
+        # _final_validate's "Second spi" rejection) -- resolved from the board's DTS
+        # in to_code(), not from a static per-platform interface list.
+        for spi in config:
+            interface = spi[CONF_INTERFACE]
+            if interface in ("hardware", "any"):
+                spi[CONF_INTERFACE_INDEX] = 0
+            elif interface != "software":
+                raise cv.Invalid(f"interface '{interface}' not available here")
+        return config
+
     available = list(range(len(get_hw_interface_list())))
     for spi in config:
         interface = spi[CONF_INTERFACE]
@@ -346,10 +386,13 @@ SPI_SINGLE_SCHEMA = cv.All(
             cv.Optional(CONF_DATA_PINS): cv.invalid(
                 "'data_pins' should be used with 'type: quad or octal' only"
             ),
+            cv.Optional(CONF_DTS_NODE_OVERRIDE): cv.All(
+                cv.only_on([PLATFORM_ZEPHYR]), cv.string
+            ),
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2, PLATFORM_ZEPHYR]),
 )
 
 
@@ -399,6 +442,29 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate(config):
+    full_config = fv.full_config.get().get("spi", [])
+    if CORE.is_zephyr and len(full_config) > 1:
+        raise cv.Invalid("Second spi is not implemented on Zephyr yet")
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+def _zephyr_setup_spi(spi) -> tuple[str, str]:
+    """Resolve and enable the Zephyr SPI bus node for `spi`, returning the C++
+    expression for its `const device *` and the bus's DTS node label."""
+    zephyr_add_prj_conf("SPI", True)
+    board = zephyr_data()[KEY_BOARD]
+    bus = resolve_zephyr_bus(
+        "spi",
+        zephyr_dts_board_id(board),
+        override=spi.get(CONF_DTS_NODE_OVERRIDE),
+    )
+    zephyr_setup_spi_pinctrl(board, bus)
+    return f"DEVICE_DT_GET(DT_NODELABEL({bus}))", bus
+
+
 @coroutine_with_priority(CoroPriority.BUS)
 async def to_code(configs):
     cg.add_define("USE_SPI")
@@ -417,13 +483,18 @@ async def to_code(configs):
         if data_pins := spi.get(CONF_DATA_PINS):
             cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
-            interface = get_spi_interface(index)
-            cg.add(var.set_interface(cg.RawExpression(interface)))
-            cg.add(
-                var.set_interface_name(
-                    re.sub(r"\W", "", interface.replace("new SPIClass", ""))
+            if CORE.is_zephyr:
+                interface, bus_label = _zephyr_setup_spi(spi)
+                cg.add(var.set_interface(cg.RawExpression(interface)))
+                cg.add(var.set_interface_name(bus_label))
+            else:
+                interface = get_spi_interface(index)
+                cg.add(var.set_interface(cg.RawExpression(interface)))
+                cg.add(
+                    var.set_interface_name(
+                        re.sub(r"\W", "", interface.replace("new SPIClass", ""))
+                    )
                 )
-            )
 
 
 def spi_device_schema(
@@ -509,5 +580,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
+        # NRF52_ZEPHYR (platform: nrf52) deliberately excluded -- that platform's SPI
+        # story is a separate, out-of-scope effort; only platform: zephyr gets this.
+        "spi_zephyr.cpp": {PlatformFramework.ZEPHYR_ZEPHYR},
     }
 )

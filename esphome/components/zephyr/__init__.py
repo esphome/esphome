@@ -195,6 +195,9 @@ class ZephyrData(TypedDict):
     i2c_bus_cache: dict[
         str, object
     ]  # board -> list[str] | _NOT_FOUND; cleared each run
+    spi_bus_cache: dict[
+        str, object
+    ]  # board -> list[str] | _NOT_FOUND; cleared each run
     cpp_path: str | None  # "" = unchecked; None = not found; else = executable path
     board_dir_cache: dict[str, str]  # board -> abs path str, "" = not found
     dts_include_paths: list[str] | None  # None = not yet computed
@@ -255,6 +258,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         fake_board_manifest=None,
         dts_base_path=None,
         i2c_bus_cache={},
+        spi_bus_cache={},
         cpp_path="",
         board_dir_cache={},
         dts_include_paths=None,
@@ -446,6 +450,35 @@ def zephyr_setup_i2c_pinctrl(
     # Other variants: pinctrl already defined in board DTS; no overlay needed.
 
     return sda, scl
+
+
+# Families whose boards ship SPI with fixed, already-wired pinctrl in the board DTS --
+# the clk/mosi/miso pins in YAML must match that fixed wiring, only the bus itself
+# needs enabling. Verified against real board DTS (v4.4.1): nucleo_f401re (stm32) has
+# &spi1 with pinctrl-0 already set; xiao_ra4m1/ek_ra4m1 (renesas) likewise for &spi1.
+# Free-mux families (nordic's SPIM, esp32's GPIO matrix, silabs) and rp2040 (whose
+# boards ship no SPI pinctrl at all -- would need a real overlay, not just enabling)
+# all need a generated pinctrl overlay the way zephyr_setup_i2c_pinctrl() does for
+# I2C -- not implemented yet for SPI, so those families are rejected explicitly
+# rather than silently binding to whatever pins the board happens to default to.
+_SPI_FIXED_PINCTRL_FAMILIES = frozenset({"stm32", "renesas"})
+
+
+def zephyr_setup_spi_pinctrl(board: str, bus_label: str) -> None:
+    """Enable the hardware SPI bus node for a board whose SPI pinctrl is fixed by its
+    own board DTS (see _SPI_FIXED_PINCTRL_FAMILIES).
+
+    Raises cv.Invalid for families that would need a generated pinctrl overlay
+    (free pin muxing), which isn't implemented yet.
+    """
+    family = zephyr_variant_family()
+    if family not in _SPI_FIXED_PINCTRL_FAMILIES:
+        raise cv.Invalid(
+            f"Hardware SPI on Zephyr variant family '{family}' is not implemented yet "
+            "(needs a generated pinctrl overlay for its free pin muxing). "
+            "Use 'interface: software' instead."
+        )
+    zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
 
 
 def zephyr_add_prj_conf(

@@ -118,12 +118,19 @@ def get_enabled_i2c_buses(board: str) -> list[str] | None:
 
 
 def get_enabled_spi_buses(board: str) -> list[str] | None:
-    """Return present SPI bus labels for board, or None when DTS info is unavailable.
+    """Return enabled SPI bus labels for board, or None when DTS info is unavailable.
 
-    Report-only (not part of _BUS_LOOKUP/resolve_zephyr_bus) -- no ESPHome component
-    resolves a Zephyr SPI bus label from DTS yet, this just reports what's present.
+    Returns an empty list when the DTS is parseable but has no enabled SPI buses.
+    Results are cached in CORE.data[KEY_ZEPHYR] and cleared between runs.
     """
-    return _lookup_bus_labels(board, r"spi\d+")
+    cache: dict[str, object] = CORE.data[KEY_ZEPHYR]["spi_bus_cache"]
+    if board in cache:
+        result = cache[board]
+        return None if result is _NOT_FOUND else list(result)  # type: ignore[arg-type]
+
+    buses = _lookup_bus_labels(board, r"spi\d+")
+    cache[board] = _NOT_FOUND if buses is None else list(buses)
+    return buses
 
 
 def get_enabled_uart_buses(board: str) -> list[str] | None:
@@ -1323,4 +1330,5 @@ def validate_board_revision(board: str) -> bool | None:
 
 _BUS_LOOKUP: dict[str, Callable[[str], list[str] | None]] = {
     "i2c": get_enabled_i2c_buses,
+    "spi": get_enabled_spi_buses,
 }

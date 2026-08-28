@@ -37,6 +37,7 @@ from esphome.core import CORE
 def _empty_zd(**overrides) -> dict:
     return {
         "i2c_bus_cache": {},
+        "spi_bus_cache": {},
         "cpp_path": "",
         "board_dir_cache": {},
         "dts_include_paths": None,
@@ -544,6 +545,7 @@ def test_get_board_yaml_supported_is_cached(tmp_path: Path, monkeypatch) -> None
 
 
 def test_get_enabled_spi_buses_prefers_enabled_over_disabled(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
     nodes = [
         _FakeNode(labels=["spi0"], status="disabled"),
         _FakeNode(labels=["spi1"], status="okay"),
@@ -564,6 +566,7 @@ def test_get_enabled_uart_buses_falls_back_to_disabled_when_none_enabled(
 
 
 def test_get_enabled_spi_buses_returns_none_when_dts_unavailable(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
     assert get_enabled_spi_buses("some_board") is None
 
