@@ -60,6 +60,33 @@ def _store_host_options(config: dict) -> dict:
     return config
 
 
+def require_bulk_transfers() -> None:
+    """Request the bulk/interrupt transfer API in USBClient.
+
+    A consumer component calls this from its own to_code(). The transfer paths are
+    compiled per request so a build only carries the ones some driver actually uses;
+    isochronous in particular is dead weight for a serial adapter. Defines are a set,
+    so several consumers requesting the same class is harmless.
+    """
+    cg.add_define("USE_USB_BULK_TRANSFERS")
+
+
+def require_control_transfers() -> None:
+    """Request the control transfer API, including set_interface()."""
+    cg.add_define("USE_USB_CONTROL_TRANSFERS")
+
+
+def require_isoc_transfers() -> None:
+    """Request the isochronous stream API.
+
+    Selecting an alt-setting is a control transfer, so isochronous cannot stand on
+    its own; requesting it implies control transfers. usb_host.h enforces the same
+    dependency with an #error for anyone defining the macros by hand.
+    """
+    cg.add_define("USE_USB_CONTROL_TRANSFERS")
+    cg.add_define("USE_USB_ISOC_TRANSFERS")
+
+
 def get_max_packet_size() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
@@ -127,5 +154,13 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    for device in config.get(CONF_DEVICES) or ():
+    devices = config.get(CONF_DEVICES)
+    if devices:
+        # A bare devices: entry has no driver component behind it to request transfer
+        # classes, so it is only useful through lambdas. Give it the standard pair rather
+        # than a USBClient that cannot transfer anything at all.
+        require_bulk_transfers()
+        require_control_transfers()
+
+    for device in devices or ():
         await register_usb_client(device)
