@@ -75,6 +75,8 @@ def install_one(tool: object, name: str, version: str) -> bool | None:
             )
             return None
         return False
+    # Per-tool completion keeps the multi-minute unpack phase visibly alive
+    print(f"extracted {name}@{version}", flush=True)
     return True
 
 

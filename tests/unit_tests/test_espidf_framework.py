@@ -2213,6 +2213,8 @@ def test_install_tool_archives_inprocess_dedupes_and_skips(
         "Extracting 2 ESP-IDF tool archive(s) with 2 worker(s): "
         "cmake@3.30.2, ninja@1.12.1" in captured.out
     )
+    assert "extracted cmake@3.30.2" in captured.out
+    assert "extracted ninja@1.12.1" in captured.out
     assert "leaving broken broken-tool to the installer" in captured.err
     tools = tmp_path / "tp" / "tools"
     assert (tools / "cmake" / "3.30.2" / ".installed").is_file()
