@@ -537,15 +537,22 @@ bool USBUartTypeCH934X::parse_descriptors_(usb_device_handle_t dev_hdl) {
 
   this->pid_ = device_desc->idProduct;
 
+  // Take the interface index from the first interface descriptor rather than casting
+  // whatever happens to follow the configuration descriptor. The previous code read an
+  // unchecked usb_iad_desc_t, which only worked because bFirstInterface and
+  // bInterfaceNumber share byte offset 2. Searching by descriptor type is correct whether
+  // or not the device presents an IAD, since an IAD always precedes the interfaces it
+  // covers, and it fails cleanly instead of returning a wrong index.
   const auto *this_desc = reinterpret_cast<const usb_standard_desc_t *>(config_desc);
-  this_desc = usb_parse_next_descriptor(this_desc, config_desc->wTotalLength, &desc_offset);
+  this_desc = usb_parse_next_descriptor_of_type(this_desc, config_desc->wTotalLength, USB_B_DESCRIPTOR_TYPE_INTERFACE,
+                                                &desc_offset);
   if (!this_desc) {
-    ESP_LOGE(TAG, "Failed to parse next descriptor");
+    ESP_LOGE(TAG, "No interface descriptor found");
     return false;
   }
 
-  const auto *iad_desc = reinterpret_cast<const usb_iad_desc_t *>(this_desc);
-  optional<Ch934xEps> uart_host_dev = get_uart_hub(config_desc, iad_desc->bFirstInterface);
+  const auto *intf_desc = reinterpret_cast<const usb_intf_desc_t *>(this_desc);
+  optional<Ch934xEps> uart_host_dev = get_uart_hub(config_desc, intf_desc->bInterfaceNumber);
   if (uart_host_dev.has_value()) {
     this->uart_host_dev_ = *uart_host_dev;
     return true;
