@@ -20,6 +20,11 @@ static constexpr uint8_t MAX_TAG_SIZE = 8;     // S_MC (4) + digit (1) + null (1
 static constexpr uint8_t MAX_VAL_SIZE = 8;     // -10000 (6) + null (1) + margin (1)
 static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabled
 
+// Number of registered listener entities, set via codegen based on the actual config.
+#ifndef MK2PVROUTER_LISTENER_COUNT
+#define MK2PVROUTER_LISTENER_COUNT 0
+#endif
+
 // Listener interface for entities that want updates for a specific tag.
 class Mk2PVRouterListener {
  public:
