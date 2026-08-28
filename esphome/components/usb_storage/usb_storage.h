@@ -81,6 +81,15 @@ class USBStorageClient : public usb_host::USBClient {
   bool send_cbw_(uint32_t tag, uint32_t data_len, uint8_t flags, const uint8_t *cdb, uint8_t cdb_len);
   bool recv_data_(uint8_t *buf, uint16_t len);
   bool send_data_(const uint8_t *buf, uint16_t len);
+  // Data phases larger than one host transfer buffer, split into whole-packet pieces.
+  // Splitting is what makes a 512 byte sector readable on a controller whose per-transfer
+  // buffer is smaller, instead of requiring usb_host max_packet_size >= sector_size.
+  bool recv_chunked_(uint8_t *buf, uint32_t len);
+  bool send_chunked_(const uint8_t *buf, uint32_t len);
+  // Largest whole number of mps-sized packets that still fits a single host transfer.
+  // Intermediate pieces of a data phase must be full packets: a short packet tells the
+  // device the phase has ended.
+  static uint16_t max_chunk_for_mps_(uint16_t mps);
   bool recv_csw_(uint32_t expected_tag);
 
   bool wait_transfer_(uint32_t timeout_ms = 5000);
@@ -93,9 +102,11 @@ class USBStorageClient : public usb_host::USBClient {
 
   uint8_t bulk_in_ep_{0};
   uint8_t bulk_out_ep_{0};
-  // wMaxPacketSize of the bulk IN endpoint, taken from the descriptor rather than assumed.
-  // A bulk IN transfer has to request a whole number of these, see round_up_to_in_mps_().
+  // wMaxPacketSize of the bulk endpoints, taken from the descriptors rather than assumed.
+  // A bulk IN transfer has to request a whole number of these, see round_up_to_in_mps_();
+  // both directions use them to split a data phase into whole packets.
   uint16_t bulk_in_mps_{0};
+  uint16_t bulk_out_mps_{0};
   uint8_t msc_interface_{0xFF};
 
   uint32_t sector_count_{0};
