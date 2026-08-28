@@ -79,4 +79,46 @@ TEST_F(UFM01Test, EnteringPassiveStaysPendingWithoutAck) {
   EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::ENTERING_PASSIVE);
 }
 
+TEST_F(UFM01Test, PassivePollSuccessClearsFailureCount) {
+  this->ufm01_.set_operating_mode(OperatingMode::PASSIVE_POLL);
+
+  for (int i = 0; i < 3; ++i) {
+    this->ufm01_.prepare_timed_out_passive_read();
+    this->ufm01_.loop_passive_poll();
+  }
+  ASSERT_EQ(this->ufm01_.consecutive_passive_failures(), 3u);
+
+  auto frame = make_passive_frame();
+  this->mock_uart_.enqueue(std::vector<uint8_t>(frame.begin(), frame.end()));
+  this->ufm01_.begin_pending_passive_read();
+  this->ufm01_.loop_passive_poll();
+
+  EXPECT_EQ(this->ufm01_.consecutive_passive_failures(), 0u);
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::PASSIVE_POLL);
+}
+
+TEST_F(UFM01Test, RepeatedPassiveFailuresEscalateToReset) {
+  // Matches PASSIVE_FAIL_ESCALATE_COUNT in ufm01.cpp
+  constexpr uint8_t escalate_count = 8;
+  this->ufm01_.set_operating_mode(OperatingMode::PASSIVE_POLL);
+
+  for (uint8_t i = 0; i < escalate_count - 1; ++i) {
+    this->ufm01_.prepare_timed_out_passive_read();
+    this->ufm01_.loop_passive_poll();
+    ASSERT_EQ(this->ufm01_.operating_mode(), OperatingMode::PASSIVE_POLL) << "i=" << static_cast<int>(i);
+  }
+  EXPECT_EQ(this->ufm01_.consecutive_passive_failures(), escalate_count - 1);
+
+  this->mock_uart_.written_data.clear();
+  this->ufm01_.prepare_timed_out_passive_read();
+  this->ufm01_.loop_passive_poll();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::STARTUP);
+  EXPECT_EQ(this->ufm01_.startup_phase(), StartupPhase::RESET_WAIT_ACK);
+  EXPECT_EQ(this->ufm01_.consecutive_passive_failures(), 0u);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5D);  // RESET_DEVICE
+  EXPECT_EQ(this->mock_uart_.written_data[4], 0xCB);
+}
+
 }  // namespace esphome::ufm01::testing

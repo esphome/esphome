@@ -89,8 +89,10 @@ class UFM01Component : public uart::UARTDevice, public Component {
   void set_startup_phase_(StartupPhase phase);
   void enter_active_stream_(const char *reason);
   void enter_passive_from_stale_();
+  void restart_startup_(const char *reason);
   void start_passive_read_();
   PassiveReadResult continue_passive_read_();
+  void note_passive_poll_result_(PassiveReadResult result);
 
   OperatingMode operating_mode_{OperatingMode::STARTUP};
   StartupPhase startup_phase_{StartupPhase::WAIT};
@@ -99,6 +101,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   bool reset_retried_{false};
   uint32_t last_valid_frame_ms_{0};
   uint32_t last_poll_ms_{0};
+  uint8_t consecutive_passive_failures_{0};
 
   bool passive_read_pending_{false};
   uint32_t passive_start_ms_{0};

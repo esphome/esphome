@@ -21,6 +21,8 @@ static constexpr uint32_t PASSIVE_POLL_INTERVAL_MS = 1000;
 static constexpr uint32_t ACTIVE_STALE_MS = 5000;
 static constexpr uint32_t PASSIVE_READ_TIMEOUT_MS = 1000;
 static constexpr uint32_t ACTIVE_FRAME_TIMEOUT_MS = 3000;
+// After this many consecutive passive poll failures, re-run the reset/startup sequence
+static constexpr uint8_t PASSIVE_FAIL_ESCALATE_COUNT = 8;
 
 static constexpr float L_PER_M3 = 1000.0f;
 static constexpr float M3_PER_L = 1.0f / L_PER_M3;
@@ -303,6 +305,7 @@ void UFM01Component::enter_active_stream_(const char *reason) {
   ESP_LOGI(TAG, "UFM-01 active stream %s", reason);
   this->operating_mode_ = OperatingMode::ACTIVE_STREAM;
   this->passive_read_pending_ = false;
+  this->consecutive_passive_failures_ = 0;
 }
 
 void UFM01Component::enter_passive_from_stale_() {
@@ -313,7 +316,33 @@ void UFM01Component::enter_passive_from_stale_() {
   this->phase_start_ms_ = millis();
   this->passive_read_pending_ = false;
   this->last_poll_ms_ = 0;
+  this->consecutive_passive_failures_ = 0;
   this->status_set_warning("UFM-01 passive poll");
+}
+
+void UFM01Component::restart_startup_(const char *reason) {
+  ESP_LOGW(TAG, "%s, re-initializing UFM-01", reason);
+  this->operating_mode_ = OperatingMode::STARTUP;
+  this->passive_read_pending_ = false;
+  this->consecutive_passive_failures_ = 0;
+  this->reset_retried_ = false;
+  this->status_set_warning("re-initializing UFM-01");
+  this->send_command_no_wait_(RESET_DEVICE);
+  this->set_startup_phase_(StartupPhase::RESET_WAIT_ACK);
+}
+
+void UFM01Component::note_passive_poll_result_(PassiveReadResult result) {
+  if (result == PassiveReadResult::PASSIVE_READ_RESULT_SUCCESS) {
+    this->consecutive_passive_failures_ = 0;
+    return;
+  }
+  if (result != PassiveReadResult::PASSIVE_READ_RESULT_FAILURE)
+    return;
+
+  this->status_set_warning("UFM-01 passive poll failed");
+  if (++this->consecutive_passive_failures_ < PASSIVE_FAIL_ESCALATE_COUNT)
+    return;
+  this->restart_startup_("Passive poll failed repeatedly");
 }
 
 void UFM01Component::start_passive_read_() {
@@ -464,8 +493,7 @@ void UFM01Component::loop_passive_poll_() {
     if (result == PassiveReadResult::PASSIVE_READ_RESULT_PENDING)
       return;
     this->passive_read_pending_ = false;
-    if (result == PassiveReadResult::PASSIVE_READ_RESULT_FAILURE)
-      this->status_set_warning("UFM-01 passive poll failed");
+    this->note_passive_poll_result_(result);
     return;
   }
 
