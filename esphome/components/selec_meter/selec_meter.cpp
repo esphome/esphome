@@ -18,13 +18,13 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
   // this correct for any read range, so the poll may be split into multiple requests.
   // Values are 32-bit floats, low word first.
   auto publish = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
-    constexpr auto VALUE_TYPE = modbus::helpers::SensorValueType::FP32_R;
+    constexpr auto value_type = modbus::helpers::SensorValueType::FP32_R;
     if (sensor == nullptr || reg < start_address)
       return;
     size_t offset = reg - start_address;
-    if (offset + modbus::helpers::registers_for_value_type(VALUE_TYPE) > registers.size())
+    if (offset + modbus::helpers::registers_for_value_type(value_type) > registers.size())
       return;
-    sensor->publish_state(modbus::helpers::registers_to_value<VALUE_TYPE>(registers.data() + offset) * unit);
+    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) * unit);
   };
 
   publish(this->total_active_energy_sensor_, SELEC_TOTAL_ACTIVE_ENERGY, NO_DEC_UNIT);
