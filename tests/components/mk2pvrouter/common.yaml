@@ -9,9 +9,8 @@ sensor:
     tag: P
     mk2pvrouter_id: test_mk2pvrouter
     # Override device_class to test customization. (Power is published
-    # as a whole watt value with no decimals and no conversion filter,
-    # so unlike device_class, unit_of_measurement/accuracy_decimals
-    # can't be safely overridden here.)
+    # as a raw watt value with no conversion filter, so unlike
+    # device_class, unit_of_measurement can't be safely overridden here.)
     device_class: ""
 
   # Test pattern-matched power sensors (P + digit)
@@ -41,7 +40,7 @@ sensor:
     tag: V2
     mk2pvrouter_id: test_mk2pvrouter
     filters:
-      - multiply: 0.001
+      - multiply: 1.0
 
   # Test energy sensor (exact match)
   - platform: mk2pvrouter
@@ -69,7 +68,7 @@ sensor:
     name: Relay 1 State
     tag: R1
     mk2pvrouter_id: test_mk2pvrouter
-    # Should auto-apply RELAY_STATE_CONFIG (switch device_class)
+    # Should auto-apply RELAY_STATE_CONFIG (no unit/device_class)
 
   # Test relay state with multiple digits
   - platform: mk2pvrouter

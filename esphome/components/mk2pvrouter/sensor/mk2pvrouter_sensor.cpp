@@ -1,4 +1,5 @@
 #include "mk2pvrouter_sensor.h"
+#include <cctype>
 #include "esphome/core/log.h"
 
 namespace esphome::mk2pvrouter {
@@ -16,10 +17,22 @@ void Mk2PVRouterSensor::publish_val(const char *val) {
   float value = result.value();
   // Voltage (V, V1, V2, ...) and temperature (T1, T2, ...) tags are sent by the
   // device multiplied by 100 (centivolts/centi-degrees); undo that here so
-  // downstream filters see the value already in volts/°C.
-  const char tag0 = this->get_tag()[0];
+  // downstream filters see the value already in volts/°C. This mirrors the
+  // exact/pattern matching used by apply_tag_defaults() in sensor/__init__.py:
+  // only "V"/"T" alone or followed solely by digits are scaled.
+  const char *tag = this->get_tag();
+  const char tag0 = tag[0];
   if (tag0 == 'V' || tag0 == 'T') {
-    value *= 0.01f;
+    bool matches = true;
+    for (const char *c = tag + 1; *c != '\0'; c++) {
+      if (!std::isdigit(static_cast<unsigned char>(*c))) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
+      value *= 0.01f;
+    }
   }
   this->publish_state(value);
 }
