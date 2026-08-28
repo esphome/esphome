@@ -10,16 +10,11 @@ namespace esphome::modbus {
 
 static const char *const TAG = "modbus";
 
-// Maximum bytes to log for Modbus frames (truncated if larger)
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
 // Approximate bits per character on the wire (depends on parity/stop bit config)
 static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
-// Milliseconds per second
 static constexpr uint32_t MS_PER_SEC = 1000;
-
-// Shortest gap between two "no device accepted broadcast" warnings
-static constexpr uint32_t UNACCEPTED_BROADCAST_WARN_INTERVAL_MS = 60 * MS_PER_SEC;
 
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
@@ -43,10 +38,7 @@ void Modbus::setup() {
 }
 
 void Modbus::loop() {
-  // Receive any available bytes from UART
   this->receive_bytes_();
-
-  // Parse bytes into frames and process them
   this->parse_modbus_frames();
 }
 
@@ -55,7 +47,7 @@ void ModbusClientHub::loop() {
   // never times out an entry whose pending count has not been drained. No-op when nothing is owed.
   this->sweep_();
 
-  this->Modbus::loop();  // receive bytes and parse frames
+  this->Modbus::loop();
 
   // Send-wait watchdog: only the cheap time check runs at loop rate; expire_waiting_() looks the
   // entry up and holds off if the response has started arriving.
@@ -104,11 +96,8 @@ bool Modbus::timeout_() {
 }
 
 int32_t Modbus::tx_delay_remaining() {
-  // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
-  // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
-  // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
-  // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
-  // So in this component we don't use any cached timestamp values to avoid these annoying bugs
+  // millis() here and everywhere in this component, never a cached loop timestamp: a cached "now" can
+  // predate last_modbus_byte_, and the unsigned subtraction then wraps huge and forces a false timeout.
   const uint32_t now = millis();
   return std::max({(int32_t) 0,
                    (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ - (now - this->last_send_)),
@@ -124,22 +113,13 @@ int32_t ModbusClientHub::tx_delay_remaining() {
 }
 
 bool Modbus::tx_blocked() {
-  // We block transmission in any of these cases:
-  // 1. There are bytes in the UART Rx buffer
-  // 2. There are bytes in our Rx buffer
-  // 3. The last sent byte isn't more than tx_delay ms ago (i.e. wait to tell receivers that our previous Tx is done)
-  // 4. The last received byte isn't more than tx_delay ms ago (i.e. wait to be sure there isn't more Rx coming)
-  // N.B. We allow a small delay (MODBUS_TX_MAX_DELAY_MS) to avoid looping on small delays. This gets handled by
-  // send_frame_.
+  // Blocked while any rx bytes are pending, or within tx_delay of the last byte in either direction
+  // (receivers must see our previous tx as done, and more rx may be coming). A remaining delay up to
+  // MODBUS_TX_MAX_DELAY_MS doesn't block - send_frame_ absorbs it instead of looping on small waits.
   return this->available() || !this->rx_buffer_.empty() || this->tx_delay_remaining() > MODBUS_TX_MAX_DELAY_MS;
 }
 
-bool ModbusClientHub::tx_blocked() {
-  // We block transmission in any of these case:
-  // 1. We're waiting for a response (a waiting entry: WAITING/INTERRUPTED/WAITING_RETIRED/INTERRUPTED_RETIRED)
-  // 2. Any of the base class tx_blocked conditions
-  return this->waiting_for_response_ || this->Modbus::tx_blocked();
-}
+bool ModbusClientHub::tx_blocked() { return this->waiting_for_response_ || this->Modbus::tx_blocked(); }
 
 bool ModbusClientHub::tx_buffer_empty() {
   // "Empty" for ready_for_immediate_send(): no one-shot is queued ahead of the caller. Entries in
@@ -219,10 +199,9 @@ void ModbusServerHub::parse_modbus_frames() {
     this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
+// Scans forward from min_length to find a frame boundary by CRC match for unknown-length function codes.
+// Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
 uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
-  // Unknown-length functions (user-defined codes, unimplemented management codes, unassigned values)
-  // could be any length - we have to rely on the CRC to determine completeness.
-  // If a CRC match is never found, the buffer will eventually overflow and be cleared.
   const uint8_t *raw = &this->rx_buffer_[0];
   const size_t size = this->rx_buffer_.size();
   const auto max_len = static_cast<uint16_t>(std::min(size, size_t(MAX_FRAME_SIZE)));
@@ -531,8 +510,7 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     return;
   }
   // A broadcast is never answered, so a rejecting device has no other feedback channel: report the
-  // per-device outcome at V, and warn if the write reached nobody at all.
-  bool accepted = false;
+  // per-device outcome at V.
   for (auto *device : this->devices_) {
     // Same handlers as an addressed write - a device cannot tell a broadcast apart, and does not need
     // to: the hub owns the difference, which is only that no reply is ever sent.
@@ -542,24 +520,6 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     if (device_status.has_value()) {
       ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
                static_cast<uint8_t>(device_status.value()));
-    } else {
-      accepted = true;
-    }
-  }
-  if (!accepted && !this->devices_.empty()) {
-    const uint16_t entity_count = coils ? coil_count : static_cast<uint16_t>(registers.size());
-    const LogString *const entity_name = coils ? LOG_STR("coils") : LOG_STR("registers");
-    // Warn at most once per interval, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
-    // repeats forever, so warning per frame would flood the log.
-    const uint32_t now = millis();
-    if (this->last_unaccepted_broadcast_warn_ == 0 ||
-        now - this->last_unaccepted_broadcast_warn_ > UNACCEPTED_BROADCAST_WARN_INTERVAL_MS) {
-      this->last_unaccepted_broadcast_warn_ = now;
-      ESP_LOGW(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count,
-               LOG_STR_ARG(entity_name), start_address);
-    } else {
-      ESP_LOGV(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count,
-               LOG_STR_ARG(entity_name), start_address);
     }
   }
 }
@@ -783,8 +743,6 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     delay(tx_delay_remaining);
   }
 
-  // The delay above can span several ms; a byte arriving in that window blocks transmission after the
-  // caller's gate already passed. Don't collide with the incoming frame - leave the entry to retry.
   if (this->tx_blocked()) {
     return false;
   }
@@ -831,7 +789,7 @@ void ModbusClientHub::send_next_frame_() {
     // reports the transmission, and the entry then retires with no terminal callback instead of
     // occupying the waiting slot until the send-wait timeout expires. The turnaround delay already
     // spaces the next frame; the following sweep erases the entry.
-    ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected (fire-and-forget)");
+    ESP_LOGV(TAG, "Broadcast to address 0 sent; no reply expected");
     cmd->complete_broadcast();
     this->sweep_needed_ = true;
     return;
@@ -983,6 +941,8 @@ bool ModbusDeviceCommand::timed_out() {
   this->decrement_pending();            // resolve this request (WAITING-origin, so pending >= 1)
   if (this->device == nullptr)
     return false;  // resolved, no one to tell
+  // A cleared frame that timed out still honors a retry: the clear is address-scoped (any device may
+  // call it) while the retry is the owning device's call via on_no_response - the bus obeys the owner.
   if (this->device->on_no_response(this->frame.pdu()))
     this->increment_pending();  // granted retry = re-request (capped)
   return true;
@@ -1054,18 +1014,14 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     ESP_LOGE(TAG, "Frame too large, refused: %" PRIu8 ":%zu bytes", address, pdu.size());
     return false;
   }
-  // classify() drives both the broadcast guard and the continuous check below; compute it once.
-  const CommandPriority priority = ModbusDeviceCommand::classify(pdu[0]);
 
-  // A broadcast (address 0) is never answered (Modbus 4.1), so it is only meaningful for a command that
-  // changes state. Refuse a broadcast that expects a reply - anything but a write or a custom/vendor code -
-  // as it could never deliver a result, so the caller learns via the false return (and on_not_sent).
-  // 0x17 (read/write multiple) is a knowing inclusion: classify() treats it as a write, so its write half
-  // lands on every server and its unanswerable read half is simply discarded. An exception-flagged custom
-  // code (0x80 bit set) is refused: is_function_code_custom() masks that bit away, so exclude it explicitly
-  // here to match classify()'s exception-first handling of the write side.
-  if (address == BROADCAST_ADDRESS && priority != CommandPriority::WRITE &&
-      (!helpers::is_function_code_custom(pdu[0]) || helpers::is_function_code_exception(pdu[0]))) {
+  if (helpers::is_function_code_exception(pdu[0])) {
+    ESP_LOGW(TAG, "Exception PDU refused for address %" PRIu8 ": function code 0x%X has the exception bit set", address,
+             pdu[0]);
+    return false;
+  }
+
+  if (address == BROADCAST_ADDRESS && !helpers::is_function_code_broadcastable(pdu[0])) {
     ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
     return false;
   }
@@ -1073,7 +1029,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
   // Normalize the caller's options in place (the param is a by-value copy) so everything stored or
   // merged below carries effective options, never the raw request.
   // continuous is ignored for every mutating code (re-writing a value forever is never intended).
-  if (options.continuous && priority == CommandPriority::WRITE) {
+  if (options.continuous && helpers::is_function_code_write(pdu[0])) {
     ESP_LOGW(TAG, "continuous is ignored for a mutating function (0x%X, address %" PRIu8 ")", pdu[0], address);
     options.continuous = false;
   }
@@ -1089,9 +1045,7 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
       continue;
     if (device == nullptr) {
       // A dropped read is routine (DEBUG); a dropped write/custom warns (unobservable without a device).
-      const bool requeueable =
-          !helpers::is_function_code_exception(pdu[0]) && helpers::is_function_code_read_only(pdu[0]);
-      if (requeueable) {
+      if (helpers::is_function_code_read_only(pdu[0])) {
         ESP_LOGD(TAG, "Anonymous duplicate of active frame for %" PRIu8 " (function 0x%X), dropped", address, pdu[0]);
       } else {
         ESP_LOGW(TAG,
@@ -1364,7 +1318,6 @@ void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu
   }
 }
 
-// Default on_custom_response handler to warn when responses unexpectedly trigger on_custom_response
 void ModbusClientDevice::on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
                                             ResponseStatus status) {
   // The dispatcher never calls this with an empty request, but this is a public virtual - stay safe.
