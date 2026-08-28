@@ -130,7 +130,9 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
     else:
-        _LOGGER.debug("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
+        # Every chip has a DRAM or DIRAM region, so this firing usually
+        # means the esp_idf_size json schema changed
+        _LOGGER.warning("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
 
     # esp-idf-size >= 2.1 (IDF >= 6.0) reports the exact image size in
     # json2; older 1.x omits it, so derive the same figure from the ELF.
