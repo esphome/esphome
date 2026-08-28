@@ -229,7 +229,7 @@ inline bool value_type_is_float(SensorValueType v) {
 }
 
 /// Number of 16-bit registers a value of this type occupies (RAW counts as one register).
-inline uint16_t register_width_for(SensorValueType v) {
+constexpr uint16_t register_width_for(SensorValueType v) {
   switch (v) {
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
@@ -478,6 +478,11 @@ constexpr uint32_t registers_to_uint32(uint16_t high_word, uint16_t low_word) {
   return (static_cast<uint32_t>(high_word) << 16) | low_word;
 }
 
+/// Combine four register words into a 64-bit value, most significant word first.
+constexpr uint64_t registers_to_uint64(uint16_t word0, uint16_t word1, uint16_t word2, uint16_t word3) {
+  return (static_cast<uint64_t>(registers_to_uint32(word0, word1)) << 32) | registers_to_uint32(word2, word3);
+}
+
 // Always false, whatever the type: it exists only to make the static_assert below depend on the
 // template argument. Not a queryable trait.
 template<SensorValueType> inline constexpr bool VALUE_TYPE_SUPPORTED = false;
@@ -486,8 +491,8 @@ template<SensorValueType> inline constexpr bool VALUE_TYPE_SUPPORTED = false;
  * Unlike registers_to_number(), the type is a template argument, so only the one decode is compiled
  * and the caller gets the value's natural type back rather than an int64_t. The "_R" types take the
  * low word first; the rest take the high word first.
- * Supports the WORD, DWORD and FP32 types, including their _S and _R forms; the QWORD types are
- * out of scope and fail to compile, so use registers_to_number() for those.
+ * Supports every fixed-width type: the WORD, DWORD, QWORD and FP32 families, including their _S and
+ * _R forms. RAW and BIT have no fixed width and fail to compile.
  * Use register_width_for() for the number of registers the caller must supply.
  * Note that the FP32 branches are only usable in a constant expression where std::bit_cast is
  * available; elsewhere bit_cast falls back to a non-constexpr memcpy (see core/helpers.h).
@@ -513,9 +518,40 @@ template<SensorValueType VALUE_TYPE> constexpr auto registers_to_value(const uin
     return bit_cast<float>(registers_to_uint32(registers[0], registers[1]));
   } else if constexpr (VALUE_TYPE == SensorValueType::FP32_R) {
     return bit_cast<float>(registers_to_uint32(registers[1], registers[0]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::U_QWORD) {
+    return registers_to_uint64(registers[0], registers[1], registers[2], registers[3]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::U_QWORD_R) {
+    return registers_to_uint64(registers[3], registers[2], registers[1], registers[0]);
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_QWORD) {
+    return static_cast<int64_t>(registers_to_uint64(registers[0], registers[1], registers[2], registers[3]));
+  } else if constexpr (VALUE_TYPE == SensorValueType::S_QWORD_R) {
+    return static_cast<int64_t>(registers_to_uint64(registers[3], registers[2], registers[1], registers[0]));
   } else {
     static_assert(VALUE_TYPE_SUPPORTED<VALUE_TYPE>, "registers_to_value() does not support this value type");
   }
+}
+
+/// The type registers_to_value() yields for a given value type. Distinct from modbus::RegisterValues,
+/// which is a container of raw words.
+template<SensorValueType VALUE_TYPE>
+using RegisterValueType = decltype(registers_to_value<VALUE_TYPE>(static_cast<const uint16_t *>(nullptr)));
+
+/** The value stored at an absolute register address, or nullopt when it is not wholly inside this
+ * response. Lets a device decode by address rather than by offset, so a poll split across several
+ * requests needs no extra bookkeeping: a value outside the response simply yields nullopt.
+ * @param registers the response registers, in host byte order
+ * @param start_address the address the response begins at
+ * @param address the address of the wanted value
+ */
+template<SensorValueType VALUE_TYPE>
+constexpr std::optional<RegisterValueType<VALUE_TYPE>> value_at(std::span<const uint16_t> registers,
+                                                                uint16_t start_address, uint16_t address) {
+  if (address < start_address)
+    return std::nullopt;
+  const size_t offset = static_cast<size_t>(address) - start_address;
+  if (offset + register_width_for(VALUE_TYPE) > registers.size())
+    return std::nullopt;
+  return registers_to_value<VALUE_TYPE>(registers.data() + offset);
 }
 
 /// The widest standard numeric value (a QWORD) spans 4 registers, so one entity value never writes more.

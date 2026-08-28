@@ -292,25 +292,52 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
 }
 
 std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type) {
-  const size_t required_size = required_payload_size(sensor_value_type);
-  if (required_size == 0) {
-    return 0;  // RAW/unsupported: nothing to read
+  // RAW and BIT carry no fixed-width number, so there is nothing to decode whatever the span holds.
+  // register_width_for() reports 1 for them, so this must be checked before the width test below.
+  if (sensor_value_type == SensorValueType::RAW || sensor_value_type == SensorValueType::BIT) {
+    return 0;
   }
-  const size_t required_words = required_size / 2;
+  const uint16_t required_words = register_width_for(sensor_value_type);
   if (required_words > count) {
-    ESP_LOGE(TAG, "not enough registers for value type=%u count=%zu required=%zu",
-             static_cast<unsigned int>(sensor_value_type), count, required_words);
+    ESP_LOGE(TAG, "not enough registers for value type=%u count=%zu required=%u",
+             static_cast<unsigned int>(sensor_value_type), count, static_cast<unsigned int>(required_words));
     return std::nullopt;
   }
-  // Serialize the needed words back to big-endian bytes and reuse the audited byte decoder so the
-  // sign-extension behaviour stays identical to the wire path.
-  uint8_t bytes[8];  // at most 4 registers (QWORD)
-  for (size_t i = 0; i < required_words; i++) {
-    uint16_t reg = registers[i];
-    bytes[i * 2] = static_cast<uint8_t>(reg >> 8);
-    bytes[i * 2 + 1] = static_cast<uint8_t>(reg & 0xFF);
+  // Registers are the wire's own unit, so decode them directly rather than serializing back to bytes.
+  // Each case defers to registers_to_value() so the word order and sign rules have one definition, with
+  // two deliberate exceptions matching what the byte decoder returned: the float types yield their bit
+  // pattern rather than a float, and U_QWORD shares the signed branch because the return type is int64_t.
+  switch (sensor_value_type) {
+    case SensorValueType::U_WORD:
+      return registers_to_value<SensorValueType::U_WORD>(registers);
+    case SensorValueType::U_WORD_S:
+      return registers_to_value<SensorValueType::U_WORD_S>(registers);
+    case SensorValueType::S_WORD:
+      return registers_to_value<SensorValueType::S_WORD>(registers);
+    case SensorValueType::S_WORD_S:
+      return registers_to_value<SensorValueType::S_WORD_S>(registers);
+    case SensorValueType::U_DWORD:
+      return registers_to_value<SensorValueType::U_DWORD>(registers);
+    case SensorValueType::U_DWORD_R:
+      return registers_to_value<SensorValueType::U_DWORD_R>(registers);
+    case SensorValueType::S_DWORD:
+      return registers_to_value<SensorValueType::S_DWORD>(registers);
+    case SensorValueType::S_DWORD_R:
+      return registers_to_value<SensorValueType::S_DWORD_R>(registers);
+    case SensorValueType::FP32:
+      return registers_to_uint32(registers[0], registers[1]);
+    case SensorValueType::FP32_R:
+      return registers_to_uint32(registers[1], registers[0]);
+    // Signed for both: an unsigned QWORD above INT64_MAX has to come back as a negative int64_t.
+    case SensorValueType::U_QWORD:
+    case SensorValueType::S_QWORD:
+      return registers_to_value<SensorValueType::S_QWORD>(registers);
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD_R:
+      return registers_to_value<SensorValueType::S_QWORD_R>(registers);
+    default:
+      return 0;
   }
-  return payload_to_number(bytes, required_size, sensor_value_type, 0, 0xFFFFFFFF);
 }
 
 // Append a 16-bit value to a PDU in big-endian (wire) byte order.
