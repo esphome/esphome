@@ -74,6 +74,11 @@ SOURCE_KIND_FOR_SUFFIX: dict[str, str] = {
     ".ASM": "asm",
 }
 SRC_FILE_EXTENSIONS = list(SOURCE_KIND_FOR_SUFFIX)
+# Suffixes that count as headers when probing whether a library has any
+# usable files at all (compare against Path.suffix.lower())
+LIBRARY_HEADER_SUFFIXES = frozenset(
+    {".h", ".hpp", ".hh", ".hxx", ".inc", ".ipp", ".tcc"}
+)
 
 DOMAIN = "pio_components"
 
@@ -329,6 +334,11 @@ class LibraryBackend:
     framework: str
     emit: Callable[["ConvertedLibrary"], None]
     cache_key: str
+    # Owner-less names this returns True for are skipped by the walk;
+    # the backend supplies them itself (e.g. core-bundled libraries) and
+    # reconciles provided_requests after resolving
+    provides: Callable[[str], bool] | None = None
+    provided_requests: set[str] = field(default_factory=set)
 
 
 def ensure_list[T](obj: T | list[T]) -> list[T]:
@@ -469,7 +479,7 @@ def _valid_manifest_shape(data: Any) -> bool:
     )
 
 
-def check_library_data(data: dict, platform: str | None, framework: str):
+def check_library_data(data: dict, platform: str | None, framework: str | None):
     """
     Check whether a library manifest is compatible with the target toolchain.
 
@@ -486,7 +496,8 @@ def check_library_data(data: dict, platform: str | None, framework: str):
             for targets (e.g. Zephyr) where PIO manifests rarely declare the
             platform yet portable libraries still build.
         framework: The active framework name (e.g. ``espidf``, ``arduino``,
-            ``zephyr``) the manifest is expected to declare.
+            ``zephyr``) the manifest is expected to declare. ``None`` skips
+            the framework check (and its warning), mirroring ``platform``.
 
     Raises:
         InvalidLibrary: If the library does not support the target platform.
@@ -517,7 +528,7 @@ def check_library_data(data: dict, platform: str | None, framework: str):
     # under the target framework, and there's no way to opt out of the check at
     # this layer. Warn instead of failing so the user isn't forced to fork the
     # library to fix the manifest.
-    valid_framework = "*" in frameworks or framework in frameworks
+    valid_framework = framework is None or "*" in frameworks or framework in frameworks
 
     if not valid_framework:
         _LOGGER.warning(
@@ -914,6 +925,56 @@ def is_lib_ignored(name: str | None, lib_ignore: set[str]) -> bool:
     )
 
 
+def _reconcile_versionless_skips(
+    skipped_versionless: list[tuple[Any, Any, str]],
+    components: dict[str, ConvertedLibrary],
+    backend: LibraryBackend,
+) -> None:
+    """Warn for version-less deps nothing satisfied, and record the
+    backend-provided ones in ``backend.provided_requests`` for its
+    post-emit reconciliation; a silent drop surfaces as link errors far
+    from the cause."""
+    resolved_manifest_names = {c.data.get("name") for c in components.values()}
+    # A treeless backend can never supply a bundled name; noise for it
+    log = _LOGGER.warning if backend.provides is not None else _LOGGER.debug
+    warned: set[str] = set()
+    for dep_name, dep_owner, requester in skipped_versionless:
+        if not isinstance(dep_name, str) or not dep_name or dep_name in warned:
+            continue
+        if dep_name in components:
+            # A version-less dep's request key is the name itself
+            continue
+        if (
+            not dep_owner
+            and backend.provides is not None
+            and backend.provides(dep_name)
+        ):
+            # provides() only satisfies owner-less names (same guard as
+            # the walk's skip); record for the post-emit reconciliation.
+            # Checked before the manifest-name evidence so the overlap
+            # case warns once, in the backend's own suppression loop
+            backend.provided_requests.add(dep_name)
+            continue
+        if dep_name in resolved_manifest_names:
+            # Name-only evidence: a coincidental collision must stay
+            # visible where the user could pin it
+            warned.add(dep_name)
+            log(
+                "Version-less dependency %s of %s assumed satisfied by a "
+                "resolved library's manifest name only",
+                dep_name,
+                requester,
+            )
+            continue
+        warned.add(dep_name)
+        log(
+            "Dependency %s of %s has no version to resolve and nothing "
+            "provides it; skipping",
+            dep_name,
+            requester,
+        )
+
+
 def _fetch_source(
     component: ConvertedLibrary,
     salt: str,
@@ -1083,6 +1144,8 @@ def convert_libraries(
     components: dict[str, ConvertedLibrary] = {}
     resolved_requirements: dict[str, frozenset[str]] = {}
     top_level_keys = set(top_level)
+    # (name, owner, requester) reconciled against the final resolution set
+    skipped_versionless: list[tuple[Any, Any, str]] = []
     worklist = deque(dict.fromkeys(top_level))
     while worklist:
         # Drain the frontier sequentially (spec resolution mutates shared
@@ -1187,13 +1250,23 @@ def convert_libraries(
                 component.data.get("dependencies"), component.name
             ):
                 if "version" not in dependency:
-                    # Cannot resolve from the registry; common for bundled
-                    # names (Wire, SPI) -- unactionable noise above debug
+                    # Cannot resolve from the registry; the post-emit
+                    # reconciliation owns the drop warning
+                    dep_name = dependency.get("name")
                     _LOGGER.debug(
                         "Skip version-less dependency %r of %s",
-                        dependency.get("name"),
+                        dep_name,
                         component.name,
                     )
+                    if not is_lib_ignored(
+                        dep_name, lib_ignore
+                    ) and dependency_is_usable(
+                        dependency, backend.platform, backend.framework, component.name
+                    ):
+                        # Filtered or ignored deps are deliberately absent
+                        skipped_versionless.append(
+                            (dep_name, dependency.get("owner"), component.name)
+                        )
                     continue
                 if not dependency_is_usable(
                     dependency, backend.platform, backend.framework, component.name
@@ -1205,11 +1278,31 @@ def convert_libraries(
                 if is_lib_ignored(dep_name, lib_ignore):
                     _LOGGER.debug("Skip ignored dependency %s", dep_name)
                     continue
-                # The version field may actually be a URL (git/archive dependency).
+                # The version may be a URL (git/archive), which names one
+                # specific source; never substitute a bundled library for it
                 dep_version = dependency["version"]
                 dep_url = _url_or_none(dep_version)
                 if dep_url is not None:
                     dep_version = None
+                elif (
+                    backend.provides is not None
+                    and not dependency.get("owner")
+                    and backend.provides(dep_name)
+                ):
+                    # The backend adds it from its own tree; resolving here
+                    # would fetch a same-named registry package
+                    if dep_version and dep_version != "*":
+                        # The pin is discarded; make the substitution visible
+                        _LOGGER.warning(
+                            "Dependency %s pins version %s; using the library "
+                            "bundled with the framework instead",
+                            dep_name,
+                            dep_version,
+                        )
+                    else:
+                        _LOGGER.debug("Skip backend-provided dependency %s", dep_name)
+                    backend.provided_requests.add(dep_name)
+                    continue
                 dep_key = add_spec(dep_name, dep_version, dep_url)
                 node.edges.add(dep_key)
                 worklist.append(dep_key)
@@ -1262,5 +1355,7 @@ def convert_libraries(
         ]
     for component in components.values():
         backend.emit(component)
+
+    _reconcile_versionless_skips(skipped_versionless, components, backend)
 
     return [components[key] for key in top_level if key in components]
