@@ -22,8 +22,16 @@ from esphome.components.zephyr import (
     zephyr_data,
     zephyr_dts_board_id,
     zephyr_setup_spi_pinctrl,
+    zephyr_variant,
 )
-from esphome.components.zephyr.const import KEY_BOARD
+from esphome.components.zephyr.const import (
+    KEY_BOARD,
+    ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C3,
+    ZEPHYR_VARIANT_ESP32_C5,
+    ZEPHYR_VARIANT_ESP32_C6,
+    ZEPHYR_VARIANT_ESP32_H2,
+)
 from esphome.components.zephyr.dts_lookup import resolve_zephyr_bus
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -396,11 +404,35 @@ SPI_SINGLE_SCHEMA = cv.All(
 )
 
 
+# esp32-family Zephyr variants whose SPI pinctrl generation quad's WP/HD lines are
+# implemented for (see zephyr_setup_spi_pinctrl()'s esp32 branch). No zephyr variant
+# has octal's D4-D7 signals available (verified: absent even on esp32s3's own
+# gpio-sigmap.h), so octal stays esp-idf-only.
+_ZEPHYR_QUAD_VARIANTS = (
+    ZEPHYR_VARIANT_ESP32,
+    ZEPHYR_VARIANT_ESP32_C3,
+    ZEPHYR_VARIANT_ESP32_C5,
+    ZEPHYR_VARIANT_ESP32_C6,
+    ZEPHYR_VARIANT_ESP32_H2,
+)
+
+
+def _quad_platform_validator(value):
+    if CORE.is_zephyr:
+        variant = zephyr_variant()
+        if variant not in _ZEPHYR_QUAD_VARIANTS:
+            raise cv.Invalid(f"Quad SPI is not available on Zephyr variant {variant!r}")
+        return value
+    return cv.only_on([PLATFORM_ESP32])(value)
+
+
 def spi_mode_schema(mode):
     if mode == TYPE_SINGLE:
         return SPI_SINGLE_SCHEMA
     pin_count = 4 if mode == TYPE_QUAD else 8
-    onlys = [cv.only_on([PLATFORM_ESP32])]
+    onlys = [
+        _quad_platform_validator if mode == TYPE_QUAD else cv.only_on([PLATFORM_ESP32])
+    ]
     if pin_count == 8:
         onlys.append(
             only_on_variant(
@@ -425,6 +457,9 @@ def spi_mode_schema(mode):
                 ),
                 cv.Optional(CONF_MOSI_PIN): cv.invalid(
                     f"'mosi_pin' should not be used with {mode} SPI"
+                ),
+                cv.Optional(CONF_DTS_NODE_OVERRIDE): cv.All(
+                    cv.only_on([PLATFORM_ZEPHYR]), cv.string
                 ),
             }
         ),
@@ -461,7 +496,11 @@ def _zephyr_setup_spi(spi) -> tuple[str, str]:
         zephyr_dts_board_id(board),
         override=spi.get(CONF_DTS_NODE_OVERRIDE),
     )
-    zephyr_setup_spi_pinctrl(board, bus)
+    clk = spi[CONF_CLK_PIN][CONF_NUMBER]
+    miso = spi[CONF_MISO_PIN][CONF_NUMBER] if CONF_MISO_PIN in spi else None
+    mosi = spi[CONF_MOSI_PIN][CONF_NUMBER] if CONF_MOSI_PIN in spi else None
+    data_pins = spi.get(CONF_DATA_PINS)
+    zephyr_setup_spi_pinctrl(board, bus, clk, miso, mosi, data_pins)
     return f"DEVICE_DT_GET(DT_NODELABEL({bus}))", bus
 
 

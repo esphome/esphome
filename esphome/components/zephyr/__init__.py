@@ -456,29 +456,129 @@ def zephyr_setup_i2c_pinctrl(
 # the clk/mosi/miso pins in YAML must match that fixed wiring, only the bus itself
 # needs enabling. Verified against real board DTS (v4.4.1): nucleo_f401re (stm32) has
 # &spi1 with pinctrl-0 already set; xiao_ra4m1/ek_ra4m1 (renesas) likewise for &spi1.
-# Free-mux families (nordic's SPIM, esp32's GPIO matrix, silabs) and rp2040 (whose
-# boards ship no SPI pinctrl at all -- would need a real overlay, not just enabling)
-# all need a generated pinctrl overlay the way zephyr_setup_i2c_pinctrl() does for
-# I2C -- not implemented yet for SPI, so those families are rejected explicitly
-# rather than silently binding to whatever pins the board happens to default to.
+# esp32's GPIO matrix is free-mux and handled separately below. Other free-mux
+# families (nordic's SPIM, silabs) and rp2040 (whose boards ship no SPI pinctrl at
+# all -- would need a real overlay, not just enabling) still need a generated
+# pinctrl overlay the way zephyr_setup_i2c_pinctrl() does for I2C -- not implemented
+# yet, so those families are rejected explicitly rather than silently binding to
+# whatever pins the board happens to default to.
 _SPI_FIXED_PINCTRL_FAMILIES = frozenset({"stm32", "renesas"})
 
+# esp32-family SPI instance -> GPIO-matrix signal prefix, verified against real
+# per-chip devicetree source (v4.4.1): base ESP32 has two general-purpose SPI
+# controllers, spi2=HSPI/spi3=VSPI (esp32_common.dtsi's
+# `clocks = <&clock ESP32_HSPI_MODULE>`/`ESP32_VSPI_MODULE`). C3/C5/C6/H2 each have
+# only a single one, spi2=FSPI (confirmed via each chip's own -gpio-sigmap.h; no
+# spi3 node exists on any of them). S2/S3/P4 are not supported variants in this repo
+# yet and are deliberately not included here.
+_ESP32_SPI_INSTANCE_SIGNAL_PREFIX = {
+    ZEPHYR_VARIANT_ESP32: {2: "HSPI", 3: "VSPI"},
+    ZEPHYR_VARIANT_ESP32_C3: {2: "FSPI"},
+    ZEPHYR_VARIANT_ESP32_C5: {2: "FSPI"},
+    ZEPHYR_VARIANT_ESP32_C6: {2: "FSPI"},
+    ZEPHYR_VARIANT_ESP32_H2: {2: "FSPI"},
+}
 
-def zephyr_setup_spi_pinctrl(board: str, bus_label: str) -> None:
-    """Enable the hardware SPI bus node for a board whose SPI pinctrl is fixed by its
-    own board DTS (see _SPI_FIXED_PINCTRL_FAMILIES).
 
-    Raises cv.Invalid for families that would need a generated pinctrl overlay
-    (free pin muxing), which isn't implemented yet.
+def _esp32_spi_pinctrl_overlay(
+    bus_label: str,
+    clk: int,
+    miso: int | None,
+    mosi: int | None,
+    data_pins: list[int] | None,
+) -> str:
+    """Build a pinctrl overlay for esp32's free-mux SPI GPIO matrix.
+
+    Uses the auto-generated `SPIM{n}_{SIGNAL}_GPIO{n}` convenience macros
+    (`<variant>-pinctrl.h`) for CLK/MISO/MOSI -- same shape as
+    zephyr_setup_i2c_pinctrl()'s esp32 branch. Those macros don't exist for
+    quad's HD/WP lines (verified: no SPIM{n}_HD_GPIO*/WP_GPIO* macros in any
+    in-scope chip's pinctrl header), so those two are hand-built from the raw
+    ESP32_PINMUX() signal IDs instead.
+    """
+    instance = int(bus_label.removeprefix("spi"))
+    prefix = _ESP32_SPI_INSTANCE_SIGNAL_PREFIX[zephyr_variant()][instance]
+    macro_prefix = f"SPIM{instance}"
+
+    if data_pins:
+        # Quad mode routes mosi/miso through data_pins[0]/[1] (D0/D1) instead of
+        # separate mosi_pin/miso_pin -- schema forbids the latter for quad.
+        mosi, miso = data_pins[0], data_pins[1]
+
+    pinmux = [f"<{macro_prefix}_SCLK_GPIO{clk}>"]
+    if miso is not None:
+        pinmux.append(f"<{macro_prefix}_MISO_GPIO{miso}>")
+    if mosi is not None:
+        pinmux.append(f"<{macro_prefix}_MOSI_GPIO{mosi}>")
+
+    groups = f"""
+        group1 {{
+            pinmux = {", ".join(pinmux)};
+        }};
+    """
+    if data_pins:
+        # data_pins[2]/[3] are WP/HD (data_pins[0]/[1] are the mosi/miso-role D0/D1
+        # lines, already routed above via mosi/miso) -- same order as ESP-IDF's own
+        # data0_io_num.._data3_io_num (spi_esp_idf.cpp).
+        wp, hd = data_pins[2], data_pins[3]
+        groups += f"""
+            group2 {{
+                pinmux = <ESP32_PINMUX({wp}, ESP_NOSIG, ESP_{prefix}WP_OUT)>,
+                    <ESP32_PINMUX({hd}, ESP_NOSIG, ESP_{prefix}HD_OUT)>;
+            }};
+        """
+
+    return f"""
+        &pinctrl {{
+            {bus_label}_default: {bus_label}_default {{
+                {groups}
+            }};
+        }};
+    """
+
+
+def zephyr_setup_spi_pinctrl(
+    board: str,
+    bus_label: str,
+    clk: int | None = None,
+    miso: int | None = None,
+    mosi: int | None = None,
+    data_pins: list[int] | None = None,
+) -> None:
+    """Enable the hardware SPI bus node for `bus_label`.
+
+    Families in _SPI_FIXED_PINCTRL_FAMILIES ship pinctrl fixed in their own board
+    DTS -- only the bus itself needs enabling, clk/miso/mosi/data_pins are unused.
+    esp32's GPIO matrix has no fixed pinctrl, so clk/miso/mosi/data_pins are used to
+    generate a pinctrl overlay instead (mirrors zephyr_setup_i2c_pinctrl()'s esp32
+    branch). Other free-mux families (nordic, silabs, rp2040) aren't implemented yet.
     """
     family = zephyr_variant_family()
-    if family not in _SPI_FIXED_PINCTRL_FAMILIES:
+    if family in _SPI_FIXED_PINCTRL_FAMILIES:
+        zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
+        return
+
+    if family != "esp32":
         raise cv.Invalid(
             f"Hardware SPI on Zephyr variant family '{family}' is not implemented yet "
             "(needs a generated pinctrl overlay for its free pin muxing). "
             "Use 'interface: software' instead."
         )
-    zephyr_add_overlay(f'&{bus_label} {{ status = "okay"; }};')
+
+    if clk is None:
+        raise cv.Invalid("Could not determine SPI pin assignments for this board.")
+
+    overlay = _esp32_spi_pinctrl_overlay(bus_label, clk, miso, mosi, data_pins)
+    overlay += f"""
+        &{bus_label} {{
+            status = "okay";
+            pinctrl-0 = <&{bus_label}_default>;
+            pinctrl-names = "default";
+        }};
+    """
+    zephyr_add_overlay(overlay)
+    if data_pins:
+        zephyr_add_prj_conf("SPI_EXTENDED_MODES", True)
 
 
 def zephyr_add_prj_conf(
