@@ -3,14 +3,14 @@ from dataclasses import dataclass
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PLATFORM, CONF_TAG
-from esphome.core import CORE
-import esphome.final_validate as fv
+from esphome.const import CONF_ID, CONF_TAG
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@FredM67"]
 DEPENDENCIES = ["uart"]
-MULTI_CONF = True
 
 mk2pvrouter_ns = cg.esphome_ns.namespace("mk2pvrouter")
 Mk2PVRouter = mk2pvrouter_ns.class_("Mk2PVRouter", cg.Component, uart.UARTDevice)
@@ -55,19 +55,6 @@ def _get_data() -> Mk2PVRouterData:
 
 
 def final_validate(config: ConfigType) -> None:
-    full_config = fv.full_config.get()
-
-    # Count listeners (IDs are resolved at final_validate stage).
-    # Iterate over all platform sections generically so newly added
-    # mk2pvrouter platforms are picked up automatically.
-    _get_data().listener_count = sum(
-        1
-        for entries in full_config.values()
-        if isinstance(entries, list)
-        for entry in entries
-        if isinstance(entry, dict) and entry.get(CONF_PLATFORM) == "mk2pvrouter"
-    )
-
     # Validate UART settings
     schema = uart.final_validate_device_schema(
         "mk2pvrouter",
@@ -84,8 +71,19 @@ def final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
+async def register_mk2pvrouter_listener(mk2pvrouter: MockObj, var: MockObj) -> None:
+    """Register a listener with its hub and count it for the compile-time buffer size."""
+    _get_data().listener_count += 1
+    cg.add(mk2pvrouter.register_mk2pvrouter_listener(var))
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _finalize_listener_count() -> None:
+    cg.add_define("MK2PVROUTER_LISTENER_COUNT", _get_data().listener_count)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.init_listeners(_get_data().listener_count))
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+    CORE.add_job(_finalize_listener_count)
