@@ -324,6 +324,10 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
 
 class USBUartTypeCH934X : public USBUartComponent {
  public:
+  // Size a caller must provide for build_channel_write_()'s output buffer. The longest
+  // register write is the CH348 R_INIT packet; every other write is 3 bytes.
+  static constexpr uint8_t MAX_CHANNEL_WRITE_LEN = 12;
+
   USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
   void start_input(USBUartChannelBase *channel) override;
@@ -345,6 +349,9 @@ class USBUartTypeCH934X : public USBUartComponent {
   // Build the idx-th init register write for a channel into a stack buffer. Stateless and
   // deterministic, so the paced config machine can re-derive any write per round without
   // storing them. Returns false when idx is past this chip's per-channel write count.
+  //
+  // buffer must have room for MAX_CHANNEL_WRITE_LEN bytes; there is no length argument to
+  // check against, so a longer register write added here overruns both call sites silently.
   bool build_channel_write_(USBUartChannelBase *channel, uint8_t idx, uint8_t *buffer, uint8_t *len);
   // Submit one init command write on the shared command endpoint as part of a paced round:
   // records per-port failure, and the write that finishes the round releases the config

@@ -202,7 +202,7 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
         continue;
       if (this->init_device_failed_.load() || (this->init_failed_mask_.load() & (1u << ch->index_)))
         continue;
-      uint8_t buffer[12];
+      uint8_t buffer[MAX_CHANNEL_WRITE_LEN];
       uint8_t len = 0;
       if (!this->build_channel_write_(ch, this->init_write_idx_, buffer, &len)) {
         if (this->init_pending_.fetch_sub(1, std::memory_order_acq_rel) == 1)
@@ -240,7 +240,7 @@ bool USBUartTypeCH934X::config_step(USBUartChannelBase *channel, uint8_t step, b
       ESP_LOGE(TAG, "Reload register write failed: %s", esp_err_to_name(status.error_code));
   };
 
-  uint8_t buffer[12];
+  uint8_t buffer[MAX_CHANNEL_WRITE_LEN];
   uint8_t len = 0;
   for (uint8_t idx = start_idx; this->build_channel_write_(channel, idx, buffer, &len); idx++) {
     if (!this->transfer_out(this->uart_host_dev_.ep_cmd_write->bEndpointAddress, callback, buffer, len)) {
@@ -481,6 +481,7 @@ bool USBUartTypeCH934X::build_channel_write_(USBUartChannelBase *channel, uint8_
       *len = 3;
       return true;
     case 1: {
+      static_assert(MAX_CHANNEL_WRITE_LEN >= 12, "CH348 R_INIT packet needs 12 bytes");
       uint32_t baud_rate = channel->get_baud_rate();
       uint8_t data_bits = channel->get_data_bits();
       uint8_t stop_bits = channel->get_stop_bits();
@@ -605,6 +606,12 @@ bool USBUartTypeCH934X::demux_rx_data_(const uint8_t *data, size_t len) {
 
     USBUartChannelBase *channel = this->channels_[adjusted_port];
     if (!channel->initialised_.load())
+      continue;
+    // A dummy receiver has no consumer, so queuing its data would only burn chunks from the
+    // pool this device shares across all of its ports. Worse, RX is re-armed from
+    // read_array(), which such a channel never calls, so a device whose channels are all
+    // dummy receivers would never recover from the pool_full backpressure below.
+    if (channel->dummy_receiver_)
       continue;
 
     UsbDataChunk *chunk = this->chunk_pool_.allocate();
