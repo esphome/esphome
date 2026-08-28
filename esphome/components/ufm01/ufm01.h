@@ -27,7 +27,8 @@ static constexpr size_t PASSIVE_FRAME_SIZE = 23;
 enum class OperatingMode : uint8_t {
   STARTUP = 0,
   ACTIVE_STREAM = 1,
-  PASSIVE_POLL = 2,
+  ENTERING_PASSIVE = 2,  // SET_PASSIVE_MODE sent, waiting for ACK
+  PASSIVE_POLL = 3,
 };
 
 enum class StartupPhase : uint8_t {
@@ -83,9 +84,11 @@ class UFM01Component : public uart::UARTDevice, public Component {
 
   void loop_startup_();
   void loop_active_stream_();
+  void loop_entering_passive_();
   void loop_passive_poll_();
   void set_startup_phase_(StartupPhase phase);
   void enter_active_stream_(const char *reason);
+  void enter_passive_from_stale_();
   void start_passive_read_();
   PassiveReadResult continue_passive_read_();
 

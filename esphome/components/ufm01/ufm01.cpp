@@ -26,6 +26,7 @@ static constexpr float L_PER_M3 = 1000.0f;
 static constexpr float M3_PER_L = 1.0f / L_PER_M3;
 
 static constexpr std::array<uint8_t, 7> ACTIVE_MODE = {0xFE, 0xFE, 0x11, 0x5C, 0x00, 0x5C, 0x16};
+static constexpr std::array<uint8_t, 7> PASSIVE_MODE = {0xFE, 0xFE, 0x11, 0x5C, 0x01, 0x5D, 0x16};
 static constexpr std::array<uint8_t, 7> CLEAR_ACCUMULATED_FLOW = {0xFE, 0xFE, 0x11, 0x5A, 0xFD, 0x57, 0x16};
 static constexpr std::array<uint8_t, 7> RESET_DEVICE = {0xFE, 0xFE, 0x11, 0x5D, 0xCB, 0x28, 0x16};
 static constexpr std::array<uint8_t, 7> READ_SENSOR_DATA_NO_ID = {0xFE, 0xFE, 0x11, 0x5B, 0x0F, 0x6A, 0x16};
@@ -304,6 +305,17 @@ void UFM01Component::enter_active_stream_(const char *reason) {
   this->passive_read_pending_ = false;
 }
 
+void UFM01Component::enter_passive_from_stale_() {
+  ESP_LOGW(TAG, "Active stream stale, switching to passive polling");
+  // Flush any leftover active-stream bytes, then tell the device to stop streaming
+  this->send_command_no_wait_(PASSIVE_MODE);
+  this->operating_mode_ = OperatingMode::ENTERING_PASSIVE;
+  this->phase_start_ms_ = millis();
+  this->passive_read_pending_ = false;
+  this->last_poll_ms_ = 0;
+  this->status_set_warning("UFM-01 passive poll");
+}
+
 void UFM01Component::start_passive_read_() {
   this->send_command_no_wait_(READ_SENSOR_DATA_NO_ID);
   this->passive_index_ = 0;
@@ -430,12 +442,20 @@ void UFM01Component::loop_startup_() {
 void UFM01Component::loop_active_stream_() {
   this->process_active_stream_();
   if (this->last_valid_frame_ms_ != 0 && millis() - this->last_valid_frame_ms_ > ACTIVE_STALE_MS) {
-    ESP_LOGW(TAG, "Active stream stale, switching to passive polling");
-    this->operating_mode_ = OperatingMode::PASSIVE_POLL;
-    this->passive_read_pending_ = false;
-    this->last_poll_ms_ = 0;
-    this->status_set_warning("UFM-01 passive poll");
+    this->enter_passive_from_stale_();
   }
+}
+
+void UFM01Component::loop_entering_passive_() {
+  if (this->consume_ack_()) {
+    ESP_LOGI(TAG, "UFM-01 passive mode acknowledged");
+    this->operating_mode_ = OperatingMode::PASSIVE_POLL;
+    return;
+  }
+  if (millis() - this->phase_start_ms_ < COMMAND_ACK_TIMEOUT_MS)
+    return;
+  ESP_LOGW(TAG, "SET_PASSIVE_MODE not acknowledged, continuing with passive poll");
+  this->operating_mode_ = OperatingMode::PASSIVE_POLL;
 }
 
 void UFM01Component::loop_passive_poll_() {
@@ -468,6 +488,9 @@ void UFM01Component::loop() {
       return;
     case OperatingMode::ACTIVE_STREAM:
       this->loop_active_stream_();
+      return;
+    case OperatingMode::ENTERING_PASSIVE:
+      this->loop_entering_passive_();
       return;
     case OperatingMode::PASSIVE_POLL:
       this->loop_passive_poll_();

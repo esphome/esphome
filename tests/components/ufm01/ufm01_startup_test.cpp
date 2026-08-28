@@ -40,4 +40,43 @@ TEST_F(UFM01Test, StartPassiveReadSendsCommand) {
   EXPECT_EQ(this->mock_uart_.written_data[6], FRAME_STOP_BYTE);
 }
 
+TEST_F(UFM01Test, StaleActiveStreamSendsSetPassiveMode) {
+  // Leftover stream noise should be flushed before SET_PASSIVE_MODE
+  this->mock_uart_.enqueue({0x3C, 0x32, 0x00});
+  this->ufm01_.prepare_stale_active_stream();
+
+  this->ufm01_.loop_active_stream();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::ENTERING_PASSIVE);
+  EXPECT_EQ(this->ufm01_.read_index(), 0);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[0], 0xFE);
+  EXPECT_EQ(this->mock_uart_.written_data[1], 0xFE);
+  EXPECT_EQ(this->mock_uart_.written_data[2], 0x11);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5C);  // set mode
+  EXPECT_EQ(this->mock_uart_.written_data[4], 0x01);  // passive
+  EXPECT_EQ(this->mock_uart_.written_data[5], 0x5D);  // checksum
+  EXPECT_EQ(this->mock_uart_.written_data[6], FRAME_STOP_BYTE);
+  EXPECT_EQ(this->mock_uart_.available(), 0u);  // RX flushed
+}
+
+TEST_F(UFM01Test, EnteringPassiveAdvancesOnAck) {
+  this->ufm01_.set_operating_mode(OperatingMode::ENTERING_PASSIVE);
+  this->mock_uart_.enqueue({0x00, COMMAND_ACK});
+
+  this->ufm01_.loop_entering_passive();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::PASSIVE_POLL);
+}
+
+TEST_F(UFM01Test, EnteringPassiveStaysPendingWithoutAck) {
+  this->ufm01_.prepare_stale_active_stream();
+  this->ufm01_.loop_active_stream();  // ENTERING_PASSIVE with fresh phase_start_ms_
+  ASSERT_EQ(this->ufm01_.operating_mode(), OperatingMode::ENTERING_PASSIVE);
+
+  this->ufm01_.loop_entering_passive();
+
+  EXPECT_EQ(this->ufm01_.operating_mode(), OperatingMode::ENTERING_PASSIVE);
+}
+
 }  // namespace esphome::ufm01::testing

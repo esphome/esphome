@@ -81,6 +81,10 @@ class TestableUFM01 : public UFM01Component {
 
   void loop_startup() { this->loop_startup_(); }
 
+  void loop_active_stream() { this->loop_active_stream_(); }
+
+  void loop_entering_passive() { this->loop_entering_passive_(); }
+
   OperatingMode operating_mode() const { return this->operating_mode_; }
 
   StartupPhase startup_phase() const { return this->startup_phase_; }
@@ -90,6 +94,8 @@ class TestableUFM01 : public UFM01Component {
   size_t passive_index() const { return this->passive_index_; }
 
   uint32_t last_valid_frame_ms() const { return this->last_valid_frame_ms_; }
+
+  void set_operating_mode(OperatingMode mode) { this->operating_mode_ = mode; }
 
   void prepare_passive_read() {
     this->passive_index_ = 0;
@@ -103,11 +109,20 @@ class TestableUFM01 : public UFM01Component {
     this->phase_start_ms_ = millis();
   }
 
+  void prepare_stale_active_stream() {
+    this->operating_mode_ = OperatingMode::ACTIVE_STREAM;
+    // Far enough in the past that ACTIVE_STALE_MS has elapsed
+    this->last_valid_frame_ms_ = millis() - 6000;
+    this->passive_read_pending_ = false;
+    this->read_index_ = 0;
+  }
+
   void reset_state() {
     this->read_index_ = 0;
     this->last_valid_frame_ms_ = 0;
     this->passive_index_ = 0;
     this->passive_read_pending_ = false;
+    this->operating_mode_ = OperatingMode::STARTUP;
   }
 };
 
