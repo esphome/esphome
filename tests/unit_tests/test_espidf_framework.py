@@ -2249,3 +2249,21 @@ def test_install_tool_archives_surviving_torn_dir_escalates(
     assert "could not remove" in err
     assert "1 of 2 pre-extractions failed" in err
     assert (tmp_path / "tp" / "tools" / "cmake" / "3.30.2" / ".installed").is_file()
+
+
+def test_install_tool_archives_skips_unverifiable_archives(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An entry the prefetch could not verify is never extracted, even with
+    an archive on disk."""
+    _make_dist(tmp_path, "cmake.tar.gz", "ninja-v1.zip")
+    monkeypatch.setenv("TEST_NO_SHA", "cmake,ninja")
+    _run_espidf_script_inprocess(
+        tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
+    )
+    assert not (tmp_path / "tp" / "tools").exists()
+    assert "0 of 2 uninstalled tool(s) have a prefetched archive" in (
+        capsys.readouterr().out
+    )

@@ -25,7 +25,7 @@ def collect_pending(
     targets_csv: str, tool_specs: list[str]
 ) -> tuple[dict[tuple[str, str], object], int]:
     """The {(name, version): tool} jobs whose verified archive is on disk,
-    and how many uninstalled tools were resolved overall."""
+    and how many distinct uninstalled tools were resolved overall."""
     dist_path = Path(g.idf_tools_path) / "dist"
 
     def on_broken(name: str, e: ToolBinaryError) -> bool:
@@ -34,11 +34,14 @@ def collect_pending(
         return False
 
     pending: dict[tuple[str, str], object] = {}
-    resolved = 0
+    resolved: set[tuple[str, str]] = set()
     for tool, name, version, download in iter_tool_downloads(
         targets_csv, tool_specs, on_broken
     ):
-        resolved += 1
+        resolved.add((name, version))
+        # Mirror the prefetch: an entry it could not verify is never trusted
+        if not (download.sha256 and download.size):
+            continue
         # Trusted as-is: the prefetch verifies archives at their final name,
         # and the installer redoes anything this pass fails on
         if (name, version) in pending or not (
@@ -46,7 +49,7 @@ def collect_pending(
         ).is_file():
             continue
         pending[(name, version)] = tool
-    return pending, resolved
+    return pending, len(resolved)
 
 
 def install_one(tool: object, name: str, version: str) -> bool | None:

@@ -117,6 +117,12 @@ for _name, _tool in _TOOLS.items():
 
 
 def load_tools_info() -> dict[str, _Tool]:
+    # Test hook: strip verification metadata from the named tools
+    for name in os.environ.get("TEST_NO_SHA", "").split(","):
+        if (tool := _TOOLS.get(name)) is not None:
+            for version in tool.versions.values():
+                if (download := version.get_download_for_platform("")) is not None:
+                    download.sha256 = ""
     return _TOOLS
 
 
