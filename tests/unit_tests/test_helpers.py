@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import socket
 import stat
+import types
 from unittest.mock import MagicMock, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
@@ -1124,6 +1125,20 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
     assert bar.enabled is True
 
 
+def test_progressbar_interrupt_keeps_finished_bar_done(monkeypatch) -> None:
+    """interrupt() on a bar whose 100% frame already ended its own line
+    must not reset it, or the next tick would redraw a second Done row."""
+    stream = MagicMock(spec=io.TextIOWrapper)
+    stream.isatty.return_value = True
+    monkeypatch.setattr(CORE, "dashboard", False)
+
+    bar = ProgressBar("Uploading", stream=stream)
+    bar.update(1)
+    assert bar.last_progress == 100
+    bar.interrupt()
+    assert bar.last_progress == 100
+
+
 @pytest.mark.parametrize(
     ("seconds", "expected"),
     [
@@ -1140,3 +1155,26 @@ def test_progressbar_enabled_on_pipe_with_dashboard(monkeypatch) -> None:
 def test_format_duration(seconds: float, expected: str) -> None:
     """Test that durations are rendered as short human-readable strings."""
     assert helpers.format_duration(seconds) == expected
+
+
+def test_get_usable_cpu_count() -> None:
+    """Returns a positive int on the real host."""
+    count = helpers.get_usable_cpu_count()
+    assert isinstance(count, int)
+    assert count > 0
+
+
+def test_get_usable_cpu_count_sources() -> None:
+    """Prefers process_cpu_count, falls back to cpu_count, degrades to 1."""
+    mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
+    with patch("esphome.helpers.os", mock_os):
+        assert helpers.get_usable_cpu_count() == 8
+
+    mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
+    with patch("esphome.helpers.os", mock_os_no_process):
+        assert helpers.get_usable_cpu_count() == 4
+
+    # An undeterminable count degrades to one worker, never zero
+    mock_os_unknown = types.SimpleNamespace(cpu_count=lambda: None)
+    with patch("esphome.helpers.os", mock_os_unknown):
+        assert helpers.get_usable_cpu_count() == 1

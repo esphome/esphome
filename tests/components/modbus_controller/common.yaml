@@ -2,6 +2,7 @@ modbus_controller:
   - id: modbus_controller1
     address: 0x2
     modbus_id: modbus_bus
+    continuous: true
     on_online:
       then:
         logger.log: "Module Online"
