@@ -86,6 +86,14 @@ class Type:
 
 
 class MpxType(Type):
+    """A multiplexed device: every channel shares one bulk IN/OUT pair.
+
+    CH934x parts carry all ports over a single data endpoint pair plus one command
+    pair, so the device costs four endpoints no matter how many ports it exposes.
+    The endpoint budget in Type.max_channels does not apply, which is why an
+    8-port ch348 validates on variants with only 7 endpoints.
+    """
+
     @property
     def max_channels(self) -> int:
         return self._max_channels
@@ -197,8 +205,12 @@ async def to_code(config: list[ConfigType]) -> None:
     for device in config:
         device_type = type_by_name.get(device[CONF_TYPE])
         if isinstance(device_type, MpxType) and payload > 0:
-            # ceil(buffer / payload) chunks per channel, summed so all channels can write a
-            # full buffer_size concurrently (the shared queue only drains between loops).
+            # ceil(buffer / payload) chunks per channel, summed so every channel can hold a
+            # full buffer_size at once: they all allocate from channel 0's shared pool, and
+            # write_array() drops the remainder when it runs dry. The queue does drain
+            # asynchronously (start_output()'s callback re-arms from the USB task), but one
+            # chunk per completed transfer, which a simultaneous burst across N channels
+            # outruns.
             need = (
                 sum(
                     -(-channel[CONF_BUFFER_SIZE] // payload)

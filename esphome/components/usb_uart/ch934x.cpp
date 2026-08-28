@@ -669,6 +669,17 @@ void USBUartTypeCH934X::handle_command_data_(const uint8_t * /*data*/, size_t le
   ESP_LOGV(TAG, "CMD data received: %u bytes", len);
 }
 
+void USBUartTypeCH934X::dump_config() {
+  USBUartComponent::dump_config();
+  // Chip variant and port count are only resolved at runtime, and per-port init can fail
+  // independently, so without this the only record is the boot-time log.
+  ESP_LOGCONFIG(TAG, "  CH934x chip: %s", get_chiptype_string(this->chiptype_).c_str());
+  ESP_LOGCONFIG(TAG, "  Ports: %u", this->num_ports_);
+  uint8_t failed = this->init_failed_mask_.load();
+  if (failed != 0)
+    ESP_LOGCONFIG(TAG, "  Failed port init mask: 0x%02X", failed);
+}
+
 void USBUartTypeCH934X::start_input(USBUartChannelBase *channel) {
   if (!channel->initialised_.load())
     return;

@@ -331,6 +331,7 @@ class USBUartTypeCH934X : public USBUartComponent {
   USBUartTypeCH934X(uint16_t vid, uint16_t pid) : USBUartComponent(vid, pid) {}
 
   void start_input(USBUartChannelBase *channel) override;
+  void dump_config() override;
   // Max number of channels initialised in parallel (one in-flight command write each).
   // Set from codegen and capped at the usb_host transfer-request pool size.
   void set_init_lanes(uint8_t lanes) { this->init_lanes_ = lanes; }
