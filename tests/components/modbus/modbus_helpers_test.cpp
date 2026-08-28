@@ -444,9 +444,9 @@ TEST(ModbusHelpersTest, RegistersToNumberMatchesPayloadToNumberForQwords) {
 TEST(ModbusHelpersTest, RegistersToNumberTreatsRawAndBitAsNothingToDecode) {
   // Both have no fixed-width number, so they decode to 0 whatever the span holds - including none.
   const uint16_t registers[] = {0x1234};
-  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::RAW).value(), 0);
-  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::RAW).value(), 0);
-  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::BIT).value(), 0);
+  EXPECT_EQ(registers_to_number(registers, 1, SensorValueType::RAW), std::optional<int64_t>(0));
+  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::RAW), std::optional<int64_t>(0));
+  EXPECT_EQ(registers_to_number(registers, 0, SensorValueType::BIT), std::optional<int64_t>(0));
 }
 
 TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
@@ -501,21 +501,21 @@ TEST(ModbusHelpersTest, RegistersToUint32CombinesWordsHighFirst) {
 TEST(ModbusHelpersTest, ValueAtDecodesByAbsoluteAddress) {
   const uint16_t registers[] = {0x1111, 0x2222, 0x3333};
   const std::span<const uint16_t> span(registers, 3);
-  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 100).value(), 0x1111);
-  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 102).value(), 0x3333);
-  EXPECT_EQ(value_at<SensorValueType::U_DWORD>(span, 100, 101).value(), 0x22223333u);
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 100), std::optional<uint16_t>(0x1111));
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 102), std::optional<uint16_t>(0x3333));
+  EXPECT_EQ(value_at<SensorValueType::U_DWORD>(span, 100, 101), std::optional<uint32_t>(0x22223333u));
   // Types whose RegisterValue<> is not an unsigned integer, and the widest bounds check.
   const uint16_t floats[] = {0x4048, 0xF5C3, 0xF5C3, 0x4048};
   const std::span<const uint16_t> float_span(floats, 4);
-  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32>(float_span, 10, 10).value(), 3.14f);
-  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32_R>(float_span, 10, 12).value(), 3.14f);
-  EXPECT_EQ(value_at<SensorValueType::U_QWORD>(float_span, 10, 10).value(), 0x4048F5C3F5C34048ull);
+  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32>(float_span, 10, 10).value_or(0.0f), 3.14f);
+  EXPECT_FLOAT_EQ(value_at<SensorValueType::FP32_R>(float_span, 10, 12).value_or(0.0f), 3.14f);
+  EXPECT_EQ(value_at<SensorValueType::U_QWORD>(float_span, 10, 10), std::optional<uint64_t>(0x4048F5C3F5C34048ull));
   EXPECT_FALSE(value_at<SensorValueType::U_QWORD>(float_span, 10, 11).has_value());
 }
 
 TEST(ModbusHelpersTest, ValueAtIsUsableInAConstantExpression) {
   static constexpr uint16_t REGISTERS[] = {0x1234, 0x5678};
-  static_assert(value_at<SensorValueType::U_DWORD>(REGISTERS, 7, 7).value() == 0x12345678u);
+  static_assert(value_at<SensorValueType::U_DWORD>(REGISTERS, 7, 7).value_or(0) == 0x12345678u);
   static_assert(!value_at<SensorValueType::U_DWORD>(REGISTERS, 7, 6).has_value());
 }
 
