@@ -2145,7 +2145,10 @@ def test_install_tool_archives_single_pending_stays_sequential(
         tmp_path, monkeypatch, "install_tool_archives.py", "esp32", "4", "required"
     )
     assert not (tmp_path / "tp" / "tools").exists()
-    assert "Extracting" not in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Extracting" not in out
+    # A resolution drift that empties pending stays observable
+    assert "1 of 2 uninstalled tool(s) have a prefetched archive" in out
 
 
 def test_install_tool_archives_failed_install_left_to_installer(

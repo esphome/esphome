@@ -23,8 +23,9 @@ from esphome.helpers import rmtree
 
 def collect_pending(
     targets_csv: str, tool_specs: list[str]
-) -> dict[tuple[str, str], object]:
-    """The {(name, version): tool} jobs whose verified archive is on disk."""
+) -> tuple[dict[tuple[str, str], object], int]:
+    """The {(name, version): tool} jobs whose verified archive is on disk,
+    and how many uninstalled tools were resolved overall."""
     dist_path = Path(g.idf_tools_path) / "dist"
 
     def on_broken(name: str, e: ToolBinaryError) -> bool:
@@ -33,9 +34,11 @@ def collect_pending(
         return False
 
     pending: dict[tuple[str, str], object] = {}
+    resolved = 0
     for tool, name, version, download in iter_tool_downloads(
         targets_csv, tool_specs, on_broken
     ):
+        resolved += 1
         # Trusted as-is: the prefetch verifies archives at their final name,
         # and the installer redoes anything this pass fails on
         if (name, version) in pending or not (
@@ -43,7 +46,7 @@ def collect_pending(
         ).is_file():
             continue
         pending[(name, version)] = tool
-    return pending
+    return pending, resolved
 
 
 def install_one(tool: object, name: str, version: str) -> bool | None:
@@ -83,9 +86,15 @@ def install_one(tool: object, name: str, version: str) -> bool | None:
 def main() -> None:
     _script, idf_framework_root, targets_csv, workers_str, *tool_specs = sys.argv
     init_idf_tools(idf_framework_root)
-    pending = collect_pending(targets_csv, tool_specs)
+    pending, resolved = collect_pending(targets_csv, tool_specs)
     if len(pending) < 2:
-        # Nothing to parallelize; the installer keeps its normal output
+        # Nothing to parallelize; the count makes a naming/resolution drift
+        # that would silently disable this pass observable
+        print(
+            f"{len(pending)} of {resolved} uninstalled tool(s) have a "
+            "prefetched archive; leaving them to the installer",
+            flush=True,
+        )
         return
     workers = min(int(workers_str), len(pending))
     print(
