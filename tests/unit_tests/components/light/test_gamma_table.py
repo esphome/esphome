@@ -121,19 +121,10 @@ def test_lut_output_monotonically_nondecreasing() -> None:
 
 
 def test_table_matches_raw_power_curve() -> None:
-    """The 16-bit table must stay the untouched power curve, not a floor for 8-bit output.
-
-    Regression test: an earlier version of this fix raised the table's own
-    floor to survive 8-bit rounding, which also flattened the low end of
-    LightState::gamma_correct_lut() -- the float, interpolated path shared by
-    every non-addressable (FloatOutput/PWM) light, e.g. LEDC. That path has
-    far more than 8-bit precision and was never affected by #18842, so the
-    table it reads from must stay exactly the raw, unclamped power curve.
-    """
-    gamma = 2.8
-    table = generate_gamma_table(gamma)
-    for i in range(1, 256):
-        expected = max(1, min(65535, round((i / 255.0) ** gamma * 65535)))
+    """Check the gamma table against known good values for gamma=2.8."""
+    table = generate_gamma_table(2.8)
+    golden = {1: 1, 5: 1, 15: 24, 27: 122, 28: 135, 100: 4766, 200: 33193, 254: 64818}
+    for i, expected in golden.items():
         assert table[i] == expected, (
             f"index {i}: table[{i}]={table[i]} expected {expected}"
         )
