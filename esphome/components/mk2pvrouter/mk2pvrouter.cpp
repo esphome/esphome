@@ -133,7 +133,7 @@ void Mk2PVRouter::loop() {
 
         field_len = get_field(this->tag_, buf_finger, grp_end, MAX_TAG_SIZE);
         if (!field_len || field_len >= MAX_TAG_SIZE) {
-          ESP_LOGE(TAG, "Invalid tag.");
+          ESP_LOGE(TAG, "Invalid tag");
           continue;
         }
         buf_finger += field_len + 1;  // Skip tag + TAB.
