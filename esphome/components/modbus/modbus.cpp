@@ -109,15 +109,17 @@ void ModbusClientHub::expire_waiting_() {
 bool Modbus::timeout_() {
   // If the response frame is finished (including interframe delay) - we timeout.
   // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
-  // when the buffer is filling the back half of the response
-  const uint32_t timeout =
-      std::max(this->frame_delay_us_,
-               this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold() ? this->long_rx_buffer_delay_us_ : 0u);
+  // when the buffer is filling the back half of the response. The latch (not the current size) decides:
+  // parsing a leading frame can shrink the buffer below the threshold while the rest is still streaming.
+  // The latency term: the final sub-threshold batch arrives via the idle interrupt up to one
+  // detection latency after its last byte. Stamps are true arrival times (or the read time for a
+  // threshold-delivered batch, which is later), so no further slack is needed and the unlatched
+  // case compares true wire silence directly against frame_delay.
+  const uint32_t timeout = this->exceeded_rx_full_threshold_
+                               ? this->long_rx_buffer_delay_us_ + this->rx_detect_latency_us_
+                               : this->frame_delay_us_;
 
-  // last_modbus_byte_ is backdated assuming an idle-triggered read, but a threshold-triggered
-  // mid-frame read has no silence behind it, so allow the backdate as slack before declaring the
-  // frame over. For idle-triggered reads this restores the pre-backdate margin.
-  return this->last_receive_check_ - this->last_modbus_byte_ > timeout + this->rx_detect_latency_us_;
+  return this->last_receive_check_ - this->last_modbus_byte_ > timeout;
 }
 
 // We use micros() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
@@ -172,12 +174,19 @@ void Modbus::receive_bytes_() {
 
   if (bytes) {
     size_t buffer_size = this->rx_buffer_.size();
-    this->last_modbus_byte_ = this->last_receive_check_ - this->rx_detect_latency_us_;
+    // A batch smaller than rx_full_threshold can only have been delivered by the idle-timeout
+    // interrupt, so the last byte finished one detection latency before the read - backdate the stamp
+    // to measure true wire silence. A threshold-delivered batch may still be streaming: stamp now.
+    this->last_modbus_byte_ = bytes < this->parent_->get_rx_full_threshold()
+                                  ? this->last_receive_check_ - this->rx_detect_latency_us_
+                                  : this->last_receive_check_;
     this->rx_buffer_.resize(buffer_size + bytes);
     if (!this->read_array(this->rx_buffer_.data() + buffer_size, bytes)) {
       this->rx_buffer_.resize(buffer_size);
       return;
     }
+    if (this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold())
+      this->exceeded_rx_full_threshold_ = true;
     if (buffer_size == 0) {
       ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) of %zu bytes %" PRIu32 "us after last send",
                this->rx_buffer_[0], this->rx_buffer_[0], this->rx_buffer_.size(), micros() - this->last_send_);
@@ -1216,6 +1225,8 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
       this->rx_buffer_.erase(this->rx_buffer_.begin(), this->rx_buffer_.begin() + bytes);
     }
   }
+  if (this->rx_buffer_.empty())
+    this->exceeded_rx_full_threshold_ = false;
 }
 
 void ModbusClientDevice::dispatch_response_(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
