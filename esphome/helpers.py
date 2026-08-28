@@ -447,6 +447,10 @@ def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) ->
         env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
 
 
+# Deletion attempts when a directory keeps being repopulated mid-delete
+RMTREE_MAX_ATTEMPTS = 3
+
+
 def rmtree(path: Path | str) -> None:
     """Remove a directory tree, tolerating common filesystem races.
 
@@ -458,6 +462,7 @@ def rmtree(path: Path | str) -> None:
 
     import errno
     import shutil
+    import time
 
     def _onexc(func, path, exc):
         if isinstance(exc, FileNotFoundError):
@@ -467,13 +472,18 @@ def rmtree(path: Path | str) -> None:
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    for attempt in range(3):
+    for attempt in range(RMTREE_MAX_ATTEMPTS):
         try:
             shutil.rmtree(path, onexc=_onexc)
             return
         except OSError as err:
-            if attempt == 2 or err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+            if attempt == RMTREE_MAX_ATTEMPTS - 1 or err.errno not in (
+                errno.ENOTEMPTY,
+                errno.EEXIST,
+            ):
                 raise
+            # Give the racing writer (e.g. Finder) time to settle
+            time.sleep(0.05 * (attempt + 1))
 
 
 def walk_files(path: Path):

@@ -3,7 +3,6 @@ import io
 import logging
 import os
 from pathlib import Path
-import shutil
 import socket
 import stat
 from unittest.mock import MagicMock, patch
@@ -985,25 +984,25 @@ def test_rmtree_nonexistent_path(tmp_path: Path) -> None:
 def test_rmtree_retries_when_directory_repopulated(tmp_path: Path) -> None:
     """Test rmtree retries when a file appears mid-delete (Finder .DS_Store race)."""
     target = tmp_path / "target"
-    target.mkdir()
-    real_rmtree = shutil.rmtree
-    calls = 0
+    (target / "sub").mkdir(parents=True)
+    real_rmdir = os.rmdir
+    repopulated = False
 
-    def racy_rmtree(path, **kwargs):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            raise OSError(errno.ENOTEMPTY, "Directory not empty", str(path))
-        real_rmtree(path, **kwargs)
+    def racy_rmdir(path, **kwargs):
+        nonlocal repopulated
+        if not repopulated and Path(path).name == "target":
+            repopulated = True
+            (target / ".DS_Store").write_text("x")  # Finder wins the race
+        real_rmdir(path, **kwargs)
 
-    with patch("shutil.rmtree", side_effect=racy_rmtree):
+    with patch("os.rmdir", side_effect=racy_rmdir):
         helpers.rmtree(target)
-    assert calls == 2
+    assert repopulated
     assert not target.exists()
 
 
 def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
-    """Test rmtree gives up after three attempts on a persistent ENOTEMPTY."""
+    """Test rmtree gives up on a persistent ENOTEMPTY once attempts run out."""
     target = tmp_path / "target"
     target.mkdir()
     err = OSError(errno.ENOTEMPTY, "Directory not empty", str(target))
@@ -1013,7 +1012,7 @@ def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
         pytest.raises(OSError, match="Directory not empty"),
     ):
         helpers.rmtree(target)
-    assert mock_rmtree.call_count == 3
+    assert mock_rmtree.call_count == helpers.RMTREE_MAX_ATTEMPTS
 
 
 def test_rmtree_does_not_retry_other_oserror(tmp_path: Path) -> None:
