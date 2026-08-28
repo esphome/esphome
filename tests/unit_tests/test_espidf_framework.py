@@ -2086,7 +2086,8 @@ def test_preinstall_script_failure_only_warns(
 def test_preinstall_exception_only_warns(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """An unexpected error must not become a new way for the install to fail."""
+    """An unexpected error must not become a new way for the install to fail,
+    and keeps its traceback at WARNING."""
     with (
         patch(
             "esphome.espidf.framework._run_idf_tools_script",
@@ -2095,7 +2096,8 @@ def test_preinstall_exception_only_warns(
         patch("esphome.espidf.framework.get_usable_cpu_count", return_value=1),
     ):
         _preinstall_idf_tool_archives(tmp_path, "esp32", ["required"], None)
-    assert "pre-extraction failed" in caplog.text
+    record = next(r for r in caplog.records if "pre-extraction failed" in r.message)
+    assert record.exc_info is not None
 
 
 # ---------------------------------------------------------------------------

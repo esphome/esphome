@@ -1,8 +1,9 @@
 """Print JSON download info for the ESP-IDF tools an install would fetch.
 
 Run via ``python <this file> <idf_framework_root> <targets-csv> <tool-spec>...``.
-PYTHONPATH must include ``<idf_framework_root>/tools`` so ``idf_tools`` is
-importable, and IDF_TOOLS_PATH must be set. Prints a JSON list of
+PYTHONPATH must include this directory (for ``_tool_resolution``) and
+``<idf_framework_root>/tools`` (for ``idf_tools``), and IDF_TOOLS_PATH must
+be set. Prints a JSON list of
 ``{name, url, size, sha256, dest}`` for every tool version that is not yet
 installed, where ``dest`` is the archive filename ``idf_tools.py install``
 expects to find in ``<IDF_TOOLS_PATH>/dist``. Tools with no download for the

@@ -28,6 +28,7 @@ from esphome.framework_helpers import (
     failure_reason,
     get_python_env_executable_path,
     get_system_python_path,
+    is_expected_fetch_error,
     resume_fetch_job,
     rmdir,
     run_batch_downloads,
@@ -297,8 +298,9 @@ def _run_idf_tools_script(
 ) -> tuple[bool, str | None, str | None]:
     """Run one of the sibling idf_tools-backed helper scripts.
 
-    The script is executed with the framework's ``tools`` directory on
-    PYTHONPATH so it imports the framework's own ``idf_tools`` module.
+    PYTHONPATH carries this directory (sibling imports like
+    ``_tool_resolution``), the esphome package root (``esphome.helpers``),
+    and the framework's ``tools`` dir (its own ``idf_tools`` module).
     """
     cmd = [
         get_system_python_path(),
@@ -829,7 +831,12 @@ def _preinstall_idf_tool_archives(
             # surviving torn dir prints its own guidance there
             _LOGGER.warning("ESP-IDF tool pre-extraction failed; see above")
     except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-        _LOGGER.warning("ESP-IDF tool pre-extraction failed: %s", failure_reason(e))
+        # A programming error keeps its traceback at WARNING
+        _LOGGER.warning(
+            "ESP-IDF tool pre-extraction failed: %s",
+            failure_reason(e),
+            exc_info=None if is_expected_fetch_error(e) else e,
+        )
         _LOGGER.debug("Pre-extraction failure detail", exc_info=True)
 
 

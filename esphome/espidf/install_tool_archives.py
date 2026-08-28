@@ -36,7 +36,8 @@ def collect_pending(
     for tool, name, version, download in iter_tool_downloads(
         targets_csv, tool_specs, on_broken
     ):
-        # An archive at its final name was sha256-verified by the prefetch
+        # Trusted as-is: the prefetch verifies archives at their final name,
+        # and the installer redoes anything this pass fails on
         if (name, version) in pending or not (
             dist_path / archive_name(download)
         ).is_file():
@@ -52,8 +53,11 @@ def install_one(tool: object, name: str, version: str) -> bool | None:
         tool.install(version)
     # check_binary_valid exits via SystemExit; the installer redoes failures
     except (Exception, SystemExit) as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        # Name the type: idf_tools' fatal() raises SystemExit(1), which
+        # would render as a bare "1"
         print(
-            f"pre-extracting {name}@{version} failed, leaving it to the installer: {e}",
+            f"pre-extracting {name}@{version} failed, leaving it to the "
+            f"installer: {type(e).__name__}: {e}",
             file=sys.stderr,
         )
         # A torn dest dir must not look installed to the installer
