@@ -218,24 +218,6 @@ def _derived_register_widths(config: ConfigType) -> set[int]:
     return {1}
 
 
-def _response_size_width_change(config: ConfigType) -> tuple[int, int] | None:
-    """(old, new) register span when response_size drives it and the derivation changed."""
-    response_size = config.get(CONF_RESPONSE_SIZE, 0)
-    # Bit-addressed items always span one entity, so response_size never sized their read.
-    if response_size == 0 or config.get(CONF_REGISTER_TYPE) in (
-        "coil",
-        "discrete_input",
-    ):
-        return None
-    value_type = config.get(CONF_VALUE_TYPE)
-    if value_type is not None and value_type != "RAW":
-        return None
-    # Text sensors used to floor; RAW values took the value type's single register.
-    old_width = response_size // 2 if value_type is None else TYPE_REGISTER_MAP["RAW"]
-    new_width = (response_size + 1) // 2
-    return None if new_width == old_width else (old_width, new_width)
-
-
 def entity_label(config: ConfigType) -> str:
     """The entity's name or id, so migration messages say which entry to edit."""
     label = config.get(CONF_NAME) or config.get(CONF_ID)
@@ -297,15 +279,6 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
                 entity_label(config),
                 CONF_REGISTER_COUNT,
             )
-    elif (derived := _response_size_width_change(config)) is not None:
-        old_width, new_width = derived
-        _LOGGER.warning(
-            "%s: the read derived from '%s' now spans %d registers instead of %d",
-            entity_label(config),
-            CONF_RESPONSE_SIZE,
-            new_width,
-            old_width,
-        )
     return config
 
 
