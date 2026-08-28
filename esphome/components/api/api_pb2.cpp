@@ -2323,7 +2323,6 @@ uint8_t *ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer PROTO_
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, static_cast<uint32_t>(this->entity_category));
-  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, this->supports_pause);
   for (auto &it : this->supported_formats) {
     ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, buffer, 9, it);
   }
@@ -2343,7 +2342,6 @@ uint32_t ListEntitiesMediaPlayerResponse::calculate_size() const {
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_bool(1, this->supports_pause);
   if (!this->supported_formats.empty()) {
     for (const auto &it : this->supported_formats) {
       size += ProtoSize::calc_message_force(1, it.calculate_size());
