@@ -31,7 +31,8 @@ SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
 
-# cv.boolean's closed spelling tables, shared with the env-knob parsing below
+# cv.boolean's closed spelling tables, shared with the strict env-knob
+# parser (build_helpers.ccache.parse_enable_env)
 TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
 FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
 # cv.boolean's spelling tables plus the 1/0 env convention
@@ -399,6 +400,15 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
 
     # Finally, turn the getaddrinfo() tuples back into plain hostnames.
     return [socket.getnameinfo(r[4], socket.NI_NUMERICHOST)[0] for r in res]
+
+
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs usable by this process (affinity-aware
+    on Python 3.13+); 1 when the count is undeterminable."""
+    count = (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+    return count or 1
 
 
 def get_bool_env(var, default=False):

@@ -24,7 +24,6 @@ import logging
 import os
 from pathlib import Path, PurePosixPath
 import re
-import tempfile
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 from urllib.request import url2pathname
@@ -32,11 +31,11 @@ from urllib.request import url2pathname
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
 from esphome.framework_helpers import (
-    archive_extract_all,
-    download_from_mirrors,
+    download_and_extract,
     failure_reason,
     rmdir,
     run_batch_downloads,
+    warn_prefetch_failures,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -147,18 +146,21 @@ class URLSource(Source):
         if not extracted_marker.is_file() or force:
             rmdir(path, msg=f"Clean up library directory {path}")
 
-            # Download in temporary file
-            with tempfile.NamedTemporaryFile() as tmp:
-                if progress is None:
-                    # A batch caller draws one combined bar and logs the list
-                    _LOGGER.info("Downloading %s ...", self.url)
-                _LOGGER.debug("Location: %s", path)
+            if progress is None:
+                # A batch caller draws one combined bar and logs the list
+                _LOGGER.info("Downloading %s ...", self.url)
+            _LOGGER.debug("Location: %s", path)
 
-                download_from_mirrors([self.url], {}, tmp.file, progress=progress)
-
-                _LOGGER.debug("Extracting archive to %s ...", path)
-                archive_extract_all(tmp.file, path)
-                extracted_marker.touch()
+            # The sibling archive path lets an interrupted download's .part
+            # file survive and resume on the next esphome run.
+            download_and_extract(
+                [self.url],
+                {},
+                path.with_name(f"{path.name}.archive"),
+                path,
+                progress=progress,
+            )
+            extracted_marker.touch()
         return path
 
     def __str__(self):
@@ -976,14 +978,10 @@ def _prefetch_wave(
                 for c in components
             ],
         )
-        for name, err in failures:
-            # The sequential call below retries and raises the real error
-            _LOGGER.warning(
-                "Prefetch of %s failed (retrying sequentially): %s",
-                name,
-                failure_reason(err),
-            )
-            _LOGGER.debug("Prefetch failure detail", exc_info=err)
+        # The sequential call below retries and raises the real error
+        warn_prefetch_failures(
+            failures, "Prefetch of %s failed (retrying sequentially): %s"
+        )
     except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         # Same policy as the ESP-IDF twin: the prefetch must never become a
         # new way for the build to fail
