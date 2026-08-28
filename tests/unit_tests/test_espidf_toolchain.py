@@ -659,6 +659,22 @@ def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
     )
 
 
+def test_create_elf_copy(setup_core: Path) -> None:
+    """The built <name>.elf is copied to the firmware.elf dashboard name."""
+    _setup_build(setup_core)
+    src = toolchain.get_built_elf_path()
+    src.parent.mkdir(parents=True, exist_ok=True)
+    src.write_bytes(b"elf")
+    assert toolchain.create_elf_copy() is True
+    assert toolchain.get_elf_path().read_bytes() == b"elf"
+
+
+def test_create_elf_copy_missing_source(setup_core: Path) -> None:
+    """A missing built ELF is a warning and False, not a crash."""
+    _setup_build(setup_core)
+    assert toolchain.create_elf_copy() is False
+
+
 def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
     """When no compile_process_limit is set, no job limit is passed to idf.py."""
     _setup_build(setup_core)
