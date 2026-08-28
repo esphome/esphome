@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -12,29 +13,51 @@ static const char *const TAG = "modbus";
 
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
-// Approximate bits per character on the wire (depends on parity/stop bit config)
-static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
 static constexpr uint32_t MS_PER_SEC = 1000;
+// Microseconds per second / per millisecond
+static constexpr uint32_t US_PER_SEC = 1000000;
+static constexpr uint32_t US_PER_MS = 1000;
+
+// Minimum interframe delay per the Modbus spec (fixed 1750us above 19200 baud)
+static constexpr uint32_t MODBUS_MIN_FRAME_DELAY_US = 1750;
 
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
   }
 
-  this->frame_delay_ms_ =
-      std::max(2,  // 1750us minimum per spec - rounded up to 2ms.
-                   // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
-               (uint16_t) (3.5 * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate()) + 1);
+  // Wire framing: start bit + data bits + optional parity bit + stop bits. Modbus RTU specifies 11 bits
+  // per character (8E1), but the UART may be configured without parity (10), so derive it rather than
+  // assume: too few would under-wait the interframe gap, too many would waste bus time.
+  this->bits_per_char_ = 1u + this->parent_->get_data_bits() +
+                         (this->parent_->get_parity() == uart::UART_CONFIG_PARITY_NONE ? 0u : 1u) +
+                         this->parent_->get_stop_bits();
+
+  // 3.5 characters * bits per character * 1e6 us/sec / (bits/sec) (Standard modbus frame delay)
+  this->frame_delay_us_ =
+      std::max(MODBUS_MIN_FRAME_DELAY_US,
+               (uint32_t) (3.5 * this->bits_per_char_ * US_PER_SEC / this->parent_->get_baud_rate()) + 1);
 
   // When rx_full_threshold is configured (non-zero), the UART has a hardware FIFO with a
   // meaningful threshold (e.g., ESP32 native UART), so we can calculate a precise delay.
   // Otherwise (e.g., USB UART), use 50ms to handle data arriving in chunks.
-  static constexpr uint16_t DEFAULT_LONG_RX_BUFFER_DELAY_MS = 50;
+  static constexpr uint32_t DEFAULT_LONG_RX_BUFFER_DELAY_US = 50 * US_PER_MS;
   size_t rx_threshold = this->parent_->get_rx_full_threshold();
-  this->long_rx_buffer_delay_ms_ =
+  this->long_rx_buffer_delay_us_ =
       rx_threshold != uart::UARTComponent::RX_FULL_THRESHOLD_UNSET
-          ? (rx_threshold * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate()) + 1
-          : DEFAULT_LONG_RX_BUFFER_DELAY_MS;
+          ? (uint32_t) (rx_threshold * this->bits_per_char_ * US_PER_SEC / this->parent_->get_baud_rate()) + 1
+          : DEFAULT_LONG_RX_BUFFER_DELAY_US;
+
+  // The UART's RX idle-timeout interrupt fires rx_timeout character-times after the last byte, so by
+  // the time we read, that much true silence has already passed; backdating the byte stamp keeps
+  // the enforced interframe gap at exactly frame_delay_us_ of wire silence.
+  this->rx_detect_latency_us_ =
+      (uint32_t) (this->parent_->get_rx_timeout() * this->bits_per_char_ * US_PER_SEC / this->parent_->get_baud_rate());
+  if (this->rx_detect_latency_us_ > 0) {
+    // The backdate is only exact when frame-end detection comes from the idle-timeout interrupt; make
+    // the driver fire it even when the FIFO full threshold has already triggered.
+    this->parent_->set_always_rx_timeout(true);
+  }
 }
 
 void Modbus::loop() {
@@ -52,7 +75,7 @@ void ModbusClientHub::loop() {
   // Send-wait watchdog: only the cheap time check runs at loop rate; expire_waiting_() looks the
   // entry up and holds off if the response has started arriving.
   if (this->waiting_for_response_ &&
-      this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_) {
+      this->last_receive_check_ - this->last_send_ > this->last_send_tx_offset_ + this->send_wait_time_us_) {
     this->expire_waiting_();
   }
 
@@ -72,7 +95,7 @@ void ModbusClientHub::expire_waiting_() {
   }
   // Only a genuine WAITING entry warrants the log (a cleared or interrupted shell timing out is expected).
   if (cmd->state == FrameState::WAITING) {
-    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "ms after last send", cmd->frame.address(),
+    ESP_LOGW(TAG, "Stop waiting for response from %" PRIu8 " %" PRIu32 "us after last send", cmd->frame.address(),
              this->last_receive_check_ - this->last_send_);
   }
   // Deliver on_no_response directly, the way the parse path delivers response()/error(): the entry
@@ -87,36 +110,47 @@ bool Modbus::timeout_() {
   // If the response frame is finished (including interframe delay) - we timeout.
   // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
   // when the buffer is filling the back half of the response
-  const uint16_t timeout = std::max(
-      (uint16_t) this->frame_delay_ms_,
-      (uint16_t) (this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold() ? this->long_rx_buffer_delay_ms_
-                                                                                    : 0));
+  const uint32_t timeout =
+      std::max(this->frame_delay_us_,
+               this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold() ? this->long_rx_buffer_delay_us_ : 0u);
 
-  return this->last_receive_check_ - this->last_modbus_byte_ > timeout;
+  // last_modbus_byte_ is backdated assuming an idle-triggered read, but a threshold-triggered
+  // mid-frame read has no silence behind it, so allow the backdate as slack before declaring the
+  // frame over. For idle-triggered reads this restores the pre-backdate margin.
+  return this->last_receive_check_ - this->last_modbus_byte_ > timeout + this->rx_detect_latency_us_;
+}
+
+// We use micros() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
+// It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
+// If we use a cached value in place of micros() and last_modbus_byte_ is updated inside our loop
+// then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
+// So in this component we don't use any cached timestamp values to avoid these annoying bugs.
+// Remaining time is computed with unsigned compares (elapsed >= required -> 0) rather than signed
+// subtraction, so a bus idle for longer than half the micros() wrap (~35 min) reads as "no delay owed"
+// instead of a huge positive delay.
+static inline uint32_t remaining_delay(uint32_t elapsed, uint32_t required) {
+  return elapsed >= required ? 0 : required - elapsed;
 }
 
 int32_t Modbus::tx_delay_remaining() {
-  // millis() here and everywhere in this component, never a cached loop timestamp: a cached "now" can
-  // predate last_modbus_byte_, and the unsigned subtraction then wraps huge and forces a false timeout.
-  const uint32_t now = millis();
-  return std::max({(int32_t) 0,
-                   (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ - (now - this->last_send_)),
-                   (int32_t) (this->frame_delay_ms_ - (now - this->last_modbus_byte_))});
+  const uint32_t now = micros();
+  return (int32_t) std::max(remaining_delay(now - this->last_send_, this->last_send_tx_offset_ + this->frame_delay_us_),
+                            remaining_delay(now - this->last_modbus_byte_, this->frame_delay_us_));
 }
 
 int32_t ModbusClientHub::tx_delay_remaining() {
-  const uint32_t now = millis();
-  return std::max({(int32_t) 0,
-                   (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_ -
-                              (now - this->last_send_)),
-                   (int32_t) (this->frame_delay_ms_ + this->turnaround_delay_ms_ - (now - this->last_modbus_byte_))});
+  const uint32_t now = micros();
+  return (int32_t) std::max(
+      remaining_delay(now - this->last_send_,
+                      this->last_send_tx_offset_ + this->frame_delay_us_ + this->turnaround_delay_us_),
+      remaining_delay(now - this->last_modbus_byte_, this->frame_delay_us_ + this->turnaround_delay_us_));
 }
 
 bool Modbus::tx_blocked() {
   // Blocked while any rx bytes are pending, or within tx_delay of the last byte in either direction
   // (receivers must see our previous tx as done, and more rx may be coming). A remaining delay up to
-  // MODBUS_TX_MAX_DELAY_MS doesn't block - send_frame_ absorbs it instead of looping on small waits.
-  return this->available() || !this->rx_buffer_.empty() || this->tx_delay_remaining() > MODBUS_TX_MAX_DELAY_MS;
+  // MODBUS_TX_MAX_DELAY_US doesn't block - send_frame_ absorbs it instead of looping on small waits.
+  return this->available() || !this->rx_buffer_.empty() || this->tx_delay_remaining() > MODBUS_TX_MAX_DELAY_US;
 }
 
 bool ModbusClientHub::tx_blocked() { return this->waiting_for_response_ || this->Modbus::tx_blocked(); }
@@ -133,20 +167,20 @@ bool ModbusClientHub::tx_buffer_empty() {
 }
 
 void Modbus::receive_bytes_() {
-  this->last_receive_check_ = millis();
+  this->last_receive_check_ = micros();
   size_t bytes = this->available();
 
   if (bytes) {
     size_t buffer_size = this->rx_buffer_.size();
-    this->last_modbus_byte_ = this->last_receive_check_;
+    this->last_modbus_byte_ = this->last_receive_check_ - this->rx_detect_latency_us_;
     this->rx_buffer_.resize(buffer_size + bytes);
     if (!this->read_array(this->rx_buffer_.data() + buffer_size, bytes)) {
       this->rx_buffer_.resize(buffer_size);
       return;
     }
     if (buffer_size == 0) {
-      ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) of %zu bytes %" PRIu32 "ms after last send",
-               this->rx_buffer_[0], this->rx_buffer_[0], this->rx_buffer_.size(), millis() - this->last_send_);
+      ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) of %zu bytes %" PRIu32 "us after last send",
+               this->rx_buffer_[0], this->rx_buffer_[0], this->rx_buffer_.size(), micros() - this->last_send_);
     }
   }
 }
@@ -299,7 +333,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   ModbusDeviceCommand *cmd = this->waiting_for_response_ ? this->find_waiting_() : nullptr;
   if (cmd == nullptr) {
     ESP_LOGW(TAG,
-             "Received unexpected frame from address %" PRIu8 ", function code 0x%X, %" PRIu32 "ms after last send",
+             "Received unexpected frame from address %" PRIu8 ", function code 0x%X, %" PRIu32 "us after last send",
              address, function_code, this->last_modbus_byte_ - this->last_send_);
     return;
   }
@@ -310,7 +344,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
     ESP_LOGW(TAG,
              "Received incorrect frame address %" PRIu8 " <> %" PRIu8 " or function code 0x%X <> 0x%X, %" PRIu32
-             "ms after last send",
+             "us after last send",
              address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
              this->last_modbus_byte_ - this->last_send_);
     // Unexpected frame: flip a WAITING entry to an INTERRUPTED shell that ignores the rest of this
@@ -325,7 +359,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
     // cleared-interrupted frame still ends in on_no_response rather than delivering a late response.
     ESP_LOGW(TAG,
              "Ignoring response from %" PRIu8 " - transmission interrupted by previous unexpected response, %" PRIu32
-             "ms after last send",
+             "us after last send",
              address, this->last_modbus_byte_ - this->last_send_);
     return;
   }
@@ -337,11 +371,11 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, std::span<con
   this->sweep_needed_ = true;
   if (helpers::is_function_code_exception(function_code)) {
     uint8_t exception = pdu[1];  // exception frames are fixed-length, so the code is always present
-    ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
+    ESP_LOGW(TAG, "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "us after last send",
              function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
     cmd->error(static_cast<ExceptionCode>(exception));
   } else if (!cmd->response(pdu)) {
-    ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send", address,
+    ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "us after last send", address,
              this->last_modbus_byte_ - this->last_send_);
   }
 }
@@ -738,9 +772,16 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 // Callers gate on tx_blocked() first, but the pre-send delay below can span several ms, so re-check
 // after it and refuse (return false) if a byte arrived in that window rather than transmit over it.
 bool Modbus::send_frame_(const ModbusFrame &frame) {
-  const int32_t tx_delay_remaining = this->tx_delay_remaining();
+  int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
-    delay(tx_delay_remaining);
+    // delay() rounds up to RTOS tick boundaries and can overshoot by up to ~1ms, so only use it
+    // (it yields) to get within a tick of the target, then recompute and busy-wait the exact rest.
+    if (tx_delay_remaining > (int32_t) (2 * US_PER_MS)) {
+      delay((tx_delay_remaining - US_PER_MS) / US_PER_MS);
+      tx_delay_remaining = this->tx_delay_remaining();
+    }
+    if (tx_delay_remaining > 0)
+      delayMicroseconds(tx_delay_remaining);
   }
 
   if (this->tx_blocked()) {
@@ -755,14 +796,14 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     this->last_send_tx_offset_ = 0;
   } else {
     this->write_array(frame.data.data(), frame.size());
-    this->last_send_tx_offset_ = frame.size() * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate() + 1;
+    this->last_send_tx_offset_ = frame.size() * this->bits_per_char_ * US_PER_SEC / this->parent_->get_baud_rate() + 1;
   }
 
-  uint32_t now = millis();
+  uint32_t now = micros();
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
 #endif
-  ESP_LOGV(TAG, "Write: %s %" PRIu32 "ms after last send, %" PRIu32 "ms after last receive",
+  ESP_LOGV(TAG, "Write: %s %" PRIu32 "us after last send, %" PRIu32 "us after last receive",
            format_hex_pretty_to(hex_buf, frame.data.data(), frame.size()), now - this->last_send_,
            now - this->last_modbus_byte_);
   this->last_send_ = now;
@@ -800,20 +841,20 @@ void ModbusClientHub::send_next_frame_() {
 void ModbusClientHub::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
-                "  Send Wait Time: %" PRIu16 " ms\n"
-                "  Turnaround Time: %" PRIu16 " ms\n"
-                "  Frame Delay: %" PRIu16 " ms\n"
-                "  Long Rx Buffer Delay: %" PRIu16 " ms",
-                this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
-                this->long_rx_buffer_delay_ms_);
+                "  Send Wait Time: %" PRIu32 " us\n"
+                "  Turnaround Time: %" PRIu32 " us\n"
+                "  Frame Delay: %" PRIu32 " us\n"
+                "  Long Rx Buffer Delay: %" PRIu32 " us",
+                this->send_wait_time_us_, this->turnaround_delay_us_, this->frame_delay_us_,
+                this->long_rx_buffer_delay_us_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 void ModbusServerHub::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
-                "  Frame Delay: %" PRIu16 " ms\n"
-                "  Long Rx Buffer Delay: %" PRIu16 " ms",
-                this->frame_delay_ms_, this->long_rx_buffer_delay_ms_);
+                "  Frame Delay: %" PRIu32 " us\n"
+                "  Long Rx Buffer Delay: %" PRIu32 " us",
+                this->frame_delay_us_, this->long_rx_buffer_delay_us_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
 
@@ -1142,7 +1183,8 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     // without a heap allocation. Only one server reply is ever waiting, so a single buffer suffices.
     std::memcpy(this->deferred_payload_.data(), payload, len);
     this->deferred_payload_len_ = len;
-    this->set_timeout("deferred_send", this->tx_delay_remaining(), [this]() {
+    // set_timeout() takes milliseconds; round the microsecond delay up so we never fire early.
+    this->set_timeout("deferred_send", (this->tx_delay_remaining() + US_PER_MS - 1) / US_PER_MS, [this]() {
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
       if (!this->send_frame_(frame))
@@ -1162,11 +1204,11 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
     bytes = bytes_to_clear;
   if (bytes > 0) {
     if (warn) {
-      ESP_LOGW(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", bytes, LOG_STR_ARG(reason),
-               millis() - this->last_send_);
+      ESP_LOGW(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "us after last send", bytes, LOG_STR_ARG(reason),
+               micros() - this->last_send_);
     } else {
-      ESP_LOGV(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", bytes, LOG_STR_ARG(reason),
-               millis() - this->last_send_);
+      ESP_LOGV(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "us after last send", bytes, LOG_STR_ARG(reason),
+               micros() - this->last_send_);
     }
     if (bytes == this->rx_buffer_.size()) {
       this->rx_buffer_.clear();

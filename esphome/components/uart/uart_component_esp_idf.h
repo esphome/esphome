@@ -24,6 +24,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
   void set_rx_full_threshold(size_t rx_full_threshold) override;
   void set_rx_timeout(size_t rx_timeout) override;
+  void set_always_rx_timeout(bool always_rx_timeout) override;
 
   void write_array(const uint8_t *data, size_t len) override;
 
@@ -57,6 +58,7 @@ class IDFUARTComponent final : public UARTComponent, public Component {
  protected:
   void check_logger_conflict() override;
   uart_port_t uart_num_{UART_NUM_MAX};
+  bool always_rx_timeout_{false};
   uart_config_t get_config_();
 
   bool has_peek_{false};
