@@ -949,15 +949,12 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 5),
 }
 
-# pioarduino has no 6.1 packaging yet, so the PlatformIO toolchain stays on 6.0.2
-ESP_IDF_PIO_FRAMEWORK_VERSION_LOOKUP = {
-    **ESP_IDF_FRAMEWORK_VERSION_LOOKUP,
-    "recommended": cv.Version(6, 0, 2),
-}
-
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     # Fork with the IDF 6.0.2 bootloader linker script fix, switch back to
     # pioarduino once https://github.com/pioarduino/platform-espressif32 takes it
+    cv.Version(
+        6, 1, 0
+    ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
     cv.Version(
         6, 0, 2
     ): "https://github.com/swoboda1337/platform-espressif32.git#prep_IDF6",
@@ -1005,10 +1002,8 @@ def _resolve_framework_version(value: ConfigType) -> cv.Version:
     if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
-        elif CORE.using_toolchain_esp_idf:
-            version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
         else:
-            version = ESP_IDF_PIO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
+            version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
     else:
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
 
