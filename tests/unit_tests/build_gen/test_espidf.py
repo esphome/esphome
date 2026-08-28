@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from esphome.build_gen import espidf as build_gen_espidf
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -164,19 +165,25 @@ def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("minimal", [False, True])
-def test_get_project_cmakelists_sets_ldgen_dep_exclude(minimal: bool) -> None:
-    """Both renders exclude the app archive from ldgen's DEPENDS."""
-    assert "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)" in _render(
-        minimal=minimal
+def test_get_project_cmakelists_emits_ldgen_override(
+    minimal: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both renders override the ldgen dep walker to drop the app archive,
+    after include(project.cmake) which defines the original."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    content = _render(minimal=minimal)
+    assert build_gen_espidf._LDGEN_OVERRIDE in content
+    assert content.index("tools/cmake/project.cmake") < content.index(
+        "function(__ldgen_get_lib_deps_of_target"
     )
 
 
 def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen dependencies."""
+    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen behavior."""
     monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
-    assert "ESPHOME_LDGEN_DEP_EXCLUDE" not in _render()
+    assert "__ldgen_get_lib_deps_of_target" not in _render()
 
 
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:

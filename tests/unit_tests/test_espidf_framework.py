@@ -20,7 +20,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.espidf.framework import (
-    _LDGEN_DEP_FILTER,
     ESPHOME_STAMP_FILE,
     STAMP_SCHEMA_VERSION,
     _ccache_env,
@@ -34,7 +33,6 @@ from esphome.espidf.framework import (
     _get_python_env_path,
     _get_python_version,
     _parse_git_source,
-    _patch_ldgen_cmake,
     _patch_tools_json_demote_unused_tools,
     _patch_tools_json_for_linux_arm64,
     _prefetch_idf_tool_archives,
@@ -403,7 +401,6 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
         patch("esphome.espidf.framework._patch_tools_json_demote_unused_tools"),
-        patch("esphome.espidf.framework._patch_ldgen_cmake"),
         patch("esphome.espidf.framework._prefetch_idf_tool_archives"),
         patch("esphome.espidf.framework._write_stamp"),
         patch("esphome.espidf.framework._check_stamp", return_value=True),
@@ -865,93 +862,6 @@ def test_patch_tools_json_already_patched_is_noop(tmp_path: Path) -> None:
     with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
         _patch_tools_json_for_linux_arm64(tmp_path)
     assert tools_json.read_text(encoding="utf-8") == before
-
-
-# ---------------------------------------------------------------------------
-# _patch_ldgen_cmake
-# ---------------------------------------------------------------------------
-
-
-_LDGEN_CMAKE_STOCK = """\
-function(__ldgen_create_target exe_target)
-    idf_build_get_property(python PYTHON)
-
-    list(JOIN ldgen_libraries_expr "\\n" ldgen_libraries_str)
-    file(WRITE ${build_dir}/ldgen_libraries.in "${ldgen_libraries_str}")
-
-    add_custom_command(
-        OUTPUT ${output}
-        COMMAND ${python} "${idf_path}/tools/ldgen/ldgen.py"
-        DEPENDS     ${template} ${ldgen_fragment_files} ${ldgen_deps} ${SDKCONFIG}
-        VERBATIM
-    )
-endfunction()
-"""
-
-
-def _write_ldgen_cmake(framework_path: Path, content: str) -> Path:
-    cmake_dir = framework_path / "tools" / "cmake"
-    cmake_dir.mkdir(parents=True, exist_ok=True)
-    ldgen_cmake = cmake_dir / "ldgen.cmake"
-    ldgen_cmake.write_text(content, encoding="utf-8")
-    return ldgen_cmake
-
-
-def test_patch_ldgen_cmake_inserts_guarded_filter(tmp_path: Path) -> None:
-    ldgen_cmake = _write_ldgen_cmake(tmp_path, _LDGEN_CMAKE_STOCK)
-    _patch_ldgen_cmake(tmp_path)
-    content = ldgen_cmake.read_text(encoding="utf-8")
-    assert _LDGEN_DEP_FILTER in content
-    # The libraries list must be filtered before it is serialized to disk
-    assert content.index("REMOVE_ITEM ldgen_libraries_expr") < content.index(
-        "list(JOIN ldgen_libraries_expr"
-    )
-    assert "DEPENDS     ${template}" in content
-
-
-def test_patch_ldgen_cmake_is_idempotent(tmp_path: Path) -> None:
-    ldgen_cmake = _write_ldgen_cmake(tmp_path, _LDGEN_CMAKE_STOCK)
-    _patch_ldgen_cmake(tmp_path)
-    patched = ldgen_cmake.read_text(encoding="utf-8")
-    _patch_ldgen_cmake(tmp_path)
-    assert ldgen_cmake.read_text(encoding="utf-8") == patched
-
-
-def test_patch_ldgen_cmake_missing_file_is_noop(tmp_path: Path) -> None:
-    _patch_ldgen_cmake(tmp_path)  # no tools/cmake/ldgen.cmake present
-
-
-def test_patch_ldgen_cmake_unreadable_file_warns_and_skips(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    _write_ldgen_cmake(tmp_path, _LDGEN_CMAKE_STOCK)
-    with patch.object(Path, "read_text", side_effect=OSError("boom")):
-        _patch_ldgen_cmake(tmp_path)
-    assert "Could not apply the ldgen dependency patch" in caplog.text
-
-
-@pytest.mark.parametrize(
-    "content",
-    [
-        pytest.param(
-            _LDGEN_CMAKE_STOCK.replace("${ldgen_deps}", "${other_deps}"),
-            id="no_ldgen_deps",
-        ),
-        pytest.param(
-            _LDGEN_CMAKE_STOCK
-            + '\n    list(JOIN ldgen_libraries_expr "\\n" ldgen_libraries_str)\n',
-            id="duplicate_join",
-        ),
-    ],
-)
-def test_patch_ldgen_cmake_unexpected_layout_skips(
-    content: str, tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A future IDF that restructures ldgen.cmake keeps stock behavior."""
-    ldgen_cmake = _write_ldgen_cmake(tmp_path, content)
-    _patch_ldgen_cmake(tmp_path)
-    assert ldgen_cmake.read_text(encoding="utf-8") == content
-    assert "does not match the expected layout" in caplog.text
 
 
 # ---------------------------------------------------------------------------

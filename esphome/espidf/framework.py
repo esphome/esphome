@@ -686,57 +686,6 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
-_LDGEN_JOIN_ANCHOR = '    list(JOIN ldgen_libraries_expr "\\n" ldgen_libraries_str)\n'
-_LDGEN_DEP_FILTER = """\
-    # Patched by ESPHome: drop app-only archives from ldgen's inputs.
-    # ldgen only reads archives named in mapping fragments' archive: lines;
-    # the app component never appears there, so it cannot change the output,
-    # and keeping it listed would race ldgen's objdump against the archive
-    # being written. Set by the ESPHome project CMakeLists.
-    if(ESPHOME_LDGEN_DEP_EXCLUDE)
-        list(REMOVE_ITEM ldgen_deps ${ESPHOME_LDGEN_DEP_EXCLUDE})
-        foreach(esphome_ldgen_excl ${ESPHOME_LDGEN_DEP_EXCLUDE})
-            list(REMOVE_ITEM ldgen_libraries_expr "$<TARGET_FILE:${esphome_ldgen_excl}>")
-        endforeach()
-    endif()
-"""
-
-
-def _patch_ldgen_cmake(framework_path: Path) -> None:
-    """Let projects drop their app archive from ldgen's inputs.
-
-    Guarded by ESPHOME_LDGEN_DEP_EXCLUDE, which only the ESPHome project
-    CMakeLists sets, so stock IDF builds using the shared framework copy
-    are unaffected. An unexpected ldgen.cmake keeps stock behavior.
-    """
-    ldgen_cmake = framework_path / "tools" / "cmake" / "ldgen.cmake"
-    if not ldgen_cmake.is_file():
-        return
-    try:
-        content = ldgen_cmake.read_text(encoding="utf-8")
-    except OSError as e:
-        _LOGGER.warning(
-            "Could not apply the ldgen dependency patch to %s (%s); skipping.",
-            ldgen_cmake,
-            e,
-        )
-        return
-    if "ESPHOME_LDGEN_DEP_EXCLUDE" in content:
-        return
-    if "${ldgen_deps}" not in content or content.count(_LDGEN_JOIN_ANCHOR) != 1:
-        _LOGGER.warning(
-            "ldgen.cmake at %s does not match the expected layout; "
-            "skipping the ldgen dependency patch (builds stay correct).",
-            ldgen_cmake,
-        )
-        return
-    write_file_if_changed(
-        ldgen_cmake,
-        content.replace(_LDGEN_JOIN_ANCHOR, _LDGEN_DEP_FILTER + _LDGEN_JOIN_ANCHOR),
-    )
-    _LOGGER.info("Patched %s to honor ESPHOME_LDGEN_DEP_EXCLUDE.", ldgen_cmake)
-
-
 def _prefetch_idf_tool_archives(
     framework_path: Path,
     targets_str: str,
@@ -966,9 +915,6 @@ def _check_esphome_idf_framework_install(
     # invocation, so an install that previously failed on the openocd libusb
     # check recovers on the next build.
     _patch_tools_json_demote_unused_tools(framework_path)
-
-    # Applied every invocation so pre-patch trees heal without a clean.
-    _patch_ldgen_cmake(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed
     stored_stamp = None if fresh_extract else _read_stamp(env_stamp_file)

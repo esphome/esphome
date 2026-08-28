@@ -33,6 +33,36 @@ list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
 list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
+# Drops the app archive from ldgen's inputs (the sections.ld DEPENDS and the
+# ldgen_libraries file) by overriding the IDF helper that collects them, so
+# app-only edits skip the sections.ld regeneration and ldgen never opens the
+# archive. Safe because no linker mapping fragment references the app archive
+# (run_compile re-checks that each build); the override filters only the top
+# level call, after the recursive walk finished, so the walker's cycle guard
+# is untouched. CMake keeps the prior definition reachable with an underscore
+# prefix; a future IDF that renames the helper skips the override and keeps
+# stock behavior. Emitted after include(project.cmake), before project().
+_LDGEN_OVERRIDE = """\
+if(COMMAND __ldgen_get_lib_deps_of_target)
+    function(__ldgen_get_lib_deps_of_target target out_list_var)
+        if(NOT COMMAND ___ldgen_get_lib_deps_of_target)
+            message(FATAL_ERROR "ESPHome ldgen override lost the original "
+                "implementation; set ESPHOME_LDGEN_FULL_DEPS=1 and rebuild.")
+        endif()
+        ___ldgen_get_lib_deps_of_target(${target} ${out_list_var})
+        if(out_list_var STREQUAL "ldgen_libraries")
+            list(LENGTH ${out_list_var} esphome_ldgen_before)
+            list(REMOVE_ITEM ${out_list_var} idf::src __idf_src)
+            list(LENGTH ${out_list_var} esphome_ldgen_after)
+            if(esphome_ldgen_before EQUAL esphome_ldgen_after)
+                message(WARNING "ESPHome ldgen app archive exclusion matched "
+                    "nothing; app edits will regenerate sections.ld.")
+            endif()
+        endif()
+        set(${out_list_var} ${${out_list_var}} PARENT_SCOPE)
+    endfunction()
+endif()"""
+
 
 def get_available_components() -> list[str] | None:
     """List the built-in ESP-IDF components from ``project_description.json``.
@@ -122,14 +152,9 @@ def get_project_cmakelists(
         else ""
     )
 
-    # Honored by the ESPHome-patched ldgen.cmake, a no-op on a stock IDF;
-    # stops the ~3s sections.ld regeneration on app-only edits.
-    # ESPHOME_LDGEN_FULL_DEPS=1 restores stock dependencies.
-    ldgen_dep_exclude = (
-        "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)"
-        if not get_bool_env("ESPHOME_LDGEN_FULL_DEPS")
-        else ""
-    )
+    # Stops the ~3s sections.ld regeneration on app-only edits; see
+    # _LDGEN_OVERRIDE. ESPHOME_LDGEN_FULL_DEPS=1 restores stock behavior.
+    ldgen_override = "" if get_bool_env("ESPHOME_LDGEN_FULL_DEPS") else _LDGEN_OVERRIDE
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
@@ -204,11 +229,11 @@ set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
 
-{ldgen_dep_exclude}
-
 {cmake_args}
 
 include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
+
+{ldgen_override}
 
 {cpp_standard_options}
 
