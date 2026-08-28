@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import socket
 import stat
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 from hypothesis import given, settings
@@ -995,7 +995,7 @@ def test_rmtree_retries_when_directory_repopulated(tmp_path: Path) -> None:
             (target / ".DS_Store").write_text("x")  # Finder wins the race
         real_rmdir(path, **kwargs)
 
-    with patch("os.rmdir", side_effect=racy_rmdir):
+    with patch("os.rmdir", side_effect=racy_rmdir), patch("time.sleep"):
         helpers.rmtree(target)
     assert repopulated
     assert not target.exists()
@@ -1009,10 +1009,12 @@ def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
 
     with (
         patch("shutil.rmtree", side_effect=err) as mock_rmtree,
+        patch("time.sleep") as mock_sleep,
         pytest.raises(OSError, match="Directory not empty"),
     ):
         helpers.rmtree(target)
     assert mock_rmtree.call_count == helpers.RMTREE_MAX_ATTEMPTS
+    assert mock_sleep.call_args_list == [call(0.05), call(0.1)]
 
 
 def test_rmtree_does_not_retry_other_oserror(tmp_path: Path) -> None:

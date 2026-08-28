@@ -466,6 +466,7 @@ def rmtree(path: Path | str) -> None:
 
     def _onexc(func, path, exc):
         if isinstance(exc, FileNotFoundError):
+            _LOGGER.debug("rmtree: %s already gone", path)
             return
         if os.access(path, os.W_OK):
             raise exc
