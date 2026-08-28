@@ -1,6 +1,5 @@
 #include "selec_meter.h"
 #include "selec_meter_registers.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::selec_meter {
