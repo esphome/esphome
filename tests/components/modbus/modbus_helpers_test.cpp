@@ -438,12 +438,17 @@ TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
 
 template<SensorValueType VALUE_TYPE> void expect_matches_registers_to_number(const uint16_t *registers) {
   const auto expected = registers_to_number(registers, registers_for_value_type(VALUE_TYPE), VALUE_TYPE);
-  ASSERT_TRUE(expected.has_value()) << "value_type=" << static_cast<int>(VALUE_TYPE);
+  // Plain control flow rather than ASSERT_TRUE: the optional analysis does not see through the macro.
+  if (!expected.has_value()) {
+    ADD_FAILURE() << "registers_to_number() returned no value for value_type=" << static_cast<int>(VALUE_TYPE);
+    return;
+  }
+  const int64_t number = expected.value();
   if constexpr (VALUE_TYPE == SensorValueType::FP32 || VALUE_TYPE == SensorValueType::FP32_R) {
-    EXPECT_FLOAT_EQ(registers_to_value<VALUE_TYPE>(registers), bit_cast<float>(static_cast<uint32_t>(*expected)))
+    EXPECT_FLOAT_EQ(registers_to_value<VALUE_TYPE>(registers), bit_cast<float>(static_cast<uint32_t>(number)))
         << "value_type=" << static_cast<int>(VALUE_TYPE);
   } else {
-    EXPECT_EQ(static_cast<int64_t>(registers_to_value<VALUE_TYPE>(registers)), *expected)
+    EXPECT_EQ(static_cast<int64_t>(registers_to_value<VALUE_TYPE>(registers)), number)
         << "value_type=" << static_cast<int>(VALUE_TYPE);
   }
 }
