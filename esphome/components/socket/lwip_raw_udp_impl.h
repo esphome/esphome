@@ -4,9 +4,7 @@
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
 
 #include <array>
-#include <cerrno>
-#include <cstring>
-#include <memory>
+#include <cstdint>
 
 #include "headers.h"
 #include "lwip/ip.h"
@@ -19,7 +17,8 @@ namespace esphome::socket {
 /// No receive capability — use LWIPRawUDPImpl for sockets that need to receive.
 class LWIPRawUDPSendImpl {
  public:
-  LWIPRawUDPSendImpl(sa_family_t family);
+  /// The pcb is allocated by the factory (like the TCP impl); never null here.
+  LWIPRawUDPSendImpl(sa_family_t family, struct udp_pcb *pcb) : pcb_(pcb), family_(family) {}
   ~LWIPRawUDPSendImpl();
   LWIPRawUDPSendImpl(const LWIPRawUDPSendImpl &) = delete;
   LWIPRawUDPSendImpl &operator=(const LWIPRawUDPSendImpl &) = delete;
@@ -35,7 +34,6 @@ class LWIPRawUDPSendImpl {
 
   int setblocking(bool blocking);
 
-  bool is_valid() const { return this->pcb_ != nullptr; }
   bool ready() const { return false; }
   int get_fd() const { return -1; }
 
@@ -43,14 +41,11 @@ class LWIPRawUDPSendImpl {
   /// Convert lwip ip_addr_t and port to sockaddr.
   int ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen);
 
-  /// Shared bind logic — parses sockaddr and calls udp_bind. Caller must hold LWIP_LOCK.
-  int bind_internal_locked_(const struct sockaddr *name, socklen_t addrlen);
-
-  /// Shared close logic — unregisters and removes udp pcb. Caller must hold LWIP_LOCK.
+  /// Shared close logic — removes the udp pcb. Caller must hold LWIP_LOCK.
   int close_internal_locked_();
 
-  struct udp_pcb *pcb_{nullptr};
-  sa_family_t family_{0};
+  struct udp_pcb *pcb_;
+  sa_family_t family_;
 };
 
 /// UDP socket with receive support for LWIP raw API.
@@ -59,13 +54,13 @@ class LWIPRawUDPSendImpl {
 /// pointer would leak queued pbufs on destruction).
 class LWIPRawUDPImpl : private LWIPRawUDPSendImpl {
  public:
-  LWIPRawUDPImpl(sa_family_t family);
+  /// Caller (the factory) must hold the lwip lock; registers the recv callback.
+  LWIPRawUDPImpl(sa_family_t family, struct udp_pcb *pcb);
   ~LWIPRawUDPImpl();
 
   using LWIPRawUDPSendImpl::bind;
   using LWIPRawUDPSendImpl::get_fd;
   using LWIPRawUDPSendImpl::getsockopt;
-  using LWIPRawUDPSendImpl::is_valid;
   using LWIPRawUDPSendImpl::sendto;
   using LWIPRawUDPSendImpl::setblocking;
   using LWIPRawUDPSendImpl::setsockopt;
@@ -101,10 +96,12 @@ class LWIPRawUDPImpl : private LWIPRawUDPSendImpl {
   static constexpr uint8_t UDP_RX_QUEUE_SIZE = 4;
   static constexpr uint8_t UDP_RX_MASK = UDP_RX_QUEUE_SIZE - 1;
   static_assert((UDP_RX_QUEUE_SIZE & UDP_RX_MASK) == 0, "UDP_RX_QUEUE_SIZE must be power of 2");
+  // Fields are written by recv_fn_ before rx_count_ makes a slot visible,
+  // so per-member initializers would only add dead zeroing of the array.
   struct UDPRxPacket {
-    ip_addr_t src_addr{};
-    struct pbuf *pb{nullptr};
-    uint16_t src_port{0};
+    ip_addr_t src_addr;
+    struct pbuf *pb;
+    uint16_t src_port;
   };
   std::array<UDPRxPacket, UDP_RX_QUEUE_SIZE> rx_queue_{};
   uint16_t rx_dropped_{0};

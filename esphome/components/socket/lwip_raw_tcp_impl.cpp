@@ -100,16 +100,10 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   }
   ip_addr_t ip;
   uint16_t port;
-  if (!sockaddr_to_lwip(name, addrlen, &ip, &port)) {
+  if (!sockaddr_to_lwip_bind(this->family_, name, addrlen, &ip, &port)) {
     errno = EINVAL;
     return -1;
   }
-#if LWIP_IPV6
-  // Use IPADDR_TYPE_ANY for dual-stack (accept both IPv4 and IPv6)
-  if (this->family_ == AF_INET6) {
-    ip.type = IPADDR_TYPE_ANY;
-  }
-#endif
   err_t err = tcp_bind(this->pcb_, &ip, port);
   LWIP_LOG("  -> err %d", err);
   return lwip_bind_err(err);

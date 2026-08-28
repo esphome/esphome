@@ -24,27 +24,14 @@ namespace esphome::socket {
 
 // ---- LWIPRawUDPSendImpl (send-only) methods ----
 
-LWIPRawUDPSendImpl::LWIPRawUDPSendImpl(sa_family_t family) : family_(family) {
-  LWIP_LOCK();
-#if LWIP_IPV6
-  this->pcb_ = udp_new_ip_type(family == AF_INET6 ? IPADDR_TYPE_ANY : IPADDR_TYPE_V4);
-#else
-  this->pcb_ = udp_new();
-#endif
-}
-
 LWIPRawUDPSendImpl::~LWIPRawUDPSendImpl() {
-  // Early return avoids acquiring the lwip lock when pcb_ is already null
-  // (e.g., after LWIPRawUDPImpl::close() already cleaned up).
-  if (this->pcb_ == nullptr)
-    return;
-  LWIP_LOCK();
-  udp_remove(this->pcb_);
-  this->pcb_ = nullptr;
+  // Guard avoids acquiring the lwip lock when already closed
+  if (this->pcb_ != nullptr)
+    this->close();
 }
 
-int LWIPRawUDPSendImpl::bind_internal_locked_(const struct sockaddr *name, socklen_t addrlen) {
-  // Caller must hold LWIP_LOCK
+int LWIPRawUDPSendImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -55,24 +42,11 @@ int LWIPRawUDPSendImpl::bind_internal_locked_(const struct sockaddr *name, sockl
   }
   ip_addr_t ip;
   uint16_t port;
-  if (!sockaddr_to_lwip(name, addrlen, &ip, &port)) {
+  if (!sockaddr_to_lwip_bind(this->family_, name, addrlen, &ip, &port)) {
     errno = EINVAL;
     return -1;
   }
-#if LWIP_IPV6
-  // For bind, use IPADDR_TYPE_ANY on IPv6 sockets to accept both IPv4 and IPv6
-  // packets (dual-stack). sockaddr_to_lwip uses IPADDR_TYPE_V6 which is correct
-  // for sendto destinations but too restrictive for bind.
-  if (this->family_ == AF_INET6) {
-    ip.type = IPADDR_TYPE_ANY;
-  }
-#endif
   return lwip_bind_err(udp_bind(this->pcb_, &ip, port));
-}
-
-int LWIPRawUDPSendImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
-  LWIP_LOCK();
-  return this->bind_internal_locked_(name, addrlen);
 }
 
 int LWIPRawUDPSendImpl::close() {
@@ -99,11 +73,6 @@ int LWIPRawUDPSendImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct 
 ssize_t LWIPRawUDPSendImpl::sendto(const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
                                    socklen_t addrlen) {
   (void) flags;  // Flags (MSG_DONTWAIT, etc.) are ignored; raw lwip is always non-blocking
-  LWIP_LOCK();
-  if (this->pcb_ == nullptr) {
-    errno = EBADF;
-    return -1;
-  }
   if (buf == nullptr || dest_addr == nullptr) {
     errno = EINVAL;
     return -1;
@@ -119,6 +88,12 @@ ssize_t LWIPRawUDPSendImpl::sendto(const void *buf, size_t len, int flags, const
   uint16_t dst_port;
   if (!sockaddr_to_lwip(dest_addr, addrlen, &dst_ip, &dst_port)) {
     errno = EINVAL;
+    return -1;
+  }
+
+  LWIP_LOCK();
+  if (this->pcb_ == nullptr) {
+    errno = EBADF;
     return -1;
   }
 
@@ -164,34 +139,16 @@ int LWIPRawUDPSendImpl::setsockopt(int level, int optname, const void *optval, s
     }
     return 0;
   }
-  if (level == IPPROTO_IP && optname == IP_ADD_MEMBERSHIP) {
+  if (level == IPPROTO_IP && (optname == IP_ADD_MEMBERSHIP || optname == IP_DROP_MEMBERSHIP)) {
     if (optval == nullptr || optlen < sizeof(struct ip_mreq)) {
       errno = EINVAL;
       return -1;
     }
     auto *mreq = reinterpret_cast<const struct ip_mreq *>(optval);
-    ip4_addr_t multiaddr;
-    multiaddr.addr = mreq->imr_multiaddr.s_addr;
-    ip4_addr_t ifaddr;
-    ifaddr.addr = mreq->imr_interface.s_addr;
-    err_t err = igmp_joingroup(&ifaddr, &multiaddr);
-    if (err != ERR_OK) {
-      errno = EIO;
-      return -1;
-    }
-    return 0;
-  }
-  if (level == IPPROTO_IP && optname == IP_DROP_MEMBERSHIP) {
-    if (optval == nullptr || optlen < sizeof(struct ip_mreq)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *mreq = reinterpret_cast<const struct ip_mreq *>(optval);
-    ip4_addr_t multiaddr;
-    multiaddr.addr = mreq->imr_multiaddr.s_addr;
-    ip4_addr_t ifaddr;
-    ifaddr.addr = mreq->imr_interface.s_addr;
-    err_t err = igmp_leavegroup(&ifaddr, &multiaddr);
+    ip4_addr_t multiaddr{mreq->imr_multiaddr.s_addr};
+    ip4_addr_t ifaddr{mreq->imr_interface.s_addr};
+    err_t err =
+        optname == IP_ADD_MEMBERSHIP ? igmp_joingroup(&ifaddr, &multiaddr) : igmp_leavegroup(&ifaddr, &multiaddr);
     if (err != ERR_OK) {
       errno = EIO;
       return -1;
@@ -232,12 +189,9 @@ int LWIPRawUDPSendImpl::setblocking(bool blocking) {
 
 // ---- LWIPRawUDPImpl methods ----
 
-LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : LWIPRawUDPSendImpl(family) {
-  // Register recv here (not in bind) so unbound client sockets can receive replies
-  if (this->pcb_ != nullptr) {
-    LWIP_LOCK();
-    udp_recv(this->pcb_, LWIPRawUDPImpl::s_recv_fn, this);
-  }
+LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family, struct udp_pcb *pcb) : LWIPRawUDPSendImpl(family, pcb) {
+  // Registered here (not in bind) so unbound client sockets can receive replies
+  udp_recv(this->pcb_, LWIPRawUDPImpl::s_recv_fn, this);
 }
 
 LWIPRawUDPImpl::~LWIPRawUDPImpl() {
@@ -252,15 +206,10 @@ int LWIPRawUDPImpl::close() {
   if (this->pcb_ != nullptr) {
     udp_recv(this->pcb_, nullptr, nullptr);
   }
-  // Flush any queued rx packets
-  while (this->rx_count_ > 0) {
-    auto &pkt = this->rx_queue_[this->rx_read_idx_];
-    if (pkt.pb != nullptr) {
-      pbuf_free(pkt.pb);
-      pkt.pb = nullptr;
-    }
+  // Flush queued rx packets; slots within rx_count_ always hold a live pbuf
+  for (; this->rx_count_ > 0; this->rx_count_--) {
+    pbuf_free(this->rx_queue_[this->rx_read_idx_].pb);
     this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
-    this->rx_count_--;
   }
   // close_internal_locked_() returns EBADF if already closed, which is fine from destructor
   return this->close_internal_locked_();
@@ -284,32 +233,18 @@ ssize_t LWIPRawUDPImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_add
   }
 
   auto &pkt = this->rx_queue_[this->rx_read_idx_];
-  size_t pkt_len = pkt.pb->tot_len;
-  size_t copy_len = std::min(len, pkt_len);
-
-  // Fill in source address if requested.
-  // If ip2sockaddr_ fails (e.g., addrlen too small), fail the recvfrom but
-  // still consume the packet — the failure is deterministic (depends only on
-  // family_ and *addrlen), so keeping the packet would wedge the queue forever.
-  bool addr_ok = true;
-  if (src_addr != nullptr && addrlen != nullptr &&
-      this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen) != 0) {
-    addr_ok = false;
+  // On address conversion failure, still consume the packet — the failure is
+  // deterministic (family_ and *addrlen), so keeping it would wedge the queue
+  ssize_t ret = -1;
+  if (src_addr == nullptr || addrlen == nullptr ||
+      this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen) == 0) {
+    ret = (ssize_t) std::min(len, (size_t) pkt.pb->tot_len);
+    pbuf_copy_partial(pkt.pb, buf, ret, 0);
   }
-
-  // Copy data from pbuf chain — done after validation so caller buffer is
-  // not modified on error paths.
-  if (addr_ok) {
-    pbuf_copy_partial(pkt.pb, buf, copy_len, 0);
-  }
-
-  // Free the pbuf and advance the read pointer
   pbuf_free(pkt.pb);
-  pkt.pb = nullptr;
   this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
   this->rx_count_--;
-
-  return addr_ok ? (ssize_t) copy_len : -1;
+  return ret;
 }
 
 void LWIPRawUDPImpl::s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port) {
@@ -347,29 +282,35 @@ void LWIPRawUDPImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port)
 
 // ---- UDP Factory functions ----
 
+static struct udp_pcb *new_udp_pcb(int domain) {
+#if LWIP_IPV6
+  return udp_new_ip_type(domain == AF_INET6 ? IPADDR_TYPE_ANY : IPADDR_TYPE_V4);
+#else
+  return udp_new();
+#endif
+}
+
 std::unique_ptr<UDPSendSocket> socket_udp_send(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
-  auto sock = make_unique<LWIPRawUDPSendImpl>((sa_family_t) domain);
-  if (!sock->is_valid()) {
+  LWIP_LOCK();
+  auto *pcb = new_udp_pcb(domain);
+  if (pcb == nullptr) {
     errno = ENOMEM;
     return nullptr;
   }
-  return sock;
+  return make_unique<LWIPRawUDPSendImpl>((sa_family_t) domain, pcb);
 }
 
 std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
-  auto sock = make_unique<LWIPRawUDPImpl>((sa_family_t) domain);
-  if (!sock->is_valid()) {
+  LWIP_LOCK();
+  auto *pcb = new_udp_pcb(domain);
+  if (pcb == nullptr) {
     errno = ENOMEM;
     return nullptr;
   }
-  return sock;
-}
-
-std::unique_ptr<UDPSocket> socket_udp_loop_monitored(int domain, int protocol) {
-  // LWIPRawUDPImpl has wake built into the recv callback, so no extra monitoring needed
-  return socket_udp(domain, protocol);
+  // Ctor registers the recv callback under the lock held here
+  return make_unique<LWIPRawUDPImpl>((sa_family_t) domain, pcb);
 }
 
 #undef LWIP_LOCK

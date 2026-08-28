@@ -48,38 +48,39 @@ int lwip_ip_to_sockaddr(sa_family_t family, const ip_addr_t *ip, uint16_t port_h
 }
 
 bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) {
+  // headers.h defines sockaddr and sockaddr_in with the same size, so this covers AF_INET
   if (addrlen < sizeof(struct sockaddr))
     return false;
-#if LWIP_IPV6
   if (addr->sa_family == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in))
-      return false;
     auto *addr4 = reinterpret_cast<const sockaddr_in *>(addr);
     *port = ntohs(addr4->sin_port);
-    ip->type = IPADDR_TYPE_V4;
-    ip->u_addr.ip4.addr = addr4->sin_addr.s_addr;
+    IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_V4);
+    ip_2_ip4(ip)->addr = addr4->sin_addr.s_addr;
     return true;
   }
+#if LWIP_IPV6
   if (addr->sa_family == AF_INET6) {
     if (addrlen < sizeof(sockaddr_in6))
       return false;
     auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(addr);
     *port = ntohs(addr6->sin6_port);
-    ip->type = IPADDR_TYPE_V6;
-    memcpy(&ip->u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
-    return true;
-  }
-#else
-  if (addr->sa_family == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in))
-      return false;
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(addr);
-    *port = ntohs(addr4->sin_port);
-    ip->addr = addr4->sin_addr.s_addr;
+    IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_V6);
+    memcpy(&ip_2_ip6(ip)->addr, &addr6->sin6_addr.un.u8_addr, 16);
     return true;
   }
 #endif
   return false;
+}
+
+bool sockaddr_to_lwip_bind(sa_family_t family, const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip,
+                           uint16_t *port) {
+  if (!sockaddr_to_lwip(addr, addrlen, ip, port))
+    return false;
+#if LWIP_IPV6
+  if (family == AF_INET6)
+    IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_ANY);
+#endif
+  return true;
 }
 
 int lwip_bind_err(err_t err) {

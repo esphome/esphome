@@ -3,9 +3,6 @@
 
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
 
-#include <cerrno>
-#include <cstring>
-
 #include "headers.h"
 #include "lwip/ip.h"
 
@@ -42,10 +39,14 @@ int lwip_ip_to_sockaddr(sa_family_t family, const ip_addr_t *ip, uint16_t port_h
                         socklen_t *addrlen);
 
 /// Convert sockaddr to lwip ip_addr_t and host-order port.
-/// For IPv6, sets type to IPADDR_TYPE_V6 (callers that need dual-stack should
-/// override to IPADDR_TYPE_ANY after calling).
-/// Shared by both TCP (LWIPRawCommon) and UDP (LWIPRawUDPImpl) bind/sendto paths.
+/// For IPv6, sets type to IPADDR_TYPE_V6 — correct for sendto destinations.
+/// Bind paths must use sockaddr_to_lwip_bind() instead.
 bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip, uint16_t *port);
+
+/// sockaddr_to_lwip variant for bind: promotes AF_INET6 sockets to
+/// IPADDR_TYPE_ANY so they accept both IPv4 and IPv6 (dual-stack).
+bool sockaddr_to_lwip_bind(sa_family_t family, const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip,
+                           uint16_t *port);
 
 /// Map lwip bind error to errno. Returns 0 on success, -1 on error with errno set.
 int lwip_bind_err(err_t err);
