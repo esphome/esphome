@@ -15,8 +15,6 @@ from esphome.components.sensor import validate_state_class
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_DEVICE_CLASS,
-    CONF_FILTERS,
-    CONF_MULTIPLY,
     CONF_STATE_CLASS,
     CONF_TAG,
     CONF_UNIT_OF_MEASUREMENT,
@@ -83,22 +81,3 @@ def test_user_supplied_value_is_not_overridden() -> None:
     assert config[CONF_UNIT_OF_MEASUREMENT] == "Wh"
     # Other defaults for the same tag are still applied.
     assert config[CONF_DEVICE_CLASS] == POWER_CONFIG[CONF_DEVICE_CLASS]
-
-
-def test_builtin_filters_are_prepended_not_replaced() -> None:
-    config = apply_tag_defaults(
-        _config("V1", **{CONF_FILTERS: [{CONF_MULTIPLY: 0.001}]})
-    )
-    multiply_values = [f[CONF_MULTIPLY] for f in config[CONF_FILTERS]]
-    assert multiply_values == [0.01, 0.001]
-
-
-def test_no_user_filters_still_gets_builtin_filters() -> None:
-    config = apply_tag_defaults(_config("T1"))
-    assert len(config[CONF_FILTERS]) == 1
-    assert config[CONF_FILTERS][0][CONF_MULTIPLY] == 0.01
-
-
-def test_tag_without_builtin_filters_has_none_added() -> None:
-    config = apply_tag_defaults(_config("P1"))
-    assert CONF_FILTERS not in config

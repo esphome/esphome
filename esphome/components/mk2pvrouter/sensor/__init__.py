@@ -4,9 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_DEVICE_CLASS,
-    CONF_FILTERS,
     CONF_ID,
-    CONF_MULTIPLY,
     CONF_STATE_CLASS,
     CONF_TAG,
     CONF_UNIT_OF_MEASUREMENT,
@@ -39,7 +37,6 @@ Mk2PVRouterSensor = mk2pvrouter_ns.class_(
 )
 
 _validate_state_class = sensor.validate_state_class
-_validate_filters = sensor.validate_filters
 
 # Define common sensor configurations to avoid repetition
 POWER_CONFIG = {
@@ -54,7 +51,7 @@ VOLTAGE_CONFIG = {
     CONF_DEVICE_CLASS: DEVICE_CLASS_VOLTAGE,
     CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
     CONF_ACCURACY_DECIMALS: 2,
-    CONF_FILTERS: [{CONF_MULTIPLY: 0.01}],  # Device sends voltage * 100
+    # Device sends voltage * 100; corrected in Mk2PVRouterSensor::publish_val().
 }
 
 ENERGY_CONFIG = {
@@ -69,7 +66,7 @@ TEMPERATURE_CONFIG = {
     CONF_DEVICE_CLASS: DEVICE_CLASS_TEMPERATURE,
     CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
     CONF_ACCURACY_DECIMALS: 2,
-    CONF_FILTERS: [{CONF_MULTIPLY: 0.01}],  # Device sends temperature * 100
+    # Device sends temperature * 100; corrected in Mk2PVRouterSensor::publish_val().
 }
 
 RELAY_STATE_CONFIG = {
@@ -134,12 +131,7 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
     # Apply defaults if found
     if defaults:
         for key, value in defaults.items():
-            if key == CONF_FILTERS:
-                # Validate and prepend default filters to user's filters
-                validated_filters = _validate_filters(value)
-                user_filters = config.get(key, [])
-                config[key] = validated_filters + user_filters
-            elif key == CONF_STATE_CLASS:
+            if key == CONF_STATE_CLASS:
                 # Validate state_class to convert string to enum
                 if key not in config:
                     config[key] = _validate_state_class(value)

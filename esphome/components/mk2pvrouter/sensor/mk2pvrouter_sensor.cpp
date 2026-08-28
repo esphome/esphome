@@ -13,7 +13,15 @@ void Mk2PVRouterSensor::publish_val(const char *val) {
     ESP_LOGW(TAG, "Failed to parse value '%s' for tag '%s'", val, this->get_tag());
     return;
   }
-  this->publish_state(result.value());
+  float value = result.value();
+  // Voltage (V, V1, V2, ...) and temperature (T1, T2, ...) tags are sent by the
+  // device multiplied by 100 (centivolts/centi-degrees); undo that here so
+  // downstream filters see the value already in volts/°C.
+  const char tag0 = this->get_tag()[0];
+  if (tag0 == 'V' || tag0 == 'T') {
+    value *= 0.01f;
+  }
+  this->publish_state(value);
 }
 
 void Mk2PVRouterSensor::dump_config() {

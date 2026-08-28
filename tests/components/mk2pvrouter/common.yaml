@@ -30,9 +30,9 @@ sensor:
     mk2pvrouter_id: test_mk2pvrouter
     # Should auto-apply VOLTAGE_CONFIG (V, device_class, 2 decimals)
 
-  # Test voltage sensor with user-supplied filters: the built-in
-  # multiply: 0.01 (from VOLTAGE_CONFIG) must be prepended, and this
-  # filter must run after it, not replace it.
+  # Test voltage sensor with a user-supplied filter chain: the ×100
+  # correction is applied natively in publish_val(), so this filter
+  # runs on the already-scaled value like any normal filter.
   - platform: mk2pvrouter
     name: Voltage Phase 2 Scaled
     tag: V2
