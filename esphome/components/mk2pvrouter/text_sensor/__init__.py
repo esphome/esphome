@@ -3,7 +3,12 @@ from esphome.components import text_sensor
 from esphome.const import CONF_ID, CONF_TAG
 from esphome.types import ConfigType
 
-from .. import CONF_MK2PVROUTER_ID, MK2PVROUTER_LISTENER_SCHEMA, mk2pvrouter_ns
+from .. import (
+    CONF_MK2PVROUTER_ID,
+    MK2PVROUTER_LISTENER_SCHEMA,
+    mk2pvrouter_ns,
+    register_mk2pvrouter_listener,
+)
 
 Mk2PVRouterTextSensor = mk2pvrouter_ns.class_(
     "Mk2PVRouterTextSensor", text_sensor.TextSensor, cg.Component
@@ -19,4 +24,4 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await text_sensor.register_text_sensor(var, config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
-    cg.add(mk2pvrouter.register_mk2pvrouter_listener(var))
+    await register_mk2pvrouter_listener(mk2pvrouter, var)
