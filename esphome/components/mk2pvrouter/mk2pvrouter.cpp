@@ -108,11 +108,6 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
   return false;
 }
 
-void Mk2PVRouter::setup() {
-  this->buf_index_ = 0;
-  this->state_ = State::WAITING_FOR_START;
-}
-
 void Mk2PVRouter::loop() {
   switch (this->state_) {
     case State::WAITING_FOR_START:

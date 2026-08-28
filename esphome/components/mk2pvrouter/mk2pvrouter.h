@@ -39,7 +39,6 @@ class Mk2PVRouter final : public Component, public uart::UARTDevice {
   void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
 #endif
   void loop() override;
-  void setup() override;
   void dump_config() override;
 
  protected:
