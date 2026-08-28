@@ -229,7 +229,7 @@ inline bool value_type_is_float(SensorValueType v) {
 }
 
 /// Number of 16-bit registers a value of this type occupies (RAW counts as one register).
-inline uint16_t register_width_for(SensorValueType v) {
+constexpr uint16_t register_width_for(SensorValueType v) {
   switch (v) {
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:

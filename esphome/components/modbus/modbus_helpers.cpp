@@ -292,10 +292,12 @@ std::optional<int64_t> payload_to_number(const uint8_t *data, size_t size, Senso
 }
 
 std::optional<int64_t> registers_to_number(const uint16_t *registers, size_t count, SensorValueType sensor_value_type) {
-  const uint8_t required_words = register_width_for(sensor_value_type);
-  if (required_words == 0) {
-    return 0;  // RAW/BIT: no fixed width, nothing to read
+  // RAW and BIT carry no fixed-width number, so there is nothing to decode whatever the span holds.
+  // register_width_for() reports 1 for them, so this must be checked before the width test below.
+  if (sensor_value_type == SensorValueType::RAW || sensor_value_type == SensorValueType::BIT) {
+    return 0;
   }
+  const uint16_t required_words = register_width_for(sensor_value_type);
   if (required_words > count) {
     ESP_LOGE(TAG, "not enough registers for value type=%u count=%zu required=%u",
              static_cast<unsigned int>(sensor_value_type), count, static_cast<unsigned int>(required_words));
