@@ -1,8 +1,10 @@
 """Tests for the gamma LUT table generation."""
 
+import math
+
 import pytest
 
-from esphome.components.light import generate_gamma_table
+from esphome.components.light import MIN_NONZERO_GAMMA_VALUE, generate_gamma_table
 
 
 def _simulate_gamma_correct_lut(table: list[int], value: float) -> float:
@@ -115,3 +117,69 @@ def test_lut_output_monotonically_nondecreasing() -> None:
         result = _simulate_gamma_correct_lut(table, value)
         assert result >= prev, f"value={value}: result {result} < previous {prev}"
         prev = result
+
+
+def _dead_zone_breakpoint(gamma: float) -> int:
+    """Smallest code whose power-curve value survives (value + 128) / 257 as non-zero."""
+    return math.ceil(255 * (1 / 510.0) ** (1 / gamma))
+
+
+def _to_8_bit(value: int) -> int:
+    """Simulate ESPColorCorrection::gamma_correct_'s (value + 128) / 257 conversion."""
+    return (value + 128) // 257
+
+
+@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
+def test_nonzero_indices_survive_16_to_8_bit_conversion(gamma: float) -> None:
+    """Regression test for esphome/esphome#18842: low codes must no longer round to 0."""
+    table = generate_gamma_table(gamma)
+    for i in range(1, 256):
+        assert _to_8_bit(table[i]) >= 1, (
+            f"gamma={gamma}, index {i}: table value {table[i]} collapses to 0 "
+            "after (value + 128) / 257"
+        )
+
+
+def test_dead_zone_fixed_at_gamma_2_8() -> None:
+    """Reproduce the reporter's own numbers from esphome/esphome#18842 at gamma=2.8."""
+    gamma = 2.8
+    n0 = _dead_zone_breakpoint(gamma)
+    assert n0 == 28  # matches the "brightness 28 and above works normally" report
+
+    table = generate_gamma_table(gamma)
+    for i in range(1, n0):
+        assert _to_8_bit(table[i]) >= 1, f"index {i} still collapses to 0"
+
+    for i in range(n0, 256):
+        raw_power_value = min(65535, round((i / 255.0) ** gamma * 65535))
+        assert table[i] == raw_power_value, (
+            f"index {i}: table[{i}]={table[i]} differs from the untouched power "
+            f"curve value {raw_power_value}"
+        )
+
+
+@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
+def test_power_curve_untouched_above_dead_zone(gamma: float) -> None:
+    """Above the dead zone, table values must be bit-identical to the raw power curve."""
+    n0 = _dead_zone_breakpoint(gamma)
+    table = generate_gamma_table(gamma)
+    for i in range(n0, 256):
+        raw_power_value = min(65535, round((i / 255.0) ** gamma * 65535))
+        assert table[i] == raw_power_value, f"gamma={gamma}, index {i}"
+
+
+@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
+def test_dead_zone_values_are_min_nonzero_gamma_value(gamma: float) -> None:
+    """Within the dead zone, table values must be clamped to MIN_NONZERO_GAMMA_VALUE."""
+    n0 = _dead_zone_breakpoint(gamma)
+    table = generate_gamma_table(gamma)
+    for i in range(1, n0):
+        assert table[i] == MIN_NONZERO_GAMMA_VALUE, f"gamma={gamma}, index {i}"
+
+
+@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
+def test_reverse_search_precondition_nondecreasing(gamma: float) -> None:
+    """gamma_table_reverse_search needs a non-decreasing table; the fix must preserve that."""
+    table = generate_gamma_table(gamma)
+    for i in range(1, 256):
+        assert table[i] >= table[i - 1], f"gamma={gamma}: table[{i}] < table[{i - 1}]"

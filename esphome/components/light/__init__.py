@@ -119,18 +119,24 @@ def _get_data() -> LightData:
     return CORE.data[DOMAIN]
 
 
+# Smallest table entry that survives ESPColorCorrection's (value + 128) / 257
+# conversion as a non-zero 8-bit result (esphome/esphome#18842).
+MIN_NONZERO_GAMMA_VALUE = 129
+
+
 def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     """Generate a 256-entry uint16 gamma lookup table.
 
-    For gamma > 0, non-zero indices are clamped to a minimum of 1 to preserve
-    the invariant that non-zero input always produces non-zero output. Without
-    this, small brightness values (e.g. 1%) get quantized to exactly 0.0,
-    which breaks zero_means_zero logic in FloatOutput.
+    Non-zero indices are clamped to a minimum of MIN_NONZERO_GAMMA_VALUE so
+    every non-zero 8-bit input still produces a non-zero 8-bit output.
     """
     if gamma_correct > 0:
         return [
             HexInt(
-                max(1, min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+                max(
+                    MIN_NONZERO_GAMMA_VALUE,
+                    min(65535, int(round((i / 255.0) ** gamma_correct * 65535))),
+                )
                 if i > 0
                 else HexInt(0)
             )
