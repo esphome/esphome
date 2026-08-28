@@ -37,7 +37,7 @@ uv pip install -e ".[dev,test]" --config-settings editable_mode=compat
 # environment, breaking it for everyone once the worktree is removed.
 git_dir="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
 common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
-if [ "$git_dir" = "$common_dir" ]; then
+if [ -n "$common_dir" ] && [ "$git_dir" = "$common_dir" ]; then
   # --overwrite replaces any hook already in place. Without it, prek finds a
   # previously installed pre-commit hook, moves it aside to
   # .git/hooks/pre-commit.legacy and keeps calling it, so every commit would
@@ -46,7 +46,7 @@ if [ "$git_dir" = "$common_dir" ]; then
 
   # Prepares the virtual environment for new checkouts and worktrees. Installed
   # once here, it covers every worktree created from this checkout.
-  if [ -n "$common_dir" ] && [ -d "$common_dir/hooks" ]; then
+  if [ -d "$common_dir/hooks" ]; then
     cp script/git-hooks/post-checkout "$common_dir/hooks/post-checkout"
     chmod +x "$common_dir/hooks/post-checkout"
   fi
