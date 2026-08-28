@@ -51,6 +51,8 @@ bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t 
   // headers.h defines sockaddr and sockaddr_in with the same size, so this covers AF_INET
   if (addrlen < sizeof(struct sockaddr))
     return false;
+  // Zero the whole struct — the IPv6 zone byte would otherwise be stack garbage
+  memset(ip, 0, sizeof(*ip));
   if (addr->sa_family == AF_INET) {
     auto *addr4 = reinterpret_cast<const sockaddr_in *>(addr);
     *port = ntohs(addr4->sin_port);
@@ -77,7 +79,8 @@ bool sockaddr_to_lwip_bind(sa_family_t family, const struct sockaddr *addr, sock
   if (!sockaddr_to_lwip(addr, addrlen, ip, port))
     return false;
 #if LWIP_IPV6
-  if (family == AF_INET6)
+  // Only promote wildcard binds — a specific address must keep filtering
+  if (family == AF_INET6 && ip_addr_isany_val(*ip))
     IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_ANY);
 #endif
   return true;
