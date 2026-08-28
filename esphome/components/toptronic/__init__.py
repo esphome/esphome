@@ -23,7 +23,7 @@ DEPENDENCIES = ["canbus"]
 AUTO_LOAD = ["sensor", "number", "select", "text_sensor", "button", "switch"]
 MULTI_CONF = True
 
-CONF_TT_ID = "toptronic_id"
+CONF_TOPTRONIC_ID = "toptronic_id"
 CONF_CANBUS_ID = "canbus_id"
 CONF_DEVICE_TYPE = "device_type"
 CONF_DEVICE_ADDR = "device_addr"
@@ -78,7 +78,7 @@ class DeviceType(Enum):
     GLT = 448  # EN: Building mgmt system (BMS) / FR: Gestion technique du bâtiment (GTB) / DE: Gebäudeleittechnik
     HV = 512  # EN: HomeVent ventilation / FR: Ventilation HomeVent / DE: HomeVent
     BM = 1024  # EN: Control module (Display) / FR: Module de commande (Écran) / DE: Bedienmodul
-    BD = 1024  # EN: Control display (Alias) / FR: Écran de commande (Alias) / DE: Bediendisplay
+    BD = BM  # EN: Control display (Alias) / FR: Écran de commande (Alias) / DE: Bediendisplay
     GW = 1153  # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
 
 
@@ -209,8 +209,7 @@ def _load_entities(device_type: str, language: str):
         with pathlib.Path(path).open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         for platform_name, entries in data.items():
-            for entry in entries or []:
-                entities.append((platform_name, dict(entry)))
+            entities.extend((platform_name, dict(entry)) for entry in entries or [])
     return entities
 
 
@@ -267,7 +266,7 @@ async def _generate_entities(hub, config):
         entity_conf.pop(CONF_DEVICE_ADDR, None)
         hub_ref = config[CONF_ID].copy()
         hub_ref.is_declaration = False
-        entity_conf[CONF_TT_ID] = hub_ref
+        entity_conf[CONF_TOPTRONIC_ID] = hub_ref
 
         schema, codegen = platforms[platform_name]
         validated = schema(entity_conf)

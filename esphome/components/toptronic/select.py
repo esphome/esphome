@@ -7,7 +7,7 @@ from . import (
     CONF_DATAPOINT,
     CONF_FUNCTION_GROUP,
     CONF_FUNCTION_NUMBER,
-    CONF_TT_ID,
+    CONF_TOPTRONIC_ID,
     CONF_VALUES,
     CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
@@ -23,7 +23,7 @@ TopTronicSelect = toptronic.class_(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
             cv.Required(CONF_OPTIONS): cv.All(
                 cv.ensure_list(cv.string_strict), cv.Length(min=1)
             ),
@@ -44,7 +44,7 @@ async def new_select(config, *, options: list[str]):
 
 
 async def to_code(config):
-    tt = await cg.get_variable(config[CONF_TT_ID])
+    tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     var = await new_select(config, options=config[CONF_OPTIONS])
     await cg.register_component(var, config)
 

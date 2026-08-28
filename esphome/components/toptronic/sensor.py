@@ -7,7 +7,7 @@ from . import (
     CONF_DATAPOINT,
     CONF_FUNCTION_GROUP,
     CONF_FUNCTION_NUMBER,
-    CONF_TT_ID,
+    CONF_TOPTRONIC_ID,
     TT_TYPE_OPTIONS,
     TopTronicComponent,
     config_schema_polling,
@@ -23,7 +23,7 @@ TopTronicSensor = toptronic.class_(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
             cv.Required(CONF_TYPE): cv.enum(TT_TYPE_OPTIONS),
         }
     )
@@ -33,7 +33,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    tt = await cg.get_variable(config[CONF_TT_ID])
+    tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     sens = await sensor.new_sensor(config)
     await cg.register_component(sens, config)
 

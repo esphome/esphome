@@ -3,7 +3,7 @@ from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
-from . import CONF_TT_ID, TopTronicComponent, toptronic
+from . import CONF_TOPTRONIC_ID, TopTronicComponent, toptronic
 
 CONF_DEBUG_MODE = "debug_mode"
 
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
             cv.Required(CONF_DEBUG_MODE): cv.enum(DEBUG_MODES, upper=True),
         }
     )
@@ -36,7 +36,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    tt = await cg.get_variable(config[CONF_TT_ID])
+    tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     await switch.register_switch(var, config)
     await cg.register_component(var, config)

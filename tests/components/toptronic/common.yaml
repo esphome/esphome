@@ -13,24 +13,3 @@ toptronic:
     device_addr: 8
     language: en
 
-  - id: tt_wez
-    canbus_id: canbus_toptronic
-    device_type: WEZ
-    device_addr: 1
-    language: en
-
-  - id: tt_bm
-    canbus_id: canbus_toptronic
-    device_type: BM
-    device_addr: 8
-    language: en
-
-switch:
-  - platform: toptronic
-    name: "TT candump debug"
-    toptronic_id: tt_hv
-    debug_mode: CANDUMP
-  - platform: toptronic
-    name: "TT find can_id debug"
-    toptronic_id: tt_hv
-    debug_mode: FIND_CAN_ID

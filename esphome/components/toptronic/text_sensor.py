@@ -7,7 +7,7 @@ from . import (
     CONF_DATAPOINT,
     CONF_FUNCTION_GROUP,
     CONF_FUNCTION_NUMBER,
-    CONF_TT_ID,
+    CONF_TOPTRONIC_ID,
     CONF_VALUES,
     TopTronicComponent,
     _validate_options_values_lengths,
@@ -24,7 +24,7 @@ TopTronicTextSensor = toptronic.class_(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
             cv.Required(CONF_OPTIONS): cv.All(
                 cv.ensure_list(cv.string_strict), cv.Length(min=1)
             ),
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    tt = await cg.get_variable(config[CONF_TT_ID])
+    tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     sens = await text_sensor.new_text_sensor(config)
     await cg.register_component(sens, config)
 

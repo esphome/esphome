@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/components/canbus/canbus.h"
 #include "esphome/core/helpers.h"
@@ -274,8 +276,8 @@ class TopTronicDevice {
   // Per §5.9 the maps stay private (pointer lifetime safety — the pointers are
   // owned by the ESPHome registry, never deleted here); the hub reaches them
   // only through these accessors.
-  std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() { return this->sensors_; }
-  const std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() const { return this->sensors_; }
+  std::unordered_map<uint32_t, TopTronicBase *> &get_sensor_s() { return this->sensors_; }
+  const std::unordered_map<uint32_t, TopTronicBase *> &get_sensor_s() const { return this->sensors_; }
   std::unordered_map<uint32_t, TopTronicBase *> &get_inputs() { return this->inputs_; }
   const std::unordered_map<uint32_t, TopTronicBase *> &get_inputs() const { return this->inputs_; }
 
@@ -300,7 +302,7 @@ class TopTronic : public Component {
   void add_input(TopTronicBase *input);
 
   // Called on every received CAN frame. Handles multi-frame reassembly,
-  // then dispatches to interpret_message() once a complete message is available.
+  // then dispatches to interpret_message_() once a complete message is available.
   void parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, bool remote_transmission_request);
 
   // Wire up polling callbacks for read-only sensors (GET requests on update interval).
@@ -308,7 +310,7 @@ class TopTronic : public Component {
   // Wire up write callbacks for inputs so they send SET requests over CAN.
   void register_input_callbacks();
 
-  // One-time functional wiring (link_inputs, sensor/input callbacks, command
+  // One-time functional wiring (link_inputs_, sensor/input callbacks, command
   // queue, boot-refresh gate, work-pump scheduling). Called from the CONFIG
   // phase (emitted by __init__.py right after all add_sensor/add_input calls)
   // instead of setup(): ESPHome sizes components_ from ESPHOME_COMPONENT_COUNT,
@@ -398,8 +400,8 @@ class TopTronic : public Component {
   void add_candump_update_callback(std::function<void(bool)> &&callback);
   void add_find_can_id_update_callback(std::function<void(bool)> &&callback);
   // Build-wide fan-out for each debug flag (see s_candump_enabled semantics).
-  static CallbackManager<void(bool)> candump_update_callbacks_;
-  static CallbackManager<void(bool)> find_can_id_update_callbacks_;
+  static CallbackManager<void(bool)> candump_update_callbacks;
+  static CallbackManager<void(bool)> find_can_id_update_callbacks;
 
   // Pause/resume CAN frame processing. Used during OTA to free the main loop
   // and logging path so the update connection is not starved.
@@ -423,21 +425,21 @@ class TopTronic : public Component {
   };
 
   // Look up device by ID; create a new TopTronicDevice if it does not exist yet.
-  TopTronicDevice *get_or_create_device(uint32_t can_id);
+  TopTronicDevice *get_or_create_device_(uint32_t can_id);
   // For each input, find its matching read sensor (same device + datapoint) and
   // subscribe so the input stays in sync with the current boiler value.
-  void link_inputs();
+  void link_inputs_();
   // Return the sensor for a given (device_id, sensor_id) pair, or nullptr if not found.
-  TopTronicBase *get_sensor(uint32_t device_id, uint32_t sensor_id);
+  TopTronicBase *get_sensor_(uint32_t device_id, uint32_t sensor_id);
   // Parse a fully reassembled CAN message and update the matching sensor or input.
   // data/len reference the reassembly buffer directly — no per-frame heap copies.
-  void interpret_message(const uint8_t *data, size_t len, uint32_t can_id, bool remote_transmission_request);
+  void interpret_message_(const uint8_t *data, size_t len, uint32_t can_id, bool remote_transmission_request);
 
   // True if a device with this sender node id is registered on this hub. The
   // sender node id (bits 21-11 of a CAN id) is exactly the devices_ map key, so
   // membership is a single O(1) lookup — it covers EVERY device this hub owns,
   // not a single hardcoded address.
-  bool owns_device(uint32_t device_id) const { return this->devices_.find(device_id) != this->devices_.end(); }
+  bool owns_device_(uint32_t device_id) const { return this->devices_.find(device_id) != this->devices_.end(); }
 
   canbus::Canbus *canbus_;
 
@@ -533,3 +535,5 @@ class TopTronic : public Component {
 };
 
 }  // namespace esphome::toptronic
+
+#endif  // USE_ESP32

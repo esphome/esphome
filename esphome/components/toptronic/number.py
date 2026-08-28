@@ -8,7 +8,7 @@ from . import (
     CONF_DECIMAL,
     CONF_FUNCTION_GROUP,
     CONF_FUNCTION_NUMBER,
-    CONF_TT_ID,
+    CONF_TOPTRONIC_ID,
     CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
     TopTronicComponent,
@@ -22,7 +22,7 @@ TopTronicNumber = toptronic.class_(
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.GenerateID(CONF_TOPTRONIC_ID): cv.use_id(TopTronicComponent),
             cv.Required(CONF_TYPE): cv.enum(TT_TYPE_OPTIONS),
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
@@ -45,7 +45,7 @@ async def new_number(config, *, min_value: float, max_value: float, step: float)
 
 async def to_code(config):
     divider = pow(10, config[CONF_DECIMAL])
-    tt = await cg.get_variable(config[CONF_TT_ID])
+    tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     var = await new_number(
         config,
         min_value=config[CONF_MIN_VALUE] / divider,
