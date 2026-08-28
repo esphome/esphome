@@ -448,22 +448,32 @@ def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) ->
 
 
 def rmtree(path: Path | str) -> None:
-    """Remove a directory tree, handling read-only files on Windows.
+    """Remove a directory tree, tolerating common filesystem races.
 
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail. This handles that by removing the
-    read-only flag and retrying.
+    Read-only files (e.g. git pack files on Windows) get the read-only flag
+    removed and are retried. Paths that are already gone are treated as
+    removed. Directories repopulated mid-delete (e.g. Finder recreating
+    .DS_Store on macOS) are retried a few times.
     """
 
+    import errno
     import shutil
 
     def _onexc(func, path, exc):
+        if isinstance(exc, FileNotFoundError):
+            return
         if os.access(path, os.W_OK):
             raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    shutil.rmtree(path, onexc=_onexc)
+    for attempt in range(3):
+        try:
+            shutil.rmtree(path, onexc=_onexc)
+            return
+        except OSError as err:
+            if attempt == 2 or err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                raise
 
 
 def walk_files(path: Path):

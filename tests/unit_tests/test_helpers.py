@@ -1,7 +1,9 @@
+import errno
 import io
 import logging
 import os
 from pathlib import Path
+import shutil
 import socket
 import stat
 from unittest.mock import MagicMock, patch
@@ -963,6 +965,69 @@ def test_copy_file_if_changed_nonexistent_source(tmp_path: Path) -> None:
 
     with pytest.raises(EsphomeError, match=r"Error copying file"):
         helpers.copy_file_if_changed(src, dst)
+
+
+def test_rmtree_removes_tree(tmp_path: Path) -> None:
+    """Test rmtree removes a populated directory tree."""
+    target = tmp_path / "target"
+    (target / "sub").mkdir(parents=True)
+    (target / "sub" / "file.txt").write_text("content")
+
+    helpers.rmtree(target)
+    assert not target.exists()
+
+
+def test_rmtree_nonexistent_path(tmp_path: Path) -> None:
+    """Test rmtree on an already-removed path is a no-op."""
+    helpers.rmtree(tmp_path / "gone")
+
+
+def test_rmtree_retries_when_directory_repopulated(tmp_path: Path) -> None:
+    """Test rmtree retries when a file appears mid-delete (Finder .DS_Store race)."""
+    target = tmp_path / "target"
+    target.mkdir()
+    real_rmtree = shutil.rmtree
+    calls = 0
+
+    def racy_rmtree(path, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError(errno.ENOTEMPTY, "Directory not empty", str(path))
+        real_rmtree(path, **kwargs)
+
+    with patch("shutil.rmtree", side_effect=racy_rmtree):
+        helpers.rmtree(target)
+    assert calls == 2
+    assert not target.exists()
+
+
+def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
+    """Test rmtree gives up after three attempts on a persistent ENOTEMPTY."""
+    target = tmp_path / "target"
+    target.mkdir()
+    err = OSError(errno.ENOTEMPTY, "Directory not empty", str(target))
+
+    with (
+        patch("shutil.rmtree", side_effect=err) as mock_rmtree,
+        pytest.raises(OSError, match="Directory not empty"),
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == 3
+
+
+def test_rmtree_does_not_retry_other_oserror(tmp_path: Path) -> None:
+    """Test rmtree raises non-ENOTEMPTY errors immediately."""
+    target = tmp_path / "target"
+    target.mkdir()
+    err = OSError(errno.EACCES, "Permission denied", str(target))
+
+    with (
+        patch("shutil.rmtree", side_effect=err) as mock_rmtree,
+        pytest.raises(OSError, match="Permission denied"),
+    ):
+        helpers.rmtree(target)
+    assert mock_rmtree.call_count == 1
 
 
 def test_resolve_ip_address_sorting() -> None:
