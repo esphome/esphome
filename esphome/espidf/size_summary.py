@@ -74,7 +74,7 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
 
 
 def _image_size_from_elf(elf: Path) -> int:
-    """Sum the loadable PROGBITS section sizes from an ELF32 file.
+    """Sum the allocated PROGBITS section sizes from an ELF32 file.
 
     Matches ``esp_idf_size.ng.memorymap._get_image_size`` byte for byte;
     esptool's ``ELFFile`` filters sections differently and would not.
@@ -98,6 +98,9 @@ def _image_size_from_elf(elf: Path) -> int:
         (sh_size,) = struct.unpack_from("<I", table, off + 20)
         if sh_type == 1 and sh_flags & 0x2:  # SHT_PROGBITS with SHF_ALLOC
             total += sh_size
+    if total == 0:
+        # A used-0-bytes Flash line would read as a real measurement
+        raise ValueError(f"{elf} has no allocated PROGBITS sections")
     return total
 
 
@@ -134,6 +137,9 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
     flash_used = data.get("total_size")
     try:
         if flash_used is None:
+            _LOGGER.debug(
+                "No total_size in %s, deriving from %s", size_json, firmware_elf
+            )
             flash_used = _image_size_from_elf(firmware_elf)
         app_size = _find_app_partition_size(partitions_csv)
     except FileNotFoundError as e:

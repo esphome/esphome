@@ -214,6 +214,8 @@ _GOOD_ELF = _elf_bytes([(1, 0x2, 1024)])
             _elf_bytes([(1, 0x2, 1024)], shentsize=0), True, id="bad_shentsize"
         ),
         pytest.param(_GOOD_ELF[:60], True, id="truncated_table"),
+        pytest.param(_elf_bytes([]), True, id="no_sections"),
+        pytest.param(_elf_bytes([(8, 0x2, 50000)]), True, id="no_progbits"),
         pytest.param(_GOOD_ELF, False, id="missing_partitions"),
     ],
 )
