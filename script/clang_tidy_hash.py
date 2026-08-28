@@ -31,6 +31,23 @@ CLANG_TIDY_GLOBAL_FILES = (
 # this prefix at the repo root.
 SDKCONFIG_DEFAULTS_PREFIX = "sdkconfig.defaults"
 
+# Native-build infra: changes under esphome/espidf/, the shared
+# esphome/build_helpers/ package, or the modules the native ESP-IDF build
+# imports affect every esp32 IDF build (now the default toolchain) but aren't
+# components, so the component matrix wouldn't otherwise force any esp32
+# compile. determine-jobs folds the `esp32` component into the matrix when
+# they change; calculate_idedata_cache_hash() folds them into the idedata
+# cache key since they generate the clang-tidy idedata.
+ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
+ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
+    {
+        "esphome/build_gen/espidf.py",
+        "esphome/framework_helpers.py",
+        "esphome/platformio/library.py",
+        "esphome/platformio/extra_script.py",
+    }
+)
+
 
 def read_file_bytes(path: Path) -> bytes:
     """Read bytes from a file."""
@@ -64,5 +81,27 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
     for path in sorted(repo_root.glob(f"{SDKCONFIG_DEFAULTS_PREFIX}*")):
         hasher.update(path.name.encode())
         hasher.update(read_file_bytes(path))
+
+    return hasher.hexdigest()
+
+
+def calculate_idedata_cache_hash(repo_root: Path | None = None) -> str:
+    """Hash of everything that feeds the generated clang-tidy idedata.
+
+    The clang-tidy hash covers the data inputs (platformio.ini, sdkconfig,
+    idf_component.yml); this adds the Python that turns them into a project.
+    """
+    repo_root = _ensure_repo_root(repo_root)
+
+    hasher = hashlib.sha256()
+    hasher.update(calculate_clang_tidy_hash(repo_root).encode())
+
+    paths = {repo_root / name for name in ESP_IDF_INFRA_TRIGGER_FILES}
+    for prefix in ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES:
+        paths.update((repo_root / prefix).rglob("*.py"))
+    for path in sorted(paths):
+        if path.is_file():
+            hasher.update(str(path.relative_to(repo_root)).encode())
+            hasher.update(read_file_bytes(path))
 
     return hasher.hexdigest()

@@ -3,8 +3,8 @@ description: >
   Cache the clang-tidy idedata and the headers it references under .temp.
   Generating it for the native ESP-IDF tidy environments takes 90-110s per
   job. Only headers are kept (about 30MB per env instead of 130MB); a key hit
-  implies the clang-tidy hash matches, so the pruned tree is never rebuilt.
-  Callers must have the Python venv already restored.
+  implies the idedata hash matches, so the pruned tree is never rebuilt.
+  Callers must have the Python venv restored and cache-esp-idf run first.
 inputs:
   key:
     description: 'Short environment id used in the cache key (e.g. esp32-idf).'
@@ -12,16 +12,27 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Compute clang-tidy input hash
-      id: hash
+    - name: Compute cache key
+      id: key
       shell: bash
       run: |
         . venv/bin/activate
-        hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import calculate_clang_tidy_hash; print(calculate_clang_tidy_hash())')
-        echo "hash=$hash" >> "$GITHUB_OUTPUT"
+        [ -n "${{ inputs.key }}" ] || { echo "::error::cache-clang-tidy-idedata: 'key' input is empty"; exit 1; }
+        hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import calculate_idedata_cache_hash; print(calculate_idedata_cache_hash())')
+        pyver=$(python -c 'import platform; print(platform.python_version())')
+        # The ESP-IDF install only happens as part of generating idedata, so
+        # never restore idedata over a missing install (cache-esp-idf miss or
+        # eviction); the key also carries the Python version to bust with it.
+        if [ -d ~/.esphome-idf/frameworks ]; then
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning::ESP-IDF install missing, not using the clang-tidy idedata cache"
+          echo "skip=true" >> "$GITHUB_OUTPUT"
+        fi
+        echo "key=${{ runner.os }}-tidy-idedata-${{ inputs.key }}-$hash-py$pyver" >> "$GITHUB_OUTPUT"
     # Mirror cache-esp-idf: write on dev, restore-only on PRs.
     - name: Cache clang-tidy idedata (write on dev)
-      if: github.ref == 'refs/heads/dev'
+      if: github.ref == 'refs/heads/dev' && steps.key.outputs.skip != 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -35,9 +46,9 @@ runs:
           .temp/**/*.inl
           .temp/**/*.ipp
           .temp/**/*.tpp
-        key: ${{ runner.os }}-tidy-idedata-${{ inputs.key }}-${{ steps.hash.outputs.hash }}-${{ hashFiles('esphome/espidf/**', 'esphome/build_gen/**', 'esphome/build_helpers/**') }}
+        key: ${{ steps.key.outputs.key }}
     - name: Cache clang-tidy idedata (restore-only off dev)
-      if: github.ref != 'refs/heads/dev'
+      if: github.ref != 'refs/heads/dev' && steps.key.outputs.skip != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
@@ -51,4 +62,4 @@ runs:
           .temp/**/*.inl
           .temp/**/*.ipp
           .temp/**/*.tpp
-        key: ${{ runner.os }}-tidy-idedata-${{ inputs.key }}-${{ steps.hash.outputs.hash }}-${{ hashFiles('esphome/espidf/**', 'esphome/build_gen/**', 'esphome/build_helpers/**') }}
+        key: ${{ steps.key.outputs.key }}
