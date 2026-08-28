@@ -10,10 +10,12 @@ byte-identical to PlatformIO's output:
 
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
 analysis works unchanged on native ESP-IDF builds. RAM usage comes from
-the DRAM (or unified DIRAM) region of the linker map; Flash used is the
-size of the app ``.bin`` on disk, which includes esptool's 16-byte
-image padding and appended SHA-256, so it reads slightly above the
-map-derived ``Total image size`` line and moves in 16-byte steps.
+the DRAM (or unified DIRAM) region of the linker map. Flash used is the
+json2 ``total_size`` field when present (esp-idf-size >= 2.1, the exact
+map-derived figure matching the ``Total image size`` line); older 1.x
+json2 lacks it, and the fallback is the size of the app ``.bin`` on
+disk, which includes esptool's 16-byte image padding and appended
+SHA-256 so it reads slightly high and moves in 16-byte steps.
 Flash total is taken from
 ``partitions.csv`` using PlatformIO's rule (first app partition whose
 subtype is ``factory`` or ``ota_0``; see
@@ -101,8 +103,13 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_bin: Path) -> 
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
 
+    # esp-idf-size >= 2.1 (IDF >= 6.0) reports the exact map-derived image
+    # size in json2; older 1.x omits it, so fall back to the padded on-disk
+    # .bin size.
+    flash_used = data.get("total_size")
     try:
-        flash_used = firmware_bin.stat().st_size
+        if flash_used is None:
+            flash_used = firmware_bin.stat().st_size
         app_size = _find_app_partition_size(partitions_csv)
     except (OSError, ValueError) as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
