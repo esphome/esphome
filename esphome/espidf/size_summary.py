@@ -11,11 +11,10 @@ byte-identical to PlatformIO's output:
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
 analysis works unchanged on native ESP-IDF builds. RAM usage comes from
 the DRAM (or unified DIRAM) region of the linker map. Flash used is the
-json2 ``total_size`` field when present (esp-idf-size >= 2.1, the exact
-map-derived figure matching the ``Total image size`` line); older 1.x
-json2 lacks it, and the fallback is the size of the app ``.bin`` on
-disk, which includes esptool's 16-byte image padding and appended
-SHA-256 so it reads slightly high and moves in 16-byte steps.
+exact image size matching the ``Total image size`` line: the json2
+``total_size`` field when present (esp-idf-size >= 2.1); older 1.x
+json2 lacks it, so we derive the same figure from the ELF by summing
+loadable PROGBITS sections, the rule esp_idf_size itself uses.
 Flash total is taken from
 ``partitions.csv`` using PlatformIO's rule (first app partition whose
 subtype is ``factory`` or ``ota_0``; see
@@ -35,6 +34,7 @@ import csv
 import json
 import logging
 from pathlib import Path
+import struct
 
 from esphome.build_helpers.size_summary import print_size_line
 
@@ -77,7 +77,30 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
-def print_summary(size_json: Path, partitions_csv: Path, firmware_bin: Path) -> None:
+def _image_size_from_elf(elf: Path) -> int:
+    """Sum the loadable PROGBITS section sizes from an ELF32 file.
+
+    This is the rule ``esp_idf_size.ng.memorymap._get_image_size`` uses for
+    its image size figure, so the result is byte-identical to the tool's.
+    Raises ``ValueError`` if the file is not a 32-bit little-endian ELF.
+    """
+    data = elf.read_bytes()
+    if len(data) < 52 or data[:4] != b"\x7fELF" or data[4] != 1 or data[5] != 1:
+        raise ValueError(f"{elf} is not a 32-bit little-endian ELF")
+    (e_shoff,) = struct.unpack_from("<I", data, 0x20)
+    e_shentsize, e_shnum = struct.unpack_from("<HH", data, 0x2E)
+    total = 0
+    for i in range(e_shnum):
+        off = e_shoff + i * e_shentsize
+        sh_type, sh_flags = struct.unpack_from("<II", data, off + 4)
+        (sh_size,) = struct.unpack_from("<I", data, off + 20)
+        # SHT_PROGBITS with SHF_ALLOC: sections with data that occupy memory
+        if sh_size and sh_type == 1 and sh_flags & 0x2:
+            total += sh_size
+    return total
+
+
+def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> None:
     """Print PlatformIO-shaped RAM and Flash one-liners.
 
     Failures are non-fatal: the build has already succeeded, we just couldn't
@@ -103,15 +126,14 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_bin: Path) -> 
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
 
-    # esp-idf-size >= 2.1 (IDF >= 6.0) reports the exact map-derived image
-    # size in json2; older 1.x omits it, so fall back to the padded on-disk
-    # .bin size.
+    # esp-idf-size >= 2.1 (IDF >= 6.0) reports the exact image size in
+    # json2; older 1.x omits it, so derive the same figure from the ELF.
     flash_used = data.get("total_size")
     try:
         if flash_used is None:
-            flash_used = firmware_bin.stat().st_size
+            flash_used = _image_size_from_elf(firmware_elf)
         app_size = _find_app_partition_size(partitions_csv)
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, struct.error) as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
     print_size_line("Flash", flash_used, app_size)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import struct
 
 import pytest
 
@@ -25,6 +26,25 @@ def _write_partitions(tmp_path: Path) -> Path:
         "app0, app, ota_0, 0x10000, 0x1C0000,\n"
     )
     return out
+
+
+def _write_elf(tmp_path: Path, sections: list[tuple[int, int, int]]) -> Path:
+    """Write a minimal ELF32 LE whose section headers carry the given
+    (sh_type, sh_flags, sh_size) triples."""
+    header = bytearray(52)
+    header[0:4] = b"\x7fELF"
+    header[4] = header[5] = 1  # 32-bit, little-endian
+    struct.pack_into("<I", header, 0x20, 52)  # e_shoff
+    struct.pack_into("<HH", header, 0x2E, 40, len(sections))
+    out = bytearray(header)
+    for sh_type, sh_flags, sh_size in sections:
+        shdr = bytearray(40)
+        struct.pack_into("<II", shdr, 4, sh_type, sh_flags)
+        struct.pack_into("<I", shdr, 20, sh_size)
+        out += shdr
+    elf = tmp_path / "firmware.elf"
+    elf.write_bytes(bytes(out))
+    return elf
 
 
 def _esp32_size_data() -> dict:
@@ -152,43 +172,51 @@ def test_print_summary_handles_no_layout(
 def test_print_summary_flash_line_prefers_total_size(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """With ``total_size`` in the json, the exact figure wins over the padded
-    bin size, in the exact shape script/ci_memory_impact_extract.py greps."""
+    """With ``total_size`` in the json, that figure wins without reading the
+    ELF, in the exact shape script/ci_memory_impact_extract.py greps."""
     size_json = _write_size_json(tmp_path, _esp32_size_data())
     partitions = _write_partitions(tmp_path)
-    firmware_bin = tmp_path / "firmware.bin"
-    firmware_bin.write_bytes(b"\x00" * 999999)
-    print_summary(size_json, partitions, firmware_bin)
+    print_summary(size_json, partitions, tmp_path / "firmware.elf")
     out = capsys.readouterr().out
     assert "Flash: " in out
     assert "(used 827455 bytes from 1835008 bytes)" in out
 
 
-def test_print_summary_flash_line_falls_back_to_bin_size(
+def test_print_summary_flash_line_derives_from_elf(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A 1.x json without ``total_size`` uses the on-disk bin size."""
+    """A 1.x json without ``total_size`` sums the ELF's loadable PROGBITS
+    sections; NOBITS and non-alloc sections are excluded."""
     size_json = _write_size_json(tmp_path, _s3_size_data())
     partitions = _write_partitions(tmp_path)
-    firmware_bin = tmp_path / "firmware.bin"
-    firmware_bin.write_bytes(b"\x00" * 724224)
-    print_summary(size_json, partitions, firmware_bin)
+    firmware_elf = _write_elf(
+        tmp_path,
+        [
+            (1, 0x6, 700000),  # PROGBITS, alloc+exec: counted
+            (1, 0x2, 24215),  # PROGBITS, alloc: counted
+            (8, 0x2, 50000),  # NOBITS (.bss): excluded
+            (1, 0x0, 12345),  # PROGBITS, no alloc (.debug_*): excluded
+        ],
+    )
+    print_summary(size_json, partitions, firmware_elf)
     out = capsys.readouterr().out
-    assert "(used 724224 bytes from 1835008 bytes)" in out
+    assert "(used 724215 bytes from 1835008 bytes)" in out
 
 
-@pytest.mark.parametrize("missing", ["bin", "partitions"])
-def test_print_summary_skips_flash_on_missing_input(
-    missing: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("problem", ["missing_elf", "not_an_elf", "missing_partitions"])
+def test_print_summary_skips_flash_on_bad_input(
+    problem: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A missing firmware bin or partitions.csv skips the Flash line, not the RAM line."""
+    """An unusable ELF or missing partitions.csv skips the Flash line, not the RAM line."""
     size_json = _write_size_json(tmp_path, _s3_size_data())
-    firmware_bin = tmp_path / "firmware.bin"
-    if missing == "bin":
-        _write_partitions(tmp_path)
+    firmware_elf = tmp_path / "firmware.elf"
+    if problem == "missing_partitions":
+        _write_elf(tmp_path, [(1, 0x2, 1024)])
     else:
-        firmware_bin.write_bytes(b"\x00" * 16)
-    print_summary(size_json, tmp_path / "partitions.csv", firmware_bin)
+        _write_partitions(tmp_path)
+        if problem == "not_an_elf":
+            firmware_elf.write_bytes(b"junk")
+    print_summary(size_json, tmp_path / "partitions.csv", firmware_elf)
     out = capsys.readouterr().out
     assert "RAM:" in out
     assert "Flash:" not in out

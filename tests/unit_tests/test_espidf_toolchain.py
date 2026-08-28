@@ -639,8 +639,8 @@ def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
 
 
 def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
-    """print_summary receives the size json, partitions.csv, and the firmware
-    bin from get_firmware_path, which must stay in lockstep with the
+    """print_summary receives the size json, partitions.csv, and the built
+    ELF from get_built_elf_path, which must stay in lockstep with the
     project() name in the generated CMakeLists."""
     _setup_build(setup_core)
     config = {CONF_ESPHOME: {}}
@@ -655,7 +655,7 @@ def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
     mock_summary.assert_called_once_with(
         CORE.relative_build_path("build", "esp_idf_size.json"),
         CORE.relative_build_path("partitions.csv"),
-        toolchain.get_firmware_path(),
+        toolchain.get_built_elf_path(),
     )
 
 
