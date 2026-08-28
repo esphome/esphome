@@ -55,6 +55,7 @@ from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import generate_idf_components
+from esphome.espidf.toolchain import _get_idf_path
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -65,6 +66,7 @@ from .boards import BOARDS, STANDARD_BOARDS
 from .const import (
     KEY_ARDUINO_LIBRARIES,
     KEY_BOARD,
+    KEY_CERT_BUNDLE,
     KEY_COMPONENTS,
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
@@ -213,11 +215,13 @@ COMPILER_OPTIMIZATIONS = {
 # builds that need them.
 DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "app_trace",  # CPU trace/SystemView support - unused by ESPHome
+    "bt",  # Bluetooth stack - re-included by request_bluetooth(); its REQUIRES pulls the WiFi stack back
     "cmock",  # Unit testing mock framework - ESPHome doesn't use IDF's testing
     "console",  # Console REPL - unused by ESPHome; espressif/mdns pulls it back when configured
     "driver",  # Legacy driver shim - only needed by esp32_touch, esp32_can for legacy headers
     "esp-tls",  # TLS wrapper - re-included by http_request, mqtt, web_server_idf
     "esp_adc",  # ADC driver - only needed by adc component
+    "esp_coex",  # WiFi/BT coexistence - re-included by esp32_ble_tracker, zigbee; esp_wifi/bt pull it back
     "esp_driver_cam",  # Camera driver - the esp32-camera managed component pulls it back
     "esp_driver_dac",  # DAC driver - only needed by esp32_dac component
     "esp_driver_gptimer",  # General purpose timer - re-included by ac_dimmer, opentherm, Arduino BLE libs
@@ -235,16 +239,22 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_driver_twai",  # TWAI/CAN driver - only needed by esp32_can component
     "esp_eth",  # Ethernet driver - only needed by ethernet component
     "esp_gdbstub",  # GDB stub panic handler - unused by ESPHome; bt pulls it back
+    "esp_hal_ieee802154",  # 802.15.4 HAL - ieee802154 pulls it back
     "esp_hid",  # HID host/device support - ESPHome doesn't implement HID functionality
     "esp_http_client",  # HTTP client - only needed by http_request component
+    "esp_http_server",  # HTTP server - re-included by web_server_idf, esp32_camera_web_server
     "esp_https_ota",  # ESP-IDF HTTPS OTA - ESPHome has its own OTA implementation
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
+    "esp_phy",  # RF PHY - esp_wifi/bt/ieee802154 pull it back when they are in the build
+    "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
+    "ieee802154",  # 802.15.4 radio - IDF openthread and the Zigbee libs pull it back
     "json",  # cJSON library - ESPHome uses ArduinoJson instead
     "mqtt",  # ESP-IDF MQTT library - ESPHome has its own MQTT implementation
+    "nvs_sec_provider",  # NVS encryption key provider - re-included when CONFIG_NVS_ENCRYPTION is set
     "openthread",  # Thread protocol - only needed by openthread component
     "perfmon",  # Xtensa performance monitor - ESPHome has its own debug component
     "protobuf-c",  # Protobuf runtime - only used by provisioning components (also excluded)
@@ -257,6 +267,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "unity",  # Unit testing framework - ESPHome doesn't use IDF's testing
     "wear_levelling",  # Flash wear levelling for fatfs - unused since fatfs unused
     "wifi_provisioning",  # WiFi provisioning - ESPHome uses its own improv implementation
+    "wpa_supplicant",  # WPA supplicant - re-included by request_wifi() for esp_eap_client.h
 )
 
 # Additional IDF managed components to exclude for Arduino framework builds
@@ -342,6 +353,10 @@ ARDUINO_LIBRARY_IDF_COMPONENTS: dict[str, tuple[str, ...]] = {
     "WiFiProv": ("espressif__network_provisioning", "espressif__qrcode"),
     "Zigbee": ("espressif__esp-zigbee-lib", "espressif__esp-zboss-lib"),
 }
+
+# Arduino libraries whose sources reference esp_crt_bundle_attach without a
+# CONFIG_MBEDTLS_CERTIFICATE_BUNDLE guard, so enabling them needs the bundle.
+ARDUINO_LIBRARIES_NEEDING_CERT_BUNDLE = frozenset({"NetworkClientSecure"})
 
 # Arduino library to Arduino library dependencies
 # When enabling one library, also enable its dependencies
@@ -644,6 +659,42 @@ class RawSdkconfigValue:
 SdkconfigValueType = bool | int | HexInt | str | RawSdkconfigValue
 
 
+def sdkconfig_option_is_true(opts: dict[str, SdkconfigValueType], name: str) -> bool:
+    """Whether an sdkconfig option is set to a Kconfig-true value.
+
+    User-supplied `sdkconfig_options` reach the registry as RawSdkconfigValue, a plain
+    dataclass with no __bool__/__len__, so every entry -- including the "n" that turns a
+    symbol OFF -- is truthy. Unwrap and read the text instead of testing the object.
+    """
+    raw = opts.get(name)
+    if raw is None:
+        return False
+    if isinstance(raw, bool):
+        return raw
+    return str(getattr(raw, "value", raw)).strip().lower() in ("y", "true", "1")
+
+
+def is_idf_sdkconfig_option_enabled(name: str) -> bool:
+    """Return True when a bool sdkconfig option resolves to ``y``.
+
+    Handles both the ``True`` a component sets and the raw ``y`` a user sets
+    in ``sdkconfig_options``.
+    """
+    value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
+    return value is not None and _format_sdkconfig_val(value) == "y"
+
+
+def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
+    """Set an sdkconfig option unless it is already set.
+
+    For the FINAL priority reconcile jobs: they run after every to_code,
+    including the user's sdkconfig_options, and must not override an
+    existing value.
+    """
+    if name not in CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]:
+        add_idf_sdkconfig_option(name, value)
+
+
 def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     """Set an esp-idf sdkconfig value."""
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
@@ -681,6 +732,9 @@ def request_wifi(ap: bool = False) -> None:
     net.wifi = True
     if ap:
         net.wifi_ap = True
+    include_builtin_idf_component("esp_wifi")
+    # wifi_component.cpp includes esp_eap_client.h/esp_wpa2.h
+    include_builtin_idf_component("wpa_supplicant")
 
 
 def request_ethernet() -> None:
@@ -692,11 +746,14 @@ def request_bluetooth() -> None:
     """Request the Bluetooth controller."""
     net = _network_sdkconfig()
     net.bluetooth = True
+    include_builtin_idf_component("bt")
 
 
 def request_software_coexistence() -> None:
     """Request WiFi/BT software coexistence (only valid alongside WiFi)."""
     _network_sdkconfig().software_coexistence = True
+    # Callers include esp_coexist.h directly.
+    include_builtin_idf_component("esp_coex")
 
 
 def add_idf_component(
@@ -788,6 +845,10 @@ def _enable_arduino_library(name: str) -> None:
     # Also enable any required IDF components
     for idf_component in ARDUINO_LIBRARY_IDF_COMPONENTS.get(name, ()):
         include_builtin_idf_component(idf_component)
+    if not ARDUINO_LIBRARIES_NEEDING_CERT_BUNDLE.isdisjoint(
+        {name, *ARDUINO_LIBRARY_DEPENDENCIES.get(name, ())}
+    ):
+        require_certificate_bundle()
 
 
 def add_extra_script(stage: str, filename: str, path: Path):
@@ -1073,19 +1134,11 @@ def _check_esp_idf_versions(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_toolchain(value) -> Toolchain:
-    return Toolchain(
-        cv.one_of(Toolchain.PLATFORMIO, Toolchain.ESP_IDF, lower=True)(value)
-    )
-
-
-def _resolve_toolchain(value: ConfigType) -> ConfigType:
-    # Resolve toolchain: CLI (already on CORE.toolchain) > YAML > default.
-    # Runs before _detect_variant so downstream validators can rely on
-    # CORE.toolchain instead of re-resolving it from the config dict.
-    if CORE.toolchain is None:
-        CORE.toolchain = value.get(CONF_TOOLCHAIN, Toolchain.ESP_IDF)
-    return value
+_TOOLCHAINS = (Toolchain.PLATFORMIO, Toolchain.ESP_IDF)
+_validate_toolchain = cv.toolchain_enum(_TOOLCHAINS)
+# Runs before _detect_variant so downstream validators can rely on
+# CORE.toolchain instead of re-resolving it from the config dict.
+_resolve_toolchain = cv.resolve_toolchain("ESP32", _TOOLCHAINS, Toolchain.ESP_IDF)
 
 
 def _check_versions(config: ConfigType) -> ConfigType:
@@ -1736,6 +1789,16 @@ def require_vfs_termios() -> None:
     CORE.data[KEY_VFS_TERMIOS_REQUIRED] = True
 
 
+def require_certificate_bundle() -> None:
+    """Enable the mbedTLS root certificate bundle for this build.
+
+    The bundle is off by default; components that verify TLS server
+    certificates (http_request, audio streaming) call this so the bundle is
+    compiled and gen_crt_bundle runs only when something uses it.
+    """
+    CORE.data[KEY_ESP32][KEY_CERT_BUNDLE] = True
+
+
 def require_full_certificate_bundle() -> None:
     """Request the full certificate bundle instead of the common-CAs-only bundle.
 
@@ -1745,6 +1808,7 @@ def require_full_certificate_bundle() -> None:
 
     Call this from components that need to connect to services using uncommon CAs.
     """
+    require_certificate_bundle()
     CORE.data[KEY_ESP32][KEY_FULL_CERT_BUNDLE] = True
 
 
@@ -2162,6 +2226,10 @@ def register_exclude_components_cmake_arg() -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _write_exclude_components() -> None:
     """Write EXCLUDE_COMPONENTS cmake arg after all components have registered exclusions."""
+    # NVS encryption needs nvs_sec_provider however it was enabled: the
+    # nvs_encryption option, raw sdkconfig_options or another component.
+    if is_idf_sdkconfig_option_enabled("CONFIG_NVS_ENCRYPTION"):
+        include_builtin_idf_component("nvs_sec_provider")
     register_exclude_components_cmake_arg()
 
 
@@ -2221,6 +2289,31 @@ async def _set_libc_picolibc_newlib_compat() -> None:
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_certificate_bundle_sdkconfig() -> None:
+    """Enable the mbedTLS certificate bundle only when something asked for it.
+
+    Runs at FINAL priority so every require_certificate_bundle() call has
+    happened. Without a request the bundle is disabled, which skips
+    esp_crt_bundle.c, the gen_crt_bundle step and the x509_crt_bundle.S embed.
+    A user-supplied sdkconfig_options value takes precedence.
+    """
+    data = CORE.data[KEY_ESP32]
+    enabled = data.get(KEY_CERT_BUNDLE, False)
+    set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", enabled)
+    if not enabled:
+        return
+    # Use CMN (common CAs) bundle by default to save ~51KB flash
+    # CMN covers CAs with >1% market share (~99% of websites)
+    # Components needing uncommon CAs can call require_full_certificate_bundle()
+    use_full_bundle = data.get(KEY_FULL_CERT_BUNDLE, False)
+    set_idf_sdkconfig_default(
+        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
+    )
+    if not use_full_bundle:
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
 async def _reconcile_network_sdkconfig() -> None:
     """Reconcile WiFi/Ethernet/Bluetooth/coexistence sdkconfig flags.
 
@@ -2231,37 +2324,33 @@ async def _reconcile_network_sdkconfig() -> None:
     always takes precedence.
     """
     net = CORE.data[KEY_ESP32].get(KEY_NETWORK_SDKCONFIG, NetworkSdkconfigData())
-    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     is_arduino = CORE.using_arduino
-
-    def set_opt(name: str, value: SdkconfigValueType) -> None:
-        # User sdkconfig_options (applied during to_code) win.
-        if name not in opts:
-            add_idf_sdkconfig_option(name, value)
 
     # Bluetooth: only ever enable when requested. The IDF default is off.
     # According to the IDF docs, only one of 4.2 or 5.0 should be enabled.
     if net.bluetooth:
-        set_opt("CONFIG_BT_ENABLED", True)
-        set_opt("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
-        set_opt("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", False)
+        set_idf_sdkconfig_default("CONFIG_BT_ENABLED", True)
+        set_idf_sdkconfig_default("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+        set_idf_sdkconfig_default("CONFIG_BT_BLE_50_FEATURES_SUPPORTED", False)
 
     # WiFi stack: disable only when Ethernet is present and WiFi is not. WiFi
     # relies on the IDF default (enabled), so it is never written True here.
+    # esp_wifi is excluded by default on IDF, so this only matters for Arduino
+    # or when bt pulls it back.
     wifi_disabled = net.ethernet and not net.wifi
     if wifi_disabled:
-        set_opt("CONFIG_ESP_WIFI_ENABLED", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENABLED", False)
 
     # Software coexistence: enable when requested (the schema only allows it
     # alongside WiFi). Disable only in the Ethernet-without-WiFi case.
     if net.software_coexistence:
-        set_opt("CONFIG_SW_COEXIST_ENABLE", True)
+        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", True)
     elif wifi_disabled:
-        set_opt("CONFIG_SW_COEXIST_ENABLE", False)
+        set_idf_sdkconfig_default("CONFIG_SW_COEXIST_ENABLE", False)
 
     # SoftAP support: drop it when WiFi is used without AP mode (IDF only).
     if not is_arduino and net.wifi and not net.wifi_ap:
-        set_opt("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
+        set_idf_sdkconfig_default("CONFIG_ESP_WIFI_SOFTAP_SUPPORT", False)
 
     # LWIP DHCP server: a WiFi-AP-mode / enable_lwip_dhcp_server concern (not
     # coexistence). Disable when WiFi has no AP (IDF) or the enable_lwip_dhcp_server
@@ -2272,7 +2361,7 @@ async def _reconcile_network_sdkconfig() -> None:
     if (
         wifi_wants_dhcps_off or dhcp_server_disabled_by_option
     ) and not arduino_eth_exclusion:
-        set_opt("CONFIG_LWIP_DHCPS", False)
+        set_idf_sdkconfig_default("CONFIG_LWIP_DHCPS", False)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2298,29 +2387,24 @@ async def _reconcile_vfs_fatfs_sdkconfig(
     """Reconcile VFS/FATFS sdkconfig flags after all require_*() calls; user sdkconfig_options win."""
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
-    def set_opt(name: str, value: SdkconfigValueType) -> None:
-        # User sdkconfig_options (applied during to_code) win.
-        if name not in opts:
-            add_idf_sdkconfig_option(name, value)
-
     # USB Serial JTAG VFS needs termios (require_vfs_termios(), e.g. logger). ~1.8KB flash when off.
     if CORE.data.get(KEY_VFS_TERMIOS_REQUIRED, False):
-        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", True)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_TERMIOS", True)
     else:
-        set_opt("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_TERMIOS", not disable_vfs_termios)
 
     # VFS select is only needed for UART/eventfd fds (require_vfs_select(), e.g. openthread);
     # sockets use lwip_select() either way. ~2.7KB flash when off.
     if CORE.data.get(KEY_VFS_SELECT_REQUIRED, False):
-        set_opt("CONFIG_VFS_SUPPORT_SELECT", True)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_SELECT", True)
     else:
-        set_opt("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_SELECT", not disable_vfs_select)
 
     # Directory functions: opendir/readdir/mkdir etc. (require_vfs_dir()). ~0.5KB flash when off.
     if CORE.data.get(KEY_VFS_DIR_REQUIRED, False):
-        set_opt("CONFIG_VFS_SUPPORT_DIR", True)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_DIR", True)
     else:
-        set_opt("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
+        set_idf_sdkconfig_default("CONFIG_VFS_SUPPORT_DIR", not disable_vfs_dir)
 
     # FATFS (require_fatfs()): LFN + one volume per esp_vfs_fat mount. Defaults only;
     # sdkconfig_options override. FATFS_LONG_FILENAMES is a Kconfig choice -- if the user set
@@ -2331,29 +2415,47 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         "CONFIG_FATFS_LFN_STACK",
     )
     user_picked_lfn = any(k in opts for k in lfn_keys)
-    if CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False):
+    fatfs_required = CORE.data[KEY_ESP32].get(KEY_FATFS_REQUIRED, False)
+    if fatfs_required:
+        if enable_exfat and sdkconfig_option_is_true(opts, "CONFIG_FATFS_LFN_NONE"):
+            raise EsphomeError(
+                f"'{CONF_ENABLE_EXFAT}' needs long filename support, but 'CONFIG_FATFS_LFN_NONE' "
+                "is set in the esp32 framework sdkconfig_options -- exFAT cannot be built with "
+                "FF_USE_LFN == 0. Remove CONFIG_FATFS_LFN_NONE, or unset enable_exfat."
+            )
         if not user_picked_lfn:
-            set_opt("CONFIG_FATFS_LFN_NONE", False)
-            set_opt("CONFIG_FATFS_LFN_HEAP", True)
-            set_opt("CONFIG_FATFS_MAX_LFN", 255)
-        set_opt("CONFIG_FATFS_VOLUME_COUNT", 4)
-        # Long filenames are a hard requirement of exFAT and are already set right above;
-        # the FatFs #defines themselves come via a patched project-local component copy.
+            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", False)
+            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_HEAP", True)
+            set_idf_sdkconfig_default("CONFIG_FATFS_MAX_LFN", 255)
+        set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 4)
+    elif enable_exfat:
+        # FATFS is not in the build, so tear down any stale patched copy before failing --
+        # otherwise the error state also leaves the override behind until enable_exfat is
+        # removed too, the exact state the unconditional reconcile below is meant to prevent.
         _sync_exfat_fatfs_override(
-            enable_exfat,
+            False,
             str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
             get_esp32_variant(),
         )
-    elif enable_exfat:
-        raise cv.Invalid(
+        raise EsphomeError(
             f"'{CONF_ENABLE_EXFAT}' has no effect here: no component in this configuration "
             f"mounts a FAT filesystem, so the FatFs library is not part of the build"
         )
     elif disable_fatfs:
         if not user_picked_lfn:
-            set_opt("CONFIG_FATFS_LFN_NONE", True)
+            set_idf_sdkconfig_default("CONFIG_FATFS_LFN_NONE", True)
         # Kconfig range is [1,10]; 0 gets clamped to the default.
-        set_opt("CONFIG_FATFS_VOLUME_COUNT", 1)
+        set_idf_sdkconfig_default("CONFIG_FATFS_VOLUME_COUNT", 1)
+
+    # Reconcile the project-local FatFs override on every run, not only when FATFS is required,
+    # so a stale patched copy is removed once exFAT is no longer active (e.g. the SD component was
+    # dropped from the YAML). _sync_exfat_fatfs_override() early-returns and cleans up when
+    # disabled, so this both installs and tears down.
+    _sync_exfat_fatfs_override(
+        fatfs_required and enable_exfat,
+        str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),
+        get_esp32_variant(),
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL - 1)
@@ -2540,21 +2642,11 @@ async def to_code(config):
         )
 
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PSK_MODES", True)
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
 
     cg.add_build_flag("-Wno-nonnull-compare")
 
-    # Use CMN (common CAs) bundle by default to save ~51KB flash
-    # CMN covers CAs with >1% market share (~99% of websites)
-    # Components needing uncommon CAs can call require_full_certificate_bundle()
-    use_full_bundle = conf[CONF_ADVANCED].get(
-        CONF_USE_FULL_CERTIFICATE_BUNDLE, False
-    ) or CORE.data[KEY_ESP32].get(KEY_FULL_CERT_BUNDLE, False)
-    add_idf_sdkconfig_option(
-        "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL", use_full_bundle
-    )
-    if not use_full_bundle:
-        add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
+    if conf[CONF_ADVANCED].get(CONF_USE_FULL_CERTIFICATE_BUNDLE, False):
+        require_full_certificate_bundle()
 
     add_idf_sdkconfig_option(f"CONFIG_IDF_TARGET_{variant}", True)
     add_idf_sdkconfig_option(
@@ -2944,6 +3036,9 @@ async def to_code(config):
     # FINAL priority: runs after every network/coexistence request_*() call
     CORE.add_job(_reconcile_network_sdkconfig)
 
+    # FINAL priority: runs after every require_certificate_bundle() call
+    CORE.add_job(_reconcile_certificate_bundle_sdkconfig)
+
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
     CORE.add_job(
@@ -2972,6 +3067,10 @@ async def to_code(config):
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+    # A bundle forced on through sdkconfig_options is a request like any other,
+    # so it still gets the CMN variant pinned.
+    if conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") == "y":
+        require_certificate_bundle()
 
     # Components from YAML are added in a separate coroutine with FINAL priority
     # Schedule it to run after all other components
@@ -3007,39 +3106,51 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
     """Patch a project-local copy of FatFs so exFAT is compiled in."""
     import shutil
 
-    from esphome.espidf.framework import _get_framework_path, check_esp_idf_install
-
     dest = Path(CORE.build_path) / "components" / "fatfs"
     marker = dest / _EXFAT_MARKER
     stamp = f"v4:{idf_ver}:" + ",".join(f"{k}={v}" for k, v in _EXFAT_PATCHES)
     if not enabled:
         # Only remove what is provably ours.
         if marker.is_file():
-            shutil.rmtree(dest)
+            rmtree(dest)
         return
-    if marker.is_file() and marker.read_text() == stamp:
+    if not CORE.using_toolchain_esp_idf:
+        raise EsphomeError(
+            f"'{CONF_ENABLE_EXFAT}' requires the esp-idf toolchain: the FatFs sources are "
+            "copied from the esp-idf install, which is the only framework tree that actually "
+            "builds the project. Use 'toolchain: esp-idf', or unset enable_exfat."
+        )
+    if (
+        marker.is_file()
+        and marker.read_text(encoding="utf-8", errors="replace") == stamp
+    ):
         return  # current copy is up to date
-    src = _get_framework_path(idf_ver) / "components" / "fatfs"
+    src = _get_idf_path(idf_ver) / "components" / "fatfs"
     if not src.is_dir():
-        # First-ever build: the toolchain would install the IDF minutes from now anyway --
-        # front-load it so the copy source exists.
-        check_esp_idf_install(idf_ver, targets=[variant])
-    if not src.is_dir():
-        raise cv.Invalid(
+        raise EsphomeError(
             "enable_exfat: cannot locate the ESP-IDF fatfs component to patch "
             f"(looked in {src})"
         )
     if dest.exists():
-        shutil.rmtree(dest)
+        if not marker.is_file():
+            raise EsphomeError(
+                f"enable_exfat: refusing to overwrite {dest}, which exists but was not "
+                "created by ESPHome (no exFAT marker). Remove it manually if unneeded."
+            )
+        rmtree(dest)
     shutil.copytree(src, dest)
+    # Claim the copy immediately: if the patching below raises, the cleanup path (which only
+    # removes marked copies) can still remove this one instead of leaving it to shadow the IDF
+    # component forever. Overwritten with the real stamp once patching succeeds.
+    marker.write_text("partial", encoding="utf-8", errors="replace")
     ffconf = dest / "src" / "ffconf.h"
-    text = ffconf.read_text()
+    text = ffconf.read_text(encoding="utf-8", errors="replace")
     for key, value in _EXFAT_PATCHES:
         text, n = re.subn(
             rf"#define[ \t]+{key}[ \t]+\S+", f"#define {key} {value}", text
         )
         if n != 1:
-            raise cv.Invalid(
+            raise EsphomeError(
                 f"enable_exfat: patching {key} in the IDF's ffconf.h failed -- "
                 f"unexpected FatFs layout in IDF {idf_ver}"
             )
@@ -3054,14 +3165,14 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
             part.name for part in f.parents
         }:
             continue
-        for line in f.read_text(errors="replace").splitlines():
+        for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
             if re.search(r"#\s*if(n?def)?\b", line) or "defined" in line:
                 probed.update(re.findall(r"\bCONFIG_[A-Z0-9_]+\b", line))
     symbols = sorted(set(re.findall(r"\bCONFIG_[A-Z0-9_]+\b", text)) - probed)
     guards = "".join(f"#ifndef {sym}\n#define {sym} 0\n#endif\n" for sym in symbols)
     include_line = '#include "sdkconfig.h"\n'
     if include_line not in text:
-        raise cv.Invalid(
+        raise EsphomeError(
             "enable_exfat: unexpected ffconf.h layout -- no sdkconfig.h include to anchor on"
         )
     text = text.replace(
@@ -3071,8 +3182,8 @@ def _sync_exfat_fatfs_override(enabled: bool, idf_ver: str, variant: str) -> Non
         + guards,
         1,
     )
-    ffconf.write_text(text)
-    marker.write_text(stamp)
+    ffconf.write_text(text, encoding="utf-8", errors="replace")
+    marker.write_text(stamp, encoding="utf-8", errors="replace")
 
 
 @dataclass
@@ -3320,7 +3431,9 @@ def _write_idf_component_yml():
             stub_path.mkdir(exist_ok=True)
             stub_cmake = stub_path / "CMakeLists.txt"
             if not stub_cmake.exists():
-                stub_cmake.write_text("idf_component_register()\n")
+                stub_cmake.write_text(
+                    "idf_component_register()\n", encoding="utf-8", errors="replace"
+                )
             dependencies[_idf_component_dep_name(component_name)] = {
                 "version": "*",
                 "override_path": str(stub_path),

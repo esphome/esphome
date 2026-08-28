@@ -6,8 +6,10 @@ esp32:
   framework:
     type: esp-idf
 
-mdns:
-
 wifi:
   ssid: "test_ssid"
   password: "test_password"
+
+esp32_camera_web_server:
+  port: 8080
+  mode: stream
