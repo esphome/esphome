@@ -43,7 +43,7 @@ runs:
           .temp/**/*.tpp
         key: ${{ steps.key.outputs.key }}
     - name: Cache clang-tidy idedata (restore-only off dev)
-      if: !(github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && steps.key.outputs.skip != 'true'
+      if: github.ref != 'refs/heads/dev' && !contains(github.event.pull_request.labels.*.name, 'ci-cache-write') && steps.key.outputs.skip != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
