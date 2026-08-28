@@ -17,15 +17,13 @@ void SDMMeter::on_read_input_registers(uint16_t start_address, std::span<const u
   // Publish a sensor if both of its registers are in this response; skipping absent registers keeps
   // this correct for any read range, so the poll may be split into multiple requests.
   auto publish = [&](uint16_t reg, sensor::Sensor *sensor) {
+    constexpr auto VALUE_TYPE = modbus::helpers::SensorValueType::FP32;
     if (sensor == nullptr || reg < start_address)
       return;
     size_t offset = reg - start_address;
-    if (offset + 2 > registers.size())
+    if (offset + modbus::helpers::registers_for_value_type(VALUE_TYPE) > registers.size())
       return;
-    auto value =
-        modbus::helpers::registers_to_number(registers.data() + offset, 2, modbus::helpers::SensorValueType::FP32);
-    if (value.has_value())
-      sensor->publish_state(bit_cast<float>(static_cast<uint32_t>(*value)));
+    sensor->publish_state(modbus::helpers::registers_to_value<VALUE_TYPE>(registers.data() + offset));
   };
 
   for (uint8_t i = 0; i < 3; i++) {
