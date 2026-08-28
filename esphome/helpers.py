@@ -464,9 +464,10 @@ def rmtree(path: Path | str) -> None:
     """Remove a directory tree, tolerating common filesystem races.
 
     Read-only files (e.g. git pack files on Windows) get the read-only flag
-    removed and are retried. Paths that are already gone are treated as
-    removed. Directories repopulated mid-delete (e.g. Finder recreating
-    .DS_Store on macOS) are retried a few times.
+    removed and are retried. Paths that are already gone, whether the target
+    itself or entries vanishing mid-delete, are treated as removed.
+    Directories repopulated mid-delete (e.g. Finder recreating .DS_Store on
+    macOS) are retried a few times.
     """
 
     import errno
@@ -482,6 +483,7 @@ def rmtree(path: Path | str) -> None:
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
+    last_err: OSError | None = None
     for attempt in range(RMTREE_MAX_ATTEMPTS - 1):
         try:
             shutil.rmtree(path, onexc=_onexc)
@@ -495,9 +497,14 @@ def rmtree(path: Path | str) -> None:
                 attempt + 1,
                 err,
             )
+            last_err = err
             # Give the racing writer (e.g. Finder) time to settle
             time.sleep(0.05 * (attempt + 1))
-    shutil.rmtree(path, onexc=_onexc)
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except OSError as err:
+        # Keep the earlier races visible in the traceback
+        raise err from last_err
 
 
 def walk_files(path: Path):
