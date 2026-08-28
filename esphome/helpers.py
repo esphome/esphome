@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, MutableMapping
+from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -474,7 +474,7 @@ def rmtree(path: Path | str) -> None:
     import shutil
     import time
 
-    def _onexc(func, path, exc):
+    def _onexc(func: Callable[..., object], path: str | Path, exc: OSError) -> None:
         if isinstance(exc, FileNotFoundError):
             _LOGGER.debug("rmtree: %s already gone", path)
             return
