@@ -41,6 +41,7 @@ from .const import (
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
+    CONF_REUSE_PREVIOUS_RANGE,
     CONF_SERVER_COURTESY_RESPONSE,
     CONF_SERVER_REGISTERS,
     CONF_SKIP_UPDATES,
@@ -59,6 +60,13 @@ modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_("ModbusController", cg.PollingComponent)
 
 SensorItem = modbus_controller_ns.struct("SensorItem")
+
+RangeReuse = modbus_controller_ns.enum("RangeReuse", is_class=True)
+RANGE_REUSE = {
+    "auto": RangeReuse.AUTO,
+    True: RangeReuse.ALWAYS,
+    False: RangeReuse.NEVER,
+}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -184,14 +192,89 @@ ModbusItemBaseSchema = cv.Schema(
         ): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
         cv.Optional(CONF_SKIP_UPDATES): validate_skip_updates_deprecated,
-        cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
+        cv.Optional(CONF_REUSE_PREVIOUS_RANGE, default="auto"): cv.Any(
+            cv.boolean, cv.one_of("auto", lower=True)
+        ),
+        # Deprecated options, migrated by validate_range_reuse_migration(). Remove before 2027.3.0
+        cv.Optional(CONF_FORCE_NEW_RANGE): cv.boolean,
+        cv.Optional(CONF_REGISTER_COUNT): cv.positive_int,
         cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-        cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.positive_int,
+        cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.int_range(min=0, max=250),
     },
 )
 
 
-def validate_modbus_register(config):
+def _derived_register_widths(config: ConfigType) -> set[int]:
+    """Register widths an item derives on its own; a matching register_count is redundant."""
+    response_size = config.get(CONF_RESPONSE_SIZE, 0)
+    if (value_type := config.get(CONF_VALUE_TYPE)) is not None:
+        widths = {TYPE_REGISTER_MAP[value_type]}
+        if value_type == "RAW" and response_size > 0:
+            widths.add((response_size + 1) // 2)
+        return widths
+    if response_size > 0:
+        # text sensors: the old default was floor(response_size / 2); the derived width is now ceil
+        return {response_size // 2, (response_size + 1) // 2}
+    return {1}
+
+
+def entity_label(config: ConfigType) -> str:
+    """The entity's name or id, so migration messages say which entry to edit."""
+    label = config.get(CONF_NAME) or config.get(CONF_ID)
+    return str(label) if label is not None else "<unnamed>"
+
+
+# Remove before 2027.3.0
+def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
+    """Migrate the removed force_new_range/register_count options to reuse_previous_range."""
+    if (force_new_range := config.pop(CONF_FORCE_NEW_RANGE, None)) is not None:
+        if config[CONF_REUSE_PREVIOUS_RANGE] != "auto":
+            raise cv.Invalid(
+                f"'{CONF_FORCE_NEW_RANGE}' and '{CONF_REUSE_PREVIOUS_RANGE}' can't be used together; "
+                f"remove '{CONF_FORCE_NEW_RANGE}'"
+            )
+        if force_new_range:
+            _LOGGER.warning(
+                "%s: '%s' is deprecated; '%s: false' replaces it but only stops this entity joining "
+                "the PREVIOUS range - set it on the following entity too if the range must stay "
+                "isolated. Removed in 2027.3.0",
+                entity_label(config),
+                CONF_FORCE_NEW_RANGE,
+                CONF_REUSE_PREVIOUS_RANGE,
+            )
+            config[CONF_REUSE_PREVIOUS_RANGE] = False
+        else:
+            _LOGGER.warning(
+                "%s: '%s: false' has no effect; remove it. Removed in 2027.3.0",
+                entity_label(config),
+                CONF_FORCE_NEW_RANGE,
+            )
+    if (register_count := config.pop(CONF_REGISTER_COUNT, None)) is not None:
+        if (
+            register_count not in _derived_register_widths(config)
+            and register_count != 0
+        ):
+            raise cv.Invalid(
+                f"'{CONF_REGISTER_COUNT}' has been removed; the number of registers to read is now "
+                f"derived from '{CONF_VALUE_TYPE}' (or '{CONF_RESPONSE_SIZE}' for RAW values and text "
+                f"sensors). To make one request span extra registers up to the next sensor, set "
+                f"'{CONF_REUSE_PREVIOUS_RANGE}: true' on the NEXT sensor instead; for RAW or text block "
+                f"reads set '{CONF_RESPONSE_SIZE}' to the byte count; to force multi-register writes set "
+                f"'use_write_multiple: true'. See "
+                "https://esphome.io/components/modbus_controller/"
+            )
+        _LOGGER.warning(
+            "%s: '%s' is now derived from '%s' (or '%s' for RAW values and text sensors) and has no "
+            "effect; remove it. Removed in 2027.3.0",
+            entity_label(config),
+            CONF_REGISTER_COUNT,
+            CONF_VALUE_TYPE,
+            CONF_RESPONSE_SIZE,
+        )
+    return config
+
+
+def validate_modbus_register(config: ConfigType) -> ConfigType:
     # custom_command is the deprecated alias for custom_pdu (migrated later in final validate); treat
     # either as "a custom frame is configured" so the address/register_type rules match.
     has_custom = CONF_CUSTOM_PDU in config or CONF_CUSTOM_COMMAND in config
@@ -278,20 +361,28 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def modbus_calc_properties(config):
+def reject_odd_holding_write_offset(config: ConfigType) -> ConfigType:
+    """Reject an odd byte offset on a holding-register write entity.
+
+    A 16-bit register write cannot target half a register, so the residual byte is inexpressible.
+    """
+    key = CONF_BYTE_OFFSET if CONF_BYTE_OFFSET in config else CONF_OFFSET
+    if config.get(key, 0) % 2:
+        raise cv.Invalid(
+            f"An odd '{key}' cannot be used with holding-register writes: a 16-bit register "
+            "write cannot target half a register. Use an even offset, or fold it into 'address'",
+            path=[key],
+        )
+    return config
+
+
+def modbus_calc_properties(config: ConfigType) -> int:
     byte_offset = 0
-    reg_count = 0
     if CONF_OFFSET in config:
         byte_offset = config[CONF_OFFSET]
     # A CONF_BYTE_OFFSET setting overrides CONF_OFFSET
     if CONF_BYTE_OFFSET in config:
         byte_offset = config[CONF_BYTE_OFFSET]
-    if CONF_REGISTER_COUNT in config:
-        reg_count = config[CONF_REGISTER_COUNT]
-    if CONF_VALUE_TYPE in config:
-        value_type = config[CONF_VALUE_TYPE]
-        if reg_count == 0:
-            reg_count = TYPE_REGISTER_MAP[value_type]
     if CONF_CUSTOM_PDU in config:
         if CONF_ADDRESS not in config:
             # generate a unique modbus address using the hash of the name
@@ -302,13 +393,16 @@ def modbus_calc_properties(config):
                 value = value.encode()
             config[CONF_ADDRESS] = binascii.crc_hqx(value, 0)
         config[CONF_REGISTER_TYPE] = cv.enum(MODBUS_REGISTER_TYPE)("custom")
-        config[CONF_FORCE_NEW_RANGE] = True
-    return byte_offset, reg_count
+    return byte_offset
 
 
 async def add_modbus_base_properties(
-    var, config, sensor_type, lambda_param_type=cg.float_, lambda_return_type=float
-):
+    var: cg.MockObj,
+    config: ConfigType,
+    sensor_type: cg.MockObjClass,
+    lambda_param_type: cg.MockObj = cg.float_,
+    lambda_return_type: Any = float,
+) -> None:
     if CONF_CUSTOM_PDU in config:
         cg.add(var.set_custom_pdu(config[CONF_CUSTOM_PDU]))
 
@@ -347,8 +441,11 @@ _CALLBACK_AUTOMATIONS = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def to_code(config: ConfigType) -> None:
+    # Await the hub first, so no entity can bind to a controller that doesn't have one yet.
+    hub = await cg.get_variable(config[modbus.CONF_MODBUS_ID])
+    var = cg.new_Pvariable(config[CONF_ID], hub, config[CONF_ADDRESS])
+    await cg.register_component(var, config)
     cg.add(var.set_max_cmd_retries(config[CONF_MAX_CMD_RETRIES]))
     cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     cg.add(
@@ -356,17 +453,22 @@ async def to_code(config):
             modbus.command_options_expression(config, direction="read")
         )
     )
-    await register_modbus_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
-async def register_modbus_device(var, config):
+async def register_modbus_device(var: cg.MockObj, config: ConfigType) -> cg.MockObj:
+    # Remove before 2027.3.0
+    _LOGGER.warning(
+        "'modbus_controller.register_modbus_device' is deprecated, use "
+        "'modbus.register_modbus_client_device' and set the address on your own "
+        "class instead. Will be removed in 2027.3.0"
+    )
     cg.add(var.set_address(config[CONF_ADDRESS]))
     await cg.register_component(var, config)
     return await modbus.register_modbus_client_device(var, config)
 
 
-def function_code_to_register(function_code):
+def function_code_to_register(function_code: str) -> cg.MockObj:
     FUNCTION_CODE_TYPE_MAP = {
         "read_coils": EntityType.COIL,
         "read_discrete_inputs": EntityType.DISCRETE_INPUT,

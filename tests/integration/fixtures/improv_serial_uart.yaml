@@ -1,0 +1,42 @@
+esphome:
+  # Short name keeps the device info payload under uart_mock's 64 byte log cap
+  name: improv-uart
+
+host:
+api:
+  actions:
+    - action: uart_inject
+      variables:
+        payload: int[]
+      then:
+        - uart_mock.inject_rx:
+            id: mock_uart
+            data: !lambda return std::vector<uint8_t>(payload.begin(), payload.end());
+
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Host-only stub shadowing the real wifi component (see external_components/wifi)
+wifi:
+  ssid: TestNet
+  password: password1
+
+# Dummy uart entry so the uart component sources are part of the build; the
+# actual bus used by improv_serial is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+
+improv_serial:
+  uart_id: mock_uart
+  # Deterministic on host: only the device name placeholder is used
+  next_url: https://example.com/?device={{device_name}}
