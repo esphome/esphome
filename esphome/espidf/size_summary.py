@@ -124,32 +124,36 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
         for entry in data.get("layout", [])
         if isinstance(entry, dict)
     }
-    ram_region = regions.get("DRAM") or regions.get("DIRAM") or {}
-    ram_used = ram_region.get("used")
-    ram_total = ram_region.get("total")
-    if ram_total and ram_used is not None:
+    # Every chip has a DRAM or DIRAM region, so a warning here usually
+    # means the esp_idf_size json schema changed
+    ram_region = regions.get("DRAM") or regions.get("DIRAM")
+    if ram_region is None:
+        _LOGGER.warning("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
+    elif (
+        isinstance(ram_total := ram_region.get("total"), int)
+        and ram_total > 0
+        and isinstance(ram_used := ram_region.get("used"), int)
+    ):
         print_size_line("RAM", ram_used, ram_total)
     else:
-        # Every chip has a DRAM or DIRAM region, so this firing usually
-        # means the esp_idf_size json schema changed
-        _LOGGER.warning("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
+        _LOGGER.warning(
+            "Skipping RAM summary: unusable region %s in %s", ram_region, size_json
+        )
 
     # esp-idf-size >= 2.1 (IDF >= 6.0) reports the exact image size in
     # json2; older 1.x omits it, so derive the same figure from the ELF.
     flash_used = data.get("total_size")
-    try:
-        if flash_used is None:
-            _LOGGER.debug(
-                "No total_size in %s, deriving from %s", size_json, firmware_elf
-            )
+    if not (isinstance(flash_used, int) and flash_used > 0):
+        _LOGGER.debug("No total_size in %s, deriving from %s", size_json, firmware_elf)
+        try:
             flash_used = _image_size_from_elf(firmware_elf)
+        except (OSError, ValueError) as e:
+            # The ELF must be present and well formed after a successful build
+            _LOGGER.warning("Skipping Flash summary: %s", e)
+            return
+    try:
         app_size = _find_app_partition_size(partitions_csv)
-    except FileNotFoundError as e:
-        # The ELF must exist after a successful build; a missing
-        # partitions.csv raises ValueError and stays at debug level.
-        _LOGGER.warning("Skipping Flash summary: %s", e)
-        return
-    except (OSError, ValueError) as e:
+    except ValueError as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
     print_size_line("Flash", flash_used, app_size)

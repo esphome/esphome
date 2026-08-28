@@ -134,7 +134,9 @@ def test_print_summary_s3_falls_back_to_diram(
 
 
 def test_print_summary_skips_when_diram_total_collapses(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A zero-size region drops the RAM line rather than divide by zero."""
     size_json = _write_size_json(
@@ -147,6 +149,7 @@ def test_print_summary_skips_when_diram_total_collapses(
     _print_summary_ram_only(tmp_path, size_json)
     out = capsys.readouterr().out
     assert "RAM:" not in out
+    assert "unusable region" in caplog.text
 
 
 def test_print_summary_handles_missing_json(
@@ -158,12 +161,18 @@ def test_print_summary_handles_missing_json(
 
 
 def test_print_summary_handles_no_layout(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A size json without ``layout`` still doesn't crash."""
+    """A size json without ``layout`` warns so schema drift is visible."""
     size_json = _write_size_json(tmp_path, {"version": "1.1"})
     _print_summary_ram_only(tmp_path, size_json)
     assert capsys.readouterr().out == ""
+    assert any(
+        r.levelname == "WARNING" and "no DRAM/DIRAM region" in r.message
+        for r in caplog.records
+    )
 
 
 def test_print_summary_flash_line_prefers_total_size(
@@ -202,6 +211,22 @@ def test_print_summary_flash_line_derives_from_elf(
     assert "(used 724215 bytes from 1835008 bytes)" in out
 
 
+def test_print_summary_flash_falls_back_on_bad_total_size(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A zero or non-int total_size falls back to the ELF instead of
+    printing a used-0-bytes line CI would read as a real measurement."""
+    data = _s3_size_data()
+    data["total_size"] = 0
+    size_json = _write_size_json(tmp_path, data)
+    partitions = _write_partitions(tmp_path)
+    firmware_elf = tmp_path / "firmware.elf"
+    firmware_elf.write_bytes(_elf_bytes([(1, 0x2, 4096)]))
+    print_summary(size_json, partitions, firmware_elf)
+    out = capsys.readouterr().out
+    assert "(used 4096 bytes from 1835008 bytes)" in out
+
+
 _GOOD_ELF = _elf_bytes([(1, 0x2, 1024)])
 
 
@@ -224,6 +249,7 @@ def test_print_summary_skips_flash_on_bad_input(
     with_partitions: bool,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """An unusable ELF or missing partitions.csv skips the Flash line, not the RAM line."""
     size_json = _write_size_json(tmp_path, _s3_size_data())
@@ -236,3 +262,10 @@ def test_print_summary_skips_flash_on_bad_input(
     out = capsys.readouterr().out
     assert "RAM:" in out
     assert "Flash:" not in out
+    # ELF problems warn (anomaly after a successful build); a missing
+    # partitions.csv stays at debug
+    warned = any(
+        r.levelname == "WARNING" and "Skipping Flash summary" in r.message
+        for r in caplog.records
+    )
+    assert warned == with_partitions
