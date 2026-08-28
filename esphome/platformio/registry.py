@@ -389,11 +389,8 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         seen.add(archive.name)
         pending.append((spec, size))
     if len(pending) < 2:
-        rest = list(specs)
-        pending = []
-    for name, version, dest, mirrors, expect in rest:
-        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
-    if not pending:
+        for name, version, dest, mirrors, expect in specs:
+            install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
         return
     workers = min(get_usable_cpu_count(), len(pending), BATCH_EXTRACT_WORKERS)
     _LOGGER.info(
@@ -425,3 +422,7 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         # not name which package failed
         warn_batch_failures(failures, "Could not install %s: %s")
         raise failures[0][1]
+    # Sequential remainder after the batch, so a duplicate spec cannot
+    # unlink the archive its batched twin was sized from
+    for name, version, dest, mirrors, expect in rest:
+        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)

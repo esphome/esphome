@@ -906,6 +906,8 @@ def test_install_packages_dedupes_duplicate_specs(tmp_path: Path) -> None:
     batched = [c for c in mock_install.call_args_list if "extract_progress" in c[1]]
     assert [(c[0][0], c[0][2]) for c in sequential] == [("a", tmp_path / "a2")]
     assert sorted(c[0][0] for c in batched) == ["a", "b"]
+    # The duplicate runs after the batch, which unlinks their shared archive
+    assert mock_install.call_args_list[-1] == sequential[0]
 
 
 def test_install_packages_caps_workers(tmp_path: Path) -> None:
