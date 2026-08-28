@@ -116,6 +116,9 @@ static constexpr uint16_t MAX_RAW_SIZE = 254;  // Max RAW size is 256 - CRC(2) =
 static constexpr uint16_t READ_PDU_SIZE = 5;
 // A single-write PDU is always function code(1) + address(2) + value(2)
 static constexpr uint16_t WRITE_SINGLE_PDU_SIZE = 5;
+// A multiple-write PDU starts with function code(1) + start address(2) + quantity(2) + byte count(1),
+// followed by two bytes per register.
+static constexpr uint16_t WRITE_MULTIPLE_HEADER_SIZE = 6;
 static constexpr uint16_t MAX_FRAME_SIZE = 256;
 
 // 4.1 Address 0 is the broadcast address: the request is processed by every device and never answered.
