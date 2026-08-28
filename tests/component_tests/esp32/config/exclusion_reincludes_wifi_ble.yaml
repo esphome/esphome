@@ -6,8 +6,8 @@ esp32:
   framework:
     type: esp-idf
 
-mdns:
-
 wifi:
-  ssid: "test_ssid"
-  password: "test_password"
+  ssid: MySSID
+  password: password1
+
+esp32_ble_tracker:
