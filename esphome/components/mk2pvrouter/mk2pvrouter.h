@@ -22,7 +22,7 @@ static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features e
 
 // Number of registered listener entities, set via codegen based on the actual config.
 #ifndef MK2PVROUTER_LISTENER_COUNT
-#define MK2PVROUTER_LISTENER_COUNT 0
+static constexpr uint8_t MK2PVROUTER_LISTENER_COUNT = 0;
 #endif
 
 // Listener interface for entities that want updates for a specific tag.
