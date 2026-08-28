@@ -57,6 +57,12 @@ This document provides essential context for AI models interacting with this pro
         - Function-local constants: `lower_snake_case`
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
+        - Enumerator names: prefix every value of an `enum class` with the enum name converted to
+          `UPPER_SNAKE_CASE` (e.g. `UARTFlushResult::UART_FLUSH_RESULT_SUCCESS`). Never use bare
+          names like `SUCCESS`, `FAILURE`, `OK`, or `FAIL`: platform SDK headers define macros with
+          these common names (for example the Realtek SDKs used by LibreTiny define
+          `#define SUCCESS 0` in `basic_types.h`), and the preprocessor replaces the enumerator
+          before the compiler sees it, breaking the build and clang-tidy on those platforms.
 
 *   **Python Idioms:**
     *   **Assignment expressions (PEP 572):** Prefer the walrus operator (`:=`) wherever it removes a redundant lookup or a throwaway temporary. The most common case in component code is presence-checking a config key and then indexing it separately — fetch once with `.get()` and bind in the condition instead:
@@ -412,7 +418,7 @@ This document provides essential context for AI models interacting with this pro
 *   **Configuration:**
     *   `pyproject.toml`: Defines the Python project metadata and dependencies.
     *   `platformio.ini`: Configures the PlatformIO build environments for different microcontrollers.
-    *   `.pre-commit-config.yaml`: Configures the pre-commit hooks for linting and formatting.
+    *   `.pre-commit-config.yaml`: Configures the lint and format hooks, run by `prek`.
 *   **CI/CD Pipeline:** Defined in `.github/workflows`.
 *   **Static Analysis & Development:**
     *   `esphome/core/defines.h`: A comprehensive header file containing all `#define` directives that can be added by components using `cg.add_define()` in Python. This file is used exclusively for development, static analysis tools, and CI testing - it is not used during runtime compilation. When developing components that add new defines, they must be added to this file to ensure proper IDE support and static analysis coverage. The file includes feature flags, build configurations, and platform-specific defines that help static analyzers understand the complete codebase without needing to compile for specific platforms.
@@ -420,7 +426,7 @@ This document provides essential context for AI models interacting with this pro
 ## 6. Development & Testing Workflow
 
 *   **Local Development Environment:** Use the provided Docker container or create a Python virtual environment and install dependencies from `requirements_dev.txt`.
-*   **Running Commands:** Use the `script/run-in-env.py` script to execute commands within the project's virtual environment. For example, to run the linter: `python3 script/run-in-env.py pre-commit run`.
+*   **Running Commands:** Use the `script/run-in-env.py` script to execute commands within the project's virtual environment. For example, to run the linter: `python3 script/run-in-env.py prek run`.
 *   **Testing:**
     *   **Python:** Run unit tests with `pytest`.
     *   **C++:** Use `clang-tidy` for static analysis.
@@ -493,7 +499,7 @@ This document provides essential context for AI models interacting with this pro
     1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
-    4.  **Lint:** Run `pre-commit` to ensure code is compliant.
+    4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
@@ -757,3 +763,13 @@ The project uses English for non-code content. When drafting documentation, code
 PR descriptions, and similar text, avoid technical jargon. Instead, express concepts in plain English,
 using standard technical terms only when required. Ensure the text is readily comprehensible to a wide
 audience, including non-native English speakers.
+
+## 10. Code Comments
+
+Code comments on individual lines should be used only where necessary to flag issues that may not be obvious
+on a simple reading of the code. Keep them short (e.g. 1 or 2 lines).
+
+Function and method comment blocks may include more detail as required to make
+calling contracts clear and document parameter usage, but should still be kept concise.
+
+Avoid redundancy and repetition; comments should never simply restate what the code already says.

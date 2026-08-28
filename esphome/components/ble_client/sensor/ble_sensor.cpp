@@ -61,7 +61,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         break;
       }
       this->handle = chr->handle;
-      if (this->descr_uuid_.get_uuid().len > 0) {
+      if (this->descr_uuid_.is_set()) {
         auto *descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
           this->status_set_warning();

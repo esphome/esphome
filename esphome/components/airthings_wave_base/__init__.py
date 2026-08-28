@@ -20,6 +20,8 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_VOLT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ncareau", "@jeromelaban"]
 
@@ -78,7 +80,7 @@ BASE_SCHEMA = (
 )
 
 
-async def wave_base_to_code(var, config):
+async def wave_base_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     await ble_client.register_ble_node(var, config)

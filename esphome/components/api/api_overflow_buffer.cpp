@@ -1,6 +1,7 @@
 #include "api_overflow_buffer.h"
 #ifdef USE_API
 #include <cstring>
+#include <new>
 
 namespace esphome::api {
 
@@ -61,9 +62,18 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
     return false;
 
   uint16_t buffer_size = total_len - skip;
+  // nothrow: a failed allocation returns nullptr so the connection is dropped
+  // cleanly instead of plain new's crash or abort on OOM
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  auto *entry = new Entry{new uint8_t[buffer_size], buffer_size, 0};
-  this->queue_[this->tail_] = entry;
+  auto *data = new (std::nothrow) uint8_t[buffer_size];
+  if (data == nullptr)
+    return false;
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  auto *entry = new (std::nothrow) Entry{data, buffer_size, 0};
+  if (entry == nullptr) {
+    delete[] data;
+    return false;
+  }
 
   uint16_t to_skip = skip;
   uint16_t write_pos = 0;
@@ -80,6 +90,8 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
     }
   }
 
+  // Publish only after the copy completes so a half-built entry is never reachable
+  this->queue_[this->tail_] = entry;
   this->tail_ = (this->tail_ + 1) % API_MAX_SEND_QUEUE;
   this->count_++;
   return true;

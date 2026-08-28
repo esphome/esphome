@@ -16,7 +16,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota.idf";
+static const char *const TAG = "ota";
 
 static inline bool check_overlap(uint32_t a_offset, size_t a_size, uint32_t b_offset, size_t b_size) {
   return (a_offset + a_size > b_offset && b_offset + b_size > a_offset);
