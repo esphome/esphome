@@ -76,7 +76,7 @@ TEST(GammaCorrection, FullBrightnessStaysFull) {
 
 // Reproduces the reporter's own numbers from esphome/esphome#18842 at gamma=2.8: codes
 // 1-27 previously collapsed to an 8-bit output of 0 and must now be non-zero.
-TEST(GammaCorrection, DeadZoneFixedAtGamma2_8) {
+TEST(GammaCorrection, DeadZoneFixedAtGamma28) {
   auto table = build_gamma_table(2.8);
   ESPColorCorrection correction;
   correction.set_gamma_table(table.data());
