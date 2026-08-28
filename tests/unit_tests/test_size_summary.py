@@ -160,6 +160,22 @@ def test_print_summary_flash_line(
     assert "(used 827455 bytes from 1835008 bytes)" in out
 
 
+def test_print_summary_skips_flash_when_bin_unreadable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A firmware bin that can't be stat'ed skips the Flash line, not the RAM line."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text(
+        "# name, type, subtype, offset, size, flags\n"
+        "app0, app, ota_0, 0x10000, 0x1C0000,\n"
+    )
+    print_summary(size_json, partitions, tmp_path / "missing.bin")
+    out = capsys.readouterr().out
+    assert "RAM:" in out
+    assert "Flash:" not in out
+
+
 def test_print_summary_skips_flash_without_bin(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
