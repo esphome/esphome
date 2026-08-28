@@ -1,0 +1,17 @@
+name: Prune ESP-IDF install
+description: >
+  Remove the picolibc sysroots from the native ESP-IDF toolchains. IDF 5.x
+  links newlib, so they are never used, and they are 1.1GB of the 3.9GB
+  install. Run after the cache restore so every job builds against the pruned
+  tree, and again before the dev cache save.
+runs:
+  using: composite
+  steps:
+    - name: Prune picolibc
+      shell: bash
+      run: |
+        shopt -s nullglob
+        for dir in ~/.esphome-idf/tools/*-esp-elf/*/*-esp-elf/picolibc; do
+          echo "Removing $dir ($(du -sh "$dir" | cut -f1))"
+          rm -rf "$dir"
+        done

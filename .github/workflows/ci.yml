@@ -704,6 +704,10 @@ jobs:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
+      - name: Prune ESP-IDF install before cache save
+        if: github.ref == 'refs/heads/dev'
+        uses: ./.github/actions/prune-esp-idf
+
       - name: Suggested changes
         run: script/ci-suggest-changes ${{ matrix.ignore_errors && '|| true' || '' }}
         # yamllint disable-line rule:line-length
@@ -774,6 +778,10 @@ jobs:
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Prune ESP-IDF install before cache save
+        if: github.ref == 'refs/heads/dev'
+        uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -858,6 +866,10 @@ jobs:
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Prune ESP-IDF install before cache save
+        if: github.ref == 'refs/heads/dev'
+        uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -949,6 +961,10 @@ jobs:
             echo "Running clang-tidy on changed files only"
             script/clang-tidy --fix --changed ${{ matrix.options }}
           fi
+
+      - name: Prune ESP-IDF install before cache save
+        if: github.ref == 'refs/heads/dev'
+        uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
         run: script/ci-suggest-changes

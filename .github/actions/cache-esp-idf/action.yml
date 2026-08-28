@@ -51,10 +51,12 @@ runs:
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
-        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}
+        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}-slim
     - name: Cache ESP-IDF install (restore-only off dev)
       if: github.ref != 'refs/heads/dev' && !contains(github.event.pull_request.labels.*.name, 'ci-cache-write') || inputs.restore-only == 'true'
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
-        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}
+        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}-slim
+    - name: Prune ESP-IDF install
+      uses: ./.github/actions/prune-esp-idf
