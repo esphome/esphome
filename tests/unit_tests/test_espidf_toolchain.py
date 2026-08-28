@@ -633,15 +633,32 @@ def _write_fragments_build_ninja(tmp_path: Path, fragments: list[Path]) -> None:
 
 
 def test_warn_if_app_archive_mapped_warns(
-    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    setup_core: Path,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A fragment naming the app archive triggers the loud warning."""
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
     _setup_build(setup_core)
     frag = tmp_path / "linker.lf"
     frag.write_text("[mapping:evil]\narchive: libsrc.a\nentries:\n    * (noflash)\n")
     _write_fragments_build_ninja(tmp_path, [frag])
     toolchain._warn_if_app_archive_mapped()
     assert "maps the app archive" in caplog.text
+
+
+def test_warn_if_app_archive_mapped_strict_raises(
+    setup_core: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Under ESPHOME_LDGEN_STRICT a mapped app archive fails the build."""
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\narchive: libsrc.a\n")
+    _write_fragments_build_ninja(tmp_path, [frag])
+    with pytest.raises(EsphomeError, match="maps the app archive"):
+        toolchain._warn_if_app_archive_mapped()
 
 
 def test_warn_if_app_archive_mapped_clean(

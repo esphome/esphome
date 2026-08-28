@@ -50,12 +50,15 @@ if(COMMAND __ldgen_get_lib_deps_of_target)
             list(REMOVE_ITEM ${out_list_var} idf::src __idf_src)
             list(LENGTH ${out_list_var} esphome_ldgen_after)
             if(esphome_ldgen_before EQUAL esphome_ldgen_after)
-                message(WARNING "ESPHome ldgen app archive exclusion matched "
+                message(@SEVERITY@ "ESPHome ldgen app archive exclusion matched "
                     "nothing; app edits will regenerate sections.ld.")
             endif()
         endif()
         set(${out_list_var} ${${out_list_var}} PARENT_SCOPE)
     endfunction()
+else()
+    message(@MISSING@ "ESPHome ldgen override target not found; "
+        "app edits will regenerate sections.ld.")
 endif()"""
 
 
@@ -148,8 +151,16 @@ def get_project_cmakelists(
     )
 
     # Stops the ~3s sections.ld regeneration on app-only edits; see
-    # _LDGEN_OVERRIDE. ESPHOME_LDGEN_FULL_DEPS=1 restores stock behavior.
-    ldgen_override = "" if get_bool_env("ESPHOME_LDGEN_FULL_DEPS") else _LDGEN_OVERRIDE
+    # _LDGEN_OVERRIDE. ESPHOME_LDGEN_FULL_DEPS=1 restores stock behavior;
+    # ESPHOME_LDGEN_STRICT=1 (CI) fails the configure when an IDF bump
+    # breaks the override instead of degrading to stock deps.
+    if get_bool_env("ESPHOME_LDGEN_FULL_DEPS"):
+        ldgen_override = ""
+    else:
+        strict = get_bool_env("ESPHOME_LDGEN_STRICT")
+        ldgen_override = _LDGEN_OVERRIDE.replace(
+            "@SEVERITY@", "FATAL_ERROR" if strict else "WARNING"
+        ).replace("@MISSING@", "FATAL_ERROR" if strict else "STATUS")
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already

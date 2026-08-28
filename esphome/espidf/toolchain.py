@@ -497,11 +497,14 @@ def _warn_if_app_archive_mapped() -> None:
             if _APP_ARCHIVE_MAPPED_RE.search(
                 Path(fragment).read_text(encoding="utf-8")
             ):
-                _LOGGER.warning(
-                    "Linker fragment %s maps the app archive; its entries may be "
-                    "skipped. Set ESPHOME_LDGEN_FULL_DEPS=1 and rebuild.",
-                    fragment,
+                msg = (
+                    f"Linker fragment {fragment} maps the app archive; its "
+                    "entries may be skipped. Set ESPHOME_LDGEN_FULL_DEPS=1 "
+                    "and rebuild."
                 )
+                if get_bool_env("ESPHOME_LDGEN_STRICT"):
+                    raise EsphomeError(msg)
+                _LOGGER.warning("%s", msg)
                 return
     except OSError as e:
         _LOGGER.debug("Skipping ldgen fragment check: %s", e)

@@ -9,7 +9,6 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.build_gen import espidf as build_gen_espidf
 from esphome.components.esp32 import (
     KEY_COMPONENTS,
     KEY_ESP32,
@@ -171,11 +170,28 @@ def test_get_project_cmakelists_emits_ldgen_override(
     """Both renders override the ldgen dep walker to drop the app archive,
     after include(project.cmake) which defines the original."""
     monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
     content = _render(minimal=minimal)
-    assert build_gen_espidf._LDGEN_OVERRIDE in content
+    assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
+    assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
+    assert 'message(STATUS "ESPHome ldgen override target not found' in content
     assert content.index("tools/cmake/project.cmake") < content.index(
         "function(__ldgen_get_lib_deps_of_target"
     )
+
+
+def test_get_project_cmakelists_ldgen_strict_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ESPHOME_LDGEN_STRICT turns both degradation paths into hard errors so
+    CI fails right away when an IDF bump breaks the override."""
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    content = _render()
+    assert 'message(FATAL_ERROR "ESPHome ldgen app archive exclusion' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override target not found' in content
+    assert "@SEVERITY@" not in content
+    assert "@MISSING@" not in content
 
 
 def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
