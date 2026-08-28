@@ -29,7 +29,7 @@ void HavellsSolar::on_read_holding_registers(uint16_t start_address, std::span<c
     if (sensor == nullptr || reg < start_address)
       return;
     size_t offset = reg - start_address;
-    if (offset + modbus::helpers::registers_for_value_type(value_type) > registers.size())
+    if (offset + modbus::helpers::register_width_for(value_type) > registers.size())
       return;
     sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) * unit);
   };
