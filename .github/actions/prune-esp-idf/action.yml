@@ -1,9 +1,7 @@
 name: Prune ESP-IDF install
 description: >
-  Remove the picolibc sysroots from the native ESP-IDF toolchains. IDF 5.x
-  links newlib, so they are never used, and they are 1.1GB of the 3.9GB
-  install. Run after the cache restore so every job builds against the pruned
-  tree, and again before the dev cache save.
+  Remove the picolibc sysroots (1.1GB of the 3.9GB install) from the native
+  ESP-IDF toolchains; IDF 5.x links newlib.
 runs:
   using: composite
   steps:

@@ -58,5 +58,12 @@ runs:
       with:
         path: ~/.esphome-idf
         key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}-slim
+    # Install explicitly so the prune below sees the toolchains on a cache miss
+    # too, instead of the install happening inside the first build step.
+    - name: Install ESP-IDF
+      shell: bash
+      run: |
+        . venv/bin/activate
+        python -c 'from esphome.espidf.framework import check_esp_idf_install; check_esp_idf_install("${{ steps.version.outputs.version }}")'
     - name: Prune ESP-IDF install
       uses: ./.github/actions/prune-esp-idf
