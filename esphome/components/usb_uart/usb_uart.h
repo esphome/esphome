@@ -161,8 +161,11 @@ class USBUartChannelBase : public uart::UARTComponent, public Parented<USBUartCo
   friend class CH934XChannel;
 
  public:
-  // Number of output chunk slots per channel, derived from buffer_size config.
-  // Computed as ceil(buffer_size / 64) + 1 in Python codegen; defaults to 5 (256 / 64 + 1).
+  // Number of output chunk slots per channel, derived from the buffer_size config and set
+  // by codegen. A multiplexed device sums ceil(buffer_size / (mps - TX_HEADER_SIZE)) over
+  // its channels, since they all draw on channel 0's pool; every other device takes
+  // max(buffer_size / mps, 2) + 1 over its own channels. The largest device wins, capped at
+  // 255 because the value has to fit this uint8_t. Defaults to 5.
   static constexpr uint8_t USB_OUTPUT_CHUNK_COUNT = USB_UART_OUTPUT_CHUNK_COUNT;
 
   void write_array(const uint8_t *data, size_t len) override;

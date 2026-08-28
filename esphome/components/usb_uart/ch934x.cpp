@@ -121,6 +121,12 @@ bool USBUartTypeCH934X::config_device_step(uint8_t step, bool ok, const uint8_t 
     ESP_LOGV(TAG, "Received chip id response bytes 0x%02x 0x%02x 0x%02x 0x%02x", response[0], response[1], response[2],
              response[3]);
 
+    // The L/Q distinction is unreliable until the usb_host class-driver refactor lands:
+    // usb_host's control transfer callback currently hands back the buffer starting at the
+    // 8-byte setup packet, so response[] holds the request rather than the device's reply
+    // and both tests below are always true. Nothing functional depends on it -- every
+    // branch in this driver keys off the 9344-vs-348 family, which comes from the PID --
+    // but the variant reported by dump_config() is provisional until then.
     if (this->pid_ == 0xE018) {
       this->chiptype_ = (response[0] >= 0x40) ? CHIP_CH9344Q : CHIP_CH9344L;
       this->num_ports_ = 4;
@@ -673,6 +679,7 @@ void USBUartTypeCH934X::dump_config() {
   USBUartComponent::dump_config();
   // Chip variant and port count are only resolved at runtime, and per-port init can fail
   // independently, so without this the only record is the boot-time log.
+  // Variant suffix is provisional, see the note in config_device_step().
   ESP_LOGCONFIG(TAG, "  CH934x chip: %s", get_chiptype_string(this->chiptype_).c_str());
   ESP_LOGCONFIG(TAG, "  Ports: %u", this->num_ports_);
   uint8_t failed = this->init_failed_mask_.load();
