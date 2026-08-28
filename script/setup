@@ -7,13 +7,19 @@ cd "$(dirname "$0")/.."
 if [ -n "$VIRTUAL_ENV" ]; then
   # A virtual environment is already active (e.g. the devcontainer's pre-provisioned
   # esphome-venv). Install into it rather than creating a ./venv in the workspace.
-  created_venv=false
+  venv_state=active
+elif [ -x venv/bin/python ]; then
+  # Reuse the environment from an earlier run, so this script can be run again
+  # at any time to pick up dependency changes.
+  venv_state=reused
+  source venv/bin/activate
 else
-  created_venv=true
+  venv_state=created
+  # --clear replaces a partial environment left behind by an interrupted run.
   if [ -x "$(command -v uv)" ]; then
-    uv venv --seed venv
+    uv venv --clear --seed venv
   else
-    python3 -m venv venv
+    python3 -m venv --clear venv
   fi
   source venv/bin/activate
 fi
@@ -25,20 +31,41 @@ fi
 uv pip install setuptools wheel
 uv pip install -e ".[dev,test]" --config-settings editable_mode=compat
 
-# --overwrite replaces any hook already in place. Without it, prek finds a
-# previously installed pre-commit hook, moves it aside to
-# .git/hooks/pre-commit.legacy and keeps calling it, so every commit would
-# run both tools.
-prek install --overwrite
+# A worktree shares one git hooks directory with the main checkout it was
+# created from, so hooks are installed from the main checkout only. Installing
+# from a worktree would point the shared hook at that worktree's virtual
+# environment, breaking it for everyone once the worktree is removed.
+git_dir="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
+common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [ -n "$common_dir" ] && [ "$git_dir" = "$common_dir" ]; then
+  # --overwrite replaces any hook already in place. Without it, prek finds a
+  # previously installed pre-commit hook, moves it aside to
+  # .git/hooks/pre-commit.legacy and keeps calling it, so every commit would
+  # run both tools.
+  prek install --overwrite
+
+  # Prepares the virtual environment for new checkouts and worktrees. Installed
+  # once here, it covers every worktree created from this checkout.
+  if [ -d "$common_dir/hooks" ]; then
+    cp script/git-hooks/post-checkout "$common_dir/hooks/post-checkout"
+    chmod +x "$common_dir/hooks/post-checkout"
+  fi
+fi
 
 mkdir -p .temp
 
 echo
 echo
-if [ "$created_venv" = true ]; then
-  echo "Virtual environment created at ./venv. Run 'source venv/bin/activate' to use it."
-else
-  echo "Dependencies installed into the active virtual environment:"
-  echo "  $VIRTUAL_ENV"
-  echo "It is already active in this shell, so no 'source venv/bin/activate' is needed."
-fi
+case "$venv_state" in
+  created)
+    echo "Virtual environment created at ./venv. Run 'source venv/bin/activate' to use it."
+    ;;
+  reused)
+    echo "Dependencies updated in the existing ./venv. Run 'source venv/bin/activate' to use it."
+    ;;
+  active)
+    echo "Dependencies installed into the active virtual environment:"
+    echo "  $VIRTUAL_ENV"
+    echo "It is already active in this shell, so no 'source venv/bin/activate' is needed."
+    ;;
+esac

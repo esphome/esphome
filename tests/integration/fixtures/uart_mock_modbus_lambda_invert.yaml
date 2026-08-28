@@ -1,0 +1,95 @@
+esphome:
+  name: uart-mock-modbus-lambda-invert
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
+  - id: virtual_uart_controller
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+globals:
+  - id: reg40
+    type: uint16_t
+    initial_value: "5"
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_controller
+    id: virtual_modbus_controller
+    role: client
+    turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_controller
+    id: modbus_controller_1
+    update_interval: 1s
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x40
+        value_type: U_WORD
+        read_lambda: return id(reg40);
+        write_lambda: id(reg40) = x; return true;
+
+# An active-low holding switch: the write_lambda inverts the wire value, but the entity must still
+# report the REQUESTED state. assumed_state keeps the register unpolled, so the published state comes
+# only from write_state() - turning ON writes 0x0000 yet the switch shows ON.
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "invert_switch"
+    register_type: holding
+    address: 0x40
+    assumed_state: true
+    write_lambda: |-
+      return !x;
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_40"
+    address: 0x40
+    register_type: holding
+    value_type: U_WORD
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    # This test does not have anything to start (mock is autostart)

@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_IDLE_ACTION,
     CONF_SENSOR,
 )
+from esphome.types import ConfigType
 
 bang_bang_ns = cg.esphome_ns.namespace("bang_bang")
 BangBangClimate = bang_bang_ns.class_("BangBangClimate", climate.Climate, cg.Component)
@@ -41,7 +42,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await climate.new_climate(config)
     await cg.register_component(var, config)
 
