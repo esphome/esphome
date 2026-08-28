@@ -159,9 +159,6 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 CONF_INTERFACE_INDEX = "interface_index"
 CONF_RELEASE_DEVICE = "release_device"
-# Same name/value as i2c's own module-local constant -- not shared via const.py since
-# only two component files define it (lint_constants_usage's threshold is 3+).
-CONF_DTS_NODE_OVERRIDE = "dts_node_override"
 TYPE_SINGLE = "single"
 TYPE_QUAD = "quad"
 TYPE_OCTAL = "octal"
@@ -233,6 +230,13 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
         additional_values = []
 
     def validator(value: str) -> str:
+        if CORE.is_zephyr:
+            # Zephyr's real bus list isn't known until fetch_board_dts() runs in
+            # to_code() -- validated for real by resolve_zephyr_bus() there instead.
+            value = cv.string(value).lower()
+            if value in additional_values:
+                return value
+            return value
         return cv.one_of(
             *sum(get_hw_interface_list(), additional_values),
             lower=True,
@@ -311,15 +315,13 @@ def get_hw_spi(config, available):
 
 def validate_spi_config(config):
     if CORE.is_zephyr:
-        # Zephyr has exactly one selectable hardware SPI interface for now (see
-        # _final_validate's "Second spi" rejection) -- resolved from the board's DTS
-        # in to_code(), not from a static per-platform interface list.
+        # A board's DTS may enable more than one SPI peripheral even though only one
+        # spi: entry is allowed -- interface: <bus label> (e.g. "spi3") picks a
+        # specific one; "hardware"/"any" defer to auto-detection in to_code().
         for spi in config:
             interface = spi[CONF_INTERFACE]
-            if interface in ("hardware", "any"):
+            if interface != "software":
                 spi[CONF_INTERFACE_INDEX] = 0
-            elif interface != "software":
-                raise cv.Invalid(f"interface '{interface}' not available here")
         return config
 
     available = list(range(len(get_hw_interface_list())))
@@ -394,9 +396,6 @@ SPI_SINGLE_SCHEMA = cv.All(
             cv.Optional(CONF_DATA_PINS): cv.invalid(
                 "'data_pins' should be used with 'type: quad or octal' only"
             ),
-            cv.Optional(CONF_DTS_NODE_OVERRIDE): cv.All(
-                cv.only_on([PLATFORM_ZEPHYR]), cv.string
-            ),
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
@@ -458,9 +457,6 @@ def spi_mode_schema(mode):
                 cv.Optional(CONF_MOSI_PIN): cv.invalid(
                     f"'mosi_pin' should not be used with {mode} SPI"
                 ),
-                cv.Optional(CONF_DTS_NODE_OVERRIDE): cv.All(
-                    cv.only_on([PLATFORM_ZEPHYR]), cv.string
-                ),
             }
         ),
     )
@@ -491,10 +487,12 @@ def _zephyr_setup_spi(spi) -> tuple[str, str]:
     expression for its `const device *` and the bus's DTS node label."""
     zephyr_add_prj_conf("SPI", True)
     board = zephyr_data()[KEY_BOARD]
+    interface = spi[CONF_INTERFACE]
+    override = interface if interface not in ("hardware", "any") else None
     bus = resolve_zephyr_bus(
         "spi",
         zephyr_dts_board_id(board),
-        override=spi.get(CONF_DTS_NODE_OVERRIDE),
+        override=override,
     )
     clk = spi[CONF_CLK_PIN][CONF_NUMBER]
     miso = spi[CONF_MISO_PIN][CONF_NUMBER] if CONF_MISO_PIN in spi else None

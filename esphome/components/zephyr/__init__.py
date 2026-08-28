@@ -568,6 +568,15 @@ def zephyr_setup_spi_pinctrl(
     if clk is None:
         raise cv.Invalid("Could not determine SPI pin assignments for this board.")
 
+    valid_instances = _ESP32_SPI_INSTANCE_SIGNAL_PREFIX.get(zephyr_variant(), {})
+    instance = int(bus_label.removeprefix("spi")) if bus_label[3:].isdigit() else None
+    if instance not in valid_instances:
+        listed = ", ".join(f"spi{n}" for n in sorted(valid_instances))
+        raise cv.Invalid(
+            f"'{bus_label}' is not a valid SPI bus for Zephyr variant "
+            f"{zephyr_variant()!r} -- valid options: {listed}"
+        )
+
     overlay = _esp32_spi_pinctrl_overlay(bus_label, clk, miso, mosi, data_pins)
     overlay += f"""
         &{bus_label} {{

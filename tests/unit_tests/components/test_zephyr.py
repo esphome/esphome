@@ -328,6 +328,18 @@ def test_zephyr_setup_spi_pinctrl_raises_for_unimplemented_family() -> None:
         zephyr_setup_spi_pinctrl("some_board", "spi0")
 
 
+def test_zephyr_setup_spi_pinctrl_esp32_raises_for_unknown_bus_label() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with pytest.raises(cv.Invalid, match="not a valid SPI bus"):
+        zephyr_setup_spi_pinctrl("some_board", "spi9", clk=6, miso=8, mosi=7)
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_raises_for_malformed_bus_label() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with pytest.raises(cv.Invalid, match="not a valid SPI bus"):
+        zephyr_setup_spi_pinctrl("some_board", "notaspilabel", clk=6, miso=8, mosi=7)
+
+
 def test_zephyr_setup_spi_pinctrl_esp32_raises_without_clk() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32")
     with pytest.raises(cv.Invalid, match="Could not determine SPI pin assignments"):
