@@ -119,31 +119,30 @@ def _get_data() -> LightData:
     return CORE.data[DOMAIN]
 
 
-# Smallest table entry that survives ESPColorCorrection's (value + 128) / 257
-# conversion as a non-zero 8-bit result (esphome/esphome#18842).
-MIN_NONZERO_GAMMA_VALUE = 129
-
-
 def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     """Generate a 256-entry uint16 gamma lookup table.
 
-    Below the point where the power curve itself would fall under
-    MIN_NONZERO_GAMMA_VALUE, entries ramp linearly up to that point instead of
-    being clamped flat, so higher-resolution FloatOutput consumers (e.g. LEDC)
-    still get distinct steps there rather than one dead, unmoving value.
-    """
-    if gamma_correct <= 0:
-        return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+    For gamma > 0, non-zero indices are clamped to a minimum of 1 to preserve
+    the invariant that non-zero input always produces non-zero output. Without
+    this, small brightness values (e.g. 1%) get quantized to exactly 0.0,
+    which breaks zero_means_zero logic in FloatOutput.
 
-    table = [0] + [
-        min(65535, int(round((i / 255.0) ** gamma_correct * 65535)))
-        for i in range(1, 256)
-    ]
-    n0 = next(i for i in range(1, 256) if table[i] >= MIN_NONZERO_GAMMA_VALUE)
-    span = table[n0] - MIN_NONZERO_GAMMA_VALUE
-    for i in range(1, n0):
-        table[i] = MIN_NONZERO_GAMMA_VALUE + round(span * (i - 1) / (n0 - 1))
-    return [HexInt(v) for v in table]
+    This table is shared verbatim by LightState::gamma_correct_lut() (a float,
+    interpolated path with far more than 8-bit precision) as well as by
+    ESPColorCorrection's 8-bit conversion, so it must not be distorted to
+    accommodate the latter's lower precision -- see gamma_correct_() in
+    esp_color_correction.cpp for that.
+    """
+    if gamma_correct > 0:
+        return [
+            HexInt(
+                max(1, min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+                if i > 0
+                else HexInt(0)
+            )
+            for i in range(256)
+        ]
+    return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
 
 
 def _get_or_create_gamma_table(gamma_correct):

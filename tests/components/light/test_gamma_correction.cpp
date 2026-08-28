@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <set>
 
 #include "esphome/components/light/esp_color_correction.h"
@@ -11,30 +12,17 @@ namespace esphome::light::testing {
 
 namespace {
 
-// Mirrors MIN_NONZERO_GAMMA_VALUE in esphome/components/light/__init__.py.
-constexpr uint16_t MIN_NONZERO_GAMMA_VALUE = 129;
-
-// Mirrors generate_gamma_table() in esphome/components/light/__init__.py.
+// Mirrors generate_gamma_table() in esphome/components/light/__init__.py. The table itself
+// is deliberately left as the raw (min-1-clamped) power curve -- ESPColorCorrection is
+// responsible for guaranteeing non-zero 8-bit output, not the table.
 std::array<uint16_t, 256> build_gamma_table(double gamma) {
   std::array<uint16_t, 256> table{};
   table[0] = 0;
   for (int i = 1; i < 256; i++) {
     double raw = std::round(std::pow(i / 255.0, gamma) * 65535.0);
-    table[i] = static_cast<uint16_t>(std::min(65535.0, raw));
-  }
-  int n0 = 1;
-  while (n0 < 256 && table[n0] < MIN_NONZERO_GAMMA_VALUE)
-    n0++;
-  int span = table[n0] - MIN_NONZERO_GAMMA_VALUE;
-  for (int i = 1; i < n0; i++) {
-    table[i] = static_cast<uint16_t>(MIN_NONZERO_GAMMA_VALUE + std::lround(span * (i - 1) / double(n0 - 1)));
+    table[i] = static_cast<uint16_t>(std::max(1.0, std::min(65535.0, raw)));
   }
   return table;
-}
-
-// Largest code where the unclamped power curve would still round to 0.
-int dead_zone_breakpoint(double gamma) {
-  return static_cast<int>(std::ceil(255.0 * std::pow(1.0 / 510.0, 1.0 / gamma)));
 }
 
 // Mirrors LightState::gamma_correct_lut() in light_state.cpp.
@@ -55,7 +43,8 @@ float gamma_correct_lut(const std::array<uint16_t, 256> &table, float value) {
 
 }  // namespace
 
-// Regression test for esphome/esphome#18842.
+// Regression test for esphome/esphome#18842: ESPColorCorrection's own 16-bit -> 8-bit
+// conversion must never round a non-zero table entry down to a zero 8-bit output.
 TEST(GammaCorrection, NonZeroInputsSurviveConversion) {
   for (double gamma : {1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0}) {
     auto table = build_gamma_table(gamma);
@@ -85,43 +74,37 @@ TEST(GammaCorrection, FullBrightnessStaysFull) {
   }
 }
 
-// Reproduces the reporter's own numbers from esphome/esphome#18842 at gamma=2.8.
+// Reproduces the reporter's own numbers from esphome/esphome#18842 at gamma=2.8: codes
+// 1-27 previously collapsed to an 8-bit output of 0 and must now be non-zero.
 TEST(GammaCorrection, DeadZoneFixedAtGamma2_8) {
-  const double gamma = 2.8;
-  const int n0 = dead_zone_breakpoint(gamma);
-  ASSERT_EQ(n0, 28);  // matches the "brightness 28 and above works normally" report
-
-  auto table = build_gamma_table(gamma);
+  auto table = build_gamma_table(2.8);
   ESPColorCorrection correction;
   correction.set_gamma_table(table.data());
-
-  for (int i = 1; i < n0; i++) {
+  for (int i = 1; i < 28; i++) {
     EXPECT_GE(correction.color_correct_red(i), 1) << "index=" << i << " still collapses to 0";
-    EXPECT_GE(table[i], MIN_NONZERO_GAMMA_VALUE) << "index=" << i;
-    EXPECT_LE(table[i], table[n0]) << "index=" << i;
-  }
-
-  for (int i = n0; i < 256; i++) {
-    double raw = std::round(std::pow(i / 255.0, gamma) * 65535.0);
-    uint16_t raw_power_value = static_cast<uint16_t>(std::min(65535.0, raw));
-    EXPECT_EQ(table[i], raw_power_value) << "index=" << i << " power curve should be untouched";
   }
 }
 
-// Regression test: a flat dead zone leaves LUT-interpolating FloatOutput consumers (e.g.
-// LEDC) stuck at one duty cycle across a range of brightness. Observed on real hardware.
-TEST(GammaCorrection, DeadZoneRampsInsteadOfFlat) {
+// Regression test: the 16-bit table itself must stay the untouched power curve. An earlier
+// version of this fix raised the table's own floor to survive 8-bit rounding, which also
+// flattened the low end of LightState::gamma_correct_lut() -- the float, interpolated path
+// shared by every non-addressable (FloatOutput/PWM) light, e.g. LEDC. That path has far more
+// than 8-bit precision and was never affected by #18842, so it must see the raw curve.
+TEST(GammaCorrection, TableMatchesRawPowerCurve) {
   const double gamma = 2.8;
-  const int n0 = dead_zone_breakpoint(gamma);
   auto table = build_gamma_table(gamma);
+  for (int i = 1; i < 256; i++) {
+    double raw = std::round(std::pow(i / 255.0, gamma) * 65535.0);
+    uint16_t expected = static_cast<uint16_t>(std::max(1.0, std::min(65535.0, raw)));
+    EXPECT_EQ(table[i], expected) << "index=" << i;
+  }
 
-  std::set<uint16_t> table_values(table.begin() + 1, table.begin() + n0);
-  EXPECT_GT(table_values.size(), 1u) << "dead zone is flat; FloatOutput consumers would freeze";
-
+  // Below the 8-bit conversion's dead zone, table values are tiny (not artificially raised),
+  // so the interpolated float path still produces distinct output across that range.
   std::set<float> outputs;
-  for (int i = 1; i < n0; i++)
+  for (int i = 1; i < 28; i++)
     outputs.insert(gamma_correct_lut(table, i / 255.0f));
-  EXPECT_GT(outputs.size(), 1u) << "interpolated LUT output is flat across the dead zone";
+  EXPECT_GT(outputs.size(), 1u) << "interpolated LUT output should vary, not be flattened";
 }
 
 // gamma_table_reverse_search needs a non-decreasing table.
