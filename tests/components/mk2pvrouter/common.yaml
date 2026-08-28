@@ -8,8 +8,11 @@ sensor:
     name: Power
     tag: P
     mk2pvrouter_id: test_mk2pvrouter
-    # Override default unit to test customization
-    unit_of_measurement: Wh
+    # Override device_class to test customization. (Power is published
+    # as a whole watt value with no decimals and no conversion filter,
+    # so unlike device_class, unit_of_measurement/accuracy_decimals
+    # can't be safely overridden here.)
+    device_class: ""
 
   # Test pattern-matched power sensors (P + digit)
   - platform: mk2pvrouter

@@ -81,7 +81,12 @@ DIVERSION_RATE_CONFIG = {
     CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
 }
 
-# Define sensor type configurations by prefix pattern
+# Per the Mk2PVRouter firmware protocol (FredM67/PVRouter-1-phase,
+# FredM67/PVRouter-3-phase), some letters carry a different meaning
+# depending on whether they're sent bare or with a trailing index:
+#   D  bare = diverted power (W);      D1, D2, ... = diversion rate per load (%)
+#   R  bare = mean relay power (W);    R1, R2, ... = relay state (0/1)
+# T is always indexed (T1, T2, ...); E is never indexed (no E1/E2/E3).
 SENSOR_CONFIGS = {
     # Pattern configs for tags with numbers (e.g., P1, P2, V1, V2)
     "patterns": {
@@ -93,11 +98,11 @@ SENSOR_CONFIGS = {
     },
     # Exact tag configs for single-letter or special tags
     "exact": {
-        "P": POWER_CONFIG,  # Total power (single-phase)
+        "P": POWER_CONFIG,  # Total power (single- and three-phase)
         "D": POWER_CONFIG,  # Diverted power (single-phase, W)
         "V": VOLTAGE_CONFIG,  # Voltage (single-phase)
-        "E": ENERGY_CONFIG,  # Diverted energy (single-phase)
-        "R": POWER_CONFIG,  # Mean power for relay diversion (signed 6 digits)
+        "E": ENERGY_CONFIG,  # Diverted energy (never indexed)
+        "R": POWER_CONFIG,  # Mean power for relay diversion (single- and three-phase)
     },
 }
 

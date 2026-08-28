@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_STATE_CLASS,
     CONF_TAG,
     CONF_UNIT_OF_MEASUREMENT,
+    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
 )
 from esphome.types import ConfigType
@@ -77,7 +78,8 @@ def test_unknown_tag_falls_back_to_defaults(tag: str) -> None:
 
 
 def test_user_supplied_value_is_not_overridden() -> None:
-    config = apply_tag_defaults(_config("P", **{CONF_UNIT_OF_MEASUREMENT: "Wh"}))
-    assert config[CONF_UNIT_OF_MEASUREMENT] == "Wh"
+    config = apply_tag_defaults(_config("P", **{CONF_DEVICE_CLASS: DEVICE_CLASS_EMPTY}))
+    assert config[CONF_DEVICE_CLASS] == DEVICE_CLASS_EMPTY
     # Other defaults for the same tag are still applied.
-    assert config[CONF_DEVICE_CLASS] == POWER_CONFIG[CONF_DEVICE_CLASS]
+    assert config[CONF_UNIT_OF_MEASUREMENT] == POWER_CONFIG[CONF_UNIT_OF_MEASUREMENT]
+    assert config[CONF_ACCURACY_DECIMALS] == POWER_CONFIG[CONF_ACCURACY_DECIMALS]
