@@ -175,9 +175,12 @@ def test_get_project_cmakelists_emits_ldgen_override(
     assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
     assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
     assert 'message(STATUS "ESPHome ldgen override target not found' in content
+    assert 'message(WARNING "ESPHome ldgen override never filtered' in content
     assert content.index("tools/cmake/project.cmake") < content.index(
         "function(__ldgen_get_lib_deps_of_target"
     )
+    # The never-filtered check must run after project() has walked the deps
+    assert content.index("project(test)") < content.index("esphome_ldgen_armed GLOBAL")
 
 
 def test_get_project_cmakelists_ldgen_strict_fails_closed(
@@ -190,6 +193,7 @@ def test_get_project_cmakelists_ldgen_strict_fails_closed(
     content = _render()
     assert 'message(FATAL_ERROR "ESPHome ldgen app archive exclusion' in content
     assert 'message(FATAL_ERROR "ESPHome ldgen override target not found' in content
+    assert 'message(FATAL_ERROR "ESPHome ldgen override never filtered' in content
     assert "@SEVERITY@" not in content
     assert "@MISSING@" not in content
 
@@ -199,7 +203,9 @@ def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
 ) -> None:
     """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen behavior."""
     monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
-    assert "__ldgen_get_lib_deps_of_target" not in _render()
+    content = _render()
+    assert "__ldgen_get_lib_deps_of_target" not in content
+    assert "esphome_ldgen_armed" not in content
 
 
 def test_get_project_cmakelists_uses_supplied_builtin_components() -> None:

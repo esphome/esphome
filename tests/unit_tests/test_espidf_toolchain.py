@@ -623,6 +623,13 @@ def test_component_cache_ignores_corrupt_file(setup_core: Path, tmp_path: Path) 
         assert toolchain.load_cached_builtin_components() is None
 
 
+@pytest.fixture(autouse=True)
+def _clear_ldgen_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Isolate tests from ambient ldgen escape hatch and strict knobs."""
+    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    monkeypatch.delenv("ESPHOME_LDGEN_FULL_DEPS", raising=False)
+
+
 def _write_fragments_build_ninja(tmp_path: Path, fragments: list[Path]) -> None:
     build_dir = CORE.relative_build_path("build")
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -633,19 +640,41 @@ def _write_fragments_build_ninja(tmp_path: Path, fragments: list[Path]) -> None:
 
 
 def test_warn_if_app_archive_mapped_warns(
-    setup_core: Path,
-    tmp_path: Path,
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A fragment naming the app archive triggers the loud warning."""
-    monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
+    """A fragment naming the app archive, even with trailing text or leading
+    whitespace, triggers the loud warning."""
     _setup_build(setup_core)
     frag = tmp_path / "linker.lf"
-    frag.write_text("[mapping:evil]\narchive: libsrc.a\nentries:\n    * (noflash)\n")
+    frag.write_text("[mapping:evil]\n archive: libsrc.a # app\nentries:\n")
     _write_fragments_build_ninja(tmp_path, [frag])
     toolchain._warn_if_app_archive_mapped()
     assert "maps the app archive" in caplog.text
+
+
+def test_warn_if_app_archive_mapped_scans_past_unreadable(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable fragment doesn't stop later fragments being checked."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\narchive: libsrc.a\n")
+    _write_fragments_build_ninja(tmp_path, [tmp_path / "missing.lf", frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" in caplog.text
+
+
+def test_warn_if_app_archive_mapped_strict_no_fragments_list(
+    setup_core: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Under strict, a build.ninja the check can't parse fails the build."""
+    monkeypatch.setenv("ESPHOME_LDGEN_STRICT", "1")
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "build.ninja").write_text("rule CXX\n  command = gcc\n")
+    with pytest.raises(EsphomeError, match="no --fragments-list"):
+        toolchain._warn_if_app_archive_mapped()
 
 
 def test_warn_if_app_archive_mapped_strict_raises(
@@ -696,6 +725,22 @@ def test_warn_if_app_archive_mapped_no_fragments_list(setup_core: Path) -> None:
     build_dir.mkdir(parents=True, exist_ok=True)
     (build_dir / "build.ninja").write_text("rule CXX\n  command = gcc\n")
     toolchain._warn_if_app_archive_mapped()
+
+
+def test_run_compile_runs_fragment_check(setup_core: Path) -> None:
+    """The fragment belt runs by default on every compile."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+        patch.object(toolchain, "_warn_if_app_archive_mapped") as mock_check,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_check.assert_called_once()
 
 
 def test_run_compile_full_deps_skips_fragment_check(

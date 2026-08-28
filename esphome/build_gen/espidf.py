@@ -39,6 +39,7 @@ idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")""
 # the prior definition stays reachable with an underscore prefix.
 _LDGEN_OVERRIDE = """\
 if(COMMAND __ldgen_get_lib_deps_of_target)
+    set_property(GLOBAL PROPERTY ESPHOME_LDGEN_ARMED 1)
     function(__ldgen_get_lib_deps_of_target target out_list_var)
         if(NOT COMMAND ___ldgen_get_lib_deps_of_target)
             message(FATAL_ERROR "ESPHome ldgen override lost the original "
@@ -46,6 +47,7 @@ if(COMMAND __ldgen_get_lib_deps_of_target)
         endif()
         ___ldgen_get_lib_deps_of_target(${target} ${out_list_var})
         if(out_list_var STREQUAL "ldgen_libraries")
+            set_property(GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED 1)
             list(LENGTH ${out_list_var} esphome_ldgen_before)
             list(REMOVE_ITEM ${out_list_var} idf::src __idf_src)
             list(LENGTH ${out_list_var} esphome_ldgen_after)
@@ -59,6 +61,16 @@ if(COMMAND __ldgen_get_lib_deps_of_target)
 else()
     message(@MISSING@ "ESPHome ldgen override target not found; "
         "app edits will regenerate sections.ld.")
+endif()"""
+
+# Runs after project() so the walk has happened; catches the remaining
+# silent path where the top-level out-var was renamed.
+_LDGEN_OVERRIDE_CHECK = """\
+get_property(esphome_ldgen_armed GLOBAL PROPERTY ESPHOME_LDGEN_ARMED)
+get_property(esphome_ldgen_filtered GLOBAL PROPERTY ESPHOME_LDGEN_FILTERED)
+if(esphome_ldgen_armed AND NOT esphome_ldgen_filtered)
+    message(@SEVERITY@ "ESPHome ldgen override never filtered the app "
+        "archive; app edits will regenerate sections.ld.")
 endif()"""
 
 
@@ -156,11 +168,15 @@ def get_project_cmakelists(
     # breaks the override instead of degrading to stock deps.
     if get_bool_env("ESPHOME_LDGEN_FULL_DEPS"):
         ldgen_override = ""
+        ldgen_override_check = ""
     else:
         strict = get_bool_env("ESPHOME_LDGEN_STRICT")
-        ldgen_override = _LDGEN_OVERRIDE.replace(
-            "@SEVERITY@", "FATAL_ERROR" if strict else "WARNING"
-        ).replace("@MISSING@", "FATAL_ERROR" if strict else "STATUS")
+        severity = "FATAL_ERROR" if strict else "WARNING"
+        missing = "FATAL_ERROR" if strict else "STATUS"
+        ldgen_override = _LDGEN_OVERRIDE.replace("@SEVERITY@", severity).replace(
+            "@MISSING@", missing
+        )
+        ldgen_override_check = _LDGEN_OVERRIDE_CHECK.replace("@SEVERITY@", severity)
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
@@ -252,6 +268,8 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 {builtin_components_property}
 
 project({CORE.name})
+
+{ldgen_override_check}
 
 # Emit raw JSON size data for ESPHome to read post-build.
 add_custom_command(

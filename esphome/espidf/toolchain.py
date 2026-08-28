@@ -480,7 +480,14 @@ def _patch_memory_segments():
 
 
 _LDGEN_FRAGMENTS_RE = re.compile(r'--fragments-list\s+"([^"]+)"')
-_APP_ARCHIVE_MAPPED_RE = re.compile(r"^archive:\s*libsrc\.a\s*$", re.MULTILINE)
+_APP_ARCHIVE_MAPPED_RE = re.compile(r"^\s*archive:\s*libsrc\.a\b", re.MULTILINE)
+
+
+def _ldgen_check_skip(msg: str, strict: bool) -> None:
+    """A skipped fragment check is debug for users, fatal under strict."""
+    if strict:
+        raise EsphomeError(f"ldgen fragment check: {msg} (ESPHOME_LDGEN_STRICT)")
+    _LOGGER.debug("Skipping ldgen fragment check: %s", msg)
 
 
 def _warn_if_app_archive_mapped() -> None:
@@ -488,26 +495,33 @@ def _warn_if_app_archive_mapped() -> None:
     linker fragment names the app archive, since ldgen would silently skip
     remapping it rather than fail.
     """
+    strict = get_bool_env("ESPHOME_LDGEN_STRICT")
     build_ninja = CORE.relative_build_path("build", "build.ninja")
     try:
-        match = _LDGEN_FRAGMENTS_RE.search(build_ninja.read_text(encoding="utf-8"))
-        if match is None:
-            return
-        for fragment in match.group(1).split(";"):
-            if _APP_ARCHIVE_MAPPED_RE.search(
-                Path(fragment).read_text(encoding="utf-8")
-            ):
-                msg = (
-                    f"Linker fragment {fragment} maps the app archive; its "
-                    "entries may be skipped. Set ESPHOME_LDGEN_FULL_DEPS=1 "
-                    "and rebuild."
-                )
-                if get_bool_env("ESPHOME_LDGEN_STRICT"):
-                    raise EsphomeError(msg)
-                _LOGGER.warning("%s", msg)
-                return
+        ninja_text = build_ninja.read_text(encoding="utf-8", errors="replace")
     except OSError as e:
-        _LOGGER.debug("Skipping ldgen fragment check: %s", e)
+        _ldgen_check_skip(f"could not read {build_ninja}: {e}", strict)
+        return
+    match = _LDGEN_FRAGMENTS_RE.search(ninja_text)
+    if match is None:
+        _ldgen_check_skip(f"no --fragments-list in {build_ninja}", strict)
+        return
+    for fragment in match.group(1).split(";"):
+        try:
+            text = Path(fragment).read_text(encoding="utf-8", errors="replace")
+        except OSError as e:
+            _ldgen_check_skip(f"could not read {fragment}: {e}", strict)
+            continue
+        if _APP_ARCHIVE_MAPPED_RE.search(text):
+            msg = (
+                f"Linker fragment {fragment} maps the app archive; its "
+                "entries may be skipped. Set ESPHOME_LDGEN_FULL_DEPS=1 "
+                "and rebuild."
+            )
+            if strict:
+                raise EsphomeError(msg)
+            _LOGGER.warning("%s", msg)
+            return
 
 
 def run_compile(config, verbose: bool) -> int:
