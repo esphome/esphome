@@ -664,11 +664,21 @@ def test_warn_if_app_archive_mapped_strict_raises(
 def test_warn_if_app_archive_mapped_clean(
     setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Normal fragments produce no warning; missing files are non-fatal."""
+    """Normal fragments produce no warning."""
     _setup_build(setup_core)
     frag = tmp_path / "linker.lf"
     frag.write_text("[mapping:freertos]\narchive: libfreertos.a\n")
-    _write_fragments_build_ninja(tmp_path, [frag, tmp_path / "missing.lf"])
+    _write_fragments_build_ninja(tmp_path, [frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" not in caplog.text
+
+
+def test_warn_if_app_archive_mapped_missing_fragment(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unreadable fragment file is non-fatal."""
+    _setup_build(setup_core)
+    _write_fragments_build_ninja(tmp_path, [tmp_path / "missing.lf"])
     toolchain._warn_if_app_archive_mapped()
     assert "maps the app archive" not in caplog.text
 
@@ -677,6 +687,34 @@ def test_warn_if_app_archive_mapped_no_build_ninja(setup_core: Path) -> None:
     """No build.ninja yet is a quiet no-op."""
     _setup_build(setup_core)
     toolchain._warn_if_app_archive_mapped()
+
+
+def test_warn_if_app_archive_mapped_no_fragments_list(setup_core: Path) -> None:
+    """A build.ninja without a fragments-list argument is a quiet no-op."""
+    _setup_build(setup_core)
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    (build_dir / "build.ninja").write_text("rule CXX\n  command = gcc\n")
+    toolchain._warn_if_app_archive_mapped()
+
+
+def test_run_compile_full_deps_skips_fragment_check(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ESPHOME_LDGEN_FULL_DEPS disables the fragment belt with the override."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "1")
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary"),
+        patch.object(toolchain, "_warn_if_app_archive_mapped") as mock_check,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_check.assert_not_called()
 
 
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
