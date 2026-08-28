@@ -969,22 +969,26 @@ def resume_fetch_job(
     return fetch
 
 
-def warn_prefetch_failures(
-    failures: list[tuple[str, BaseException]],
-    message: str = "Could not prefetch %s: %s",
-    detail: str = "Prefetch failure detail",
-) -> None:
-    """Warn per failed batch job, keeping the traceback of unexpected errors."""
+def is_expected_fetch_error(err: BaseException) -> bool:
+    """Download failures the callers degrade on, vs programming errors."""
     from esphome.core import EsphomeError  # local import avoids circular dependency
 
+    return isinstance(err, (EsphomeError, OSError))
+
+
+def warn_batch_failures(
+    failures: list[tuple[str, BaseException]],
+    message: str = "Could not prefetch %s: %s",
+) -> None:
+    """Warn per failed batch job, keeping the traceback of unexpected errors."""
     for name, err in failures:
-        # A programming error must not be reduced to a bare message
-        expected = isinstance(err, (EsphomeError, OSError))
         # failure_reason: a message-less exception must not log blank
-        _LOGGER.warning(
-            message, name, failure_reason(err), exc_info=None if expected else err
-        )
-        _LOGGER.debug(detail, exc_info=err)
+        if is_expected_fetch_error(err):
+            _LOGGER.warning(message, name, failure_reason(err))
+            _LOGGER.debug("Failure detail", exc_info=err)
+        else:
+            # A programming error must not be reduced to a bare message
+            _LOGGER.warning(message, name, failure_reason(err), exc_info=err)
 
 
 def download_with_resume(

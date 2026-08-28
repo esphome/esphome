@@ -815,20 +815,20 @@ def test_install_packages_first_failure_reraised(
         registry.install_packages(
             [_spec("a", "1.0", tmp_path / "a"), _spec("b", "2.0", tmp_path / "b")], dl
         )
-    assert "Could not install" in caplog.text
+    # Every failure is named, including the re-raised one: its exception
+    # message may not identify the package
+    assert "Could not install a" in caplog.text
+    assert "Could not install b" in caplog.text
 
 
-def test_install_package_extract_progress_suppresses_bars(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A batched install routes extraction fractions to the caller and keeps
-    both private bars and per-package INFO lines off the shared bar."""
+@contextmanager
+def _batched_install(tmp_path: Path, extract_progress, prefill_archive: bool = True):
+    """Run a batched install_package of pkg@1.0.0; yields the download mock."""
     dest = tmp_path / "pkg"
-    (tmp_path / "dl").mkdir()
-    (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
-    fractions: list[float] = []
+    if prefill_archive:
+        (tmp_path / "dl").mkdir()
+        (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
     with (
-        caplog.at_level(logging.INFO),
         patch.object(registry, "download_with_resume") as mock_download,
         patch.object(registry, "archive_extract_all") as mock_extract,
         patch.object(
@@ -847,8 +847,22 @@ def test_install_package_extract_progress_suppresses_bars(
             [],
             tmp_path / "dl",
             expect=("payload",),
-            extract_progress=fractions.append,
+            extract_progress=extract_progress,
         )
+        yield mock_download, mock_extract
+
+
+def test_install_package_extract_progress_suppresses_bars(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batched install routes extraction fractions to the caller and keeps
+    both private bars and per-package INFO lines off the shared bar."""
+    fractions: list[float] = []
+    with (
+        caplog.at_level(logging.INFO),
+        _batched_install(tmp_path, fractions.append) as (mock_download, mock_extract),
+    ):
+        pass
     assert mock_extract.call_args[1]["progress"] == fractions.append
     # The download tracker reports zero bytes, keeping the shared bar honest
     download_progress = mock_download.call_args[1]["progress"]
@@ -864,29 +878,11 @@ def test_install_package_batched_missing_archive_keeps_info_log(
 ) -> None:
     """A batched archive that unexpectedly needs a real download keeps the
     INFO line; the shared bar shows no progress for it."""
-    dest = tmp_path / "pkg"
     with (
         caplog.at_level(logging.INFO),
-        patch.object(registry, "download_with_resume"),
-        patch.object(registry, "archive_extract_all") as mock_extract,
-        patch.object(
-            registry,
-            "registry_download",
-            return_value=("http://x/pkg.tar.gz", "abc123", 42),
-        ),
+        _batched_install(tmp_path, lambda _frac: None, prefill_archive=False),
     ):
-        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
-            parents=True
-        )
-        registry.install_package(
-            "pkg",
-            "1.0.0",
-            dest,
-            [],
-            tmp_path / "dl",
-            expect=("payload",),
-            extract_progress=lambda _frac: None,
-        )
+        pass
     assert "Downloading pkg 1.0.0" in caplog.text
 
 
@@ -910,6 +906,8 @@ def test_install_packages_dedupes_duplicate_specs(tmp_path: Path) -> None:
     batched = [c for c in mock_install.call_args_list if "extract_progress" in c[1]]
     assert [(c[0][0], c[0][2]) for c in sequential] == [("a", tmp_path / "a2")]
     assert sorted(c[0][0] for c in batched) == ["a", "b"]
+    # The duplicate runs after the batch, which unlinks their shared archive
+    assert mock_install.call_args_list[-1] == sequential[0]
 
 
 def test_install_packages_caps_workers(tmp_path: Path) -> None:
@@ -927,3 +925,58 @@ def test_install_packages_caps_workers(tmp_path: Path) -> None:
     ):
         registry.install_packages(specs, dl)
     assert batch.call_args.kwargs["max_workers"] == 10
+
+
+def test_install_package_batched_refetch_announced_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A batched archive that fails verification and refetches is announced;
+    a verify no-op (full size credited immediately) stays silent."""
+    with (
+        caplog.at_level(logging.INFO),
+        _batched_install(tmp_path, lambda _frac: None) as (mock_download, _),
+    ):
+        progress = mock_download.call_args[1]["progress"]
+        progress(42)
+        assert "Re-downloading pkg 1.0.0" not in caplog.text
+        progress(10)
+        progress(20)
+    assert caplog.text.count("Re-downloading pkg 1.0.0") == 1
+
+
+def test_install_package_batched_refetch_announced_without_size(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A size-less registry entry still announces its refetch on the first
+    streaming tick."""
+    with (
+        caplog.at_level(logging.INFO),
+        patch.object(registry, "download_with_resume") as mock_download,
+        patch.object(registry, "archive_extract_all") as mock_extract,
+        patch.object(
+            registry,
+            "registry_download",
+            return_value=("http://x/pkg.tar.gz", "abc123", None),
+        ),
+    ):
+        dest = tmp_path / "pkg"
+        (tmp_path / "dl").mkdir()
+        (tmp_path / "dl" / "pkg-1.0.0").write_bytes(b"x")
+        mock_extract.side_effect = lambda *_a, **_kw: (dest / "payload").mkdir(
+            parents=True
+        )
+        registry.install_package(
+            "pkg",
+            "1.0.0",
+            dest,
+            [],
+            tmp_path / "dl",
+            expect=("payload",),
+            extract_progress=lambda _frac: None,
+        )
+        progress = mock_download.call_args[1]["progress"]
+        # A verify no-op credits the whole (nonempty) file in one tick
+        progress(1)
+        assert "Re-downloading pkg 1.0.0" not in caplog.text
+        progress(0)
+    assert "Re-downloading pkg 1.0.0" in caplog.text

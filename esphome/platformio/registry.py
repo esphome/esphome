@@ -18,9 +18,10 @@ from esphome.framework_helpers import (
     archive_extract_all,
     download_from_mirrors,
     download_with_resume,
+    is_expected_fetch_error,
     rmdir,
     run_batch_downloads,
-    warn_prefetch_failures,
+    warn_batch_failures,
 )
 from esphome.helpers import get_usable_cpu_count
 from esphome.net_retry import fetch_with_retry, http_request
@@ -185,6 +186,26 @@ def _already_installed(dest: Path) -> bool:
     return (dest / ".esphome_extracted").is_file()
 
 
+def _batched_download_progress(
+    name: str, version: str, size: int | None, extract_progress: Callable[[float], None]
+) -> Callable[[int], None]:
+    """Download tracker for a batched install: no private bar, no bytes (the
+    shared bar must never run backwards); the zero tick keeps cancellation
+    observable and a real refetch is announced once."""
+    announced = False
+
+    def progress(done: int) -> None:
+        nonlocal announced
+        # size-less registry entries still announce: streaming starts at
+        # done=0, while a verify no-op credits the full file in one tick
+        if not announced and done < (size or 1):
+            _LOGGER.info("Re-downloading %s %s ...", name, version)
+            announced = True
+        extract_progress(0.0)
+
+    return progress
+
+
 def prefetch_packages(
     packages: list[tuple[str, str, Path, list[str]]], downloads_dir: Path
 ) -> None:
@@ -253,7 +274,7 @@ def prefetch_packages(
         [(entry.name, entry.size, partial(_fetch, entry)) for entry in pending],
     )
     for name, err in failures:
-        if isinstance(err, (EsphomeError, OSError)):
+        if is_expected_fetch_error(err):
             # Expected download failures: install_package retries this one
             # itself, with a visible bar
             _LOGGER.debug("Prefetch of %s failed: %s", name, err)
@@ -323,15 +344,14 @@ def install_package(
             )
         else:
             url, sha256, size = registry_download(name, version)
-            # Batched: no private bar, no bytes (the shared bar must never
-            # run backwards), but the zero tick keeps cancellation observable
-            download_progress = (
-                None
-                if extract_progress is None
-                else lambda _done: extract_progress(0.0)
-            )
             download_with_resume(
-                url, archive, sha256=sha256, size=size, progress=download_progress
+                url,
+                archive,
+                sha256=sha256,
+                size=size,
+                progress=None
+                if extract_progress is None
+                else _batched_download_progress(name, version, size, extract_progress),
             )
         log("Extracting %s ...", name)
         archive_extract_all(
@@ -353,26 +373,24 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
     seen: set[str] = set()
     for spec in specs:
         name, version, dest, mirrors, _expect = spec
+        archive = _archive_path(downloads_dir, name, version)
         # Duplicate entries share one archive and would race each other
         # between two workers; mirror prefetch_packages' dedupe
-        if _already_installed(dest) or mirrors or f"{name}-{version}" in seen:
+        if _already_installed(dest) or mirrors or archive.name in seen:
             rest.append(spec)
             continue
         try:
             # An archive at its final name already passed sha256/size
             # verification
-            size = _archive_path(downloads_dir, name, version).stat().st_size
+            size = archive.stat().st_size
         except FileNotFoundError:
             rest.append(spec)
             continue
-        seen.add(f"{name}-{version}")
+        seen.add(archive.name)
         pending.append((spec, size))
     if len(pending) < 2:
-        rest = list(specs)
-        pending = []
-    for name, version, dest, mirrors, expect in rest:
-        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
-    if not pending:
+        for name, version, dest, mirrors, expect in specs:
+            install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
         return
     workers = min(get_usable_cpu_count(), len(pending), BATCH_EXTRACT_WORKERS)
     _LOGGER.info(
@@ -400,7 +418,11 @@ def install_packages(specs: Collection[PackageSpec], downloads_dir: Path) -> Non
         max_workers=workers,
     )
     if failures:
-        warn_prefetch_failures(
-            failures[1:], "Could not install %s: %s", detail="Install failure detail"
-        )
+        # Warn on the first failure too: the raised exception's message may
+        # not name which package failed
+        warn_batch_failures(failures, "Could not install %s: %s")
         raise failures[0][1]
+    # Sequential remainder after the batch, so a duplicate spec cannot
+    # unlink the archive its batched twin was sized from
+    for name, version, dest, mirrors, expect in rest:
+        install_package(name, version, dest, mirrors, downloads_dir, expect=expect)
