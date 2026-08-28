@@ -32,9 +32,9 @@ uart_mock:
       # duplicate or overlapping range would put an extra frame on the bus and fail to match.
       - expect_tx: [0x01, 0x03, 0x90, 0x01, 0x00, 0x02, 0xB8, 0xCB] # Read holding 0x9001 count 2 on device 1
         inject_rx: [0x01, 0x03, 0x04, 0x03, 0x97, 0x02, 0x91, 0x8B, 0x57] # 0x9001=0x0397, 0x9002=0x0291
-      # A force_new_range sensor at a HIGH address (0x30) sorts before the plain sensor at a LOW address
-      # (0x10). The two must poll as separate ranges: the covered branch's lower-bound check prevents the
-      # 0x10 sensor from being absorbed into the forced 0x30 range with a wrapped byte offset.
+      # A sensor at 0x30 with the deprecated force_new_range (migrates to reuse_previous_range: false)
+      # and a plain sensor at 0x10. The two must poll as separate ranges: the 0x10 sensor must not be
+      # absorbed into the isolated 0x30 range.
       - expect_tx: [0x01, 0x03, 0x00, 0x30, 0x00, 0x01, 0x84, 0x05] # Read holding 0x30 count 1 (forced range)
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0x11, 0x79, 0xD8] # 0x30 = 0x0111 = 273
       - expect_tx: [0x01, 0x03, 0x00, 0x10, 0x00, 0x01, 0x85, 0xCF] # Read holding 0x10 count 1 (own range)
@@ -87,7 +87,7 @@ sensor:
     register_type: holding
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok
-  # Forced sensor at a high address: sorts first, opens its own isolated range
+  # Isolated sensor (deprecated spelling, migrates to reuse_previous_range: false): own range
   - platform: modbus_controller
     name: "forced_high"
     address: 0x30
@@ -95,7 +95,7 @@ sensor:
     value_type: U_WORD
     force_new_range: true
     modbus_controller_id: modbus_controller_ok
-  # Plain sensor at a lower address: must get its own range, never absorbed into the forced one
+  # Plain sensor at a lower address: must get its own range, never absorbed into the isolated one
   - platform: modbus_controller
     name: "plain_low"
     address: 0x10
