@@ -484,8 +484,10 @@ static bool register_block_in_range(const LogString *role, uint16_t start_addres
   return true;
 }
 
-template<typename Pdu>
-static Pdu build_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values, uint16_t max_registers) {
+// The ceiling comes from the buffer itself: push_back() drops silently, so a bound wider than the buffer
+// would put a truncated frame on the wire.
+template<typename Pdu> static Pdu build_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
+  constexpr auto max_registers = static_cast<uint16_t>((Pdu::capacity() - WRITE_MULTIPLE_HEADER_SIZE) / 2);
   Pdu pdu;  // declared before every return so NRVO fires (all paths return the same object)
   if (!register_block_in_range(LOG_STR("Write"), start_address, values.size(), max_registers)) {
     return pdu;
@@ -498,12 +500,17 @@ static Pdu build_write_registers_pdu(uint16_t start_address, std::span<const uin
   return pdu;
 }
 
+static_assert((PduBuffer::capacity() - WRITE_MULTIPLE_HEADER_SIZE) / 2 == MAX_NUM_OF_REGISTERS_TO_WRITE,
+              "a full-frame PDU must hold exactly MAX_NUM_OF_REGISTERS_TO_WRITE registers");
+static_assert((WriteFewRegistersPdu::capacity() - WRITE_MULTIPLE_HEADER_SIZE) / 2 == MAX_FEW_REGISTERS,
+              "the small write buffer must hold exactly MAX_FEW_REGISTERS registers");
+
 PduBuffer create_write_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
-  return build_write_registers_pdu<PduBuffer>(start_address, values, MAX_NUM_OF_REGISTERS_TO_WRITE);
+  return build_write_registers_pdu<PduBuffer>(start_address, values);
 }
 
 WriteFewRegistersPdu create_write_few_registers_pdu(uint16_t start_address, std::span<const uint16_t> values) {
-  return build_write_registers_pdu<WriteFewRegistersPdu>(start_address, values, MAX_FEW_REGISTERS);
+  return build_write_registers_pdu<WriteFewRegistersPdu>(start_address, values);
 }
 
 PduBuffer create_read_write_multiple_registers_pdu(uint16_t read_start_address, uint16_t read_count,

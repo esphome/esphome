@@ -456,7 +456,7 @@ static constexpr uint16_t MAX_FEW_REGISTERS = 4;
 using PduBuffer = StaticVector<uint8_t, MAX_PDU_SIZE>;
 using ReadPdu = StaticVector<uint8_t, READ_PDU_SIZE>;
 using WriteSinglePdu = StaticVector<uint8_t, WRITE_SINGLE_PDU_SIZE>;
-using WriteFewRegistersPdu = StaticVector<uint8_t, 6 + 2 * MAX_FEW_REGISTERS>;
+using WriteFewRegistersPdu = StaticVector<uint8_t, WRITE_MULTIPLE_HEADER_SIZE + 2 * MAX_FEW_REGISTERS>;
 /// Scratch space for packing coils into wire layout: one bit per coil, sized for the spec maximum.
 using CoilPackBuffer = StaticVector<uint8_t, packed_bit_bytes(MAX_NUM_OF_COILS_TO_WRITE)>;
 
