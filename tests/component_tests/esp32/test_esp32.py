@@ -25,8 +25,8 @@ from esphome.components.esp32 import (
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
-    KEY_IDF_VERSION,
     KEY_EXCLUDE_COMPONENTS,
+    KEY_IDF_VERSION,
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
