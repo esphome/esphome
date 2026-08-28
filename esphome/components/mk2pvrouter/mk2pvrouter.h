@@ -52,7 +52,7 @@ class Mk2PVRouter final : public Component, public uart::UARTDevice {
   };
 
 #ifdef MK2PVROUTER_LISTENER_COUNT
-  StaticVector<Mk2PVRouterListener *, MK2PVROUTER_LISTENER_COUNT> mk2pvrouter_listeners_{};
+  StaticVector<Mk2PVRouterListener *, MK2PVROUTER_LISTENER_COUNT> mk2pvrouter_listeners_;
 #endif
   uint16_t buf_index_{0};
   State state_{State::WAITING_FOR_START};
