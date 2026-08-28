@@ -472,18 +472,16 @@ def rmtree(path: Path | str) -> None:
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    for attempt in range(RMTREE_MAX_ATTEMPTS):
+    for attempt in range(RMTREE_MAX_ATTEMPTS - 1):
         try:
             shutil.rmtree(path, onexc=_onexc)
             return
         except OSError as err:
-            if attempt == RMTREE_MAX_ATTEMPTS - 1 or err.errno not in (
-                errno.ENOTEMPTY,
-                errno.EEXIST,
-            ):
+            if err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
                 raise
             # Give the racing writer (e.g. Finder) time to settle
             time.sleep(0.05 * (attempt + 1))
+    shutil.rmtree(path, onexc=_onexc)
 
 
 def walk_files(path: Path):
