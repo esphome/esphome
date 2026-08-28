@@ -79,9 +79,9 @@ TEST(ModbusUnknownFunction, HelperMatchesParserCoverage) {
   // through to default. With a zero-filled max-size PDU every explicit case returns at least 2
   // (file records bottom out at 2, FIFO at 3) and only default returns MIN_PDU_SIZE, so comparing
   // against MIN_PDU_SIZE detects a case added to either switch without updating the helper. The
-  // loop stops at 0x7F: above it server_pdu_length() early-returns the 2-byte exception length,
-  // which the helper's own exception early-return mirrors.
-  for (int fc = 0; fc <= 0x7F; fc++) {
+  // Both length parsers early-return the 2-byte exception shape above 0x7F, which the helper's own
+  // exception early-return mirrors, so the whole byte range is covered.
+  for (int fc = 0; fc <= 0xFF; fc++) {
     const uint8_t pdu[MAX_PDU_SIZE] = {static_cast<uint8_t>(fc)};  // zero header fields
     EXPECT_EQ(helpers::is_function_code_unknown_length(fc),
               helpers::client_pdu_length(pdu, sizeof(pdu)) == MIN_PDU_SIZE)

@@ -62,6 +62,9 @@ uint16_t server_pdu_length(const uint8_t *frame, size_t size) {
 uint16_t client_pdu_length(const uint8_t *frame, size_t size) {
   if (size < MIN_PDU_SIZE)
     return MIN_PDU_SIZE;
+  if (is_function_code_exception(frame[0])) {
+    return 2;  // never a valid request; sized like the exception reply so the CRC fails at once
+  }
   switch (static_cast<FunctionCode>(frame[0])) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
