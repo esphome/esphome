@@ -31,13 +31,8 @@ CLANG_TIDY_GLOBAL_FILES = (
 # this prefix at the repo root.
 SDKCONFIG_DEFAULTS_PREFIX = "sdkconfig.defaults"
 
-# Native-build infra: changes under esphome/espidf/, the shared
-# esphome/build_helpers/ package, or the modules the native ESP-IDF build
-# imports affect every esp32 IDF build (now the default toolchain) but aren't
-# components, so the component matrix wouldn't otherwise force any esp32
-# compile. determine-jobs folds the `esp32` component into the matrix when
-# they change; calculate_idedata_cache_hash() folds them into the idedata
-# cache key since they generate the clang-tidy idedata.
+# Native ESP-IDF build infra: determine-jobs forces an esp32 compile when these
+# change, and they feed the clang-tidy idedata cache key.
 ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
 ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
     {
@@ -86,11 +81,7 @@ def calculate_clang_tidy_hash(repo_root: Path | None = None) -> str:
 
 
 def calculate_idedata_cache_hash(repo_root: Path | None = None) -> str:
-    """Hash of everything that feeds the generated clang-tidy idedata.
-
-    The clang-tidy hash covers the data inputs (platformio.ini, sdkconfig,
-    idf_component.yml); this adds the Python that turns them into a project.
-    """
+    """Clang-tidy hash plus the Python that generates the idedata."""
     repo_root = _ensure_repo_root(repo_root)
 
     hasher = hashlib.sha256()

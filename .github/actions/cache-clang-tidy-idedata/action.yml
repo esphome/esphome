@@ -1,10 +1,7 @@
 name: Cache clang-tidy idedata
 description: >
-  Cache the clang-tidy idedata and the headers it references under .temp.
-  Generating it for the native ESP-IDF tidy environments takes 90-110s per
-  job. Only headers are kept (about 30MB per env instead of 130MB); a key hit
-  implies the idedata hash matches, so the pruned tree is never rebuilt.
-  Callers must have the Python venv restored and cache-esp-idf run first.
+  Cache the clang-tidy idedata and the headers it references under .temp
+  (headers only, about 30MB per env). Run after restore-python and cache-esp-idf.
 inputs:
   key:
     description: 'Short environment id used in the cache key (e.g. esp32-idf).'
@@ -20,9 +17,7 @@ runs:
         [ -n "${{ inputs.key }}" ] || { echo "::error::cache-clang-tidy-idedata: 'key' input is empty"; exit 1; }
         hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import calculate_idedata_cache_hash; print(calculate_idedata_cache_hash())')
         pyver=$(python -c 'import platform; print(platform.python_version())')
-        # The ESP-IDF install only happens as part of generating idedata, so
-        # never restore idedata over a missing install (cache-esp-idf miss or
-        # eviction); the key also carries the Python version to bust with it.
+        # Generating idedata is what installs ESP-IDF; never skip it over a missing install.
         if [ -d ~/.esphome-idf/frameworks ]; then
           echo "skip=false" >> "$GITHUB_OUTPUT"
         else
