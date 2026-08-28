@@ -453,38 +453,19 @@ constexpr uint32_t registers_to_uint32(uint16_t high_word, uint16_t low_word) {
   return (static_cast<uint32_t>(high_word) << 16) | low_word;
 }
 
-/// Registers occupied by a value of the given type; 0 for RAW and BIT, which have no fixed width.
-constexpr uint8_t registers_for_value_type(SensorValueType value_type) {
-  switch (value_type) {
-    case SensorValueType::U_WORD:
-    case SensorValueType::U_WORD_S:
-    case SensorValueType::S_WORD:
-    case SensorValueType::S_WORD_S:
-      return 1;
-    case SensorValueType::U_DWORD:
-    case SensorValueType::U_DWORD_R:
-    case SensorValueType::S_DWORD:
-    case SensorValueType::S_DWORD_R:
-    case SensorValueType::FP32:
-    case SensorValueType::FP32_R:
-      return 2;
-    case SensorValueType::U_QWORD:
-    case SensorValueType::U_QWORD_R:
-    case SensorValueType::S_QWORD:
-    case SensorValueType::S_QWORD_R:
-      return 4;
-    default:
-      return 0;
-  }
-}
-
+// Always false, whatever the type: it exists only to make the static_assert below depend on the
+// template argument. Not a queryable trait.
 template<SensorValueType> inline constexpr bool VALUE_TYPE_SUPPORTED = false;
 
 /** Decode one value whose type is known at compile time, from registers in host byte order.
  * Unlike registers_to_number(), the type is a template argument, so only the one decode is compiled
  * and the caller gets the value's natural type back rather than an int64_t. The "_R" types take the
  * low word first; the rest take the high word first.
- * The caller must supply at least registers_for_value_type(VALUE_TYPE) registers.
+ * Supports the WORD, DWORD and FP32 types, including their _S and _R forms; the QWORD types are
+ * out of scope and fail to compile, so use registers_to_number() for those.
+ * Use register_width_for() for the number of registers the caller must supply.
+ * Note that the FP32 branches are only usable in a constant expression where std::bit_cast is
+ * available; elsewhere bit_cast falls back to a non-constexpr memcpy (see core/helpers.h).
  */
 template<SensorValueType VALUE_TYPE> constexpr auto registers_to_value(const uint16_t *registers) {
   if constexpr (VALUE_TYPE == SensorValueType::U_WORD) {
