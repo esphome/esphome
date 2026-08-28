@@ -472,6 +472,50 @@ TEST(ModbusHelpersTest, RegistersToUint32CombinesWordsHighFirst) {
   EXPECT_EQ(registers_to_uint32(0x1234, 0x5678), 0x12345678u);
 }
 
+// --- value_at ---------------------------------------------------------------
+// Addresses are absolute; anything not wholly inside the response yields nullopt.
+
+TEST(ModbusHelpersTest, ValueAtDecodesByAbsoluteAddress) {
+  const uint16_t registers[] = {0x1111, 0x2222, 0x3333};
+  const std::span<const uint16_t> span(registers, 3);
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 100).value(), 0x1111);
+  EXPECT_EQ(value_at<SensorValueType::U_WORD>(span, 100, 102).value(), 0x3333);
+  EXPECT_EQ(value_at<SensorValueType::U_DWORD>(span, 100, 101).value(), 0x22223333u);
+}
+
+TEST(ModbusHelpersTest, ValueAtRejectsAddressesOutsideTheResponse) {
+  const uint16_t registers[] = {0x1111, 0x2222, 0x3333};
+  const std::span<const uint16_t> span(registers, 3);
+  // Below the response: must not wrap when the subtraction would go negative.
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 99).has_value());
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 0).has_value());
+  // Past the end, and a multi-register value truncated by the end of the response.
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(span, 100, 103).has_value());
+  EXPECT_FALSE(value_at<SensorValueType::U_DWORD>(span, 100, 102).has_value());
+  EXPECT_TRUE(value_at<SensorValueType::U_DWORD>(span, 100, 101).has_value());
+}
+
+TEST(ModbusHelpersTest, ValueAtHandlesAnEmptyResponse) {
+  EXPECT_FALSE(value_at<SensorValueType::U_WORD>(std::span<const uint16_t>(), 0, 0).has_value());
+}
+
+// --- QWORD decoding ---------------------------------------------------------
+
+TEST(ModbusHelpersTest, RegistersToValueDecodesQwordBothWordOrders) {
+  const uint16_t registers[] = {0x0123, 0x4567, 0x89AB, 0xCDEF};
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD>(registers), 0x0123456789ABCDEFull);
+  const uint16_t reversed[] = {0xCDEF, 0x89AB, 0x4567, 0x0123};
+  EXPECT_EQ(registers_to_value<SensorValueType::U_QWORD_R>(reversed), 0x0123456789ABCDEFull);
+  expect_matches_registers_to_number<SensorValueType::U_QWORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_QWORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::U_QWORD_R>(reversed);
+  expect_matches_registers_to_number<SensorValueType::S_QWORD_R>(reversed);
+}
+
+TEST(ModbusHelpersTest, RegistersToUint64CombinesWordsHighFirst) {
+  EXPECT_EQ(registers_to_uint64(0x0123, 0x4567, 0x89AB, 0xCDEF), 0x0123456789ABCDEFull);
+}
+
 // --- packed bit helpers ------------------------------------------------------
 
 TEST(ModbusHelpersTest, PackBitsAppendsToContainer) {
