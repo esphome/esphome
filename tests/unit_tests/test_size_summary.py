@@ -18,63 +18,71 @@ def _write_size_json(tmp_path: Path, data: dict) -> Path:
 
 
 def _esp32_size_data() -> dict:
-    """Synthetic esp_idf_size.json for the original ESP32 (split IRAM/DRAM)."""
+    """Synthetic json2 esp_idf_size.json for the original ESP32 (split IRAM/DRAM)."""
     return {
-        "image_size": 827455,
-        "memory_types": {
-            "DRAM": {
-                "size": 180736,
+        "version": "1.1",
+        "layout": [
+            {
+                "name": "DRAM",
+                "total": 180736,
                 "used": 47332,
-                "sections": {
-                    ".dram0.bss": {"abbrev_name": ".bss", "size": 30616},
-                    ".dram0.data": {"abbrev_name": ".data", "size": 16716},
+                "free": 133404,
+                "parts": {
+                    ".bss": {"size": 30616},
+                    ".data": {"size": 16716},
                 },
             },
-            "IRAM": {
-                "size": 131072,
+            {
+                "name": "IRAM",
+                "total": 131072,
                 "used": 80351,
-                "sections": {
-                    ".iram0.text": {"abbrev_name": ".text", "size": 79323},
-                    ".iram0.vectors": {"abbrev_name": ".vectors", "size": 1028},
+                "free": 50721,
+                "parts": {
+                    ".text": {"size": 79323},
+                    ".vectors": {"size": 1028},
                 },
             },
-        },
+        ],
     }
 
 
 def _s3_size_data() -> dict:
-    """Synthetic esp_idf_size.json for ESP32-S3 (unified DIRAM)."""
+    """Synthetic json2 esp_idf_size.json for ESP32-S3 (unified DIRAM)."""
     return {
-        "image_size": 724215,
-        "memory_types": {
-            "DIRAM": {
-                "size": 341760,
+        "version": "1.1",
+        "layout": [
+            {
+                "name": "DIRAM",
+                "total": 341760,
                 "used": 104999,
-                "sections": {
-                    ".iram0.text": {"abbrev_name": ".text", "size": 58051},
-                    ".dram0.bss": {"abbrev_name": ".bss", "size": 27088},
-                    ".dram0.data": {"abbrev_name": ".data", "size": 19708},
-                    ".noinit": {"abbrev_name": ".noinit", "size": 152},
+                "free": 236761,
+                "parts": {
+                    ".text": {"size": 58051},
+                    ".bss": {"size": 27088},
+                    ".data": {"size": 19708},
+                    ".noinit": {"size": 152},
                 },
             },
-            "IRAM": {
-                "size": 16384,
+            {
+                "name": "IRAM",
+                "total": 16384,
                 "used": 16384,
-                "sections": {
-                    ".iram0.text": {"abbrev_name": ".text", "size": 15356},
-                    ".iram0.vectors": {"abbrev_name": ".vectors", "size": 1028},
+                "free": 0,
+                "parts": {
+                    ".text": {"size": 15356},
+                    ".vectors": {"size": 1028},
                 },
             },
-        },
+        ],
     }
 
 
 def test_print_summary_esp32_uses_dram(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Original ESP32: DRAM has no ``.text``, so RAM = DRAM.used / DRAM.size unchanged."""
+    """Original ESP32: RAM = DRAM.used / DRAM.total."""
     size_json = _write_size_json(tmp_path, _esp32_size_data())
-    print_summary(size_json, partitions_csv=None)
+    print_summary(size_json, partitions_csv=None, firmware_bin=None)
     out = capsys.readouterr().out
     assert "RAM:" in out
     assert "used 47332 bytes from 180736 bytes" in out
@@ -83,9 +91,9 @@ def test_print_summary_esp32_uses_dram(
 def test_print_summary_s3_falls_back_to_diram(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """ESP32-S3 with no DRAM key falls back to DIRAM and reports raw region usage."""
+    """ESP32-S3 with no DRAM entry falls back to DIRAM and reports raw region usage."""
     size_json = _write_size_json(tmp_path, _s3_size_data())
-    print_summary(size_json, partitions_csv=None)
+    print_summary(size_json, partitions_csv=None, firmware_bin=None)
     out = capsys.readouterr().out
     assert "used 104999 bytes from 341760 bytes" in out
 
@@ -97,16 +105,19 @@ def test_print_summary_skips_when_diram_total_collapses(
     size_json = _write_size_json(
         tmp_path,
         {
-            "memory_types": {
-                "DIRAM": {
-                    "size": 0,
+            "version": "1.1",
+            "layout": [
+                {
+                    "name": "DIRAM",
+                    "total": 0,
                     "used": 0,
-                    "sections": {},
+                    "free": 0,
+                    "parts": {},
                 },
-            },
+            ],
         },
     )
-    print_summary(size_json, partitions_csv=None)
+    print_summary(size_json, partitions_csv=None, firmware_bin=None)
     out = capsys.readouterr().out
     assert "RAM:" not in out
 
@@ -115,16 +126,18 @@ def test_print_summary_handles_missing_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Missing size json is non-fatal and prints nothing."""
-    print_summary(tmp_path / "does_not_exist.json", partitions_csv=None)
+    print_summary(
+        tmp_path / "does_not_exist.json", partitions_csv=None, firmware_bin=None
+    )
     assert capsys.readouterr().out == ""
 
 
-def test_print_summary_handles_no_memory_types(
+def test_print_summary_handles_no_layout(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A size json without ``memory_types`` still doesn't crash."""
-    size_json = _write_size_json(tmp_path, {"image_size": 0})
-    print_summary(size_json, partitions_csv=None)
+    """A size json without ``layout`` still doesn't crash."""
+    size_json = _write_size_json(tmp_path, {"version": "1.1"})
+    print_summary(size_json, partitions_csv=None, firmware_bin=None)
     assert capsys.readouterr().out == ""
 
 
@@ -139,7 +152,25 @@ def test_print_summary_flash_line(
         "# name, type, subtype, offset, size, flags\n"
         "app0, app, ota_0, 0x10000, 0x1C0000,\n"
     )
-    print_summary(size_json, partitions)
+    firmware_bin = tmp_path / "firmware.bin"
+    firmware_bin.write_bytes(b"\x00" * 827455)
+    print_summary(size_json, partitions, firmware_bin)
     out = capsys.readouterr().out
     assert "Flash: " in out
     assert "(used 827455 bytes from 1835008 bytes)" in out
+
+
+def test_print_summary_skips_flash_without_bin(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """No firmware bin means the RAM line prints but the Flash line is skipped."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text(
+        "# name, type, subtype, offset, size, flags\n"
+        "app0, app, ota_0, 0x10000, 0x1C0000,\n"
+    )
+    print_summary(size_json, partitions, firmware_bin=None)
+    out = capsys.readouterr().out
+    assert "RAM:" in out
+    assert "Flash:" not in out

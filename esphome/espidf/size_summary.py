@@ -9,16 +9,19 @@ byte-identical to PlatformIO's output:
     Flash: [===       ]  48.4% (used 888511 bytes from 1835008 bytes)
 
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
-analysis works unchanged on native ESP-IDF builds. RAM total is the
-DRAM region size from the linker map; Flash total is taken from
+analysis works unchanged on native ESP-IDF builds. RAM usage comes from
+the DRAM (or unified DIRAM) region of the linker map; Flash used is the
+size of the app ``.bin`` on disk, and Flash total is taken from
 ``partitions.csv`` using PlatformIO's rule (first app partition whose
 subtype is ``factory`` or ``ota_0``; see
 ``platform-espressif32/builder/main.py::_update_max_upload_size``).
 
 Structured size data is produced at link time by a CMake POST_BUILD
 custom command (see ``build_gen/espidf.py``) which writes
-``esp_idf_size.json`` next to the ELF. We read that file here rather
-than re-running ``esp_idf_size`` from Python.
+``esp_idf_size.json`` (``--format=json2``: a per-memory-type summary,
+``{"version": ..., "layout": [{"name", "total", "used", ...}]}``) next
+to the ELF. We read that file here rather than re-running
+``esp_idf_size`` from Python.
 """
 
 from __future__ import annotations
@@ -69,7 +72,9 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
-def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
+def print_summary(
+    size_json: Path, partitions_csv: Path | None, firmware_bin: Path | None
+) -> None:
     """Print PlatformIO-shaped RAM and Flash one-liners.
 
     Failures are non-fatal: the build has already succeeded, we just couldn't
@@ -84,15 +89,23 @@ def print_summary(size_json: Path, partitions_csv: Path | None) -> None:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
 
-    memory_types = data.get("memory_types", {})
-    ram_region = memory_types.get("DRAM") or memory_types.get("DIRAM") or {}
+    regions = {
+        entry.get("name"): entry
+        for entry in data.get("layout", [])
+        if isinstance(entry, dict)
+    }
+    ram_region = regions.get("DRAM") or regions.get("DIRAM") or {}
     ram_used = ram_region.get("used")
-    ram_total = ram_region.get("size")
+    ram_total = ram_region.get("total")
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
 
-    image_size = data.get("image_size")
-    if image_size is None or partitions_csv is None:
+    if firmware_bin is None or partitions_csv is None:
+        return
+    try:
+        image_size = firmware_bin.stat().st_size
+    except OSError as e:
+        _LOGGER.debug("Skipping Flash summary: %s", e)
         return
     try:
         app_size = _find_app_partition_size(partitions_csv)

@@ -92,7 +92,7 @@ def get_project_cmakelists(
 
     # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
     # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
-    # --format=raw because the legacy mode doesn't support it.
+    # --format=json2 because the legacy mode doesn't support it.
     size_ng_flag = "--ng" if idf_version() < cv.Version(6, 0, 0) else ""
 
     # Project-wide compile options: -D defines and -W warning flags (skip
@@ -211,10 +211,13 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 
 project({CORE.name})
 
-# Emit raw JSON size data for ESPHome to read post-build.
+# Emit per-memory-type JSON size data for ESPHome to read post-build.
+# json2 only summarizes memory regions; the raw format also dumps every
+# symbol (multi-MB, ~2s on a large map) and this command runs inside the
+# link edge, so everything downstream of the ELF would wait on it.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
-    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=raw
+    COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2
             -o ${{CMAKE_BINARY_DIR}}/esp_idf_size.json
             ${{CMAKE_PROJECT_NAME}}.map
     WORKING_DIRECTORY ${{CMAKE_BINARY_DIR}}
