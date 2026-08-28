@@ -39,8 +39,8 @@ def _log(msg: str) -> None:
 
 def _write_depfile(depfile: Path, gch: Path, header: Path) -> None:
     """Ninja errors on a declared-but-missing depfile; keep a minimal one
-    on every non-compile path. The target is the ninja-relative output."""
-    depfile.write_text(f"{gch.name}: {header}\n", encoding="utf-8")
+    on every non-compile path. Absolute target, as the compile's -MT."""
+    depfile.write_text(f"{gch}: {header}\n", encoding="utf-8")
 
 
 def _degrade(
@@ -107,10 +107,12 @@ def main() -> int:
     if cmd[-6:-4] != ["-x", "c++-header"]:
         # The probe slice below depends on pch_compile_command's fixed tail
         return _degrade(args, "unexpected pch command shape")
-    # The graph edge owns dependency tracking; the target name must match
-    # ninja's spelling of the output (build-dir relative)
+    # The graph edge owns dependency tracking; the -MT target must be the
+    # absolute output path so cmake's depfile transform (CMP0116) maps it
+    # to ninja's spelling — a relative name resolves against the component
+    # binary dir and never matches, leaving the edge forever dirty
     depfile = Path(f"{gch}.d")
-    compile_cmd = [*cmd, "-MD", "-MF", str(depfile), "-MT", gch.name]
+    compile_cmd = [*cmd, "-MD", "-MF", str(depfile), "-MT", str(gch)]
 
     result = _run(compile_cmd, cmd_dir)
     if result is None:

@@ -82,13 +82,13 @@ def test_success_compiles_probes_and_clears_latch(tmp_path: Path) -> None:
             return subprocess.CompletedProcess(cmd, 0, "", "")
         env.gch.write_bytes(b"gch")
         mf = cmd[cmd.index("-MF") + 1]
-        Path(mf).write_text(f"{env.gch.name}: {env.header}\n", encoding="utf-8")
+        Path(mf).write_text(f"{env.gch}: {env.header}\n", encoding="utf-8")
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
     with patch.object(pch_compile.subprocess, "run", side_effect=fake_run):
         assert _run_main(env) == 0
     compile_cmd = seen[0]
-    assert compile_cmd[compile_cmd.index("-MT") + 1] == "esphome_pch.h.gch"
+    assert compile_cmd[compile_cmd.index("-MT") + 1] == str(env.gch)
     assert env.gch.read_bytes() == b"gch"
     assert env.depfile.is_file()
     assert not env.failed.exists()

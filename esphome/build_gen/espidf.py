@@ -280,6 +280,7 @@ else()
     )
 endif()
 
+{_pch_edge_cmake()}
 idf_component_register(
     SRCS ${{app_sources}}
     INCLUDE_DIRS "." "esphome"
@@ -293,39 +294,56 @@ target_link_options(${{COMPONENT_LIB}} PUBLIC
 {_pch_cmake()}"""
 
 
-def _pch_cmake() -> str:
-    """Consumer block plus the .gch build edge for the component
-    CMakeLists. Baked at generation: a strict-knob or venv flip rewrites
-    the file and reconfigures; a hand-run idf.py keeps the old one. The
-    shim derives TU-identical flags from compile_commands.json at edge
+def _pch_edge_cmake() -> str:
+    """The .gch build edge, emitted BEFORE idf_component_register and owned
+    by a bare custom target: a command adopted by the component target
+    would inherit its inter-component dependencies as order-only inputs,
+    forcing the pch to wait for every archive and destroying the overlap.
+    The shim derives TU-identical flags from compile_commands.json at edge
     execution time, so the baked command carries none."""
+    if not pch_enabled():
+        return ""
+    python = strip_win_long_path_prefix(sys.executable)
+    pkg_root = Path(pch.__file__).parent.parent.parent
+    return f"""
+# ESPHome precompiled header build edge (see build_helpers/pch_compile.py).
+# Script mode (cmake -P) cannot define commands or targets; skip there.
+if(NOT CMAKE_SCRIPT_MODE_FILE)
+    # The .sum (identity digest, written pre-ninja) is an edge input; keep
+    # it satisfiable if the build system wiped the dir. Empty = degraded.
+    if(NOT EXISTS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.sum")
+        file(TOUCH "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.sum")
+    endif()
+    cmake_policy(SET CMP0116 NEW)
+    add_custom_command(
+        OUTPUT "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch"
+        COMMAND ${{CMAKE_COMMAND}} -E env "PYTHONPATH={pkg_root}"
+                "{python}" -m esphome.build_helpers.pch_compile
+                --build-dir "${{CMAKE_BINARY_DIR}}"
+                --src-dir "${{CMAKE_CURRENT_SOURCE_DIR}}"
+                --header "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}"
+                --gch "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch"
+        DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}"
+                "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.sum"
+        DEPFILE "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.d"
+        COMMENT "PCH {PCH_HEADER_NAME}.gch"
+        VERBATIM)
+    add_custom_target(esphome_pch DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch")
+endif()
+"""
+
+
+def _pch_cmake() -> str:
+    """Consumer block for the component CMakeLists. Baked at generation: a
+    strict-knob or venv flip rewrites the file and reconfigures; a
+    hand-run idf.py keeps the old one."""
     if not pch_enabled():
         return ""
     consumer = pch.pch_cmake_consumer(
         "${COMPONENT_LIB}", "${app_sources}", object_depends=f"{PCH_HEADER_NAME}.gch"
     )
-    python = strip_win_long_path_prefix(sys.executable)
-    pkg_root = Path(pch.__file__).parent.parent.parent
     return f"""{consumer}
-# The .sum (identity digest, written pre-ninja) is an edge input; keep it
-# satisfiable when the build system wiped the dir. Empty reads as degraded.
-if(NOT EXISTS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.sum")
-  file(TOUCH "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.sum")
-endif()
-cmake_policy(SET CMP0116 NEW)
-add_custom_command(
-    OUTPUT "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch"
-    COMMAND ${{CMAKE_COMMAND}} -E env "PYTHONPATH={pkg_root}"
-            "{python}" -m esphome.build_helpers.pch_compile
-            --build-dir "${{CMAKE_BINARY_DIR}}"
-            --src-dir "${{CMAKE_CURRENT_SOURCE_DIR}}"
-            --header "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}"
-            --gch "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch"
-    DEPENDS "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}"
-            "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.sum"
-    DEPFILE "${{CMAKE_BINARY_DIR}}/{PCH_HEADER_NAME}.gch.d"
-    COMMENT "PCH {PCH_HEADER_NAME}.gch"
-    VERBATIM)
+add_dependencies(${{COMPONENT_LIB}} esphome_pch)
 """
 
 

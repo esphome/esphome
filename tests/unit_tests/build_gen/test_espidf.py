@@ -924,6 +924,14 @@ def test_component_cmakelists_pch_edge(monkeypatch: pytest.MonkeyPatch) -> None:
     assert 'DEPFILE "${CMAKE_BINARY_DIR}/esphome_pch.h.gch.d"' in content
     assert "esphome_pch.h.gch.sum" in content
     assert "cmake_policy(SET CMP0116 NEW)" in content
+    # The edge is owned by a bare target BEFORE idf_component_register so
+    # it never inherits inter-component deps as order-only inputs
+    assert "add_custom_target(esphome_pch" in content
+    assert content.index("add_custom_command(") < content.index(
+        "idf_component_register("
+    )
+    assert "if(NOT CMAKE_SCRIPT_MODE_FILE)" in content
+    assert "add_dependencies(${COMPONENT_LIB} esphome_pch)" in content
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     disabled = get_component_cmakelists()
     assert "pch_compile" not in disabled
