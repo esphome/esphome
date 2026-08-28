@@ -3,6 +3,8 @@
 
 namespace esphome::pzemdc {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "pzemdc";
 
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
@@ -25,15 +27,14 @@ void PZEMDC::on_read_input_registers(uint16_t start_address, std::span<const uin
   auto publish_1_register = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
     if (sensor == nullptr)
       return;
-    if (auto value = modbus::helpers::value_at<modbus::helpers::SensorValueType::U_WORD>(registers, start_address, reg))
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_WORD>(registers, start_address, reg))
       sensor->publish_state(*value / divisor);
   };
 
   auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
     if (sensor == nullptr)
       return;
-    if (auto value =
-            modbus::helpers::value_at<modbus::helpers::SensorValueType::U_DWORD_R>(registers, start_address, reg))
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, reg))
       sensor->publish_state(*value / divisor);
   };
 

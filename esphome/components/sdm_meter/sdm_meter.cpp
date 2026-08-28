@@ -4,6 +4,8 @@
 
 namespace esphome::sdm_meter {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "sdm_meter";
 
 static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 80 x 16-bit registers (40 float values)
@@ -18,7 +20,7 @@ void SDMMeter::on_read_input_registers(uint16_t start_address, std::span<const u
   auto publish = [&](uint16_t reg, sensor::Sensor *sensor) {
     if (sensor == nullptr)
       return;
-    if (auto value = modbus::helpers::value_at<modbus::helpers::SensorValueType::FP32>(registers, start_address, reg))
+    if (auto value = helpers::value_at<helpers::SensorValueType::FP32>(registers, start_address, reg))
       sensor->publish_state(*value);
   };
 

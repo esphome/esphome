@@ -4,6 +4,8 @@
 
 namespace esphome::selec_meter {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "selec_meter";
 
 static const uint8_t MODBUS_REGISTER_COUNT = 34;  // 34 x 16-bit registers
@@ -19,7 +21,7 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
   auto publish = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
     if (sensor == nullptr)
       return;
-    if (auto value = modbus::helpers::value_at<modbus::helpers::SensorValueType::FP32_R>(registers, start_address, reg))
+    if (auto value = helpers::value_at<helpers::SensorValueType::FP32_R>(registers, start_address, reg))
       sensor->publish_state(*value * unit);
   };
 

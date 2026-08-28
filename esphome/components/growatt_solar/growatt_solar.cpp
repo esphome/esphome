@@ -3,6 +3,8 @@
 
 namespace esphome::growatt_solar {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "growatt_solar";
 
 static const uint8_t MODBUS_REGISTER_COUNT[] = {33, 95};  // indexed with enum GrowattProtocolVersion
@@ -19,15 +21,14 @@ void GrowattSolar::on_read_input_registers(uint16_t start_address, std::span<con
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
     if (sensor == nullptr)
       return;
-    if (auto value = modbus::helpers::value_at<modbus::helpers::SensorValueType::U_WORD>(registers, start_address, reg))
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_WORD>(registers, start_address, reg))
       sensor->publish_state(*value * unit);
   };
 
   auto publish_2_reg_sensor_state = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
     if (sensor == nullptr)
       return;
-    if (auto value =
-            modbus::helpers::value_at<modbus::helpers::SensorValueType::U_DWORD>(registers, start_address, reg))
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_DWORD>(registers, start_address, reg))
       sensor->publish_state(*value * unit);
   };
 
