@@ -402,6 +402,15 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
     return [socket.getnameinfo(r[4], socket.NI_NUMERICHOST)[0] for r in res]
 
 
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs usable by this process (affinity-aware
+    on Python 3.13+); 1 when the count is undeterminable."""
+    count = (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+    return count or 1
+
+
 def get_bool_env(var, default=False):
     """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
     anything else falls through to ``bool(value)``."""
