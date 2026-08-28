@@ -1925,8 +1925,7 @@ TEST(ModbusClientHubPriority, ResendFromOnResponseAbsorbsIntoCompletingCommand) 
   EXPECT_FALSE(hub.queued(0).options.continuous);  // the one-shot re-send downgraded the poll
 }
 
-// An exception-flagged function code is never silently re-sendable, even though the read check
-// masks the exception bit: its duplicate takes the drop path like any other non-read.
+// The exception bit marks a response, so a request carrying it is refused outright.
 TEST(ModbusClientHubPriority, ExceptionFlaggedPduRefused) {
   NoResponseProbeHub hub;
   SentCountingDevice device(&hub, 0x02);
