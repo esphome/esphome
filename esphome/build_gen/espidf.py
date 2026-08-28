@@ -33,15 +33,10 @@ list(FILTER esphome_cxx_compile_options EXCLUDE REGEX "^-std=")
 list(APPEND esphome_cxx_compile_options "-std={standard}")
 idf_build_set_property(CXX_COMPILE_OPTIONS "${{esphome_cxx_compile_options}}")"""
 
-# Drops the app archive from ldgen's inputs (the sections.ld DEPENDS and the
-# ldgen_libraries file) by overriding the IDF helper that collects them, so
-# app-only edits skip the sections.ld regeneration and ldgen never opens the
-# archive. Safe because no linker mapping fragment references the app archive
-# (run_compile re-checks that each build); the override filters only the top
-# level call, after the recursive walk finished, so the walker's cycle guard
-# is untouched. CMake keeps the prior definition reachable with an underscore
-# prefix; a future IDF that renames the helper skips the override and keeps
-# stock behavior. Emitted after include(project.cmake), before project().
+# Drops the app archive from ldgen's inputs so app-only edits skip the
+# sections.ld regeneration. Safe: no mapping fragment references it
+# (run_compile re-checks each build). Filters only the top-level call;
+# the prior definition stays reachable with an underscore prefix.
 _LDGEN_OVERRIDE = """\
 if(COMMAND __ldgen_get_lib_deps_of_target)
     function(__ldgen_get_lib_deps_of_target target out_list_var)

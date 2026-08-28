@@ -484,11 +484,9 @@ _APP_ARCHIVE_MAPPED_RE = re.compile(r"^archive:\s*libsrc\.a\s*$", re.MULTILINE)
 
 
 def _warn_if_app_archive_mapped() -> None:
-    """Belt for the ldgen dependency exclusion (see build_gen/espidf.py).
-
-    The exclusion is safe only while no linker fragment names the app
-    archive; if one ever did, ldgen would silently skip remapping it, so
-    surface that loudly instead of relying on the invariant forever.
+    """Belt for the ldgen exclusion (see build_gen/espidf.py): warn if any
+    linker fragment names the app archive, since ldgen would silently skip
+    remapping it rather than fail.
     """
     build_ninja = CORE.relative_build_path("build", "build.ninja")
     try:
