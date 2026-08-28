@@ -456,6 +456,18 @@ void UFM01Component::loop_startup_() {
       }
       if (elapsed < ACTIVE_FRAME_TIMEOUT_MS)
         return;
+      this->send_command_no_wait_(PASSIVE_MODE);
+      this->set_startup_phase_(StartupPhase::SET_PASSIVE_WAIT_ACK);
+      return;
+
+    case StartupPhase::SET_PASSIVE_WAIT_ACK:
+      if (this->consume_ack_()) {
+        ESP_LOGD(TAG, "Passive mode acknowledged during startup");
+      } else if (elapsed < COMMAND_ACK_TIMEOUT_MS) {
+        return;
+      } else {
+        ESP_LOGW(TAG, "SET_PASSIVE_MODE not acknowledged during startup, continuing");
+      }
       this->start_passive_read_();
       this->set_startup_phase_(StartupPhase::PASSIVE_WAIT_REPLY);
       return;

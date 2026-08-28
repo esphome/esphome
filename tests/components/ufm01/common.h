@@ -136,6 +136,12 @@ class TestableUFM01 : public UFM01Component {
     this->read_index_ = 0;
   }
 
+  void prepare_active_wait_timeout() {
+    this->operating_mode_ = OperatingMode::STARTUP;
+    this->startup_phase_ = StartupPhase::ACTIVE_WAIT_FRAME;
+    this->phase_start_ms_ = millis() - 4000;
+  }
+
   void reset_state() {
     this->read_index_ = 0;
     this->last_valid_frame_ms_ = 0;

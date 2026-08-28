@@ -37,7 +37,8 @@ enum class StartupPhase : uint8_t {
   RESET_RETRY_WAIT = 2,
   POST_RESET_WAIT = 3,
   ACTIVE_WAIT_FRAME = 4,
-  PASSIVE_WAIT_REPLY = 5,
+  SET_PASSIVE_WAIT_ACK = 5,
+  PASSIVE_WAIT_REPLY = 6,
 };
 
 enum class PassiveReadResult : uint8_t {

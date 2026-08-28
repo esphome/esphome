@@ -40,6 +40,31 @@ TEST_F(UFM01Test, StartPassiveReadSendsCommand) {
   EXPECT_EQ(this->mock_uart_.written_data[6], FRAME_STOP_BYTE);
 }
 
+TEST_F(UFM01Test, StartupActiveWaitTimeoutSendsSetPassiveMode) {
+  this->ufm01_.prepare_active_wait_timeout();
+
+  this->ufm01_.loop_startup();
+
+  EXPECT_EQ(this->ufm01_.startup_phase(), StartupPhase::SET_PASSIVE_WAIT_ACK);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5C);
+  EXPECT_EQ(this->mock_uart_.written_data[4], 0x01);
+  EXPECT_EQ(this->mock_uart_.written_data[5], 0x5D);
+}
+
+TEST_F(UFM01Test, StartupSetPassiveWaitAckStartsPassiveRead) {
+  this->ufm01_.prepare_active_wait_timeout();
+  this->ufm01_.loop_startup();
+  this->mock_uart_.enqueue({COMMAND_ACK});
+  this->mock_uart_.written_data.clear();
+
+  this->ufm01_.loop_startup();
+
+  EXPECT_EQ(this->ufm01_.startup_phase(), StartupPhase::PASSIVE_WAIT_REPLY);
+  ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
+  EXPECT_EQ(this->mock_uart_.written_data[3], 0x5B);
+}
+
 TEST_F(UFM01Test, StaleActiveStreamSendsSetPassiveMode) {
   // Leftover stream noise should be flushed before SET_PASSIVE_MODE
   this->mock_uart_.enqueue({0x3C, 0x32, 0x00});
