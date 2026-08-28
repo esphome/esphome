@@ -291,7 +291,7 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
 }
 
 int LWIPRawCommon::ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {
-  // TCP pcb stores port in network byte order; convert to host order for the shared helper
+  // lwip pcb ports are host order; ntohs preserves historical byte-swapped sin_port output
   return lwip_ip_to_sockaddr(this->family_, ip, ntohs(port), name, addrlen);
 }
 

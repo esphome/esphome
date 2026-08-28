@@ -96,8 +96,7 @@ class LWIPRawUDPImpl : private LWIPRawUDPSendImpl {
   static constexpr uint8_t UDP_RX_QUEUE_SIZE = 4;
   static constexpr uint8_t UDP_RX_MASK = UDP_RX_QUEUE_SIZE - 1;
   static_assert((UDP_RX_QUEUE_SIZE & UDP_RX_MASK) == 0, "UDP_RX_QUEUE_SIZE must be power of 2");
-  // Fields are written by recv_fn_ before rx_count_ makes a slot visible,
-  // so per-member initializers would only add dead zeroing of the array.
+  // Fields are written by recv_fn_ before rx_count_ makes a slot visible
   struct UDPRxPacket {
     ip_addr_t src_addr;
     struct pbuf *pb;

@@ -68,6 +68,11 @@ bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t 
     *port = ntohs(addr6->sin6_port);
     IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_V6);
     memcpy(&ip_2_ip6(ip)->addr, &addr6->sin6_addr.un.u8_addr, 16);
+    // Unmap ::ffff:a.b.c.d so replies to recvfrom addresses route as IPv4
+    if (ip6_addr_isipv4mappedipv6(ip_2_ip6(ip))) {
+      unmap_ipv4_mapped_ipv6(ip_2_ip4(ip), ip_2_ip6(ip));
+      IP_SET_TYPE_VAL(*ip, IPADDR_TYPE_V4);
+    }
     return true;
   }
 #endif

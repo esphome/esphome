@@ -122,8 +122,16 @@ int LWIPRawUDPSendImpl::setsockopt(int level, int optname, const void *optval, s
     return -1;
   }
   if (level == SOL_SOCKET && optname == SO_REUSEADDR) {
-    // lwip raw UDP doesn't enforce port exclusivity the same way,
-    // but we accept this silently for compatibility
+    if (optval == nullptr || optlen < sizeof(int)) {
+      errno = EINVAL;
+      return -1;
+    }
+    // Effective only where lwip is built with SO_REUSE=1 (ESP8266 yes, RP2040 currently no)
+    if (*reinterpret_cast<const int *>(optval)) {
+      ip_set_option(this->pcb_, SOF_REUSEADDR);
+    } else {
+      ip_reset_option(this->pcb_, SOF_REUSEADDR);
+    }
     return 0;
   }
   if (level == SOL_SOCKET && optname == SO_BROADCAST) {
@@ -170,7 +178,7 @@ int LWIPRawUDPSendImpl::getsockopt(int level, int optname, void *optval, socklen
       errno = EINVAL;
       return -1;
     }
-    *reinterpret_cast<int *>(optval) = 1;
+    *reinterpret_cast<int *>(optval) = ip_get_option(this->pcb_, SOF_REUSEADDR) ? 1 : 0;
     *optlen = sizeof(int);
     return 0;
   }
