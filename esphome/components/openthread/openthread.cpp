@@ -47,53 +47,57 @@ void OpenThreadComponent::dump_config() {
 }
 
 void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) {
+  auto *self = static_cast<OpenThreadComponent *>(context);
+  // This runs on the OpenThread task thread with the OT lock held,
+  // so we can safely call otThreadGetDeviceRole directly.
+  otInstance *instance = self->get_openthread_instance_();
+
   if (flags & OT_CHANGED_THREAD_ROLE) {
-    auto *self = static_cast<OpenThreadComponent *>(context);
-    // This runs on the OpenThread task thread with the OT lock held,
-    // so we can safely call otThreadGetDeviceRole directly.
-    otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     bool now_connected = role >= OT_DEVICE_ROLE_CHILD;
     if (!self->connected_ && now_connected) {
-      self->log_connect_params_(instance, role);
+      self->print_connect_params_(instance, role);
     }
     self->connected_ = now_connected;
   }
-}
 
-void OpenThreadComponent::on_address_changed(const otIp6AddressInfo *address_info, bool added, void *context) {
-  char addr_str[OT_IP6_ADDRESS_STRING_SIZE];
-  otIp6AddressToString(address_info->mAddress, addr_str, sizeof(addr_str));
-
-  if (!added) {
-    ESP_LOGD(TAG, "Address removed: %s", addr_str);
-    return;
-  }
-
-  if (!address_info->mPreferred) {
-    // Non-preferred addresses are mostly multicast addresses and don't
-    // really concern the user so log these with ESP_LOGV.
-    ESP_LOGV(TAG, "Address added: %s (non-preferred)", addr_str);
-    return;
-  }
-
-  const uint8_t *address = address_info->mAddress->mFields.m8;
-  const bool link_local = address[0] == 0xFE && (address[1] & 0xC0) == 0x80;
-  if (link_local) {
-    ESP_LOGCONFIG(TAG, "Address added: %s (link-local)", addr_str);
-  } else if (address_info->mMeshLocal) {
-    ESP_LOGCONFIG(TAG, "Address added: %s (mesh-local)", addr_str);
-  } else {
-    ESP_LOGI(TAG, "Address added: %s (off-mesh-routable)", addr_str);
+  if (flags & OT_CHANGED_IP6_ADDRESS_ADDED) {
+    self->print_addresses_(instance);
   }
 }
 
-void OpenThreadComponent::log_connect_params_(otInstance *instance, otDeviceRole role) {
+void OpenThreadComponent::print_connect_params_(otInstance *instance, otDeviceRole role) {
   ESP_LOGI(TAG, "Connected");
   ESP_LOGCONFIG(TAG, "  Network: %s", otThreadGetNetworkName(instance));
   ESP_LOGCONFIG(TAG, "  Role: %s", otThreadDeviceRoleToString(role));
   ESP_LOGCONFIG(TAG, "  Channel: %u", otLinkGetChannel(instance));
   ESP_LOGCONFIG(TAG, "  PAN ID: 0x%04X", otLinkGetPanId(instance));
+}
+
+void OpenThreadComponent::print_addresses_(otInstance *instance) {
+  ESP_LOGI(TAG, "Addresses:");
+
+  const otNetifAddress *unicast_addresses = otIp6GetUnicastAddresses(instance);
+
+  for (const otNetifAddress *addr = unicast_addresses; addr; addr = addr->mNext) {
+    char addr_str[OT_IP6_ADDRESS_STRING_SIZE];
+    otIp6AddressToString(&addr->mAddress, addr_str, sizeof(addr_str));
+
+    const uint8_t *address = addr->mAddress.mFields.m8;
+    const bool link_local = address[0] == 0xFE && (address[1] & 0xC0) == 0x80;
+
+    if (!addr->mPreferred) {
+      ESP_LOGV(TAG, "  %s (non-preferred)", addr_str);
+    } else if (link_local) {
+      ESP_LOGCONFIG(TAG, "  %s (link-local)", addr_str);
+    } else if (addr->mRloc) {
+      ESP_LOGCONFIG(TAG, "  %s (routing-locator)", addr_str);
+    } else if (addr->mMeshLocal) {
+      ESP_LOGCONFIG(TAG, "  %s (mesh-local)", addr_str);
+    } else {
+      ESP_LOGI(TAG, "  %s (off-mesh-routable)", addr_str);
+    }
+  }
 }
 
 // Gets the off-mesh routable address

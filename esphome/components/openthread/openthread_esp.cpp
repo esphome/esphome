@@ -149,19 +149,15 @@ void OpenThreadComponent::ot_main() {
     dataset.mLength = len;
   }
 #endif
-
-  // Register address change callback. Must be done before auto_start, otherwise
-  // the initial addresses will be missed.
-  otIp6SetAddressCallback(instance, OpenThreadComponent::on_address_changed, this);
-
-  // Pass the existing dataset, or NULL which will use the preprocessor definitions
-  ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
-
-  // Register state change callback to update connected_ reactively instead of polling
+  // Register state change callback to update connected_ reactively instead of polling. Callback
+  // must be set before auto_start, otherwise the initial addresses will be missed.
   otError ot_err = otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed, this);
   if (ot_err != OT_ERROR_NONE) {
     ESP_LOGW(TAG, "Failed to register state change callback: %d", ot_err);
   }
+
+  // Pass the existing dataset, or NULL which will use the preprocessor definitions
+  ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
   esp_openthread_launch_mainloop();
 

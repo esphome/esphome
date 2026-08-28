@@ -56,7 +56,6 @@ class OpenThreadComponent final : public Component {
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
   void set_connected(bool connected) { this->connected_ = connected; }
   static void on_state_changed(otChangedFlags flags, void *context);
-  static void on_address_changed(const otIp6AddressInfo *address_info, bool added, void *context);
 
  protected:
   // Actions re-apply link mode under the OT lock; allow them to call apply_linkmode_()
@@ -68,7 +67,8 @@ class OpenThreadComponent final : public Component {
    * ot_main() runs on the OpenThread task itself and must not acquire the lock.
    */
   void apply_linkmode_(otInstance *instance);
-  void log_connect_params_(otInstance *instance, otDeviceRole role);
+  void print_connect_params_(otInstance *instance, otDeviceRole role);
+  void print_addresses_(otInstance *instance);
 
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   otInstance *get_openthread_instance_();

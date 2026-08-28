@@ -82,7 +82,6 @@ void OpenThreadComponent::setup() {
     }
   }
   openthread_state_changed_cb_register(context, &ot_state_changed_cb);
-  otIp6SetAddressCallback(context->instance, OpenThreadComponent::on_address_changed, this);
   openthread_start(context);
 }
 
