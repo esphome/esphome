@@ -5,6 +5,7 @@
 #include <openthread/child_supervision.h>
 #include <openthread/cli.h>
 #include <openthread/instance.h>
+#include <openthread/ip6.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
@@ -247,10 +248,11 @@ bool OpenThreadComponent::teardown() {
         // The OT task may still be starting up; stay pending and retry on
         // the next call rather than giving up after a single failed attempt.
         if (!lock) {
+          ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
           return false;
         }
         this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
-        ESP_LOGV(TAG, "Clear Srp");
+        ESP_LOGV(TAG, "Clear SRP");
         otInstance *instance = lock.get_instance();
         otSrpClientClearHostAndServices(instance);
         otSrpClientBuffersFreeAllServices(instance);
@@ -269,11 +271,11 @@ bool OpenThreadComponent::teardown() {
       int error = this->openthread_stop_();
       if (error != 0) {
         ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
-        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
       }
     } break;
     case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
-      // Unreachable today; kept as a hook for a future use.
+      // Unreachable today; teardown is synchronous on both platforms. Kept for a future
+      // graceful-exit path, or a platform whose teardown() cannot be made synchronous.
       break;
     case TeardownStage::TEARDOWN_STAGE_COMPLETED:
       ESP_LOGV(TAG, "OpenThreadComponent Teardown Complete");

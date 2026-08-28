@@ -536,7 +536,7 @@ jobs:
             apt-get install -y libc6-dbg
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@4296e51e7041e24dadb86d1d6e8b9320d223dbe8 # v5.0.3
+        uses: CodSpeedHQ/action@373d6868929f444bc08d901fd0eb0ad52a8875ea # v5.2.1
         with:
           run: |
             . venv/bin/activate
@@ -946,7 +946,6 @@ jobs:
       ESPHOME_SDK_NRF_PREFIX: ~/.esphome-sdk-nrf
     strategy:
       fail-fast: false
-      max-parallel: ${{ needs.determine-jobs.outputs.release-pr == 'true' && 32 || 16 }}
       matrix:
         batch: ${{ fromJson(needs.determine-jobs.outputs.component-test-batches) }}
     steps:

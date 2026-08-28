@@ -1,14 +1,20 @@
 import esphome.codegen as cg
 from esphome.components import output
-from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE
+from esphome.components.modbus.helpers import (
+    SENSOR_VALUE_TYPE,
+    PduBuffer,
+    RegisterValues,
+)
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_MULTIPLY
+from esphome.types import ConfigType
 
 from .. import (
     ModbusItemBaseSchema,
     SensorItem,
     modbus_calc_properties,
     modbus_controller_ns,
+    reject_odd_holding_write_offset,
 )
 from ..const import (
     CONF_CUSTOM_COMMAND,
@@ -48,23 +54,26 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             }
         ),
-        "holding": output.FLOAT_OUTPUT_SCHEMA.extend(ModbusItemBaseSchema).extend(
-            {
-                cv.GenerateID(): cv.declare_id(ModbusFloatOutput),
-                cv.Required(CONF_ADDRESS): cv.positive_int,
-                cv.Optional(CONF_CUSTOM_PDU): cv.invalid(
-                    "custom_pdu is not supported for outputs; use a write_lambda instead"
-                ),
-                cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
-                    "custom_command is not supported for outputs; use a write_lambda instead"
-                ),
-                cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
-                    SENSOR_VALUE_TYPE
-                ),
-                cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
-                cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
-                cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
-            }
+        "holding": cv.All(
+            output.FLOAT_OUTPUT_SCHEMA.extend(ModbusItemBaseSchema).extend(
+                {
+                    cv.GenerateID(): cv.declare_id(ModbusFloatOutput),
+                    cv.Required(CONF_ADDRESS): cv.positive_int,
+                    cv.Optional(CONF_CUSTOM_PDU): cv.invalid(
+                        "custom_pdu is not supported for outputs; use a write_lambda instead"
+                    ),
+                    cv.Optional(CONF_CUSTOM_COMMAND): cv.invalid(
+                        "custom_command is not supported for outputs; use a write_lambda instead"
+                    ),
+                    cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
+                        SENSOR_VALUE_TYPE
+                    ),
+                    cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+                    cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
+                    cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
+                }
+            ),
+            reject_odd_holding_write_offset,
         ),
     },
     lower=True,
@@ -73,7 +82,7 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     byte_offset, reg_count = modbus_calc_properties(config)
     # Binary Output
     write_template = None
@@ -89,7 +98,7 @@ async def to_code(config):
                 [
                     (ModbusBinaryOutput.operator("ptr"), "item"),
                     (cg.bool_, "x"),
-                    (cg.std_vector.template(cg.uint8).operator("ref"), "payload"),
+                    (PduBuffer.operator("ref"), "payload"),
                 ],
                 return_type=cg.optional.template(bool),
             )
@@ -109,7 +118,7 @@ async def to_code(config):
                 [
                     (ModbusFloatOutput.operator("ptr"), "item"),
                     (cg.float_, "x"),
-                    (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                    (RegisterValues.operator("ref"), "payload"),
                 ],
                 return_type=cg.optional.template(float),
             )

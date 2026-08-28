@@ -37,7 +37,7 @@ class OpenThreadComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
   bool is_connected() const { return this->connected_; }
-  /// Returns true once esp_openthread_init() has completed and the OT lock is usable.
+  /// Returns true once esp_openthread_start() has completed and the OT lock is usable.
   bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
