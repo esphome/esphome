@@ -81,6 +81,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   void flush_rx_();
   bool process_active_stream_();
   void on_active_frame_(uint8_t data[FRAME_SIZE]);
+  void publish_stale_flow_and_temperature_();
 
   void loop_startup_();
   void loop_active_stream_();

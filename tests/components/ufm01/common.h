@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cmath>
 #include <deque>
 #include <vector>
 
@@ -9,6 +10,9 @@
 
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/ufm01/ufm01.h"
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 
 namespace esphome::ufm01::testing {
 
@@ -179,6 +183,18 @@ class UFM01Test : public ::testing::Test {
     this->ufm01_.set_mock_uart(&this->mock_uart_);
     this->ufm01_.reset_state();
   }
+
+#ifdef USE_SENSOR
+  void attach_flow_and_temperature_sensors() {
+    this->ufm01_.set_flow_sensor(&this->flow_sensor_);
+    this->ufm01_.set_temperature_sensor(&this->temperature_sensor_);
+    this->flow_sensor_.publish_state(1.23f);
+    this->temperature_sensor_.publish_state(20.5f);
+  }
+
+  sensor::Sensor flow_sensor_;
+  sensor::Sensor temperature_sensor_;
+#endif
 
   QueuedMockUART mock_uart_;
   TestableUFM01 ufm01_;

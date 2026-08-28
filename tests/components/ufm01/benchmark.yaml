@@ -1,0 +1,8 @@
+# Enables USE_SENSOR for host unit tests; tests attach their own sensor instances.
+sensor:
+  - platform: template
+    id: bench_flow
+    name: "Flow"
+  - platform: template
+    id: bench_temperature
+    name: "Temperature"

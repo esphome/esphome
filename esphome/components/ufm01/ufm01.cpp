@@ -219,6 +219,15 @@ void UFM01Component::dump_config() {
   this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
+void UFM01Component::publish_stale_flow_and_temperature_() {
+#ifdef USE_SENSOR
+  if (this->flow_sensor_ != nullptr)
+    this->flow_sensor_->publish_state(NAN);
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(NAN);
+#endif
+}
+
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
@@ -310,6 +319,7 @@ void UFM01Component::enter_active_stream_(const char *reason) {
 
 void UFM01Component::enter_passive_from_stale_() {
   ESP_LOGW(TAG, "Active stream stale, switching to passive polling");
+  this->publish_stale_flow_and_temperature_();
   // Flush any leftover active-stream bytes, then tell the device to stop streaming
   this->send_command_no_wait_(PASSIVE_MODE);
   this->operating_mode_ = OperatingMode::ENTERING_PASSIVE;
@@ -322,6 +332,7 @@ void UFM01Component::enter_passive_from_stale_() {
 
 void UFM01Component::restart_startup_(const char *reason) {
   ESP_LOGW(TAG, "%s, re-initializing UFM-01", reason);
+  this->publish_stale_flow_and_temperature_();
   this->operating_mode_ = OperatingMode::STARTUP;
   this->passive_read_pending_ = false;
   this->consecutive_passive_failures_ = 0;

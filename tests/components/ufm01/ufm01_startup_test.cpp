@@ -60,6 +60,35 @@ TEST_F(UFM01Test, StaleActiveStreamSendsSetPassiveMode) {
   EXPECT_EQ(this->mock_uart_.available(), 0u);  // RX flushed
 }
 
+#ifdef USE_SENSOR
+TEST_F(UFM01Test, StaleActiveStreamPublishesNanToFlowAndTemperature) {
+  this->attach_flow_and_temperature_sensors();
+  this->ufm01_.prepare_stale_active_stream();
+
+  this->ufm01_.loop_active_stream();
+
+  EXPECT_TRUE(std::isnan(this->flow_sensor_.get_state()));
+  EXPECT_TRUE(std::isnan(this->temperature_sensor_.get_state()));
+}
+
+TEST_F(UFM01Test, RepeatedPassiveFailuresPublishNanBeforeReset) {
+  this->attach_flow_and_temperature_sensors();
+  constexpr uint8_t escalate_count = 8;
+  this->ufm01_.set_operating_mode(OperatingMode::PASSIVE_POLL);
+
+  for (uint8_t i = 0; i < escalate_count - 1; ++i) {
+    this->ufm01_.prepare_timed_out_passive_read();
+    this->ufm01_.loop_passive_poll();
+  }
+
+  this->ufm01_.prepare_timed_out_passive_read();
+  this->ufm01_.loop_passive_poll();
+
+  EXPECT_TRUE(std::isnan(this->flow_sensor_.get_state()));
+  EXPECT_TRUE(std::isnan(this->temperature_sensor_.get_state()));
+}
+#endif
+
 TEST_F(UFM01Test, EnteringPassiveAdvancesOnAck) {
   this->ufm01_.set_operating_mode(OperatingMode::ENTERING_PASSIVE);
   this->mock_uart_.enqueue({0x00, COMMAND_ACK});
