@@ -14,6 +14,7 @@ from esphome.types import ConfigType
 from .. import (
     ModbusItemBaseSchema,
     SensorItem,
+    entity_label,
     modbus_calc_properties,
     modbus_controller_ns,
     reject_odd_holding_write_offset,
@@ -25,6 +26,7 @@ from ..const import (
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
+    CONF_REUSE_PREVIOUS_RANGE,
     CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
     CONF_WRITE_LAMBDA,
@@ -44,15 +46,21 @@ ModbusBinaryOutput = modbus_controller_ns.class_(
 )
 
 
-def _reject_range_options(config: ConfigType) -> ConfigType:
-    # Outputs are write-only and never polled; the range options have no effect on them.
+def _warn_unused_range_options(config: ConfigType) -> ConfigType:
+    # Outputs are write-only and never polled, so nothing here builds a range for them. The write
+    # spans whatever the payload holds, so register_count no longer bounds it either.
     for key in (CONF_FORCE_NEW_RANGE, CONF_REGISTER_COUNT):
         if config.pop(key, None) is not None:
             _LOGGER.warning(
                 "%s: '%s' has no effect on outputs; remove it. Removed in 2027.3.0",
-                config.get(CONF_ID),
+                entity_label(config),
                 key,
             )
+    if config.pop(CONF_REUSE_PREVIOUS_RANGE, None) not in (None, "auto"):
+        raise cv.Invalid(
+            f"'{CONF_REUSE_PREVIOUS_RANGE}' has no effect on outputs: they are write-only and are "
+            f"never part of a polled range. Remove it."
+        )
     return config
 
 
@@ -99,7 +107,7 @@ CONFIG_SCHEMA = cv.All(
         key=CONF_REGISTER_TYPE,
         default_type="holding",
     ),
-    _reject_range_options,
+    _warn_unused_range_options,
 )
 
 

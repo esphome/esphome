@@ -138,7 +138,7 @@ ModbusCommandItem::ModbusCommandItem(ModbusController &controller, modbus::Modbu
                                      SensorItem *sensor)
     : modbus::ModbusClientDevice(parent, address),
       start_address_(sensor->start_address),
-      register_count_(sensor->register_width()),
+      register_count_(sensor->entity_count()),
       custom_pdu_(&sensor->custom_pdu),
       controller_(&controller) {
   // The PDU's first byte is its real function code; carry it so dump_config, the on_command_sent
@@ -365,9 +365,9 @@ class RangeBuilder {
   // A sensor that joined mid-range must never anchor this - hence both address tests.
   bool try_reuse_register(SensorItem *curr) {
     const uint32_t range_end = this->range_end_();
-    if (curr->start_address != range_end - this->prev_->register_width() ||
-        this->prev_->start_address + this->prev_->register_width() != range_end ||
-        curr->register_width() != this->prev_->register_width() ||
+    if (curr->start_address != range_end - this->prev_->entity_count() ||
+        this->prev_->start_address + this->prev_->entity_count() != range_end ||
+        curr->entity_count() != this->prev_->entity_count() ||
         curr->get_register_size() != this->prev_->get_register_size()) {
       return false;
     }
@@ -386,7 +386,7 @@ class RangeBuilder {
     if (!reachable)
       return false;
     const uint16_t gap = static_cast<uint16_t>(curr->start_address - range_end);
-    const uint32_t new_count = this->r_.register_count + gap + curr->register_width();
+    const uint32_t new_count = this->r_.register_count + gap + curr->entity_count();
     const uint16_t max_quantity =
         curr->addresses_bits() ? modbus::MAX_NUM_OF_COILS_TO_READ : modbus::MAX_NUM_OF_REGISTERS_TO_READ;
     const uint32_t prospective_offset =
@@ -407,7 +407,7 @@ class RangeBuilder {
 
   bool try_cover(SensorItem *curr) {
     if (!this->range_shared_ || this->range_forced_ || curr->start_address < this->r_.start_address ||
-        curr->start_address + curr->register_width() > this->range_end_() || this->range_custom_size_ ||
+        curr->start_address + curr->entity_count() > this->range_end_() || this->range_custom_size_ ||
         has_custom_size(curr)) {
       return false;
     }
@@ -426,7 +426,7 @@ class RangeBuilder {
       return false;
     }
     curr->offset = curr->offset_from_start_address;
-    this->r_.register_count = std::max(this->r_.register_count, curr->register_width());
+    this->r_.register_count = std::max(this->r_.register_count, curr->entity_count());
     this->range_bytes_ = std::max(this->range_bytes_, curr->get_register_size());
     this->range_custom_size_ = this->range_custom_size_ || has_custom_size(curr);
     this->range_shared_ = true;
@@ -449,7 +449,7 @@ class RangeBuilder {
     this->range_shared_ = false;
     curr->offset = curr->offset_from_start_address;
     this->r_.start_address = curr->start_address;
-    this->r_.register_count = curr->register_width();
+    this->r_.register_count = curr->entity_count();
     this->r_.register_type = curr->register_type;
     if (curr->register_type == modbus::EntityType::CUSTOM)
       this->r_.custom_pdu = &curr->custom_pdu;
@@ -480,7 +480,7 @@ class RangeBuilder {
     return true;
   }
   static bool has_custom_size(const SensorItem *item) {
-    return item->get_register_size() != static_cast<size_t>(item->register_width()) * 2;
+    return item->get_register_size() != static_cast<size_t>(item->entity_count()) * 2;
   }
   FixedVector<RegisterRange> &ranges_;
   RegisterRange r_ = {};
@@ -506,7 +506,7 @@ void ModbusController::create_polling_commands_() {
   ranges.init(this->sensorset_.size());
   RangeBuilder builder(ranges);
   for (SensorItem *curr : this->sensorset_) {
-    ESP_LOGV(TAG, "Register: 0x%X width=%u size=%zu offset=%u addr=%p", curr->start_address, curr->register_width(),
+    ESP_LOGV(TAG, "Register: 0x%X width=%u size=%zu offset=%u addr=%p", curr->start_address, curr->entity_count(),
              curr->get_register_size(), curr->offset, curr);
     bool join = builder.can_join(curr) &&
                 (builder.try_reuse_register(curr) || builder.try_extend(curr) || builder.try_cover(curr));
@@ -539,7 +539,7 @@ void ModbusController::dump_config() {
   ESP_LOGCONFIG(TAG, "sensormap");
   for (auto &it : this->sensorset_) {
     ESP_LOGCONFIG(TAG, " Sensor type=%u start=0x%X offset=0x%X width=%u size=%zu",
-                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->register_width(),
+                  static_cast<uint8_t>(it->register_type), it->start_address, it->offset, it->entity_count(),
                   it->get_register_size());
   }
   ESP_LOGCONFIG(TAG, "ranges");

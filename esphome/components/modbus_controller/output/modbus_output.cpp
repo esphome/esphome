@@ -46,8 +46,8 @@ void ModbusFloatOutput::write_state(float value) {
     modbus::helpers::float_to_payload(data, value, this->sensor_value_type);
   }
 
-  ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%d new value=%.02f (val=%.02f)",
-           this->start_address, this->register_width(), value, original_value);
+  ESP_LOGD(TAG, "Updating register: start address=0x%X register count=%u new value=%.02f (val=%.02f)",
+           this->start_address, this->entity_count(), value, original_value);
 
   // float_to_payload() appends nothing for RAW, so an empty payload must be caught before data[0].
   if (data.empty()) {
@@ -55,16 +55,15 @@ void ModbusFloatOutput::write_state(float value) {
     return;
   }
 
-  // A write covers exactly the registers the value occupies: the quantity comes from the payload. A
-  // payload wider than the value type's register width means the config and the lambda disagree - drop it.
-  if (data.size() > this->register_width()) {
+  // The value type sets the write width, so a wider payload means the config and the lambda disagree.
+  if (data.size() > this->entity_count()) {
     ESP_LOGE(TAG, "Payload has %zu registers but the value type only spans %u; dropping write", data.size(),
-             this->register_width());
+             this->entity_count());
     return;
   }
 
   bool queued;
-  if (this->register_width() == 1 && !this->use_write_multiple_) {
+  if (this->entity_count() == 1 && !this->use_write_multiple_) {
     queued = this->write_single_register(this->write_address(), data[0]);
   } else {
     queued = this->write_multiple_registers(this->write_address(), data);
@@ -81,7 +80,7 @@ void ModbusFloatOutput::dump_config() {
                 "  Device start address: 0x%X\n"
                 "  Register count: %d\n"
                 "  Value type: %d",
-                this->start_address, this->register_width(), static_cast<int>(this->sensor_value_type));
+                this->start_address, this->entity_count(), static_cast<int>(this->sensor_value_type));
 }
 
 // ModbusBinaryOutput
@@ -141,7 +140,7 @@ void ModbusBinaryOutput::dump_config() {
                 "  Device start address: 0x%X\n"
                 "  Register count: %d\n"
                 "  Value type: %d",
-                this->start_address, this->register_width(), static_cast<int>(this->sensor_value_type));
+                this->start_address, this->entity_count(), static_cast<int>(this->sensor_value_type));
 }
 
 }  // namespace esphome::modbus_controller

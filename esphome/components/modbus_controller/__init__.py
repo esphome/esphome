@@ -218,7 +218,7 @@ def _derived_register_widths(config: ConfigType) -> set[int]:
     return {1}
 
 
-def _entity_label(config: ConfigType) -> str:
+def entity_label(config: ConfigType) -> str:
     """The entity's name or id, so migration messages say which entry to edit."""
     label = config.get(CONF_NAME) or config.get(CONF_ID)
     return str(label) if label is not None else "<unnamed>"
@@ -235,8 +235,10 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
             )
         if force_new_range:
             _LOGGER.warning(
-                "%s: '%s' is deprecated, use '%s: false' instead. Removed in 2027.3.0",
-                _entity_label(config),
+                "%s: '%s' is deprecated; '%s: false' replaces it but only stops this entity joining "
+                "the PREVIOUS range - set it on the following entity too if the range must stay "
+                "isolated. Removed in 2027.3.0",
+                entity_label(config),
                 CONF_FORCE_NEW_RANGE,
                 CONF_REUSE_PREVIOUS_RANGE,
             )
@@ -244,7 +246,7 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
         else:
             _LOGGER.warning(
                 "%s: '%s: false' has no effect; remove it. Removed in 2027.3.0",
-                _entity_label(config),
+                entity_label(config),
                 CONF_FORCE_NEW_RANGE,
             )
     if (register_count := config.pop(CONF_REGISTER_COUNT, None)) is not None:
@@ -266,17 +268,28 @@ def validate_range_reuse_migration(config: ConfigType) -> ConfigType:
             _LOGGER.warning(
                 "%s: '%s' is removed and the read now spans ceil(%s / 2) = %d registers, one more than "
                 "before. Removed in 2027.3.0",
-                _entity_label(config),
+                entity_label(config),
                 CONF_REGISTER_COUNT,
                 CONF_RESPONSE_SIZE,
                 (response_size + 1) // 2,
             )
-        elif register_count != 0:
+        else:
             _LOGGER.warning(
-                "%s: '%s' matches the derived register width and is redundant; remove it. Removed in 2027.3.0",
-                _entity_label(config),
+                "%s: '%s' is now derived and has no effect; remove it. Removed in 2027.3.0",
+                entity_label(config),
                 CONF_REGISTER_COUNT,
             )
+    elif (response_size := config.get(CONF_RESPONSE_SIZE, 0)) % 2 == 1 and config.get(
+        CONF_VALUE_TYPE, "RAW"
+    ) == "RAW":
+        # Width derives from response_size here, and the derivation moved from floor to ceil.
+        _LOGGER.warning(
+            "%s: an odd '%s' now reads ceil(%s / 2) = %d registers, one more than before",
+            entity_label(config),
+            CONF_RESPONSE_SIZE,
+            CONF_RESPONSE_SIZE,
+            (response_size + 1) // 2,
+        )
     return config
 
 

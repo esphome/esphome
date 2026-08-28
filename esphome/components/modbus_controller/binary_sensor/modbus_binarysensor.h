@@ -22,7 +22,7 @@ class ModbusBinarySensor final : public Component, public binary_sensor::BinaryS
 
   /// On the bit-addressed tables the bit sits at start_address + offset, so the read must span offset + 1
   /// bits. Uses the offset as configured: `offset` itself is overwritten with the position in the range.
-  uint16_t register_width() const override {
+  uint16_t entity_count() const override {
     if (modbus::helpers::is_entity_type_binary(this->register_type)) {
       return this->offset_from_start_address + 1;
     }

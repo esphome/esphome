@@ -170,9 +170,9 @@ class SensorItem {
 
   void set_custom_pdu(std::initializer_list<uint8_t> pdu) { this->custom_pdu.set(pdu.begin(), pdu.size()); }
 
-  /// Registers (or bits) this item spans: bits span 1, RAW with response_size spans ceil(bytes / 2),
-  /// else the value type's width.
-  virtual uint16_t register_width() const {
+  /// Entities this item spans: one bit for bit-addressed types, ceil(bytes / 2) registers for RAW
+  /// with a response_size, else the value type's register width.
+  virtual uint16_t entity_count() const {
     if (modbus::helpers::is_entity_type_binary(this->register_type)) {
       return 1;
     }
@@ -188,7 +188,7 @@ class SensorItem {
     if (this->addresses_bits()) {
       return 1;
     } else {  // if CONF_RESPONSE_BYTES is used override the default
-      return response_bytes > 0 ? response_bytes : this->register_width() * 2;
+      return response_bytes > 0 ? response_bytes : this->entity_count() * 2;
     }
   }
   // Override register size for modbus devices not using 1 register for one dword
