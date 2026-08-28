@@ -756,8 +756,7 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
     this->restored_gain_calibration_ = true;
     for (bool &phase : this->gain_calibration_mismatch_)
       phase = false;
-    ESP_LOGI(TAG, "[CALIBRATION][%s] Gain calibration saved to memory.", cs);
-    ESP_LOGI(TAG, "[CALIBRATION][%s] Gain calibration completed and verified.", cs);
+    ESP_LOGI(TAG, "[CALIBRATION][%s] Gain calibration saved to memory. Gain calibration completed and verified.", cs);
     return;
   }
 
