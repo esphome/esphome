@@ -1,7 +1,8 @@
 name: Prune ESP-IDF install
 description: >
   Remove the picolibc sysroots (1.1GB of the 3.9GB install) from the native
-  ESP-IDF toolchains; IDF 5.x links newlib.
+  ESP-IDF toolchains; IDF 5.x links newlib. Skipped when an IDF 6 install is
+  present, which links picolibc (see esp32/__init__.py).
 runs:
   using: composite
   steps:
@@ -9,7 +10,18 @@ runs:
       shell: bash
       run: |
         shopt -s nullglob
+        for fw in ~/.esphome-idf/frameworks/*/; do
+          case "$(basename "$fw")" in
+            [6-9].*) echo "IDF $(basename "$fw") installed, keeping picolibc"; exit 0 ;;
+          esac
+        done
+        n=0
         for dir in ~/.esphome-idf/tools/*-esp-elf/*/*-esp-elf/picolibc; do
           echo "Removing $dir ($(du -sh "$dir" | cut -f1))"
           rm -rf "$dir"
+          n=$((n + 1))
         done
+        if [ "$n" -eq 0 ] && [ -d ~/.esphome-idf/tools ]; then
+          echo "::warning::no picolibc sysroots matched under ~/.esphome-idf/tools"
+        fi
+        [ -d ~/.esphome-idf ] && du -sh ~/.esphome-idf
