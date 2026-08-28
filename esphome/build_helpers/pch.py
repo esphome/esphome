@@ -94,8 +94,6 @@ _CCACHE_PCH_ENV = {
     "CCACHE_PCH_EXTSUM": "true",
 }
 
-# Both include forms: an angle include resolving under src/ must enter the
-# digest too; ones that do not resolve simply end the walk
 # Compiler failures that clear on their own must not latch the .failed marker
 _TRANSIENT_ERRORS = ("No space left", "Cannot allocate", "Resource temporarily")
 
@@ -105,6 +103,8 @@ def is_transient_error(text: str) -> bool:
     return any(marker in text for marker in _TRANSIENT_ERRORS)
 
 
+# Both include forms: an angle include resolving under src/ must enter the
+# digest too; ones that do not resolve simply end the walk
 _INCLUDE_RE = re.compile(rb'^\s*#\s*include\s+["<]([^">]+)[">]', re.MULTILINE)
 
 
@@ -163,7 +163,7 @@ def pch_consumer_escalation() -> str:
 
 
 def pch_cmake_consumer(
-    target: str, sources_var: str, object_depends: str | None = None
+    target: str, sources_var: str, object_depends: str = PCH_HEADER_NAME
 ) -> str:
     """Emit the CMake block making ``target``'s C++ sources consume the
     pch; empty when disabled. OBJECT_DEPENDS defaults to the header, not
@@ -174,7 +174,6 @@ def pch_cmake_consumer(
     if not pch_enabled():
         return ""
     escalation = pch_consumer_escalation()
-    object_depends = object_depends or PCH_HEADER_NAME
     return f"""
 # ESPHome precompiled header (see esphome/build_helpers/pch.py).
 # The touch keeps OBJECT_DEPENDS satisfiable when the build system itself
@@ -223,42 +222,34 @@ def ccache_pch_env() -> dict[str, str]:
     return env
 
 
-def guarded_prepare(
-    build_dir: Path,
-    prepare: Callable[[], None],
-    fallback: Callable[[], None] | None = None,
-) -> None:
-    """Run a backend's pch preparation; an optional speedup must never
-    abort the build. Strict is read first so its own knob error cannot
-    mask the real failure; ``fallback`` (when given) leaves the sidecars
-    in a degraded-but-consistent state instead of discarding them, for
-    backends whose build graph declares the sidecars as inputs;
-    discard_pch raises if a stale .gch survives; the header is ensured so
+def discard_pch_cleanup(build_dir: Path) -> None:
+    """Failure cleanup for backends without a pch build edge: drop the
+    sidecars (raises if a stale .gch survives) and keep the header so
     OBJECT_DEPENDS stays satisfiable."""
+    discard_pch(build_dir)
+    header = build_dir / PCH_HEADER_NAME
+    if not header.exists():
+        try:
+            header.touch()
+        except OSError as err:
+            # The coming OBJECT_DEPENDS error would hide the real cause
+            _LOGGER.warning("Could not create the pch placeholder: %s", err)
+
+
+def guarded_prepare(prepare: Callable[[], None], cleanup: Callable[[], None]) -> None:
+    """Run a backend's pch preparation; an optional speedup must never
+    abort the build. ``cleanup`` restores a consistent no-pch state
+    (discard_pch_cleanup, or a degraded .sum for backends whose build
+    graph declares the sidecars as inputs); its own failure propagates —
+    an inconsistent pch state must not be built on. Strict is read first
+    so its own knob error cannot mask the real failure."""
     try:
         prepare()
     except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
         strict = pch_strict()
-        if fallback is not None:
-            if strict:
-                raise
-            with suppress(Exception):
-                fallback()
-            _LOGGER.warning(
-                "Precompiled header setup failed; compiling without it",
-                exc_info=True,
-            )
-            return
-        discard_pch(build_dir)
+        cleanup()
         if strict:
             raise
-        header = build_dir / PCH_HEADER_NAME
-        if not header.exists():
-            try:
-                header.touch()
-            except OSError as err:
-                # The coming OBJECT_DEPENDS error would hide the real cause
-                _LOGGER.warning("Could not create the pch placeholder: %s", err)
         _LOGGER.warning(
             "Precompiled header setup failed; compiling without it", exc_info=True
         )
@@ -348,13 +339,13 @@ _PCH_STRIP_FLAGS = frozenset({"-MD", "-MMD", "-MP", "-MM", "-M"})
 
 
 def pch_compile_command(
-    build_dir: Path, header: Path, gch: Path, src_dir: Path | None = None
+    build_dir: Path, header: Path, gch: Path, src_dir: Path
 ) -> tuple[list[str], Path] | None:
     """The exact src C++ flags from compile_commands.json retargeted at the
     header, with the directory they resolve against (relative -I paths must
     be expanded and executed from the same root); None (logged) when no
-    configured C++ TU is available yet. ``src_dir`` overrides the CORE
-    lookup for callers running outside an esphome process (the ninja shim)."""
+    configured C++ TU is available yet. ``src_dir`` is passed in because
+    the ninja edge shim runs outside an esphome process (no CORE)."""
 
     try:
         entries = json.loads(
@@ -367,12 +358,8 @@ def pch_compile_command(
     if not isinstance(entries, list):
         _LOGGER.warning("Malformed compile database, skipping pch")
         return None
-    # CMake may spell paths through a symlink differently than CORE does
-    # (macOS /tmp vs /private/tmp), so compare resolved paths
-    if src_dir is None:
-        from esphome.core import CORE
-
-        src_dir = Path(CORE.relative_src_path())
+    # CMake may spell paths through a symlink differently than the caller
+    # does (macOS /tmp vs /private/tmp), so compare resolved paths
     src_root = src_dir.resolve()
     entry = next(
         (
@@ -421,7 +408,76 @@ def pch_compile_command(
     return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)], cmd_dir
 
 
-def _log_pch_in_use() -> None:
+def pch_probe_base(cmd: list[str]) -> list[str] | None:
+    """``cmd`` minus pch_compile_command's fixed "-x c++-header -c <hdr>
+    -o <gch>" tail, for probe compiles; None when the shape is unexpected."""
+    if cmd[-6:-4] != ["-x", "c++-header"]:
+        return None
+    return cmd[:-6]
+
+
+def flags_identity(tokens: Iterable[str]) -> str:
+    """Flag string normalized for digest use: strip like ccache's rewriting
+    (user CCACHE_BASEDIR wins); the raw build path covers unresolved
+    (symlinked) spellings."""
+    from esphome.core import CORE
+
+    return (
+        " ".join(tokens)
+        .replace(effective_ccache_basedir(), "")
+        .replace(str(CORE.build_path), "")
+    )
+
+
+def pch_identity(
+    tokens: Iterable[str],
+    src_dir: Path,
+    include_headers: tuple[str, ...],
+    extra: Iterable[str],
+) -> str | None:
+    """The .sum digest naming this exact pch build: include closure, header
+    text, backend identity strings, and the normalized compile command or
+    flags (``tokens``). None (warned and degraded) when the identity
+    cannot be established."""
+    try:
+        return pch_checksum(
+            src_dir,
+            include_headers,
+            (
+                # The closure is sorted, so root order only enters via the text
+                pch_header_text(include_headers),
+                *extra,
+                flags_identity(tokens),
+            ),
+        )
+    except (OSError, UnicodeError) as err:
+        # Identity unknown: a stale cache entry must never be served
+        _LOGGER.warning(
+            "Could not establish the pch identity; compiling without it: %s", err
+        )
+        pch_degraded(f"identity unknown: {err}")
+        return None
+
+
+def pch_run_tool(
+    cmd: list[str], cwd: Path, stdin: str | None = None
+) -> subprocess.CompletedProcess:
+    """One pch tool step; the C locale keeps diagnostics matchable by
+    _TRANSIENT_ERRORS. Spawn failures (OSError/SubprocessError) propagate:
+    environmental, never latched."""
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        env={**os.environ, "LC_ALL": "C"},
+        input=stdin,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+
+
+def log_pch_in_use() -> None:
     # The only place a user can discover the knob; emitted only once a
     # .gch is actually fresh or being built
     _LOGGER.info(
@@ -437,8 +493,18 @@ def read_stamp(path: Path) -> str:
         return ""
 
 
-# Kept for callers written against the private name
-_read_stamp = read_stamp
+# The .sum wire format shared by the pre-ninja writer and the ninja edge shim.
+PCH_DEGRADED_PREFIX = "degraded:"
+
+
+def degraded_sum_text(reason: str) -> str:
+    """.sum content marking the pch degraded, so ccache keys consuming TUs
+    on the marker rather than a broken .gch; the reason is diagnostic."""
+    return f"{PCH_DEGRADED_PREFIX}{reason[:120]}\n"
+
+
+def is_degraded_sum(text: str) -> bool:
+    return text.startswith(PCH_DEGRADED_PREFIX)
 
 
 def discard_pch(build_dir: Path) -> None:
@@ -488,59 +554,27 @@ def prepare_pch(
     header = build_dir / PCH_HEADER_NAME
     gch = Path(f"{header}.gch")
     sum_path = Path(f"{gch}.sum")
-    cmd_and_dir = pch_compile_command(build_dir, header, gch)
+    src_dir = CORE.relative_src_path()
+    cmd_and_dir = pch_compile_command(build_dir, header, gch, src_dir)
     if cmd_and_dir is None:
         # Freshness cannot be validated; a leftover .gch must not be consumed
         discard_pch(build_dir)
         pch_degraded("no usable compile command")
         return
     cmd, cmd_dir = cmd_and_dir
-    # Strip like ccache's rewriting (user CCACHE_BASEDIR wins); the raw
-    # build path covers unresolved (symlinked) spellings
-    cmd_id = (
-        " ".join(cmd)
-        .replace(effective_ccache_basedir(), "")
-        .replace(str(CORE.build_path), "")
-    )
-    try:
-        checksum = pch_checksum(
-            CORE.relative_src_path(),
-            include_headers,
-            (
-                # The closure is sorted, so root order only enters via the text
-                pch_header_text(include_headers),
-                *extra,
-                cmd_id,
-            ),
-        )
-    except (OSError, UnicodeError) as err:
-        # Identity unknown: a stale cache entry must never be served
-        _LOGGER.warning(
-            "Could not establish the pch identity; compiling without it: %s", err
-        )
+    checksum = pch_identity(cmd, src_dir, include_headers, extra)
+    if checksum is None:
         discard_pch(build_dir)
-        pch_degraded(f"identity unknown: {err}")
         return
     failed_marker = Path(f"{gch}.failed")
 
     def _run(
         run_cmd: list[str], what: str, stdin: str | None = None
     ) -> subprocess.CompletedProcess | None:
-        """Spawn one pch tool step; environmental failures discard and
-        degrade (None): spawn/IO/timeout errors and signal kills never
-        latch the marker."""
+        """One pch tool step; environmental failures discard and degrade
+        (None): spawn/IO/timeout errors and signal kills never latch."""
         try:
-            proc = subprocess.run(
-                run_cmd,
-                cwd=cmd_dir,
-                # C locale keeps diagnostics matchable by _TRANSIENT_ERRORS
-                env={**os.environ, "LC_ALL": "C"},
-                input=stdin,
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=300,
-            )
+            proc = pch_run_tool(run_cmd, cmd_dir, stdin)
         except (OSError, subprocess.SubprocessError) as err:
             _LOGGER.warning("Precompiled header %s did not run: %s", what, err)
             discard_pch(build_dir)
@@ -566,7 +600,7 @@ def prepare_pch(
         # Latching paths keep the full compiler output recoverable
         _LOGGER.debug("Full pch output: %s", error)
         discard_pch(build_dir)
-        if latch and not any(m in error for m in _TRANSIENT_ERRORS):
+        if latch and not is_transient_error(error):
             # Skip retries until a header/flag/backend-identity/command change
             failed_marker.write_text(checksum + "\n", encoding="utf-8")
             os.utime(header)
@@ -575,16 +609,14 @@ def prepare_pch(
     def _probe(latch: bool = True) -> None:
         """Load-check the built .gch: some toolchains build one they then
         refuse to load (per-process ASLR). Dep flags are already stripped
-        from cmd, so no -MF is needed; cmd ends with the fixed
-        "-x c++-header -c -o" tail. A cached-header rejection may not
+        from cmd, so no -MF is needed. A cached-header rejection may not
         reproduce (per-process), so that caller passes latch=False."""
-        if cmd[-6:-4] != ["-x", "c++-header"]:
-            # The slice below depends on pch_compile_command's fixed tail
+        base = pch_probe_base(cmd)
+        if base is None:
             _LOGGER.warning("Unexpected pch command shape: %s", cmd[-6:])
             discard_pch(build_dir)
             pch_degraded("unexpected pch command shape")
             return
-        base = cmd[:-6]
         probe = _run([*base, *pch_probe_args(str(header))], "probe", stdin="")
         if probe is None:
             return
@@ -601,22 +633,22 @@ def prepare_pch(
                 error = baseline.stderr.strip() or f"exit code {baseline.returncode}"
                 _fail(error, "probe cannot run at all", latch=latch)
 
-    if gch.is_file() and _read_stamp(sum_path) == checksum:
-        _log_pch_in_use()
+    if gch.is_file() and read_stamp(sum_path) == checksum:
+        log_pch_in_use()
         if pch_strict():
             # Rejection is per-process, so a cached .gch must re-prove
             # loadability for the strict gate (CI-only cost); no latch,
             # since the rejection may not reproduce either
             _probe(latch=False)
         return
-    if _read_stamp(failed_marker) == checksum:
+    if read_stamp(failed_marker) == checksum:
         _LOGGER.info(
             "Precompiled header disabled after an earlier failure; delete %s to retry",
             failed_marker,
         )
         pch_degraded("earlier failure latched")
         return
-    _log_pch_in_use()
+    log_pch_in_use()
     result = _run(cmd, "compile")
     if result is None:
         return

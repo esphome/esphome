@@ -1,40 +1,38 @@
 """Ninja edge that compiles the precompiled header inside the build graph.
 
-Invoked as ``python -m esphome.build_helpers.pch_compile`` by the custom
-command the espidf backend bakes into the src component CMakeLists. The
-pre-ninja side (``prepare_pch_sidecars``) owns the identity digest and
-writes ``.sum``; this edge reads it, compiles and probes the .gch, and on
-failure degrades exactly like the pre-build flow: placeholder .gch (its
-``-Winvalid-pch`` warning makes consumers parse the header textually),
-``degraded:`` ``.sum`` so ccache never keys on a broken pch, and the
-``.failed`` latch for deterministic errors. Exit 0 keeps the build going;
+Run as ``python -m esphome.build_helpers.pch_compile`` by the command
+_pch_edge_cmake bakes into the src CMakeLists; ``-m`` (not a plain script)
+so it reuses the pch helpers instead of carrying copies. Degrades exactly
+like the pre-build flow; exit 0 keeps the build going and
 ``ESPHOME_PCH_STRICT`` turns every degrade into a nonzero exit.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
+import logging
 from pathlib import Path
 import subprocess
 import sys
 
 from esphome.build_helpers.pch import (
+    degraded_sum_text,
+    is_degraded_sum,
     is_transient_error,
     pch_compile_command,
     pch_probe_args,
+    pch_probe_base,
     pch_probe_tail,
+    pch_run_tool,
     pch_strict,
     read_stamp,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 # Deliberately not a valid GCH: consumers warn via -Winvalid-pch and fall
 # back to the textual include, matching the pre-build degrade behavior
 PLACEHOLDER = b"ESPHome degraded precompiled header placeholder\n"
-
-
-def _log(msg: str) -> None:
-    print(f"esphome pch: {msg}", file=sys.stderr)
 
 
 def _write_depfile(depfile: Path, gch: Path, header: Path) -> None:
@@ -44,17 +42,16 @@ def _write_depfile(depfile: Path, gch: Path, header: Path) -> None:
 
 
 def _degrade(
-    args: argparse.Namespace, reason: str, latch_digest: str | None = None
+    gch: Path, header: Path, reason: str, latch_digest: str | None = None
 ) -> int:
-    gch = Path(args.gch)
-    header = Path(args.header)
-    _log(f"compiling without the precompiled header: {reason}")
+    _LOGGER.warning("compiling without the precompiled header: %s", reason)
     if pch_strict():
-        _log("ESPHOME_PCH_STRICT is set; failing the build")
+        _LOGGER.warning("ESPHOME_PCH_STRICT is set; failing the build")
         return 1
     sum_path = Path(f"{gch}.sum")
-    if not read_stamp(sum_path).startswith("degraded:"):
-        sum_path.write_text(f"degraded:{reason[:120]}\n", encoding="utf-8")
+    # Never clobber the pre-ninja side's own degrade reason
+    if not is_degraded_sum(read_stamp(sum_path)):
+        sum_path.write_text(degraded_sum_text(reason), encoding="utf-8")
     if latch_digest is not None:
         Path(f"{gch}.failed").write_text(latch_digest + "\n", encoding="utf-8")
     gch.write_bytes(PLACEHOLDER)
@@ -65,24 +62,16 @@ def _degrade(
 def _run(
     cmd: list[str], cwd: Path, stdin: str | None = None
 ) -> subprocess.CompletedProcess | None:
-    """One tool step; None for environmental failures (never latched)."""
+    """None for environmental spawn failures (never latched)."""
     try:
-        return subprocess.run(
-            cmd,
-            cwd=cwd,
-            env={**os.environ, "LC_ALL": "C"},
-            input=stdin,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=300,
-        )
+        return pch_run_tool(cmd, cwd, stdin)
     except (OSError, subprocess.SubprocessError) as err:
-        _log(f"tool did not run: {err}")
+        _LOGGER.warning("tool did not run: %s", err)
         return None
 
 
 def main() -> int:
+    logging.basicConfig(format="esphome pch: %(message)s")
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", required=True)
     parser.add_argument("--src-dir", required=True)
@@ -94,19 +83,19 @@ def main() -> int:
     header = Path(args.header)
     gch = Path(args.gch)
     digest = read_stamp(Path(f"{gch}.sum"))
-    if not digest or digest.startswith("degraded:"):
+    if is_degraded_sum(digest):
         # The pre-ninja side already decided to degrade this build
-        return _degrade(args, "sidecar marks the pch degraded")
+        return _degrade(gch, header, "sidecar marks the pch degraded")
+    if not digest:
+        return _degrade(gch, header, "no digest sidecar")
 
-    cmd_and_dir = pch_compile_command(
-        build_dir, header, gch, src_dir=Path(args.src_dir)
-    )
+    cmd_and_dir = pch_compile_command(build_dir, header, gch, Path(args.src_dir))
     if cmd_and_dir is None:
-        return _degrade(args, "no usable compile command")
+        return _degrade(gch, header, "no usable compile command")
     cmd, cmd_dir = cmd_and_dir
-    if cmd[-6:-4] != ["-x", "c++-header"]:
-        # The probe slice below depends on pch_compile_command's fixed tail
-        return _degrade(args, "unexpected pch command shape")
+    base = pch_probe_base(cmd)
+    if base is None:
+        return _degrade(gch, header, "unexpected pch command shape")
     # The graph edge owns dependency tracking; the -MT target must be the
     # absolute output path so cmake's depfile transform (CMP0116) maps it
     # to ninja's spelling — a relative name resolves against the component
@@ -116,31 +105,34 @@ def main() -> int:
 
     result = _run(compile_cmd, cmd_dir)
     if result is None:
-        return _degrade(args, "compiler did not run")
+        return _degrade(gch, header, "compiler did not run")
     if result.returncode < 0:
-        return _degrade(args, f"compiler killed by signal {-result.returncode}")
+        return _degrade(gch, header, f"compiler killed by signal {-result.returncode}")
     if result.returncode != 0 or not gch.is_file():
         error = result.stderr.strip() or f"exit code {result.returncode}"
-        _log(error[:1000])
+        _LOGGER.warning("%s", error[:1000])
         latch = None if is_transient_error(error) else digest
-        return _degrade(args, "compile failed", latch_digest=latch)
+        return _degrade(gch, header, "compile failed", latch_digest=latch)
 
-    base = cmd[:-6]  # strip the fixed "-x c++-header -c <hdr> -o <gch>" tail
     probe = _run([*base, *pch_probe_args(str(header))], cmd_dir, stdin="")
     if probe is None:
-        return _degrade(args, "probe did not run")
+        return _degrade(gch, header, "probe did not run")
     if probe.returncode != 0:
-        # Only blame the pch when the same compile passes without it
+        # Blame the pch only when the same compile passes without it
         baseline = _run([*base, *pch_probe_tail()], cmd_dir, stdin="")
-        error = probe.stderr.strip() or f"exit code {probe.returncode}"
-        _log(error[:1000])
-        latch = None if is_transient_error(error) else digest
         if baseline is not None and baseline.returncode != 0:
-            latch = None if is_transient_error(baseline.stderr) else digest
-        return _degrade(args, "toolchain cannot load the pch", latch_digest=latch)
+            error = baseline.stderr.strip() or f"exit code {baseline.returncode}"
+            reason = "probe cannot run at all"
+        else:
+            error = probe.stderr.strip() or f"exit code {probe.returncode}"
+            reason = "toolchain cannot load the pch"
+        _LOGGER.warning("%s", error[:1000])
+        latch = None if is_transient_error(error) else digest
+        return _degrade(gch, header, reason, latch_digest=latch)
 
     Path(f"{gch}.failed").unlink(missing_ok=True)
     if not depfile.is_file():
+        # Only if the compiler ignored -MD; ninja hard-errors without one
         _write_depfile(depfile, gch, header)
     return 0
 

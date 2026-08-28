@@ -262,10 +262,10 @@ def test_pch_cmake_consumer_object_depends_override(
     assert 'file(TOUCH "${CMAKE_BINARY_DIR}/esphome_pch.h")' in block
 
 
-def test_guarded_prepare_fallback_runs_instead_of_discard(
+def test_guarded_prepare_runs_cleanup(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A fallback leaves the sidecars consistent; strict still raises."""
+    """The cleanup leaves the sidecars consistent; strict still raises."""
     monkeypatch.delenv("ESPHOME_PCH_STRICT", raising=False)
     marker = tmp_path / "marker"
     gch = tmp_path / "esphome_pch.h.gch"
@@ -274,14 +274,17 @@ def test_guarded_prepare_fallback_runs_instead_of_discard(
     def boom() -> None:
         raise RuntimeError("boom")
 
-    pch.guarded_prepare(tmp_path, boom, fallback=lambda: marker.write_text("x"))
+    pch.guarded_prepare(boom, lambda: marker.write_text("x"))
     assert marker.is_file()
-    # The fallback path must not discard: the .gch is a graph input/output
+    # A degrade-style cleanup must not discard: the .gch is a graph output
     assert gch.is_file()
 
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
+    marker.unlink()
     with pytest.raises(RuntimeError):
-        pch.guarded_prepare(tmp_path, boom, fallback=lambda: marker.write_text("x"))
+        pch.guarded_prepare(boom, lambda: marker.write_text("x"))
+    # Strict aborts, but only after the cleanup restored consistency
+    assert marker.is_file()
 
 
 def test_pch_cmake_consumer_strict_escalates(
@@ -309,7 +312,7 @@ def test_guarded_prepare_logs_placeholder_failure(
         raise RuntimeError("boom")
 
     # Missing build dir: the touch raises and only warns
-    pch.guarded_prepare(tmp_path / "missing", boom)
+    pch.guarded_prepare(boom, lambda: pch.discard_pch_cleanup(tmp_path / "missing"))
     assert "Could not create the pch placeholder" in caplog.text
 
 

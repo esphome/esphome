@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 
 from esphome.build_helpers import pch
-from esphome.build_helpers.ccache import effective_ccache_basedir
 from esphome.build_helpers.pch import (
     PCH_DEFAULT_HEADERS,
     PCH_HEADER_NAME,
@@ -299,12 +298,15 @@ def _pch_edge_cmake() -> str:
     by a bare custom target: a command adopted by the component target
     would inherit its inter-component dependencies as order-only inputs,
     forcing the pch to wait for every archive and destroying the overlap.
-    The shim derives TU-identical flags from compile_commands.json at edge
-    execution time, so the baked command carries none."""
+    The target must exist before the component lib so it, not the lib,
+    adopts the command; that placement is why the script-mode guard and
+    the .sum touch below are needed. The shim derives TU-identical flags
+    from compile_commands.json at edge execution time."""
     if not pch_enabled():
         return ""
     python = strip_win_long_path_prefix(sys.executable)
-    pkg_root = Path(pch.__file__).parent.parent.parent
+    # The directory containing the esphome package, for the shim's -m import
+    pkg_root = Path(__file__).parents[2]
     return f"""
 # ESPHome precompiled header build edge (see build_helpers/pch_compile.py).
 # Script mode (cmake -P) cannot define commands or targets; skip there.
@@ -337,11 +339,14 @@ def _pch_cmake() -> str:
     """Consumer block for the component CMakeLists. Baked at generation: a
     strict-knob or venv flip rewrites the file and reconfigures; a
     hand-run idf.py keeps the old one."""
-    if not pch_enabled():
+    if not (
+        consumer := pch.pch_cmake_consumer(
+            "${COMPONENT_LIB}",
+            "${app_sources}",
+            object_depends=f"{PCH_HEADER_NAME}.gch",
+        )
+    ):
         return ""
-    consumer = pch.pch_cmake_consumer(
-        "${COMPONENT_LIB}", "${app_sources}", object_depends=f"{PCH_HEADER_NAME}.gch"
-    )
     return f"""{consumer}
 add_dependencies(${{COMPONENT_LIB}} esphome_pch)
 """
@@ -355,13 +360,19 @@ def _write_degraded_sum(reason: str) -> None:
     """Degraded sidecar: the ninja edge then emits a placeholder .gch and
     consumers fall back to the textual include. Never delete the .sum —
     it is an input of the edge."""
-    write_file_if_changed(_pch_sum_path(), f"degraded:{reason[:120]}\n")
+    write_file_if_changed(_pch_sum_path(), pch.degraded_sum_text(reason))
+
+
+def _degrade_sidecars(reason: str, detail: str = "") -> None:
+    """Degrade (strict raises before the write) and mark the .sum."""
+    pch.pch_degraded(f"{reason}{detail}")
+    _write_degraded_sum(reason)
 
 
 def prepare_pch_sidecars() -> None:
     """Write the pch identity sidecar right before ninja, after every
     reconfigure, so compile_commands.json flags and the sdkconfig are the
-    settled ones. The compile itself is a ninja edge (see _pch_cmake);
+    settled ones. The compile itself is a ninja edge (see _pch_edge_cmake);
     ccache keys every consuming TU on this .sum, so it must be final here."""
     build_dir = CORE.relative_build_path("build")
     if not pch_enabled():
@@ -378,42 +389,29 @@ def prepare_pch_sidecars() -> None:
         _LOGGER.warning(
             "Could not read %s; compiling without the pch: %s", sdkconfig_path, err
         )
-        pch.pch_degraded(f"sdkconfig unreadable: {err}")
-        _write_degraded_sum("sdkconfig unreadable")
+        _degrade_sidecars("sdkconfig unreadable", f": {err}")
         return
     header = build_dir / PCH_HEADER_NAME
     gch = Path(f"{header}.gch")
-    cmd_and_dir = pch.pch_compile_command(build_dir, header, gch)
+    src_dir = CORE.relative_src_path()
+    cmd_and_dir = pch.pch_compile_command(build_dir, header, gch, src_dir)
     if cmd_and_dir is None:
-        pch.pch_degraded("no usable compile command")
-        _write_degraded_sum("no usable compile command")
+        _degrade_sidecars("no usable compile command")
         return
     cmd, _ = cmd_and_dir
-    cmd_id = (
-        " ".join(cmd)
-        .replace(effective_ccache_basedir(), "")
-        .replace(str(CORE.build_path), "")
+    checksum = pch.pch_identity(
+        cmd,
+        src_dir,
+        PCH_DEFAULT_HEADERS,
+        (
+            str(idf_version()),
+            CORE.cpp_standard or "",
+            sdkconfig,
+            *get_project_compile_flags(),
+            *get_project_cxx_compile_flags(),
+        ),
     )
-    try:
-        checksum = pch.pch_checksum(
-            CORE.relative_src_path(),
-            PCH_DEFAULT_HEADERS,
-            (
-                pch_header_text(PCH_DEFAULT_HEADERS),
-                str(idf_version()),
-                CORE.cpp_standard or "",
-                sdkconfig,
-                *get_project_compile_flags(),
-                *get_project_cxx_compile_flags(),
-                cmd_id,
-            ),
-        )
-    except (OSError, UnicodeError) as err:
-        # Identity unknown: a stale cache entry must never be served
-        _LOGGER.warning(
-            "Could not establish the pch identity; compiling without it: %s", err
-        )
-        pch.pch_degraded(f"identity unknown: {err}")
+    if checksum is None:
         _write_degraded_sum("identity unknown")
         return
     if pch.read_stamp(Path(f"{gch}.failed")) == checksum:
@@ -422,15 +420,20 @@ def prepare_pch_sidecars() -> None:
             "delete %s.failed to retry",
             gch,
         )
-        pch.pch_degraded("earlier failure latched")
-        _write_degraded_sum("earlier failure latched")
+        _degrade_sidecars("earlier failure latched")
         return
     # A degraded-to-digest rewrite bumps the .sum mtime, which is what
     # makes the ninja edge retry after the latch is deleted
-    if write_file_if_changed(_pch_sum_path(), checksum + "\n") or not gch.is_file():
-        _LOGGER.info(
-            "Compiling with a precompiled header (set ESPHOME_PCH_ENABLE=0 to disable)"
-        )
+    write_file_if_changed(_pch_sum_path(), checksum + "\n")
+    pch.log_pch_in_use()
+
+
+def prepare_pch_sidecars_guarded() -> None:
+    """prepare_pch_sidecars under the shared crash guard: any setup failure
+    leaves a degraded .sum, never a deleted edge input."""
+    pch.guarded_prepare(
+        prepare_pch_sidecars, lambda: _write_degraded_sum("setup failed")
+    )
 
 
 def write_project(

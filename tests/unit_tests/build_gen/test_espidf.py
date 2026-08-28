@@ -6,7 +6,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import subprocess
 from unittest.mock import patch
 
 import pytest
@@ -573,15 +572,12 @@ def test_pch_no_device_path_poison(tmp_path: Path) -> None:
     for name in ("dev_a", "dev_b"):
         dev = _make_pch_device(tmp_path, name)
         CORE.build_path = dev
-        gch = dev / "build" / "esphome_pch.h.gch"
-
-        def fake_compile(cmd, _gch=gch, **kwargs):
-            _gch.write_bytes(b"gch")
-            return subprocess.CompletedProcess(cmd, 0, "", "")
 
         with (
             patch.object(CORE, "name", name),
-            patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+            patch(
+                "esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError
+            ),
         ):
             prepare_pch_sidecars()
             content = get_component_cmakelists()
@@ -613,7 +609,8 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
     build.mkdir()
     header = build / "esphome_pch.h"
     gch = build / "esphome_pch.h.gch"
-    assert pch_compile_command(build, header, gch) is None
+    src = tmp_path / "src"
+    assert pch_compile_command(build, header, gch, src) is None
 
     (build / "compile_commands.json").write_text(
         json.dumps(
@@ -622,7 +619,7 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
             ]
         )
     )
-    assert pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch, src) is None
 
     src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
     (build / "compile_commands.json").write_text(
@@ -641,7 +638,7 @@ def test_pch_compile_command_variants(tmp_path: Path) -> None:
         )
     )
     # Launcher stripped; -include/-o/-c and depfile flags removed
-    cmd, cmd_dir = pch_compile_command(build, header, gch)
+    cmd, cmd_dir = pch_compile_command(build, header, gch, src)
     assert cmd == [
         "g++",
         "-DX=1",
@@ -675,7 +672,7 @@ def test_pch_compile_command_matches_src_through_symlink(tmp_path: Path) -> None
         json.dumps([{"command": f"g++ -DX=1 -o a.obj -c {src_file}", "file": src_file}])
     )
 
-    cmd, cmd_dir = pch_compile_command(build, header, gch)
+    cmd, cmd_dir = pch_compile_command(build, header, gch, real / "src")
 
     assert cmd[:2] == ["g++", "-DX=1"]
     assert cmd_dir == build
@@ -691,13 +688,14 @@ def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
     header = build / "esphome_pch.h"
     gch = build / "esphome_pch.h.gch"
     db = build / "compile_commands.json"
-    src_file = str(tmp_path / "src" / "esphome" / "a.cpp")
+    src = tmp_path / "src"
+    src_file = str(src / "esphome" / "a.cpp")
 
     db.write_text(json.dumps({"not": "a list"}))
-    assert pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch, src) is None
 
     db.write_text(json.dumps(["just a string"]))
-    assert pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch, src) is None
 
     # An empty-string directory must fall back to the build dir, not cwd
     db.write_text(
@@ -711,7 +709,7 @@ def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
             ]
         )
     )
-    _, cmd_dir = pch_compile_command(build, header, gch)
+    _, cmd_dir = pch_compile_command(build, header, gch, src)
     assert cmd_dir == build
 
     # Corrupted entries with null fields must skip, not raise
@@ -723,13 +721,13 @@ def test_pch_compile_command_rejects_unusable_entries(tmp_path: Path) -> None:
             ]
         )
     )
-    assert pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch, src) is None
 
     # arguments-style entry (allowed by the spec, unused by CMake)
     db.write_text(
         json.dumps([{"arguments": ["g++", "-c", src_file], "file": src_file}])
     )
-    assert pch_compile_command(build, header, gch) is None
+    assert pch_compile_command(build, header, gch, src) is None
 
 
 def test_pch_header_list_order_is_in_checksum(
@@ -741,15 +739,10 @@ def test_pch_header_list_order_is_in_checksum(
 
     dev = _make_pch_device(tmp_path, "dev_r")
     CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def fake_compile(cmd, **kwargs):
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
         espidf_mod.prepare_pch_sidecars()
         first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
@@ -886,6 +879,7 @@ def test_prepare_pch_sidecars_latched_keeps_degraded_sum(tmp_path: Path) -> None
     """A latched failure keeps the sum degraded (edge stays quiet); deleting
     the latch rewrites the plain digest, whose mtime bump retries the edge."""
     from esphome.build_gen.espidf import prepare_pch_sidecars
+    from esphome.build_helpers.pch import degraded_sum_text
 
     dev = _make_pch_device(tmp_path, "dev_l")
     CORE.build_path = dev
@@ -899,7 +893,7 @@ def test_prepare_pch_sidecars_latched_keeps_degraded_sum(tmp_path: Path) -> None
         prepare_pch_sidecars()
         digest = sum_path.read_text().strip()
         failed.write_text(digest + "\n")
-        sum_path.write_text("degraded:earlier failure latched\n")
+        sum_path.write_text(degraded_sum_text("earlier failure latched"))
         prepare_pch_sidecars()
         assert sum_path.read_text().startswith("degraded:")
         failed.unlink()
@@ -944,15 +938,10 @@ def test_prepare_pch_command_change_invalidates_sum(tmp_path: Path) -> None:
 
     dev = _make_pch_device(tmp_path, "dev_c")
     CORE.build_path = dev
-    gch = dev / "build" / "esphome_pch.h.gch"
-
-    def fake_compile(cmd, **kwargs):
-        gch.write_bytes(b"gch")
-        return subprocess.CompletedProcess(cmd, 0, "", "")
 
     with (
         patch.object(CORE, "name", "test"),
-        patch("esphome.build_helpers.pch.subprocess.run", side_effect=fake_compile),
+        patch("esphome.build_helpers.pch.subprocess.run", side_effect=AssertionError),
     ):
         prepare_pch_sidecars()
         first = (dev / "build" / "esphome_pch.h.gch.sum").read_text()
@@ -983,7 +972,9 @@ def test_prepare_pch_keeps_user_force_includes(tmp_path: Path) -> None:
             ]
         )
     )
-    cmd, _ = pch_compile_command(build, build / "esphome_pch.h", build / "x.gch")
+    cmd, _ = pch_compile_command(
+        build, build / "esphome_pch.h", build / "x.gch", dev / "src"
+    )
     assert "user.h" in cmd
     assert "esphome_pch.h" not in " ".join(cmd[:-3])
 

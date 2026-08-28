@@ -995,7 +995,9 @@ def run_compile(args, config: ConfigType) -> bool:
         app_dir = _app_build_dir(build_dir)
 
     if prepare:
-        pch.guarded_prepare(app_dir, partial(_prepare_pch, app_dir))
+        pch.guarded_prepare(
+            partial(_prepare_pch, app_dir), partial(pch.discard_pch_cleanup, app_dir)
+        )
 
     if not run_command_ok(
         west_cmd,

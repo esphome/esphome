@@ -15,6 +15,13 @@ from esphome.build_helpers import pch_compile
 DIGEST = "a" * 64
 
 
+def _fail_run(returncode: int = 1, stderr: str = "boom"):
+    def run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, returncode, "", stderr)
+
+    return run
+
+
 def _make_build(tmp_path: Path) -> SimpleNamespace:
     """A build dir with the header, a stub compile DB, and a digest sum."""
     build = tmp_path / "build"
@@ -98,10 +105,7 @@ def test_success_compiles_probes_and_clears_latch(tmp_path: Path) -> None:
 def test_deterministic_failure_latches_and_degrades(tmp_path: Path) -> None:
     env = _make_build(tmp_path)
 
-    def failing(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 1, "", "boom")
-
-    with patch.object(pch_compile.subprocess, "run", side_effect=failing):
+    with patch.object(pch_compile.subprocess, "run", side_effect=_fail_run()):
         assert _run_main(env) == 0
     assert env.gch.read_bytes() == pch_compile.PLACEHOLDER
     assert env.sum.read_text().startswith("degraded:")
@@ -119,10 +123,9 @@ def test_transient_failures_do_not_latch(
 ) -> None:
     env = _make_build(tmp_path)
 
-    def failing(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, code, "", stderr)
-
-    with patch.object(pch_compile.subprocess, "run", side_effect=failing):
+    with patch.object(
+        pch_compile.subprocess, "run", side_effect=_fail_run(code, stderr)
+    ):
         assert _run_main(env) == 0
     assert env.gch.read_bytes() == pch_compile.PLACEHOLDER
     assert not env.failed.exists()
@@ -144,10 +147,7 @@ def test_strict_failure_exits_nonzero(
     monkeypatch.setenv("ESPHOME_PCH_STRICT", "1")
     env = _make_build(tmp_path)
 
-    def failing(cmd, **kwargs):
-        return subprocess.CompletedProcess(cmd, 1, "", "boom")
-
-    with patch.object(pch_compile.subprocess, "run", side_effect=failing):
+    with patch.object(pch_compile.subprocess, "run", side_effect=_fail_run()):
         assert _run_main(env) != 0
 
 
