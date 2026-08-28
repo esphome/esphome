@@ -918,6 +918,15 @@ def test_patch_ldgen_cmake_missing_file_is_noop(tmp_path: Path) -> None:
     _patch_ldgen_cmake(tmp_path)  # no tools/cmake/ldgen.cmake present
 
 
+def test_patch_ldgen_cmake_unreadable_file_warns_and_skips(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _write_ldgen_cmake(tmp_path, _LDGEN_CMAKE_STOCK)
+    with patch.object(Path, "read_text", side_effect=OSError("boom")):
+        _patch_ldgen_cmake(tmp_path)
+    assert "Could not apply the ldgen dependency patch" in caplog.text
+
+
 def test_patch_ldgen_cmake_unexpected_depends_skips(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
