@@ -1,8 +1,9 @@
 name: Cache clang-tidy idedata
 description: >
-  Cache the clang-tidy idedata work tree (.temp). Generating it for the native
-  ESP-IDF tidy environments takes 90-110s per job. load_idedata validates the
-  restored idedata-<env>.hash, so a stale restore is rebuilt, not used.
+  Cache the clang-tidy idedata and the headers it references under .temp.
+  Generating it for the native ESP-IDF tidy environments takes 90-110s per
+  job. Only headers are kept (about 30MB per env instead of 130MB); a key hit
+  implies the clang-tidy hash matches, so the pruned tree is never rebuilt.
   Callers must have the Python venv already restored.
 inputs:
   key:
@@ -23,11 +24,31 @@ runs:
       if: github.ref == 'refs/heads/dev'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: .temp
+        path: |
+          .temp/idedata-*.json
+          .temp/idedata-*.hash
+          .temp/**/*.h
+          .temp/**/*.hpp
+          .temp/**/*.hh
+          .temp/**/*.hxx
+          .temp/**/*.inc
+          .temp/**/*.inl
+          .temp/**/*.ipp
+          .temp/**/*.tpp
         key: ${{ runner.os }}-tidy-idedata-${{ inputs.key }}-${{ steps.hash.outputs.hash }}-${{ hashFiles('esphome/espidf/**', 'esphome/build_gen/**', 'esphome/build_helpers/**') }}
     - name: Cache clang-tidy idedata (restore-only off dev)
       if: github.ref != 'refs/heads/dev'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: .temp
+        path: |
+          .temp/idedata-*.json
+          .temp/idedata-*.hash
+          .temp/**/*.h
+          .temp/**/*.hpp
+          .temp/**/*.hh
+          .temp/**/*.hxx
+          .temp/**/*.inc
+          .temp/**/*.inl
+          .temp/**/*.ipp
+          .temp/**/*.tpp
         key: ${{ runner.os }}-tidy-idedata-${{ inputs.key }}-${{ steps.hash.outputs.hash }}-${{ hashFiles('esphome/espidf/**', 'esphome/build_gen/**', 'esphome/build_helpers/**') }}
