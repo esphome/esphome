@@ -4,7 +4,11 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
 from esphome.components.libretiny import get_libretiny_family
-from esphome.components.libretiny.const import FAMILY_RTL8720C
+from esphome.components.libretiny.const import (
+    FAMILY_BK7231N,
+    FAMILY_BK7238,
+    FAMILY_RTL8720C,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -45,14 +49,19 @@ DigitalWriteAction = remote_transmitter_ns.class_(
 )
 
 
+_NON_BLOCKING_LIBRETINY_FAMILIES = (FAMILY_RTL8720C, FAMILY_BK7231N, FAMILY_BK7238)
+
+
 def _validate_non_blocking_platform(value: bool) -> bool:
-    # non_blocking requires hardware transmission: RMT on ESP32, the gtimer
-    # envelope chain on RTL8720C. Reject everywhere else at config time.
+    # non_blocking requires hardware transmission: RMT on ESP32, a hardware timer
+    # envelope chain on the listed LibreTiny families. Reject elsewhere at config time.
     if CORE.is_esp32:
         return cv.boolean(value)
-    if CORE.is_libretiny and get_libretiny_family() == FAMILY_RTL8720C:
+    if CORE.is_libretiny and get_libretiny_family() in _NON_BLOCKING_LIBRETINY_FAMILIES:
         return cv.boolean(value)
-    raise cv.Invalid("non_blocking is only supported on ESP32 and RTL8720C")
+    raise cv.Invalid(
+        "non_blocking is only supported on ESP32, RTL8720C, BK7231N and BK7238"
+    )
 
 
 MULTI_CONF = True
@@ -201,6 +210,13 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         },
         "remote_transmitter_rtl87xx.cpp": {
             PlatformFramework.RTL87XX_ARDUINO,
+        },
+        "remote_transmitter_bk72xx.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+        },
+        "remote_transmitter_libretiny_isr.cpp": {
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.BK72XX_ARDUINO,
         },
         "remote_transmitter.cpp": {
             PlatformFramework.ESP32_ARDUINO,
