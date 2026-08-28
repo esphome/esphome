@@ -344,6 +344,8 @@ def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """An explicit CONFIG_NVS_ENCRYPTION=n keeps nvs_sec_provider excluded."""
+    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
+
     generate_main(component_config_path("exclusion_stays_nvs_sdkconfig_off.yaml"))
     assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 

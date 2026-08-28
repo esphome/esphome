@@ -2432,6 +2432,8 @@ async def _reconcile_vfs_fatfs_sdkconfig(
         # FATFS is not in the build, so tear down any stale patched copy before failing --
         # otherwise the error state also leaves the override behind until enable_exfat is
         # removed too, the exact state the unconditional reconcile below is meant to prevent.
+        # Long filenames are a hard requirement of exFAT and are already set right above;
+        # the FatFs #defines themselves come via a patched project-local component copy.
         _sync_exfat_fatfs_override(
             False,
             str(CORE.data[KEY_ESP32][KEY_IDF_VERSION]),

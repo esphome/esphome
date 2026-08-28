@@ -706,14 +706,17 @@ def clean_all(configuration: list[str]):
     # the per-config loop above can't reach. Wipe the default cache root
     # (also catches leftovers from older install layouts), then the resolved
     # install paths for the ESPHOME_*_PREFIX overrides (docker/add-on/CI)
-    # that live outside it.
+    # that live outside it. Every backend's cache is listed in
+    # TOOLS_CACHE_SPECS, so registering one there is the only step.
     import platformdirs
 
-    from esphome.components.nrf52.framework import get_sdk_nrf_tools_path
-    from esphome.espidf.framework import get_idf_tools_path
+    from esphome.build_helpers.tools_cache import TOOLS_CACHE_SPECS, tools_cache_path
 
     cache_root = Path(platformdirs.user_cache_dir("esphome", appauthor=False)).resolve()
-    for install_path in (cache_root, get_idf_tools_path(), get_sdk_nrf_tools_path()):
+    install_paths = [cache_root] + [
+        tools_cache_path(*spec) for spec in TOOLS_CACHE_SPECS
+    ]
+    for install_path in install_paths:
         if install_path.is_dir():
             _LOGGER.info("Deleting %s", install_path)
             rmtree(install_path)

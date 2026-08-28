@@ -31,7 +31,8 @@ SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
 
-# cv.boolean's closed spelling tables, shared with the env-knob parsing below
+# cv.boolean's closed spelling tables, shared with the strict env-knob
+# parser (build_helpers.ccache.parse_enable_env)
 TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
 FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
 # cv.boolean's spelling tables plus the 1/0 env convention
