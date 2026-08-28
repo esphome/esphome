@@ -11,7 +11,10 @@ byte-identical to PlatformIO's output:
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
 analysis works unchanged on native ESP-IDF builds. RAM usage comes from
 the DRAM (or unified DIRAM) region of the linker map; Flash used is the
-size of the app ``.bin`` on disk, and Flash total is taken from
+size of the app ``.bin`` on disk, which includes esptool's 16-byte
+image padding and appended SHA-256, so it reads slightly above the
+map-derived ``Total image size`` line and moves in 16-byte steps.
+Flash total is taken from
 ``partitions.csv`` using PlatformIO's rule (first app partition whose
 subtype is ``factory`` or ``ota_0``; see
 ``platform-espressif32/builder/main.py::_update_max_upload_size``).

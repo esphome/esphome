@@ -638,6 +638,27 @@ def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
     mock_run.assert_called_once_with("build", "size", jobs=1)
 
 
+def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
+    """print_summary receives the size json, partitions.csv, and the firmware
+    bin from get_firmware_path, which must stay in lockstep with the
+    project() name in the generated CMakeLists."""
+    _setup_build(setup_core)
+    config = {CONF_ESPHOME: {}}
+
+    with (
+        patch.object(toolchain, "need_reconfigure", return_value=False),
+        patch.object(toolchain, "run_idf_py", return_value=0),
+        patch.object(toolchain, "print_summary") as mock_summary,
+    ):
+        assert toolchain.run_compile(config, verbose=False) == 0
+
+    mock_summary.assert_called_once_with(
+        CORE.relative_build_path("build", "esp_idf_size.json"),
+        CORE.relative_build_path("partitions.csv"),
+        toolchain.get_firmware_path(),
+    )
+
+
 def test_run_compile_without_compile_process_limit(setup_core: Path) -> None:
     """When no compile_process_limit is set, no job limit is passed to idf.py."""
     _setup_build(setup_core)
