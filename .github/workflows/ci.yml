@@ -664,18 +664,16 @@ jobs:
         if: matrix.cache_sdk_nrf
         run: |
           . venv/bin/activate
-          pip install -r requirements_codechecker.txt
+          pip install -c requirements.txt -c requirements_dev.txt -c requirements_test.txt -r requirements_codechecker.txt
 
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
-          if [ -n "${{ matrix.matcher }}" ]; then
-            custom_matcher_file=".github/workflows/matchers/${{ matrix.matcher }}.json"
-            # ::add-matcher:: silently no-ops on a missing path -- fail loudly
-            # instead of losing inline annotations without any signal.
-            test -f "$custom_matcher_file" || { echo "::error::Missing problem matcher file: $custom_matcher_file"; exit 1; }
-          fi
-          echo "::add-matcher::.github/workflows/matchers/${{ matrix.matcher || 'clang-tidy' }}.json"
+          matcher_file=".github/workflows/matchers/${{ matrix.matcher || 'clang-tidy' }}.json"
+          # ::add-matcher:: silently no-ops on a missing path -- fail loudly
+          # instead of losing inline annotations without any signal.
+          test -f "$matcher_file" || { echo "::error::Missing problem matcher file: $matcher_file"; exit 1; }
+          echo "::add-matcher::$matcher_file"
 
       - name: Check if full clang-tidy scan needed
         id: check_full_scan

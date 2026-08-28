@@ -1,6 +1,10 @@
 """Tests for esphome.components.nrf52.clang_tidy CMakeLists generation."""
 
-from esphome.components.nrf52.clang_tidy import TIDY_PROJECT_NAME, _tidy_cmakelists
+from esphome.components.nrf52.clang_tidy import (
+    TIDY_PROJECT_NAME,
+    _tidy_cmakelists,
+    root_path,
+)
 
 
 def test_tidy_cmakelists_includes_main_cpp_and_all_sources() -> None:
@@ -28,3 +32,9 @@ def test_tidy_cmakelists_sets_expected_defines() -> None:
 
     for define in ("USE_ZEPHYR", "USE_NRF52", "CLANG_TIDY"):
         assert define in content
+
+
+def test_tidy_cmakelists_includes_repo_root() -> None:
+    content = _tidy_cmakelists("", [])
+
+    assert f'"{root_path}"' in content
