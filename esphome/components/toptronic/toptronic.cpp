@@ -264,6 +264,7 @@ float bytes_to_float(const uint8_t *data, size_t len, TypeName type) {
 template<typename T> std::vector<uint8_t> number_to_bytes(T value) {
   std::vector<uint8_t> a;
   constexpr size_t size = sizeof(T);
+  a.reserve(size);
   for (size_t i = 0; i < size; i++) {
     a.push_back((uint8_t) (value >> (8 * (size - i - 1))));
   }
