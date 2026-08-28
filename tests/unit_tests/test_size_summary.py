@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import struct
+from unittest.mock import patch
 
 import pytest
 
@@ -246,14 +247,15 @@ def test_print_summary_skips_flash_on_zero_app_partition(
 def test_print_summary_skips_flash_on_unreadable_partitions(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """An unreadable partitions.csv is non-fatal."""
+    """An unreadable partitions.csv is non-fatal (chmod tricks don't work
+    for root in CI containers, so simulate the OSError instead)."""
     size_json = _write_size_json(tmp_path, _esp32_size_data())
     partitions = _write_partitions(tmp_path)
-    partitions.chmod(0o000)
-    try:
+    with patch(
+        "esphome.espidf.size_summary._find_app_partition_size",
+        side_effect=PermissionError("denied"),
+    ):
         print_summary(size_json, partitions, tmp_path / "firmware.elf")
-    finally:
-        partitions.chmod(0o644)
     assert "Flash:" not in capsys.readouterr().out
 
 
