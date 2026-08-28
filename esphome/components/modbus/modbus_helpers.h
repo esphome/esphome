@@ -60,8 +60,11 @@ inline bool is_function_code_custom(uint8_t function_code) {
 /// in step with those switches). Deliberately wider than is_function_code_custom(): the user-defined
 /// ranges are unknown to the parser too, but so are the assigned-but-unimplemented codes
 /// (READ_EXCEPTION_STATUS, DIAGNOSTICS, GET_COMM_EVENT_*, REPORT_SERVER_ID) and every unassigned value.
+/// Exception-flagged codes (0x80 set) are always the 2-byte spec exception shape, so never unknown.
 inline bool is_function_code_unknown_length(uint8_t function_code) {
-  switch (static_cast<FunctionCode>(function_code & FUNCTION_CODE_MASK)) {
+  if (is_function_code_exception(function_code))
+    return false;
+  switch (static_cast<FunctionCode>(function_code)) {
     case FunctionCode::READ_COILS:
     case FunctionCode::READ_DISCRETE_INPUTS:
     case FunctionCode::READ_HOLDING_REGISTERS:
@@ -79,6 +82,17 @@ inline bool is_function_code_unknown_length(uint8_t function_code) {
     default:
       return true;
   }
+}
+
+/// True when the underlying function code (exception bit masked off) may be broadcast (address 0):
+/// the writes, and unknown codes that may be vendor writes. A broadcast is never answered (Modbus 4.1),
+/// so codes known to expect a reply - the reads (including read-write) and the remaining known-length
+/// codes (file record, FIFO) - are not broadcastable.
+inline bool is_function_code_broadcastable(uint8_t function_code) {
+  uint8_t masked_function_code = function_code & FUNCTION_CODE_MASK;
+  if (is_function_code_read(masked_function_code))
+    return false;
+  return is_function_code_write(masked_function_code) || is_function_code_unknown_length(masked_function_code);
 }
 
 // Returns the expected length of a server response PDU based on the function code.

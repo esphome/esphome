@@ -775,7 +775,7 @@ TEST(ModbusClientHubBroadcast, DeliversNoTerminalToTypedDevice) {
 
 // A broadcast is only meaningful for a command that changes state; a broadcast READ could never be
 // answered, so the hub refuses it at the door (false return, no entry queued) rather than silently
-// retiring it. Writes, 0x17, and custom codes still go through (covered above).
+// retiring it. Writes and custom/unknown codes still go through (covered in the neighboring tests).
 TEST(ModbusClientHubBroadcast, RefusesReadBroadcast) {
   NullUART uart;
   NoResponseProbeHub hub;
@@ -845,6 +845,20 @@ TEST(ModbusClientHubBroadcast, RefusesReadWriteMultipleBroadcast) {
   // fc, read start+qty, write start+qty, byte count, one data word.
   const uint8_t read_write_multiple[] = {0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x10, 0x00, 0x01, 0x02, 0xBE, 0xEF};
   EXPECT_FALSE(device.queue_pdu(read_write_multiple));  // its read half could never be answered
+  EXPECT_EQ(hub.entries(), 0u);
+}
+
+// FC 0x18 (read FIFO queue) is not a "read" by is_function_code_read(), but the hub has an explicit
+// response-length rule for it - it demonstrably expects a reply, so it cannot broadcast.
+TEST(ModbusClientHubBroadcast, RefusesKnownLengthNonWriteBroadcast) {
+  NullUART uart;
+  NoResponseProbeHub hub;
+  hub.set_uart_parent(&uart);
+  hub.setup();
+  BroadcastProbeDevice device(&hub, BROADCAST_ADDRESS);
+
+  const uint8_t read_fifo[] = {0x18, 0x00, 0x10};  // fc, FIFO pointer address
+  EXPECT_FALSE(device.queue_pdu(read_fifo));
   EXPECT_EQ(hub.entries(), 0u);
 }
 
