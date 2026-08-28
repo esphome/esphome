@@ -577,6 +577,7 @@ esphome/components/tuya/select/* @bearpawmaxim
 esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
+esphome/components/tuya/water_heater/* @iago-veiga
 esphome/components/uart/* @esphome/core
 esphome/components/uart/button/* @ssieb
 esphome/components/uart/event/* @eoasmxd

@@ -20,7 +20,9 @@ const uint8_t FUNCTION_CODE_USER_DEFINED_SPACE_2_END = 110;   // 0x6E
 
 enum class FunctionCode : uint8_t {
   INVALID = 0x00,  // 0x00 is not a valid function code (even for custom functions).
-  CUSTOM = 0x00,   // The CUSTOM alias should be removed in future.
+  // Remove before 2027.3.0
+  CUSTOM ESPDEPRECATED("0x00 is not a function code; use FunctionCode::INVALID for the sentinel. Removed in 2027.3.0",
+                       "2026.9.0") = 0x00,
   READ_COILS = 0x01,
   READ_DISCRETE_INPUTS = 0x02,
   READ_HOLDING_REGISTERS = 0x03,
