@@ -191,7 +191,7 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
 
   TypeName type_{U8};  // value encoding width (U8 default; U16 used by party duration)
   // Called by ESPHome when the user picks a new option from Home Assistant.
-  void control(const std::string &value) override;
+  void control(const std::string &text) override;
 };
 #endif
 
@@ -276,8 +276,8 @@ class TopTronicDevice {
   // Per §5.9 the maps stay private (pointer lifetime safety — the pointers are
   // owned by the ESPHome registry, never deleted here); the hub reaches them
   // only through these accessors.
-  std::unordered_map<uint32_t, TopTronicBase *> &get_sensor_s() { return this->sensors_; }
-  const std::unordered_map<uint32_t, TopTronicBase *> &get_sensor_s() const { return this->sensors_; }
+  std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() { return this->sensors_; }
+  const std::unordered_map<uint32_t, TopTronicBase *> &get_sensors() const { return this->sensors_; }
   std::unordered_map<uint32_t, TopTronicBase *> &get_inputs() { return this->inputs_; }
   const std::unordered_map<uint32_t, TopTronicBase *> &get_inputs() const { return this->inputs_; }
 
@@ -425,7 +425,7 @@ class TopTronic : public Component {
   };
 
   // Look up device by ID; create a new TopTronicDevice if it does not exist yet.
-  TopTronicDevice *get_or_create_device_(uint32_t can_id);
+  TopTronicDevice *get_or_create_device_(uint32_t device_id);
   // For each input, find its matching read sensor (same device + datapoint) and
   // subscribe so the input stays in sync with the current boiler value.
   void link_inputs_();
@@ -439,7 +439,7 @@ class TopTronic : public Component {
   // sender node id (bits 21-11 of a CAN id) is exactly the devices_ map key, so
   // membership is a single O(1) lookup — it covers EVERY device this hub owns,
   // not a single hardcoded address.
-  bool owns_device_(uint32_t device_id) const { return this->devices_.find(device_id) != this->devices_.end(); }
+  bool owns_device_(uint32_t device_id) const { return this->devices_.contains(device_id); }
 
   canbus::Canbus *canbus_;
 

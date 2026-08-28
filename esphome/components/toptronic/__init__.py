@@ -25,7 +25,6 @@ MULTI_CONF = True
 
 CONF_TOPTRONIC_ID = "toptronic_id"
 CONF_CANBUS_ID = "canbus_id"
-CONF_DEVICE_TYPE = "device_type"
 CONF_DEVICE_ADDR = "device_addr"
 CONF_FUNCTION_GROUP = "function_group"
 CONF_FUNCTION_NUMBER = "function_number"
@@ -103,7 +102,7 @@ def get_device_type(t: str) -> int:
 
 
 def _validate_preset(config):
-    device_type = config[CONF_DEVICE_TYPE]
+    device_type = config["device_type"]
     if device_type not in _device_types:
         raise cv.Invalid(
             f"Device type '{device_type}' is not a known TopTronic device type"
@@ -162,7 +161,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(TopTronicComponent),
             cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-            cv.Required(CONF_DEVICE_TYPE): cv.one_of(
+            cv.Required("device_type"): cv.one_of(
                 *[t.name for t in DeviceType], upper=True
             ),
             cv.Required(CONF_DEVICE_ADDR): cv.uint8_t,
@@ -255,14 +254,14 @@ async def _generate_entities(hub, config):
 
     used_ids = _shared_used_ids()
     for platform_name, entity_conf in _load_entities(
-        config[CONF_DEVICE_TYPE], config[CONF_LANGUAGE]
+        config["device_type"], config[CONF_LANGUAGE]
     ):
         if platform_name not in platforms:
             raise cv.Invalid(
                 f"Unsupported platform '{platform_name}' in toptronic preset"
             )
         entity_conf.pop("platform", None)
-        entity_conf.pop(CONF_DEVICE_TYPE, None)
+        entity_conf.pop("device_type", None)
         entity_conf.pop(CONF_DEVICE_ADDR, None)
         hub_ref = config[CONF_ID].copy()
         hub_ref.is_declaration = False
@@ -312,7 +311,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], cbus)
     await cg.register_component(var, config)
 
-    device_type = get_device_type(config[CONF_DEVICE_TYPE])
+    device_type = get_device_type(config["device_type"])
     cg.add(var.set_device_type(device_type))
     cg.add(var.set_device_addr(config[CONF_DEVICE_ADDR]))
     cg.add(var.set_boot_refresh_delay(config[CONF_BOOT_REFRESH_DELAY]))

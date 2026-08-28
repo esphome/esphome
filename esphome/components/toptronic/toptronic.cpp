@@ -33,6 +33,7 @@ static constexpr size_t MIN_MESSAGE_LEN = 5;
 // can never become permanent settings. The two debug switches are fully
 // independent — each controls exactly one flag, and both can be active at the
 // same time (candump floods the output, find_can_id still emits its WARN lines).
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_candump_enabled = false;
 static bool s_find_can_id_enabled = false;
 static bool s_debug_callback_registered = false;
@@ -40,6 +41,7 @@ static bool s_receive_callback_registered = false;
 static uint32_t s_candump_start_ms = 0;
 static uint32_t s_find_can_id_start_ms = 0;
 static uint32_t s_last_candump_log_ms = 0;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Auto-off deadlines: debug modes are intended to be temporary. Both candump
 // and find can_id self-disable after 120 s to protect network/log buffers. The
@@ -56,8 +58,8 @@ static constexpr UBaseType_t COMMAND_QUEUE_LENGTH = 8;    // producer/consumer b
 
 // Fan-out for each debug flag: the matching TopTronicDebugSwitch registers here
 // so its published switch state always mirrors the real (build-wide) flag.
-CallbackManager<void(bool)> TopTronic::candump_update_callbacks_;
-CallbackManager<void(bool)> TopTronic::find_can_id_update_callbacks_;
+CallbackManager<void(bool)> TopTronic::candump_update_callbacks;
+CallbackManager<void(bool)> TopTronic::find_can_id_update_callbacks;
 
 // ---------------------------------------------------------------------------
 // Build-wide multi-hub refresh coordination.
@@ -69,7 +71,7 @@ CallbackManager<void(bool)> TopTronic::find_can_id_update_callbacks_;
 // the ESPHome main-loop task via set_timeout(), so this is non-blocking and
 // thread-safe.
 // ---------------------------------------------------------------------------
-static std::vector<TopTronic *> s_all_instances;
+static std::vector<TopTronic *> s_all_instances;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static constexpr uint32_t REFRESH_STAGGER_MS = 15000;
 // Forward declaration: referenced by the deduplicated debug callback installed
 // in the constructor below (defined later in this file, next to the debug flags).
@@ -84,8 +86,10 @@ static void debug_log_tx_frame(const std::vector<uint8_t> &data, uint32_t can_id
 // boot refresh must NOT be scheduled from setup(): App.setup() can stall on a
 // slow component while the scheduler still ticks, which would let an early
 // timeout fire while s_all_instances is incomplete (e.g. only HV registered).
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 static uint32_t s_boot_refresh_delay_ms = 0;
 static uint32_t s_boot_refresh_start_ms = 0;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Constructor: register this hub in the build-wide registry and arm the RECEIVE
 // path immediately. All hubs are constructed in generated main.cpp before
@@ -106,9 +110,9 @@ TopTronic::TopTronic(canbus::Canbus *canbus) : canbus_(canbus) {
     this->canbus_->add_callback([](uint32_t can_id, bool, bool rtr, const std::vector<uint8_t> &data) {
       uint32_t device_id = (can_id >> 11) & 0x7FF;
       for (TopTronic *hub : s_all_instances) {
-        // owns_device() checks the hub's full devices_ map (every device it has
+        // owns_device_() checks the hub's full devices_ map (every device it has
         // registered), so the sender is never limited to a single address.
-        if (hub->owns_device(device_id))
+        if (hub->owns_device_(device_id))
           hub->parse_frame(data, can_id, rtr);
       }
     });
@@ -351,7 +355,7 @@ void TopTronicRefreshButton::press_action() {
 
 // Return the TopTronicDevice for this ID, creating it on first access.
 // operator[] performs a single map lookup rather than count() + operator[] (two lookups).
-TopTronicDevice *TopTronic::get_or_create_device(uint32_t device_id) {
+TopTronicDevice *TopTronic::get_or_create_device_(uint32_t device_id) {
   auto &device_ptr = this->devices_[device_id];
   if (!device_ptr) {
     device_ptr = std::make_unique<TopTronicDevice>();
@@ -360,12 +364,12 @@ TopTronicDevice *TopTronic::get_or_create_device(uint32_t device_id) {
 }
 
 void TopTronic::add_sensor(TopTronicBase *sensor) {
-  TopTronicDevice *device = this->get_or_create_device(this->get_device_id());
+  TopTronicDevice *device = this->get_or_create_device_(this->get_device_id());
   device->get_sensors()[sensor->get_id()] = sensor;
 }
 
 void TopTronic::add_input(TopTronicBase *input) {
-  TopTronicDevice *device = this->get_or_create_device(this->get_device_id());
+  TopTronicDevice *device = this->get_or_create_device_(this->get_device_id());
   device->get_inputs()[input->get_id()] = input;
 }
 
@@ -518,7 +522,7 @@ void TopTronic::register_input_callbacks() {
       auto *canbus = this->canbus_;
       uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | this->device_addr_, this->get_device_id());
 
-      input->add_on_set_callback([canbus, input, can_id](std::vector<uint8_t> data) -> void {
+      input->add_on_set_callback([canbus, can_id](const std::vector<uint8_t> &data) -> void {
         // send_can_frames handles single-frame (≤8 bytes) and multi-frame (>8 bytes) automatically.
         send_can_frames(canbus, can_id, data);
       });
@@ -528,7 +532,7 @@ void TopTronic::register_input_callbacks() {
 
 // Request an immediate refresh from every registered sensor by firing its update
 // callback (the same path the polling scheduler takes). Writable inputs (number/
-// select) follow automatically through the linked sensors set up in link_inputs().
+// select) follow automatically through the linked sensors set up in link_inputs_().
 //
 // The refresh is THROTTLED: sensors are queued into pending_refresh_ and released
 // with an effective per-GET spacing of refresh_gap_ms_ / max_refresh_per_loop_
@@ -645,7 +649,7 @@ void TopTronic::request_resume_all() {
 
 // Look up a sensor by its (device_id, sensor_id) pair.
 // Uses find() on both maps so each is traversed at most once (no double-lookup).
-TopTronicBase *TopTronic::get_sensor(uint32_t device_id, uint32_t sensor_id) {
+TopTronicBase *TopTronic::get_sensor_(uint32_t device_id, uint32_t sensor_id) {
   auto device_it = this->devices_.find(device_id);
   if (device_it == this->devices_.end()) {
     return nullptr;  // device not registered — ignore
@@ -659,7 +663,7 @@ TopTronicBase *TopTronic::get_sensor(uint32_t device_id, uint32_t sensor_id) {
   return sensor_it->second;
 }
 
-void TopTronic::link_inputs() {
+void TopTronic::link_inputs_() {
   for (const auto &d : this->devices_) {
     auto *device = d.second.get();
     for (const auto &i : device->get_inputs()) {
@@ -667,7 +671,7 @@ void TopTronic::link_inputs() {
       if (input_base->type() == BUTTON) {
         continue;  // buttons are fire-and-forget — no linked sensor to sync
       }
-      auto *sensor_base = this->get_sensor(this->get_device_id(), input_base->get_id());
+      auto *sensor_base = this->get_sensor_(this->get_device_id(), input_base->get_id());
       if (sensor_base == nullptr) {
         TT_LOGD("Input 0x%08X has no matching sensor — sync skipped", (unsigned) input_base->get_id());
         continue;
@@ -685,7 +689,7 @@ void TopTronic::link_inputs() {
 #if defined(USE_TEXT_SENSOR) && defined(USE_SELECT)
         auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
         auto *input = static_cast<TopTronicSelect *>(input_base);
-        sensor->add_on_raw_state_callback([input](std::string state) -> void { input->publish_state(state); });
+        sensor->add_on_raw_state_callback([input](const std::string &state) -> void { input->publish_state(state); });
 #endif  // USE_TEXT_SENSOR && USE_SELECT
       }
     }
@@ -712,7 +716,7 @@ void TopTronic::configure_hub() {
   // capacity, so a hub can be missing from components_ entirely and its
   // setup() never invoked. Config-phase statements always run for every hub.
 
-  this->link_inputs();
+  this->link_inputs_();
   this->register_sensor_callbacks();
   this->register_input_callbacks();
 
@@ -766,7 +770,7 @@ void TopTronic::drain_refresh_burst() {
   // Each entry is a sensor whose GET is still awaiting a response. Spacing
   // between sends is effective_gap_ms_, exactly as before; additionally, an
   // entry that has not been answered within refresh_retry_interval_ms_ is
-  // re-sent (up to max_refresh_retries_ attempts). interpret_message() removes
+  // re-sent (up to max_refresh_retries_ attempts). interpret_message_() removes
   // an entry as soon as its response arrives, so only genuinely unanswered GETs
   // are retried. This makes the burst self-healing and independent of bus/hub
   // ordering - a single lost GET (e.g. BM 83-0-0 colliding with boiler
@@ -808,7 +812,7 @@ void TopTronic::drain_refresh_burst() {
 
   // Refresh-burst observability: log when a throttled burst finishes draining so
   // the log proves the queue is being processed. Accounting: queued = sensors
-  // queued by update_all(), answered = responses erased in interpret_message(),
+  // queued by update_all(), answered = responses erased in interpret_message_(),
   // dropped = retries exhausted or stall-aborted (watchdog below).
   if (this->burst_in_progress_ && this->pending_refresh_.empty()) {
     this->burst_in_progress_ = false;
@@ -995,7 +999,7 @@ static void set_candump_flag(bool enabled) {
   } else {
     ESP_LOGW(TAG, "CANDUMP debug DISABLED");
   }
-  TopTronic::candump_update_callbacks_.call(s_candump_enabled);
+  TopTronic::candump_update_callbacks.call(s_candump_enabled);
 }
 
 static void set_find_can_id_flag(bool enabled) {
@@ -1009,7 +1013,7 @@ static void set_find_can_id_flag(bool enabled) {
   } else {
     ESP_LOGW(TAG, "FIND CAN-ID debug DISABLED");
   }
-  TopTronic::find_can_id_update_callbacks_.call(s_find_can_id_enabled);
+  TopTronic::find_can_id_update_callbacks.call(s_find_can_id_enabled);
 }
 
 // Optional per-frame debug logging (canbus.yaml candump / Find can_id blocks).
@@ -1108,11 +1112,11 @@ bool TopTronic::get_candump_enabled() { return s_candump_enabled; }
 bool TopTronic::get_find_can_id_enabled() { return s_find_can_id_enabled; }
 
 void TopTronic::add_candump_update_callback(std::function<void(bool)> &&callback) {
-  candump_update_callbacks_.add(std::move(callback));
+  candump_update_callbacks.add(std::move(callback));
 }
 
 void TopTronic::add_find_can_id_update_callback(std::function<void(bool)> &&callback) {
-  find_can_id_update_callbacks_.add(std::move(callback));
+  find_can_id_update_callbacks.add(std::move(callback));
 }
 
 #ifdef USE_SWITCH
@@ -1180,9 +1184,9 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
   // (responses to its GETs). The sender node id is exactly the devices_ map key,
   // so a single lookup decides membership — everything else (other hubs' traffic,
   // boiler broadcasts from unregistered nodes) is skipped before any reassembly
-  // or dispatch work (the same decision interpret_message() would make later).
-  // owns_device() covers EVERY device registered on this hub, not one address.
-  if (!this->owns_device(device_id)) {
+  // or dispatch work (the same decision interpret_message_() would make later).
+  // owns_device_() covers EVERY device registered on this hub, not one address.
+  if (!this->owns_device_(device_id)) {
     return;
   }
 
@@ -1215,7 +1219,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
     }
     if (num_remaining == 0) {
       // Single-frame message: strip the length byte and dispatch directly.
-      this->interpret_message(data.data() + 1, data.size() - 1, can_id, remote_transmission_request);
+      this->interpret_message_(data.data() + 1, data.size() - 1, can_id, remote_transmission_request);
     } else {
       // Multi-frame message: save the first fragment and wait for the rest.
       uint8_t msg_header = data[1];  // reassembly key shared across all frames of this message
@@ -1223,7 +1227,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
       TT_LOGD("     - Start of message with id: %d with length %d (Can-ID: 0x%08X, Data: 0x%s)", msg_header,
               num_remaining, (unsigned) can_id, hex_str(data.data(), data.size()).c_str());
       if (this->pending_messages_.size() >= this->max_pending_messages_ &&
-          this->pending_messages_.find(header_key) == this->pending_messages_.end()) {
+          !this->pending_messages_.contains(header_key)) {
         // Buffer full: evict the SINGLE oldest entry (LRU) instead of clearing all
         // in-progress reassemblies. On a multi-hub bus every hub reassembles every
         // device's frames, so a full clear() would destroy the other hubs' pending
@@ -1237,10 +1241,10 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
         // by the loop() sweep, so all ages here are far below the wrap window.
         uint32_t oldest_key = this->pending_messages_.begin()->first;
         uint32_t oldest_age = now - this->pending_messages_.begin()->second.last_update_ms;
-        for (auto pit = this->pending_messages_.begin(); pit != this->pending_messages_.end(); ++pit) {
-          if (now - pit->second.last_update_ms > oldest_age) {
-            oldest_key = pit->first;
-            oldest_age = now - pit->second.last_update_ms;
+        for (auto &pending_message : this->pending_messages_) {
+          if (now - pending_message.second.last_update_ms > oldest_age) {
+            oldest_key = pending_message.first;
+            oldest_age = now - pending_message.second.last_update_ms;
           }
         }
         TT_LOGW("Pending message buffer full (%zu entries), evicting oldest 0x%08X", this->pending_messages_.size(),
@@ -1320,7 +1324,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
       }
 
       // Dispatch first, then free the reassembly buffer (msg points into pending.data).
-      this->interpret_message(msg, msg_len - 2, can_id, remote_transmission_request);
+      this->interpret_message_(msg, msg_len - 2, can_id, remote_transmission_request);
       this->pending_messages_.erase(it);
     }
   }
@@ -1336,7 +1340,7 @@ void TopTronic::parse_frame(const std::vector<uint8_t> &data, uint32_t can_id, b
 //   [4]   datapoint low byte
 //   [5..] value payload (0x42). 0x56 inserts 2 bytes (0x80 0x00) at [5..6],
 //         so its value starts at [7].
-void TopTronic::interpret_message(const uint8_t *data, size_t len, uint32_t can_id, bool remote_transmission_request) {
+void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can_id, bool remote_transmission_request) {
   if (len < MIN_MESSAGE_LEN) {
     TT_LOGD("Message too short (%u bytes), ignoring", (unsigned) len);
     return;
