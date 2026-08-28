@@ -32,7 +32,7 @@ _DTS_CACHE = Path.home() / ".esphome" / "zephyr_dts_cache"
 # Bump when _sparse_clone_dts()'s `sparse-checkout set` file list changes, so a cache
 # from before the change (still matching on tag alone) is detected as stale and
 # re-fetched instead of silently missing the newly-added paths forever.
-_SPARSE_CHECKOUT_SCHEMA = "2"  # v2: added snippets/ (zephyr: snippets: DTS overlays)
+_SPARSE_CHECKOUT_SCHEMA = "2"
 _SDK_SOURCE_VERSION_CACHE = Path.home() / ".esphome" / "zephyr_sdk_source_version_cache"
 _MANIFEST_REVISION_CACHE = Path.home() / ".esphome" / "zephyr_manifest_revision_cache"
 
@@ -48,12 +48,24 @@ _DTS_SPARSE_PATHS = (
     "include/zephyr/",
     "scripts/dts/python-devicetree/",
     "snippets/",
+    # west.yml (top-level file) deliberately NOT listed here -- cone-mode
+    # sparse-checkout only accepts directory patterns and already includes top-level
+    # files automatically (see test_sparse_clone_dts_sparse_checkout_never_lists_version_file).
 )
 
+# Verified per-entry against a real failing #include (item 44), not guessed --
+# esp32/renesas/rp2040/nordic board DTS needs nothing extra. Add a family only once
+# its own failure against modules/hal/<name> is confirmed the same way.
+_HAL_MODULES_BY_FAMILY: dict[str, tuple[str, ...]] = {
+    "stm32": ("hal_stm32",),
+}
 
-def _git_sparse_fetch(repo: str, ref: str, dest: Path) -> None:
+
+def _git_sparse_fetch(
+    repo: str, ref: str, dest: Path, paths: tuple[str, ...] = _DTS_SPARSE_PATHS
+) -> None:
     """Fetch `ref` (a branch/tag name or a raw commit SHA) from `repo` into `dest`,
-    sparse-checked-out to _DTS_SPARSE_PATHS.
+    sparse-checked-out to `paths` (default _DTS_SPARSE_PATHS).
 
     A raw SHA is fetched and checked out explicitly, since `git clone --branch` can't
     resolve it.
@@ -90,7 +102,7 @@ def _git_sparse_fetch(repo: str, ref: str, dest: Path) -> None:
             text=True,
         )
         subprocess.run(
-            ["git", "-C", str(dest), "sparse-checkout", "set", *_DTS_SPARSE_PATHS],
+            ["git", "-C", str(dest), "sparse-checkout", "set", *paths],
             check=True,
             capture_output=True,
             text=True,
@@ -315,7 +327,86 @@ def _resolve_boards_ref(sdk: ZephyrSDK, ver: str) -> str | None:
     return revision
 
 
-def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | None:
+def _sparse_clone_hal_modules(zephyr_dir: Path, family: str | None) -> None:
+    """Fetch dts/ only from each HAL module `family` needs (_HAL_MODULES_BY_FAMILY),
+    into zephyr_dir.parent / <its west.yml path> -- matches the layout
+    dts_lookup.py's _get_dts_include_paths() expects. Best-effort, never raises.
+    """
+    module_names = _HAL_MODULES_BY_FAMILY.get(family or "")
+    if not module_names:
+        return
+
+    west_yml = zephyr_dir / "west.yml"
+    if not west_yml.is_file():
+        _LOGGER.warning(
+            "[zephyr] %s has no west.yml; can't resolve HAL module(s) %s",
+            zephyr_dir,
+            ", ".join(module_names),
+        )
+        return
+    try:
+        manifest = yaml.safe_load(west_yml.read_text())
+    except yaml.YAMLError as exc:
+        _LOGGER.warning("[zephyr] Could not parse %s: %s", west_yml, exc)
+        return
+
+    manifest_root = manifest.get("manifest", {}) if manifest else {}
+    default_remote = manifest_root.get("defaults", {}).get("remote")
+    remote_bases = {
+        r["name"]: r["url-base"]
+        for r in manifest_root.get("remotes", [])
+        if "name" in r and "url-base" in r
+    }
+    projects = manifest_root.get("projects", [])
+
+    for name in module_names:
+        project = next((p for p in projects if p.get("name") == name), None)
+        if project is None:
+            _LOGGER.warning(
+                "[zephyr] %s's west.yml has no project named %s", west_yml, name
+            )
+            continue
+
+        url_base = remote_bases.get(project.get("remote", default_remote))
+        revision = project.get("revision")
+        path = project.get("path")
+        if not url_base or not revision or not path:
+            _LOGGER.warning(
+                "[zephyr] %s's west.yml project %s is missing remote/revision/path "
+                "-- can't fetch it",
+                west_yml,
+                name,
+            )
+            continue
+
+        url = f"{url_base}/{project.get('repo-path', name)}"
+        dest = zephyr_dir.parent / path
+
+        ref_marker = dest / ".resolved_ref"
+        if ref_marker.is_file() and ref_marker.read_text().strip() == revision:
+            continue
+
+        if dest.is_dir():
+            shutil.rmtree(dest, ignore_errors=True)
+        dest.mkdir(parents=True, exist_ok=True)
+        try:
+            _git_sparse_fetch(url, revision, dest, paths=("dts/",))
+            ref_marker.write_text(revision)
+        except subprocess.CalledProcessError as exc:
+            _LOGGER.warning(
+                "[zephyr] HAL module fetch for %s failed: %s", name, exc.stderr.strip()
+            )
+            shutil.rmtree(dest, ignore_errors=True)
+        except FileNotFoundError:
+            _LOGGER.warning(
+                "[zephyr] HAL module fetch requires git; install git and retry"
+            )
+            shutil.rmtree(dest, ignore_errors=True)
+
+
+def _sparse_clone_dts(
+    variant: str, sdk_name: str, sdk: ZephyrSDK, family: str | None = None
+) -> Path | None:
     """Sparse-clone boards/, dts/, and include/zephyr/dt-bindings/ from the sdk's board
     repo.
 
@@ -349,7 +440,9 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
         and ref_marker.is_file()
         and ref_marker.read_text().strip() == marker_content
     ):
-        return zephyr_dir  # cache hit, and it's the revision we'd resolve today
+        # HAL modules have their own marker -- may not have run yet on an older cache.
+        _sparse_clone_hal_modules(zephyr_dir, family)
+        return zephyr_dir
 
     if dest.is_dir():
         shutil.rmtree(dest, ignore_errors=True)  # stale cache -- force a re-fetch
@@ -367,6 +460,7 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
         if (zephyr_dir / "boards").is_dir():
             ref_marker.write_text(marker_content)
+            _sparse_clone_hal_modules(zephyr_dir, family)
             return zephyr_dir
         return None
     except subprocess.CalledProcessError as exc:
@@ -379,7 +473,7 @@ def _sparse_clone_dts(variant: str, sdk_name: str, sdk: ZephyrSDK) -> Path | Non
 
 
 def _sparse_clone_dts_from_source(
-    source: ConfigType, refresh: TimePeriodSeconds
+    source: ConfigType, refresh: TimePeriodSeconds, family: str | None = None
 ) -> Path | None:
     """Sparse-clone boards/, dts/, and include/zephyr/ from a git sdk_source:.
 
@@ -416,6 +510,7 @@ def _sparse_clone_dts_from_source(
             and (time.time() - dest.stat().st_mtime) > refresh.total_seconds
         )
         if not stale:
+            _sparse_clone_hal_modules(zephyr_dir, family)
             return zephyr_dir  # cache hit
         shutil.rmtree(dest, ignore_errors=True)
 
@@ -452,6 +547,7 @@ def _sparse_clone_dts_from_source(
         zephyr_dir = dest / "zephyr" if (dest / "zephyr").is_dir() else dest
         if (zephyr_dir / "boards").is_dir():
             schema_marker.write_text(_SPARSE_CHECKOUT_SCHEMA)
+            _sparse_clone_hal_modules(zephyr_dir, family)
             return zephyr_dir
         return None
     except subprocess.CalledProcessError as exc:
@@ -469,6 +565,7 @@ async def fetch_board_dts(
     sdk: ZephyrSDK,
     sdk_source: ConfigType | None,
     refresh: TimePeriodSeconds,
+    family: str | None = None,
 ) -> None:
     """Populate ZephyrData dts_base_path with the local Zephyr tree.
 
@@ -495,7 +592,7 @@ async def fetch_board_dts(
         return
 
     if sdk_source is not None and sdk_source[CONF_TYPE] == TYPE_GIT:
-        zephyr_dir = _sparse_clone_dts_from_source(sdk_source, refresh)
+        zephyr_dir = _sparse_clone_dts_from_source(sdk_source, refresh, family)
         if zephyr_dir is not None:
             zd["dts_base_path"] = str(zephyr_dir)
             _LOGGER.debug("[zephyr] DTS base path: %s (git sdk_source)", zephyr_dir)
@@ -508,7 +605,9 @@ async def fetch_board_dts(
             )
         return
 
-    zephyr_dir = _native_dts_path(sdk) or _sparse_clone_dts(variant, sdk_name, sdk)
+    zephyr_dir = _native_dts_path(sdk) or _sparse_clone_dts(
+        variant, sdk_name, sdk, family
+    )
     if zephyr_dir is not None:
         zd["dts_base_path"] = str(zephyr_dir)
         _LOGGER.debug("[zephyr] DTS base path: %s", zephyr_dir)

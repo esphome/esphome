@@ -14,6 +14,7 @@ from esphome.components.zephyr.dts_fetch import (
     _sdk_source_cache_key,
     _sparse_clone_dts,
     _sparse_clone_dts_from_source,
+    _sparse_clone_hal_modules,
 )
 from esphome.components.zephyr.variants import MAINLINE, NCS
 import esphome.config_validation as cv
@@ -300,3 +301,89 @@ def test_sparse_clone_dts_from_source_refetches_when_schema_marker_missing(
     assert not (dest / "stale-marker-file").exists()  # old checkout wiped
     assert result == dest
     assert (dest / ".sparse_schema").read_text() == _SPARSE_CHECKOUT_SCHEMA
+
+
+# ---------------------------------------------------------------------------
+# _sparse_clone_hal_modules -- item 44 (hal_stm32 not fetched, breaking STM32 DTS)
+# ---------------------------------------------------------------------------
+
+_WEST_YML = """
+manifest:
+  defaults:
+    remote: upstream
+  remotes:
+    - name: upstream
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: hal_stm32
+      revision: fc11896dd39cfca37bf9b4aeaaa2df8861b81875
+      path: modules/hal/stm32
+      groups: [hal]
+"""
+
+
+def _make_zephyr_dir(tmp_path: Path) -> Path:
+    zephyr_dir = tmp_path / "zephyr"
+    zephyr_dir.mkdir()
+    (zephyr_dir / "west.yml").write_text(_WEST_YML)
+    return zephyr_dir
+
+
+def test_sparse_clone_hal_modules_noop_for_unlisted_family(tmp_path: Path) -> None:
+    zephyr_dir = _make_zephyr_dir(tmp_path)
+    with patch("subprocess.run") as mock_run:
+        _sparse_clone_hal_modules(zephyr_dir, "esp32")
+    mock_run.assert_not_called()
+
+
+def test_sparse_clone_hal_modules_fetches_hal_stm32(tmp_path: Path) -> None:
+    zephyr_dir = _make_zephyr_dir(tmp_path)
+    calls: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with patch("subprocess.run", side_effect=fake_run):
+        _sparse_clone_hal_modules(zephyr_dir, "stm32")
+
+    dest = zephyr_dir.parent / "modules" / "hal" / "stm32"
+    fetch_call = next(c for c in calls if "remote" in c)
+    assert fetch_call[fetch_call.index("origin") + 1] == (
+        "https://github.com/zephyrproject-rtos/hal_stm32"
+    )
+    assert (
+        dest / ".resolved_ref"
+    ).read_text() == "fc11896dd39cfca37bf9b4aeaaa2df8861b81875"
+
+
+def test_sparse_clone_hal_modules_skips_when_marker_matches(tmp_path: Path) -> None:
+    zephyr_dir = _make_zephyr_dir(tmp_path)
+    dest = zephyr_dir.parent / "modules" / "hal" / "stm32"
+    dest.mkdir(parents=True)
+    (dest / ".resolved_ref").write_text("fc11896dd39cfca37bf9b4aeaaa2df8861b81875")
+
+    with patch("subprocess.run") as mock_run:
+        _sparse_clone_hal_modules(zephyr_dir, "stm32")
+
+    mock_run.assert_not_called()
+
+
+def test_sparse_clone_hal_modules_refetches_when_marker_stale(tmp_path: Path) -> None:
+    zephyr_dir = _make_zephyr_dir(tmp_path)
+    dest = zephyr_dir.parent / "modules" / "hal" / "stm32"
+    dest.mkdir(parents=True)
+    (dest / ".resolved_ref").write_text("some-old-revision")
+    (dest / "leftover-file").write_text("from an older hal_stm32 checkout")
+
+    def fake_run(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with patch("subprocess.run", side_effect=fake_run) as mock_run:
+        _sparse_clone_hal_modules(zephyr_dir, "stm32")
+
+    assert mock_run.call_args_list
+    assert not (dest / "leftover-file").exists()
+    assert (
+        dest / ".resolved_ref"
+    ).read_text() == "fc11896dd39cfca37bf9b4aeaaa2df8861b81875"

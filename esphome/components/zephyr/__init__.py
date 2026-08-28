@@ -1737,6 +1737,7 @@ async def to_code(config: ConfigType) -> None:
         sdk,
         zephyr_data()["sdk_source"],
         config[CONF_FRAMEWORK][CONF_REFRESH],
+        family=zephyr_variant_family(),
     )
 
     from .dts_lookup import (
