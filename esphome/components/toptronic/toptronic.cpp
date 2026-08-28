@@ -1,6 +1,7 @@
 #include "toptronic.h"
 #include "esphome/core/log.h"
 
+#include <array>
 #include <string>
 
 namespace esphome::toptronic {
@@ -262,13 +263,11 @@ float bytes_to_float(const uint8_t *data, size_t len, TypeName type) {
 
 // Encode a numeric value as a big-endian byte sequence for a SET request payload.
 template<typename T> std::vector<uint8_t> number_to_bytes(T value) {
-  std::vector<uint8_t> a;
-  constexpr size_t size = sizeof(T);
-  a.reserve(size);
-  for (size_t i = 0; i < size; i++) {
-    a.push_back((uint8_t) (value >> (8 * (size - i - 1))));
+  std::array<uint8_t, sizeof(T)> bytes{};
+  for (size_t i = 0; i < bytes.size(); i++) {
+    bytes[i] = (uint8_t) (value >> (8 * (bytes.size() - i - 1)));
   }
-  return a;
+  return {bytes.begin(), bytes.end()};
 }
 
 std::vector<uint8_t> float_to_bytes(float value, TypeName type) {
