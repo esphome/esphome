@@ -21,14 +21,6 @@ def _simulate_gamma_correct_lut(table: list[int], value: float) -> float:
     return (a + frac * (b - a)) / 65535.0
 
 
-def _simulate_gamma_correct_8bit(table_value: int) -> int:
-    """Simulate ESPColorCorrection::gamma_correct_'s 16-bit -> 8-bit conversion."""
-    result = (table_value + 128) // 257
-    if result == 0 and table_value != 0:
-        return 1
-    return result
-
-
 def test_table_length() -> None:
     """Table must always have exactly 256 entries."""
     table = generate_gamma_table(2.8)
@@ -61,9 +53,12 @@ def test_nonzero_indices_are_nonzero(gamma: float) -> None:
         assert table[i] >= 1, f"gamma={gamma}, index {i}: got {table[i]}"
 
 
-@pytest.mark.parametrize("gamma", [1.0, 2.0, 2.2, 2.8, 3.0])
+@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
 def test_table_monotonically_nondecreasing(gamma: float) -> None:
-    """The gamma table must be monotonically non-decreasing."""
+    """The gamma table must be monotonically non-decreasing.
+
+    gamma_table_reverse_search()'s binary search depends on this.
+    """
     table = generate_gamma_table(gamma)
     for i in range(1, 256):
         assert table[i] >= table[i - 1], (
@@ -125,31 +120,6 @@ def test_lut_output_monotonically_nondecreasing() -> None:
         prev = result
 
 
-@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
-def test_nonzero_indices_survive_16_to_8_bit_conversion(gamma: float) -> None:
-    """Regression test for esphome/esphome#18842: low codes must no longer round to 0.
-
-    This exercises ESPColorCorrection's own floor-on-output logic, not the
-    table -- the table's raw values are deliberately left tiny (see
-    test_table_matches_raw_power_curve below).
-    """
-    table = generate_gamma_table(gamma)
-    for i in range(1, 256):
-        assert _simulate_gamma_correct_8bit(table[i]) >= 1, (
-            f"gamma={gamma}, index {i}: table value {table[i]} collapses to 0 "
-            "after (value + 128) / 257"
-        )
-
-
-def test_dead_zone_fixed_at_gamma_2_8() -> None:
-    """Reproduce the reporter's own numbers from esphome/esphome#18842 at gamma=2.8."""
-    table = generate_gamma_table(2.8)
-    for i in range(1, 28):
-        assert _simulate_gamma_correct_8bit(table[i]) >= 1, (
-            f"index {i} still collapses to 0"
-        )
-
-
 def test_table_matches_raw_power_curve() -> None:
     """The 16-bit table must stay the untouched power curve, not a floor for 8-bit output.
 
@@ -167,11 +137,3 @@ def test_table_matches_raw_power_curve() -> None:
         assert table[i] == expected, (
             f"index {i}: table[{i}]={table[i]} expected {expected}"
         )
-
-
-@pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
-def test_reverse_search_precondition_nondecreasing(gamma: float) -> None:
-    """gamma_table_reverse_search needs a non-decreasing table; the fix must preserve that."""
-    table = generate_gamma_table(gamma)
-    for i in range(1, 256):
-        assert table[i] >= table[i - 1], f"gamma={gamma}: table[{i}] < table[{i - 1}]"
