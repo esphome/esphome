@@ -686,12 +686,7 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
-_LDGEN_DEPENDS_ANCHOR = (
-    "\n        DEPENDS     ${template} ${ldgen_fragment_files}"
-    " ${ldgen_deps} ${SDKCONFIG}\n"
-)
 _LDGEN_COMMAND_ANCHOR = "    add_custom_command(\n"
-_LDGEN_PATCH_MARKER = "# Patched by ESPHome:"
 _LDGEN_DEP_FILTER = """\
     # Patched by ESPHome: drop app-only archives from ldgen DEPENDS.
     # ldgen only reads archives named in mapping fragments' archive: lines;
@@ -707,32 +702,15 @@ _LDGEN_DEP_FILTER = """\
 def _patch_ldgen_cmake(framework_path: Path) -> None:
     """Let projects drop their app archive from the sections.ld DEPENDS.
 
-    The filter is guarded by ESPHOME_LDGEN_DEP_EXCLUDE, which only the
-    ESPHome project CMakeLists sets, so stock IDF users of the shared
-    framework copy are unaffected. Idempotent and anchor checked; an
-    unexpected ldgen.cmake keeps stock behavior with a warning.
+    Guarded by ESPHOME_LDGEN_DEP_EXCLUDE, which only the ESPHome project
+    CMakeLists sets, so stock IDF builds using the shared framework copy
+    are unaffected. An unexpected ldgen.cmake keeps stock behavior.
     """
     ldgen_cmake = framework_path / "tools" / "cmake" / "ldgen.cmake"
     if not ldgen_cmake.is_file():
         return
-
     try:
         content = ldgen_cmake.read_text(encoding="utf-8")
-        if _LDGEN_PATCH_MARKER in content:
-            return
-        if (
-            _LDGEN_DEPENDS_ANCHOR not in content
-            or content.count(_LDGEN_COMMAND_ANCHOR) != 1
-        ):
-            _LOGGER.warning(
-                "ldgen.cmake at %s does not match the expected layout; "
-                "skipping the ldgen dependency patch (builds stay correct).",
-                ldgen_cmake,
-            )
-            return
-        write_file_if_changed(
-            ldgen_cmake, content.replace(_LDGEN_COMMAND_ANCHOR, _LDGEN_DEP_FILTER)
-        )
     except OSError as e:
         _LOGGER.warning(
             "Could not apply the ldgen dependency patch to %s (%s); skipping.",
@@ -740,6 +718,18 @@ def _patch_ldgen_cmake(framework_path: Path) -> None:
             e,
         )
         return
+    if "ESPHOME_LDGEN_DEP_EXCLUDE" in content:
+        return
+    if "${ldgen_deps}" not in content or content.count(_LDGEN_COMMAND_ANCHOR) != 1:
+        _LOGGER.warning(
+            "ldgen.cmake at %s does not match the expected layout; "
+            "skipping the ldgen dependency patch (builds stay correct).",
+            ldgen_cmake,
+        )
+        return
+    write_file_if_changed(
+        ldgen_cmake, content.replace(_LDGEN_COMMAND_ANCHOR, _LDGEN_DEP_FILTER)
+    )
     _LOGGER.info("Patched %s to honor ESPHOME_LDGEN_DEP_EXCLUDE.", ldgen_cmake)
 
 
@@ -973,9 +963,7 @@ def _check_esphome_idf_framework_install(
     # check recovers on the next build.
     _patch_tools_json_demote_unused_tools(framework_path)
 
-    # Let the project CMakeLists drop the app archive from the sections.ld
-    # DEPENDS so app-only edits skip the ~3s ldgen re-run. Idempotent, heals
-    # pre-patch trees on the next build.
+    # Applied every invocation so pre-patch trees heal without a clean.
     _patch_ldgen_cmake(framework_path)
 
     # 3. Check if the framework tools are the same and correctly installed

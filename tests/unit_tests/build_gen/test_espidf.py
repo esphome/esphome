@@ -163,18 +163,19 @@ def test_has_discovered_components_after_configure(tmp_path: Path) -> None:
     assert has_discovered_components()
 
 
-def test_get_project_cmakelists_sets_ldgen_dep_exclude() -> None:
-    """Both renders exclude the app archive from ldgen's DEPENDS; app code
-    never appears in linker mapping fragments so it cannot affect ldgen."""
-    assert "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)" in _render()
-    assert "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)" in _render(minimal=True)
+@pytest.mark.parametrize("minimal", [False, True])
+def test_get_project_cmakelists_sets_ldgen_dep_exclude(minimal: bool) -> None:
+    """Both renders exclude the app archive from ldgen's DEPENDS."""
+    assert "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)" in _render(
+        minimal=minimal
+    )
 
 
 def test_get_project_cmakelists_ldgen_full_deps_escape_hatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ESPHOME_LDGEN_FULL_DEPS=1 restores stock ldgen dependencies."""
-    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "1")
+    """ESPHOME_LDGEN_FULL_DEPS restores stock ldgen dependencies."""
+    monkeypatch.setenv("ESPHOME_LDGEN_FULL_DEPS", "true")
     assert "ESPHOME_LDGEN_DEP_EXCLUDE" not in _render()
 
 

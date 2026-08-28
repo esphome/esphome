@@ -20,6 +20,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.espidf.framework import (
+    _LDGEN_DEP_FILTER,
     ESPHOME_STAMP_FILE,
     STAMP_SCHEMA_VERSION,
     _ccache_env,
@@ -897,12 +898,7 @@ def test_patch_ldgen_cmake_inserts_guarded_filter(tmp_path: Path) -> None:
     ldgen_cmake = _write_ldgen_cmake(tmp_path, _LDGEN_CMAKE_STOCK)
     _patch_ldgen_cmake(tmp_path)
     content = ldgen_cmake.read_text(encoding="utf-8")
-    assert "if(ESPHOME_LDGEN_DEP_EXCLUDE)" in content
-    assert "list(REMOVE_ITEM ldgen_deps ${ESPHOME_LDGEN_DEP_EXCLUDE})" in content
-    # The filter must run before the command that consumes ldgen_deps
-    assert content.index("REMOVE_ITEM ldgen_deps") < content.index(
-        "add_custom_command("
-    )
+    assert _LDGEN_DEP_FILTER in content
     assert "DEPENDS     ${template}" in content
 
 
@@ -927,22 +923,23 @@ def test_patch_ldgen_cmake_unreadable_file_warns_and_skips(
     assert "Could not apply the ldgen dependency patch" in caplog.text
 
 
-def test_patch_ldgen_cmake_unexpected_depends_skips(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize(
+    "content",
+    [
+        pytest.param(
+            _LDGEN_CMAKE_STOCK.replace("${ldgen_deps}", "${other_deps}"),
+            id="no_ldgen_deps",
+        ),
+        pytest.param(
+            _LDGEN_CMAKE_STOCK + "\n    add_custom_command(\n        OUTPUT x)\n",
+            id="duplicate_command",
+        ),
+    ],
+)
+def test_patch_ldgen_cmake_unexpected_layout_skips(
+    content: str, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A future IDF with a different DEPENDS line keeps stock behavior."""
-    content = _LDGEN_CMAKE_STOCK.replace("${SDKCONFIG}", "${SDKCONFIG} ${EXTRA}")
-    ldgen_cmake = _write_ldgen_cmake(tmp_path, content)
-    _patch_ldgen_cmake(tmp_path)
-    assert ldgen_cmake.read_text(encoding="utf-8") == content
-    assert "does not match the expected layout" in caplog.text
-
-
-def test_patch_ldgen_cmake_duplicate_command_skips(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Two add_custom_command blocks make the insert ambiguous; keep stock."""
-    content = _LDGEN_CMAKE_STOCK + "\n    add_custom_command(\n        OUTPUT x)\n"
+    """A future IDF that restructures ldgen.cmake keeps stock behavior."""
     ldgen_cmake = _write_ldgen_cmake(tmp_path, content)
     _patch_ldgen_cmake(tmp_path)
     assert ldgen_cmake.read_text(encoding="utf-8") == content

@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 from pathlib import Path
 
 from esphome.components.esp32 import (
@@ -19,7 +18,7 @@ from esphome.framework_helpers import (
     get_project_cxx_compile_flags,
     get_project_link_flags,
 )
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import get_bool_env, mkdir_p, write_file_if_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -123,14 +122,13 @@ def get_project_cmakelists(
         else ""
     )
 
-    # The app component is never referenced by linker mapping fragments, so
-    # its rebuilds cannot change ldgen output; excluding it stops the ~3s
-    # sections.ld regeneration on app-only edits. Honored by the
-    # ESPHome-patched ldgen.cmake, a no-op on a stock IDF.
+    # Honored by the ESPHome-patched ldgen.cmake, a no-op on a stock IDF;
+    # stops the ~3s sections.ld regeneration on app-only edits.
+    # ESPHOME_LDGEN_FULL_DEPS=1 restores stock dependencies.
     ldgen_dep_exclude = (
-        ""
-        if os.environ.get("ESPHOME_LDGEN_FULL_DEPS") == "1"
-        else "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)"
+        "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)"
+        if not get_bool_env("ESPHOME_LDGEN_FULL_DEPS")
+        else ""
     )
 
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
