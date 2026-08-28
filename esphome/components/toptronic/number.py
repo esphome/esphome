@@ -1,40 +1,38 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import number
-from esphome.const import (
-    CONF_ID,
-    CONF_MAX_VALUE,
-    CONF_MIN_VALUE,
-    CONF_STEP,
-    CONF_TYPE,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_STEP, CONF_TYPE
 
 from . import (
-    toptronic,
-    CONF_TT_ID,
-    TopTronicComponent,
-    CONFIG_SCHEMA_BASE,
+    CONF_DATAPOINT,
+    CONF_DECIMAL,
     CONF_FUNCTION_GROUP,
     CONF_FUNCTION_NUMBER,
-    CONF_DATAPOINT,
+    CONF_TT_ID,
+    CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
-    CONF_DECIMAL,
+    TopTronicComponent,
+    toptronic,
 )
 
 TopTronicNumber = toptronic.class_(
     "TopTronicNumber", number.Number, cg.PollingComponent
 )
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
-    cv.Required(CONF_TYPE): cv.enum(TT_TYPE_OPTIONS),
-    cv.Required(CONF_MAX_VALUE): cv.float_,
-    cv.Required(CONF_MIN_VALUE): cv.float_,
-    cv.Required(CONF_STEP): cv.positive_float,
-    cv.Optional(CONF_DECIMAL, default=0): cv.float_range(min=0),
-}).extend(number.number_schema(
-    TopTronicNumber
-)).extend(CONFIG_SCHEMA_BASE)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.Required(CONF_TYPE): cv.enum(TT_TYPE_OPTIONS),
+            cv.Required(CONF_MAX_VALUE): cv.float_,
+            cv.Required(CONF_MIN_VALUE): cv.float_,
+            cv.Required(CONF_STEP): cv.positive_float,
+            cv.Optional(CONF_DECIMAL, default=0): cv.float_range(min=0),
+        }
+    )
+    .extend(number.number_schema(TopTronicNumber))
+    .extend(CONFIG_SCHEMA_BASE)
+)
 
 
 async def new_number(config, *, min_value: float, max_value: float, step: float):

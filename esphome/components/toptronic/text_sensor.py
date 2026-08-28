@@ -1,36 +1,38 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_OPTIONS
 
 from . import (
-    toptronic,
-    CONF_TT_ID,
-    TopTronicComponent,
-    config_schema_polling,
+    CONF_DATAPOINT,
     CONF_FUNCTION_GROUP,
     CONF_FUNCTION_NUMBER,
-    CONF_DATAPOINT,
+    CONF_TT_ID,
     CONF_VALUES,
+    TopTronicComponent,
     _validate_options_values_lengths,
+    config_schema_polling,
+    toptronic,
 )
 
 TopTronicTextSensor = toptronic.class_(
-    "TopTronicTextSensor", text_sensor.TextSensor, cg.PollingComponent,
+    "TopTronicTextSensor",
+    text_sensor.TextSensor,
+    cg.PollingComponent,
 )
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({
-        cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
-        cv.Required(CONF_OPTIONS): cv.All(
-            cv.ensure_list(cv.string_strict), cv.Length(min=1)
-        ),
-        cv.Required(CONF_VALUES): cv.All(
-            cv.ensure_list(cv.int_), cv.Length(min=1)
-        ),
-    }).extend(text_sensor.text_sensor_schema(
-        TopTronicTextSensor
-    )).extend(config_schema_polling("30s")),
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.Required(CONF_OPTIONS): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Length(min=1)
+            ),
+            cv.Required(CONF_VALUES): cv.All(cv.ensure_list(cv.int_), cv.Length(min=1)),
+        }
+    )
+    .extend(text_sensor.text_sensor_schema(TopTronicTextSensor))
+    .extend(config_schema_polling("30s")),
     _validate_options_values_lengths,
 )
 

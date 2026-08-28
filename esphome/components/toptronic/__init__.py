@@ -1,12 +1,12 @@
-import pathlib
 from enum import Enum
+import pathlib
 
 import yaml
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import button as button_platform
 from esphome.components.canbus import CanbusComponent
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_ICON,
@@ -69,17 +69,17 @@ TT_TYPE_OPTIONS = {
 
 
 class DeviceType(Enum):
-    WEZ = 0     # EN: Heat generator / FR: Générateur de chaleur / DE: Wärmeerzeuger
-    SOL = 64    # EN: Solar module / FR: Module solaire / DE: Solar
-    PS = 128    # EN: Buffer storage tank / FR: Ballon tampon / DE: Pufferspeicher
-    FW = 192    # EN: District heating / FR: Chauffage urbain / DE: Fernwärme
-    HK = 256    # EN: Heating circuit / FR: Circuit de chauffage / DE: Heizkreis
-    MWA = 384   # EN: Energy meter module / FR: Module de mesure d'énergie / DE: Messwertauswertung
-    GLT = 448   # EN: Building mgmt system (BMS) / FR: Gestion technique du bâtiment (GTB) / DE: Gebäudeleittechnik
-    HV = 512    # EN: HomeVent ventilation / FR: Ventilation HomeVent / DE: HomeVent
-    BM = 1024   # EN: Control module (Display) / FR: Module de commande (Écran) / DE: Bedienmodul
-    BD = 1024   # EN: Control display (Alias) / FR: Écran de commande (Alias) / DE: Bediendisplay
-    GW = 1153   # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
+    WEZ = 0  # EN: Heat generator / FR: Générateur de chaleur / DE: Wärmeerzeuger
+    SOL = 64  # EN: Solar module / FR: Module solaire / DE: Solar
+    PS = 128  # EN: Buffer storage tank / FR: Ballon tampon / DE: Pufferspeicher
+    FW = 192  # EN: District heating / FR: Chauffage urbain / DE: Fernwärme
+    HK = 256  # EN: Heating circuit / FR: Circuit de chauffage / DE: Heizkreis
+    MWA = 384  # EN: Energy meter module / FR: Module de mesure d'énergie / DE: Messwertauswertung
+    GLT = 448  # EN: Building mgmt system (BMS) / FR: Gestion technique du bâtiment (GTB) / DE: Gebäudeleittechnik
+    HV = 512  # EN: HomeVent ventilation / FR: Ventilation HomeVent / DE: HomeVent
+    BM = 1024  # EN: Control module (Display) / FR: Module de commande (Écran) / DE: Bedienmodul
+    BD = 1024  # EN: Control display (Alias) / FR: Écran de commande (Alias) / DE: Bediendisplay
+    GW = 1153  # EN: Gateway (Modbus/KNX) / FR: Passerelle (Modbus/KNX) / DE: Gateway
 
 
 _device_types = {t.name: t.value for t in DeviceType}
@@ -105,9 +105,15 @@ def get_device_type(t: str) -> int:
 def _validate_preset(config):
     device_type = config[CONF_DEVICE_TYPE]
     if device_type not in _device_types:
-        raise cv.Invalid(f"Device type '{device_type}' is not a known TopTronic device type")
+        raise cv.Invalid(
+            f"Device type '{device_type}' is not a known TopTronic device type"
+        )
     if not (PRESETS_DIR / device_type).is_dir():
-        available = sorted(d.name for d in PRESETS_DIR.iterdir() if d.is_dir()) if PRESETS_DIR.is_dir() else []
+        available = (
+            sorted(d.name for d in PRESETS_DIR.iterdir() if d.is_dir())
+            if PRESETS_DIR.is_dir()
+            else []
+        )
         raise cv.Invalid(
             f"No preset directory found for device type '{device_type}'. "
             f"Available presets: {', '.join(available)}"
@@ -200,7 +206,7 @@ def _load_entities(device_type: str, language: str):
         path = PRESETS_DIR / device_type / f"{kind}_{language}.yaml"
         if not path.exists():
             continue
-        with open(path, encoding="utf-8") as f:
+        with pathlib.Path(path).open(encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         for platform_name, entries in data.items():
             for entry in entries or []:
@@ -222,8 +228,10 @@ def _resolve_ids(obj, used=None):
         if obj.id is None:
             obj.resolve(used)
         used.add(obj.id)
-        if obj.is_declaration and isinstance(obj.type, cg.MockObjClass) and obj.type.inherits_from(
-            Component
+        if (
+            obj.is_declaration
+            and isinstance(obj.type, cg.MockObjClass)
+            and obj.type.inherits_from(Component)
         ):
             CORE.component_ids.add(obj.id)
     elif isinstance(obj, dict):
@@ -281,7 +289,9 @@ async def _generate_refresh_button(hub_var):
         return
     CORE.data[_REFRESH_BUTTON_KEY] = True
 
-    friendly = (CORE.config.get(CONF_SUBSTITUTIONS, {}) or {}).get("friendly_name", "") or ""
+    friendly = (CORE.config.get(CONF_SUBSTITUTIONS, {}) or {}).get(
+        "friendly_name", ""
+    ) or ""
     name = f"{friendly} Refresh all" if friendly else "Refresh all"
 
     cfg = button_platform.button_schema(TopTronicRefreshButton)(

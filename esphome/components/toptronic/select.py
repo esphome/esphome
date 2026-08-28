@@ -1,23 +1,19 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import select
-from esphome.const import (
-    CONF_ID,
-    CONF_OPTIONS,
-    CONF_TYPE,
-)
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_OPTIONS, CONF_TYPE
 
 from . import (
-    toptronic,
-    CONF_TT_ID,
-    TopTronicComponent,
-    CONFIG_SCHEMA_BASE,
+    CONF_DATAPOINT,
     CONF_FUNCTION_GROUP,
     CONF_FUNCTION_NUMBER,
-    CONF_DATAPOINT,
+    CONF_TT_ID,
     CONF_VALUES,
+    CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
+    TopTronicComponent,
     _validate_options_values_lengths,
+    toptronic,
 )
 
 TopTronicSelect = toptronic.class_(
@@ -25,18 +21,18 @@ TopTronicSelect = toptronic.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({
-        cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
-        cv.Required(CONF_OPTIONS): cv.All(
-            cv.ensure_list(cv.string_strict), cv.Length(min=1)
-        ),
-        cv.Required(CONF_VALUES): cv.All(
-            cv.ensure_list(cv.int_), cv.Length(min=1)
-        ),
-        cv.Optional(CONF_TYPE, default="U8"): cv.enum(TT_TYPE_OPTIONS),
-    }).extend(select.select_schema(
-        TopTronicSelect
-    )).extend(CONFIG_SCHEMA_BASE),
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_TT_ID): cv.use_id(TopTronicComponent),
+            cv.Required(CONF_OPTIONS): cv.All(
+                cv.ensure_list(cv.string_strict), cv.Length(min=1)
+            ),
+            cv.Required(CONF_VALUES): cv.All(cv.ensure_list(cv.int_), cv.Length(min=1)),
+            cv.Optional(CONF_TYPE, default="U8"): cv.enum(TT_TYPE_OPTIONS),
+        }
+    )
+    .extend(select.select_schema(TopTronicSelect))
+    .extend(CONFIG_SCHEMA_BASE),
     _validate_options_values_lengths,
 )
 
