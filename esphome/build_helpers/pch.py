@@ -389,7 +389,7 @@ def pch_compile_command(
     return [*args, "-x", "c++-header", "-c", str(header), "-o", str(gch)], cmd_dir
 
 
-def flags_identity(tokens: Iterable[str]) -> str:
+def _flags_identity(tokens: Iterable[str]) -> str:
     """Flag string normalized for digest use: strip like ccache's rewriting
     (user CCACHE_BASEDIR wins); the raw build path covers unresolved
     (symlinked) spellings."""
@@ -420,7 +420,7 @@ def pch_identity(
                 # The closure is sorted, so root order only enters via the text
                 pch_header_text(include_headers),
                 *extra,
-                flags_identity(tokens),
+                _flags_identity(tokens),
             ),
         )
     except (OSError, UnicodeError) as err:

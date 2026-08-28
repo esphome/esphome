@@ -1245,18 +1245,18 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         pch_text = pch_header_text(pch_includes)
         # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
         # handles staleness
-        checksum = (
-            pch_identity(
+        identity_ok = True
+        checksum = None
+        if ccache:
+            checksum = pch_identity(
                 cxxflags,
                 src_dir,
                 pch_includes,
                 (str(paths.framework), str(paths.toolchain)),
             )
-            if ccache
-            else None
-        )
-        # Identity unknown under ccache: pch_identity warned and degraded
-        if not ccache or checksum is not None:
+            # Identity unknown: pch_identity warned and degraded
+            identity_ok = checksum is not None
+        if identity_ok:
             log_pch_in_use()
             write_file_if_changed(pch_header, pch_text)
             sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
