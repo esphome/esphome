@@ -473,7 +473,7 @@ constexpr uint8_t registers_for_value_type(SensorValueType value_type) {
   }
 }
 
-template<SensorValueType> inline constexpr bool value_type_supported = false;
+template<SensorValueType> inline constexpr bool VALUE_TYPE_SUPPORTED = false;
 
 /** Decode one value whose type is known at compile time, from registers in host byte order.
  * Unlike registers_to_number(), the type is a template argument, so only the one decode is compiled
@@ -503,7 +503,7 @@ template<SensorValueType VALUE_TYPE> constexpr auto registers_to_value(const uin
   } else if constexpr (VALUE_TYPE == SensorValueType::FP32_R) {
     return bit_cast<float>(registers_to_uint32(registers[1], registers[0]));
   } else {
-    static_assert(value_type_supported<VALUE_TYPE>, "registers_to_value() does not support this value type");
+    static_assert(VALUE_TYPE_SUPPORTED<VALUE_TYPE>, "registers_to_value() does not support this value type");
   }
 }
 
