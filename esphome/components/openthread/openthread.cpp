@@ -68,10 +68,10 @@ void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) 
 
 void OpenThreadComponent::print_connect_params_(otInstance *instance, otDeviceRole role) {
   ESP_LOGI(TAG, "Connected");
-  ESP_LOGCONFIG(TAG, "  Network: %s", otThreadGetNetworkName(instance));
+  ESP_LOGCONFIG(TAG, "  Network: " LOG_SECRET("'%s'"), otThreadGetNetworkName(instance));
   ESP_LOGCONFIG(TAG, "  Role: %s", otThreadDeviceRoleToString(role));
   ESP_LOGCONFIG(TAG, "  Channel: %u", otLinkGetChannel(instance));
-  ESP_LOGCONFIG(TAG, "  PAN ID: 0x%04X", otLinkGetPanId(instance));
+  ESP_LOGCONFIG(TAG, "  PAN ID: " LOG_SECRET("0x%04X"), otLinkGetPanId(instance));
 }
 
 void OpenThreadComponent::print_addresses_(otInstance *instance) {
@@ -83,6 +83,7 @@ void OpenThreadComponent::print_addresses_(otInstance *instance) {
     char addr_str[OT_IP6_ADDRESS_STRING_SIZE];
     otIp6AddressToString(&addr->mAddress, addr_str, sizeof(addr_str));
 
+    // otIp6IsLinkLocalUnicast doesn't work for the zephyr platform
     const uint8_t *address = addr->mAddress.mFields.m8;
     const bool link_local = address[0] == 0xFE && (address[1] & 0xC0) == 0x80;
 
@@ -95,7 +96,7 @@ void OpenThreadComponent::print_addresses_(otInstance *instance) {
     } else if (addr->mMeshLocal) {
       ESP_LOGCONFIG(TAG, "  %s (mesh-local)", addr_str);
     } else {
-      ESP_LOGI(TAG, "  %s (off-mesh-routable)", addr_str);
+      ESP_LOGI(TAG, "  " LOG_SECRET("%s") " (off-mesh-routable)", addr_str);
     }
   }
 }
