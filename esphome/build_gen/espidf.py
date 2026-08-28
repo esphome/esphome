@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from pathlib import Path
 
 from esphome.components.esp32 import (
@@ -122,6 +123,16 @@ def get_project_cmakelists(
         else ""
     )
 
+    # The app component is never referenced by linker mapping fragments, so
+    # its rebuilds cannot change ldgen output; excluding it stops the ~3s
+    # sections.ld regeneration on app-only edits. Honored by the
+    # ESPHome-patched ldgen.cmake, a no-op on a stock IDF.
+    ldgen_dep_exclude = (
+        ""
+        if os.environ.get("ESPHOME_LDGEN_FULL_DEPS") == "1"
+        else "set(ESPHOME_LDGEN_DEP_EXCLUDE idf::src __idf_src)"
+    )
+
     # CMake variables registered via cg.add_cmake_arg(). Emitted before
     # include(project.cmake) so values like EXCLUDE_COMPONENTS are already
     # set when project.cmake seeds the component list, and on minimal
@@ -194,6 +205,8 @@ set(CMAKE_NINJA_FORCE_RESPONSE_FILE 1)
 
 set(IDF_TARGET {idf_target})
 set(EXTRA_COMPONENT_DIRS ${{CMAKE_SOURCE_DIR}}/src)
+
+{ldgen_dep_exclude}
 
 {cmake_args}
 

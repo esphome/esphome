@@ -33,6 +33,7 @@ from esphome.espidf.framework import (
     _get_python_env_path,
     _get_python_version,
     _parse_git_source,
+    _patch_ldgen_cmake,
     _patch_tools_json_demote_unused_tools,
     _patch_tools_json_for_linux_arm64,
     _prefetch_idf_tool_archives,
@@ -401,6 +402,7 @@ def espidf_mocks(setup_core: Path):
         patch("esphome.espidf.framework._write_idf_version_txt"),
         patch("esphome.espidf.framework._patch_tools_json_for_linux_arm64"),
         patch("esphome.espidf.framework._patch_tools_json_demote_unused_tools"),
+        patch("esphome.espidf.framework._patch_ldgen_cmake"),
         patch("esphome.espidf.framework._prefetch_idf_tool_archives"),
         patch("esphome.espidf.framework._write_stamp"),
         patch("esphome.espidf.framework._check_stamp", return_value=True),
@@ -862,6 +864,80 @@ def test_patch_tools_json_already_patched_is_noop(tmp_path: Path) -> None:
     with patch("esphome.espidf.framework.platform.machine", return_value="aarch64"):
         _patch_tools_json_for_linux_arm64(tmp_path)
     assert tools_json.read_text(encoding="utf-8") == before
+
+
+# ---------------------------------------------------------------------------
+# _patch_ldgen_cmake
+# ---------------------------------------------------------------------------
+
+
+_LDGEN_CMAKE_STOCK = """\
+function(__ldgen_create_target exe_target)
+    idf_build_get_property(python PYTHON)
+
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${python} "${idf_path}/tools/ldgen/ldgen.py"
+        DEPENDS     ${template} ${ldgen_fragment_files} ${ldgen_deps} ${SDKCONFIG}
+        VERBATIM
+    )
+endfunction()
+"""
+
+
+def _write_ldgen_cmake(framework_path: Path, content: str) -> Path:
+    cmake_dir = framework_path / "tools" / "cmake"
+    cmake_dir.mkdir(parents=True, exist_ok=True)
+    ldgen_cmake = cmake_dir / "ldgen.cmake"
+    ldgen_cmake.write_text(content, encoding="utf-8")
+    return ldgen_cmake
+
+
+def test_patch_ldgen_cmake_inserts_guarded_filter(tmp_path: Path) -> None:
+    ldgen_cmake = _write_ldgen_cmake(tmp_path, _LDGEN_CMAKE_STOCK)
+    _patch_ldgen_cmake(tmp_path)
+    content = ldgen_cmake.read_text(encoding="utf-8")
+    assert "if(ESPHOME_LDGEN_DEP_EXCLUDE)" in content
+    assert "list(REMOVE_ITEM ldgen_deps ${ESPHOME_LDGEN_DEP_EXCLUDE})" in content
+    # The filter must run before the command that consumes ldgen_deps
+    assert content.index("REMOVE_ITEM ldgen_deps") < content.index(
+        "add_custom_command("
+    )
+    assert "DEPENDS     ${template}" in content
+
+
+def test_patch_ldgen_cmake_is_idempotent(tmp_path: Path) -> None:
+    ldgen_cmake = _write_ldgen_cmake(tmp_path, _LDGEN_CMAKE_STOCK)
+    _patch_ldgen_cmake(tmp_path)
+    patched = ldgen_cmake.read_text(encoding="utf-8")
+    _patch_ldgen_cmake(tmp_path)
+    assert ldgen_cmake.read_text(encoding="utf-8") == patched
+
+
+def test_patch_ldgen_cmake_missing_file_is_noop(tmp_path: Path) -> None:
+    _patch_ldgen_cmake(tmp_path)  # no tools/cmake/ldgen.cmake present
+
+
+def test_patch_ldgen_cmake_unexpected_depends_skips(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A future IDF with a different DEPENDS line keeps stock behavior."""
+    content = _LDGEN_CMAKE_STOCK.replace("${SDKCONFIG}", "${SDKCONFIG} ${EXTRA}")
+    ldgen_cmake = _write_ldgen_cmake(tmp_path, content)
+    _patch_ldgen_cmake(tmp_path)
+    assert ldgen_cmake.read_text(encoding="utf-8") == content
+    assert "does not match the expected layout" in caplog.text
+
+
+def test_patch_ldgen_cmake_duplicate_command_skips(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Two add_custom_command blocks make the insert ambiguous; keep stock."""
+    content = _LDGEN_CMAKE_STOCK + "\n    add_custom_command(\n        OUTPUT x)\n"
+    ldgen_cmake = _write_ldgen_cmake(tmp_path, content)
+    _patch_ldgen_cmake(tmp_path)
+    assert ldgen_cmake.read_text(encoding="utf-8") == content
+    assert "does not match the expected layout" in caplog.text
 
 
 # ---------------------------------------------------------------------------
