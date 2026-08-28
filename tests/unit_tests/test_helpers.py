@@ -1006,16 +1006,22 @@ def test_rmtree_raises_after_retries_exhausted(tmp_path: Path) -> None:
     """Test rmtree gives up on a persistent ENOTEMPTY once attempts run out."""
     target = tmp_path / "target"
     target.mkdir()
-    err = OSError(errno.ENOTEMPTY, "Directory not empty", str(target))
+    errs = [
+        OSError(errno.ENOTEMPTY, "Directory not empty", str(target))
+        for _ in range(helpers.RMTREE_MAX_ATTEMPTS)
+    ]
 
     with (
-        patch("shutil.rmtree", side_effect=err) as mock_rmtree,
+        patch("shutil.rmtree", side_effect=errs) as mock_rmtree,
         patch("time.sleep") as mock_sleep,
-        pytest.raises(OSError, match="Directory not empty"),
+        pytest.raises(OSError, match="Directory not empty") as excinfo,
     ):
         helpers.rmtree(target)
     assert mock_rmtree.call_count == helpers.RMTREE_MAX_ATTEMPTS
     assert mock_sleep.call_args_list == [call(0.05), call(0.1)]
+    # Final failure chains to the last retried race
+    assert excinfo.value is errs[-1]
+    assert excinfo.value.__cause__ is errs[-2]
 
 
 def test_rmtree_does_not_retry_other_oserror(tmp_path: Path) -> None:
