@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_ID,
     CONF_MIN_IPV6_ADDR_COUNT,
+    CONF_OPENTHREAD,
     CONF_PRIORITY,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -338,7 +339,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(NetworkComponent),
-            cv.Optional(CONF_ENABLE_IPV4, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_IPV4): cv.boolean,
             cv.Optional(CONF_ENABLE_IPV6): cv.All(
                 cv.boolean,
                 cv.Any(
@@ -376,15 +377,25 @@ def _final_validate(config: ConfigType) -> None:
         config[CONF_ENABLE_IPV6] = True
     else:
         # Normalize the defaulted/absent case to a real bool -- to_code() reads this
-        # unconditionally, matching enable_ipv4's default=True schema entry.
+        # unconditionally, matching how enable_ipv4 is resolved to a bool below.
         config.setdefault(CONF_ENABLE_IPV6, False)
 
-    if (ipv4_requirers := CORE.data.get(KEY_REQUIRE_IPV4)) and not config[
-        CONF_ENABLE_IPV4
-    ]:
-        raise cv.Invalid(
-            f"IPv4 is required by {', '.join(sorted(ipv4_requirers))}, but "
-            "'network: enable_ipv4: false' explicitly disables it"
+    if ipv4_requirers := CORE.data.get(KEY_REQUIRE_IPV4):
+        if config.get(CONF_ENABLE_IPV4) is False:
+            raise cv.Invalid(
+                f"IPv4 is required by {', '.join(sorted(ipv4_requirers))}, but "
+                "'network: enable_ipv4: false' explicitly disables it"
+            )
+        config[CONF_ENABLE_IPV4] = True
+    else:
+        # OpenThread is IPv6-only, and nRF52 (Zephyr) actually omits the IPv4 stack
+        # from the build when unset -- default IPv4 off for either, when nothing
+        # else needs it, for the smaller flash footprint.
+        config.setdefault(
+            CONF_ENABLE_IPV4,
+            not (
+                CONF_OPENTHREAD in full_config or (CORE.is_configured and CORE.is_nrf52)
+            ),
         )
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
@@ -434,9 +445,10 @@ async def to_code(config: ConfigType) -> None:
     # bool -- True if any component called require_ipv6(), False if defaulted/absent.
     enable_ipv6 = config[CONF_ENABLE_IPV6]
 
-    # enable_ipv4 is user-settable (default True); _final_validate() has already
-    # rejected an explicit 'enable_ipv4: false' that conflicts with a component's
-    # actual requirement.
+    # enable_ipv4 is user-settable (default True, except on OpenThread or nRF52 with
+    # nothing else requiring IPv4, which default it False); _final_validate() has
+    # already resolved the default and rejected an explicit 'enable_ipv4: false' that
+    # conflicts with a component's actual requirement.
     enable_ipv4 = config[CONF_ENABLE_IPV4]
 
     # Store the user-declared network priority list in CORE.data so that ethernet,

@@ -334,6 +334,7 @@ struct IPAddress {
     memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
 #elif LWIP_IPV4
     memcpy((void *) &tmp.u_addr.ip4, (void *) &ip_addr_, sizeof(ip_addr_));
+    tmp.type = IPADDR_TYPE_V4;
 #endif /* LWIP_IPV6 */
     return tmp;
   }

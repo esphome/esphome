@@ -95,16 +95,18 @@ def test_ipv4_stays_on_by_default(
     assert str(define.value) == "true"
 
 
-def test_ipv4_stays_on_when_ipv6_auto_enabled_by_requirement(
+def test_ipv4_defaults_off_when_openthread_is_the_transport(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     """The openthread component calls require_ipv6() with no explicit 'network:' block --
-    IPv6 auto-resolves to True, but IPv4 stays on since it is opt-out, not automatic."""
+    IPv6 auto-resolves to True. OpenThread is IPv6-only, so with nothing else requiring
+    IPv4, it defaults off -- one of the two cases (with nRF52) where enable_ipv4's
+    default isn't True."""
     generate_main(component_config_path("openthread_no_explicit_network.yaml"))
     defines = {d.name: d for d in CORE.defines}
     assert str(defines["USE_NETWORK_IPV6"].value) == "true"
-    assert str(defines["USE_NETWORK_IPV4"].value) == "true"
+    assert str(defines["USE_NETWORK_IPV4"].value) == "false"
 
 
 def test_ipv4_turns_on_when_ipv6_explicitly_off_and_nothing_required(
@@ -303,9 +305,9 @@ def test_nrf52_defaults_to_ipv6_without_openthread(
     """nrf52/require_ipv6() restores the platform's IPv6 invariant without depending
     on openthread specifically -- regression test for the review finding that removing
     the old SplitDefault(nrf52=True) + validate_ipv6 left any nRF52 config without
-    openthread getting the inverse of its actual capability. IPv4 stays on by default
-    since dropping it is opt-out, not automatic."""
+    openthread getting the inverse of its actual capability. IPv4 also defaults off
+    on nRF52 even without openthread, since Zephyr omits the IPv4 stack when unset."""
     generate_main(component_config_path("nrf52_network_no_openthread.yaml"))
     defines = {d.name: d for d in CORE.defines}
     assert str(defines["USE_NETWORK_IPV6"].value) == "true"
-    assert str(defines["USE_NETWORK_IPV4"].value) == "true"
+    assert str(defines["USE_NETWORK_IPV4"].value) == "false"
