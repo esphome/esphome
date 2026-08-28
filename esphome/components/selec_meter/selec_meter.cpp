@@ -1,6 +1,5 @@
 #include "selec_meter.h"
 #include "selec_meter_registers.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::selec_meter {
@@ -9,76 +8,41 @@ static const char *const TAG = "selec_meter";
 
 static const uint8_t MODBUS_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 
-void SelecMeter::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
-  auto data = modbus::helpers::server_pdu_payload(response_pdu);
-  if (data.size() < MODBUS_REGISTER_COUNT * 2) {
-    ESP_LOGW(TAG, "Invalid size for SelecMeter!");
-    return;
-  }
+void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                         modbus::ResponseStatus status) {
+  if (!modbus::succeeded(status))
+    return;  // the hub already logs exception responses
 
-  auto selec_meter_get_float = [&](size_t i, float unit) -> float {
-    uint32_t temp = encode_uint32(data[i + 2], data[i + 3], data[i], data[i + 1]);
-
-    float f;
-    memcpy(&f, &temp, sizeof(f));
-    return (f * unit);
+  // Publish a sensor if both of its registers are in this response; skipping absent registers keeps
+  // this correct for any read range, so the poll may be split into multiple requests.
+  // Values are 32-bit floats, low word first.
+  auto publish = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
+    constexpr auto value_type = modbus::helpers::SensorValueType::FP32_R;
+    if (sensor == nullptr || reg < start_address)
+      return;
+    size_t offset = reg - start_address;
+    if (offset + modbus::helpers::register_width_for(value_type) > registers.size())
+      return;
+    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) * unit);
   };
 
-  float total_active_energy = selec_meter_get_float(SELEC_TOTAL_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float import_active_energy = selec_meter_get_float(SELEC_IMPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float export_active_energy = selec_meter_get_float(SELEC_EXPORT_ACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float total_reactive_energy = selec_meter_get_float(SELEC_TOTAL_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float import_reactive_energy = selec_meter_get_float(SELEC_IMPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float export_reactive_energy = selec_meter_get_float(SELEC_EXPORT_REACTIVE_ENERGY * 2, NO_DEC_UNIT);
-  float apparent_energy = selec_meter_get_float(SELEC_APPARENT_ENERGY * 2, NO_DEC_UNIT);
-  float active_power = selec_meter_get_float(SELEC_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float reactive_power = selec_meter_get_float(SELEC_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float apparent_power = selec_meter_get_float(SELEC_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float voltage = selec_meter_get_float(SELEC_VOLTAGE * 2, NO_DEC_UNIT);
-  float current = selec_meter_get_float(SELEC_CURRENT * 2, NO_DEC_UNIT);
-  float power_factor = selec_meter_get_float(SELEC_POWER_FACTOR * 2, NO_DEC_UNIT);
-  float frequency = selec_meter_get_float(SELEC_FREQUENCY * 2, NO_DEC_UNIT);
-  float maximum_demand_active_power =
-      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_ACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float maximum_demand_reactive_power =
-      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_REACTIVE_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-  float maximum_demand_apparent_power =
-      selec_meter_get_float(SELEC_MAXIMUM_DEMAND_APPARENT_POWER * 2, MULTIPLY_THOUSAND_UNIT);
-
-  if (this->total_active_energy_sensor_ != nullptr)
-    this->total_active_energy_sensor_->publish_state(total_active_energy);
-  if (this->import_active_energy_sensor_ != nullptr)
-    this->import_active_energy_sensor_->publish_state(import_active_energy);
-  if (this->export_active_energy_sensor_ != nullptr)
-    this->export_active_energy_sensor_->publish_state(export_active_energy);
-  if (this->total_reactive_energy_sensor_ != nullptr)
-    this->total_reactive_energy_sensor_->publish_state(total_reactive_energy);
-  if (this->import_reactive_energy_sensor_ != nullptr)
-    this->import_reactive_energy_sensor_->publish_state(import_reactive_energy);
-  if (this->export_reactive_energy_sensor_ != nullptr)
-    this->export_reactive_energy_sensor_->publish_state(export_reactive_energy);
-  if (this->apparent_energy_sensor_ != nullptr)
-    this->apparent_energy_sensor_->publish_state(apparent_energy);
-  if (this->active_power_sensor_ != nullptr)
-    this->active_power_sensor_->publish_state(active_power);
-  if (this->reactive_power_sensor_ != nullptr)
-    this->reactive_power_sensor_->publish_state(reactive_power);
-  if (this->apparent_power_sensor_ != nullptr)
-    this->apparent_power_sensor_->publish_state(apparent_power);
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->current_sensor_ != nullptr)
-    this->current_sensor_->publish_state(current);
-  if (this->power_factor_sensor_ != nullptr)
-    this->power_factor_sensor_->publish_state(power_factor);
-  if (this->frequency_sensor_ != nullptr)
-    this->frequency_sensor_->publish_state(frequency);
-  if (this->maximum_demand_active_power_sensor_ != nullptr)
-    this->maximum_demand_active_power_sensor_->publish_state(maximum_demand_active_power);
-  if (this->maximum_demand_reactive_power_sensor_ != nullptr)
-    this->maximum_demand_reactive_power_sensor_->publish_state(maximum_demand_reactive_power);
-  if (this->maximum_demand_apparent_power_sensor_ != nullptr)
-    this->maximum_demand_apparent_power_sensor_->publish_state(maximum_demand_apparent_power);
+  publish(this->total_active_energy_sensor_, SELEC_TOTAL_ACTIVE_ENERGY, NO_DEC_UNIT);
+  publish(this->import_active_energy_sensor_, SELEC_IMPORT_ACTIVE_ENERGY, NO_DEC_UNIT);
+  publish(this->export_active_energy_sensor_, SELEC_EXPORT_ACTIVE_ENERGY, NO_DEC_UNIT);
+  publish(this->total_reactive_energy_sensor_, SELEC_TOTAL_REACTIVE_ENERGY, NO_DEC_UNIT);
+  publish(this->import_reactive_energy_sensor_, SELEC_IMPORT_REACTIVE_ENERGY, NO_DEC_UNIT);
+  publish(this->export_reactive_energy_sensor_, SELEC_EXPORT_REACTIVE_ENERGY, NO_DEC_UNIT);
+  publish(this->apparent_energy_sensor_, SELEC_APPARENT_ENERGY, NO_DEC_UNIT);
+  publish(this->active_power_sensor_, SELEC_ACTIVE_POWER, MULTIPLY_THOUSAND_UNIT);
+  publish(this->reactive_power_sensor_, SELEC_REACTIVE_POWER, MULTIPLY_THOUSAND_UNIT);
+  publish(this->apparent_power_sensor_, SELEC_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT);
+  publish(this->voltage_sensor_, SELEC_VOLTAGE, NO_DEC_UNIT);
+  publish(this->current_sensor_, SELEC_CURRENT, NO_DEC_UNIT);
+  publish(this->power_factor_sensor_, SELEC_POWER_FACTOR, NO_DEC_UNIT);
+  publish(this->frequency_sensor_, SELEC_FREQUENCY, NO_DEC_UNIT);
+  publish(this->maximum_demand_active_power_sensor_, SELEC_MAXIMUM_DEMAND_ACTIVE_POWER, MULTIPLY_THOUSAND_UNIT);
+  publish(this->maximum_demand_reactive_power_sensor_, SELEC_MAXIMUM_DEMAND_REACTIVE_POWER, MULTIPLY_THOUSAND_UNIT);
+  publish(this->maximum_demand_apparent_power_sensor_, SELEC_MAXIMUM_DEMAND_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT);
 }
 
 void SelecMeter::update() { this->read_input_registers(0, MODBUS_REGISTER_COUNT); }
