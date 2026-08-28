@@ -26,7 +26,9 @@ void USBHost::setup() {
 
 void USBHost::loop() {
   int err;
-  uint32_t event_flags;
+  // usb_host_lib_handle_events() does not write event_flags on ESP_ERR_TIMEOUT, which is
+  // the normal case for a zero timeout, so reading it uninitialised below is UB.
+  uint32_t event_flags = 0;
   err = usb_host_lib_handle_events(0, &event_flags);
   if (err != ESP_OK && err != ESP_ERR_TIMEOUT) {
     ESP_LOGD(TAG, "lib_handle_events failed: %s", esp_err_to_name(err));

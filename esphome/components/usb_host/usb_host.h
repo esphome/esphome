@@ -127,7 +127,9 @@ enum ClientState {
 };
 
 // -----------------------------------------------------------------------------
-// Isochronous stream types -- compiled only when USE_USB_ISOC_TRANSFERS is set.
+// Isochronous stream types -- compiled only when USE_USB_ISOC_TRANSFERS is set, which
+// usb_host.require_isoc_transfers() does. That helper requests control transfers too,
+// so the #error below only fires for a build that defines the macros by hand.
 // -----------------------------------------------------------------------------
 #if defined(USE_USB_ISOC_TRANSFERS) && !defined(USE_USB_CONTROL_TRANSFERS)
 #error "USE_USB_ISOC_TRANSFERS requires USE_USB_CONTROL_TRANSFERS (alt-setting selection)"
@@ -235,6 +237,8 @@ class USBClient : public Component {
   EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
   // -- Bulk / interrupt transfers ----------------------------------------------
+  // Compiled only when a component calls usb_host.require_bulk_transfers() from its
+  // to_code(); without that, these members do not exist and calls fail to compile.
 #ifdef USE_USB_BULK_TRANSFERS
   // THREAD CONTEXT: both the USB task and the main loop
   // - USB task: an input callback restarting its own transfer for immediate reception
@@ -247,6 +251,8 @@ class USBClient : public Component {
 #endif
 
   // -- Control transfers -------------------------------------------------------
+  // Compiled only when a component calls usb_host.require_control_transfers() from its
+  // to_code(); without that, these members do not exist and calls fail to compile.
 #ifdef USE_USB_CONTROL_TRANSFERS
   // w_length is what goes into the setup packet's wLength field, i.e. the number of bytes
   // the request itself is defined to carry. It defaults to the size of data, which is what
@@ -270,6 +276,8 @@ class USBClient : public Component {
 #endif
 
   // -- Isochronous support -----------------------------------------------------
+  // Compiled only when a component calls usb_host.require_isoc_transfers() from its
+  // to_code(); without that, these members do not exist and calls fail to compile.
 #ifdef USE_USB_ISOC_TRANSFERS
   usb_transfer_t *isoc_alloc(uint8_t ep_addr, uint16_t mps, uint8_t num_packets, usb_transfer_cb_t callback,
                              void *context);
