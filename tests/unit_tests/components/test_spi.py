@@ -5,10 +5,17 @@ from __future__ import annotations
 import pytest
 
 from esphome.components.esp32 import KEY_ESP32
-from esphome.components.spi import _quad_platform_validator, one_of_interface_validator
+from esphome.components.spi import (
+    CONF_CLK_PIN,
+    CONF_INTERFACE,
+    _quad_platform_validator,
+    _zephyr_setup_spi,
+    one_of_interface_validator,
+)
 from esphome.components.zephyr.const import KEY_ZEPHYR
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_NUMBER,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
@@ -71,3 +78,46 @@ def test_one_of_interface_validator_esp32_rejects_unknown_value() -> None:
     validator = one_of_interface_validator(["software", "hardware", "any"])
     with pytest.raises(cv.Invalid):
         validator("spi9")
+
+
+# ---------------------------------------------------------------------------
+# _zephyr_setup_spi -- item 48: multiple spi: entries are allowed on Zephyr now,
+# but two entries resolving to the same real bus label is a real conflict.
+# ---------------------------------------------------------------------------
+
+
+def _spi_conf(interface: str, clk: int) -> dict:
+    return {
+        CONF_INTERFACE: interface,
+        CONF_CLK_PIN: {CONF_NUMBER: clk},
+    }
+
+
+def test_zephyr_setup_spi_allows_distinct_buses() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {
+        "board": "some_board",
+        "variant": "ESP32",
+        "family": "esp32",
+        "prj_conf": {},
+        "overlay": {"": ""},
+    }
+    resolved: set[str] = set()
+    _zephyr_setup_spi(_spi_conf("spi2", 6), resolved)
+    _zephyr_setup_spi(_spi_conf("spi3", 18), resolved)
+    assert resolved == {"spi2", "spi3"}
+
+
+def test_zephyr_setup_spi_rejects_duplicate_resolved_bus() -> None:
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ZEPHYR}
+    CORE.data[KEY_ZEPHYR] = {
+        "board": "some_board",
+        "variant": "ESP32",
+        "family": "esp32",
+        "prj_conf": {},
+        "overlay": {"": ""},
+    }
+    resolved: set[str] = set()
+    _zephyr_setup_spi(_spi_conf("spi2", 6), resolved)
+    with pytest.raises(cv.Invalid, match="both resolved to bus 'spi2'"):
+        _zephyr_setup_spi(_spi_conf("spi2", 18), resolved)

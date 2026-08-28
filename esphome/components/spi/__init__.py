@@ -473,16 +473,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config):
-    full_config = fv.full_config.get().get("spi", [])
-    if CORE.is_zephyr and len(full_config) > 1:
-        raise cv.Invalid("Second spi is not implemented on Zephyr yet")
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
-
-
-def _zephyr_setup_spi(spi) -> tuple[str, str]:
+def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
     """Resolve and enable the Zephyr SPI bus node for `spi`, returning the C++
     expression for its `const device *` and the bus's DTS node label."""
     zephyr_add_prj_conf("SPI", True)
@@ -494,6 +485,12 @@ def _zephyr_setup_spi(spi) -> tuple[str, str]:
         zephyr_dts_board_id(board),
         override=override,
     )
+    if bus in resolved_buses:
+        raise cv.Invalid(
+            f"Two spi: entries both resolved to bus '{bus}' -- give each a "
+            f"distinct 'interface: <bus label>'"
+        )
+    resolved_buses.add(bus)
     clk = spi[CONF_CLK_PIN][CONF_NUMBER]
     miso = spi[CONF_MISO_PIN][CONF_NUMBER] if CONF_MISO_PIN in spi else None
     mosi = spi[CONF_MOSI_PIN][CONF_NUMBER] if CONF_MOSI_PIN in spi else None
@@ -508,6 +505,7 @@ async def to_code(configs):
     cg.add_global(spi_ns.using)
     if CORE.using_arduino and not CORE.is_esp32:
         cg.add_library("SPI", None)
+    resolved_zephyr_buses: set[str] = set()
     for spi in configs:
         var = cg.new_Pvariable(spi[CONF_ID])
         await cg.register_component(var, spi)
@@ -521,7 +519,7 @@ async def to_code(configs):
             cg.add(var.set_data_pins(data_pins))
         if (index := spi.get(CONF_INTERFACE_INDEX)) is not None:
             if CORE.is_zephyr:
-                interface, bus_label = _zephyr_setup_spi(spi)
+                interface, bus_label = _zephyr_setup_spi(spi, resolved_zephyr_buses)
                 cg.add(var.set_interface(cg.RawExpression(interface)))
                 cg.add(var.set_interface_name(bus_label))
             else:
