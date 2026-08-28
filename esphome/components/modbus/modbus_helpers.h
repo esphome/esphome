@@ -453,7 +453,7 @@ constexpr uint32_t registers_to_uint32(uint16_t high_word, uint16_t low_word) {
   return (static_cast<uint32_t>(high_word) << 16) | low_word;
 }
 
-/// Registers occupied by a value of the given type; 0 for types with no fixed width.
+/// Registers occupied by a value of the given type; 0 for RAW and BIT, which have no fixed width.
 constexpr uint8_t registers_for_value_type(SensorValueType value_type) {
   switch (value_type) {
     case SensorValueType::U_WORD:
@@ -468,6 +468,11 @@ constexpr uint8_t registers_for_value_type(SensorValueType value_type) {
     case SensorValueType::FP32:
     case SensorValueType::FP32_R:
       return 2;
+    case SensorValueType::U_QWORD:
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD:
+    case SensorValueType::S_QWORD_R:
+      return 4;
     default:
       return 0;
   }
