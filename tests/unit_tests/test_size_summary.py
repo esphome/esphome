@@ -28,22 +28,26 @@ def _write_partitions(tmp_path: Path) -> Path:
     return out
 
 
-def _write_elf(tmp_path: Path, sections: list[tuple[int, int, int]]) -> Path:
+def _write_elf(
+    tmp_path: Path,
+    sections: list[tuple[int, int, int]],
+    shentsize: int = 40,
+    truncate: int | None = None,
+) -> Path:
     """Write a minimal ELF32 LE whose section headers carry the given
     (sh_type, sh_flags, sh_size) triples."""
-    header = bytearray(52)
-    header[0:4] = b"\x7fELF"
-    header[4] = header[5] = 1  # 32-bit, little-endian
-    struct.pack_into("<I", header, 0x20, 52)  # e_shoff
-    struct.pack_into("<HH", header, 0x2E, 40, len(sections))
-    out = bytearray(header)
+    out = bytearray(52)
+    out[0:4] = b"\x7fELF"
+    out[4] = out[5] = 1  # 32-bit, little-endian
+    struct.pack_into("<I", out, 0x20, 52)  # e_shoff
+    struct.pack_into("<HH", out, 0x2E, shentsize, len(sections))
     for sh_type, sh_flags, sh_size in sections:
         shdr = bytearray(40)
         struct.pack_into("<II", shdr, 4, sh_type, sh_flags)
         struct.pack_into("<I", shdr, 20, sh_size)
         out += shdr
     elf = tmp_path / "firmware.elf"
-    elf.write_bytes(bytes(out))
+    elf.write_bytes(out if truncate is None else out[:truncate])
     return elf
 
 
@@ -111,8 +115,8 @@ def _s3_size_data() -> dict:
 
 
 def _print_summary_ram_only(tmp_path: Path, size_json: Path) -> None:
-    """Call print_summary with no partitions.csv or firmware bin on disk."""
-    print_summary(size_json, tmp_path / "partitions.csv", tmp_path / "firmware.bin")
+    """Call print_summary with no partitions.csv or ELF on disk."""
+    print_summary(size_json, tmp_path / "partitions.csv", tmp_path / "firmware.elf")
 
 
 def test_print_summary_esp32_uses_dram(
@@ -203,19 +207,32 @@ def test_print_summary_flash_line_derives_from_elf(
     assert "(used 724215 bytes from 1835008 bytes)" in out
 
 
-@pytest.mark.parametrize("problem", ["missing_elf", "not_an_elf", "missing_partitions"])
+@pytest.mark.parametrize(
+    "problem",
+    [
+        "missing_elf",
+        "not_an_elf",
+        "bad_shentsize",
+        "truncated_table",
+        "missing_partitions",
+    ],
+)
 def test_print_summary_skips_flash_on_bad_input(
     problem: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """An unusable ELF or missing partitions.csv skips the Flash line, not the RAM line."""
     size_json = _write_size_json(tmp_path, _s3_size_data())
     firmware_elf = tmp_path / "firmware.elf"
-    if problem == "missing_partitions":
-        _write_elf(tmp_path, [(1, 0x2, 1024)])
-    else:
+    if problem != "missing_partitions":
         _write_partitions(tmp_path)
-        if problem == "not_an_elf":
-            firmware_elf.write_bytes(b"junk")
+    if problem == "not_an_elf":
+        firmware_elf.write_bytes(b"junk")
+    elif problem == "bad_shentsize":
+        _write_elf(tmp_path, [(1, 0x2, 1024)], shentsize=0)
+    elif problem == "truncated_table":
+        _write_elf(tmp_path, [(1, 0x2, 1024)], truncate=60)
+    elif problem == "missing_partitions":
+        _write_elf(tmp_path, [(1, 0x2, 1024)])
     print_summary(size_json, tmp_path / "partitions.csv", firmware_elf)
     out = capsys.readouterr().out
     assert "RAM:" in out

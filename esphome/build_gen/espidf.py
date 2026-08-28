@@ -92,7 +92,9 @@ def get_project_cmakelists(
 
     # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
     # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
-    # --format=json2 because the legacy mode doesn't support it.
+    # --format=json2 because the legacy mode doesn't support it. 1.x json2
+    # also lacks total_size, which is why espidf/size_summary.py carries an
+    # ELF fallback; both go away together when 1.x support is dropped.
     size_ng_flag = "--ng" if idf_version() < cv.Version(6, 0, 0) else ""
 
     # Project-wide compile options: -D defines and -W warning flags (skip

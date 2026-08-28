@@ -655,7 +655,7 @@ def test_run_compile_passes_size_summary_paths(setup_core: Path) -> None:
     mock_summary.assert_called_once_with(
         CORE.relative_build_path("build", "esp_idf_size.json"),
         CORE.relative_build_path("partitions.csv"),
-        toolchain.get_built_elf_path(),
+        CORE.relative_build_path("build", f"{CORE.name}.elf"),
     )
 
 

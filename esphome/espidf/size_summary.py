@@ -11,11 +11,9 @@ byte-identical to PlatformIO's output:
 The format matches ``script/ci_memory_impact_extract.py`` so CI memory
 analysis works unchanged on native ESP-IDF builds. RAM usage comes from
 the DRAM (or unified DIRAM) region of the linker map. Flash used is the
-exact image size matching the ``Total image size`` line: the json2
-``total_size`` field when present (esp-idf-size >= 2.1); older 1.x
-json2 lacks it, so we derive the same figure from the ELF by summing
-loadable PROGBITS sections, the rule esp_idf_size itself uses.
-Flash total is taken from
+exact image size matching the ``Total image size`` line: json2
+``total_size`` when present, otherwise derived from the ELF (see
+``_image_size_from_elf``). Flash total is taken from
 ``partitions.csv`` using PlatformIO's rule (first app partition whose
 subtype is ``factory`` or ``ota_0``; see
 ``platform-espressif32/builder/main.py::_update_max_upload_size``).
@@ -82,20 +80,29 @@ def _image_size_from_elf(elf: Path) -> int:
 
     This is the rule ``esp_idf_size.ng.memorymap._get_image_size`` uses for
     its image size figure, so the result is byte-identical to the tool's.
-    Raises ``ValueError`` if the file is not a 32-bit little-endian ELF.
+    esptool's ``ELFFile`` is deliberately not reused: its section filter
+    differs (counts INIT/FINI arrays, skips lma==0 sections) and would
+    report a different number. Reads only the header and section table,
+    not the multi-MB debug payload. Raises ``ValueError`` for anything
+    that is not a well-formed 32-bit little-endian ELF.
     """
-    data = elf.read_bytes()
-    if len(data) < 52 or data[:4] != b"\x7fELF" or data[4] != 1 or data[5] != 1:
-        raise ValueError(f"{elf} is not a 32-bit little-endian ELF")
-    (e_shoff,) = struct.unpack_from("<I", data, 0x20)
-    e_shentsize, e_shnum = struct.unpack_from("<HH", data, 0x2E)
+    with elf.open("rb") as f:
+        header = f.read(52)  # ELF32 header
+        if len(header) < 52 or header[:6] != b"\x7fELF\x01\x01":
+            raise ValueError(f"{elf} is not a 32-bit little-endian ELF")
+        (e_shoff,) = struct.unpack_from("<I", header, 0x20)  # e_shoff
+        e_shentsize, e_shnum = struct.unpack_from("<HH", header, 0x2E)
+        if e_shentsize < 40:  # sizeof(Elf32_Shdr)
+            raise ValueError(f"{elf} has an invalid section header size")
+        f.seek(e_shoff)
+        table = f.read(e_shnum * e_shentsize)
+    if len(table) < e_shnum * e_shentsize:
+        raise ValueError(f"{elf} has a truncated section header table")
     total = 0
-    for i in range(e_shnum):
-        off = e_shoff + i * e_shentsize
-        sh_type, sh_flags = struct.unpack_from("<II", data, off + 4)
-        (sh_size,) = struct.unpack_from("<I", data, off + 20)
-        # SHT_PROGBITS with SHF_ALLOC: sections with data that occupy memory
-        if sh_size and sh_type == 1 and sh_flags & 0x2:
+    for off in range(0, e_shnum * e_shentsize, e_shentsize):
+        sh_type, sh_flags = struct.unpack_from("<II", table, off + 4)
+        (sh_size,) = struct.unpack_from("<I", table, off + 20)
+        if sh_type == 1 and sh_flags & 0x2:  # SHT_PROGBITS with SHF_ALLOC
             total += sh_size
     return total
 
@@ -125,6 +132,8 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
     ram_total = ram_region.get("total")
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
+    else:
+        _LOGGER.debug("Skipping RAM summary: no DRAM/DIRAM region in %s", size_json)
 
     # esp-idf-size >= 2.1 (IDF >= 6.0) reports the exact image size in
     # json2; older 1.x omits it, so derive the same figure from the ELF.
@@ -133,7 +142,12 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
         if flash_used is None:
             flash_used = _image_size_from_elf(firmware_elf)
         app_size = _find_app_partition_size(partitions_csv)
-    except (OSError, ValueError, struct.error) as e:
+    except FileNotFoundError as e:
+        # The ELF must exist after a successful build; a missing
+        # partitions.csv raises ValueError and stays at debug level.
+        _LOGGER.warning("Skipping Flash summary: %s", e)
+        return
+    except (OSError, ValueError) as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
     print_size_line("Flash", flash_used, app_size)
