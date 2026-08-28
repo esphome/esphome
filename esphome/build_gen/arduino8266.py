@@ -27,7 +27,6 @@ import sys
 from typing import TYPE_CHECKING, NamedTuple
 
 from esphome.arduino8266.framework import toolchain_tool
-from esphome.build_helpers.ccache import effective_ccache_basedir
 from esphome.build_helpers.idedata import is_joined_include
 from esphome.build_helpers.ninja import (
     escape as _e,
@@ -37,13 +36,14 @@ from esphome.build_helpers.ninja import (
 from esphome.build_helpers.pch import (
     PCH_CORE_HEADER,
     PCH_HEADER_NAME,
+    log_pch_in_use,
     mark_pch_emitted,
-    pch_checksum,
     pch_consumer_escalation,
     pch_degraded,
     pch_disabled_degraded,
     pch_enabled,
     pch_header_text,
+    pch_identity,
     pch_probe_args,
     pch_strict,
 )
@@ -1243,39 +1243,21 @@ def write_project(paths: InstalledPaths, ccache: str | None) -> bool:
         pch_header = build_dir / PCH_HEADER_NAME
         pch_includes = (*src_includes, PCH_CORE_HEADER)
         pch_text = pch_header_text(pch_includes)
-        checksum = None
-        try:
-            if ccache:
-                # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
-                # handles staleness. Strip resolved and raw build paths
-                # (symlinks) so identical configs share cache entries
-                flags_id = (
-                    " ".join(cxxflags)
-                    .replace(effective_ccache_basedir(), "")
-                    .replace(str(CORE.build_path), "")
-                )
-                # The header text covers include order
-                checksum = pch_checksum(
-                    src_dir,
-                    pch_includes,
-                    (
-                        pch_text,
-                        str(paths.framework),
-                        str(paths.toolchain),
-                        flags_id,
-                    ),
-                )
-        except (OSError, UnicodeError) as err:
-            # Identity unknown: a stale cache entry must never be served
-            _LOGGER.warning(
-                "Could not establish the pch identity; compiling without it: %s", err
+        # The .sum exists only for CCACHE_PCH_EXTSUM; ninja's depfile
+        # handles staleness
+        checksum = (
+            pch_identity(
+                cxxflags,
+                src_dir,
+                pch_includes,
+                (str(paths.framework), str(paths.toolchain)),
             )
-            pch_degraded(f"identity unknown: {err}")
-        else:
-            _LOGGER.info(
-                "Compiling with a precompiled header "
-                "(set ESPHOME_PCH_ENABLE=0 to disable)"
-            )
+            if ccache
+            else None
+        )
+        # Identity unknown under ccache: pch_identity warned and degraded
+        if not ccache or checksum is not None:
+            log_pch_in_use()
             write_file_if_changed(pch_header, pch_text)
             sum_path = build_dir / f"{PCH_HEADER_NAME}.gch.sum"
             if checksum is not None:
