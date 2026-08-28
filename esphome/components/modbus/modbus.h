@@ -16,9 +16,8 @@
 
 namespace esphome::modbus {
 
-// Tx queue backstop against a runaway generator of distinct frames (e.g. a loop writing a changing
-// value) growing the heap unboundedly. Duplicate frames dedup into one entry, so a sane config never
-// approaches this.
+// Tx queue backstop: duplicates dedup into one entry, so only a runaway generator of distinct frames
+// (e.g. a loop writing a changing value) could grow the heap unboundedly.
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
 static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
@@ -27,9 +26,8 @@ static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 static constexpr uint16_t MODBUS_FRAME_INLINE_SIZE = 8;
 
 struct ModbusFrame {
-  // Frame held in a small-buffer-optimized buffer. Typical frames fit inline; only larger
-  // multi-register or custom frames spill to a single heap allocation. This keeps the common,
-  // high-frequency tx traffic off the heap entirely, avoiding per-frame alloc/free churn.
+  // Small-buffer-optimized: typical frames fit inline, keeping high-frequency tx traffic off the
+  // heap; only large multi-register or custom frames spill to a single heap allocation.
   SmallInlineBuffer<MODBUS_FRAME_INLINE_SIZE> data;
 
   // A frame is [address][PDU...][CRC lo][CRC hi]. These are the only places that need to know that layout
@@ -69,12 +67,7 @@ class Modbus : public uart::UARTDevice, public Component {
   bool parse_modbus_server_frame_();
   virtual void process_modbus_server_frame(uint8_t address, std::span<const uint8_t> pdu) = 0;
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
-  // Transmit a frame. Callers gate on tx_blocked() first, but the pre-send delay can span several ms,
-  // so this re-checks after the delay and returns false without transmitting if a byte arrived in that
-  // window (the caller then leaves its entry to retry). Returns true once the frame has been transmitted.
   bool send_frame_(const ModbusFrame &frame);
-  // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
-  // Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
   uint16_t find_frame_end_by_crc_(uint16_t min_length) const;
 
   uint32_t last_modbus_byte_{0};
@@ -92,8 +85,7 @@ class Modbus : public uart::UARTDevice, public Component {
 class ModbusClientDevice;
 class ModbusServerDevice;
 
-// Transmit ordering, highest first: writes before one-shot reads before continuous polls. Derived
-// at selection time, never caller-chosen or stored.
+// Transmit ordering, highest first: writes before one-shot reads before continuous polls.
 enum class CommandPriority : uint8_t { CONTINUOUS = 0, READ, WRITE };
 
 // Per-entry lifecycle state. Waiting states (see waiting_state()) hold the bus; the sweep delivers owed
@@ -105,19 +97,15 @@ enum class FrameState : uint8_t {
   RECEIVED_EXCEPTION,
   TIMED_OUT,            // on_no_response delivered at the send-wait timeout; awaiting reschedule/erase
   INTERRUPTED,          // unexpected frame arrived; ignores this transaction, waits out the timeout
-  WAITING_RETIRED,      // cleared while WAITING: a late response is still delivered as its usual terminal
-  INTERRUPTED_RETIRED,  // cleared while INTERRUPTED: still distrusts late frames, ends in on_no_response
-  RETIRED,              // cleared, off the wire
+  WAITING_RETIRED,      // retired while WAITING: a late response is still delivered as its usual terminal
+  INTERRUPTED_RETIRED,  // retired while INTERRUPTED: still distrusts late frames, ends in on_no_response
+  RETIRED,              // retired, off the wire
 };
 
 // Per-command send options. Append-only; pass via designated initializers ({.continuous = true}).
-// The queue entry stores this struct whole, so a new field arrives at the queue with no plumbing -
-// but it arrives inert. Every new field must define three rules before it does anything:
-//   1. normalization in queue_pdu() (is it valid for this function code? e.g. continuous is
-//      stripped for mutating codes),
-//   2. a merge rule for when a duplicate send absorbs into a live entry (continuous
-//      upgrades/downgrades via make_continuous(); a new field needs its own answer),
-//   3. teardown: retire() and silent_retire() need to reset it to a safe value before deletion.
+// A new field reaches the queue with no plumbing but arrives inert until it defines three rules:
+// normalization in queue_pdu(), a merge rule for duplicate absorption, and teardown in
+// retire()/silent_retire().
 struct CommandOptions {
   // A continuous poll lives in the queue until cancelled or failed; ignored for mutating codes.
   bool continuous{false};
@@ -127,17 +115,13 @@ struct ModbusDeviceCommand {
   ModbusClientDevice *device;
   ModbusFrame frame;
   // Place-in-line stamp (hub's free-running counter); selection takes the oldest for round-robin
-  // fairness within a class. Meant to wrap. Declared ahead of the byte fields so the tail packs
-  // densely and a growing CommandOptions eats trailing padding before enlarging the struct.
+  // fairness within a class. Meant to wrap.
   uint16_t seq{0};
   FrameState state{FrameState::READY};
   // Accepted requests this entry stands for, capped at max_pending(); drains one terminal each.
   // A continuous poll is a subscription: pending fixed at 1, removed only by cancellation or failure.
   uint8_t pending{1};
-  // The entry's LIVE effective options, not a record of the caller's request: queue_pdu() normalizes
-  // before storing, duplicate absorption mutates continuous via make_continuous(), and retire() resets
-  // the struct (silent_retire() leaves it, relying on the sweep to erase the entry). See the
-  // CommandOptions comment for the rules a new field must define.
+  // The entry's LIVE effective options, not a record of the caller's request
   CommandOptions options;
 
   // Build a command from a PDU span (caller bounds it to MAX_PDU_SIZE) and pre-normalized options;
@@ -146,7 +130,6 @@ struct ModbusDeviceCommand {
                       CommandOptions options = {}, uint16_t seq = 0)
       : device(device), frame(address, pdu.data(), static_cast<uint16_t>(pdu.size())), seq(seq), options(options) {}
 
-  // Transmit ordering class: a continuous poll ranks below every one-shot.
   CommandPriority priority() const {
     if (this->options.continuous)
       return CommandPriority::CONTINUOUS;
@@ -156,13 +139,13 @@ struct ModbusDeviceCommand {
     return CommandPriority::READ;
   }
 
-  // Requests this entry can serve: a standard read twice (run plus one re-run), everything else once.
+  // Requests this entry can serve
   uint8_t max_pending() const {
     const uint8_t fc = this->frame.pdu()[0];
     return (helpers::is_function_code_read_only(fc) && !this->options.continuous) ? 2 : 1;
   }
-  // Device-scoped clear: detach with no callback (device-less, pending 0). An entry still waiting for
-  // a response keeps its state as a reply-ignoring shell that resolves silently; any other goes RETIRED.
+  // Device-scoped clear: detach with no callback. An entry still waiting for a response keeps its state as a
+  // reply-ignoring shell that resolves silently; any other goes RETIRED.
   void silent_retire() {
     if (!this->waiting_state())
       this->state = FrameState::RETIRED;
@@ -170,15 +153,12 @@ struct ModbusDeviceCommand {
     this->device = nullptr;
   }
   // Fire-and-forget completion for a broadcast (address 0): the frame was transmitted (on_sent already
-  // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with NO terminal
-  // callback and the sweep erases it. Unlike response()/error()/timed_out(), it delivers nothing.
-  // A broadcast only carries a write or a custom code (reads are refused at queue_pdu()), and every such
-  // code caps pending at 1, so pending is always 1 here - clear it.
+  // fired), but a broadcast is never answered (Modbus 4.1), so the entry retires with no terminal callback.
   void complete_broadcast() {
     this->state = FrameState::RETIRED;
     this->pending = 0;
   }
-  // Re-ready for another transmission, restamped to the tail of its class (hub passes next_seq_++).
+  // Re-ready for another transmission, restamped to the tail of its class
   void requeue(uint16_t seq) {
     this->state = FrameState::READY;
     this->seq = seq;
@@ -196,9 +176,7 @@ struct ModbusDeviceCommand {
   }
   // Address-scoped clear: keep pending and device so the sweep delivers one on_not_sent() per un-delivered
   // request. An entry still waiting for a response keeps its in-flight request (whose usual terminal is
-  // still coming) and drains only its duplicates: WAITING -> WAITING_RETIRED, and INTERRUPTED ->
-  // INTERRUPTED_RETIRED which keeps distrusting late frames (they were already interrupted). Any other
-  // state -> RETIRED, draining everything.
+  // still coming) and drains only its duplicates.
   void retire() {
     if (this->state == FrameState::WAITING) {
       this->state = FrameState::WAITING_RETIRED;
@@ -233,7 +211,7 @@ struct ModbusDeviceCommand {
   }
 
   // Terminal/lifecycle methods: each owns its transition, callback, and pending accounting and
-  // returns whether a callback ran. Out-of-line: ModbusClientDevice is incomplete here.
+  // returns whether a callback ran.
   bool sent();
   bool response(std::span<const uint8_t> response_pdu);
   bool error(ExceptionCode exception_code);
@@ -266,16 +244,13 @@ class ModbusClientHub : public Modbus {
                                                payload_len),
                     device);
   };
-  /// Queue a request. The frame is appended to the tx queue and goes out later from loop(), so a true return
-  /// means accepted into the machine (it will resolve in exactly one terminal callback - except a broadcast
-  /// (address 0), which is never answered and so gets only on_sent()), NOT that anything reached the wire -
-  /// that is on_sent(). False means it never entered the machine at all (various rejection reasons) and no
-  /// callback of any kind will follow.
+  /// Queue a request. True = accepted: it resolves in exactly one terminal callback (a broadcast,
+  /// address 0, gets only on_sent()). False = refused, and no callback of any kind follows.
+  /// Neither means anything reached the wire - on_sent() reports that.
   bool queue_pdu(uint8_t address, std::span<const uint8_t> pdu, ModbusClientDevice *device = nullptr,
                  CommandOptions options = {});
-  // Remove before 2027.2.0. Deliberately the signature 2026.7.4 shipped - void, and no CommandOptions:
-  // the bool return and the options argument arrived after that release, so nothing external can be
-  // relying on them under this name. Callers who want the queued/refused answer move to queue_pdu().
+  // Remove before 2027.2.0. Deliberately the void, no-options signature 2026.7.4 shipped: nothing
+  // external can rely on the later additions under this name.
   ESPDEPRECATED("Use queue_pdu() instead - the call queues a request, it does not send one, and it "
                 "reports whether the request was accepted. Removed in 2027.2.0",
                 "2026.8.0")
@@ -284,9 +259,10 @@ class ModbusClientHub : public Modbus {
   }
   ESPDEPRECATED("Use queue_pdu(payload[0], <pdu bytes>, device) instead. Removed in 2027.2.0", "2026.8.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr);
-  // Clear an address's commands; each unsent request resolves via on_not_sent(), but a frame on the
-  // wire still runs to its usual terminal. clear_tx_queue_for_device() instead discards silently.
+  // Clear all commands matching the given address; each unsent request resolves via on_not_sent(), but a
+  // frame on the wire still runs to its usual terminal.
   void clear_tx_queue_for_address(uint8_t address);
+  // Clear all commands for a given device; no callbacks are delivered.
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
  protected:
@@ -322,12 +298,10 @@ class ModbusClientHub : public Modbus {
 // Transaction status: std::nullopt on success, otherwise a Modbus exception code
 using ResponseStatus = std::optional<ExceptionCode>;
 
-/// True when a transaction carried no exception. The optional holds the exception, so has_value() means the
-/// request FAILED. Prefer this at the call site unless the code is going to unwrap the exception anyway
-/// (where status.has_value() followed by status.value() stays clearer).
+/// True when a transaction carried no exception.
 inline bool succeeded(ResponseStatus status) { return !status.has_value(); }
 
-// Register values exchanged with server handlers, in host byte order. Sized at the larger of the two protocol
+// Register values exchanged with server handlers, in address order. Sized at the larger of the two protocol
 // maxima (read = 125 / 0x7D, write = 123 / 0x7B); the per-direction count limit is enforced by the hub, not by
 // the capacity of this type.
 using RegisterValues = StaticVector<uint16_t, MAX_NUM_OF_REGISTERS_TO_READ>;
@@ -345,58 +319,45 @@ class ModbusServerHub : public Modbus {
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, std::span<const uint8_t> data);
   // Dispatches a broadcast (address 0) write to every registered device; broadcasts are never answered.
   void process_broadcast_frame_(uint8_t function_code, std::span<const uint8_t> data);
-  // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the host-order register
-  // values, validating the register count and address range. Returns std::nullopt on success, otherwise the Modbus
-  // exception code describing the failure. Shared by unicast writes (which reply with the exception) and broadcast
-  // writes (which silently drop invalid frames).
+  // Parses a WRITE_SINGLE_REGISTER / WRITE_MULTIPLE_REGISTERS PDU into start_address and the address order register
+  // values, validating the register count and address range. Shared by unicast and broadcast writes.
   ResponseStatus parse_write_single_(std::span<const uint8_t> data, uint16_t &start_address, RegisterValues &registers);
   ResponseStatus parse_write_multiple_(std::span<const uint8_t> data, uint16_t &start_address,
                                        RegisterValues &registers);
-  // Appends the big-endian register values in values to registers, in host byte order.
+  // Assembles host-order registers from the big-endian bytes in values and appends them to registers.
   void assemble_registers_(std::span<const uint8_t> values, RegisterValues &registers);
   ModbusServerDevice *find_device_(uint8_t address);
-  // Returns std::nullopt if [start_address, start_address + count) fits in the 16-bit address space,
-  // otherwise ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required - a broadcast
-  // write is never answered, so the check cannot send it itself. Shared by the register and
-  // coil/discrete-input handlers, which all address the same 16-bit space.
+  // Returns std::nullopt if [start_address, start_address + count) fits in a 16-bit address space, otherwise
+  // ILLEGAL_DATA_ADDRESS. The caller sends the exception reply if one is required. Shared by the
+  // register/coil/discrete-input handlers, which all use a 16-bit address space.
   ResponseStatus check_address_range_(uint16_t start_address, uint16_t count);
 
-  // Parses a read request PDU (start address(2) + quantity(2)), shared by the register and
-  // coil/discrete-input reads so the two cannot drift apart. max_entities is the protocol ceiling for the
-  // function code; entity_name only labels the rejection log.
+  // Parses read request data. max_entities is the protocol ceiling for the function code; entity_name labels
+  // the rejection log.
   ResponseStatus parse_read_request_(std::span<const uint8_t> data, uint16_t max_entities, const LogString *entity_name,
                                      uint16_t &start_address, uint16_t &count);
 
-  // Parses a single-coil write PDU (FC 0x05), which carries a 2-byte on/off value rather than packed
-  // bytes. The caller packs value into a byte it owns to build the PackedBits view the handlers take.
+  // Parses single-coil write data
   ResponseStatus parse_write_single_coil_(std::span<const uint8_t> data, uint16_t &start_address, bool &value);
 
-  // Parses a multiple-coil write PDU (FC 0x0F) into a packed-bit view pointing straight into the receive
-  // buffer, so the coil values are never copied. Both coil parsers are shared by the addressed and
-  // broadcast paths so the two validate identically.
+  // Parses write-multiple-coil data into a packed-bit view pointing straight into the receive buffer, so the
+  // coil values are never copied.
   ResponseStatus parse_write_multiple_coils_(std::span<const uint8_t> data, uint16_t &start_address, uint16_t &count,
                                              std::span<const uint8_t> &packed_bytes);
 
-  // Builds the body of a register read response (byte count followed by the big-endian register values) into
-  // response_buffer. Shared by every function code that answers with register values, so the read reply stays
-  // identical across them. Returns false once an exception has been sent: the one the handler reported via
-  // status, or SERVICE_DEVICE_FAILURE if it returned the wrong number of registers, the count exceeds the
-  // protocol read limit, or the body does not fit.
+  // Builds the body of a register read response into response_buffer. Returns false once an exception has
+  // been sent: the one the handler reported via status, or SERVICE_DEVICE_FAILURE if it returned the wrong
+  // number of registers, the count exceeds the protocol read limit, or the body does not fit.
   bool build_or_reject_read_response_(uint8_t address, uint8_t function_code, ResponseStatus status,
                                       uint16_t number_of_registers, const RegisterValues &registers,
                                       std::span<uint8_t> response_buffer, uint16_t &response_len);
   void send_raw_(const uint8_t *payload, uint16_t len);
   // Sends and logs the exception reply when status holds one; returns true if the request was rejected.
-  // Every parse and handler rejection funnels through here, so the reply and its log cannot drift apart.
   bool rejected_(uint8_t address, uint8_t function_code, ResponseStatus status);
   void send_exception_(uint8_t address, uint8_t function_code, ExceptionCode exception_code);
   void send_response_(uint8_t address, uint8_t function_code, const uint8_t *payload, uint16_t payload_len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
-
-  // Stamp of the last "broadcast reached no device" warning, 0 until the first one is logged. Rate limiting
-  // on time rather than on address keeps the log bounded no matter how many addresses a shared bus carries.
-  uint32_t last_unaccepted_broadcast_warn_{0};
 
   // Holds the raw payload of a single reply deferred for sending when tx was blocked at send time.
   // Only one server reply can be waiting at once, so a single fixed buffer avoids heap allocation.
@@ -527,10 +488,7 @@ class ModbusClientDevice {
         helpers::create_client_pdu((FunctionCode) function, start_address, number_of_entities, payload, payload_len),
         this);
   }
-  /// See ModbusClientHub::queue_pdu(): true = accepted into the queue and a terminal callback will
-  /// follow (except a broadcast (address 0), which is never answered and so gets only on_sent()),
-  /// false = refused at the door and nothing further happens. Neither means the frame is on the wire;
-  /// on_sent() reports that.
+  /// See ModbusClientHub::queue_pdu() for the return contract.
   bool queue_pdu(std::span<const uint8_t> pdu, CommandOptions options = {}) {
     return this->parent_->queue_pdu(this->address_, pdu, this, options);
   }
@@ -545,11 +503,8 @@ class ModbusClientDevice {
       return;  // too short to contain a PDU; refused at the door like any invalid send
     this->parent_->queue_pdu(payload[0], std::span<const uint8_t>(payload).subspan(1), this);
   }
-  // The typed request builders below all queue through queue_pdu(), so they share its contract: true
-  // means the request is queued and will resolve in exactly one terminal callback (except a broadcast
-  // (address 0), which is never answered and so gets only on_sent()), false means it was refused outright
-  // with no callback. Neither says the frame has been transmitted - on_sent() does.
-  // Reads via the table-appropriate function code; an unreadable entity type maps to INVALID, which
+  // The typed request builders below all queue through queue_pdu() and share its return contract.
+  // Reads use the table-appropriate function code; an unreadable entity type maps to INVALID, which
   // create_read_pdu() rejects into an empty PDU and queue_pdu() refuses with a false return.
   bool read_entities(EntityType entity_type, uint16_t start_address, uint16_t number_of_entities,
                      CommandOptions options = {}) {
@@ -591,11 +546,9 @@ class ModbusClientDevice {
   bool write_multiple_coils(uint16_t start_address, PackedBits bits) {
     return this->queue_pdu(helpers::create_write_coils_pdu(start_address, bits));
   }
-  /// FC 0x17: the read-back is delivered through on_read_holding_registers() (the response carries only the
-  /// read registers, the same wire shape as a holding-register read). A device exception - typically a
-  /// rejected write half - arrives at that same on_read_holding_registers() with the error in its status,
-  /// exactly as success does, so a subclass overriding that one callback handles both outcomes and never
-  /// needs to also override on_error().
+  /// FC 0x17: the read-back is delivered through on_read_holding_registers(), and a device exception
+  /// (typically a rejected write half) arrives there too via its status - one callback handles both
+  /// outcomes with no on_error() override needed.
   bool read_write_multiple_registers(uint16_t read_start_address, uint16_t read_count, uint16_t write_start_address,
                                      std::span<const uint16_t> write_values) {
     return this->queue_pdu(helpers::create_read_write_multiple_registers_pdu(read_start_address, read_count,
@@ -616,12 +569,9 @@ class ModbusClientDevice {
   bool custom_response_warned_{false};  // first unhandled custom response warns; repeats log at VERBOSE
 };
 
-// Compatibility shim for external components written against the pre-2026.8 API, which subclassed
-// ModbusDevice and overrode on_modbus_data()/on_modbus_error(). The name is free (nothing in-tree
-// uses it), so instead of a plain alias it adapts the new span-based hooks back to the old
-// signatures: on_modbus_data() receives the response payload as an owning vector (the heap copy
-// exists only on this deprecated path) and on_modbus_error() the function code and exception code.
-// Remove before 2027.2.0 (window restarted when the plain alias became a behavior shim in 2026.8.0)
+// Compatibility shim adapting the span-based hooks back to the pre-2026.8 on_modbus_data()/
+// on_modbus_error() signatures (the owning-vector heap copy exists only on this deprecated path).
+// Remove before 2027.2.0 (window restarted when the plain alias became a behavior shim in 2026.8.0).
 class ESPDEPRECATED("Subclass ModbusClientDevice and override on_response()/on_error() instead. Removed in 2027.2.0",
                     "2026.8.0") ModbusDevice : public ModbusClientDevice {
  public:

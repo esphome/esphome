@@ -16,9 +16,6 @@ static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
 static constexpr uint32_t MS_PER_SEC = 1000;
 
-// Shortest gap between two "no device accepted broadcast" warnings
-static constexpr uint32_t UNACCEPTED_BROADCAST_WARN_INTERVAL_MS = 60 * MS_PER_SEC;
-
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
@@ -99,11 +96,8 @@ bool Modbus::timeout_() {
 }
 
 int32_t Modbus::tx_delay_remaining() {
-  // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
-  // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
-  // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
-  // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
-  // So in this component we don't use any cached timestamp values to avoid these annoying bugs
+  // millis() here and everywhere in this component, never a cached loop timestamp: a cached "now" can
+  // predate last_modbus_byte_, and the unsigned subtraction then wraps huge and forces a false timeout.
   const uint32_t now = millis();
   return std::max({(int32_t) 0,
                    (int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ - (now - this->last_send_)),
@@ -119,22 +113,13 @@ int32_t ModbusClientHub::tx_delay_remaining() {
 }
 
 bool Modbus::tx_blocked() {
-  // We block transmission in any of these cases:
-  // 1. There are bytes in the UART Rx buffer
-  // 2. There are bytes in our Rx buffer
-  // 3. The last sent byte isn't more than tx_delay ms ago (i.e. wait to tell receivers that our previous Tx is done)
-  // 4. The last received byte isn't more than tx_delay ms ago (i.e. wait to be sure there isn't more Rx coming)
-  // N.B. We allow a small delay (MODBUS_TX_MAX_DELAY_MS) to avoid looping on small delays. This gets handled by
-  // send_frame_.
+  // Blocked while any rx bytes are pending, or within tx_delay of the last byte in either direction
+  // (receivers must see our previous tx as done, and more rx may be coming). A remaining delay up to
+  // MODBUS_TX_MAX_DELAY_MS doesn't block - send_frame_ absorbs it instead of looping on small waits.
   return this->available() || !this->rx_buffer_.empty() || this->tx_delay_remaining() > MODBUS_TX_MAX_DELAY_MS;
 }
 
-bool ModbusClientHub::tx_blocked() {
-  // We block transmission in any of these cases:
-  // 1. We're waiting for a response (a waiting entry: WAITING/INTERRUPTED/WAITING_RETIRED/INTERRUPTED_RETIRED)
-  // 2. Any of the base class tx_blocked conditions
-  return this->waiting_for_response_ || this->Modbus::tx_blocked();
-}
+bool ModbusClientHub::tx_blocked() { return this->waiting_for_response_ || this->Modbus::tx_blocked(); }
 
 bool ModbusClientHub::tx_buffer_empty() {
   // "Empty" for ready_for_immediate_send(): no one-shot is queued ahead of the caller. Entries in
@@ -214,10 +199,9 @@ void ModbusServerHub::parse_modbus_frames() {
     this->clear_rx_buffer_(LOG_STR("timeout after partial response"), true);
 }
 
+// Scans forward from min_length to find a frame boundary by CRC match for unknown-length function codes.
+// Returns the matched frame length, or 0 if no valid CRC was found within MAX_FRAME_SIZE.
 uint16_t Modbus::find_frame_end_by_crc_(uint16_t min_length) const {
-  // Unknown-length functions (user-defined codes, unimplemented management codes, unassigned values)
-  // could be any length - we have to rely on the CRC to determine completeness.
-  // If a CRC match is never found, the buffer will eventually overflow and be cleared.
   const uint8_t *raw = &this->rx_buffer_[0];
   const size_t size = this->rx_buffer_.size();
   const auto max_len = static_cast<uint16_t>(std::min(size, size_t(MAX_FRAME_SIZE)));
@@ -526,8 +510,7 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     return;
   }
   // A broadcast is never answered, so a rejecting device has no other feedback channel: report the
-  // per-device outcome at V, and warn if the write reached nobody at all.
-  bool accepted = false;
+  // per-device outcome at V.
   for (auto *device : this->devices_) {
     // Same handlers as an addressed write - a device cannot tell a broadcast apart, and does not need
     // to: the hub owns the difference, which is only that no reply is ever sent.
@@ -537,24 +520,6 @@ void ModbusServerHub::process_broadcast_frame_(uint8_t function_code, std::span<
     if (device_status.has_value()) {
       ESP_LOGV(TAG, "Device %" PRIu8 " rejected broadcast write with exception %" PRIu8, device->get_address(),
                static_cast<uint8_t>(device_status.value()));
-    } else {
-      accepted = true;
-    }
-  }
-  if (!accepted && !this->devices_.empty()) {
-    const uint16_t entity_count = coils ? coil_count : static_cast<uint16_t>(registers.size());
-    const LogString *const entity_name = coils ? LOG_STR("coils") : LOG_STR("registers");
-    // Warn at most once per interval, then drop to VERBOSE: on a shared bus a broadcast aimed at other nodes
-    // repeats forever, so warning per frame would flood the log.
-    const uint32_t now = millis();
-    if (this->last_unaccepted_broadcast_warn_ == 0 ||
-        now - this->last_unaccepted_broadcast_warn_ > UNACCEPTED_BROADCAST_WARN_INTERVAL_MS) {
-      this->last_unaccepted_broadcast_warn_ = now;
-      ESP_LOGW(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count,
-               LOG_STR_ARG(entity_name), start_address);
-    } else {
-      ESP_LOGV(TAG, "No device accepted broadcast write of %" PRIu16 " %s at 0x%04X", entity_count,
-               LOG_STR_ARG(entity_name), start_address);
     }
   }
 }
@@ -1056,9 +1021,8 @@ bool ModbusClientHub::queue_pdu(uint8_t address, std::span<const uint8_t> pdu, M
     return false;
   }
 
-  // A broadcast (address 0) is never answered (Modbus 4.1)
-  // Any function code known to read (including read-write) is rejected
-  // All other function codes (write, custom, unknown) are accepted, and the hub delivers them to all devices.
+  // A broadcast (address 0) is never answered (Modbus 4.1), so reading codes (including read-write)
+  // are refused; writes, custom, and unknown codes go to all devices.
   if (address == BROADCAST_ADDRESS && helpers::is_function_code_read(pdu[0])) {
     ESP_LOGW(TAG, "Broadcast refused for function 0x%X: a broadcast (address 0) is never answered", pdu[0]);
     return false;
