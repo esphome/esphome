@@ -211,6 +211,52 @@ def test_print_summary_flash_line_derives_from_elf(
     assert "(used 724215 bytes from 1835008 bytes)" in out
 
 
+@pytest.mark.parametrize(
+    "data",
+    [
+        pytest.param([1, 2], id="top_level_list"),
+        pytest.param({"version": "1.1", "layout": None}, id="layout_null"),
+        pytest.param({"version": "1.1", "layout": 7}, id="layout_scalar"),
+    ],
+)
+def test_print_summary_handles_unexpected_shapes(
+    data: object, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A foreign-schema size json degrades to a warning, never a traceback."""
+    size_json = _write_size_json(tmp_path, data)
+    _print_summary_ram_only(tmp_path, size_json)
+    assert capsys.readouterr().out == ""
+
+
+def test_print_summary_skips_flash_on_zero_app_partition(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A zero-size app partition skips the Flash line rather than printing
+    a from-0-bytes figure CI would record."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    partitions = tmp_path / "partitions.csv"
+    partitions.write_text(
+        "# name, type, subtype, offset, size, flags\napp0, app, ota_0, 0x10000, 0x0,\n"
+    )
+    print_summary(size_json, partitions, tmp_path / "firmware.elf")
+    out = capsys.readouterr().out
+    assert "Flash:" not in out
+
+
+def test_print_summary_skips_flash_on_unreadable_partitions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An unreadable partitions.csv is non-fatal."""
+    size_json = _write_size_json(tmp_path, _esp32_size_data())
+    partitions = _write_partitions(tmp_path)
+    partitions.chmod(0o000)
+    try:
+        print_summary(size_json, partitions, tmp_path / "firmware.elf")
+    finally:
+        partitions.chmod(0o644)
+    assert "Flash:" not in capsys.readouterr().out
+
+
 def test_print_summary_flash_falls_back_on_bad_total_size(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -119,10 +119,14 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
     except (OSError, json.JSONDecodeError) as e:
         _LOGGER.debug("Skipping size summary: %s", e)
         return
+    if not isinstance(data, dict):
+        _LOGGER.warning("Skipping size summary: unexpected json shape in %s", size_json)
+        return
 
+    layout = data.get("layout")
     regions = {
         entry.get("name"): entry
-        for entry in data.get("layout", [])
+        for entry in (layout if isinstance(layout, list) else [])
         if isinstance(entry, dict)
     }
     # Every chip has a DRAM or DIRAM region, so a warning here usually
@@ -154,7 +158,10 @@ def print_summary(size_json: Path, partitions_csv: Path, firmware_elf: Path) -> 
             return
     try:
         app_size = _find_app_partition_size(partitions_csv)
-    except ValueError as e:
+    except (OSError, ValueError) as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
+        return
+    if app_size <= 0:
+        _LOGGER.debug("Skipping Flash summary: app partition size is 0")
         return
     print_size_line("Flash", flash_used, app_size)
