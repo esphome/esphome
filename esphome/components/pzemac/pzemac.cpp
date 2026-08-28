@@ -34,13 +34,13 @@ void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uin
   };
 
   auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
-    constexpr auto VALUE_TYPE = modbus::helpers::SensorValueType::U_DWORD_R;
+    constexpr auto value_type = modbus::helpers::SensorValueType::U_DWORD_R;
     if (sensor == nullptr || reg < start_address)
       return;
     size_t offset = reg - start_address;
-    if (offset + modbus::helpers::registers_for_value_type(VALUE_TYPE) > registers.size())
+    if (offset + modbus::helpers::registers_for_value_type(value_type) > registers.size())
       return;
-    sensor->publish_state(modbus::helpers::registers_to_value<VALUE_TYPE>(registers.data() + offset) / divisor);
+    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) / divisor);
   };
 
   publish_1_register(this->voltage_sensor_, PZEM_REGISTER_VOLTAGE, 10.0f);
