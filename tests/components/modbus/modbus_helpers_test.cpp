@@ -426,6 +426,52 @@ TEST(ModbusHelpersTest, RegistersToNumberRejectsTruncatedMultiRegisterValue) {
   EXPECT_FALSE(registers_to_number(registers, 1, SensorValueType::U_DWORD).has_value());
 }
 
+// --- registers_to_value ----------------------------------------------------
+// The compile-time decoder must agree with the runtime one for every type it supports,
+// so the two implementations cannot drift apart.
+
+template<SensorValueType VALUE_TYPE> void expect_matches_registers_to_number(const uint16_t *registers) {
+  const auto expected = registers_to_number(registers, registers_for_value_type(VALUE_TYPE), VALUE_TYPE);
+  ASSERT_TRUE(expected.has_value()) << "value_type=" << static_cast<int>(VALUE_TYPE);
+  if constexpr (VALUE_TYPE == SensorValueType::FP32 || VALUE_TYPE == SensorValueType::FP32_R) {
+    EXPECT_FLOAT_EQ(registers_to_value<VALUE_TYPE>(registers), bit_cast<float>(static_cast<uint32_t>(*expected)))
+        << "value_type=" << static_cast<int>(VALUE_TYPE);
+  } else {
+    EXPECT_EQ(static_cast<int64_t>(registers_to_value<VALUE_TYPE>(registers)), *expected)
+        << "value_type=" << static_cast<int>(VALUE_TYPE);
+  }
+}
+
+TEST(ModbusHelpersTest, RegistersToValueMatchesRegistersToNumber) {
+  // A high bit in each word exercises sign handling and word order together.
+  const uint16_t registers[] = {0x8001, 0xFE02};
+  expect_matches_registers_to_number<SensorValueType::U_WORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_WORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::U_WORD_S>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_WORD_S>(registers);
+  expect_matches_registers_to_number<SensorValueType::U_DWORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::U_DWORD_R>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_DWORD>(registers);
+  expect_matches_registers_to_number<SensorValueType::S_DWORD_R>(registers);
+  expect_matches_registers_to_number<SensorValueType::FP32>(registers);
+  expect_matches_registers_to_number<SensorValueType::FP32_R>(registers);
+}
+
+TEST(ModbusHelpersTest, RegistersForValueTypeCoversEveryFixedWidthType) {
+  // Must agree with the widths the byte decoder requires, including the QWORD types.
+  EXPECT_EQ(registers_for_value_type(SensorValueType::U_WORD), 1);
+  EXPECT_EQ(registers_for_value_type(SensorValueType::S_WORD_S), 1);
+  EXPECT_EQ(registers_for_value_type(SensorValueType::U_DWORD_R), 2);
+  EXPECT_EQ(registers_for_value_type(SensorValueType::FP32_R), 2);
+  EXPECT_EQ(registers_for_value_type(SensorValueType::U_QWORD), 4);
+  EXPECT_EQ(registers_for_value_type(SensorValueType::S_QWORD_R), 4);
+  EXPECT_EQ(registers_for_value_type(SensorValueType::RAW), 0);
+}
+
+TEST(ModbusHelpersTest, RegistersToUint32CombinesWordsHighFirst) {
+  EXPECT_EQ(registers_to_uint32(0x1234, 0x5678), 0x12345678u);
+}
+
 // --- packed bit helpers ------------------------------------------------------
 
 TEST(ModbusHelpersTest, PackBitsAppendsToContainer) {
