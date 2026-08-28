@@ -63,6 +63,12 @@ TEST(ModbusClientFrameLength, TooShortReturnsMinimum) {
   EXPECT_EQ(client_frame_length(frame, 1), MIN_FRAME_SIZE);
 }
 
+TEST(ModbusClientFrameLength, ExceptionFlaggedIsTheExceptionShape) {
+  // Sized at 2 so an exception-flagged request fails its CRC at once instead of being scanned for.
+  const uint8_t exception_request[] = {0x83, 0x02};
+  EXPECT_EQ(client_pdu_length(exception_request, sizeof(exception_request)), 2);
+}
+
 TEST(ModbusClientFrameLength, ReadAndWriteSingleAreFixed) {
   // basic_register request fixture is a read-holding request -> 8 bytes
   const uint8_t read[] = {0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A};

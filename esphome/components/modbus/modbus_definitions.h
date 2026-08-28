@@ -47,7 +47,6 @@ enum class FunctionCode : uint8_t {
 using ModbusFunctionCode ESPDEPRECATED("Use modbus::FunctionCode instead. Removed in 2027.2.0",
                                        "2026.8.0") = FunctionCode;
 
-/*Allow direct comparison operators between FunctionCode and uint8_t*/
 inline bool operator==(FunctionCode lhs, uint8_t rhs) { return static_cast<uint8_t>(lhs) == rhs; }
 inline bool operator==(uint8_t lhs, FunctionCode rhs) { return lhs == static_cast<uint8_t>(rhs); }
 inline bool operator!=(FunctionCode lhs, uint8_t rhs) { return !(static_cast<uint8_t>(lhs) == rhs); }

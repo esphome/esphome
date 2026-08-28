@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components.esp32 import add_idf_component
+from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.config_helpers import filter_source_files_from_platform, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -208,7 +208,9 @@ async def to_code(config: ConfigType) -> None:
                 ethernet.request_ethernet_ip_state_listener()
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.11.3")
+        add_idf_component(name="espressif/mdns", ref="1.12.0")
+        # ESPHome only advertises; the browse APIs are unused
+        add_idf_sdkconfig_option("CONFIG_MDNS_ENABLE_BROWSE", False)
 
     cg.add_define("USE_MDNS")
 
