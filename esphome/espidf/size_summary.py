@@ -20,10 +20,8 @@ subtype is ``factory`` or ``ota_0``; see
 
 Structured size data is produced at link time by a CMake POST_BUILD
 custom command (see ``build_gen/espidf.py``) which writes
-``esp_idf_size.json`` (``--format=json2``: a per-memory-type summary,
-``{"version": ..., "layout": [{"name", "total", "used", ...}]}``) next
-to the ELF. We read that file here rather than re-running
-``esp_idf_size`` from Python.
+``esp_idf_size.json`` (``--format=json2``, a per-memory-type summary)
+next to the ELF; we read that rather than re-running ``esp_idf_size``.
 """
 
 from __future__ import annotations
@@ -78,13 +76,9 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
 def _image_size_from_elf(elf: Path) -> int:
     """Sum the loadable PROGBITS section sizes from an ELF32 file.
 
-    This is the rule ``esp_idf_size.ng.memorymap._get_image_size`` uses for
-    its image size figure, so the result is byte-identical to the tool's.
-    esptool's ``ELFFile`` is deliberately not reused: its section filter
-    differs (counts INIT/FINI arrays, skips lma==0 sections) and would
-    report a different number. Reads only the header and section table,
-    not the multi-MB debug payload. Raises ``ValueError`` for anything
-    that is not a well-formed 32-bit little-endian ELF.
+    Matches ``esp_idf_size.ng.memorymap._get_image_size`` byte for byte;
+    esptool's ``ELFFile`` filters sections differently and would not.
+    Raises ``ValueError`` for anything but a well-formed ELF32 LE file.
     """
     with elf.open("rb") as f:
         header = f.read(52)  # ELF32 header

@@ -90,11 +90,10 @@ def get_project_cmakelists(
     """
     idf_target = variant_to_idf_target(get_esp32_variant())
 
-    # esp_idf_size 2.x (bundled with IDF >=6.0) made NG the default and
-    # removed the --ng flag; on 1.x (IDF 5.5) --ng is required to get
-    # --format=json2 because the legacy mode doesn't support it. 1.x json2
-    # also lacks total_size, which is why espidf/size_summary.py carries an
-    # ELF fallback; both go away together when 1.x support is dropped.
+    # esp_idf_size 2.x (IDF >=6.0) made NG the default and removed --ng;
+    # 1.x (IDF 5.5) needs --ng for --format=json2. 1.x json2 also lacks
+    # total_size, hence the ELF fallback in espidf/size_summary.py; both
+    # go away together when 1.x support is dropped.
     size_ng_flag = "--ng" if idf_version() < cv.Version(6, 0, 0) else ""
 
     # Project-wide compile options: -D defines and -W warning flags (skip
@@ -214,9 +213,8 @@ include($ENV{{IDF_PATH}}/tools/cmake/project.cmake)
 project({CORE.name})
 
 # Emit per-memory-type JSON size data for ESPHome to read post-build.
-# json2 only summarizes memory regions; the raw format also dumps every
-# symbol (multi-MB, ~2s on a large map) and this command runs inside the
-# link edge, so everything downstream of the ELF would wait on it.
+# json2 stays small; raw dumps every symbol (~2s on a large map) and
+# this command runs inside the link edge, blocking everything downstream.
 add_custom_command(
     TARGET ${{CMAKE_PROJECT_NAME}}.elf POST_BUILD
     COMMAND ${{PYTHON}} -m esp_idf_size {size_ng_flag} --format=json2

@@ -580,10 +580,10 @@ def get_ota_firmware_path() -> Path:
 
 
 def get_built_elf_path() -> Path:
-    """Get the path to the ELF that idf.py writes directly, ``<build>/<name>.elf``.
+    """Path to the ELF idf.py writes directly, ``<build>/<name>.elf``.
 
-    Unlike ``get_elf_path``, this file exists as soon as the build finishes,
-    before ``create_elf_copy`` produces the ``firmware.elf`` copy.
+    Exists as soon as the build finishes, unlike the ``firmware.elf``
+    copy that ``create_elf_copy`` makes later.
     """
     build_dir = CORE.relative_build_path("build")
     return build_dir / f"{CORE.name}.elf"
