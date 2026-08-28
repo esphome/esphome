@@ -623,6 +623,45 @@ def test_component_cache_ignores_corrupt_file(setup_core: Path, tmp_path: Path) 
         assert toolchain.load_cached_builtin_components() is None
 
 
+def _write_fragments_build_ninja(tmp_path: Path, fragments: list[Path]) -> None:
+    build_dir = CORE.relative_build_path("build")
+    build_dir.mkdir(parents=True, exist_ok=True)
+    frag_list = ";".join(str(f) for f in fragments)
+    (build_dir / "build.ninja").write_text(
+        f'  COMMAND = python ldgen.py --fragments-list "{frag_list}" --input x\n'
+    )
+
+
+def test_warn_if_app_archive_mapped_warns(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A fragment naming the app archive triggers the loud warning."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\narchive: libsrc.a\nentries:\n    * (noflash)\n")
+    _write_fragments_build_ninja(tmp_path, [frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" in caplog.text
+
+
+def test_warn_if_app_archive_mapped_clean(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Normal fragments produce no warning; missing files are non-fatal."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:freertos]\narchive: libfreertos.a\n")
+    _write_fragments_build_ninja(tmp_path, [frag, tmp_path / "missing.lf"])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" not in caplog.text
+
+
+def test_warn_if_app_archive_mapped_no_build_ninja(setup_core: Path) -> None:
+    """No build.ninja yet is a quiet no-op."""
+    _setup_build(setup_core)
+    toolchain._warn_if_app_archive_mapped()
+
+
 def test_run_compile_passes_compile_process_limit(setup_core: Path) -> None:
     """compile_process_limit is forwarded to run_idf_py as the job limit."""
     _setup_build(setup_core)

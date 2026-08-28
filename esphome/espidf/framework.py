@@ -686,21 +686,24 @@ def _patch_tools_json_demote_unused_tools(framework_path: Path) -> None:
     )
 
 
-_LDGEN_COMMAND_ANCHOR = "    add_custom_command(\n"
+_LDGEN_JOIN_ANCHOR = '    list(JOIN ldgen_libraries_expr "\\n" ldgen_libraries_str)\n'
 _LDGEN_DEP_FILTER = """\
-    # Patched by ESPHome: drop app-only archives from ldgen DEPENDS.
+    # Patched by ESPHome: drop app-only archives from ldgen's inputs.
     # ldgen only reads archives named in mapping fragments' archive: lines;
-    # the app component never appears there, so rebuilding it cannot change
-    # the generated linker script. Set by the ESPHome project CMakeLists.
+    # the app component never appears there, so it cannot change the output,
+    # and keeping it listed would race ldgen's objdump against the archive
+    # being written. Set by the ESPHome project CMakeLists.
     if(ESPHOME_LDGEN_DEP_EXCLUDE)
         list(REMOVE_ITEM ldgen_deps ${ESPHOME_LDGEN_DEP_EXCLUDE})
+        foreach(esphome_ldgen_excl ${ESPHOME_LDGEN_DEP_EXCLUDE})
+            list(REMOVE_ITEM ldgen_libraries_expr "$<TARGET_FILE:${esphome_ldgen_excl}>")
+        endforeach()
     endif()
-    add_custom_command(
 """
 
 
 def _patch_ldgen_cmake(framework_path: Path) -> None:
-    """Let projects drop their app archive from the sections.ld DEPENDS.
+    """Let projects drop their app archive from ldgen's inputs.
 
     Guarded by ESPHOME_LDGEN_DEP_EXCLUDE, which only the ESPHome project
     CMakeLists sets, so stock IDF builds using the shared framework copy
@@ -720,7 +723,7 @@ def _patch_ldgen_cmake(framework_path: Path) -> None:
         return
     if "ESPHOME_LDGEN_DEP_EXCLUDE" in content:
         return
-    if "${ldgen_deps}" not in content or content.count(_LDGEN_COMMAND_ANCHOR) != 1:
+    if "${ldgen_deps}" not in content or content.count(_LDGEN_JOIN_ANCHOR) != 1:
         _LOGGER.warning(
             "ldgen.cmake at %s does not match the expected layout; "
             "skipping the ldgen dependency patch (builds stay correct).",
@@ -728,7 +731,8 @@ def _patch_ldgen_cmake(framework_path: Path) -> None:
         )
         return
     write_file_if_changed(
-        ldgen_cmake, content.replace(_LDGEN_COMMAND_ANCHOR, _LDGEN_DEP_FILTER)
+        ldgen_cmake,
+        content.replace(_LDGEN_JOIN_ANCHOR, _LDGEN_DEP_FILTER + _LDGEN_JOIN_ANCHOR),
     )
     _LOGGER.info("Patched %s to honor ESPHOME_LDGEN_DEP_EXCLUDE.", ldgen_cmake)
 

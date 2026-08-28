@@ -876,6 +876,9 @@ _LDGEN_CMAKE_STOCK = """\
 function(__ldgen_create_target exe_target)
     idf_build_get_property(python PYTHON)
 
+    list(JOIN ldgen_libraries_expr "\\n" ldgen_libraries_str)
+    file(WRITE ${build_dir}/ldgen_libraries.in "${ldgen_libraries_str}")
+
     add_custom_command(
         OUTPUT ${output}
         COMMAND ${python} "${idf_path}/tools/ldgen/ldgen.py"
@@ -899,6 +902,10 @@ def test_patch_ldgen_cmake_inserts_guarded_filter(tmp_path: Path) -> None:
     _patch_ldgen_cmake(tmp_path)
     content = ldgen_cmake.read_text(encoding="utf-8")
     assert _LDGEN_DEP_FILTER in content
+    # The libraries list must be filtered before it is serialized to disk
+    assert content.index("REMOVE_ITEM ldgen_libraries_expr") < content.index(
+        "list(JOIN ldgen_libraries_expr"
+    )
     assert "DEPENDS     ${template}" in content
 
 
@@ -931,8 +938,9 @@ def test_patch_ldgen_cmake_unreadable_file_warns_and_skips(
             id="no_ldgen_deps",
         ),
         pytest.param(
-            _LDGEN_CMAKE_STOCK + "\n    add_custom_command(\n        OUTPUT x)\n",
-            id="duplicate_command",
+            _LDGEN_CMAKE_STOCK
+            + '\n    list(JOIN ldgen_libraries_expr "\\n" ldgen_libraries_str)\n',
+            id="duplicate_join",
         ),
     ],
 )
