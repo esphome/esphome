@@ -23,7 +23,13 @@ from .defines import (
     add_lv_use,
     add_warning,
 )
-from .lv_validation import lv_color, lv_percentage, opacity, pixels_or_percent
+from .lv_validation import (
+    lv_angle_degrees,
+    lv_color,
+    lv_percentage,
+    opacity,
+    pixels_or_percent,
+)
 from .lvcode import lv
 from .types import lv_color_t, lv_gradient_t, lv_opa_t
 
@@ -80,7 +86,11 @@ RADIAL_SCHEMA = cv.Schema(
         cv.Required(CONF_TO_Y): pixels_or_percent,
         cv.Optional(CONF_FOCAL_X): pixels_or_percent,
         cv.Optional(CONF_FOCAL_Y): pixels_or_percent,
-        cv.Optional(CONF_FOCAL_RADIUS, default=0): cv.positive_int,
+        # No default: gradient_validator() must be able to tell whether this was actually
+        # given, to require it alongside focal_x/focal_y rather than silently drop it.
+        # LVGL's lv_grad_radial_set_focal() takes this as a scalar, not lv_pct() -
+        # unlike every other coordinate here, a percentage is not accepted.
+        cv.Optional(CONF_FOCAL_RADIUS): cv.positive_int,
         cv.Optional(CONF_EXTEND, default="PAD"): LV_GRAD_EXTEND.one_of,
     }
 )
@@ -89,8 +99,8 @@ CONICAL_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_CENTER_X): pixels_or_percent,
         cv.Required(CONF_CENTER_Y): pixels_or_percent,
-        cv.Optional(CONF_START_ANGLE, default=0): cv.int_range(0, 360),
-        cv.Optional(CONF_END_ANGLE, default=360): cv.int_range(0, 360),
+        cv.Optional(CONF_START_ANGLE, default=0): lv_angle_degrees,
+        cv.Optional(CONF_END_ANGLE, default=360): lv_angle_degrees,
         cv.Optional(CONF_EXTEND, default="PAD"): LV_GRAD_EXTEND.one_of,
     }
 )
@@ -98,19 +108,29 @@ CONICAL_SCHEMA = cv.Schema(
 
 def gradient_validator(config):
     direction = config[CONF_DIRECTION]
-    if direction == "LINEAR" and CONF_LINEAR not in config:
-        raise cv.Invalid("'linear' is required for LINEAR gradient direction")
-    if direction == "RADIAL" and CONF_RADIAL not in config:
-        raise cv.Invalid("'radial' is required for RADIAL gradient direction")
-    if direction == "CONICAL" and CONF_CONICAL not in config:
-        raise cv.Invalid("'conical' is required for CONICAL gradient direction")
+    for gradient_direction, key in (
+        ("LINEAR", CONF_LINEAR),
+        ("RADIAL", CONF_RADIAL),
+        ("CONICAL", CONF_CONICAL),
+    ):
+        if direction == gradient_direction:
+            if key not in config:
+                raise cv.Invalid(
+                    f"'{key}' is required for {gradient_direction} gradient direction"
+                )
+        elif key in config:
+            raise cv.Invalid(
+                f"'{key}' is only valid with 'direction: {gradient_direction}'"
+            )
     if CONF_RADIAL in config:
         radial = config[CONF_RADIAL]
         has_focal_x = CONF_FOCAL_X in radial
         has_focal_y = CONF_FOCAL_Y in radial
-        if has_focal_x != has_focal_y:
+        has_focal_radius = CONF_FOCAL_RADIUS in radial
+        if has_focal_x != has_focal_y or (has_focal_radius and not has_focal_x):
             raise cv.Invalid(
-                "Both 'focal_x' and 'focal_y' must be specified together in 'radial'"
+                "'focal_x', 'focal_y' and 'focal_radius' must be specified together "
+                "in 'radial'"
             )
     return config
 
@@ -191,7 +211,7 @@ async def gradients_to_code(config):
                     var,
                     await pixels_or_percent.process(radial[CONF_FOCAL_X]),
                     await pixels_or_percent.process(radial[CONF_FOCAL_Y]),
-                    radial[CONF_FOCAL_RADIUS],
+                    radial.get(CONF_FOCAL_RADIUS, 0),
                 )
         elif direction == "CONICAL":
             conical = gradient[CONF_CONICAL]
@@ -199,8 +219,8 @@ async def gradients_to_code(config):
                 var,
                 await pixels_or_percent.process(conical[CONF_CENTER_X]),
                 await pixels_or_percent.process(conical[CONF_CENTER_Y]),
-                conical[CONF_START_ANGLE],
-                conical[CONF_END_ANGLE],
+                await lv_angle_degrees.process(conical[CONF_START_ANGLE]),
+                await lv_angle_degrees.process(conical[CONF_END_ANGLE]),
                 await LV_GRAD_EXTEND.process(conical[CONF_EXTEND]),
             )
         stop_colors = cg.static_const_array(

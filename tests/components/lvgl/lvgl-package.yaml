@@ -216,7 +216,7 @@ lvgl:
         from_y: 0%
         to_x: 100%
         to_y: 0%
-        extend: PAD
+        extend: REFLECT
       stops:
         - color: 0xFF0000
           position: 0
@@ -1127,6 +1127,14 @@ lvgl:
               logger.log:
                 format: Slider released at %d/%d with value %.0f
                 args: ['(int) point.x', '(int) point.y', x]
+
+        # Exercises the style-application path for a complex gradient, not just its
+        # lv_grad_*_init() codegen: the other new gradients are only ever declared.
+        - obj:
+            bg_opa: cover
+            bg_grad: conical_grad
+            width: 40
+            height: 40
         - button:
             styles: spin_button
             id: spin_up
