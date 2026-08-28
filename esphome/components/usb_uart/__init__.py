@@ -1,3 +1,5 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
@@ -21,6 +23,8 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.cpp_types import Component
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -48,6 +52,8 @@ UART_STOP_BITS_OPTIONS = {
 
 DEFAULT_BAUD_RATE = 9600
 CH934X_TX_HEADER_SIZE = 3
+# LockFreeQueue/EventPool index their slots with a uint8_t.
+MAX_OUTPUT_CHUNK_COUNT = 255
 
 
 class Type:
@@ -74,12 +80,18 @@ class Type:
 
     # CDC-style devices use one bulk IN + one bulk OUT endpoint per channel.
     ENDPOINTS_PER_CHANNEL = 2
+    # USB endpoints the host controller provides: 15 on the ESP32-P4, 7 elsewhere.
+    ENDPOINTS_ESP32P4 = 15
+    ENDPOINTS_DEFAULT = 7
 
     @property
     def max_channels(self) -> int:
         total_endpoints = (
-            15 if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4 else 7
+            self.ENDPOINTS_ESP32P4
+            if CORE.is_esp32 and get_esp32_variant() == VARIANT_ESP32P4
+            else self.ENDPOINTS_DEFAULT
         )
+        # One endpoint always stays reserved for enumeration, so it cannot carry a channel.
         return min(
             self._max_channels, (total_endpoints - 1) // self.ENDPOINTS_PER_CHANNEL
         )
@@ -176,7 +188,7 @@ def channel_schema(type_: "Type") -> cv.Schema:
                 cv.Length(
                     min=1,
                     max=type_.max_channels,
-                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
+                    msg=f"Device type {type_.name} supports 1 to {type_.max_channels} channels",
                 ),
             )
         }
@@ -223,9 +235,19 @@ async def to_code(config: list[ConfigType]) -> None:
                 channel[CONF_BUFFER_SIZE] for channel in device[CONF_CHANNELS]
             )
             need = max(device_max // mps, 2) + 1
+        if need > MAX_OUTPUT_CHUNK_COUNT:
+            _LOGGER.warning(
+                "usb_uart device %s would need %d output chunk slots to hold every "
+                "channel's buffer_size at once, but the pool is capped at %d. Writes "
+                "beyond that are dropped at runtime ('Output pool full'); lower "
+                "buffer_size to stay within the cap.",
+                device[CONF_ID],
+                need,
+                MAX_OUTPUT_CHUNK_COUNT,
+            )
         output_chunk_count = max(output_chunk_count, need)
     # LockFreeQueue/EventPool index slots with a uint8_t, so the count cannot exceed 255.
-    output_chunk_count = min(output_chunk_count, 255)
+    output_chunk_count = min(output_chunk_count, MAX_OUTPUT_CHUNK_COUNT)
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
     # Pinned to CH934XChannel::TX_HEADER_SIZE by a static_assert in usb_uart.h. The
     # default lives in esphome/core/defines.h so the assert also builds under the
