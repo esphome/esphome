@@ -63,6 +63,12 @@ TEST(ModbusClientFrameLength, TooShortReturnsMinimum) {
   EXPECT_EQ(client_frame_length(frame, 1), MIN_FRAME_SIZE);
 }
 
+TEST(ModbusClientFrameLength, ExceptionFlaggedIsTheExceptionShape) {
+  // Sized at 2 so an exception-flagged request fails its CRC at once instead of being scanned for.
+  const uint8_t exception_request[] = {0x83, 0x02};
+  EXPECT_EQ(client_pdu_length(exception_request, sizeof(exception_request)), 2);
+}
+
 TEST(ModbusClientFrameLength, ReadAndWriteSingleAreFixed) {
   // basic_register request fixture is a read-holding request -> 8 bytes
   const uint8_t read[] = {0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A};
@@ -521,6 +527,28 @@ TEST(ModbusTypedBuilders, WriteRegistersPduRejectsOverLimit) {
   EXPECT_TRUE(create_write_registers_pdu(0x0000, values).empty());
   values.pop_back();
   EXPECT_FALSE(create_write_registers_pdu(0x0000, values).empty());
+}
+
+TEST(ModbusTypedBuilders, WriteFewRegistersPduMatchesFullSizeBuilder) {
+  static_assert(sizeof(WriteFewRegistersPdu) < sizeof(PduBuffer) / 4,
+                "WriteFewRegistersPdu must be meaningfully smaller");
+  const uint16_t values[] = {0x000B, 0x0016, 0xABCD, 0xFF00};
+  for (size_t count = 1; count <= MAX_FEW_REGISTERS; count++) {
+    auto small = create_write_few_registers_pdu(0x0102, std::span<const uint16_t>(values, count));
+    auto full = create_write_registers_pdu(0x0102, std::span<const uint16_t>(values, count));
+    EXPECT_EQ(std::vector<uint8_t>(small.begin(), small.end()), std::vector<uint8_t>(full.begin(), full.end()))
+        << count << " registers";
+    EXPECT_EQ(small.size(), 6u + 2 * count);
+    EXPECT_TRUE(is_client_pdu_standard(small.data(), small.size()));
+  }
+}
+
+TEST(ModbusTypedBuilders, WriteFewRegistersPduRejectsInvalidInput) {
+  const uint16_t values[MAX_FEW_REGISTERS + 1] = {0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA, 0xAAAA};
+  EXPECT_TRUE(create_write_few_registers_pdu(0x0000, values).empty());
+  EXPECT_FALSE(create_write_few_registers_pdu(0x0000, std::span<const uint16_t>(values, MAX_FEW_REGISTERS)).empty());
+  EXPECT_TRUE(create_write_few_registers_pdu(0x0000, std::span<const uint16_t>()).empty());
+  EXPECT_TRUE(create_write_few_registers_pdu(0xFFFF, std::span<const uint16_t>(values, 2)).empty());
 }
 
 TEST(ModbusTypedBuilders, ReadWriteMultipleRegistersPduWireBytes) {
