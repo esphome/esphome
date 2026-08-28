@@ -26,13 +26,13 @@ void GrowattSolar::on_read_input_registers(uint16_t start_address, std::span<con
   };
 
   auto publish_2_reg_sensor_state = [&](sensor::Sensor *sensor, size_t reg, float unit) -> void {
-    constexpr auto VALUE_TYPE = modbus::helpers::SensorValueType::U_DWORD;
+    constexpr auto value_type = modbus::helpers::SensorValueType::U_DWORD;
     if (sensor == nullptr || reg < start_address)
       return;
     size_t offset = reg - start_address;
-    if (offset + modbus::helpers::registers_for_value_type(VALUE_TYPE) > registers.size())
+    if (offset + modbus::helpers::registers_for_value_type(value_type) > registers.size())
       return;
-    sensor->publish_state(modbus::helpers::registers_to_value<VALUE_TYPE>(registers.data() + offset) * unit);
+    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) * unit);
   };
 
   switch (this->protocol_version_) {
