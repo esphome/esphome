@@ -162,11 +162,7 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
   USBClient *client = ctx->client;
   IsocStream *stream = ctx->stream;
 
-  // Capture handles now -- they may be cleared by disconnect() before the defer runs.
-  usb_host_client_handle_t client_handle = client->handle_;
-  usb_device_handle_t device_handle = client->device_handle_;
-
-  auto finish_urb = [xfer, stream, client_handle, device_handle, client]() {
+  auto finish_urb = [xfer, stream, client]() {
     usb_host_transfer_free(xfer);
     if (stream->pending_urbs.fetch_sub(1, std::memory_order_acq_rel) == 1) {
       // Last URB gone. If nobody asked for a close, the stream stopped by itself and is now
@@ -174,10 +170,19 @@ void USBHost::isoc_cb(usb_transfer_t *xfer) {
       // buffer that is never drained again.
       if (stream->streaming.exchange(false, std::memory_order_acq_rel))
         stream->died.store(true, std::memory_order_release);
-      get_usb_host()->defer([stream, client, client_handle, device_handle] {
+      get_usb_host()->defer([stream, client] {
         stream->xfers.reset();
         stream->ctxs.reset();
-        get_usb_host()->stream_release(*stream, client, client_handle, device_handle);
+        // Read the handles here rather than snapshotting them in the USB-task callback.
+        // This lambda and disconnect() both run on the main loop, so either the device is
+        // still open and the handles are valid, or disconnect() already closed it and
+        // device_handle_ is null. Snapshotting would turn that null into a stale handle:
+        // releasing an interface on a device the IDF has freed, or -- if the defer wins the
+        // race -- leaving the interface claimed so usb_host_device_close() refuses and the
+        // device object leaks for the life of the process.
+        if (client->device_handle_ != nullptr) {
+          get_usb_host()->stream_release(*stream, client, client->handle_, client->device_handle_);
+        }
         stream->open_state.store(IsocOpenState::CLOSED, std::memory_order_release);
         ESP_LOGD(TAG, "stream_close deferred: ep=0x%02X", stream->ep_addr);
       });
@@ -316,6 +321,8 @@ void USBHost::stream_release(IsocStream &stream, USBClient *cb, usb_host_client_
 
 bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_handle_t client_handle,
                           usb_device_handle_t device_handle) {
+  // Precondition violations report through the return value only. Firing on_stream_open()
+  // here would tell the owner of an already running stream that its stream just failed.
   if (stream.ep_addr == 0 || stream.mps == 0 || stream.num_urbs == 0 || stream.packets_per_urb == 0) {
     ESP_LOGE(TAG, "stream_open: invalid parameters");
     return false;
@@ -326,6 +333,8 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
     ESP_LOGW(TAG, "stream_open: ep=0x%02X is not closed yet", stream.ep_addr);
     return false;
   }
+  // Past this point the open has been accepted, so every exit -- here or from the
+  // SET_INTERFACE completion -- calls on_stream_open() exactly once.
 
   if (!stream.owns_interface) {
     // Shares an already selected interface with the stream that owns it, so there is
@@ -336,8 +345,10 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
     return ok;
   }
 
-  if (!this->do_claim_interface(client_handle, device_handle, stream.interface_num, stream.alt_setting))
+  if (!this->do_claim_interface(client_handle, device_handle, stream.interface_num, stream.alt_setting)) {
+    cb->on_stream_open(stream, false);
     return false;
+  }
 
   if (stream.alt_setting == 0) {
     const bool ok = this->stream_start_urbs(stream, cb, device_handle);

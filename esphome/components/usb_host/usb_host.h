@@ -278,6 +278,12 @@ class USBClient : public Component {
   // Starts the open sequence. A true return only means it started: an owning stream has to
   // select its alt-setting first, which is a control transfer. on_stream_open() reports the
   // outcome, and is_running() tells whether the stream is carrying data.
+  //
+  // Callback contract: once the open is accepted, on_stream_open() is called exactly once,
+  // whether the sequence succeeds or fails, so a state machine may key off it alone. The
+  // two precondition checks (invalid parameters, stream not closed yet) reject the call
+  // before it is accepted and report through the return value only -- they say nothing
+  // about the stream that is already there.
   bool stream_open(IsocStream &stream, USBClient *cb);
   void stream_close(IsocStream &stream);
 
