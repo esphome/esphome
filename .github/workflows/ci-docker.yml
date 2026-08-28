@@ -186,6 +186,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read  # actions/checkout to load the test configs
+      actions: read   # gh api to download the image artifact of this run
     strategy:
       fail-fast: false
       matrix:
@@ -209,12 +210,18 @@ jobs:
           - host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Download image artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: compile-test-image.tar.zst
       - name: Load image
-        run: docker load --input compile-test-image.tar.zst
+        # Stream the artifact from the REST API straight into docker load so
+        # the download overlaps with layer extraction instead of running
+        # before it. The artifact was uploaded with archive: false, so the
+        # endpoint returns the raw zstd tar, which docker load auto-detects.
+        # shell: bash adds pipefail so a failed download cannot pass silently.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?name=compile-test-image.tar.zst" --jq '.artifacts[0].id')
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}/zip" | docker load
       - name: Compile ${{ matrix.id }}
         run: |
           docker run --rm \
