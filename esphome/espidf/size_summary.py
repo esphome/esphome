@@ -72,9 +72,7 @@ def _find_app_partition_size(partitions_csv: Path) -> int:
     raise ValueError(f"No app+factory or app+ota_0 partition in {partitions_csv}")
 
 
-def print_summary(
-    size_json: Path, partitions_csv: Path | None, firmware_bin: Path | None
-) -> None:
+def print_summary(size_json: Path, partitions_csv: Path, firmware_bin: Path) -> None:
     """Print PlatformIO-shaped RAM and Flash one-liners.
 
     Failures are non-fatal: the build has already succeeded, we just couldn't
@@ -100,16 +98,10 @@ def print_summary(
     if ram_total and ram_used is not None:
         print_size_line("RAM", ram_used, ram_total)
 
-    if firmware_bin is None or partitions_csv is None:
-        return
     try:
-        image_size = firmware_bin.stat().st_size
-    except OSError as e:
-        _LOGGER.debug("Skipping Flash summary: %s", e)
-        return
-    try:
+        flash_used = firmware_bin.stat().st_size
         app_size = _find_app_partition_size(partitions_csv)
-    except ValueError as e:
+    except (OSError, ValueError) as e:
         _LOGGER.debug("Skipping Flash summary: %s", e)
         return
-    print_size_line("Flash", image_size, app_size)
+    print_size_line("Flash", flash_used, app_size)

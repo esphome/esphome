@@ -17,6 +17,16 @@ def _write_size_json(tmp_path: Path, data: dict) -> Path:
     return out
 
 
+def _write_partitions(tmp_path: Path) -> Path:
+    """Drop a partitions.csv with a 0x1C0000 (1835008 byte) app slot."""
+    out = tmp_path / "partitions.csv"
+    out.write_text(
+        "# name, type, subtype, offset, size, flags\n"
+        "app0, app, ota_0, 0x10000, 0x1C0000,\n"
+    )
+    return out
+
+
 def _esp32_size_data() -> dict:
     """Synthetic json2 esp_idf_size.json for the original ESP32 (split IRAM/DRAM)."""
     return {
@@ -77,12 +87,17 @@ def _s3_size_data() -> dict:
     }
 
 
+def _print_summary_ram_only(tmp_path: Path, size_json: Path) -> None:
+    """Call print_summary with no partitions.csv or firmware bin on disk."""
+    print_summary(size_json, tmp_path / "partitions.csv", tmp_path / "firmware.bin")
+
+
 def test_print_summary_esp32_uses_dram(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Original ESP32: RAM = DRAM.used / DRAM.total."""
     size_json = _write_size_json(tmp_path, _esp32_size_data())
-    print_summary(size_json, partitions_csv=None, firmware_bin=None)
+    _print_summary_ram_only(tmp_path, size_json)
     out = capsys.readouterr().out
     assert "RAM:" in out
     assert "used 47332 bytes from 180736 bytes" in out
@@ -93,7 +108,7 @@ def test_print_summary_s3_falls_back_to_diram(
 ) -> None:
     """ESP32-S3 with no DRAM entry falls back to DIRAM and reports raw region usage."""
     size_json = _write_size_json(tmp_path, _s3_size_data())
-    print_summary(size_json, partitions_csv=None, firmware_bin=None)
+    _print_summary_ram_only(tmp_path, size_json)
     out = capsys.readouterr().out
     assert "used 104999 bytes from 341760 bytes" in out
 
@@ -106,18 +121,10 @@ def test_print_summary_skips_when_diram_total_collapses(
         tmp_path,
         {
             "version": "1.1",
-            "layout": [
-                {
-                    "name": "DIRAM",
-                    "total": 0,
-                    "used": 0,
-                    "free": 0,
-                    "parts": {},
-                },
-            ],
+            "layout": [{"name": "DIRAM", "total": 0, "used": 0}],
         },
     )
-    print_summary(size_json, partitions_csv=None, firmware_bin=None)
+    _print_summary_ram_only(tmp_path, size_json)
     out = capsys.readouterr().out
     assert "RAM:" not in out
 
@@ -126,9 +133,7 @@ def test_print_summary_handles_missing_json(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Missing size json is non-fatal and prints nothing."""
-    print_summary(
-        tmp_path / "does_not_exist.json", partitions_csv=None, firmware_bin=None
-    )
+    _print_summary_ram_only(tmp_path, tmp_path / "does_not_exist.json")
     assert capsys.readouterr().out == ""
 
 
@@ -137,7 +142,7 @@ def test_print_summary_handles_no_layout(
 ) -> None:
     """A size json without ``layout`` still doesn't crash."""
     size_json = _write_size_json(tmp_path, {"version": "1.1"})
-    print_summary(size_json, partitions_csv=None, firmware_bin=None)
+    _print_summary_ram_only(tmp_path, size_json)
     assert capsys.readouterr().out == ""
 
 
@@ -147,11 +152,7 @@ def test_print_summary_flash_line(
     """A partition table with an app row yields the Flash line in the exact
     padded shape script/ci_memory_impact_extract.py greps."""
     size_json = _write_size_json(tmp_path, _esp32_size_data())
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text(
-        "# name, type, subtype, offset, size, flags\n"
-        "app0, app, ota_0, 0x10000, 0x1C0000,\n"
-    )
+    partitions = _write_partitions(tmp_path)
     firmware_bin = tmp_path / "firmware.bin"
     firmware_bin.write_bytes(b"\x00" * 827455)
     print_summary(size_json, partitions, firmware_bin)
@@ -160,33 +161,18 @@ def test_print_summary_flash_line(
     assert "(used 827455 bytes from 1835008 bytes)" in out
 
 
-def test_print_summary_skips_flash_when_bin_unreadable(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("missing", ["bin", "partitions"])
+def test_print_summary_skips_flash_on_missing_input(
+    missing: str, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """A firmware bin that can't be stat'ed skips the Flash line, not the RAM line."""
+    """A missing firmware bin or partitions.csv skips the Flash line, not the RAM line."""
     size_json = _write_size_json(tmp_path, _esp32_size_data())
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text(
-        "# name, type, subtype, offset, size, flags\n"
-        "app0, app, ota_0, 0x10000, 0x1C0000,\n"
-    )
-    print_summary(size_json, partitions, tmp_path / "missing.bin")
-    out = capsys.readouterr().out
-    assert "RAM:" in out
-    assert "Flash:" not in out
-
-
-def test_print_summary_skips_flash_without_bin(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """No firmware bin means the RAM line prints but the Flash line is skipped."""
-    size_json = _write_size_json(tmp_path, _esp32_size_data())
-    partitions = tmp_path / "partitions.csv"
-    partitions.write_text(
-        "# name, type, subtype, offset, size, flags\n"
-        "app0, app, ota_0, 0x10000, 0x1C0000,\n"
-    )
-    print_summary(size_json, partitions, firmware_bin=None)
+    firmware_bin = tmp_path / "firmware.bin"
+    if missing == "bin":
+        _write_partitions(tmp_path)
+    else:
+        firmware_bin.write_bytes(b"\x00" * 16)
+    print_summary(size_json, tmp_path / "partitions.csv", firmware_bin)
     out = capsys.readouterr().out
     assert "RAM:" in out
     assert "Flash:" not in out

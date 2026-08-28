@@ -542,12 +542,7 @@ def run_compile(config, verbose: bool) -> int:
     if rc == 0:
         size_json = CORE.relative_build_path("build", "esp_idf_size.json")
         partitions = CORE.relative_build_path("partitions.csv")
-        firmware_bin = get_firmware_path()
-        print_summary(
-            size_json,
-            partitions if partitions.is_file() else None,
-            firmware_bin if firmware_bin.is_file() else None,
-        )
+        print_summary(size_json, partitions, get_firmware_path())
     return rc
 
 
