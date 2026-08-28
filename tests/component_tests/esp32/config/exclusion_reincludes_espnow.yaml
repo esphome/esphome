@@ -6,8 +6,6 @@ esp32:
   framework:
     type: esp-idf
 
-mdns:
-
-wifi:
-  ssid: "test_ssid"
-  password: "test_password"
+espnow:
+  channel: 1
+  auto_add_peer: true

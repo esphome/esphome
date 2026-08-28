@@ -24,6 +24,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
@@ -298,6 +299,20 @@ def test_esp32_configuration_errors(
             ("esp-tls", "esp_http_client"),
             id="nextion",
         ),
+        pytest.param(
+            # esp_wifi/wpa_supplicant from request_wifi(), bt from
+            # request_bluetooth(), esp_coex from esp32_ble_tracker's software
+            # coexistence (defaults on with wifi). esp_phy stays excluded;
+            # IDF requirement expansion pulls it back via esp_wifi.
+            "exclusion_reincludes_wifi_ble.yaml",
+            ("esp_wifi", "wpa_supplicant", "bt", "esp_coex"),
+            id="wifi_ble",
+        ),
+        pytest.param(
+            "exclusion_reincludes_espnow.yaml",
+            ("esp_wifi",),
+            id="espnow",
+        ),
     ],
 )
 def test_default_exclusions_reincluded_by_owning_components(
@@ -309,8 +324,6 @@ def test_default_exclusions_reincluded_by_owning_components(
     """Components whose IDF driver is excluded by default must re-include it
     during codegen; a dropped include_builtin_idf_component() call would only
     surface as a missing-header failure in a full compile job."""
-    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
-
     generate_main(component_config_path(config_file))
     excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
@@ -329,8 +342,6 @@ def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
     component_config_path: Callable[[str], Path],
 ) -> None:
     """An explicit CONFIG_NVS_ENCRYPTION=n keeps nvs_sec_provider excluded."""
-    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
-
     generate_main(component_config_path("exclusion_stays_nvs_sdkconfig_off.yaml"))
     assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
@@ -939,6 +950,14 @@ def test_network_wifi_only_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
+    # request_wifi() also puts the WiFi components back in the build set;
+    # esp_phy stays excluded, IDF requirement expansion pulls it back.
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    assert "esp_wifi" not in excluded
+    assert "wpa_supplicant" not in excluded
+    assert "esp_phy" in excluded
+    # With wifi present mdns keeps its predefined interfaces.
+    assert "CONFIG_MDNS_PREDEF_NETIF_STA" not in sdkconfig
     # WiFi stack stays enabled (no ethernet) and no Bluetooth requested.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
     assert "CONFIG_BT_ENABLED" not in sdkconfig
@@ -954,6 +973,12 @@ def test_network_ethernet_only_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_ENABLED") is False
     assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is False
+    # The whole radio stack stays out of the build set as well.
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    assert {"esp_wifi", "wpa_supplicant", "esp_phy", "esp_coex", "bt"} <= excluded
+    # Without wifi, mdns drops its predefined STA/AP interfaces.
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_STA") is False
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_AP") is False
 
 
 def test_network_wifi_ble_coexistence_reconciles_end_to_end(
