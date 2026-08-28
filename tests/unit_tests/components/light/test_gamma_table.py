@@ -169,12 +169,36 @@ def test_power_curve_untouched_above_dead_zone(gamma: float) -> None:
 
 
 @pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])
-def test_dead_zone_values_are_min_nonzero_gamma_value(gamma: float) -> None:
-    """Within the dead zone, table values must be clamped to MIN_NONZERO_GAMMA_VALUE."""
+def test_dead_zone_ramps_within_bounds(gamma: float) -> None:
+    """Dead-zone entries must ramp from the floor up to (not past) the breakpoint value."""
     n0 = _dead_zone_breakpoint(gamma)
     table = generate_gamma_table(gamma)
+    if n0 > 1:
+        assert table[1] == MIN_NONZERO_GAMMA_VALUE, f"gamma={gamma}"
     for i in range(1, n0):
-        assert table[i] == MIN_NONZERO_GAMMA_VALUE, f"gamma={gamma}, index {i}"
+        assert MIN_NONZERO_GAMMA_VALUE <= table[i] <= table[n0], (
+            f"gamma={gamma}, index {i}"
+        )
+
+
+def test_dead_zone_ramps_instead_of_flat_when_room_exists() -> None:
+    """Regression test: a flat dead zone leaves FloatOutput consumers (e.g. LEDC) stuck.
+
+    A LUT-interpolating consumer like LightState::gamma_correct_lut() only sees
+    distinct output if adjacent table entries differ. A dead zone clamped flat
+    to a single value made every brightness in that range interpolate to the
+    exact same duty cycle -- observed on real hardware as an LEDC output that
+    stopped changing below ~8% brightness at gamma=2.8.
+    """
+    gamma = 2.8
+    n0 = _dead_zone_breakpoint(gamma)
+    table = generate_gamma_table(gamma)
+    assert len(set(table[1:n0])) > 1, (
+        "dead zone is flat; FloatOutput consumers would freeze"
+    )
+
+    outputs = [_simulate_gamma_correct_lut(table, i / 255.0) for i in range(1, n0)]
+    assert len(set(outputs)) > 1, "interpolated LUT output is flat across the dead zone"
 
 
 @pytest.mark.parametrize("gamma", [1.0, 1.8, 2.0, 2.2, 2.8, 3.0, 4.0])

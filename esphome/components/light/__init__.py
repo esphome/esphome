@@ -127,22 +127,23 @@ MIN_NONZERO_GAMMA_VALUE = 129
 def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
     """Generate a 256-entry uint16 gamma lookup table.
 
-    Non-zero indices are clamped to a minimum of MIN_NONZERO_GAMMA_VALUE so
-    every non-zero 8-bit input still produces a non-zero 8-bit output.
+    Below the point where the power curve itself would fall under
+    MIN_NONZERO_GAMMA_VALUE, entries ramp linearly up to that point instead of
+    being clamped flat, so higher-resolution FloatOutput consumers (e.g. LEDC)
+    still get distinct steps there rather than one dead, unmoving value.
     """
-    if gamma_correct > 0:
-        return [
-            HexInt(
-                max(
-                    MIN_NONZERO_GAMMA_VALUE,
-                    min(65535, int(round((i / 255.0) ** gamma_correct * 65535))),
-                )
-                if i > 0
-                else HexInt(0)
-            )
-            for i in range(256)
-        ]
-    return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+    if gamma_correct <= 0:
+        return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+
+    table = [0] + [
+        min(65535, int(round((i / 255.0) ** gamma_correct * 65535)))
+        for i in range(1, 256)
+    ]
+    n0 = next(i for i in range(1, 256) if table[i] >= MIN_NONZERO_GAMMA_VALUE)
+    span = table[n0] - MIN_NONZERO_GAMMA_VALUE
+    for i in range(1, n0):
+        table[i] = MIN_NONZERO_GAMMA_VALUE + round(span * (i - 1) / (n0 - 1))
+    return [HexInt(v) for v in table]
 
 
 def _get_or_create_gamma_table(gamma_correct):

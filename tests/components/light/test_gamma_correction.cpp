@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <set>
 
 #include "esphome/components/light/esp_color_correction.h"
 
@@ -18,8 +20,14 @@ std::array<uint16_t, 256> build_gamma_table(double gamma) {
   table[0] = 0;
   for (int i = 1; i < 256; i++) {
     double raw = std::round(std::pow(i / 255.0, gamma) * 65535.0);
-    uint16_t clamped = static_cast<uint16_t>(std::min(65535.0, raw));
-    table[i] = std::max(MIN_NONZERO_GAMMA_VALUE, clamped);
+    table[i] = static_cast<uint16_t>(std::min(65535.0, raw));
+  }
+  int n0 = 1;
+  while (n0 < 256 && table[n0] < MIN_NONZERO_GAMMA_VALUE)
+    n0++;
+  int span = table[n0] - MIN_NONZERO_GAMMA_VALUE;
+  for (int i = 1; i < n0; i++) {
+    table[i] = static_cast<uint16_t>(MIN_NONZERO_GAMMA_VALUE + std::lround(span * (i - 1) / double(n0 - 1)));
   }
   return table;
 }
@@ -27,6 +35,22 @@ std::array<uint16_t, 256> build_gamma_table(double gamma) {
 // Largest code where the unclamped power curve would still round to 0.
 int dead_zone_breakpoint(double gamma) {
   return static_cast<int>(std::ceil(255.0 * std::pow(1.0 / 510.0, 1.0 / gamma)));
+}
+
+// Mirrors LightState::gamma_correct_lut() in light_state.cpp.
+float gamma_correct_lut(const std::array<uint16_t, 256> &table, float value) {
+  if (value <= 0.0f)
+    return 0.0f;
+  if (value >= 1.0f)
+    return 1.0f;
+  float scaled = value * 255.0f;
+  auto idx = static_cast<uint8_t>(scaled);
+  if (idx >= 255)
+    return table[255] / 65535.0f;
+  float frac = scaled - idx;
+  float a = table[idx];
+  float b = table[idx + 1];
+  return (a + frac * (b - a)) / 65535.0f;
 }
 
 }  // namespace
@@ -73,7 +97,8 @@ TEST(GammaCorrection, DeadZoneFixedAtGamma2_8) {
 
   for (int i = 1; i < n0; i++) {
     EXPECT_GE(correction.color_correct_red(i), 1) << "index=" << i << " still collapses to 0";
-    EXPECT_EQ(table[i], MIN_NONZERO_GAMMA_VALUE) << "index=" << i;
+    EXPECT_GE(table[i], MIN_NONZERO_GAMMA_VALUE) << "index=" << i;
+    EXPECT_LE(table[i], table[n0]) << "index=" << i;
   }
 
   for (int i = n0; i < 256; i++) {
@@ -81,6 +106,22 @@ TEST(GammaCorrection, DeadZoneFixedAtGamma2_8) {
     uint16_t raw_power_value = static_cast<uint16_t>(std::min(65535.0, raw));
     EXPECT_EQ(table[i], raw_power_value) << "index=" << i << " power curve should be untouched";
   }
+}
+
+// Regression test: a flat dead zone leaves LUT-interpolating FloatOutput consumers (e.g.
+// LEDC) stuck at one duty cycle across a range of brightness. Observed on real hardware.
+TEST(GammaCorrection, DeadZoneRampsInsteadOfFlat) {
+  const double gamma = 2.8;
+  const int n0 = dead_zone_breakpoint(gamma);
+  auto table = build_gamma_table(gamma);
+
+  std::set<uint16_t> table_values(table.begin() + 1, table.begin() + n0);
+  EXPECT_GT(table_values.size(), 1u) << "dead zone is flat; FloatOutput consumers would freeze";
+
+  std::set<float> outputs;
+  for (int i = 1; i < n0; i++)
+    outputs.insert(gamma_correct_lut(table, i / 255.0f));
+  EXPECT_GT(outputs.size(), 1u) << "interpolated LUT output is flat across the dead zone";
 }
 
 // gamma_table_reverse_search needs a non-decreasing table.
