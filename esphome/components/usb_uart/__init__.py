@@ -215,6 +215,10 @@ async def to_code(config: list[ConfigType]) -> None:
     # LockFreeQueue/EventPool index slots with a uint8_t, so the count cannot exceed 255.
     output_chunk_count = min(output_chunk_count, 255)
     cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+    # Pinned to CH934XChannel::TX_HEADER_SIZE by a static_assert in usb_uart.h. The
+    # default lives in esphome/core/defines.h so the assert also builds under the
+    # checked-in defines used by CI clang-tidy.
+    cg.add_define("USB_UART_CH934X_TX_HEADER_SIZE", CH934X_TX_HEADER_SIZE)
 
     # Multiplexed (CH934x) drivers initialise their channels in parallel over a single
     # shared command endpoint. Cap the number of concurrent channel-init "lanes" at

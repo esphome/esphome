@@ -392,6 +392,11 @@ class CH934XChannel final : public USBUartChannelBase {
  public:
   // TX header is 3 bytes: [port, len_lo, len_hi] — max data per packet is reduced accordingly
   static constexpr size_t TX_HEADER_SIZE = 3;
+  // Codegen sizes the shared output pool from this same constant (payload = mps -
+  // header). If they drift apart the pool is under-sized and writes disappear through
+  // the "Output pool full" path with nothing catching it at build time.
+  static_assert(TX_HEADER_SIZE == USB_UART_CH934X_TX_HEADER_SIZE,
+                "TX_HEADER_SIZE must match CH934X_TX_HEADER_SIZE in usb_uart/__init__.py");
   static constexpr size_t TX_MAX_DATA = UsbOutputChunk::MAX_CHUNK_SIZE - TX_HEADER_SIZE;
 
   CH934XChannel(uint8_t index, uint16_t buffer_size) : USBUartChannelBase(index, buffer_size) {}
