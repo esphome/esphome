@@ -100,6 +100,7 @@ bool USBStorageClient::parse_msc_endpoints_() {
 
   this->bulk_in_ep_ = 0;
   this->bulk_out_ep_ = 0;
+  this->bulk_in_mps_ = 0;
 
   int offset = 0;
   const usb_standard_desc_t *next = reinterpret_cast<const usb_standard_desc_t *>(cfg);
@@ -117,6 +118,7 @@ bool USBStorageClient::parse_msc_endpoints_() {
         continue;
       if (USB_EP_DESC_GET_EP_DIR(ep)) {
         this->bulk_in_ep_ = ep->bEndpointAddress;
+        this->bulk_in_mps_ = USB_EP_DESC_GET_MPS(ep);
       } else {
         this->bulk_out_ep_ = ep->bEndpointAddress;
       }
@@ -129,9 +131,29 @@ bool USBStorageClient::parse_msc_endpoints_() {
     ESP_LOGE(TAG, "Failed to find MSC bulk endpoints (in=0x%02X out=0x%02X)", this->bulk_in_ep_, this->bulk_out_ep_);
     return false;
   }
-  ESP_LOGD(TAG, "MSC endpoints: bulk_in=0x%02X bulk_out=0x%02X intf=%d", this->bulk_in_ep_, this->bulk_out_ep_,
-           this->msc_interface_);
+  if (this->bulk_in_mps_ == 0) {
+    ESP_LOGE(TAG, "MSC bulk IN endpoint reports a zero wMaxPacketSize");
+    return false;
+  }
+  // Every IN request is rounded up to a multiple of the endpoint's packet size, and the
+  // host rejects anything larger than its per-transfer buffer. That buffer is sized from
+  // the usb_host max_packet_size option, so a device with a larger endpoint cannot be
+  // served at all -- say so here instead of failing on the first transfer.
+  if (this->bulk_in_mps_ > usb_host::USB_MAX_PACKET_SIZE) {
+    ESP_LOGE(TAG, "MSC bulk IN wMaxPacketSize %u exceeds the usb_host max_packet_size of %u; raise it to at least %u",
+             this->bulk_in_mps_, static_cast<unsigned>(usb_host::USB_MAX_PACKET_SIZE), this->bulk_in_mps_);
+    return false;
+  }
+  ESP_LOGD(TAG, "MSC endpoints: bulk_in=0x%02X (mps %u) bulk_out=0x%02X intf=%d", this->bulk_in_ep_, this->bulk_in_mps_,
+           this->bulk_out_ep_, this->msc_interface_);
   return true;
+}
+
+uint16_t USBStorageClient::round_up_to_in_mps_(uint16_t len) const {
+  const uint16_t mps = this->bulk_in_mps_;
+  if (mps == 0)
+    return len;
+  return static_cast<uint16_t>(((len + mps - 1) / mps) * mps);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,7 +177,7 @@ bool USBStorageClient::send_cbw_(uint32_t tag, uint32_t data_len, uint8_t flags,
 
 bool USBStorageClient::recv_data_(uint8_t *buf, uint16_t len) {
   auto cb = [this](const usb_host::TransferStatus &s) { transfer_done_cb(s, this); };
-  if (!this->transfer_in(this->bulk_in_ep_, cb, len))
+  if (!this->transfer_in(this->bulk_in_ep_, cb, this->round_up_to_in_mps_(len)))
     return false;
   return this->wait_transfer_();
 }
@@ -172,7 +194,7 @@ bool USBStorageClient::recv_csw_(uint32_t expected_tag) {
       memcpy(&csw, s.data, sizeof(MscCsw));
     transfer_done_cb(s, this);
   };
-  if (!this->transfer_in(this->bulk_in_ep_, cb, sizeof(MscCsw)))
+  if (!this->transfer_in(this->bulk_in_ep_, cb, this->round_up_to_in_mps_(sizeof(MscCsw))))
     return false;
   if (!this->wait_transfer_())
     return false;
@@ -214,7 +236,7 @@ bool USBStorageClient::scsi_inquiry_() {
 
   if (!this->send_cbw_(tag, sizeof(ScsiInquiryResponse), MSC_BOT_CBW_FLAGS_IN, cdb, sizeof(cdb)))
     return false;
-  if (!this->transfer_in(this->bulk_in_ep_, cb, sizeof(ScsiInquiryResponse)))
+  if (!this->transfer_in(this->bulk_in_ep_, cb, this->round_up_to_in_mps_(sizeof(ScsiInquiryResponse))))
     return false;
   if (!this->wait_transfer_())
     return false;
@@ -242,7 +264,7 @@ bool USBStorageClient::scsi_read_capacity_() {
 
   if (!this->send_cbw_(tag, sizeof(ScsiReadCapacity10Response), MSC_BOT_CBW_FLAGS_IN, cdb, sizeof(cdb)))
     return false;
-  if (!this->transfer_in(this->bulk_in_ep_, cb, sizeof(ScsiReadCapacity10Response)))
+  if (!this->transfer_in(this->bulk_in_ep_, cb, this->round_up_to_in_mps_(sizeof(ScsiReadCapacity10Response))))
     return false;
   if (!this->wait_transfer_())
     return false;
@@ -285,7 +307,7 @@ bool USBStorageClient::scsi_read(uint32_t lba, uint8_t *buf, uint32_t count) {
 
     if (!this->send_cbw_(tag, this->sector_size_, MSC_BOT_CBW_FLAGS_IN, cdb, sizeof(cdb)))
       return false;
-    if (!this->transfer_in(this->bulk_in_ep_, cb, static_cast<uint16_t>(this->sector_size_)))
+    if (!this->transfer_in(this->bulk_in_ep_, cb, this->round_up_to_in_mps_(static_cast<uint16_t>(this->sector_size_))))
       return false;
     if (!this->wait_transfer_())
       return false;
@@ -461,6 +483,7 @@ void USBStorageClient::on_disconnected() {
   this->sector_count_ = 0;
   this->bulk_in_ep_ = 0;
   this->bulk_out_ep_ = 0;
+  this->bulk_in_mps_ = 0;
 }
 
 void USBStorageClient::on_removed(usb_device_handle_t handle) { USBClient::on_removed(handle); }
