@@ -690,13 +690,28 @@ def test_warn_if_app_archive_mapped_strict_raises(
         toolchain._warn_if_app_archive_mapped()
 
 
+def test_warn_if_app_archive_mapped_glob(
+    setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A glob archive spec that selects the app archive is also flagged."""
+    _setup_build(setup_core)
+    frag = tmp_path / "linker.lf"
+    frag.write_text("[mapping:evil]\narchive: lib*\n")
+    _write_fragments_build_ninja(tmp_path, [frag])
+    toolchain._warn_if_app_archive_mapped()
+    assert "maps the app archive" in caplog.text
+
+
 def test_warn_if_app_archive_mapped_clean(
     setup_core: Path, tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Normal fragments produce no warning."""
+    """Normal fragments, including IDF's stock archive: * catch-all,
+    produce no warning."""
     _setup_build(setup_core)
     frag = tmp_path / "linker.lf"
-    frag.write_text("[mapping:freertos]\narchive: libfreertos.a\n")
+    frag.write_text(
+        "[mapping:freertos]\narchive: libfreertos.a\n[mapping:default]\narchive: *\n"
+    )
     _write_fragments_build_ninja(tmp_path, [frag])
     toolchain._warn_if_app_archive_mapped()
     assert "maps the app archive" not in caplog.text

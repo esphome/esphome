@@ -173,6 +173,8 @@ def test_get_project_cmakelists_emits_ldgen_override(
     monkeypatch.delenv("ESPHOME_LDGEN_STRICT", raising=False)
     content = _render(minimal=minimal)
     assert "REMOVE_ITEM ${out_list_var} idf::src __idf_src" in content
+    # Quoted so spaced elements survive and an empty list stays defined
+    assert 'set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)' in content
     assert 'message(WARNING "ESPHome ldgen app archive exclusion' in content
     assert 'message(STATUS "ESPHome ldgen override target not found' in content
     assert 'message(WARNING "ESPHome ldgen override never filtered' in content

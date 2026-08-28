@@ -1,6 +1,7 @@
 """ESP-IDF direct build API for ESPHome."""
 
 from dataclasses import dataclass, field
+import fnmatch
 import hashlib
 import json
 import logging
@@ -480,7 +481,21 @@ def _patch_memory_segments():
 
 
 _LDGEN_FRAGMENTS_RE = re.compile(r'--fragments-list\s+"([^"]+)"')
-_APP_ARCHIVE_MAPPED_RE = re.compile(r"^\s*archive:\s*libsrc\.a\b", re.MULTILINE)
+_LDGEN_ARCHIVE_RE = re.compile(r"^\s*archive:\s*(\S+)", re.MULTILINE)
+
+
+def _fragment_maps_app_archive(text: str) -> bool:
+    """True when an archive: spec selects libsrc.a, the archive of the src
+    component excluded as idf::src/__idf_src in build_gen/espidf.py.
+
+    The bare * is IDF's stock catch-all; its archive-level entries resolve
+    in the linker against all link inputs, so it stays safe when the
+    archive is excluded from ldgen's own inputs.
+    """
+    return any(
+        value != "*" and fnmatch.fnmatch("libsrc.a", value)
+        for value in _LDGEN_ARCHIVE_RE.findall(text)
+    )
 
 
 def _ldgen_check_skip(msg: str, strict: bool) -> None:
@@ -512,7 +527,7 @@ def _warn_if_app_archive_mapped() -> None:
         except OSError as e:
             _ldgen_check_skip(f"could not read {fragment}: {e}", strict)
             continue
-        if _APP_ARCHIVE_MAPPED_RE.search(text):
+        if _fragment_maps_app_archive(text):
             msg = (
                 f"Linker fragment {fragment} maps the app archive; its "
                 "entries may be skipped. Set ESPHOME_LDGEN_FULL_DEPS=1 "

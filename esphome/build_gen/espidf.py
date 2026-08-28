@@ -56,7 +56,7 @@ if(COMMAND __ldgen_get_lib_deps_of_target)
                     "nothing; app edits will regenerate sections.ld.")
             endif()
         endif()
-        set(${out_list_var} ${${out_list_var}} PARENT_SCOPE)
+        set(${out_list_var} "${${out_list_var}}" PARENT_SCOPE)
     endfunction()
 else()
     message(@MISSING@ "ESPHome ldgen override target not found; "
