@@ -88,9 +88,14 @@ def main() -> None:
             ex.submit(install_one, tool, name, version)
             for (name, version), tool in pending.items()
         ]
+        try:
+            results = [future.result() for future in futures]
+        except BaseException:  # pragma: no cover
+            # Ctrl-C: drop queued extractions; in-flight ones finish whole
+            ex.shutdown(wait=True, cancel_futures=True)
+            raise
     # A survivor could fool the installer; every job failing is systematic.
     # Either way a nonzero exit makes the caller warn
-    results = [future.result() for future in futures]
     failed = sum(result is not True for result in results)
     if failed:
         print(f"{failed} of {len(results)} pre-extractions failed", file=sys.stderr)

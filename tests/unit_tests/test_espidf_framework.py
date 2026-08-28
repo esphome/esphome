@@ -1026,13 +1026,16 @@ def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
     assert download.call_count == 6
 
 
-def test_prefetch_reverifies_already_downloaded_archives(tmp_path: Path) -> None:
+def test_prefetch_reverifies_already_downloaded_archives(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     """A pre-existing archive is not skipped: download_with_resume keeps it
     only when the sha256 matches, so the pre-extraction can trust it."""
     dist = get_idf_tools_path() / "dist"
     dist.mkdir(parents=True)
     (dist / "cmake-3.30.2.tar.gz").write_bytes(b"cached")
     with (
+        caplog.at_level(logging.INFO),
         patch(
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
@@ -1046,6 +1049,8 @@ def test_prefetch_reverifies_already_downloaded_archives(tmp_path: Path) -> None
         dist / "cmake-3.30.2.tar.gz",
         dist / "ninja.zip",
     ]
+    # The log distinguishes verifying cached archives from real downloads
+    assert "Downloading 2 ESP-IDF tool archive(s) (1 cached, verifying)" in caplog.text
 
 
 @pytest.mark.parametrize(

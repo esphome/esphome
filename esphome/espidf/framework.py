@@ -759,9 +759,11 @@ def _prefetch_idf_tool_archives(
             entries.append(entry)
         if not entries:
             return
+        cached = sum((dist_path / entry["dest"]).is_file() for entry in entries)
         _LOGGER.info(
-            "Downloading %d ESP-IDF tool archive(s): %s",
+            "Downloading %d ESP-IDF tool archive(s)%s: %s",
             len(entries),
+            f" ({cached} cached, verifying)" if cached else "",
             ", ".join(entry["name"] for entry in entries),
         )
 
