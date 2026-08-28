@@ -26,10 +26,9 @@ runs:
       # The native-IDF version is pinned in code, not in any file that feeds the
       # other cache keys, so resolve it explicitly. Keying on it means the cache
       # invalidates on a version bump (actions/cache never overwrites a key).
-      # Key on the exact Python version as well: the ESP-IDF python venv under
-      # ~/.esphome-idf/penvs links to the runner's hosted toolcache interpreter,
-      # so once a new runner image ships a newer patch release the cached venv
-      # fails its stamp check and is reinstalled on every run.
+      # Also key on the Python version: the cached IDF venv links to the
+      # runner's toolcache interpreter and is reinstalled every run after a
+      # runner image bump.
       id: version
       shell: bash
       run: |
