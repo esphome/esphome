@@ -25,16 +25,15 @@ void GrowattSolar::on_read_input_registers(uint16_t start_address, std::span<con
     sensor->publish_state(registers[offset] * unit);
   };
 
+  // Two-register values are unsigned, high word first.
   auto publish_2_reg_sensor_state = [&](sensor::Sensor *sensor, size_t reg, float unit) -> void {
     if (sensor == nullptr || reg < start_address)
       return;
     size_t offset = reg - start_address;
     if (offset + 2 > registers.size())
       return;
-    auto value =
-        modbus::helpers::registers_to_number(registers.data() + offset, 2, modbus::helpers::SensorValueType::U_DWORD);
-    if (value.has_value())
-      sensor->publish_state(*value * unit);
+    uint32_t value = (static_cast<uint32_t>(registers[offset]) << 16) | registers[offset + 1];
+    sensor->publish_state(value * unit);
   };
 
   switch (this->protocol_version_) {
