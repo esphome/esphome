@@ -141,6 +141,7 @@ enum ClientState {
 enum class IsocOpenState : uint8_t {
   CLOSED,         // nothing claimed, no URBs, safe to open
   SELECTING_ALT,  // SET_INTERFACE submitted, waiting for the device to answer
+  ABORTING,       // closed while SELECTING_ALT; its completion still has to release
   RUNNING,        // URBs submitted
 };
 

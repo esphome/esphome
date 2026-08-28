@@ -386,9 +386,12 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
             return;
           }
           // The owner may have closed the stream while the device was being switched. Give
-          // the interface back rather than starting URBs nobody asked for any more.
+          // the interface back rather than starting URBs nobody asked for any more, and
+          // only then report the stream closed: this is the completion the ABORTING state
+          // was waiting for.
           if (stream.open_state.load(std::memory_order_acquire) != IsocOpenState::SELECTING_ALT) {
             this->stream_release(stream, cb, client_handle, device_handle);
+            stream.open_state.store(IsocOpenState::CLOSED, std::memory_order_release);
             cb->on_stream_open(stream, false);
             return;
           }
@@ -421,9 +424,13 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
 void USBHost::stream_close(IsocStream &stream) {
   // An open that has not started its URBs yet is cancelled by taking it out of
   // SELECTING_ALT: the SET_INTERFACE completion then gives the interface back instead of
-  // starting a stream nobody wants. Nothing else has to happen, there is no URB to drain.
+  // starting a stream nobody wants. There is no URB to drain, but the interface is still
+  // claimed and the completion is still queued, so the stream is not closed yet -- going
+  // straight to CLOSED here would make is_closed() true and let a reopen claim an
+  // interface the old open never released, with the old completion then driving the new
+  // open. ABORTING keeps is_closed() false until that completion has run.
   auto selecting = IsocOpenState::SELECTING_ALT;
-  if (stream.open_state.compare_exchange_strong(selecting, IsocOpenState::CLOSED, std::memory_order_acq_rel))
+  if (stream.open_state.compare_exchange_strong(selecting, IsocOpenState::ABORTING, std::memory_order_acq_rel))
     return;
 
   if (!stream.streaming.load(std::memory_order_acquire) && !stream.xfers)
