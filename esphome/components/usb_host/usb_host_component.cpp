@@ -378,8 +378,10 @@ bool USBHost::stream_open(IsocStream &stream, USBClient *cb, usb_host_client_han
           // just like this lambda, so either the device is still open and the handles are
           // valid, or it is gone and device_handle_ is null. A snapshot would turn that
           // null into a stale handle and release an interface on a device the IDF freed.
-          const usb_host_client_handle_t client_handle = cb->handle_;
-          const usb_device_handle_t device_handle = cb->device_handle_;
+          // Not const-qualified: both are pointer typedefs, so a leading const would apply
+          // to the pointer rather than the pointee and trips clang-tidy misc-misplaced-const.
+          usb_host_client_handle_t client_handle = cb->handle_;
+          usb_device_handle_t device_handle = cb->device_handle_;
           if (device_handle == nullptr) {
             // The device went away mid-switch. It took the claimed interface with it, so
             // there is nothing to release.
