@@ -1,8 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::mk2pvrouter {
 /*
