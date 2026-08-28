@@ -489,6 +489,12 @@ def rmtree(path: Path | str) -> None:
         except OSError as err:
             if err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
                 raise
+            _LOGGER.debug(
+                "rmtree: %s repopulated mid-delete (attempt %d): %s",
+                path,
+                attempt + 1,
+                err,
+            )
             # Give the racing writer (e.g. Finder) time to settle
             time.sleep(0.05 * (attempt + 1))
     shutil.rmtree(path, onexc=_onexc)
