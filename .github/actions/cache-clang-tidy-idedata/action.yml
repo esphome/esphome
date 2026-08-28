@@ -1,0 +1,45 @@
+name: Cache clang-tidy idedata
+description: >
+  Cache the clang-tidy idedata work tree (.temp) so a job whose inputs did not
+  change skips regenerating it. For the native ESP-IDF tidy environments that
+  generation is a PlatformIO library download, an ESP-IDF python environment
+  check and two idf.py reconfigure runs, about 90-110 seconds per job.
+  script/helpers.py:load_idedata validates the restored idedata-<env>.hash
+  against calculate_clang_tidy_hash(), so a stale restore is rebuilt, never
+  used. The whole .temp tree is cached because the idedata holds absolute
+  include paths into the generated project (managed_components, build/config,
+  converted pio_components) that must come back with it.
+  Callers must have the Python venv already restored.
+inputs:
+  key:
+    description: 'Short environment id used in the cache key (e.g. esp32-idf).'
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Compute clang-tidy input hash
+      # Same hash load_idedata stores next to the idedata, so the cache key and
+      # the in-script validity check can never disagree on what counts as an
+      # input change.
+      id: hash
+      shell: bash
+      run: |
+        . venv/bin/activate
+        hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import calculate_clang_tidy_hash; print(calculate_clang_tidy_hash())')
+        echo "hash=$hash" >> "$GITHUB_OUTPUT"
+    # Mirror cache-esp-idf: only dev-branch runs write the shared cache so it
+    # lives in the default-branch scope readable by all PRs; PRs are
+    # restore-only. The hashFiles part covers the Python that generates the
+    # tidy project, which the clang-tidy hash does not.
+    - name: Cache clang-tidy idedata (write on dev)
+      if: github.ref == 'refs/heads/dev'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .temp
+        key: ${{ runner.os }}-tidy-idedata-${{ inputs.key }}-${{ steps.hash.outputs.hash }}-${{ hashFiles('esphome/espidf/**', 'esphome/build_gen/**', 'esphome/build_helpers/**') }}
+    - name: Cache clang-tidy idedata (restore-only off dev)
+      if: github.ref != 'refs/heads/dev'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .temp
+        key: ${{ runner.os }}-tidy-idedata-${{ inputs.key }}-${{ steps.hash.outputs.hash }}-${{ hashFiles('esphome/espidf/**', 'esphome/build_gen/**', 'esphome/build_helpers/**') }}

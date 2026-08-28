@@ -26,6 +26,10 @@ runs:
       # The native-IDF version is pinned in code, not in any file that feeds the
       # other cache keys, so resolve it explicitly. Keying on it means the cache
       # invalidates on a version bump (actions/cache never overwrites a key).
+      # Key on the exact Python version as well: the ESP-IDF python venv under
+      # ~/.esphome-idf/penvs links to the runner's hosted toolcache interpreter,
+      # so once a new runner image ships a newer patch release the cached venv
+      # fails its stamp check and is reinstalled on every run.
       id: version
       shell: bash
       run: |
@@ -36,6 +40,7 @@ runs:
           version=$(python -c 'from esphome.components.esp32 import ESP_IDF_FRAMEWORK_VERSION_LOOKUP as L; print(L["recommended"])')
         fi
         echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "python-version=$(python -c 'import platform; print(platform.python_version())')" >> "$GITHUB_OUTPUT"
     # Mirror the adjacent PlatformIO cache: only dev-branch runs write the
     # shared cache (so it lives in the default-branch scope readable by all
     # PRs), and PRs are restore-only -- they never push multi-GB artifacts into
@@ -45,10 +50,10 @@ runs:
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
-        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}
+        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}
     - name: Cache ESP-IDF install (restore-only off dev)
       if: github.ref != 'refs/heads/dev' || inputs.restore-only == 'true'
       uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ~/.esphome-idf
-        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}
+        key: ${{ runner.os }}-esphome-idf-${{ steps.version.outputs.version }}-py${{ steps.version.outputs.python-version }}
