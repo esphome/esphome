@@ -17,11 +17,13 @@ runs:
         [ -n "${{ inputs.environment }}" ] || { echo "::error::cache-clang-tidy-idedata: 'environment' input is empty"; exit 1; }
         hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import idedata_cache_hash; print(idedata_cache_hash("${{ inputs.environment }}"))')
         pyver=$(python -c 'import platform; print(platform.python_version())')
-        # Generating idedata is what installs ESP-IDF; never skip it over a missing install.
+        # Generating idedata is what installs ESP-IDF; never skip it over a missing
+        # install. This also skips the save, so a dev run that installs ESP-IDF
+        # warms the idedata cache on the next run.
         if [ -d ~/.esphome-idf/frameworks ]; then
           echo "skip=false" >> "$GITHUB_OUTPUT"
         else
-          echo "::warning::ESP-IDF install missing, not using the clang-tidy idedata cache"
+          echo "ESP-IDF install missing, not using the clang-tidy idedata cache"
           echo "skip=true" >> "$GITHUB_OUTPUT"
         fi
         echo "key=${{ runner.os }}-tidy-idedata-${{ inputs.environment }}-$hash-py$pyver" >> "$GITHUB_OUTPUT"
