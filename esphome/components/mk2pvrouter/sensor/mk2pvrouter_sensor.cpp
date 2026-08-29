@@ -14,16 +14,19 @@ Mk2PVRouterSensor::Mk2PVRouterSensor(const char *tag) : Mk2PVRouterListener(tag)
   // "V" alone or "V"/"T" followed solely by digits are scaled; bare "T" never
   // occurs on the wire and has no exact-match entry, so it is excluded here too.
   const char tag0 = tag[0];
-  if (tag0 == 'V' || tag0 == 'T') {
+  const bool has_suffix = tag[1] != '\0';
+  if (tag0 == 'V' && !has_suffix) {
+    // Bare "V" is the exact-match voltage tag.
+    this->scale_centi_ = true;
+  } else if ((tag0 == 'V' || tag0 == 'T') && has_suffix) {
+    // "V"/"T" followed solely by digits (V1, T1, ...); bare "T" never occurs
+    // on the wire and falls through to scale_centi_'s false default.
     bool matches = true;
     for (const char *c = tag + 1; *c != '\0'; c++) {
       if (!std::isdigit(static_cast<unsigned char>(*c))) {
         matches = false;
         break;
       }
-    }
-    if (matches && tag0 == 'T' && tag[1] == '\0') {
-      matches = false;
     }
     this->scale_centi_ = matches;
   }

@@ -36,7 +36,11 @@ Mk2PVRouterSensor = mk2pvrouter_ns.class_(
     "Mk2PVRouterSensor", sensor.Sensor, cg.Component
 )
 
-_validate_state_class = sensor.validate_state_class
+_DEFAULT_VALIDATORS = {
+    CONF_STATE_CLASS: sensor.validate_state_class,
+    CONF_DEVICE_CLASS: sensor.validate_device_class,
+    CONF_UNIT_OF_MEASUREMENT: sensor.validate_unit_of_measurement,
+}
 
 # Define common sensor configurations to avoid repetition
 POWER_CONFIG = {
@@ -115,6 +119,20 @@ BASE_SCHEMA = sensor.sensor_schema(
 ).extend(MK2PVROUTER_LISTENER_SCHEMA)
 
 
+def _apply_defaults(config: ConfigType, defaults: dict) -> None:
+    """Inject defaults into config, skipping keys already set by the user.
+
+    Values are run through the same validators sensor_schema() would use, so
+    they are code-generation-ready and a typo'd constant fails validation
+    instead of shipping silently.
+    """
+    for key, value in defaults.items():
+        if key not in config:
+            if key in _DEFAULT_VALIDATORS:
+                value = _DEFAULT_VALIDATORS[key](value)
+            config[key] = value
+
+
 def apply_tag_defaults(config: ConfigType) -> ConfigType:
     """Apply defaults based on tag pattern or exact match."""
     tag = config[CONF_TAG]
@@ -133,21 +151,17 @@ def apply_tag_defaults(config: ConfigType) -> ConfigType:
         if prefix in SENSOR_CONFIGS["patterns"] and suffix.isdigit():
             defaults = SENSOR_CONFIGS["patterns"][prefix]
 
-    # Apply defaults if found
     if defaults:
-        for key, value in defaults.items():
-            if key == CONF_STATE_CLASS:
-                # Validate state_class to convert string to enum
-                if key not in config:
-                    config[key] = _validate_state_class(value)
-            elif key not in config:
-                config[key] = value
+        _apply_defaults(config, defaults)
 
     # Fallback: ensure defaults for unknown tags
-    if CONF_ACCURACY_DECIMALS not in config:
-        config[CONF_ACCURACY_DECIMALS] = 0
-    if CONF_STATE_CLASS not in config:
-        config[CONF_STATE_CLASS] = _validate_state_class(STATE_CLASS_MEASUREMENT)
+    _apply_defaults(
+        config,
+        {
+            CONF_ACCURACY_DECIMALS: 0,
+            CONF_STATE_CLASS: STATE_CLASS_MEASUREMENT,
+        },
+    )
 
     return config
 
