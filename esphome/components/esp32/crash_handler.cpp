@@ -124,6 +124,15 @@ static uint8_t IRAM_ATTR capture_riscv_backtrace(RvExcFrame *frame, uint32_t *ou
 // Version is uint32_t because it would be padded to 4 bytes anyway before the next
 // uint32_t field, so we use the full width rather than wasting 3 bytes of padding.
 static constexpr uint32_t CRASH_DATA_VERSION = 4;
+#if CONFIG_IDF_TARGET_ARCH_XTENSA
+// EXCCAUSE is a 6-bit register; larger recorded values mean the frame's
+// cause/vaddr slots were never written (not a real exception frame).
+static constexpr uint32_t XTENSA_EXCCAUSE_COUNT = XCHAL_EXCCAUSE_NUM;
+#elif CONFIG_IDF_TARGET_ARCH_RISCV
+// Synchronous mcause exception codes are small and have no interrupt bit;
+// anything else in a non-pseudo record is a stale slot.
+static constexpr uint32_t RISCV_EXCEPTION_CAUSE_COUNT = 32;
+#endif
 struct RawCrashData {
   uint32_t version;
   uint32_t magic;
@@ -198,10 +207,28 @@ void crash_handler_clear() {
   s_raw_crash_data.magic = 0;
 }
 
+// Whether the cause slot was written by a real exception frame.
+static bool cause_slot_was_written() {
+#if CONFIG_IDF_TARGET_ARCH_XTENSA
+  return s_raw_crash_data.cause < XTENSA_EXCCAUSE_COUNT;
+#else
+  return s_raw_crash_data.cause < RISCV_EXCEPTION_CAUSE_COUNT;
+#endif
+}
+
 // Look up the exception cause as a human-readable string.
 // Tables mirror ESP-IDF's panic_arch_fill_info() which uses local static arrays
 // not exposed via any public API.
 static const char *get_exception_reason() {
+  uint8_t exception = s_raw_crash_data.exception;
+  if (exception == PANIC_EXCEPTION_ABORT || exception == PANIC_EXCEPTION_TWDT) {
+    // Abort-class panics carry no cause register
+    return nullptr;
+  }
+  if (!cause_slot_was_written()) {
+    // Garbage from old-build or corrupt records; report just the type
+    return nullptr;
+  }
 #if CONFIG_IDF_TARGET_ARCH_XTENSA
   if (s_raw_crash_data.pseudo_excause) {
     // SoC-level panic: watchdog, cache error, etc.
@@ -354,10 +381,11 @@ static const char *const FAULT_ADDR_REG = "MTVAL";
 static const char *const FAULT_ADDR_REG_LOWER = "mtval";
 #endif
 
-// Whether the fault address is meaningful — real CPU faults only, not
-// aborts/watchdogs or SoC-level pseudo exceptions.
+// Whether the fault address is meaningful: real CPU faults with a validly
+// written frame only.
 static bool has_fault_addr() {
-  return s_raw_crash_data.exception == PANIC_EXCEPTION_FAULT && !s_raw_crash_data.pseudo_excause;
+  return s_raw_crash_data.exception == PANIC_EXCEPTION_FAULT && !s_raw_crash_data.pseudo_excause &&
+         cause_slot_was_written();
 }
 
 // The record was captured by a different firmware build (it survives soft
@@ -458,6 +486,10 @@ void crash_handler_log() {
 // into NOINIT memory before the normal panic handler runs.
 //
 extern "C" {
+// Set by IDF's task watchdog (task_wdt.c, no header) before it simulates an
+// abort; weak so builds without the task watchdog still link.
+extern bool g_twdt_isr __attribute__((weak));
+
 // NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 // Names are mandated by the --wrap linker mechanism
 extern void __real_esp_panic_handler(panic_info_t *info);
@@ -470,6 +502,14 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   s_raw_crash_data.exception = (uint8_t) info->exception;
   s_raw_crash_data.pseudo_excause = info->pseudo_excause ? 1 : 0;
   s_raw_crash_data.crashed_core = (uint8_t) info->core;
+  if (g_panic_abort) {
+    // IDF reclassifies to ABORT only inside esp_panic_handler(), after this
+    // wrapper captured info->exception; correct it here. TWDT is our own
+    // distinction (IDF never assigns PANIC_EXCEPTION_TWDT). The abort text is
+    // not stored; the symbolized backtrace already identifies the site.
+    bool is_twdt = &g_twdt_isr != nullptr && g_twdt_isr;
+    s_raw_crash_data.exception = (uint8_t) (is_twdt ? PANIC_EXCEPTION_TWDT : PANIC_EXCEPTION_ABORT);
+  }
   // Zero unconditionally so a null frame doesn't leave stale .noinit data from a previous boot
   s_raw_crash_data.cause = 0;
   s_raw_crash_data.fault_addr = 0;
@@ -487,8 +527,12 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Xtensa: walk the backtrace using the public API
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
-    s_raw_crash_data.cause = xt_frame->exccause;
-    s_raw_crash_data.fault_addr = xt_frame->excvaddr;
+    if (!g_panic_abort) {
+      // Abort-class frames carry no useful cause/vaddr: TWDT task snapshots
+      // never wrote them and abort() traps describe only the synthetic trap.
+      s_raw_crash_data.cause = xt_frame->exccause;
+      s_raw_crash_data.fault_addr = xt_frame->excvaddr;
+    }
     s_raw_crash_data.backtrace_count = walk_xtensa_backtrace(xt_frame, s_raw_crash_data.backtrace, MAX_BACKTRACE);
   }
 
@@ -510,8 +554,11 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // RISC-V: capture MEPC + RA, then scan stack for code addresses
   if (info->frame != nullptr) {
     auto *rv_frame = (RvExcFrame *) info->frame;
-    s_raw_crash_data.cause = rv_frame->mcause;
-    s_raw_crash_data.fault_addr = rv_frame->mtval;
+    if (!g_panic_abort) {
+      // See the Xtensa branch: abort-class frames carry no valid cause/vaddr.
+      s_raw_crash_data.cause = rv_frame->mcause;
+      s_raw_crash_data.fault_addr = rv_frame->mtval;
+    }
     s_raw_crash_data.backtrace_count =
         capture_riscv_backtrace(rv_frame, s_raw_crash_data.backtrace, MAX_BACKTRACE, &s_raw_crash_data.reg_frame_count);
   }

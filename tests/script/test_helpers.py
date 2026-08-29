@@ -2031,3 +2031,92 @@ def test_get_changed_files_from_command_gh_failure_keeps_stderr() -> None:
         pytest.raises(Exception, match="maximum number of changed files"),
     ):
         _get_changed_files_from_command(["gh", "pr", "diff", "123", "--name-only"])
+
+
+@pytest.mark.parametrize(
+    ("file_path", "expected"),
+    [
+        ("esphome/components/time/posix_tz.cpp", True),
+        ("esphome/components/time/posix_tz.h", True),
+        ("esphome/components/time/__init__.py", True),
+        ("esphome/components/sntp/time.py", True),
+        ("tests/components/time/posix_tz.cpp", True),
+        ("tests/components/time/__init__.py", True),
+        # Platform override: tests/components/<component>/<domain>/__init__.py
+        ("tests/components/template/sensor/__init__.py", True),
+        # pytest-only files do not shape the C++ test binary
+        ("tests/components/socket/conftest.py", False),
+        ("tests/components/socket/test_socket.py", False),
+        ("tests/components/time/test.esp32-idf.yaml", False),
+        ("esphome/core/time.cpp", False),
+        ("esphome/config.py", False),
+        ("script/helpers.py", False),
+        ("README.md", False),
+    ],
+)
+def test_filter_cpp_unit_test_files(file_path: str, expected: bool) -> None:
+    """Test which changed files can affect a component's C++ unit test build."""
+    assert helpers.filter_cpp_unit_test_files(file_path) is expected
+
+
+@pytest.fixture
+def cpp_unit_test_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Fake repo root where time, sntp and api have C++ unit tests.
+
+    homeassistant depends on time but has no C++ tests, so it must be
+    dropped from the selection; socket has only pytest files.
+    """
+    tests_dir = tmp_path / "tests" / "components"
+    for component in ("time", "sntp", "api"):
+        (tests_dir / component).mkdir(parents=True)
+        (tests_dir / component / f"{component}.cpp").write_text("")
+    (tests_dir / "homeassistant").mkdir()
+    (tests_dir / "homeassistant" / "__init__.py").write_text("")
+    (tests_dir / "socket").mkdir()
+    (tests_dir / "socket" / "conftest.py").write_text("")
+    monkeypatch.setattr(helpers, "root_path", str(tmp_path))
+    monkeypatch.setattr(
+        helpers,
+        "create_components_graph",
+        lambda: {"time": ["homeassistant", "sntp"]},
+    )
+    return tmp_path
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        # Component changes expand to dependents with C++ tests
+        (["esphome/components/time/posix_tz.cpp"], ["sntp", "time"]),
+        (["esphome/components/time/__init__.py"], ["sntp", "time"]),
+        # Dependent without C++ tests is dropped
+        (["esphome/components/homeassistant/__init__.py"], []),
+        # Test changes select only that component
+        (["tests/components/time/posix_tz.cpp"], ["time"]),
+        (["tests/components/time/__init__.py"], ["time"]),
+        (["tests/components/homeassistant/__init__.py"], []),
+        (["tests/components/socket/conftest.py"], []),
+        (["tests/components/time/test.esp32-idf.yaml"], []),
+        (
+            ["esphome/components/time/__init__.py", "tests/components/api/api.cpp"],
+            ["api", "sntp", "time"],
+        ),
+        ([], []),
+    ],
+)
+@pytest.mark.usefixtures("cpp_unit_test_tree")
+def test_get_cpp_changed_components(files: list[str], expected: list[str]) -> None:
+    """Test that C++ and Python component changes select the right unit tests."""
+    assert helpers.get_cpp_changed_components(files) == expected
+
+
+def test_get_cpp_changed_components_independent_of_cwd(
+    cpp_unit_test_tree: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test directories resolve against root_path, not the current directory."""
+    monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+    assert helpers.get_cpp_changed_components(
+        ["tests/components/time/__init__.py"]
+    ) == ["time"]
