@@ -11,6 +11,7 @@ from esphome.components.esp32 import (
     const,
     get_esp32_variant,
     only_on_variant,
+    request_tls,
     request_wifi,
 )
 from esphome.components.network import (
@@ -656,6 +657,9 @@ async def to_code(config):
     # Disable Enterprise WiFi support if no EAP is configured
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", has_eap)
+        # The supplicant's Kconfig select cannot override the IDF 5 TLS role choice
+        if has_eap:
+            request_tls()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
     if has_manual_ip:
