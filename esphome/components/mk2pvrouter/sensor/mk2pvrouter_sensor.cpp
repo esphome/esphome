@@ -14,7 +14,7 @@ Mk2PVRouterSensor::Mk2PVRouterSensor(const char *tag) : Mk2PVRouterListener(tag)
   // "V" alone or "V"/"T" followed solely by digits are scaled; bare "T" never
   // occurs on the wire and has no exact-match entry, so it is excluded here too.
   const char tag0 = tag[0];
-  const bool has_suffix = tag[1] != '\0';
+  const bool has_suffix = tag0 != '\0' && tag[1] != '\0';
   if (tag0 == 'V' && !has_suffix) {
     // Bare "V" is the exact-match voltage tag.
     this->scale_centi_ = true;
