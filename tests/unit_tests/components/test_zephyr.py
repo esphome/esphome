@@ -28,6 +28,7 @@ from esphome.components.zephyr import (
     zephyr_only_on_variant,
     zephyr_set_module_override,
     zephyr_setup_i2c_pinctrl,
+    zephyr_setup_spi_pinctrl,
     zephyr_variant,
     zephyr_variant_family,
 )
@@ -306,6 +307,91 @@ def test_zephyr_setup_i2c_pinctrl_native_sim_adds_status_overlay_only() -> None:
     assert '&i2c0 { status = "okay"; };' in overlay
     # No pinctrl node -- native_sim's emulated controller has no physical pins.
     assert "pinctrl" not in overlay
+
+
+# ---------------------------------------------------------------------------
+# zephyr_setup_spi_pinctrl
+# ---------------------------------------------------------------------------
+
+
+def test_zephyr_setup_spi_pinctrl_fixed_family_only_enables_bus() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="STM32L4")
+    zephyr_setup_spi_pinctrl("some_board", "spi1")
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert '&spi1 { status = "okay"; };' in overlay
+    assert "pinctrl" not in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_raises_for_unimplemented_family() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="NRF52")
+    with pytest.raises(cv.Invalid, match="not implemented yet"):
+        zephyr_setup_spi_pinctrl("some_board", "spi0")
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_raises_for_unknown_bus_label() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with pytest.raises(cv.Invalid, match="not a valid SPI bus"):
+        zephyr_setup_spi_pinctrl("some_board", "spi9", clk=6, miso=8, mosi=7)
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_raises_for_malformed_bus_label() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    with pytest.raises(cv.Invalid, match="not a valid SPI bus"):
+        zephyr_setup_spi_pinctrl("some_board", "notaspilabel", clk=6, miso=8, mosi=7)
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_raises_without_clk() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32")
+    with pytest.raises(cv.Invalid, match="Could not determine SPI pin assignments"):
+        zephyr_setup_spi_pinctrl("some_board", "spi2")
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_single_bit_uses_hspi_prefix() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32")
+    zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, miso=8, mosi=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "SPIM2_SCLK_GPIO6" in overlay
+    assert "SPIM2_MISO_GPIO8" in overlay
+    assert "SPIM2_MOSI_GPIO7" in overlay
+    assert "group2" not in overlay
+    assert "&spi2 {" in overlay
+    assert "pinctrl-0 = <&spi2_default>;" in overlay
+    assert "CONFIG_SPI_EXTENDED_MODES" not in CORE.data[KEY_ZEPHYR]["prj_conf"].get(
+        "", {}
+    )
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_spi3_uses_vspi_prefix() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32")
+    zephyr_setup_spi_pinctrl("some_board", "spi3", clk=36, miso=37, mosi=35)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "SPIM3_SCLK_GPIO36" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_c6_uses_fspi_prefix() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, miso=8, mosi=7)
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    assert "SPIM2_SCLK_GPIO6" in overlay
+
+
+def test_zephyr_setup_spi_pinctrl_esp32_quad_adds_wp_hd_group_and_extended_modes() -> (
+    None
+):
+    CORE.data[KEY_ZEPHYR] = _empty_zephyr_data(variant="ESP32C6")
+    zephyr_setup_spi_pinctrl("some_board", "spi2", clk=6, data_pins=[7, 8, 9, 10])
+    overlay = CORE.data[KEY_ZEPHYR]["overlay"][""]
+    # data_pins[0]/[1] (D0/D1) take the mosi/miso role since no separate mosi/miso
+    # was passed for quad mode.
+    assert "SPIM2_MOSI_GPIO7" in overlay
+    assert "SPIM2_MISO_GPIO8" in overlay
+    assert "group2" in overlay
+    assert "ESP32_PINMUX(9, ESP_NOSIG, ESP_FSPIWP_OUT)" in overlay
+    assert "ESP32_PINMUX(10, ESP_NOSIG, ESP_FSPIHD_OUT)" in overlay
+    assert CORE.data[KEY_ZEPHYR]["prj_conf"][""]["CONFIG_SPI_EXTENDED_MODES"] == (
+        True,
+        True,
+    )
 
 
 # ---------------------------------------------------------------------------
