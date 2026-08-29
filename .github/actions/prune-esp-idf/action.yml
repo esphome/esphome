@@ -23,7 +23,10 @@ runs:
           rm -rf "$dir"
           n=$((n + 1))
         done
-        if [ "$n" -eq 0 ] && [ -d "$prefix/tools" ]; then
+        # The marker rides along in the cache entry so a restored slim tree stays quiet.
+        if [ "$n" -gt 0 ]; then
+          touch "$prefix/.picolibc-pruned"
+        elif [ -d "$prefix/tools" ] && [ ! -f "$prefix/.picolibc-pruned" ]; then
           echo "::warning::no picolibc sysroots matched under $prefix/tools"
         fi
         if [ -d "$prefix" ]; then
