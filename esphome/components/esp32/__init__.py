@@ -3249,7 +3249,13 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
-        clean_build(clear_pio_cache=False)
+        if CORE.using_toolchain_platformio:
+            # PIO's dependency tracking under-declares sdkconfig inputs
+            # (ldgen, linker scripts); without a clean the image can be
+            # unbootable (esphome#15336). The esp-idf toolchain tracks
+            # sdkconfig via IDF's cmake and has_outdated_files(), so a
+            # reconfigure suffices.
+            clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():
