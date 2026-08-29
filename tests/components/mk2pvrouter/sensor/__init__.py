@@ -3,7 +3,6 @@ from esphome.components.mk2pvrouter import Mk2PVRouter, register_mk2pvrouter_lis
 from esphome.components.mk2pvrouter.sensor import Mk2PVRouterSensor, is_centi_scaled
 import esphome.config_validation as cv
 from esphome.types import ConfigType
-
 from tests.testing_helpers import ComponentManifestOverride
 
 

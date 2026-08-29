@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components.mk2pvrouter import Mk2PVRouter
 import esphome.config_validation as cv
 from esphome.types import ConfigType
-
 from tests.testing_helpers import ComponentManifestOverride
 
 
