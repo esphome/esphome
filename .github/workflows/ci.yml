@@ -649,6 +649,12 @@ jobs:
         with:
           framework: arduino
 
+      - name: Cache clang-tidy idedata
+        if: matrix.cache_idf
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: esp32-arduino-tidy
+
       - name: Cache nRF Connect SDK install
         if: matrix.cache_sdk_nrf
         uses: ./.github/actions/cache-sdk-nrf
@@ -698,6 +704,10 @@ jobs:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
+      - name: Prune ESP-IDF install before cache save
+        if: matrix.cache_idf && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
+
       - name: Suggested changes
         run: script/ci-suggest-changes ${{ matrix.ignore_errors && '|| true' || '' }}
         # yamllint disable-line rule:line-length
@@ -729,6 +739,11 @@ jobs:
 
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
+
+      - name: Cache clang-tidy idedata
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: esp32-idf-tidy
 
       - name: Register problem matchers
         run: |
@@ -763,6 +778,10 @@ jobs:
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Prune ESP-IDF install before cache save
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -809,6 +828,11 @@ jobs:
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
 
+      - name: Cache clang-tidy idedata
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: esp32-idf-tidy
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
@@ -843,6 +867,10 @@ jobs:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
+      - name: Prune ESP-IDF install before cache save
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
+
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
@@ -866,16 +894,19 @@ jobs:
             name: Run script/clang-tidy for ESP32 S3
             # yamllint disable-line rule:line-length
             options: --environment esp32s3-idf-tidy --grep SOC_TEMP_SENSOR_SUPPORTED --grep USE_ESP32_VARIANT_ESP32S3 --grep USE_LOGGER_USB_CDC
+            tidy_environment: esp32s3-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 P4
             # P4 has no native Wi-Fi/BLE; those run over the hosted co-processor,
             # so their code paths differ -- lint them under the P4 build too.
             # yamllint disable-line rule:line-length
             options: --environment esp32p4-idf-tidy --grep USE_ESP32_VARIANT_ESP32P4 --grep USE_ESP32_HOSTED --grep USE_WIFI --grep USE_BLE
+            tidy_environment: esp32p4-idf-tidy
           - id: clang-tidy
             name: Run script/clang-tidy for ESP32 C6
             # yamllint disable-line rule:line-length
             options: --environment esp32c6-idf-tidy --grep SOC_LP_I2C_SUPPORTED --grep USE_ESP32_VARIANT_ESP32C6 --grep USE_OPENTHREAD --grep USE_ZIGBEE
+            tidy_environment: esp32c6-idf-tidy
 
     steps:
       - name: Check out code from GitHub
@@ -892,6 +923,11 @@ jobs:
 
       - name: Cache ESP-IDF install
         uses: ./.github/actions/cache-esp-idf
+
+      - name: Cache clang-tidy idedata
+        uses: ./.github/actions/cache-clang-tidy-idedata
+        with:
+          environment: ${{ matrix.tidy_environment }}
 
       - name: Register problem matchers
         run: |
@@ -925,6 +961,10 @@ jobs:
             echo "Running clang-tidy on changed files only"
             script/clang-tidy --fix --changed ${{ matrix.options }}
           fi
+
+      - name: Prune ESP-IDF install before cache save
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
+        uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
         run: script/ci-suggest-changes
