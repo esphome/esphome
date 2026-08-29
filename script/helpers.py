@@ -809,17 +809,14 @@ def load_idedata(environment: str) -> dict[str, Any]:
     start_time = time.time()
     print(f"Loading IDE data for environment '{environment}'...")
 
-    # Reuse the clang-tidy input hash as the cache key: it already covers every
-    # file baked into the generated idedata (platformio.ini, sdkconfig.defaults,
-    # esphome/idf_component.yml), so this can't drift from that file list. A
-    # content hash -- unlike an mtime comparison -- stays correct across git
-    # checkouts, which don't preserve mtimes.
-    from clang_tidy_hash import calculate_clang_tidy_hash
+    # Content hash of the idedata inputs (data files and the generator code); a
+    # content hash, unlike mtimes, stays correct across git checkouts.
+    from clang_tidy_hash import idedata_cache_hash
 
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    cache_key = calculate_clang_tidy_hash()
+    cache_key = idedata_cache_hash(environment)
     changed = (
         not temp_idedata.is_file()
         or not temp_hash.is_file()
