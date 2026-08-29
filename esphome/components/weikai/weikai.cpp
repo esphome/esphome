@@ -254,7 +254,7 @@ size_t WeikaiGPIOPin::dump_summary(char *buffer, size_t len) const {
 void WeikaiChannel::setup_channel() {
   ESP_LOGCONFIG(TAG, "  Setting up UART %s:%s", this->parent_->get_name(), this->get_channel_name());
   // we enable transmit and receive on this channel
-  if (this->check_channel_down()) {
+  if (this->check_channel_down_()) {
     ESP_LOGCONFIG(TAG, "  Error channel %s not working", this->get_channel_name());
   }
   this->reset_fifo_();
@@ -374,7 +374,7 @@ size_t WeikaiChannel::rx_in_fifo_() {
   return available;
 }
 
-bool WeikaiChannel::check_channel_down() {
+bool WeikaiChannel::check_channel_down_() {
   // to check if we channel is up we write to the LCR W/R register
   // note that this will put a break on the tx line for few ms
   WeikaiRegister &lcr = this->reg(WKREG_LCR);
