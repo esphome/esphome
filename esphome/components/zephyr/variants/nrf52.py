@@ -1,4 +1,7 @@
+import logging
+
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -14,7 +17,9 @@ from esphome.types import ConfigType
 from ..const import (
     ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
+    CONF_BOOTLOADER,
     CONF_RUNNER,
+    KEY_BOOTLOADER,
     KEY_MODULE_REQUESTS,
     ZEPHYR_VARIANT_NRF52,
 )
@@ -27,9 +32,44 @@ from . import (
     set_core_data,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 _DEFAULT_BOARD = "adafruit_feather_nrf52840"
 
-_ADVANCED_SCHEMA = ADVANCED_SCHEMA
+# advanced: bootloader: -- deliberately local to this variant, not platform: nrf52's own
+# BOOTLOADER_* constants (see the sdk= comment below re: issue #11 entanglement).
+# BOOTLOADER_MCUBOOT (default): MCUboot is built as a sysbuild child image (see
+# _bootloader_to_code).
+# BOOTLOADER_ADAFRUIT_NRF52_SD140_V6 skips MCUboot entirely -- the stock board's own
+# devicetree (nordic/nrf52840_partition_uf2_sdv6.dtsi, included by
+# adafruit_itsybitsy_nrf52840.dts) already reserves the flash regions occupied by a
+# factory-installed Adafruit bootloader + SoftDevice v6 as read-only partitions, and
+# points zephyr,code-partition at the free gap between them, so the app build lands
+# there without overwriting either. See:
+# https://learn.adafruit.com/introducing-the-adafruit-nrf52840-feather/hathach-memory-map
+BOOTLOADER_ADAFRUIT_NRF52_SD140_V6 = "adafruit_nrf52_sd140_v6"
+BOOTLOADER_ADAFRUIT_NRF52_SD140_V7 = "adafruit_nrf52_sd140_v7"
+
+# Expected "SoftDevice" partition size for each choice above, cross-checked against
+# upstream's own dtsi (nordic/nrf52840_partition_uf2_sdv{6,7}.dtsi): v6 reserves
+# 0x26000 (152K), v7 reserves 0x27000 (156K) -- a board whose stock DTS has a
+# "SoftDevice" partition of the wrong size for the selected version means the app
+# would still be linked against the wrong gap, same footgun as a missing partition.
+_SOFTDEVICE_PARTITION_SIZE = {
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V6: 0x26000,
+    BOOTLOADER_ADAFRUIT_NRF52_SD140_V7: 0x27000,
+}
+
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
+    {
+        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_MCUBOOT): cv.one_of(
+            BOOTLOADER_MCUBOOT,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+            BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+            lower=True,
+        ),
+    }
+)
 
 # GPIO -> nRF52840 SAADC analog-input name. Fixed silicon fact (AIN0-AIN7 datasheet
 # pin assignment), independently defined here rather than imported from
@@ -95,7 +135,7 @@ def config_schema(config: ConfigType) -> ConfigType:
     set_core_data(
         VARIANT_NAME,
         config[CONF_BOARD],
-        BOOTLOADER_MCUBOOT,
+        config[CONF_ADVANCED][CONF_BOOTLOADER],
         framework_ver,
         config,
         framework_type=sdk_name,
@@ -117,6 +157,50 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("REBOOT", True)
     zephyr_add_prj_conf("HWINFO", True)
 
+    bootloader = config[CONF_ADVANCED][CONF_BOOTLOADER]
+    if bootloader in (
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V6,
+        BOOTLOADER_ADAFRUIT_NRF52_SD140_V7,
+    ):
+        from ..dts_lookup import get_board_partitions
+
+        # zephyr_to_code() above already fetched this board's DTS (fetch_board_dts) and
+        # validated it exists, so this reflects the real board -- not a guess. Only the
+        # itsybitsy's stock DTS (nrf52840_partition_uf2_sdv6.dtsi) ships a "SoftDevice"
+        # partition; picking this bootloader on a board without one (e.g. the default
+        # adafruit_feather_nrf52840, whose nrf52840_partition.dtsi has no such
+        # reservation) silently links the app at flash address 0x0 instead of into a
+        # real gap, which would overwrite whatever's actually on that board's flash.
+        # Warning, not an error: this only sees the board's stock DTS -- a user who
+        # added the missing/mismatched partition themselves via `zephyr: overlays:`
+        # would be correct and this check can't see that fix.
+        partitions = get_board_partitions(config[CONF_BOARD])
+        if partitions is not None:
+            softdevice = next((p for p in partitions if p[0] == "SoftDevice"), None)
+            expected_size = _SOFTDEVICE_PARTITION_SIZE[bootloader]
+            if softdevice is None:
+                _LOGGER.warning(
+                    "Board '%s' has no 'SoftDevice' partition in its stock "
+                    "devicetree, so '%s' would not actually protect an existing "
+                    "bootloader on this board unless one was added via 'overlays:'. "
+                    "Use a board whose stock devicetree ships that partition (e.g. "
+                    "adafruit_itsybitsy), or set 'advanced: bootloader: %s' instead.",
+                    config[CONF_BOARD],
+                    bootloader,
+                    BOOTLOADER_MCUBOOT,
+                )
+            elif softdevice[2] != expected_size:
+                _LOGGER.warning(
+                    "Board '%s' has a 'SoftDevice' partition of 0x%x bytes, but "
+                    "'%s' expects 0x%x bytes -- the app would still be linked "
+                    "against the wrong gap unless this was intentionally overridden "
+                    "via 'overlays:'.",
+                    config[CONF_BOARD],
+                    softdevice[2],
+                    bootloader,
+                    expected_size,
+                )
+
     CORE.add_job(_bootloader_to_code, config)
 
 
@@ -131,12 +215,13 @@ async def _bootloader_to_code(config: ConfigType) -> None:
     # zigbee_zephyr.py's request_zephyr_module("zigbee") call has already run if
     # zigbee: is configured.
     # TBD - single slot MCUBOOT
-    if "zigbee" not in zephyr_data()[KEY_MODULE_REQUESTS] or CORE.config.get(CONF_OTA):
+    if (
+        "zigbee" not in zephyr_data()[KEY_MODULE_REQUESTS] or CORE.config.get(CONF_OTA)
+    ) and zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         # west build always runs with --sysbuild (build_zephyr.py), but sysbuild
         # still needs to be told which bootloader to build as its "mcuboot" child
         # image -- without this, only the (unsigned) app image gets built and
         # flashed.
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
-
         # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
         zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

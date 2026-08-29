@@ -27,6 +27,13 @@ void arm_reexec(const std::string &path);
 }  // namespace esphome::zephyr
 #else
 #include <zephyr/dfu/mcuboot.h>
+#include <zephyr/storage/flash_map.h>
+#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
+// Statically linked utility lib (modules/mcuboot/libmcuboot_util.a), distinct from the
+// bootloader image itself -- gives the app boot_set_next() with an explicit flash_area,
+// where Zephyr's own boot_request_upgrade() wrapper hardcodes the secondary slot.
+#include <bootutil/bootutil_public.h>
+#endif
 #endif
 
 namespace esphome::ota {
@@ -274,14 +281,30 @@ void ZephyrOTABackend::abort() {
 
 #else  // real Zephyr hardware under MCUboot
 
+#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
+bool ZephyrOTABackend::active_slot_is_secondary() const {
+  return boot_fetch_active_slot() == FIXED_PARTITION_ID(slot1_partition);
+}
+#endif
+
 // flash_img_init() targets the secondary (slot1) partition, which is the
 // standard MCUboot upload target on every dual-slot Zephyr board -- no
 // per-chip area id needed here, same as esp_idf's esp_ota_get_next_update_partition().
+// Direct-xip is the exception: there's no fixed "update slot" since MCUboot boots
+// whichever slot has the higher version in place, so the target must be whichever
+// slot ISN'T currently executing (see active_slot_is_secondary()).
 OTAResponseTypes ZephyrOTABackend::begin(size_t image_size, OTAType ota_type) {
   if (ota_type != OTA_TYPE_UPDATE_APP)
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
 
-  int err = flash_img_init(&this->img_ctx_);
+  int err;
+#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
+  this->target_area_id_ =
+      this->active_slot_is_secondary() ? FIXED_PARTITION_ID(slot0_partition) : FIXED_PARTITION_ID(slot1_partition);
+  err = flash_img_init_id(&this->img_ctx_, this->target_area_id_);
+#else
+  err = flash_img_init(&this->img_ctx_);
+#endif
   if (err != 0) {
     ESP_LOGE(TAG, "flash_img_init failed: %d", err);
     return OTA_RESPONSE_ERROR_UPDATE_PREPARE;
@@ -335,16 +358,32 @@ OTAResponseTypes ZephyrOTABackend::end() {
     }
   }
 
+#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
+  // confirm=false marks this a one-time test boot, same as BOOT_UPGRADE_TEST below --
+  // MCUboot's direct-xip-with-revert erases it on the next boot if never confirmed
+  // (safe_mode's boot_write_img_confirmed()). boot_request_upgrade() always targets the
+  // hardcoded secondary slot, wrong once the device is running from it, so this writes
+  // the trailer via the same target_area_id_ chosen in begin() instead.
+  const struct flash_area *fa;
+  err = flash_area_open(this->target_area_id_, &fa);
+  if (err != 0) {
+    ESP_LOGE(TAG, "flash_area_open failed: %d", err);
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
+  err = boot_set_next(fa, false, false);
+  flash_area_close(fa);
+#else
   // Mark the secondary slot pending as a test boot: MCUboot will swap it in
   // on the next reset, and it must be explicitly confirmed after a verified-good
   // boot (safe_mode does this under USE_OTA_ROLLBACK) or it reverts automatically.
   err = boot_request_upgrade(BOOT_UPGRADE_TEST);
+#endif
   if (err != 0) {
     ESP_LOGE(TAG, "boot_request_upgrade failed: %d", err);
     return OTA_RESPONSE_ERROR_UPDATE_END;
   }
 
-  ESP_LOGI(TAG, "OTA staged; will swap and boot-test on reboot");
+  ESP_LOGI(TAG, "OTA staged; will boot new image on reboot");
   return OTA_RESPONSE_OK;
 }
 

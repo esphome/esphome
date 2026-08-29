@@ -95,6 +95,7 @@ from .const import (
     ZEPHYR_VARIANT_STM32F1,
     ZEPHYR_VARIANT_STM32F4,
     ZEPHYR_VARIANT_STM32L4,
+    ZEPHYR_VARIANT_STM32WB55,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -212,6 +213,7 @@ class ZephyrData(TypedDict):
     snippets: list[
         str
     ]  # zephyr: snippets: -- one `-S <name>` per entry to `west build`
+    swap_method: str | None  # ota: swap_method:, set by mcuboot.apply_swap_method()
     single_slot: bool  # zephyr: single_slot: -- see mcuboot.apply_single_slot()
     shields: list[str]  # zephyr: shields: -- one `-DSHIELD=` entry per item
     shield_root: (
@@ -267,6 +269,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         west_version=None,
         ninja_version=None,
         snippets=[],
+        swap_method=None,
         single_slot=False,
         shields=[],
         shield_root=None,
@@ -1826,6 +1829,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.stm32f4 import config_schema as _stm32f4_config_schema
 
         config = _stm32f4_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32WB55:
+        from .variants.stm32wb55 import config_schema as _stm32wb55_config_schema
+
+        config = _stm32wb55_config_schema(config)
     elif variant == ZEPHYR_VARIANT_STM32F1:
         from .variants.stm32f1 import config_schema as _stm32f1_config_schema
 
@@ -1976,6 +1983,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.stm32f4 import to_code as _stm32f4_to_code
 
         await _stm32f4_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32WB55:
+        from .variants.stm32wb55 import to_code as _stm32wb55_to_code
+
+        await _stm32wb55_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_STM32F1:
         from .variants.stm32f1 import to_code as _stm32f1_to_code
