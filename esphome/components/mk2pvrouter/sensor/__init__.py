@@ -152,10 +152,16 @@ def _resolve_tag_defaults(tag: str) -> dict | None:
     return None
 
 
+# Defaults dicts whose tags carry a device-side x100 scale (centivolts/centi-degrees).
+# Membership is by identity, so a table entry derived/copied from one of these
+# (e.g. {**VOLTAGE_CONFIG, ...}) must be added here explicitly too.
+CENTI_SCALED_CONFIGS = (VOLTAGE_CONFIG, TEMPERATURE_CONFIG)
+
+
 def is_centi_scaled(tag: str) -> bool:
     """Whether the device sends this tag multiplied by 100 (centivolts/centi-degrees)."""
     defaults = _resolve_tag_defaults(tag)
-    return defaults is VOLTAGE_CONFIG or defaults is TEMPERATURE_CONFIG
+    return any(defaults is c for c in CENTI_SCALED_CONFIGS)
 
 
 def apply_tag_defaults(config: ConfigType) -> ConfigType:

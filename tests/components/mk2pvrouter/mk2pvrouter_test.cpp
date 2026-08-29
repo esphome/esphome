@@ -5,7 +5,7 @@
 #include "esphome/components/mk2pvrouter/mk2pvrouter.h"
 #include "common.h"
 
-namespace esphome::mk2pvrouter {
+namespace esphome::mk2pvrouter::testing {
 
 namespace {
 class TestListener final : public Mk2PVRouterListener {
@@ -25,8 +25,6 @@ TEST(Mk2PVRouterListenerTest, GetTagReturnsConstructorTag) {
   TestListener listener("P1");
   EXPECT_STREQ(listener.get_tag(), "P1");
 }
-
-namespace testing {
 
 TEST(Mk2PVRouterTest, CalculateCrcMatchesKnownGroup) {
   TestableMk2PVRouter sut;
@@ -127,5 +125,4 @@ TEST(Mk2PVRouterTest, LoopIgnoresBytesBeforeStartFrame) {
   EXPECT_EQ(sut.buf_index_, 0);
 }
 
-}  // namespace testing
-}  // namespace esphome::mk2pvrouter
+}  // namespace esphome::mk2pvrouter::testing

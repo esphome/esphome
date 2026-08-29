@@ -2,7 +2,7 @@
 
 #include "esphome/components/mk2pvrouter/sensor/mk2pvrouter_sensor.h"
 
-namespace esphome::mk2pvrouter {
+namespace esphome::mk2pvrouter::testing {
 
 // scale_centi=true divides the parsed value by 100 (e.g. centivolts, centi-degrees).
 TEST(Mk2PVRouterSensorTest, ScaleCentiTrueScalesByOneHundredth) {
@@ -25,4 +25,4 @@ TEST(Mk2PVRouterSensorTest, UnparseableValueIsNotPublished) {
   EXPECT_FALSE(sensor.has_state());
 }
 
-}  // namespace esphome::mk2pvrouter
+}  // namespace esphome::mk2pvrouter::testing
