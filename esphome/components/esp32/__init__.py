@@ -1857,12 +1857,15 @@ def require_mbedtls_ecp() -> None:
 
 
 def require_mbedtls_peer_cert() -> None:
-    """Keep the peer certificate after the TLS handshake (CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE)."""
+    """Keep the peer certificate after the TLS handshake (CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE).
+
+    A user sdkconfig_options value takes precedence.
+    """
     _mbedtls_sdkconfig().peer_cert_required = True
 
 
 def require_mbedtls_pkcs7() -> None:
-    """Keep mbedTLS PKCS#7 support (CONFIG_MBEDTLS_PKCS7_C)."""
+    """Keep mbedTLS PKCS#7 support (CONFIG_MBEDTLS_PKCS7_C). A user sdkconfig_options value takes precedence."""
     _mbedtls_sdkconfig().pkcs7_required = True
 
 
@@ -2345,9 +2348,11 @@ _TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HT
 
 
 def _user_sdkconfig_wants_tls(options: dict[str, Any]) -> bool:
+    """True when sdkconfig_options turn TLS on or tune something under it; an `n` is never a request."""
     return any(
         (name in _MBEDTLS_TLS_ON_OPTIONS and value == "y")
-        or name.startswith(_TLS_OPTION_PREFIXES)
+        or (name == "CONFIG_MBEDTLS_TLS_DISABLED" and value == "n")
+        or (name.startswith(_TLS_OPTION_PREFIXES) and value != "n")
         for name, value in options.items()
     )
 

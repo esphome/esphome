@@ -596,6 +596,14 @@ def test_reconcile_mbedtls_sdkconfig(
         pytest.param(
             "tls_sdkconfig_tls_enabled_n.yaml", True, True, id="raw_tls_enabled_n"
         ),
+        # Disabling a TLS sub-option is not a request either.
+        pytest.param(
+            "tls_sdkconfig_peer_cert_n.yaml", True, True, id="raw_peer_cert_n"
+        ),
+        # CONFIG_MBEDTLS_TLS_DISABLED=n is the IDF 5 way to keep TLS.
+        pytest.param(
+            "tls_sdkconfig_tls_disabled_n.yaml", False, False, id="raw_tls_disabled_n"
+        ),
         # SECURE_SIGNED_APPS selects ECP back on in Kconfig; ESPHome still writes the default.
         pytest.param("signed_ota_ecdsa256_c6.yaml", True, True, id="signed_ota_ecdsa"),
     ],
@@ -610,7 +618,7 @@ def test_tls_disabled_sdkconfig(
     """TLS is compiled out unless a component or a raw sdkconfig option asks for it."""
     generate_main(component_config_path(config_file))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert ("CONFIG_MBEDTLS_TLS_DISABLED" in sdkconfig) is tls_off
+    assert (sdkconfig.get("CONFIG_MBEDTLS_TLS_DISABLED") is True) is tls_off
     assert ("CONFIG_MBEDTLS_ECP_C" in sdkconfig) is ecp_off
     assert ("esp-tls" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]) is tls_off
 
