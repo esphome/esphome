@@ -92,6 +92,22 @@ def test_violation_after_a_for_loop_is_reported_at_its_own_line() -> None:
     assert lines == [3]  # the 'if', not the 'for' on line 1
 
 
+def test_flags_lowercase_esph_log_family() -> None:
+    # core/log.h defines esph_log_*() alongside ESP_LOG*(); both expand to nothing below their level.
+    assert _lint('if (x)\n  esph_log_config(t, "m");\n')
+    assert _lint('if (err != ESP_OK)\n  esph_log_e(t, "m");\n')
+
+
+def test_digit_separator_does_not_disable_the_rest_of_the_file() -> None:
+    # A "'" digit separator must not be read as a char-literal opener, which blanked everything after.
+    assert _lint("uint32_t x = 1'000;\nif (y)\n  ESP_LOGD(t);\n")
+
+
+def test_mask_still_blanks_real_char_literals() -> None:
+    assert "ESP_LOGD" not in mask("char c = '\"'; // if (x) ESP_LOGD(t);\n")
+    assert not _lint("char sep = ';';\nif (x) {\n  ESP_LOGD(t);\n}\n")
+
+
 def test_flags_multiline_log_body() -> None:
     assert _lint('if (x)\n  ESP_LOGD(t, "%d %d",\n           a, b);\n')
 

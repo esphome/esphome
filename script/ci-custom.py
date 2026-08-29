@@ -323,14 +323,15 @@ def lint_no_long_delays(fname, match):
 # log level drops that macro, the body expands to nothing and the compiler warns (-Wempty-body).
 # clang-tidy's brace check does not catch these (ShortStatementLines allows short unbraced bodies), so
 # this fills that gap. Matched against comment/string-masked content, so commented-out or quoted code
-# is ignored.
+# is ignored. Both spellings are covered: core/log.h defines the uppercase ESP_LOG*() macros and
+# the lowercase esph_log_*() ones, and both expand to nothing below their log level.
 # 'for' allows ';' inside its parentheses (the classic C-style header); 'if'/'while' do not, so their
 # condition cannot run past the statement it guards. The 'for' header permits one level of nested
 # parens so it stays bounded to its own statement: without that, it can run past the loop body and
 # latch onto a later ')', mis-reporting the line and skipping the '#' preprocessor check below.
 ESP_LOG_NEEDS_BRACES_RE = re.compile(
     r"(?:\bif\s*\([^{};]*\)|\bwhile\s*\([^{};]*\)|\bfor\s*\((?:[^{}()]|\([^{}()]*\))*\)|\belse\b)"
-    r"[ \t]*\n?[ \t]*ESP_LOG[A-Z]*\s*\(",
+    r"[ \t]*\n?[ \t]*(?:ESP_LOG[A-Z]*|esph_log_[a-z]+)\s*\(",
     re.MULTILINE,
 )
 
@@ -378,7 +379,10 @@ def _mask_cpp_comments_strings(s):
             if i + 1 < n:
                 out[i + 1] = " "
             i += 2
-        elif c in "\"'":
+        # A "'" after an alphanumeric or '_' is a C++ digit separator (1'000), not a literal opener.
+        elif c == '"' or (
+            c == "'" and not (i and (s[i - 1].isalnum() or s[i - 1] == "_"))
+        ):
             quote = c
             out[i] = " "
             i += 1
@@ -427,7 +431,7 @@ def _log_statement_end(masked, open_paren):
 @lint_content_check(include=cpp_include)
 def lint_esp_log_needs_braces(fname, content):
     # Cheap bailout: no log call means nothing to flag, and skips masking the file entirely.
-    if "ESP_LOG" not in content:
+    if "ESP_LOG" not in content and "esph_log_" not in content:
         return []
     masked = _mask_cpp_comments_strings(content)
     errors = []
@@ -453,7 +457,7 @@ def lint_esp_log_needs_braces(fname, content):
                 content.count("\n", 0, pos) + 1,
                 pos - line_start + 1,
                 (
-                    f"{highlight(snippet)} - an if/else/for/while body that is a single ESP_LOG*() "
+                    f"{highlight(snippet)} - an if/else/for/while body that is a single log "
                     "call must be wrapped in braces. When the log level compiles the macro out, the "
                     "body becomes empty and the compiler warns (-Wempty-body). Add { } around the "
                     "log call (or a '// NOLINT' comment if this is genuinely intended)."
