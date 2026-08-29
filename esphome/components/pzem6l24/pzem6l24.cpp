@@ -159,7 +159,7 @@ bool PZEM6L24::on_no_response(std::span<const uint8_t> request_pdu) {
   } else {
     ESP_LOGW(TAG, "PZEM-6L24 did not acknowledge the energy reset; the counters may not have been cleared");
   }
-  return false;  // no retry; the next update() polls again
+  return false;  // no retry; the next update() polls again.
 }
 
 // An accepted request that was dropped before it reached the wire (clear_tx_queue_for_address()).
