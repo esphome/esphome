@@ -1,0 +1,20 @@
+packages:
+  openthread: !include common.yaml
+
+wifi:
+  ssid: "OTBR RCP Test"
+  password: "test-password"
+
+openthread:
+  border_router:
+    rcp:
+      rx_pin: GPIO18
+      tx_pin: GPIO17
+      reset_pin: GPIO16
+  channel: 15
+  network_name: ESPHome-OTBR
+  network_key: 0x00112233445566778899AABBCCDDEEFF
+  pan_id: 0x1234
+  ext_pan_id: 0x00AD00BE00C0CAFE
+  pskc: 0x004810E2315100AFD6BC9215A6BFAC53
+  mesh_local_prefix: fd00:db8:a0:0::/64
