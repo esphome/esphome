@@ -3,8 +3,8 @@ description: >
   Cache the clang-tidy idedata and the headers it references under .temp
   (headers only, about 30MB per env). Run after restore-python and cache-esp-idf.
 inputs:
-  key:
-    description: 'Short environment id used in the cache key (e.g. esp32-idf).'
+  environment:
+    description: 'clang-tidy environment (e.g. esp32-idf-tidy).'
     required: true
 runs:
   using: composite
@@ -14,8 +14,8 @@ runs:
       shell: bash
       run: |
         . venv/bin/activate
-        [ -n "${{ inputs.key }}" ] || { echo "::error::cache-clang-tidy-idedata: 'key' input is empty"; exit 1; }
-        hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import calculate_idedata_cache_hash; print(calculate_idedata_cache_hash())')
+        [ -n "${{ inputs.environment }}" ] || { echo "::error::cache-clang-tidy-idedata: 'environment' input is empty"; exit 1; }
+        hash=$(python -c 'import sys; sys.path.insert(0, "script"); from clang_tidy_hash import idedata_cache_hash; print(idedata_cache_hash("${{ inputs.environment }}"))')
         pyver=$(python -c 'import platform; print(platform.python_version())')
         # Generating idedata is what installs ESP-IDF; never skip it over a missing install.
         if [ -d ~/.esphome-idf/frameworks ]; then
@@ -24,7 +24,7 @@ runs:
           echo "::warning::ESP-IDF install missing, not using the clang-tidy idedata cache"
           echo "skip=true" >> "$GITHUB_OUTPUT"
         fi
-        echo "key=${{ runner.os }}-tidy-idedata-${{ inputs.key }}-$hash-py$pyver" >> "$GITHUB_OUTPUT"
+        echo "key=${{ runner.os }}-tidy-idedata-${{ inputs.environment }}-$hash-py$pyver" >> "$GITHUB_OUTPUT"
     # Mirror cache-esp-idf: write on dev, restore-only on PRs. The post-step
     # save only runs when the job succeeded, so a failed generation is never saved.
     # Extend the extension list if a component ships extensionless headers.

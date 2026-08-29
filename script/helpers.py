@@ -811,17 +811,12 @@ def load_idedata(environment: str) -> dict[str, Any]:
 
     # Content hash of the idedata inputs (data files and the generator code); a
     # content hash, unlike mtimes, stays correct across git checkouts.
-    from clang_tidy_hash import calculate_clang_tidy_hash, calculate_idedata_cache_hash
+    from clang_tidy_hash import idedata_cache_hash
 
     temp_idedata = Path(temp_folder) / f"idedata-{environment}.json"
     temp_hash = Path(temp_folder) / f"idedata-{environment}.hash"
 
-    # Only the native ESP-IDF path depends on the generator code.
-    cache_key = (
-        calculate_idedata_cache_hash()
-        if "esp32" in environment
-        else calculate_clang_tidy_hash()
-    )
+    cache_key = idedata_cache_hash(environment)
     changed = (
         not temp_idedata.is_file()
         or not temp_hash.is_file()

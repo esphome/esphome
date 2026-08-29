@@ -44,7 +44,8 @@ runs:
     # shared cache (so it lives in the default-branch scope readable by all
     # PRs), and PRs are restore-only -- they never push multi-GB artifacts into
     # their own scope / the repo quota (e.g. on a version-bump PR). The
-    # ci-cache-write label lets a PR write into its own scope to test the hit path.
+    # ci-cache-write label lets a PR write into its own scope to test the hit path;
+    # that costs about 1GB of the repo cache quota per run, so remove it when done.
     - name: Cache ESP-IDF install (write on dev)
       if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && inputs.restore-only != 'true'
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5

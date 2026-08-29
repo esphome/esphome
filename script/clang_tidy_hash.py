@@ -89,10 +89,21 @@ def calculate_idedata_cache_hash(repo_root: Path | None = None) -> str:
 
     paths = {repo_root / name for name in ESP_IDF_INFRA_TRIGGER_FILES}
     for prefix in ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES:
-        paths.update((repo_root / prefix).rglob("*.py"))
+        paths.update(
+            path
+            for path in (repo_root / prefix).rglob("*")
+            if "__pycache__" not in path.parts
+        )
     for path in sorted(paths):
         if path.is_file():
             hasher.update(str(path.relative_to(repo_root)).encode())
             hasher.update(read_file_bytes(path))
 
     return hasher.hexdigest()
+
+
+def idedata_cache_hash(environment: str, repo_root: Path | None = None) -> str:
+    """Hash gating the cached idedata of one clang-tidy environment."""
+    if "esp32" in environment:
+        return calculate_idedata_cache_hash(repo_root)
+    return calculate_clang_tidy_hash(repo_root)
