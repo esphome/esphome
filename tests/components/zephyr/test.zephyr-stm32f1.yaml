@@ -1,1 +1,31 @@
 <<: !include common.yaml
+
+zephyr:
+  # nucleo_f103rb's stock dual-slot MCUboot layout gives the app only ~45K, too tight
+  # post-merge. single_slot: true drops the second slot; the overlay reclaims its space
+  # for slot0 (86K) and grows storage_partition to 8K. Both app and mcuboot need the
+  # same layout.
+  single_slot: true
+  overlays:
+    app: |
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x8800 DT_SIZE_K(86)>;
+      };
+      &storage_partition {
+        reg = <0x1e000 DT_SIZE_K(8)>;
+      };
+
+      / {
+        chosen {
+          zephyr,code-partition = &slot0_partition;
+        };
+      };
+    mcuboot: |
+      /delete-node/ &slot1_partition;
+      &slot0_partition {
+        reg = <0x8800 DT_SIZE_K(86)>;
+      };
+      &storage_partition {
+        reg = <0x1e000 DT_SIZE_K(8)>;
+      };

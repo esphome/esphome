@@ -487,11 +487,6 @@ bssid_t WiFiComponent::wifi_bssid() {
   return bssid;
 }
 
-std::string WiFiComponent::wifi_ssid() {
-  char buf[SSID_BUFFER_SIZE];
-  return this->wifi_ssid_to(buf);
-}
-
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   wifi_iface_status status{};
   if (get_iface_status(sta_iface, &status)) {
