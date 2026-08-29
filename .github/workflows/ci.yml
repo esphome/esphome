@@ -705,7 +705,7 @@ jobs:
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
       - name: Prune ESP-IDF install before cache save
-        if: github.ref == 'refs/heads/dev'
+        if: matrix.cache_idf && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
         uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
@@ -780,7 +780,7 @@ jobs:
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
       - name: Prune ESP-IDF install before cache save
-        if: github.ref == 'refs/heads/dev'
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
         uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
@@ -868,7 +868,7 @@ jobs:
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
       - name: Prune ESP-IDF install before cache save
-        if: github.ref == 'refs/heads/dev'
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
         uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes
@@ -963,7 +963,7 @@ jobs:
           fi
 
       - name: Prune ESP-IDF install before cache save
-        if: github.ref == 'refs/heads/dev'
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write'))
         uses: ./.github/actions/prune-esp-idf
 
       - name: Suggested changes

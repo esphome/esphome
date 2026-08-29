@@ -10,18 +10,22 @@ runs:
       shell: bash
       run: |
         shopt -s nullglob
-        for fw in ~/.esphome-idf/frameworks/*/; do
+        prefix="${ESPHOME_ESP_IDF_PREFIX:-$HOME/.esphome-idf}"
+        prefix="${prefix/#\~/$HOME}"
+        for fw in "$prefix"/frameworks/*/; do
           case "$(basename "$fw")" in
             [6-9].*) echo "IDF $(basename "$fw") installed, keeping picolibc"; exit 0 ;;
           esac
         done
         n=0
-        for dir in ~/.esphome-idf/tools/*-esp-elf/*/*-esp-elf/picolibc; do
+        for dir in "$prefix"/tools/*-esp-elf/*/*-esp-elf/picolibc; do
           echo "Removing $dir ($(du -sh "$dir" | cut -f1))"
           rm -rf "$dir"
           n=$((n + 1))
         done
-        if [ "$n" -eq 0 ] && [ -d ~/.esphome-idf/tools ]; then
-          echo "::warning::no picolibc sysroots matched under ~/.esphome-idf/tools"
+        if [ "$n" -eq 0 ] && [ -d "$prefix/tools" ]; then
+          echo "::warning::no picolibc sysroots matched under $prefix/tools"
         fi
-        [ -d ~/.esphome-idf ] && du -sh ~/.esphome-idf
+        if [ -d "$prefix" ]; then
+          du -sh "$prefix"
+        fi
