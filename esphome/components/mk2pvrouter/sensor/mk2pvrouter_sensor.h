@@ -10,6 +10,9 @@ class Mk2PVRouterSensor final : public Mk2PVRouterListener, public sensor::Senso
   explicit Mk2PVRouterSensor(const char *tag);
   void publish_val(const char *val) override;
   void dump_config() override;
+
+ protected:
+  bool scale_centi_{false};
 };
 
 }  // namespace esphome::mk2pvrouter
