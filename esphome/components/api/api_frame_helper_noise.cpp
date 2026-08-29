@@ -68,7 +68,10 @@ APIError APINoiseFrameHelper::init() {
 
   // init prologue
   size_t old_size = prologue_.size();
-  prologue_.resize(old_size + PROLOGUE_INIT_LEN);
+  if (!prologue_.resize(old_size + PROLOGUE_INIT_LEN)) [[unlikely]] {
+    state_ = State::FAILED;
+    return APIError::OUT_OF_MEMORY;
+  }
 #ifdef USE_ESP8266
   memcpy_P(prologue_.data() + old_size, PROLOGUE_INIT, PROLOGUE_INIT_LEN);
 #else
@@ -202,7 +205,10 @@ APIError APINoiseFrameHelper::try_read_frame_() {
   // During handshake, rx_buf_.size() is used in prologue construction, so
   // the buffer must be exactly msg_size to avoid prologue mismatch.)
   uint16_t alloc_size = msg_size + (is_data ? RX_BUF_NULL_TERMINATOR : 0);
-  this->rx_buf_.resize(alloc_size);
+  if (!this->rx_buf_.resize(alloc_size)) [[unlikely]] {
+    state_ = State::FAILED;
+    return APIError::OUT_OF_MEMORY;
+  }
 
   if (rx_buf_len_ < msg_size) {
     // more data to read
@@ -269,7 +275,10 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
   // Resize for: existing prologue + 2 size bytes + frame data
   size_t old_size = this->prologue_.size();
   size_t rx_size = this->rx_buf_.size();
-  this->prologue_.resize(old_size + 2 + rx_size);
+  if (!this->prologue_.resize(old_size + 2 + rx_size)) [[unlikely]] {
+    state_ = State::FAILED;
+    return APIError::OUT_OF_MEMORY;
+  }
   this->prologue_[old_size] = (uint8_t) (rx_size >> 8);
   this->prologue_[old_size + 1] = (uint8_t) rx_size;
   if (rx_size > 0) {
@@ -442,7 +451,7 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 }
 // Encrypt a single noise message in place and return the encrypted frame length.
 // Returns APIError::OK on success.
-APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint8_t message_type,
+APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint16_t message_type,
                                                      uint16_t &encrypted_len_out) {
   // The noise frame header is written after encryption, when the size is known
 
@@ -472,18 +481,20 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_
   return APIError::OK;
 }
 
-APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+APIError APINoiseFrameHelper::write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) {
 #ifdef ESPHOME_DEBUG_API
   assert(this->state_ == State::DATA);
 #endif
 
+  APIBuffer *buf = buffer.get_buffer();
   // Resize buffer to include footer space for Noise MAC
-  if (this->frame_footer_size_)
-    buffer.get_buffer()->resize(buffer.get_buffer()->size() + this->frame_footer_size_);
+  if (this->frame_footer_size_ && !buf->resize(buf->size() + this->frame_footer_size_)) [[unlikely]] {
+    state_ = State::FAILED;
+    return APIError::OUT_OF_MEMORY;
+  }
 
-  uint16_t payload_size =
-      static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - this->frame_footer_size_);
-  uint8_t *buf_start = buffer.get_buffer()->data();
+  uint16_t payload_size = static_cast<uint16_t>(buf->size() - HEADER_PADDING - this->frame_footer_size_);
+  uint8_t *buf_start = buf->data();
   uint16_t encrypted_len;
   APIError aerr = this->encrypt_noise_message_(buf_start, payload_size, type, encrypted_len);
   if (aerr != APIError::OK)
