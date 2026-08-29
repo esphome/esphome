@@ -217,7 +217,7 @@ void TopTronicBase::cache_request_data() {
   this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
 }
 
-void TopTronicBase::add_on_set_callback(std::function<void(std::vector<uint8_t>)> &&callback) {
+void TopTronicBase::add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback) {
   this->set_callback_.add(std::move(callback));
 }
 

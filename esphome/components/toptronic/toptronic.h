@@ -91,7 +91,7 @@ class TopTronicBase : public PollingComponent {
   // Called by ESPHome scheduler at the configured polling interval.
   void update() override;
   void add_on_update_callback(std::function<void()> &&callback);
-  void add_on_set_callback(std::function<void(std::vector<uint8_t>)> &&callback);
+  void add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback);
 
  protected:
   uint8_t function_group_;
@@ -102,7 +102,7 @@ class TopTronicBase : public PollingComponent {
   std::vector<uint8_t> request_data_;
 
   CallbackManager<void()> update_callback_;
-  CallbackManager<void(std::vector<uint8_t>)> set_callback_;
+  CallbackManager<void(const std::vector<uint8_t> &)> set_callback_;
 };
 
 #ifdef USE_SENSOR
