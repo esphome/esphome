@@ -3,7 +3,8 @@
 #include "esphome/core/defines.h"
 
 // Only define SHA256 on platforms that support it
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_HOST)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_LIBRETINY) || defined(USE_HOST) || \
+    (defined(USE_ZEPHYR) && !defined(USE_NRF52))
 
 #include <cstdint>
 #include <string>
@@ -27,6 +28,22 @@
 #include "mbedtls/sha256.h"
 #elif defined(USE_ESP8266) || defined(USE_RP2)
 #include <bearssl/bearssl_hash.h>
+#elif defined(USE_ZEPHYR)
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
+// NCS's nrf_security (oberon-psa-crypto) doesn't ship mbedtls/build_info.h --
+// use the PSA Crypto API directly instead of probing MBEDTLS_VERSION_MAJOR.
+#define USE_SHA256_PSA
+#include <psa/crypto.h>
+#else
+#include "mbedtls/build_info.h"
+#if MBEDTLS_VERSION_MAJOR >= 4
+#define USE_SHA256_PSA
+#include <psa/crypto.h>
+#else
+#define USE_SHA256_MBEDTLS
+#include "mbedtls/sha256.h"
+#endif
+#endif
 #elif defined(USE_HOST)
 #include <openssl/evp.h>
 #else

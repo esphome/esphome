@@ -13,9 +13,9 @@ namespace esphome::internal_temperature {
 
 class InternalTemperatureSensor final : public sensor::Sensor, public PollingComponent {
  public:
-#if defined(USE_ESP32) || (defined(USE_ZEPHYR) && defined(USE_NRF52))
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
   void setup() override;
-#endif  // USE_ESP32 || (USE_ZEPHYR && USE_NRF52)
+#endif  // USE_ESP32 || USE_ZEPHYR
   void dump_config() override;
 
   void update() override;

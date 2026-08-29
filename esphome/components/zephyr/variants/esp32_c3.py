@@ -1,0 +1,94 @@
+import esphome.codegen as cg
+from esphome.const import (
+    CONF_ADVANCED,
+    CONF_BOARD,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+    ThreadModel,
+    Toolchain,
+)
+from esphome.types import ConfigType
+
+from ..const import (
+    ADVANCED_SCHEMA,
+    BOOTLOADER_MCUBOOT,
+    CONF_RUNNER,
+    ZEPHYR_VARIANT_ESP32_C3,
+)
+from ..dts_lookup import get_i2c_pinctrl_esp32
+from . import (
+    MAINLINE,
+    ZephyrVariant,
+    qualify_board,
+    resolve_framework_version,
+    set_core_data,
+)
+
+# Bare name; qualify_board() expands it to "esp32c3_devkitm/esp32c3" using soc= below.
+# No hp/lpcore qualifier -- unlike esp32_c6/esp32_c5, this chip is single-core.
+_DEFAULT_BOARD = "esp32c3_devkitm"
+
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA
+
+# https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c3-pinctrl.h
+# GPIO0-21, no gaps; identical set for tx and rx on this variant.
+_UART_VALID_PINS = frozenset(range(22))
+
+# Registry entries — collected by variants/__init__.py
+VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C3
+VARIANT = ZephyrVariant(
+    sdk=MAINLINE,
+    sdk_name="zephyr",
+    family="esp32",
+    valid_toolchains=(Toolchain.SDK_ZEPHYR,),
+    toolchain="riscv64-zephyr-elf",
+    # See esp32_h2.py's blobs= comment. Sentinel shared with esp32_h2/esp32_c6/esp32_c5
+    # (same SDK).
+    blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
+    pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},
+    # No 802.15.4 radio on this chip -- WiFi + BLE only, unlike esp32_c6/esp32_h2/esp32_c5.
+    transports=frozenset({"wifi", "ble"}),
+    transport_drivers={"wifi": ("WIFI_ESP32", "wifi")},
+    soc="esp32c3",
+    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
+    swap_methods=frozenset({"scratch", "move", "direct"}),
+    # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32c3/include/soc/adc_channel.h
+    adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4},
+    uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
+)
+
+
+def config_schema(config: ConfigType) -> ConfigType:
+    config = dict(config)
+    if CONF_BOARD not in config:
+        config[CONF_BOARD] = _DEFAULT_BOARD
+    config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
+    config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
+        VARIANT, "esp32_c3", config, "mainline ESP32-C3 support"
+    )
+    set_core_data(
+        VARIANT_NAME,
+        config[CONF_BOARD],
+        BOOTLOADER_MCUBOOT,
+        framework_ver,
+        config,
+        framework_type=sdk_name,
+        sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
+    )
+    return config
+
+
+async def to_code(config: ConfigType) -> None:
+    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+
+    zephyr_to_code(config)
+    cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_ESP32_C3")
+    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
+    cg.add_define("ESPHOME_VARIANT", "ESP32C3")
+    cg.add_define(ThreadModel.SINGLE)
+    zephyr_setup_preferences()
+    zephyr_add_prj_conf("REBOOT", True)
+    # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
+    zephyr_add_prj_conf("HWINFO", True)

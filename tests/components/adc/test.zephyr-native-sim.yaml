@@ -1,0 +1,30 @@
+sensor:
+  - platform: adc
+    id: adc_emulated_sensor
+    pin: GPIO1
+    name: ADC Emulated sensor
+    update_interval: 2s
+    samples: 3
+    sampling_mode: min
+    emulation:
+      - [100mV, 500mV, 900mV]
+      - [200mV, 200mV, 200mV]
+      - [0mV, 1000mV, 2000mV]
+  - platform: adc
+    id: adc_emulated_autorange_sensor
+    pin: GPIO2
+    name: ADC Emulated Autorange sensor
+    update_interval: 2s
+    attenuation: auto
+    emulation:
+      - 500mV
+      - 1500mV
+      - 3000mV
+  - platform: adc
+    id: adc_emulated_raw_sensor
+    pin: GPIO3
+    name: ADC Emulated Raw sensor
+    update_interval: 2s
+    raw: true
+    emulation:
+      - 1200mV

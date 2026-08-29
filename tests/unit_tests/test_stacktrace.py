@@ -19,6 +19,7 @@ from esphome.const import (
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
     PLATFORM_RP2,
+    PLATFORM_ZEPHYR,
 )
 from esphome.core import EsphomeError
 
@@ -66,6 +67,15 @@ CRASH_SAMPLES: dict[str, dict[str, list[str]]] = {
             # %08x zero-pads even a vector-table PC past the {3,} bound.
             "PC=0x00000050 LR=0x00000000",
             # Synthetic short form; pins the bound's lower edge.
+            "PC=0x27a1c LR=0x1e33",
+        ],
+    },
+    # platform: zephyr shares logger_zephyr.cpp with nrf52, so it prints the
+    # same banner and register pair; the decoder is a separate module.
+    PLATFORM_ZEPHYR: {
+        "state_markers": ["Last crash:"],
+        "addresses": [
+            "PC=0x00000050 LR=0x00000000",
             "PC=0x27a1c LR=0x1e33",
         ],
     },
@@ -224,6 +234,7 @@ DECODER_PATTERNS: dict[str, list[str]] = {
     ],
     PLATFORM_RP2: ["_CRASH_RE", "_CRASH_ADDR_RE"],
     PLATFORM_NRF52: ["STACKTRACE_NRF52_PC_LR_RE"],
+    PLATFORM_ZEPHYR: ["STACKTRACE_ZEPHYR_PC_LR_RE"],
 }
 
 # Declared decoder patterns whose language the gate deliberately does

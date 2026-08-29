@@ -2021,6 +2021,16 @@ def test_mac_address_non_hex() -> None:
         cv.mac_address("GG:BB:CC:DD:EE:FF")
 
 
+def test_mac_address_idempotent_on_already_parsed_value() -> None:
+    # A validated-config cache can feed an already-parsed MACAddress back through
+    # this validator in a fresh process (see native_sim's config_schema default).
+    # It must round-trip cleanly instead of rejecting the non-string type.
+    parsed = cv.mac_address("AA:BB:CC:DD:EE:FF")
+    result = cv.mac_address(parsed)
+    assert isinstance(result, MACAddress)
+    assert str(result) == "AA:BB:CC:DD:EE:FF"
+
+
 def test_uuid_valid() -> None:
     result = cv.uuid("12345678-1234-5678-1234-567812345678")
     assert str(result) == "12345678-1234-5678-1234-567812345678"

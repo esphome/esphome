@@ -19,13 +19,21 @@
 
 // Threading model for static analysis. Match what the real codegen picks per
 // platform (see esphome/components/<platform>/__init__.py ThreadModel.*):
-//   USE_ESP8266 / USE_RP2 / USE_NRF52 → SINGLE
+//   USE_ESP8266 / USE_RP2 / USE_NRF52 / USE_ZEPHYR_VARIANT_FAMILY_ESP32 /
+//   USE_ZEPHYR_VARIANT_FAMILY_NORDIC / USE_ZEPHYR_VARIANT_FAMILY_SILABS /
+//   USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO / USE_ZEPHYR_VARIANT_FAMILY_STM32 /
+//   USE_ZEPHYR_VARIANT_FAMILY_RENESAS → SINGLE
 //   USE_BK72XX (ARMv5TE, no LDREX/STREX) → MULTI_NO_ATOMICS
-//   everything else (ESP32, host, RTL87XX, LN882X) → MULTI_ATOMICS
+//   everything else (ESP32, host, RTL87XX, LN882X, USE_ZEPHYR_VARIANT_NATIVE_SIM) →
+//   MULTI_ATOMICS -- native_sim simulates interrupts via host-level mechanisms, not
+//   single-core hardware preemption, so it needs real atomics (see wake_zephyr.cpp).
 // Without this the clang-tidy envs end up with USE_<single-threaded platform>
 // + MULTI_ATOMICS simultaneously, a combination that can never occur in a
 // real build.
-#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52)
+#if defined(USE_ESP8266) || defined(USE_RP2) || defined(USE_NRF52) || defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || defined(USE_ZEPHYR_VARIANT_FAMILY_STM32) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
 #define ESPHOME_THREAD_SINGLE
 #elif defined(USE_BK72XX)
 #define ESPHOME_THREAD_MULTI_NO_ATOMICS
@@ -41,6 +49,22 @@
 
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
+#define USE_API
+#define USE_API_CLIENT_CONNECTED_TRIGGER
+#define USE_API_CLIENT_DISCONNECTED_TRIGGER
+#define USE_API_CUSTOM_SERVICES
+#define USE_API_HOMEASSISTANT_ACTION_RESPONSES
+#define USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
+#define USE_API_HOMEASSISTANT_SERVICES
+#define USE_API_HOMEASSISTANT_STATES
+#define USE_API_NOISE
+#define USE_API_PLAINTEXT
+#define USE_API_USER_DEFINED_ACTION_RESPONSES
+#define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#define USE_API_USER_DEFINED_ACTIONS
+#define USE_API_VARINT64
+#define API_MAX_SEND_QUEUE 8
+#define MAX_API_CONNECTIONS 6
 #define USE_AREAS
 #define USE_BINARY_SENSOR
 #define USE_BINARY_SENSOR_CLICK_TRIGGER
@@ -127,6 +151,10 @@
 #define USE_LVGL_TEXTAREA
 #define USE_LVGL_TILEVIEW
 #define USE_LVGL_TOUCHSCREEN
+// md5.h has no MD5_CTX_TYPE branch for USE_NRF52
+#ifndef USE_NRF52
+#define USE_MD5
+#endif
 #define USE_MDNS
 #define USE_MDNS_STORE_SERVICES
 #define MDNS_SERVICE_COUNT 3
@@ -141,6 +169,8 @@
 #define USE_MEDIA_SOURCE
 #define USE_NETWORK
 #define USE_NETWORK_DEFAULT_ROUTE
+#define USE_NETWORK_IPV4 true
+#define USE_NETWORK_IPV6 false
 #define USE_NETWORK_PRIMARY_INTERFACE_WIFI
 #define USE_NEXTION_COMMAND_SPACING
 #define USE_NEXTION_CONF_START_UP_PAGE
@@ -155,7 +185,10 @@
 #define USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 #define USE_NEXTION_WAVEFORM
 #define USE_NUMBER
+#define USE_OTA
+#define USE_OTA_PASSWORD
 #define USE_OTA_STATE_LISTENER
+#define USE_OTA_VERSION 2
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
@@ -180,6 +213,7 @@
 #define USE_SENSOR_FILTER
 #define USE_SERIAL_PROXY
 #define USE_SETUP_PRIORITY_OVERRIDE
+#define USE_SHA256
 #define USE_STATUS_LED
 #define USE_STATUS_SENSOR
 #define USE_SWITCH
@@ -187,6 +221,7 @@
 #define USE_TEXT_SENSOR
 #define USE_TEXT_SENSOR_FILTER
 #define USE_TIME
+#define USE_TIME_TIMEZONE
 #define USE_TIME_TRIGGERS
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
@@ -196,6 +231,11 @@
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
+#ifndef USE_NRF52
+#define USE_WIFI
+#define USE_WIFI_AP
+#define USE_WIFI_MANUAL_IP
+#endif
 #define USE_ZWAVE_PROXY
 
 // Feature flags which do not work for zephyr
@@ -239,13 +279,6 @@
 #define USE_RUNTIME_IMAGE_PNG
 #define USE_RUNTIME_IMAGE_QOI
 #define USE_RUNTIME_STATS
-#define USE_OTA
-#define USE_OTA_PASSWORD
-#define USE_OTA_VERSION 2
-#define USE_TIME_TIMEZONE
-#define USE_WIFI
-#define USE_WIFI_AP
-#define USE_WIFI_MANUAL_IP
 #endif
 
 // Arduino-specific feature flags
@@ -547,21 +580,77 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 64
 #endif
 
-#ifdef USE_NRF52
+#ifdef USE_ZEPHYR
 #define ESPHOME_BLE_NUS_TX_RING_BUFFER_SIZE 512
 #define ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE 512
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_LOGGER_EARLY_MESSAGE
+#define USE_OTA_ROLLBACK
+#define USE_OTA_ZEPHYR_DIRECT_XIP
+// All USE_ZEPHYR variants default to BSD sockets.
+#define USE_SOCKET_IMPL_BSD_SOCKETS
+// Emitted by adc/sensor.py when any ADC sensor uses `emulation:` -- backs the
+// channel with Zephyr's generic zephyr,adc-emul devicetree node instead of
+// real silicon, letting adc_sensor_zephyr.cpp inject scripted mV values.
+#define USE_ZEPHYR_ADC_EMULATION
+// Emitted by zephyr/mcuboot.py's apply_single_slot() when zephyr: single_slot: true.
+#define USE_ZEPHYR_MCUBOOT_SINGLE_SLOT
+// Emitted by uart/__init__.py when any uart: block uses `emulation:` -- backs the port
+// with Zephyr's generic zephyr,uart-emul devicetree node instead of real silicon,
+// letting a ZephyrUartEmulator answer TX writes with scripted responses.
+#define USE_ZEPHYR_UART_EMULATION
+#endif
+
+// Emitted for every platform: zephyr/nrf52 target with real watchdog hardware
+// (not native_sim). esp32-family and platform: zephyr's nordic-family/silabs-family
+// variants get a user-configurable value (zephyr: watchdog_timeout:); platform: nrf52
+// gets a hardcoded one (longer when zigbee is loaded -- see nrf52/__init__.py).
+#if defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32) || defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS) || defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO) || \
+    defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) || defined(USE_NRF52)
+#define USE_ZEPHYR_WATCHDOG_TIMEOUT_MS 10000
+#endif
+
+// Emitted for every rpi_pico-family variant (RP2040/RP2350) -- lets logger_zephyr.cpp's
+// USB_CDC poll loop detect a 1200-baud "touch" and reboot into BOOTSEL without the
+// physical button, backed by Zephyr's retention bootmode API.
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO
+#define USE_ZEPHYR_BOOTSEL_TOUCH
+#endif
+
+// Emitted by logger/__init__.py when hardware_uart: USB_SERIAL_JTAG is selected --
+// ESP32-H2's controller is a standard Zephyr UART device, not USB CDC-ACM.
+// esp32_c6 doesn't implement this yet.
+#ifdef USE_ZEPHYR_VARIANT_ESP32_H2
+#define USE_LOGGER_USB_SERIAL_JTAG
+#define USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
+#endif
+
+// Emitted by logger/__init__.py when hardware_uart: USB_CDC is selected -- nRF52840's
+// native USB, same generic zephyr_add_cdc_acm() helper MCUboot's own serial recovery
+// uses on this hardware (not a standard Zephyr UART device like esp32_h2's
+// USB_SERIAL_JTAG above).
+#ifdef USE_ZEPHYR_VARIANT_FAMILY_NORDIC
+#define USE_LOGGER_USB_CDC
+#define USE_LOGGER_UART_SELECTION_USB_CDC
+#define USE_LOGGER_WAIT_FOR_CDC
+#endif
+
+#ifdef USE_NRF52
 #define USE_LOGGER_UART_SELECTION_USB_CDC
 #define USE_LOGGER_USB_CDC
 #define USE_LOGGER_WAIT_FOR_CDC
 #define USE_NRF52_DFU
 #define USE_NRF52_REG0_VOUT 5
 #define USE_NRF52_UICR_ERASE
-#define USE_OTA_ROLLBACK
+#define USE_OPENTHREAD
+#define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_SOFTDEVICE_ID 7
 #define USE_SOFTDEVICE_VERSION 1
+#endif
+
+#if defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE)
 #define USE_ZIGBEE
 #define USE_ZIGBEE_WIPE_ON_BOOT
 #define USE_ZIGBEE_WIPE_ON_BOOT_MAGIC 1

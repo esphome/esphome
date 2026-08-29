@@ -5,6 +5,10 @@
 #include "i2c_bus.h"
 #include "esphome/core/component.h"
 
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+#include <string>
+#endif
+
 struct device;  // NOLINT(readability-identifier-naming) - forward decl of Zephyr's device type
 
 namespace esphome::i2c {
@@ -23,7 +27,12 @@ class ZephyrI2CBus final : public InternalI2CBus, public Component {
   void set_scl_pin(uint8_t scl_pin) { this->scl_pin_ = scl_pin; }
   void set_frequency(uint32_t frequency);
 
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+  void set_linux_bus(const std::string &linux_bus) { this->linux_bus_ = linux_bus; }
+#endif
+
   int get_port() const override { return 0; }
+  const device *get_i2c_dev() const { return this->i2c_dev_; }
 
  protected:
   const device *i2c_dev_;
@@ -31,6 +40,11 @@ class ZephyrI2CBus final : public InternalI2CBus, public Component {
   uint8_t sda_pin_{};
   uint8_t scl_pin_{};
   uint32_t dev_config_{};
+
+#ifdef USE_ZEPHYR_VARIANT_NATIVE_SIM
+  std::string linux_bus_{};
+  int physical_fd_{-1};
+#endif
 };
 
 }  // namespace esphome::i2c

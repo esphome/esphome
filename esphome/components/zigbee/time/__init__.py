@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-from .. import consume_endpoint
+from .. import consume_endpoint, default_zigbee_ids
 from ..const import zigbee_ns
 from ..const_esp32 import ROLE
 from ..const_zephyr import CONF_ZIGBEE_ID
@@ -18,6 +18,7 @@ from ..zigbee_zephyr import (
     zigbee_new_cluster_list,
     zigbee_new_variable,
     zigbee_register_ep,
+    zigbee_zephyr_supported,
 )
 
 DEPENDENCIES = ["zigbee"]
@@ -26,7 +27,8 @@ ZigbeeTime = zigbee_ns.class_("ZigbeeTime", time_.RealTimeClock)
 
 
 def _validate_zigbee_time(config: ConfigType) -> ConfigType:
-    if CORE.is_nrf52:
+    if zigbee_zephyr_supported():
+        config = default_zigbee_ids(config)
         return consume_endpoint(config)
     if CORE.is_esp32:
         cl = [

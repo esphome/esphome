@@ -23,9 +23,16 @@ using SPIInterface = SPIClassRP2040 *;
 using SPIInterface = SPIClass *;
 #endif
 
+#elif defined(USE_ZEPHYR) && !defined(USE_NRF52)
+
+// platform: nrf52 (also USE_ZEPHYR) is deliberately excluded here -- its SPI support
+// is a separate, out-of-scope effort; it falls through to the void* stub below.
+struct device;
+using SPIInterface = const device *;
+
 #elif defined(USE_HOST) || defined(CLANG_TIDY)
 
-using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host, Zephyr)
+using SPIInterface = void *;  // Stub for platforms without SPI (e.g., host)
 
 #endif  // USE_ESP32 / USE_ARDUINO
 

@@ -1,0 +1,12 @@
+packages:
+  zephyr: !include common.yaml
+
+zephyr:
+  variant: ESP32C6
+  # espressif-flash-4M is the real, in-tree snippet cited in zephyr:'s snippets:
+  # schema comment -- its snippet.yml has no top-level overlay, only per-SoC
+  # overlays selected via a boards: <regex>: match (see dts_lookup.py's
+  # _snippet_overlay_files()), so this exercises that code path against a real
+  # snippet.yml rather than the simpler flat-append case.
+  snippets:
+    - espressif-flash-4M

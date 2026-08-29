@@ -1,0 +1,30 @@
+sensor:
+  - id: adc_my_sensor
+    platform: adc
+    pin: GPIO3
+    name: ADC Test sensor
+    update_interval: "1:01"
+    attenuation: 2.5db
+    unit_of_measurement: "°C"
+    icon: "mdi:water-percent"
+    accuracy_decimals: 5
+    setup_priority: -100
+    force_update: true
+  - platform: adc
+    pin: GPIO1
+    name: ADC Autorange sensor
+    update_interval: 5sec
+    attenuation: auto
+  # Declared out of ascending pin/channel order on purpose (GPIO3 above maps to
+  # ADC1 channel 2, this one to channel 0) and mixed with an emulated sensor --
+  # regression coverage for the io-channels position bug fixed alongside the
+  # `emulation:` feature: ADC_DT_SPEC_GET_BY_IDX() indexes by append position,
+  # not by silicon channel number, so real and emulated channels must share one
+  # position counter or they silently bind to the wrong channel.
+  - platform: adc
+    id: adc_mixed_emulated_sensor
+    pin: GPIO4
+    name: ADC Mixed Emulated sensor
+    update_interval: 5sec
+    emulation:
+      - 900mV

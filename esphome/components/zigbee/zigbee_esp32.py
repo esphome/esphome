@@ -9,8 +9,17 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
+    get_esp32_variant,
     include_builtin_idf_component,
     require_vfs_select,
+)
+from esphome.components.esp32.const import (
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32S31,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -112,6 +121,24 @@ def validate_attributes(config: ConfigType) -> ConfigType:
     config[CONF_VALUE] = get_cv_by_type(config[CONF_TYPE])(config[CONF_VALUE])
 
     return config
+
+
+ZIGBEE_ESP32_VARIANTS = frozenset(
+    {
+        VARIANT_ESP32S31,
+        VARIANT_ESP32H2,
+        VARIANT_ESP32H21,
+        VARIANT_ESP32H4,
+        VARIANT_ESP32C5,
+        VARIANT_ESP32C6,
+    }
+)
+
+
+def zigbee_esp32_supported() -> bool:
+    """True on the ESP32 variants with a native 802.15.4 radio (shared with WiFi on
+    the same chip) and Espressif's own zigbee stack."""
+    return CORE.is_esp32 and get_esp32_variant() in ZIGBEE_ESP32_VARIANTS
 
 
 def final_validate_esp32(config: ConfigType) -> ConfigType:

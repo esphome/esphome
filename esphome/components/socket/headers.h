@@ -163,16 +163,15 @@ using socklen_t = uint32_t;
 #endif
 #include <unistd.h>
 
-#ifdef USE_HOST
+#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
-#endif  // USE_HOST
-#ifdef USE_ZEPHYR
+#elif defined(USE_ZEPHYR)
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#endif  // USE_ZEPHYR
+#endif
 
 #ifdef USE_ARDUINO
 // arduino-esp32 declares a global var called INADDR_NONE which is replaced

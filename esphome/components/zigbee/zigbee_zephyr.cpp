@@ -1,5 +1,5 @@
 #include "zigbee_zephyr.h"
-#if defined(USE_ZIGBEE) && defined(USE_NRF52)
+#if defined(USE_ZIGBEE) && (defined(USE_NRF52) || defined(USE_ZEPHYR_FRAMEWORK_ZIGBEE))
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
@@ -177,9 +177,17 @@ void ZigbeeComponent::setup() {
   }
 #endif
   if (wipe) {
+#ifdef CONFIG_ZIGBEE_ADD_ON
+    // ncs-zigbee (R23+) dropped Partition Manager for plain devicetree fixed
+    // partitions -- PARTITION_ID() takes the lowercase node label directly.
+    erase_flash_(PARTITION_ID(zboss_nvram));
+    erase_flash_(PARTITION_ID(zboss_product_config));
+    erase_flash_(PARTITION_ID(storage_partition));
+#else
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_NVRAM));
     erase_flash_(FIXED_PARTITION_ID(ZBOSS_PRODUCT_CONFIG));
     erase_flash_(FIXED_PARTITION_ID(SETTINGS_STORAGE));
+#endif
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT_MAGIC
     wipe_value = USE_ZIGBEE_WIPE_ON_BOOT_MAGIC;
     wipe_pref.save(&wipe_value);

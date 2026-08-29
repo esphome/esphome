@@ -1,0 +1,7 @@
+# Common I2C configuration for platform: zephyr, variant: native_sim tests
+# native_sim uses the Zephyr I2C emulator subsystem -- no physical pins, sda/scl
+# are not read for this variant.
+
+i2c:
+  - id: i2c_bus
+    scan: true

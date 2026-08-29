@@ -1,0 +1,94 @@
+import esphome.codegen as cg
+from esphome.const import (
+    CONF_ADVANCED,
+    CONF_BOARD,
+    CONF_FRAMEWORK,
+    CONF_SOURCE,
+    ThreadModel,
+    Toolchain,
+)
+from esphome.types import ConfigType
+
+from ..const import (
+    ADVANCED_SCHEMA,
+    BOOTLOADER_MCUBOOT,
+    CONF_RUNNER,
+    ZEPHYR_VARIANT_ESP32_C5,
+)
+from ..dts_lookup import get_i2c_pinctrl_esp32
+from . import (
+    MAINLINE,
+    ZephyrVariant,
+    qualify_board,
+    resolve_framework_version,
+    set_core_data,
+)
+
+# qualify_board() expands this to "esp32c5_devkitc/esp32c5/hpcore" via soc=/qualifier= below.
+_DEFAULT_BOARD = "esp32c5_devkitc"
+
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA
+
+# https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32c5-pinctrl.h
+# GPIO0-28, no gaps; identical set for tx and rx on this variant.
+_UART_VALID_PINS = frozenset(range(29))
+
+# Registry entries — collected by variants/__init__.py
+VARIANT_NAME = ZEPHYR_VARIANT_ESP32_C5
+VARIANT = ZephyrVariant(
+    sdk=MAINLINE,
+    sdk_name="zephyr",
+    family="esp32",
+    valid_toolchains=(Toolchain.SDK_ZEPHYR,),
+    toolchain="riscv64-zephyr-elf",
+    # See esp32_h2.py's blobs= comment. Sentinel shared with esp32_h2/esp32_c6 (same SDK).
+    blobs=("hal_espressif", ".*", ".blobs_hal_espressif_ready"),
+    pinctrl_extractors={"i2c": get_i2c_pinctrl_esp32},
+    transports=frozenset({"wifi", "ble", "openthread"}),
+    transport_drivers={"wifi": ("WIFI_ESP32", "wifi")},
+    soc="esp32c5",
+    qualifier="hpcore",
+    # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
+    swap_methods=frozenset({"scratch", "move", "direct"}),
+    # esp32c5_common.dtsi's adc0 node declares channel-count = <6> -- GPIO0-5 map directly
+    # to ADC1 channel 0-5 (devicetree channel@N address IS the real silicon channel, same
+    # as esp32_c6/esp32_h2).
+    adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5},
+    uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
+)
+
+
+def config_schema(config: ConfigType) -> ConfigType:
+    config = dict(config)
+    if CONF_BOARD not in config:
+        config[CONF_BOARD] = _DEFAULT_BOARD
+    config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
+    config[CONF_BOARD] = qualify_board(VARIANT, config[CONF_BOARD])
+    _, framework_ver, sdk_name, _ = resolve_framework_version(
+        VARIANT, "esp32_c5", config, "mainline ESP32-C5 support"
+    )
+    set_core_data(
+        VARIANT_NAME,
+        config[CONF_BOARD],
+        BOOTLOADER_MCUBOOT,
+        framework_ver,
+        config,
+        framework_type=sdk_name,
+        sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
+    )
+    return config
+
+
+async def to_code(config: ConfigType) -> None:
+    from .. import zephyr_add_prj_conf, zephyr_setup_preferences, zephyr_to_code
+
+    zephyr_to_code(config)
+    cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_ESP32_C5")
+    cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
+    cg.add_define("ESPHOME_VARIANT", "ESP32C5")
+    cg.add_define(ThreadModel.SINGLE)
+    zephyr_setup_preferences()
+    zephyr_add_prj_conf("REBOOT", True)
+    # get_mac_address_raw() (zephyr/core.cpp) reads the efuse MAC via hwinfo_get_device_id().
+    zephyr_add_prj_conf("HWINFO", True)

@@ -5,7 +5,17 @@
 
 #include "esphome/core/hash_base.h"
 
-#ifdef USE_HOST
+// nrf52 has no MD5_CTX_TYPE here; not needed today, not implemented.
+#if defined(USE_ZEPHYR) && !defined(USE_NRF52)
+#include "mbedtls/build_info.h"
+#if MBEDTLS_VERSION_MAJOR >= 4
+#include <psa/crypto.h>
+#define MD5_CTX_TYPE psa_hash_operation_t
+#else
+#include "mbedtls/md5.h"
+#define MD5_CTX_TYPE mbedtls_md5_context
+#endif
+#elif defined(USE_HOST)
 #include <openssl/evp.h>
 #endif
 

@@ -1,0 +1,13 @@
+<<: !include common.yaml
+
+zephyr:
+  variant: ESP32C3
+  # dfrobot/beetle_esp32c3 -- a real upstream board (mainline Zephyr, no
+  # board_source: needed) that declares actual major.minor.patch revisions with a
+  # real revision-specific overlay for 2.0.0, exercising the full board@revision
+  # pipeline (dts_lookup.py's overlay merge, and to_code()'s validate_board_revision())
+  # against the SDK's real devicetree, not just a synthetic unit-test fixture.
+  board: beetle_esp32c3@2.0.0
+  watchdog_timeout: 6s
+  kconfig_options:
+    CONFIG_BOOT_BANNER: false

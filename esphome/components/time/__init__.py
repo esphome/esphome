@@ -8,7 +8,11 @@ import tzlocal
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    ZEPHYR_VARIANT_NATIVE_SIM,
+    zephyr_add_prj_conf,
+    zephyr_variant,
+)
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
@@ -412,8 +416,10 @@ async def setup_time_core_(time_var, config):
     if timezone:
         cg.add_define("USE_TIME_TIMEZONE")
 
-        if CORE.is_host:
-            # Host platform also needs setenv("TZ")/tzset() for libc compatibility
+        if CORE.is_host or (
+            CORE.is_zephyr and zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM
+        ):
+            # Host/native_sim also needs setenv("TZ")/tzset() for libc compatibility
             cg.add(cg.RawExpression(f'setenv("TZ", {cpp_string_escape(timezone)}, 1)'))
             cg.add(cg.RawExpression("tzset()"))
 
@@ -463,8 +469,13 @@ async def register_time(time_var, config):
 
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
-    if CORE.using_zephyr:
+    if CORE.is_nrf52:
         zephyr_add_prj_conf("POSIX_CLOCK", True)
+    elif CORE.is_zephyr:
+        # platform:zephyr variants (native_sim/esp32_h2 >= 4.4.0) are above the
+        # Zephyr 4.x threshold where POSIX_CLOCK was removed; POSIX_API covers
+        # clock_gettime() instead.
+        zephyr_add_prj_conf("POSIX_API", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 

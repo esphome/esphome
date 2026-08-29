@@ -32,6 +32,7 @@ RESPONSE_UPDATE_END_OK = 0x45
 RESPONSE_SUPPORTS_COMPRESSION = 0x46
 RESPONSE_CHUNK_OK = 0x47
 RESPONSE_FEATURE_FLAGS = 0x48
+RESPONSE_BIN_SHA256_OK = 0x49
 
 RESPONSE_ERROR_MAGIC = 0x80
 RESPONSE_ERROR_UPDATE_PREPARE = 0x81
@@ -53,6 +54,8 @@ RESPONSE_ERROR_PARTITION_TABLE_UPDATE = 0x90
 RESPONSE_ERROR_BOOTLOADER_VERIFY = 0x91
 RESPONSE_ERROR_BOOTLOADER_UPDATE = 0x92
 RESPONSE_ERROR_VERSION_DOWNGRADE = 0x93
+RESPONSE_ERROR_SHA256_MISMATCH = 0x94
+RESPONSE_ERROR_SHA256_REQUIRED = 0x95
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -63,8 +66,16 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 CLIENT_FEATURE_SUPPORTS_COMPRESSION = 0x01
 CLIENT_FEATURE_SUPPORTS_SHA256_AUTH = 0x02
 CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL = 0x04
+CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x08
 SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01
 SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02
+SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x04
+# Zephyr direct-xip only: set when the device is currently executing from slot 1.
+# The OTA write always targets whichever slot ISN'T running, so this flag being unset
+# (the common case, running slot 0) means the write goes to slot 1 and needs
+# alt_filename (the slot-1-linked build); set means it goes to slot 0 and needs the
+# primary. Never set by non-Zephyr/non-direct-xip devices.
+SERVER_FEATURE_ACTIVE_SLOT_1 = 0x08
 
 # OTA types this client knows how to send. Future PRs that add bootloader/partition
 # updates extend this set. Anything outside the set is rejected up front so callers
@@ -137,6 +148,14 @@ _ERROR_MESSAGES: dict[int, str] = {
     RESPONSE_ERROR_MD5_MISMATCH: (
         "Application MD5 code mismatch. Please try again "
         "or flash over USB with a good quality cable."
+    ),
+    RESPONSE_ERROR_SHA256_MISMATCH: (
+        "Application SHA256 code mismatch. Please try again "
+        "or flash over USB with a good quality cable."
+    ),
+    RESPONSE_ERROR_SHA256_REQUIRED: (
+        "The device requires the SHA256 file checksum extension. This "
+        "ESPHome is too old to support it; please update esphome and retry."
     ),
     RESPONSE_ERROR_SIGNATURE_INVALID: (
         "Firmware signature verification failed. The firmware was not signed "
@@ -311,6 +330,7 @@ def perform_ota(
     file_handle: io.IOBase,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    alt_filename: Path | None = None,
 ) -> None:
     # Validate ota_type up front. It travels as a single byte on the wire, and
     # passing an out-of-range value would only surface as a ValueError from
@@ -326,8 +346,6 @@ def perform_ota(
         )
 
     file_contents = file_handle.read()
-    file_size = len(file_contents)
-    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
     # Enable nodelay, we need it for phase 1
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -341,11 +359,12 @@ def perform_ota(
             f"Device uses unsupported OTA version {version}, this ESPHome supports {supported_versions}"
         )
 
-    # Features - send both compression and SHA256 auth support
+    # Features - send compression, SHA256 auth, and SHA256 checksum support
     features_to_send = (
         CLIENT_FEATURE_SUPPORTS_COMPRESSION
         | CLIENT_FEATURE_SUPPORTS_SHA256_AUTH
         | CLIENT_FEATURE_SUPPORTS_EXTENDED_PROTOCOL
+        | CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM
     )
     send_check(sock, features_to_send, "features")
     features = receive_exactly(
@@ -368,6 +387,28 @@ def perform_ota(
         features = SERVER_FEATURE_SUPPORTS_COMPRESSION
     else:
         features = 0
+
+    if alt_filename is not None and not (features & SERVER_FEATURE_ACTIVE_SLOT_1):
+        # Direct-xip has no swap step -- the OTA write always targets whichever slot
+        # ISN'T currently running. The device not reporting slot 1 as active means
+        # it's running slot 0 (the common case), so the write goes to slot 1 and
+        # needs the slot-1-linked build (alt_filename); sending the primary
+        # (slot-0-linked) image there would link-mismatch and fail to boot. The
+        # primary file_handle was already read above (before this was knowable --
+        # the slot is only reported partway through the handshake), so its content
+        # is simply discarded here in favor of alt_filename's.
+        if alt_filename is None:
+            raise OTAError(
+                "Device is running from the primary MCUboot slot and requires "
+                "the matching slot-1 firmware variant, but this upload has none "
+                "available. Recompile with the current ESPHome version and retry."
+            )
+        with alt_filename.open("rb") as alt_handle:
+            file_contents = alt_handle.read()
+        filename = alt_filename
+
+    file_size = len(file_contents)
+    _LOGGER.info("Uploading %s (%s bytes)", filename, file_size)
 
     if ota_type != OTA_TYPE_UPDATE_APP:
         # Any non-app OTA type requires the extended protocol and the
@@ -469,11 +510,16 @@ def perform_ota(
     prepare_duration = time.perf_counter() - prepare_start
     _LOGGER.info("Preparing for upload took %.2f seconds", prepare_duration)
 
-    upload_md5 = hashlib.md5(upload_contents).hexdigest()
-    _LOGGER.debug("MD5 of upload is %s", upload_md5)
-
-    send_check(sock, upload_md5, "file checksum")
-    receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
+    if features & SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM:
+        upload_checksum = hashlib.sha256(upload_contents).hexdigest()
+        _LOGGER.debug("SHA256 of upload is %s", upload_checksum)
+        send_check(sock, upload_checksum, "file checksum")
+        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_SHA256_OK)
+    else:
+        upload_checksum = hashlib.md5(upload_contents).hexdigest()
+        _LOGGER.debug("MD5 of upload is %s", upload_checksum)
+        send_check(sock, upload_checksum, "file checksum")
+        receive_exactly(sock, 1, "file checksum result", RESPONSE_BIN_MD5_OK)
 
     # Disable nodelay for transfer
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
@@ -572,6 +618,7 @@ def run_ota_impl_(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    alt_filename: Path | None = None,
 ) -> tuple[int, str | None]:
     from esphome.core import CORE
 
@@ -636,7 +683,14 @@ def run_ota_impl_(
         reached_device = True
         with contextlib.closing(sock), Path(filename).open("rb") as file_handle:
             try:
-                perform_ota(sock, password, file_handle, filename, ota_type)
+                perform_ota(
+                    sock,
+                    password,
+                    file_handle,
+                    filename,
+                    ota_type,
+                    alt_filename=alt_filename,
+                )
             except OTANetworkError as err:
                 # Transient network failure; retry
                 last_error = str(err)
@@ -661,9 +715,17 @@ def run_ota(
     password: str | None,
     filename: Path,
     ota_type: int = OTA_TYPE_UPDATE_APP,
+    alt_filename: Path | None = None,
 ) -> tuple[int, str | None]:
     try:
-        return run_ota_impl_(remote_host, remote_port, password, filename, ota_type)
+        return run_ota_impl_(
+            remote_host,
+            remote_port,
+            password,
+            filename,
+            ota_type,
+            alt_filename=alt_filename,
+        )
     except OTAError as err:
         _LOGGER.error(err)
         return 1, None

@@ -1863,6 +1863,16 @@ bool APIConnection::send_device_info_response_() {
 #define ESPHOME_MANUFACTURER "Nordic Semiconductor"
 #elif defined(USE_RTL87XX)
 #define ESPHOME_MANUFACTURER "Realtek"
+#elif defined(USE_ZEPHYR_VARIANT_FAMILY_ESP32)
+#define ESPHOME_MANUFACTURER "Espressif"
+#elif defined(USE_ZEPHYR_VARIANT_FAMILY_NORDIC)
+#define ESPHOME_MANUFACTURER "Nordic Semiconductor"
+#elif defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
+#define ESPHOME_MANUFACTURER "Silicon Labs"
+#elif defined(USE_ZEPHYR_VARIANT_FAMILY_RPI_PICO)
+#define ESPHOME_MANUFACTURER "Raspberry Pi"
+#elif defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+#define ESPHOME_MANUFACTURER "Zephyr Native Sim"
 #elif defined(USE_HOST)
 #define ESPHOME_MANUFACTURER "Host"
 #endif

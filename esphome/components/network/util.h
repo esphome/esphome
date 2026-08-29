@@ -46,7 +46,7 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
     return openthread::global_openthread_component->is_connected();
 #endif
 
-#ifdef USE_HOST
+#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
   return true;  // Assume it's connected
 #endif
   return false;
