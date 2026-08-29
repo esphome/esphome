@@ -17,7 +17,7 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
-from esphome.components.network import add_use_address, require_ipv6
+from esphome.components.network import add_use_address, request_ipv4_off, require_ipv6
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -245,6 +245,7 @@ CONFIG_SCHEMA = cv.All(
     _validate,
     _require_vfs_select,
     functools.partial(require_ipv6, name=CONF_OPENTHREAD),
+    functools.partial(request_ipv4_off, name=CONF_OPENTHREAD),
 )
 
 

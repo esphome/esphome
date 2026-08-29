@@ -156,6 +156,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 #if USE_NETWORK_IPV6
   if (strchr(ip_address, ':') != nullptr) {
     if (addrlen < sizeof(sockaddr_in6)) {
+      memset(addr, 0, addrlen);
       errno = EINVAL;
       return 0;
     }
@@ -189,6 +190,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 #endif /* USE_NETWORK_IPV6 */
 #if USE_NETWORK_IPV4
   if (addrlen < sizeof(sockaddr_in)) {
+    memset(addr, 0, addrlen);
     errno = EINVAL;
     return 0;
   }
@@ -207,6 +209,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
 #else
+  memset(addr, 0, addrlen);
   errno = EINVAL;
   return 0;
 #endif /* USE_NETWORK_IPV4 */

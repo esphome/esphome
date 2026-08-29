@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_ENABLE_IPV6,
     CONF_ID,
     CONF_MIN_IPV6_ADDR_COUNT,
-    CONF_OPENTHREAD,
     CONF_PRIORITY,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -43,6 +42,7 @@ CONF_ENABLE_IPV4 = "enable_ipv4"
 # IPv4/IPv6 requirement tracking infrastructure
 KEY_REQUIRE_IPV4 = "require_ipv4"
 KEY_REQUIRE_IPV6 = "require_ipv6"
+KEY_REQUEST_IPV4_OFF = "request_ipv4_off"
 
 # Network priority tracking infrastructure
 # Components can query this to determine their relative setup priority.
@@ -210,6 +210,10 @@ def has_high_performance_networking() -> bool:
 def require_ipv4(config: ConfigType, name: str | None = None) -> ConfigType:
     """Declare that a component cannot compile or function with IPv4 disabled.
 
+    Only takes effect if 'network' is also loaded in the config -- with no IP
+    transport present (wifi, ethernet, openthread, ...), there is no network
+    stack for this to constrain, and the call is a no-op.
+
     Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
     already a (config) -> config validator, so no wrapper function is needed.
     Pass `name` via functools.partial to identify the caller in the error message.
@@ -229,6 +233,10 @@ def require_ipv4(config: ConfigType, name: str | None = None) -> ConfigType:
 def require_ipv6(config: ConfigType, name: str | None = None) -> ConfigType:
     """Declare that a component cannot compile or function with IPv6 disabled.
 
+    Only takes effect if 'network' is also loaded in the config -- with no IP
+    transport present (wifi, ethernet, openthread, ...), there is no network
+    stack for this to constrain, and the call is a no-op.
+
     Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
     already a (config) -> config validator, so no wrapper function is needed.
     Pass `name` via functools.partial to identify the caller in the error message.
@@ -242,6 +250,30 @@ def require_ipv6(config: ConfigType, name: str | None = None) -> ConfigType:
         )
     """
     CORE.data.setdefault(KEY_REQUIRE_IPV6, set()).add(name or "a component")
+    return config
+
+
+def request_ipv4_off(config: ConfigType, name: str | None = None) -> ConfigType:
+    """Request that IPv4 default to disabled for this component/platform.
+
+    A soft preference, not a requirement -- 'network: enable_ipv4: true' still
+    overrides it. Only takes effect if 'network' is also loaded in the config --
+    with no IP transport present (wifi, ethernet, openthread, ...), there is no
+    network stack for this to constrain, and the call is a no-op.
+
+    Drop this straight into a component's CONFIG_SCHEMA cv.All(...) chain -- it's
+    already a (config) -> config validator, so no wrapper function is needed.
+    Pass `name` via functools.partial to identify the caller.
+
+    Example:
+        from esphome.components import network
+
+        CONFIG_SCHEMA = cv.All(
+            ...,
+            functools.partial(network.request_ipv4_off, name="openthread"),
+        )
+    """
+    CORE.data.setdefault(KEY_REQUEST_IPV4_OFF, set()).add(name or "a component")
     return config
 
 
@@ -388,15 +420,7 @@ def _final_validate(config: ConfigType) -> None:
             )
         config[CONF_ENABLE_IPV4] = True
     else:
-        # OpenThread is IPv6-only, and nRF52 (Zephyr) actually omits the IPv4 stack
-        # from the build when unset -- default IPv4 off for either, when nothing
-        # else needs it, for the smaller flash footprint.
-        config.setdefault(
-            CONF_ENABLE_IPV4,
-            not (
-                CONF_OPENTHREAD in full_config or (CORE.is_configured and CORE.is_nrf52)
-            ),
-        )
+        config.setdefault(CONF_ENABLE_IPV4, not CORE.data.get(KEY_REQUEST_IPV4_OFF))
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
         raise cv.Invalid(

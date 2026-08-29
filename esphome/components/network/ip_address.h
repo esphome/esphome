@@ -168,7 +168,7 @@ struct IPAddress {
     this->ip_addr_.s_addr =
         htonl(((uint32_t) first << 24) | ((uint32_t) second << 16) | ((uint32_t) third << 8) | fourth);
   }
-  IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(const std::string &in_address) : ip_addr_{} { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_ = *other_ip; }
   char *str_to(char *buf) const {
     if (inet_ntop(AF_INET, &ip_addr_, buf, IP_ADDRESS_BUFFER_SIZE) == nullptr)

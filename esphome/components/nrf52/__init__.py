@@ -270,6 +270,7 @@ CONFIG_SCHEMA = cv.All(
     _resolve_toolchain,
     set_framework,
     functools.partial(network.require_ipv6, name=PLATFORM_NRF52),
+    functools.partial(network.request_ipv4_off, name=PLATFORM_NRF52),
 )
 
 

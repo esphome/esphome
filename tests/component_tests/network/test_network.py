@@ -53,8 +53,9 @@ def test_ipv4_dropped_when_explicitly_disabled(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """enable_ipv4 defaults to True; IPv4 only drops out of the build when the user
-    explicitly writes 'enable_ipv4: false' and nothing requires it."""
+    """enable_ipv4 defaults to True; here IPv4 drops out of the build because the user
+    explicitly writes 'enable_ipv4: false' and nothing requires it (some components
+    request the same outcome automatically -- see test_ipv4_stays_on_with_ipv6_enabled_by_default)."""
     generate_main(component_config_path("ipv6_only_ipv4_explicit_disable.yaml"))
     define = next((d for d in CORE.defines if d.name == "USE_NETWORK_IPV4"), None)
     assert define is not None
@@ -65,8 +66,10 @@ def test_ipv4_stays_on_with_ipv6_enabled_by_default(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Without an explicit 'enable_ipv4: false', IPv4 stays on even with IPv6 enabled --
-    the user must opt into dropping it, it is never selected for them."""
+    """Without an explicit 'enable_ipv4: false' and with nothing in the config
+    requesting IPv4 off (see network.request_ipv4_off), IPv4 stays on even with
+    IPv6 enabled -- the plain-IPv6 case here has no such request, so the default
+    is unaffected."""
     generate_main(component_config_path("ipv6_only.yaml"))
     define = next((d for d in CORE.defines if d.name == "USE_NETWORK_IPV4"), None)
     assert define is not None
