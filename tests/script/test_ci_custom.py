@@ -71,6 +71,27 @@ def test_flags_range_for_and_else() -> None:
     assert _lint("else\n  ESP_LOGE(t);\n")
 
 
+def test_flags_for_header_with_nested_call() -> None:
+    assert _lint("for (auto it = v.begin(); it != v.end(); ++it)\n  ESP_LOGD(t);\n")
+
+
+def test_for_header_does_not_reach_into_a_later_statement() -> None:
+    # The 'for' header is bounded to its own statement, so it cannot swallow the loop body and latch
+    # onto a later ')'. Without that, the '#if' line below is reported as an unbraced body even though
+    # the '#' preprocessor check should skip it.
+    assert not _lint(
+        "for (int i = 0; i < n; i++)\n  arr[i] = 0;\n#if defined(USE_X)\n  ESP_LOGD(t);\n#endif\n"
+    )
+
+
+def test_violation_after_a_for_loop_is_reported_at_its_own_line() -> None:
+    errors = _lint(
+        "for (int i = 0; i < n; i++)\n  sum += a[i];\nif (verbose)\n  ESP_LOGD(t, sum);\n"
+    )
+    lines = [line for line, _col, _msg in errors]
+    assert lines == [3]  # the 'if', not the 'for' on line 1
+
+
 def test_flags_multiline_log_body() -> None:
     assert _lint('if (x)\n  ESP_LOGD(t, "%d %d",\n           a, b);\n')
 

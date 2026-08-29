@@ -325,9 +325,11 @@ def lint_no_long_delays(fname, match):
 # this fills that gap. Matched against comment/string-masked content, so commented-out or quoted code
 # is ignored.
 # 'for' allows ';' inside its parentheses (the classic C-style header); 'if'/'while' do not, so their
-# condition cannot run past the statement it guards.
+# condition cannot run past the statement it guards. The 'for' header permits one level of nested
+# parens so it stays bounded to its own statement: without that, it can run past the loop body and
+# latch onto a later ')', mis-reporting the line and skipping the '#' preprocessor check below.
 ESP_LOG_NEEDS_BRACES_RE = re.compile(
-    r"(?:\bif\s*\([^{};]*\)|\bwhile\s*\([^{};]*\)|\bfor\s*\([^{}]*\)|\belse\b)"
+    r"(?:\bif\s*\([^{};]*\)|\bwhile\s*\([^{};]*\)|\bfor\s*\((?:[^{}()]|\([^{}()]*\))*\)|\belse\b)"
     r"[ \t]*\n?[ \t]*ESP_LOG[A-Z]*\s*\(",
     re.MULTILINE,
 )
