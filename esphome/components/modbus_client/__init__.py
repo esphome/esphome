@@ -157,10 +157,6 @@ _ACTION_BASE_SCHEMA = cv.Schema(
     }
 )
 
-# The write codes recognised by modbus::helpers::is_function_code_write() - keep in sync. 0x17
-# (read/write multiple) is included: it mutates, so the hub treats it as a write despite its read half.
-_WRITE_FUNCTION_CODES = frozenset({0x05, 0x06, 0x0F, 0x10, 0x16, 0x17})
-
 
 def _no_continuous_on_write(config: ConfigType) -> ConfigType:
     """Reject `continuous: true` on a static write PDU: continuous polling only applies to reads.
@@ -170,9 +166,7 @@ def _no_continuous_on_write(config: ConfigType) -> ConfigType:
     if (
         isinstance(pdu, list)
         and config.get(CONF_CONTINUOUS) is True
-        # Masking the exception bit (0x90 -> 0x10) makes this check stricter than the runtime hub,
-        # whose classify() treats an exception-flagged code as a read and leaves continuous in place.
-        and pdu[0] & 0x7F in _WRITE_FUNCTION_CODES
+        and modbus.is_function_code_write(pdu[0])
     ):
         raise cv.Invalid(
             f"'{CONF_CONTINUOUS}: true' does not apply to a write PDU (function code "

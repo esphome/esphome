@@ -660,7 +660,7 @@ def _patch_registry(monkeypatch, versions):
 
 def test_resolve_registry_version_intersects_constraints(monkeypatch):
     _patch_registry(monkeypatch, ["1.10018.1", "1.10021.0", "1.10021.1"])
-    owner, name, version, url = _resolve_registry_version(
+    owner, name, version, url, _size = _resolve_registry_version(
         "esphome", "libsodium", {"==1.10021.0", "^1.10018.1"}
     )
     assert (owner, name, version) == ("esphome", "libsodium", "1.10021.0")
@@ -669,7 +669,9 @@ def test_resolve_registry_version_intersects_constraints(monkeypatch):
 
 def test_resolve_registry_version_picks_highest_satisfying(monkeypatch):
     _patch_registry(monkeypatch, ["1.0.0", "1.5.0", "2.0.0"])
-    _owner, _name, version, _url = _resolve_registry_version("o", "p", {"^1.0.0"})
+    _owner, _name, version, _url, _size = _resolve_registry_version(
+        "o", "p", {"^1.0.0"}
+    )
     assert version == "1.5.0"
 
 
@@ -719,7 +721,7 @@ def test_generate_idf_components_dedupes_shared_dependency(
         resolve_calls.append(pkgname)
         captured[f"{owner}/{pkgname}"] = set(requirements)
         version = "1.10021.0" if pkgname == "C" else "1.0.0"
-        return owner, pkgname, version, f"http://x/{pkgname}.tar.gz"
+        return owner, pkgname, version, f"http://x/{pkgname}.tar.gz", None
 
     monkeypatch.setattr(
         esphome.platformio.library, "_resolve_registry_version", fake_resolve
@@ -778,7 +780,7 @@ def test_generate_idf_components_lib_ignore_filters_top_level_and_dependencies(
 
     def fake_resolve(owner, pkgname, requirements):
         resolve_calls.append(pkgname)
-        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz"
+        return owner, pkgname, "1.0.0", f"http://x/{pkgname}.tar.gz", None
 
     monkeypatch.setattr(
         esphome.platformio.library, "_resolve_registry_version", fake_resolve
@@ -834,6 +836,7 @@ def test_generate_idf_components_handles_dependency_cycle(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -891,6 +894,7 @@ def test_generate_idf_components_git_overrides_registry_warns(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -927,6 +931,7 @@ def test_generate_idf_components_missing_manifest_raises(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -971,6 +976,7 @@ def test_generate_idf_components_warns_on_noncanonical_duplicate(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1004,6 +1010,7 @@ def test_generate_idf_components_incompatible_top_level_raises(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 
@@ -1040,6 +1047,7 @@ def test_generate_idf_components_incompatible_dependency_skipped(
             pkgname,
             "1.0.0",
             f"http://x/{pkgname}.tar.gz",
+            None,
         ),
     )
 

@@ -551,7 +551,14 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
 
 void ClimateDeviceRestoreState::apply(Climate *climate) {
   auto traits = climate->get_traits();
-  climate->mode = this->mode;
+  // A saved mode the device no longer offers cannot be selected again, so skip it and leave the
+  // entity on the mode it already has. The other saved fields are still restored.
+  if (traits.supports_mode(this->mode)) {
+    climate->mode = this->mode;
+  } else {
+    ESP_LOGW(TAG, "'%s' - Saved mode %s is no longer supported, keeping %s", climate->get_name().c_str(),
+             LOG_STR_ARG(climate_mode_to_string(this->mode)), LOG_STR_ARG(climate_mode_to_string(climate->mode)));
+  }
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     climate->target_temperature_low = this->target_temperature_low;
