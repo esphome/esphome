@@ -152,6 +152,7 @@ static constexpr uint8_t CLIENT_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x08;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_COMPRESSION = 0x01;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS = 0x02;
 static constexpr uint8_t SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM = 0x04;
+static constexpr uint8_t SERVER_FEATURE_ACTIVE_SLOT_1 = 0x08;
 
 void ESPHomeOTAComponent::handle_handshake_() {
   /// Handle the OTA handshake and authentication.
@@ -262,6 +263,9 @@ void ESPHomeOTAComponent::handle_handshake_() {
         this->handshake_buf_[1] |= (this->use_sha256_checksum_ ? SERVER_FEATURE_SUPPORTS_SHA256_CHECKSUM : 0);
 #ifdef USE_OTA_PARTITIONS
         this->handshake_buf_[1] |= SERVER_FEATURE_SUPPORTS_PARTITION_ACCESS;
+#endif
+#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
+        this->handshake_buf_[1] |= (this->backend_->active_slot_is_secondary() ? SERVER_FEATURE_ACTIVE_SLOT_1 : 0);
 #endif
       } else {
         this->handshake_buf_[0] =

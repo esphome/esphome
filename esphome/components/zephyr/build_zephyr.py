@@ -209,6 +209,14 @@ def generate_cmake_lists(mode: str) -> bool:
     content = "\n".join(lines) + "\n"
     if mode == ZEPHYR_VARIANT_NATIVE_SIM:
         content += _NATIVE_SIM_LIBSTDCXX_WORKAROUND
+    else:
+        from .mcuboot import zephyr_swap_method  # noqa: PLC0415
+
+        if zephyr_swap_method() == "direct":
+            # MCUBOOT_BOOTUTIL only propagates its include dir to whatever explicitly
+            # links it -- subsys/dfu/boot already linking it doesn't make it transitive
+            # to the app. Needed for bootutil_public.h's boot_set_next().
+            content += "\ntarget_link_libraries(app PRIVATE MCUBOOT_BOOTUTIL)\n"
 
     return write_file_if_changed(
         CORE.relative_build_path("zephyr", "CMakeLists.txt"),

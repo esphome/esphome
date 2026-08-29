@@ -557,6 +557,7 @@
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
 #define USE_LOGGER_EARLY_MESSAGE
 #define USE_OTA_ROLLBACK
+#define USE_OTA_ZEPHYR_DIRECT_XIP
 // All USE_ZEPHYR variants default to BSD sockets.
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 // Emitted by adc/sensor.py when any ADC sensor uses `emulation:` -- backs the

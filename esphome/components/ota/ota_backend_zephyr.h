@@ -33,6 +33,12 @@ class ZephyrOTABackend final {
   // No MD5 fallback exists here (set_update_md5() is a no-op) -- silently skipping
   // verification would be worse than rejecting a client that can't negotiate SHA256.
   bool requires_sha256_checksum() const { return true; }
+#if defined(USE_OTA_ZEPHYR_DIRECT_XIP) && !defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
+  // True when slot1 is the slot currently executing -- the host must then send the
+  // slot0-linked variant instead of re-sending what's running. See espota2.py's
+  // SERVER_FEATURE_ACTIVE_SLOT_1.
+  bool active_slot_is_secondary() const;
+#endif
 
  protected:
   sha256::SHA256 sha256_{};
@@ -52,6 +58,11 @@ class ZephyrOTABackend final {
   // secondary (slot1) flash partition and let MCUboot swap it in on reboot.
   flash_img_context img_ctx_{};
   bool active_{false};
+#ifdef USE_OTA_ZEPHYR_DIRECT_XIP
+  // The slot NOT currently executing, chosen once in begin() and reused in end() --
+  // direct-xip has no fixed "update slot", unlike swap modes' always-slot1 target.
+  uint8_t target_area_id_{0};
+#endif
 #endif
 };
 
