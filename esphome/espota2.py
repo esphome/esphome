@@ -388,7 +388,7 @@ def perform_ota(
     else:
         features = 0
 
-    if not (features & SERVER_FEATURE_ACTIVE_SLOT_1):
+    if alt_filename is not None and not (features & SERVER_FEATURE_ACTIVE_SLOT_1):
         # Direct-xip has no swap step -- the OTA write always targets whichever slot
         # ISN'T currently running. The device not reporting slot 1 as active means
         # it's running slot 0 (the common case), so the write goes to slot 1 and
