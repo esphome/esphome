@@ -16,7 +16,7 @@ from esphome.core import CORE
 from esphome.espidf.toolchain import has_outdated_files
 
 
-def _setup_core(tmp_path: Path, toolchain: Toolchain) -> None:
+def _setup_core(tmp_path: Path, toolchain: Toolchain | None) -> None:
     CORE.config_path = tmp_path / "test.yaml"
     CORE.build_path = tmp_path
     CORE.toolchain = toolchain
@@ -31,17 +31,23 @@ def _seed_configured_build(tmp_path: Path) -> None:
     (build / "config" / "sdkconfig.h").write_text("")
     (build / "CMakeCache.txt").write_text("")
     (build / "build.ninja").write_text("")
+    # Explicitly older than what the test writes next: has_outdated_files()
+    # compares st_mtime with a strict >, so same-tick writes would pass
+    past = time.time() - 60
+    for f in build.rglob("*"):
+        os.utime(f, (past, past))
 
 
 @pytest.mark.parametrize(
     ("toolchain", "clean_expected"),
-    [(Toolchain.ESP_IDF, False), (Toolchain.PLATFORMIO, True)],
+    [(Toolchain.ESP_IDF, False), (Toolchain.PLATFORMIO, True), (None, True)],
 )
 def test_write_sdkconfig_cleans_only_on_platformio(
-    tmp_path: Path, toolchain: Toolchain, clean_expected: bool
+    tmp_path: Path, toolchain: Toolchain | None, clean_expected: bool
 ) -> None:
     """A changed sdkconfig forces a full clean only under PlatformIO; the
-    esp-idf toolchain reconfigures via has_outdated_files() instead."""
+    esp-idf toolchain reconfigures via has_outdated_files() instead; an
+    unresolved toolchain fails safe onto the clean."""
     _setup_core(tmp_path, toolchain)
     _seed_configured_build(tmp_path)
     with (
