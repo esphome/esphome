@@ -1,6 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_INDEX
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
 
@@ -13,7 +15,7 @@ OneWireBus = one_wire_ns.class_("OneWireBus")
 OneWireDevice = one_wire_ns.class_("OneWireDevice")
 
 
-def one_wire_device_schema():
+def one_wire_device_schema() -> cv.Schema:
     """Create a schema for a 1-wire device.
 
     :return: The 1-wire device schema, `extend` this in your config schema.
@@ -27,7 +29,7 @@ def one_wire_device_schema():
     )
 
 
-async def register_one_wire_device(var, config):
+async def register_one_wire_device(var: MockObj, config: ConfigType) -> None:
     """Register an 1-wire device with the given config.
 
     Sets the 1-wire bus to use and the 1-wire address.

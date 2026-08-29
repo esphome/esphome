@@ -37,7 +37,8 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
 
   void update() override;
 
-  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+  void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                               modbus::ResponseStatus status) override;
 
   void dump_config() override;
 };

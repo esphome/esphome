@@ -6,6 +6,7 @@ from esphome.components.udp import CONF_UDP_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LEVEL, CONF_PORT, CONF_TIME_ID
 from esphome.cpp_types import Component, Parented
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 
@@ -28,7 +29,7 @@ CONFIG_SCHEMA = udp.UDP_SCHEMA.extend(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_UDP_ID])
     time = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(parent.set_broadcast_port(config[CONF_PORT]))

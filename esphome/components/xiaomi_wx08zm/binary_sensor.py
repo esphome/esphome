@@ -11,6 +11,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
 )
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble", "sensor"]
 
@@ -48,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)

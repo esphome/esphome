@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import sys
 import time
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 # Note: Do not import modules from esphome.components here, as this would
 # cause them to be loaded before external components are processed, resulting
@@ -70,6 +70,9 @@ from esphome.util import (
     run_external_process,
     safe_print,
 )
+
+if TYPE_CHECKING:
+    import threading
 
 # Keep expensive imports (zeroconf, writer, yaml_util, etc.) out of this
 # module's top level. Every `esphome` invocation — including fast paths
@@ -567,11 +570,48 @@ def has_name_add_mac_suffix() -> bool:
 
 
 def mqtt_get_ip(
-    config: ConfigType, username: str, password: str, client_id: str
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
 ) -> list[str]:
     from esphome import mqtt
 
-    return mqtt.get_esphome_device_ip(config, username, password, client_id)
+    return mqtt.get_esphome_device_ip(
+        config, username, password, client_id, stop_event=stop_event
+    )
+
+
+def _add_network_device(device: str, network_devices: list[str]) -> None:
+    """Append a device to the list, expanding it through ``CORE.address_cache``.
+
+    If the hostname is already in the address cache (e.g. populated by mDNS
+    discovery), substitute the cached IPs so aioesphomeapi doesn't open its
+    own Zeroconf to re-resolve it. Duplicates are dropped.
+    """
+    if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
+        network_devices.extend(addr for addr in cached if addr not in network_devices)
+    elif device not in network_devices:
+        network_devices.append(device)
+
+
+def _split_network_devices(devices: list[str]) -> tuple[list[str], bool]:
+    """Split the device list into direct addresses and an MQTT-lookup flag.
+
+    Direct addresses are expanded through ``CORE.address_cache`` and deduped
+    the same way ``_resolve_network_devices`` does; MQTT/MQTTIP magic strings
+    are not resolved, only reported via the returned bool so the caller can
+    defer the broker lookup.
+    """
+    network_devices: list[str] = []
+    has_mqtt_lookup = False
+    for device in devices:
+        if get_port_type(device) in _MQTT_PORT_TYPES:
+            has_mqtt_lookup = True
+        else:
+            _add_network_device(device, network_devices)
+    return network_devices, has_mqtt_lookup
 
 
 def _resolve_network_devices(
@@ -604,38 +644,42 @@ def _resolve_network_devices(
         if port_type in _MQTT_PORT_TYPES:
             # Only resolve MQTT once, even if multiple MQTT entries
             if not mqtt_resolved:
-                try:
-                    mqtt_ips = mqtt_get_ip(
-                        config, args.username, args.password, args.client_id
-                    )
-                    # pylint can't infer mqtt_get_ip's return through its
-                    # lazy ``from esphome import mqtt`` import, so it flags
-                    # the genexpr below.
-                    network_devices.extend(
-                        addr
-                        for addr in mqtt_ips  # pylint: disable=not-an-iterable
-                        if addr not in network_devices
-                    )
-                except EsphomeError as err:
-                    _LOGGER.warning(
-                        "MQTT IP discovery failed (%s), will try other devices if available",
-                        err,
-                    )
+                mqtt_ips = _mqtt_get_ip_or_warn(
+                    config, args.username, args.password, args.client_id
+                )
+                network_devices.extend(
+                    addr for addr in mqtt_ips if addr not in network_devices
+                )
                 mqtt_resolved = True
             continue
 
-        # If the hostname is already in the address cache (e.g. populated by
-        # mDNS discovery), substitute the cached IPs so aioesphomeapi doesn't
-        # open its own Zeroconf to re-resolve it.
-        if CORE.address_cache and (cached := CORE.address_cache.get_addresses(device)):
-            network_devices.extend(
-                addr for addr in cached if addr not in network_devices
-            )
-        elif device not in network_devices:
-            # Regular network address or IP - add if not already present
-            network_devices.append(device)
+        _add_network_device(device, network_devices)
 
     return network_devices
+
+
+def _mqtt_get_ip_or_warn(
+    config: ConfigType,
+    username: str,
+    password: str,
+    client_id: str,
+    stop_event: "threading.Event | None" = None,
+) -> list[str]:
+    """Look up the device IP via MQTT, returning [] with a warning on failure.
+
+    This owns the failure policy for MQTT IP discovery on paths that have
+    other addresses to fall back on: a broker problem must not abort the
+    operation. Also used as the deferred resolver handed to ``run_logs``,
+    where it runs in a worker thread.
+    """
+    try:
+        return mqtt_get_ip(config, username, password, client_id, stop_event=stop_event)
+    except EsphomeError as err:
+        _LOGGER.warning(
+            "MQTT IP discovery failed (%s), will try other devices if available",
+            err,
+        )
+        return []
 
 
 def run_miniterm(config: ConfigType, port: str, args) -> int:
@@ -718,9 +762,11 @@ def _wrap_to_code(name, comp, yaml_util):
     async def wrapped(conf):
         cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
-            conf_str = yaml_util.dump(conf)
+            # sort_keys: voluptuous fills defaults in set order, so an
+            # unsorted dump would churn main.cpp and relink every run
+            conf_str = yaml_util.dump(conf, sort_keys=True)
             conf_str = conf_str.replace("//", "")
-            # remove tailing \ to avoid multi-line comment warning
+            # remove trailing \ to avoid multi-line comment warning
             conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
@@ -811,7 +857,20 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        toolchain.get_idedata()
+        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+
+        try:
+            if toolchain.get_idedata() is None:
+                _LOGGER.warning("No idedata was generated for this build")
+        except IDEDATA_BEST_EFFORT_ERRORS as err:
+            # The firmware already built; an idedata failure must not fail
+            # a successful build.
+            _LOGGER.warning(
+                "Could not generate idedata: %s (IDE, clang-tidy, and "
+                "memory-analysis data will be unavailable for this build)",
+                err,
+            )
+            _LOGGER.debug("Idedata failure detail", exc_info=True)
     else:
         from esphome.platformio import toolchain
 
@@ -1438,17 +1497,37 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
         return run_miniterm(config, port, args)
 
     # Check if we should use API for logging
-    # Resolve MQTT magic strings to actual IP addresses
-    if has_api() and (
-        network_devices := _resolve_network_devices(devices, config, args)
-    ):
-        from esphome.api_client import run_logs
+    if has_api():
+        network_devices, has_mqtt_lookup = _split_network_devices(devices)
+        mqtt_resolver = None
+        if has_mqtt_lookup:
+            if network_devices:
+                # Addresses are already known, so don't block startup on the
+                # MQTT broker lookup; hand it to run_logs as a deferred
+                # resolver that runs in the background and feeds discovered
+                # addresses into the running log client, keeping MQTT as a
+                # fallback for when the known addresses are stale (e.g. DHCP
+                # reassigned the IP).
+                mqtt_resolver = functools.partial(
+                    _mqtt_get_ip_or_warn,
+                    config,
+                    args.username,
+                    args.password,
+                    args.client_id,
+                )
+            else:
+                # The MQTT lookup is the only way to find the device; resolve
+                # it up front since the client needs an address to start with.
+                network_devices = _resolve_network_devices(devices, config, args)
+        if network_devices:
+            from esphome.api_client import run_logs
 
-        return run_logs(
-            config,
-            network_devices,
-            subscribe_states=_should_subscribe_states(args),
-        )
+            return run_logs(
+                config,
+                network_devices,
+                subscribe_states=_should_subscribe_states(args),
+                mqtt_resolver=mqtt_resolver,
+            )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
@@ -2655,10 +2734,14 @@ def run_esphome(argv):
     # Skipped when -s overrides are passed, since the cache was written
     # against the previous substitution set.
     config: ConfigType | None = None
-    cache_eligible = (
+    cache_write_eligible = (
         args.command in ("upload", "logs") and not command_line_substitutions
     )
-    if cache_eligible:
+    # An explicit --toolchain must re-run the per-platform validators, so
+    # gate only the cache read; the refresh below saves the result unless
+    # the sidecar records a different toolchain.
+    cache_read_eligible = cache_write_eligible and args.toolchain is None
+    if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
 
         config = load_compiled_config(conf_path)
@@ -2668,7 +2751,8 @@ def run_esphome(argv):
                 conf_path.name,
             )
 
-    if config is None:
+    cache_missed = config is None
+    if cache_missed:
         from esphome.config import read_config
 
         config = read_config(
@@ -2677,25 +2761,21 @@ def run_esphome(argv):
             # Snapshot only needed by `esphome config --no-defaults`.
             snapshot_user_config=getattr(args, "no_defaults", False),
         )
-        # Refresh the cache so the next upload/logs hits the fast path
-        # instead of re-running read_config. Skip when the storage
-        # sidecar is absent (no compile has run): the cache would
-        # never be loaded back, so writing secrets to disk is wasted.
-        if cache_eligible and config is not None:
-            from esphome.compiled_config import save_compiled_config
-            from esphome.storage_json import ext_storage_path
-
-            if ext_storage_path(conf_path.name).exists():
-                save_compiled_config(config)
-    if config is None:
-        return 2
+        if config is None:
+            return 2
     CORE.config = config
 
-    # Fallback for platforms whose validators didn't set the toolchain
-    # (only the esp32 component reads esp32.framework.toolchain). All
-    # other platforms only support PlatformIO today.
+    # The cache fast path skips validation, and legacy sidecars lack the
+    # toolchain field. Must run before the cache refresh below.
     if CORE.toolchain is None:
         CORE.toolchain = Toolchain.PLATFORMIO
+
+    # Refresh the cache so the next upload/logs hits the fast path
+    # instead of re-running read_config.
+    if cache_write_eligible and cache_missed:
+        from esphome.compiled_config import save_compiled_config_and_sidecar
+
+        save_compiled_config_and_sidecar(config)
 
     if args.command not in POST_CONFIG_ACTIONS:
         safe_print(f"Unknown command {args.command}")

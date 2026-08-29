@@ -1,9 +1,14 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_FACTORY_RESET, CONF_ID, CONF_SENSITIVITY
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@niklasweber"]
 DEPENDENCIES = ["uart"]
@@ -38,7 +43,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
@@ -54,14 +59,19 @@ async def to_code(config):
     ),
     synchronous=True,
 )
-async def dfrobot_sen0395_reset_to_code(config, action_id, template_arg, args):
+async def dfrobot_sen0395_reset_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
     return var
 
 
-def range_segment_list(input):
+def range_segment_list(input: Any) -> list:
     """Validate input is a list of ranges which can be used to configure the dfrobot mmwave radar
 
     A list of segments should be provided. A minimum of one segment is required and a maximum of
@@ -154,7 +164,12 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     MMWAVE_SETTINGS_SCHEMA,
     synchronous=True,
 )
-async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args):
+async def dfrobot_sen0395_settings_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
