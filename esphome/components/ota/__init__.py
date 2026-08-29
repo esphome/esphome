@@ -60,7 +60,7 @@ SWAP_METHOD_SCHEMA = {
         zephyr_nrf52="move",
         zephyr_nrf54l15="move",
         zephyr_nrf54lm20a="move",
-    ): cv.one_of("scratch", "move", "offset", lower=True),
+    ): cv.one_of("scratch", "move", "offset", "direct", lower=True),
 }
 
 

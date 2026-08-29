@@ -888,6 +888,26 @@ class EsphomeCore:
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
     @property
+    def firmware_alt_bin(self) -> Path | None:
+        """The slot-1-linked build for Zephyr swap_method: direct OTA. None otherwise.
+
+        Direct-xip images execute in place, so each slot needs its own build linked
+        for its own address; espota2 picks between this and firmware_bin based on
+        which slot the device reports as currently active.
+        """
+        if not self.using_toolchain_sdk_zephyr:
+            return None
+        from esphome.components.zephyr.mcuboot import (
+            zephyr_swap_method,  # noqa: PLC0415
+        )
+
+        if zephyr_swap_method() != "direct":
+            return None
+        return self.relative_build_path(
+            ".west_build", "zephyr_slot1_variant", "zephyr", "zephyr.signed.bin"
+        )
+
+    @property
     def partition_table_bin(self) -> Path:
         # Native ESP-IDF (--toolchain esp-idf): the partition table image is emitted under
         # build/partition_table/partition-table.bin alongside firmware.bin. PlatformIO writes the

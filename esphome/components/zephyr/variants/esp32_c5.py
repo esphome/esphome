@@ -49,7 +49,7 @@ VARIANT = ZephyrVariant(
     soc="esp32c5",
     qualifier="hpcore",
     # offset excluded: upstream's BOOT_PREFER_SWAP_OFFSET requires !SOC_FAMILY_ESPRESSIF_ESP32.
-    swap_methods=frozenset({"scratch", "move"}),
+    swap_methods=frozenset({"scratch", "move", "direct"}),
     # esp32c5_common.dtsi's adc0 node declares channel-count = <6> -- GPIO0-5 map directly
     # to ADC1 channel 0-5 (devicetree channel@N address IS the real silicon channel, same
     # as esp32_c6/esp32_h2).

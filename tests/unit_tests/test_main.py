@@ -2101,7 +2101,12 @@ def test_upload_program_ota_success(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"],
+        3232,
+        "secret",
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        alt_filename=None,
     )
 
 
@@ -2132,7 +2137,12 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"],
+        3232,
+        None,
+        Path("custom.bin"),
+        OTA_TYPE_UPDATE_APP,
+        alt_filename=None,
     )
 
 
@@ -2187,6 +2197,7 @@ def test_upload_program_ota_partition_table_with_file_arg(
         None,
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
+        alt_filename=None,
     )
 
 
@@ -2248,6 +2259,7 @@ def test_upload_program_ota_partition_table_mqttip(
         None,
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
+        alt_filename=None,
     )
 
 
@@ -2435,6 +2447,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
         None,
         bootloader_file,
         OTA_TYPE_UPDATE_BOOTLOADER,
+        alt_filename=None,
     )
 
 
@@ -2887,7 +2900,12 @@ def test_upload_program_ota_with_mqtt_resolution(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        alt_filename=None,
     )
 
 
@@ -2937,7 +2955,12 @@ def test_upload_program_ota_with_mqtt_empty_broker(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.50"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        alt_filename=None,
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -5112,6 +5135,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         None,
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
+        alt_filename=None,
     )
 
 
@@ -5161,6 +5185,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         None,
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
+        alt_filename=None,
     )
 
 
@@ -5338,7 +5363,12 @@ def test_upload_program_ota_mqtt_timeout_fallback(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"],
+        3232,
+        None,
+        expected_firmware,
+        OTA_TYPE_UPDATE_APP,
+        alt_filename=None,
     )
 
 
