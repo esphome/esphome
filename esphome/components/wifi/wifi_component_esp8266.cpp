@@ -717,7 +717,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   static constexpr uint32_t SCAN_ACTIVE_MAX_DEFAULT_MS = 500;
   static constexpr uint32_t SCAN_ACTIVE_MIN_ROAMING_MS = 100;
   static constexpr uint32_t SCAN_ACTIVE_MAX_ROAMING_MS = 300;
-  bool roaming = this->roaming_state_ == RoamingState::SCANNING;
+  bool roaming = this->is_roaming_scan_active();
   if (passive) {
     config.scan_time.passive = roaming ? SCAN_PASSIVE_ROAMING_MS : SCAN_PASSIVE_DEFAULT_MS;
   } else {
@@ -943,16 +943,6 @@ bssid_t WiFiComponent::wifi_bssid() {
     std::copy_n(conf.bssid, bssid.size(), bssid.begin());
   }
   return bssid;
-}
-std::string WiFiComponent::wifi_ssid() {
-  struct station_config conf {};
-  if (!wifi_station_get_config(&conf)) {
-    return "";
-  }
-  // conf.ssid is uint8[32], not null-terminated if full
-  auto *ssid_s = reinterpret_cast<const char *>(conf.ssid);
-  size_t len = strnlen(ssid_s, sizeof(conf.ssid));
-  return {ssid_s, len};
 }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   struct station_config conf {};

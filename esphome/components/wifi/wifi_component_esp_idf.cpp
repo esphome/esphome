@@ -140,11 +140,6 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
 }
 
 void WiFiComponent::wifi_pre_setup_() {
-  uint8_t mac[MAC_ADDRESS_SIZE];
-  if (has_custom_mac_address()) {
-    get_mac_address_raw(mac);
-    set_mac_address(mac);
-  }
   // Network interface setup handled by network component
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
@@ -580,7 +575,14 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     // lwIP starts the SNTP client if it gets an SNTP server from DHCP. We don't need the time, and more importantly,
     // the built-in SNTP client has a memory leak in certain situations. Disable this feature.
     // https://github.com/esphome/issues/issues/2299
-    sntp_servermode_dhcp(false);
+    {
+#if SNTP_GET_SERVERS_FROM_DHCP || SNTP_GET_SERVERS_FROM_DHCPV6
+      // sntp_servermode_dhcp() is an empty macro unless lwIP is built with
+      // DHCP-supplied NTP servers, so only that build needs the core lock.
+      LwIPLock lock;
+#endif
+      sntp_servermode_dhcp(false);
+    }
 
     // No manual IP is set; use DHCP client
     if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
@@ -1057,7 +1059,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   // When scanning while connected (roaming), return to home channel between
   // each scanned channel to maintain the connection (helps with BLE/WiFi coexistence)
 #ifdef CONFIG_SOC_WIFI_SUPPORTED
-  if (this->roaming_state_ == RoamingState::SCANNING) {
+  if (this->is_roaming_scan_active()) {
     config.coex_background_scan = true;
   }
 #endif
@@ -1229,18 +1231,6 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   std::copy(info.bssid, info.bssid + 6, bssid.begin());
   return bssid;
-}
-std::string WiFiComponent::wifi_ssid() {
-  wifi_ap_record_t info{};
-  esp_err_t err = esp_wifi_sta_get_ap_info(&info);
-  if (err != ESP_OK) {
-    // Very verbose only: this is expected during dump_config() before connection is established (PR #9823)
-    ESP_LOGVV(TAG, "esp_wifi_sta_get_ap_info failed: %s", esp_err_to_name(err));
-    return "";
-  }
-  auto *ssid_s = reinterpret_cast<const char *>(info.ssid);
-  size_t len = strnlen(ssid_s, sizeof(info.ssid));
-  return {ssid_s, len};
 }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   wifi_ap_record_t info{};

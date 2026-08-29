@@ -1,0 +1,41 @@
+esphome:
+  name: test_suspend_resume_device
+
+host:
+
+logger:
+  level: DEBUG
+
+api:
+
+preferences:
+  id: prefs_syncer
+  flash_write_interval: 1s
+
+button:
+  - platform: template
+    name: "Save Preference"
+    on_press:
+      - lambda: |-
+          // save() only updates the in-memory map; only sync() persists it to disk.
+          ESPPreferenceObject pref = global_preferences->make_preference<uint32_t>(0xBEEF);
+          uint32_t value = 123;
+          if (pref.save(&value)) {
+            ESP_LOGI("test", "Preference saved in memory");
+          } else {
+            ESP_LOGE("test", "Preference save failed");
+          }
+
+  - platform: template
+    name: "Suspend Syncer"
+    on_press:
+      - component.suspend: prefs_syncer
+      - lambda: |-
+          ESP_LOGI("test", "Syncer suspended");
+
+  - platform: template
+    name: "Resume Syncer"
+    on_press:
+      - component.resume: prefs_syncer
+      - lambda: |-
+          ESP_LOGI("test", "Syncer resumed");

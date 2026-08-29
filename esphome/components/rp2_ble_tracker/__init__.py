@@ -4,14 +4,15 @@ Scan modes:
   continuous: true  — scan runs forever; never stops automatically.
   continuous: false — a started scan runs for `duration`, then stops. The first
                       start is external too; nothing starts a non-continuous
-                      scan on boot. Until start/stop automation actions land
-                      (follow-up PR), starting means a lambda:
-                      `id(my_tracker).start_scan();`.
+                      scan on boot — use the rp2_ble_tracker.start_scan action
+                      (e.g. from api: on_client_connected:).
 """
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ota, rp2040_ble
-from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.ble_device_base import automation as ble_automation
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.rp2040_ble import CONF_RP2040_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -20,7 +21,13 @@ from esphome.const import (
     CONF_DURATION,
     CONF_ID,
     CONF_INTERVAL,
+    CONF_MANUFACTURER_ID,
+    CONF_ON_BLE_ADVERTISE,
+    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+    CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
+    CONF_SERVICE_UUID,
 )
+from esphome.core import ID
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["rp2"]
@@ -33,6 +40,14 @@ rp2_ble_tracker_ns = cg.esphome_ns.namespace("rp2_ble_tracker")
 RP2BLETracker = rp2_ble_tracker_ns.class_(
     "RP2BLETracker", ble_device_base.BLEHub, cg.Component
 )
+
+StartScanAction = rp2_ble_tracker_ns.class_("StartScanAction", automation.Action)
+StopScanAction = rp2_ble_tracker_ns.class_("StopScanAction", automation.Action)
+
+ESPBTAdvertiseTrigger = ble_automation.ESPBTAdvertiseTrigger
+BLEServiceDataAdvertiseTrigger = ble_automation.BLEServiceDataAdvertiseTrigger
+BLEManufacturerDataAdvertiseTrigger = ble_automation.BLEManufacturerDataAdvertiseTrigger
+BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 
 # interval defaults to 100 ms with the shared 30 ms window, a 30 % duty cycle —
@@ -48,6 +63,24 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(RP2BLETracker),
         cv.GenerateID(CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
+        cv.Optional(CONF_ON_BLE_ADVERTISE): ble_automation.advertise_trigger_schema(
+            ESPBTAdvertiseTrigger
+        ),
+        cv.Optional(
+            CONF_ON_BLE_SERVICE_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
+            BLEServiceDataAdvertiseTrigger,
+            {cv.Required(CONF_SERVICE_UUID): ble_device_base.bt_uuid},
+        ),
+        cv.Optional(
+            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
+        ): ble_automation.uuid_trigger_schema(
+            BLEManufacturerDataAdvertiseTrigger,
+            {cv.Required(CONF_MANUFACTURER_ID): ble_device_base.bt_uuid},
+        ),
+        cv.Optional(CONF_ON_SCAN_END): ble_automation.scan_end_trigger_schema(
+            BLEEndOfScanTrigger
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -76,4 +109,71 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
     cg.add(var.set_scan_active(scan[CONF_ACTIVE]))
-    cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
+    cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
+
+    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
+        await ble_automation.advertise_trigger_to_code(conf, var)
+
+    for trigger_key, uuid_key, setter_prefix in (
+        (CONF_ON_BLE_SERVICE_DATA_ADVERTISE, CONF_SERVICE_UUID, "set_service_uuid"),
+        (
+            CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
+            CONF_MANUFACTURER_ID,
+            "set_manufacturer_uuid",
+        ),
+    ):
+        for conf in config.get(trigger_key, []):
+            await ble_automation.uuid_trigger_to_code(
+                conf, var, uuid_key, setter_prefix
+            )
+
+    for conf in config.get(CONF_ON_SCAN_END, []):
+        await ble_automation.scan_end_trigger_to_code(conf, var)
+
+
+@automation.register_action(
+    "rp2_ble_tracker.start_scan",
+    StartScanAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(RP2BLETracker),
+            cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
+        }
+    ),
+    synchronous=True,
+)
+async def start_scan_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    if (continuous := config.get(CONF_CONTINUOUS)) is not None:
+        template_ = await cg.templatable(continuous, args, cg.bool_)
+        cg.add(var.set_continuous(template_))
+    return var
+
+
+@automation.register_action(
+    "rp2_ble_tracker.stop_scan",
+    StopScanAction,
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(RP2BLETracker),
+            }
+        )
+    ),
+    synchronous=True,
+)
+async def stop_scan_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+) -> cg.MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var

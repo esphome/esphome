@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import select
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
+from esphome.types import ConfigType
 
 from .. import CONF_MR24HPC1_ID, MR24HPC1Component, mr24hpc1_ns
 
@@ -38,7 +39,7 @@ CONFIG_SCHEMA = {
 }
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     mr24hpc1_component = await cg.get_variable(config[CONF_MR24HPC1_ID])
     if scenemode_config := config.get(CONF_SCENE_MODE):
         s = await select.new_select(

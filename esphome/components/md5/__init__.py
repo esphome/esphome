@@ -1,11 +1,12 @@
 import esphome.codegen as cg
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import IS_MACOS
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CORE.is_nrf52:
         raise EsphomeError(
             "md5 is not implemented for nrf52 (pulled in by hmac_md5 or ota)"

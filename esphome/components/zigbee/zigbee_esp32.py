@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     add_partition,
     get_esp32_variant,
+    include_builtin_idf_component,
     require_vfs_select,
 )
 from esphome.components.esp32.const import (
@@ -314,6 +315,10 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         name="espressif/esp-zigbee-lib",
         ref="2.0.4",
     )
+
+    if CONF_WIFI in CORE.config:
+        # zigbee_esp32.cpp uses esp_coexist.h when WiFi is present
+        include_builtin_idf_component("esp_coex")
 
     # add sdkconfigs later so they can overwrite esp32 defaults
     CORE.add_job(_zigbee_add_sdkconfigs, config)

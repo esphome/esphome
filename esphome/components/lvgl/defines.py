@@ -585,6 +585,21 @@ FLEX_FLOWS = LvConstant(
     "COLUMN_WRAP_REVERSE",
 )
 
+TRANSFORM_STYLE_PROPS = frozenset(
+    {"transform_rotation", "transform_scale", "transform_scale_x", "transform_scale_y"}
+)
+
+DROP_SHADOW_STYLE_PROPS = frozenset(
+    {
+        "drop_shadow_color",
+        "drop_shadow_offset_x",
+        "drop_shadow_offset_y",
+        "drop_shadow_opa",
+        "drop_shadow_quality",
+        "drop_shadow_radius",
+    }
+)
+
 OBJ_FLAGS = (
     "hidden",
     "clickable",

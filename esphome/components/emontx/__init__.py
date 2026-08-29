@@ -11,7 +11,8 @@ from esphome.const import (
     CONF_RX_BUFFER_SIZE,
     CONF_UART_ID,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -115,14 +116,16 @@ _CALLBACK_AUTOMATIONS = (
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
 
-    # Initialize sensor storage with count from final_validate
+    # Initialize sensor storage with count from final_validate before any
+    # await, so platform to_code() calls always see it initialized
+    # regardless of YAML key order.
     sensor_count = _get_data().sensor_counts.get(str(config[CONF_ID]), 0)
     if sensor_count > 0:
         cg.add(var.init_sensors(sensor_count))
 
+    await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
@@ -143,8 +146,11 @@ EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
     synchronous=True,
 )
 async def emontx_send_command_action_to_code(
-    config: ConfigType, action_id, template_arg, args
-) -> None:
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
