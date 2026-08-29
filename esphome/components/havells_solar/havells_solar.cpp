@@ -4,6 +4,8 @@
 
 namespace esphome::havells_solar {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "havells_solar";
 
 static const uint8_t MODBUS_REGISTER_COUNT = 48;  // 48 x 16-bit registers
@@ -16,22 +18,17 @@ void HavellsSolar::on_read_holding_registers(uint16_t start_address, std::span<c
   // Publish a sensor if its register(s) are in this response; skipping absent registers keeps this
   // correct for any read range, so the poll may be split into multiple requests.
   auto publish_1_register = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
-    if (sensor == nullptr || reg < start_address)
+    if (sensor == nullptr)
       return;
-    size_t offset = reg - start_address;
-    if (offset >= registers.size())
-      return;
-    sensor->publish_state(registers[offset] * unit);
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_WORD>(registers, start_address, reg))
+      sensor->publish_state(*value * unit);
   };
 
   auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
-    constexpr auto value_type = modbus::helpers::SensorValueType::U_DWORD;
-    if (sensor == nullptr || reg < start_address)
+    if (sensor == nullptr)
       return;
-    size_t offset = reg - start_address;
-    if (offset + modbus::helpers::register_width_for(value_type) > registers.size())
-      return;
-    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) * unit);
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_DWORD>(registers, start_address, reg))
+      sensor->publish_state(*value * unit);
   };
 
   for (uint8_t i = 0; i < 3; i++) {

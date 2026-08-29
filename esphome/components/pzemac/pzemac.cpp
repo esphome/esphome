@@ -3,6 +3,8 @@
 
 namespace esphome::pzemac {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "pzemac";
 
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
@@ -25,22 +27,17 @@ void PZEMAC::on_read_input_registers(uint16_t start_address, std::span<const uin
   // Publish a sensor if its register(s) are in this response; skipping absent registers keeps this
   // correct for any read range, so the poll may be split into multiple requests.
   auto publish_1_register = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
-    if (sensor == nullptr || reg < start_address)
+    if (sensor == nullptr)
       return;
-    size_t offset = reg - start_address;
-    if (offset >= registers.size())
-      return;
-    sensor->publish_state(registers[offset] / divisor);
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_WORD>(registers, start_address, reg))
+      sensor->publish_state(*value / divisor);
   };
 
   auto publish_2_registers = [&](sensor::Sensor *sensor, uint16_t reg, float divisor) -> void {
-    constexpr auto value_type = modbus::helpers::SensorValueType::U_DWORD_R;
-    if (sensor == nullptr || reg < start_address)
+    if (sensor == nullptr)
       return;
-    size_t offset = reg - start_address;
-    if (offset + modbus::helpers::register_width_for(value_type) > registers.size())
-      return;
-    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) / divisor);
+    if (auto value = helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, start_address, reg))
+      sensor->publish_state(*value / divisor);
   };
 
   publish_1_register(this->voltage_sensor_, PZEM_REGISTER_VOLTAGE, 10.0f);

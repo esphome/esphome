@@ -4,6 +4,8 @@
 
 namespace esphome::selec_meter {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "selec_meter";
 
 static const uint8_t MODBUS_REGISTER_COUNT = 34;  // 34 x 16-bit registers
@@ -17,13 +19,10 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
   // this correct for any read range, so the poll may be split into multiple requests.
   // Values are 32-bit floats, low word first.
   auto publish = [&](sensor::Sensor *sensor, uint16_t reg, float unit) -> void {
-    constexpr auto value_type = modbus::helpers::SensorValueType::FP32_R;
-    if (sensor == nullptr || reg < start_address)
+    if (sensor == nullptr)
       return;
-    size_t offset = reg - start_address;
-    if (offset + modbus::helpers::register_width_for(value_type) > registers.size())
-      return;
-    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset) * unit);
+    if (auto value = helpers::value_at<helpers::SensorValueType::FP32_R>(registers, start_address, reg))
+      sensor->publish_state(*value * unit);
   };
 
   publish(this->total_active_energy_sensor_, SELEC_TOTAL_ACTIVE_ENERGY, NO_DEC_UNIT);
