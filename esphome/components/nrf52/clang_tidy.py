@@ -45,12 +45,6 @@ CONFIG_ADC=y
 # posix (time sets POSIX_CLOCK, socket sets POSIX_API); without it the
 # Zephyr POSIX headers clash with the libc ones under analysis
 CONFIG_POSIX_API=y
-CONFIG_WATCHDOG=y
-CONFIG_REBOOT=y
-# i2c's `emulation:` option is available on any platform: zephyr variant, not
-# just native_sim, so the tidy superset needs these too
-CONFIG_EMUL=y
-CONFIG_I2C_EMUL=y
 #mcumgr begin
 CONFIG_NET_BUF=y
 CONFIG_ZCBOR=y
@@ -73,12 +67,6 @@ CONFIG_CRYPTO=y
 CONFIG_NVS=y
 CONFIG_SETTINGS=y
 #zigbee end
-#openthread begin
-CONFIG_NET_L2_OPENTHREAD=y
-CONFIG_OPENTHREAD_NORDIC_LIBRARY_FTD=y
-CONFIG_OPENTHREAD_FTD=y
-CONFIG_MAIN_STACK_SIZE=4096
-#openthread end
 """
 
 
@@ -124,7 +112,6 @@ def _parse_lib_deps(platformio_ini: Path) -> list:
     for section, key in (
         ("common", "lib_deps_base"),
         ("common:idf-component-libs", "lib_deps"),
-        ("common:nrf52-zephyr", "lib_deps"),
     ):
         if parser.has_option(section, key):
             tokens += parser.get(section, key).splitlines()

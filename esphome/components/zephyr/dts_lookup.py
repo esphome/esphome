@@ -36,16 +36,8 @@ _BUS_OVERRIDES: dict[str, dict[str, str]] = {
 def resolve_zephyr_bus(platform: str, board: str, override: str | None = None) -> str:
     """Resolve the Zephyr bus label for a given ESPHome bus platform and board.
 
-    Resolution order:
-    1. ``override`` — explicit label from ``dts_node_override:`` on the bus component.
-    2. ``_BUS_OVERRIDES`` — Python hardcoded table.
-    3. DTS lookup via ``_BUS_LOOKUP`` (requires the ``cpp`` preprocessor).
-    4. ``cv.Invalid`` — explains what was tried and how to set ``dts_node_override:``.
-
-    To support a new peripheral type (e.g. "spi", "uart"):
-    - Implement ``get_enabled_spi_buses(board) -> list[str] | None`` below.
-    - Add it to ``_BUS_LOOKUP``: ``"spi": get_enabled_spi_buses``.
-    - Call ``resolve_zephyr_bus("spi", board)`` from the spi component ``to_code()``.
+    Resolution order: ``override`` (explicit ``dts_node_override:``) -> hardcoded
+    ``_BUS_OVERRIDES`` table -> DTS lookup via ``_BUS_LOOKUP`` -> ``cv.Invalid``.
     """
     if override is not None:
         _LOGGER.info(
@@ -169,6 +161,30 @@ def _lookup_bus_labels(board: str, label_pattern: str) -> list[str] | None:
     return result
 
 
+def _find_node_label_by_compat(
+    board: str, compat: str, *, enabled_only: bool
+) -> str | None:
+    """Return the label of the first node whose `compatible` includes `compat`, or
+    None if the board's DTS declares no such node (or DTS info is unavailable).
+
+    `enabled_only` requires `status = "okay"` -- some peripherals instead ship
+    `status = "disabled"` in the SoC dtsi itself with no board turning them on by
+    default (e.g. STM32's `rng`), so presence has to be checked independently of
+    enablement there.
+    """
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    for node in _iter_nodes(edt):
+        if (
+            compat in node.compats
+            and node.labels
+            and (not enabled_only or node.status == "okay")
+        ):
+            return node.labels[0]
+    return None
+
+
 def get_existing_cdc_acm_uart_label(board: str) -> str | None:
     r"""Return the label of an already-enabled `zephyr,cdc-acm-uart` node on the
     board, or None if the board doesn't declare one.
@@ -179,18 +195,128 @@ def get_existing_cdc_acm_uart_label(board: str) -> str | None:
     (e.g. the generic zephyr/boards/common/usb/cdc_acm_serial.dtsi snippet
     labels its node `board_cdc_acm_uart`, not `cdc_acm_uart0`).
     """
+    return _find_node_label_by_compat(board, "zephyr,cdc-acm-uart", enabled_only=True)
+
+
+def get_rng_node_label(board: str) -> str | None:
+    """Return the label of the board's `st,stm32-rng` node, or None if its SoC
+    declares no such node at all."""
+    return _find_node_label_by_compat(board, "st,stm32-rng", enabled_only=False)
+
+
+def get_console_uart_label(board: str) -> str | None:
     edt = _get_edt(board)
     if edt is None:
         return None
+    node = edt.chosen_node("zephyr,console")
+    if node is None or not node.labels:
+        return None
+    return node.labels[0]
 
+
+def get_uart_controller_labels(board: str) -> list[str] | None:
+    """Matches by `bus: uart` (every uart-controller binding sets this), not
+    `current-speed` -- a real but unconfigured peripheral (e.g. RA4M1's sci0/sci9)
+    has no current-speed until enabled, and would otherwise be missed. Returns every
+    enabled node, then every disabled one -- unlike _lookup_bus_labels(), which only
+    falls back to disabled when nothing enabled matched.
+    """
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+    enabled: list[str] = []
+    disabled: list[str] = []
     for node in _iter_nodes(edt):
-        if (
-            node.status == "okay"
-            and "zephyr,cdc-acm-uart" in node.compats
-            and node.labels
-        ):
-            return node.labels[0]
-    return None
+        if "uart" in node.buses and node.labels:
+            (enabled if node.status == "okay" else disabled).append(node.labels[0])
+    return enabled + disabled
+
+
+def _discover_uart_node_labels(board: str) -> dict[str, str] | None:
+    """UART0 is always the board's real `zephyr,console` node, by convention -- not
+    just whichever UART happens to be discovered first.
+
+    No logging, no hard failure -- resolve_uart_node_label() and
+    log_board_capabilities() both build on this and log it their own way.
+    """
+    console = get_console_uart_label(board)
+    if console is None:
+        return None
+    others = [
+        label for label in (get_uart_controller_labels(board) or []) if label != console
+    ]
+    mapping = {"UART0": console}
+    mapping.update({f"UART{i + 1}": label for i, label in enumerate(others)})
+    return mapping
+
+
+def resolve_uart_node_label(
+    board: str, hw_uart: str, static_labels: dict[str, str]
+) -> str:
+    """`static_labels` empty means the variant declares no portable mapping across
+    its boards (e.g. stm32l4, where UART naming and which one is console both vary
+    per board) -- labels are discovered from DTS instead (_discover_uart_node_labels()).
+    Otherwise the hand-declared label is used, with UART0 verified (best effort)
+    against the board's real console -- a mismatch warns rather than hard-fails,
+    since the declared UART is still real and working, just not that board's console.
+    """
+    if static_labels:
+        label = static_labels.get(hw_uart)
+        if label is None:
+            raise cv.Invalid(
+                f"'{hw_uart}' is not a valid hardware_uart for board '{board}'. "
+                f"Valid values: {', '.join(static_labels)}"
+            )
+        _LOGGER.info(
+            "[zephyr] %s for '%s': %s (from hardcoded uart_node_labels)",
+            hw_uart,
+            board,
+            label,
+        )
+        if hw_uart == "UART0":
+            console = get_console_uart_label(board)
+            if console is not None and console != label:
+                _LOGGER.warning(
+                    "[zephyr] hardware_uart: UART0 is documented to always be the "
+                    "board's console UART, but the hardcoded UART0 label for board "
+                    "'%s' ('%s') does not match its actual zephyr,console ('%s'). "
+                    "Logging will still work, but not on the UART you may expect.",
+                    board,
+                    label,
+                    console,
+                )
+        return label
+
+    mapping = _discover_uart_node_labels(board)
+    if mapping is None:
+        raise cv.Invalid(
+            f"Cannot determine the console UART for board '{board}' -- its DTS "
+            "could not be resolved. Install gcc/cpp (C preprocessor) for automatic "
+            "DTS detection, or verify the board name."
+        )
+    label = mapping.get(hw_uart)
+    if label is None:
+        others = [v for k, v in mapping.items() if k != "UART0"]
+        raise cv.Invalid(
+            f"Board '{board}' has no '{hw_uart}' -- besides its console "
+            f"({mapping['UART0']}), its DTS has {len(others)} other enabled "
+            f"UART(s): {others or 'none'}."
+        )
+    source = "board's zephyr,console, from DTS" if hw_uart == "UART0" else "from DTS"
+    _LOGGER.info("[zephyr] %s for '%s': %s (%s)", hw_uart, board, label, source)
+    return label
+
+
+def format_uart_node_label_map(board: str, static_labels: dict[str, str]) -> str:
+    """Same source data resolve_uart_node_label() resolves against -- purely
+    informational here, no logging or hard failure of its own.
+    """
+    mapping = (
+        dict(static_labels) if static_labels else _discover_uart_node_labels(board)
+    )
+    if not mapping:
+        return "(unavailable)"
+    return ", ".join(f"{slot}={label}" for slot, label in mapping.items())
 
 
 # ---------------------------------------------------------------------------
@@ -292,17 +418,14 @@ def _get_edt(board: str):
         cache[cache_key] = _NOT_FOUND
         return None
 
-    # Shields/snippets contribute additional devicetree overlay fragments on top of
-    # the base board tree, applied at real build time via `-DSHIELD=`/`-S`. Mirror
-    # that here by cpp-preprocessing each fragment and concatenating it after the
-    # base dts text -- the same "one combined pre-processed file" approach Zephyr's
-    # own build (cmake/modules/dts.cmake) uses, so `&label { ... };` overlay-override
-    # syntax resolves against the preceding base tree exactly as it would for real.
+    # Shields/snippets contribute overlay fragments on top of the base board tree --
+    # concatenated after the base dts text, mirroring Zephyr's own build (cmake/
+    # modules/dts.cmake), so `&label { ... };` overlay-override syntax resolves
+    # against the preceding base tree exactly as it would for real.
     overlay_texts = [preprocessed]
 
-    # A `board@revision` target layers a revision-specific overlay on top of the base
-    # board tree, same as a shield/snippet -- resolve and apply it first so shields/
-    # snippets below can still override anything it sets.
+    # A `board@revision` overlay is applied first so shields/snippets below can
+    # still override anything it sets.
     requested_revision = parse_board_string(board).revision
     if requested_revision is not None:
         resolved_revision, declares_revisions = resolve_revision(
@@ -395,11 +518,9 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
         cached = cache[board]
         return Path(cached) if cached else None
 
-    # HWMv2 board names are "<board>/<soc>" (e.g. "esp32h2_devkitm/esp32h2") but on
-    # disk the directory is just "<board>" under a vendor folder. All supported
-    # variants require Zephyr >= 4.4.0, which is always HWMv2 (introduced in 3.7.0).
-    # An optional "@<revision>" suffix (e.g. "scobc_a1@1.0.0/soc") sits between the
-    # bare name and any "/" qualifiers, so it must be stripped here too.
+    # HWMv2 board names are "<board>/<soc>" but on disk the directory is just
+    # "<board>" under a vendor folder; an optional "@<revision>" suffix must also be
+    # stripped before matching the dirname.
     board_dirname = parse_board_string(board).name
 
     # A board_source: root is searched first, mirroring west's own BOARD_ROOT precedence.
@@ -421,12 +542,10 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
         if result is not None:
             break
 
-    # Some HWMv2 board directories drop the vendor prefix from the dirname (e.g.
-    # boards/adafruit/itsybitsy/ for board "adafruit_itsybitsy") even though the
-    # board.yml "name:" field keeps the full name. Fall back to scanning board.yml
-    # files for a matching name when the direct dirname guess misses. Recursive
-    # (not just one level under the vendor dir): some vendors group boards under an
-    # extra category directory, e.g. Silicon Labs' boards/silabs/dev_kits/xg24_ek2703a/.
+    # Some HWMv2 board directories drop the vendor prefix from the dirname even
+    # though board.yml's "name:" keeps the full name -- fall back to scanning
+    # board.yml files. Recursive, not one level: some vendors nest an extra category
+    # directory under the vendor folder.
     if result is None:
         for boards_root in (root / "boards" for root in search_roots):
             if not boards_root.is_dir():
@@ -450,21 +569,15 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
 
 
 def _find_qualified_file(board_dir: Path, board: str, suffix: str) -> Path | None:
-    # HWMv2 board strings are "<board>[/<soc>[/<variant>[/<subvariant>[/...]]]]" --
-    # board.yml's `variants:` key nests arbitrarily deep (e.g. rpi_pico2's
-    # rp2350a/m33/w/mcuboot -- soc, a cpucluster, and two nested variant levels, 5
-    # segments total). The on-disk filename is "<board>_<every remaining segment
-    # joined by _><suffix>", except the <soc> segment is dropped when it's already
-    # part of the board dirname itself (esp32c6_devkitc/esp32c6/hpcore ->
-    # esp32c6_devkitc_hpcore.dts, not _esp32c6_hpcore.dts). Try the fully-qualified
-    # form first (covers rpi_pico_rp2040_mcuboot.dts, adafruit_feather_nrf52840_
-    # nrf52840_sense_uf2.dts, rpi_pico2_rp2350a_m33_w_mcuboot.dts), then the same
-    # with the soc segment dropped, then the bare board name.
+    # HWMv2 board strings are "<board>[/<soc>[/<variant>[/...]]]" (arbitrarily deep,
+    # e.g. rpi_pico2's rp2350a/m33/w/mcuboot). The on-disk filename joins every
+    # remaining segment with "_", except <soc> is dropped when it's already part of
+    # the board dirname (esp32c6_devkitc/esp32c6/hpcore -> _hpcore.dts, not
+    # _esp32c6_hpcore.dts) -- hence trying fully-qualified, then soc-dropped, then bare.
     #
-    # A "@<revision>" suffix on the bare name (e.g. "scobc_a1@1.0.0/soc") never
-    # appears in base .dts/.yaml filenames -- only revision *overlay* filenames
-    # include it, and those are built as an explicit trailing `rest` segment by
-    # _find_revision_overlay() instead, so it's always stripped here.
+    # A "@<revision>" suffix never appears in base .dts/.yaml filenames -- only
+    # revision *overlay* filenames include it (built by _find_revision_overlay()
+    # instead) -- so it's always stripped here.
     parts = board.split("/")
     board_dirname = parts[0].split("@", 1)[0]
     rest = parts[1:]
@@ -625,12 +738,10 @@ def _shield_overlay_files(shield_dir: Path, board: str) -> list[Path]:
 
     A shield always contributes <shield_dir>/<shield>.overlay (applied to every
     board it's used with), and may additionally contribute a board-specific
-    override at <shield_dir>/boards/<qualified board name>.overlay -- e.g. real
-    upstream shields name this file boards/nrf5340dk_nrf5340_cpuapp.overlay for
-    board "nrf5340dk/nrf5340/cpuapp", keeping every board-string segment (unlike
-    some base board .dts files, which drop a redundant soc segment). Reuses
-    _find_qualified_file()'s exact naming/fallback convention rather than
-    reimplementing a (previously buggy) bare-board-name-only lookup.
+    override at <shield_dir>/boards/<qualified board name>.overlay -- unlike some
+    base board .dts files, this filename keeps every board-string segment (e.g.
+    nrf5340dk_nrf5340_cpuapp.overlay), so it reuses _find_qualified_file()'s own
+    fallback convention rather than a bare-name-only lookup.
     """
     files = []
     base_overlay = shield_dir / f"{shield_dir.name}.overlay"
@@ -664,13 +775,10 @@ def _as_str_list(value: object) -> list[str]:
 def _snippet_overlay_files(snippet_dir: Path, board: str) -> list[Path]:
     """Return a snippet's devicetree overlay file(s) for board, from snippet.yml.
 
-    A real snippet.yml declares overlay paths rather than shipping a fixed
-    <name>.overlay at its root -- e.g. Espressif's own flash-size snippets (cited in
-    zephyr:'s snippets: schema comment) key an EXTRA_DTC_OVERLAY_FILE path per-SoC
-    under boards: <regex>:. Both the top-level append: (applies to every board) and
-    any boards: entry whose regex matches `board` are included -- CMake's
-    zephyr_get() accumulates rather than replaces, so a real `west build` applies
-    both together when both are present.
+    A snippet.yml declares overlay paths rather than shipping a fixed <name>.overlay
+    at its root, keyed per-SoC under boards: <regex>:. Both the top-level append: and
+    any matching boards: entry are included -- CMake's zephyr_get() accumulates
+    rather than replaces, so a real `west build` applies both when both are present.
     """
     yml_file = snippet_dir / "snippet.yml"
     if not yml_file.is_file():
@@ -729,6 +837,17 @@ def _get_dts_include_paths(zephyr_base: Path) -> list[str]:
                 for subdir in dts_dir.iterdir()
                 if subdir.is_dir() and subdir.name != "bindings"
             )
+        # Some vendors (STM32, NXP, TI, ...) ship SoC/pinctrl dts fragments in their
+        # own HAL module, a sibling `modules/hal/<vendor>/dts` boards #include
+        # directly -- without this, cpp fails on that include, silently breaking DTS
+        # lookups for those vendors only.
+        hal_dir = zephyr_base.parent / "modules" / "hal"
+        if hal_dir.is_dir():
+            paths.extend(
+                str(vendor_dts)
+                for vendor_dir in hal_dir.iterdir()
+                if (vendor_dts := vendor_dir / "dts").is_dir()
+            )
         zd["dts_include_paths"] = paths
     return zd["dts_include_paths"]
 
@@ -750,14 +869,10 @@ def _iter_nodes(edt):
 def get_i2c_pinctrl_esp32(board: str, bus_label: str) -> dict[str, int] | None:
     """Return default I2C SDA/SCL flat GPIO numbers for an Espressif esp32-family board.
 
-    Reads the raw (un-preprocessed) DTS and any quoted .dtsi includes to find
+    Reads the raw (un-preprocessed) DTS and quoted .dtsi includes to find
     {BUS_LABEL}_SDA_GPIO{n} / {BUS_LABEL}_SCL_GPIO{n} pinctrl macros (e.g.
-    I2C0_SDA_GPIO6) in the ``{bus_label}_default`` pinctrl node. The pin number
-    is embedded directly in the macro name -- unlike Nordic's NRF_PSEL(signal,
-    port, pin) form, there's no packed bit-field to decode. Returns
-    ``{"sda": N, "scl": N}`` as flat GPIO numbers (ESP32 pins are already flat,
-    same "GPIO#" convention nrf52/gpio.py normalizes port.pin notation to), or
-    None when not found.
+    I2C0_SDA_GPIO6) in the ``{bus_label}_default`` pinctrl node -- the pin number is
+    embedded directly in the macro name, no bit-field to decode.
     """
     zd = CORE.data.get(KEY_ZEPHYR, {})
     dts_base = zd.get("dts_base_path")
@@ -839,9 +954,7 @@ def get_i2c_pinctrl_silabs(board: str, bus_label: str) -> dict[str, int] | None:
 
     Same approach as get_i2c_pinctrl_esp32, but Silicon Labs' pinctrl macros are
     lettered-port form ({BUS_LABEL}_SDA_P{PORT}{n}, e.g. I2C0_SDA_PC5) rather than
-    ESP32's flat GPIO{n} form. Returns {"sda": N, "scl": N} as flat GPIO numbers
-    (port * 16 + pin-within-port, matching gpio.py's lettered-port decoding), or
-    None when not found.
+    ESP32's flat GPIO{n} form.
     """
     zd = CORE.data.get(KEY_ZEPHYR, {})
     dts_base = zd.get("dts_base_path")
@@ -1128,6 +1241,11 @@ def log_board_capabilities(
             f"[zephyr]   {name} buses present: "
             + (", ".join(buses) if buses else "(none or unavailable)")
         )
+
+    lines.append(
+        "[zephyr]   hardware_uart label mapping: "
+        + format_uart_node_label_map(board, variant.uart_node_labels)
+    )
 
     lines.append(
         "[zephyr]   MCUboot swap methods this variant's port supports: "

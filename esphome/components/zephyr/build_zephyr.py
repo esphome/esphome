@@ -44,10 +44,14 @@ def _find_runners_yaml(build_dir: Path) -> Path:
         return Path(build_dir) / "zephyr" / "runners.yaml"
 
 
-def log_available_runners(build_dir: Path) -> None:
+def log_available_runners(build_dir: Path, requested_runner: str | None = None) -> None:
     """Log the board's available west flash runners and which one is the
     default, read from runners.yaml (see resolve_dev_id() for another
     consumer of the same file).
+
+    `requested_runner` (zephyr: advanced: runner:), if given, is checked against
+    `runners` -- valid names are only knowable here, after CMake configure -- and
+    logged if recognized, else warned about, never a hard config-time error.
     """
     runners_yaml_path = _find_runners_yaml(build_dir)
     try:
@@ -66,6 +70,19 @@ def log_available_runners(build_dir: Path) -> None:
         ", ".join(runners),
         flash_runner or "none",
     )
+    if requested_runner:
+        if requested_runner in runners:
+            _LOGGER.info(
+                "Overriding flash runner: '%s' (board default: %s)",
+                requested_runner,
+                flash_runner or "none",
+            )
+        else:
+            _LOGGER.warning(
+                "Configured runner '%s' is not in this board's available runners (%s)",
+                requested_runner,
+                ", ".join(runners),
+            )
 
 
 def _runner_supports_dev_id(
@@ -107,14 +124,19 @@ def _runner_supports_dev_id(
 
 
 def resolve_dev_id(
-    python_executable: Path, framework_path: Path, build_dir: Path, port: str
+    python_executable: Path,
+    framework_path: Path,
+    build_dir: Path,
+    port: str,
+    runner_override: str | None = None,
 ) -> str | None:
     """Resolve a `-i/--dev-id` value to disambiguate which probe `west flash` uses.
 
     Reads the board's default flash runner from runners.yaml (written by the
     CMake configure step, see _find_runners_yaml() for the sysbuild wrinkle) and,
-    only when that runner is known to support device IDs (see
-    _runner_supports_dev_id()), looks up the USB serial number backing the
+    only when the *effective* runner -- `runner_override` (zephyr: advanced:
+    runner:) if given, else the board's default -- is known to support device IDs
+    (see _runner_supports_dev_id()), looks up the USB serial number backing the
     selected serial `port`. Returns None whenever the runner is unknown/unsupported
     or the serial number can't be determined -- callers should treat None as
     "don't pass -i", which reproduces today's single-probe auto-detect behavior
@@ -128,7 +150,7 @@ def resolve_dev_id(
         _LOGGER.debug("Could not read %s: %s", runners_yaml_path, e)
         return None
 
-    flash_runner = (runners_yaml or {}).get("flash-runner")
+    flash_runner = runner_override or (runners_yaml or {}).get("flash-runner")
     if flash_runner is None or not _runner_supports_dev_id(
         python_executable, framework_path, flash_runner
     ):
@@ -250,6 +272,7 @@ def run_west_build(
     shield_root: Path | None = None,
     shields: list[str] | None = None,
     snippet_root: Path | None = None,
+    requested_runner: str | None = None,
 ) -> None:
     """Run west build for a Zephyr native build.
 
@@ -306,7 +329,7 @@ def run_west_build(
         cwd=str(framework_path),
     ):
         raise EsphomeError("Zephyr native build failed")
-    log_available_runners(build_dir)
+    log_available_runners(build_dir, requested_runner)
 
 
 def run_west_flash(
@@ -316,6 +339,7 @@ def run_west_flash(
     build_dir: Path,
     device: str,
     baud_rate: str | int | None = None,
+    runner: str | None = None,
 ) -> bool:
     """Flash a real Zephyr embedded target (e.g. esp32_h2) via `west flash`.
 
@@ -323,6 +347,9 @@ def run_west_flash(
     Zephyr's own runner (runners/esp32.py, wrapping esptool) and its sysbuild
     multi-domain flashing -- both already know every image from the CMake
     configure step, so there is no need to replicate that logic here.
+
+    `runner`, when given (zephyr: advanced: runner:), overrides Zephyr's own
+    esp32-family default runner.
     """
     west_cmd = [
         str(python_executable),
@@ -338,6 +365,8 @@ def run_west_flash(
     ]
     if baud_rate:
         west_cmd += ["--esp-baud-rate", str(baud_rate)]
+    if runner:
+        west_cmd += ["--runner", runner]
 
     return run_command_ok(
         west_cmd,
@@ -353,6 +382,7 @@ def run_west_flash_generic(
     env: dict,
     build_dir: Path,
     dev_id: str | None = None,
+    runner: str | None = None,
 ) -> bool:
     """Flash a Zephyr target using the board's default west runner.
 
@@ -363,6 +393,9 @@ def run_west_flash_generic(
     to tell the runner which attached probe to use -- without it, the runner
     picks whichever probe it finds, which is ambiguous when more than one
     debug-probe board is attached at once.
+
+    `runner`, when given (zephyr: advanced: runner:), overrides the board's
+    default flash-runner (runners.yaml's `flash-runner:`).
     """
     west_cmd = [
         str(python_executable),
@@ -376,6 +409,8 @@ def run_west_flash_generic(
     ]
     if dev_id:
         west_cmd += ["-i", dev_id]
+    if runner:
+        west_cmd += ["--runner", runner]
     return run_command_ok(
         west_cmd,
         env=env,

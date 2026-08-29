@@ -27,12 +27,11 @@ namespace esphome {
 static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 
-// Renesas RA's WDT driver rejects a timeout config that combines a callback with a
-// reset flag (WDT_FLAG_RESET_SOC) -- wdt_install_timeout() returns -ENOTSUP, and the
-// watchdog never gets armed at all. That chip's single-channel watchdog only supports
-// callback (NMI mode) or hardware reset, not both -- unlike ESP32/nRF52's multi-stage
-// watchdogs, which this warning callback was originally written against.
-#if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
+// Renesas RA and Silicon Labs EFR32 (wdt_gecko.c) reject callback + WDT_FLAG_RESET_SOC
+// together (-ENOTSUP), leaving the watchdog unarmed -- their single-channel watchdogs
+// only support callback or hardware reset, not both.
+#if defined(USE_ZEPHYR_WATCHDOG_TIMEOUT_MS) && defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && \
+    !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
 #ifdef USE_ZEPHYR_ARCH_STACKWALK
 static bool wdt_log_stack_frame(void *cookie, unsigned long addr) {
   char msg[48];
@@ -72,13 +71,18 @@ void arch_init() {
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
     wdt_config.flags = WDT_FLAG_RESET_SOC;
-    // Timeout value is a codegen decision (see each variant's to_code()), not
-    // a platform #ifdef here -- nrf52/__init__.py sets a longer one for zigbee.
+    // Timeout value is a codegen decision (see each variant's to_code()), not a platform
+    // #ifdef here -- except platform: nrf52/__init__.py sets a longer one for zigbee.
 #ifdef USE_ZEPHYR_WATCHDOG_TIMEOUT_MS
     wdt_config.window.max = USE_ZEPHYR_WATCHDOG_TIMEOUT_MS;
-#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS)
+    // some families can't handle the callback, review periodically for correctness
+    // since this is behavior is driven by zephyr
+#if defined(USE_LOGGER) && !defined(USE_ZEPHYR_VARIANT_FAMILY_RENESAS) && !defined(USE_ZEPHYR_VARIANT_FAMILY_SILABS)
     wdt_config.callback = wdt_warning_cb;
 #endif
+#elif defined(USE_ZIGBEE)
+    // zboss (zigbee) drives default
+    wdt_config.window.max = 10000;
 #else
     wdt_config.window.max = 2000;
 #endif

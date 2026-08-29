@@ -19,20 +19,6 @@ def test_detect_bootloader_picks_first_known_bootloader_for_bare_board() -> None
     assert config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
 
 
-def test_detect_bootloader_strips_revision_before_lookup() -> None:
-    """xiao_ble has no real hardware revisions, but BOARDS_ZEPHYR's lookup must not
-    silently miss just because a "@<revision>" suffix is present on the board
-    string -- a future revisioned nrf52 board must still resolve its bootloader
-    list rather than falling back to the generic MCUboot default."""
-    config = _detect_bootloader({CONF_BOARD: "xiao_ble@1.0.0"})
-    assert config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
-
-
-def test_detect_bootloader_strips_qualifiers_before_lookup() -> None:
-    config = _detect_bootloader({CONF_BOARD: "xiao_ble@1.0.0/nrf52840"})
-    assert config[KEY_BOOTLOADER] == BOOTLOADER_ADAFRUIT_NRF52_SD140_V7
-
-
 def test_detect_bootloader_defaults_to_mcuboot_for_unknown_board() -> None:
     config = _detect_bootloader({CONF_BOARD: "some_unknown_board"})
     assert config[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT

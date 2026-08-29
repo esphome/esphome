@@ -1,8 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
+from esphome.components.const import CONF_EMULATION
 from esphome.components.esp32 import (
     get_esp32_variant,
     include_builtin_idf_component,
@@ -51,7 +52,6 @@ AUTO_LOAD = ["voltage_sampler"]
 
 CONF_SAMPLES = "samples"
 CONF_SAMPLING_MODE = "sampling_mode"
-CONF_EMULATION = "emulation"
 
 
 _attenuation = cv.enum(ATTENUATION_MODES, lower=True)
@@ -205,6 +205,13 @@ class ADCData:
     zephyr_adc_channel_id: int = 0
     zephyr_emul_channel_id: int = 0
     zephyr_io_channel_index: int = 0
+    # GPIO pins configured so far for family "rpi_pico" -- unlike every other
+    # family's pinctrl (one node per channel, additively merged), this SoC's boards
+    # pre-wire all 4 ADC-capable pins into a single pinctrl group's `pinmux` list, so
+    # each newly configured pin here regenerates that whole property from scratch
+    # (last-fragment-wins scalar merge, not additive child nodes) instead of adding
+    # a new group.
+    rpi_pico_adc_pins: list[int] = field(default_factory=list)
 
 
 def _get_data() -> ADCData:
@@ -557,6 +564,67 @@ async def to_code(config):
                         zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
                         zephyr,resolution = <12>;
                         zephyr,vref-mv = <3300>;
+                    }};
+                }};
+            """
+        )
+    elif CORE.using_zephyr and zephyr_variant_family() == "rpi_pico":
+        # RP2040/RP2350's ADC has no PGA: adc_rpi_pico.c's channel_setup() rejects any
+        # gain other than ADC_GAIN_1. Its 4 channels are fixed-function silicon on
+        # GPIO26-29 (channel = pin - 26), confirmed against Zephyr's
+        # raspberrypi,pico-adc binding and the rpi-pico-rp2040/rp2350a-pinctrl.h
+        # ADC_CHn_P2x macros (adc1_channel_map below encodes this).
+        zephyr_add_prj_conf("ADC", True)
+        variant = zephyr_variant()
+        variant_info = VARIANTS[variant]
+        pin_num = config[CONF_PIN][CONF_NUMBER]
+        channel_map = variant_info.adc1_channel_map
+        if pin_num not in channel_map:
+            raise EsphomeError(f"Pin {pin_num} is not a valid ADC pin on {variant}")
+        channel_reg = channel_map[pin_num]
+        data = _get_data()
+        if pin_num not in data.rpi_pico_adc_pins:
+            data.rpi_pico_adc_pins.append(pin_num)
+        # Space-separated: this is one devicetree cell list inside a single <...>,
+        # not multiple <> groups -- a comma here is a devicetree parse error.
+        pinmux_list = " ".join(
+            f"ADC_CH{channel_map[p]}_P{p}" for p in sorted(data.rpi_pico_adc_pins)
+        )
+        io_index = _next_zephyr_io_channel_index()
+        adc_id = ID(
+            f"{config[CONF_ID]}_adc_channel", is_declaration=True, type=adc_dt_spec
+        )
+        rhs = cg.RawExpression(
+            f"ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), {io_index})"
+        )
+        adc = cg.new_Pvariable(adc_id, rhs)
+        cg.add(var.set_adc_channel(adc))
+        zephyr_add_user("io-channels", f"<&adc {channel_reg}>")
+        zephyr_add_overlay(
+            f"""
+                &pinctrl {{
+                    adc_default: adc_default {{
+                        group1 {{
+                            pinmux = <{pinmux_list}>;
+                            input-enable;
+                        }};
+                    }};
+                }};
+
+                &adc {{
+                    status = "okay";
+                    pinctrl-0 = <&adc_default>;
+                    pinctrl-names = "default";
+                    vref-mv = <3300>;
+                    #address-cells = <1>;
+                    #size-cells = <0>;
+
+                    channel@{channel_reg} {{
+                        reg = <{channel_reg}>;
+                        zephyr,gain = "ADC_GAIN_1";
+                        zephyr,reference = "ADC_REF_INTERNAL";
+                        zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
+                        zephyr,resolution = <12>;
                     }};
                 }};
             """

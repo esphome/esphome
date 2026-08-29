@@ -70,6 +70,7 @@ from .const import (
     KEY_OVERLAY_BUILDER,
     KEY_PM_STATIC,
     KEY_PRJ_CONF,
+    KEY_RUNNER,
     KEY_SHIELD_ROOT,
     KEY_SHIELDS,
     KEY_SINGLE_SLOT,
@@ -91,7 +92,10 @@ from .const import (
     ZEPHYR_VARIANT_RA4M1,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
+    ZEPHYR_VARIANT_STM32F1,
+    ZEPHYR_VARIANT_STM32F4,
     ZEPHYR_VARIANT_STM32L4,
+    ZEPHYR_VARIANT_STM32WB55,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -226,6 +230,7 @@ class ZephyrData(TypedDict):
     # (west_module, allow_regex, sentinel_name) entries added via zephyr_add_blobs() --
     # transport-conditional blob fetches, on top of the variant's own static `blobs`.
     blobs: list[tuple[str, str, str]]
+    runner: str | None  # zephyr: advanced: runner: -- west flash runner override
 
 
 # platform: nrf52 use only
@@ -268,6 +273,7 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         module_requests={},
         module_overrides={},
         blobs=[],
+        runner=None,
     )
 
 
@@ -482,6 +488,19 @@ def zephyr_set_prj_conf_override(
     if image not in zephyr_data()[KEY_PRJ_CONF]:
         zephyr_data()[KEY_PRJ_CONF][image] = {}
     zephyr_data()[KEY_PRJ_CONF][image][name] = (value, True)
+
+
+def zephyr_set_sysbuild_conf_override(name: str, value: PrjConfValueType) -> None:
+    """Unconditionally set a sysbuild-level Kconfig value (SB_CONFIG_*), replacing
+    anything set by a component's own zephyr_add_sysbuild_conf() call.
+
+    Same always-wins precedent as zephyr_set_prj_conf_override(), but for
+    zephyr/sysbuild.conf (SB_CONFIG_*, e.g. a vendor SDK's own `choice` default in a
+    Kconfig.sysbuild file) rather than an image's own CONFIG_* prj.conf -- a user-supplied
+    `kconfig_options:` name is routed here automatically when it already starts with
+    SB_CONFIG_.
+    """
+    zephyr_data()[KEY_SYSBUILD_CONF][name] = (value, True)
 
 
 def request_zephyr_module(capability: str) -> None:
@@ -775,7 +794,17 @@ def zephyr_to_code(config: ConfigType) -> None:
     # random_bytes() uses sys_rand_get() which requires the entropy subsystem. RP2040 has
     # no hardware RNG; RP2350's does exist but Zephyr's driver for it hangs the whole boot
     # sequence (unbounded busy-wait, no timeout -- see rp2350.py's TEST_RANDOM_GENERATOR).
-    if zephyr_variant() not in (ZEPHYR_VARIANT_RP2040, ZEPHYR_VARIANT_RP2350):
+    # STM32F4 is a whole chip family, not a single SoC -- RNG presence varies per member
+    # (F401/F411 have none, F405/F410/F412 and larger do), so stm32f4.py resolves this
+    # itself from the board's own DTS instead of a blanket per-variant default. STM32F1
+    # has no true RNG on any family member (dts/arm/st/f1 has no rng@ node at all), so
+    # stm32f1.py always uses TEST_RANDOM_GENERATOR unconditionally.
+    if zephyr_variant() not in (
+        ZEPHYR_VARIANT_RP2040,
+        ZEPHYR_VARIANT_RP2350,
+        ZEPHYR_VARIANT_STM32F4,
+        ZEPHYR_VARIANT_STM32F1,
+    ):
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -899,6 +928,8 @@ async def _kconfig_options_to_code(config: ConfigType) -> None:
         if isinstance(value, dict):
             for image_name, image_value in value.items():
                 zephyr_set_prj_conf_override(image_name, image_value, image=name)
+        elif name.startswith("SB_CONFIG_"):
+            zephyr_set_sysbuild_conf_override(name, value)
         else:
             zephyr_set_prj_conf_override(name, value)
 
@@ -1316,6 +1347,9 @@ _ZEPHYR_SCHEMA = cv.Schema(
         cv.Optional(CONF_ADVANCED, default={}): dict,
         # Raw Kconfig passthrough -- Zephyr's equivalent of esp32's sdkconfig_options. A
         # dict value (e.g. `mcuboot:`) targets that sysbuild child image's own prj.conf.
+        # A name already prefixed SB_CONFIG_ instead targets zephyr/sysbuild.conf itself
+        # (the sysbuild superproject's own Kconfig tree, e.g. a vendor SDK's `choice`
+        # default in its own Kconfig.sysbuild) -- see zephyr_set_sysbuild_conf_override().
         cv.Optional(CONF_KCONFIG_OPTIONS, default={}): {
             cv.string_strict: cv.Any(
                 cv.boolean,
@@ -1649,6 +1683,18 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.stm32l4 import config_schema as _stm32_config_schema
 
         config = _stm32_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32F4:
+        from .variants.stm32f4 import config_schema as _stm32f4_config_schema
+
+        config = _stm32f4_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32WB55:
+        from .variants.stm32wb55 import config_schema as _stm32wb55_config_schema
+
+        config = _stm32wb55_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32F1:
+        from .variants.stm32f1 import config_schema as _stm32f1_config_schema
+
+        config = _stm32f1_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import config_schema as _ra4m1_config_schema
 
@@ -1789,6 +1835,21 @@ async def to_code(config: ConfigType) -> None:
         from .variants.stm32l4 import to_code as _stm32_to_code
 
         await _stm32_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32F4:
+        from .variants.stm32f4 import to_code as _stm32f4_to_code
+
+        await _stm32f4_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32WB55:
+        from .variants.stm32wb55 import to_code as _stm32wb55_to_code
+
+        await _stm32wb55_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32F1:
+        from .variants.stm32f1 import to_code as _stm32f1_to_code
+
+        await _stm32f1_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import to_code as _ra4m1_to_code
@@ -2002,11 +2063,23 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         CONFIG_SCHEMA(zephyr_config)
 
     if host == "BOOTSEL":
+        if zephyr_data().get(KEY_RUNNER):
+            _LOGGER.info(
+                "Configured advanced.runner has no effect on BOOTSEL/picotool flashing"
+            )
         return _upload_using_picotool()
 
     if host == "PYOCD":
         if zephyr_variant_family() == "esp32":
             return False  # PYOCD isn't supported on esp32-family; it flashes over serial instead
+
+        configured_runner = zephyr_data().get(KEY_RUNNER)
+        if configured_runner and configured_runner != "pyocd":
+            _LOGGER.info(
+                "Ignoring configured advanced.runner '%s' -- --device PYOCD always "
+                "forces the pyocd runner",
+                configured_runner,
+            )
 
         from .build_zephyr import run_west_flash_pyocd
         from .framework_west import check_and_install as west_install
@@ -2038,6 +2111,10 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         if get_port_type(host) != PortType.SERIAL:
             return False
 
+        if zephyr_data().get(KEY_RUNNER):
+            _LOGGER.info(
+                "Configured advanced.runner has no effect on BOOTSEL/picotool flashing"
+            )
         if not _touch_1200_baud_reboot(host):
             raise EsphomeError(
                 f"Could not trigger a BOOTSEL reboot on {host}. Manually put the "
@@ -2077,7 +2154,13 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         speed = getattr(args, "upload_speed", None)
 
         if not run_west_flash(
-            python_bin, framework_path, west_env, build_dir, host, speed
+            python_bin,
+            framework_path,
+            west_env,
+            build_dir,
+            host,
+            speed,
+            runner=zephyr_data().get(KEY_RUNNER),
         ):
             raise EsphomeError("Zephyr west flash failed")
         return True
@@ -2106,14 +2189,26 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         modules=resolve_zephyr_modules(),
     )
     build_dir = CORE.relative_build_path(".west_build")
-    # Disambiguate which attached probe to flash when the board's default
-    # runner supports device IDs -- see resolve_dev_id() for why this can't
-    # just always be forwarded, and #85 for the multi-probe problem it fixes.
-    dev_id = resolve_dev_id(python_bin, framework_path, build_dir, host)
+    configured_runner = zephyr_data().get(KEY_RUNNER)
+    # Disambiguate which attached probe to flash when the effective runner supports
+    # device IDs -- see resolve_dev_id() for why this can't just always be forwarded,
+    # and #85 for the multi-probe problem it fixes.
+    dev_id = resolve_dev_id(
+        python_bin,
+        framework_path,
+        build_dir,
+        host,
+        runner_override=configured_runner,
+    )
     if dev_id:
         _LOGGER.info("Selecting probe %s (port %s) for west flash", dev_id, host)
     if not run_west_flash_generic(
-        python_bin, framework_path, west_env, build_dir, dev_id
+        python_bin,
+        framework_path,
+        west_env,
+        build_dir,
+        dev_id,
+        runner=configured_runner,
     ):
         raise EsphomeError("Zephyr west flash failed")
     return True
@@ -2212,6 +2307,7 @@ def run_compile(args, config: ConfigType) -> bool:
         shield_root=zephyr_data().get(KEY_SHIELD_ROOT),
         shields=zephyr_data()[KEY_SHIELDS],
         snippet_root=zephyr_data().get(KEY_SNIPPET_ROOT),
+        requested_runner=zephyr_data().get(KEY_RUNNER),
     )
     return True
 

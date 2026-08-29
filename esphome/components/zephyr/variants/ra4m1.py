@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -11,9 +10,11 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from ..const import (
+    ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
-    BOOTLOADER_NONE,
+    BOOTLOADER_SCHEMA,
     CONF_BOOTLOADER,
+    CONF_RUNNER,
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RA4M1,
 )
@@ -33,13 +34,7 @@ _DEFAULT_BOARD = "ek_ra4m1"
 # ek_ra4m1's stock board has no slot0/slot1 partitions -- MCUboot is opt-in, same
 # shape as rp2040.py: anyone choosing it supplies their own fully-qualified board and
 # MCUboot-shaped partition overlay.
-_ADVANCED_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
-            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
-        ),
-    }
-)
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
 
 # GPIO -> RA4M1 ADC channel name, from Renesas' RA4M1 Group Datasheet's Pin Lists
 # (100-pin LQFP column).
@@ -71,6 +66,19 @@ _ADC_AIN_MAP = {
     1285: "AN025",
 }
 
+# GPIO -> (index into pwm_node_labels, local channel A=0/B=1) for RA4M1's GPT-based
+# PWM hardware. Only GTIOC1A/GTIOC1B -- port4 pin5 and port4 pin6, i.e. flat pin
+# numbers 4*16+5=69 and 4*16+6=70 under this variant's gpio_port_width=16 encoding
+# -- are wired to pwm1, the only PWM instance this codebase enables (see
+# pwm_node_labels below). Matches ek_ra4m1's own default pinctrl
+# (RA_PSEL(RA_PSEL_GPT1, 4, 5) / RA_PSEL(RA_PSEL_GPT1, 4, 6)); Zephyr's own
+# pinctrl-ra.h only defines RA_PSEL_GPT0/GPT1 in this SDK version, so no other GPT
+# channel is routable yet regardless of pin.
+_PWM_PIN_MAP = {
+    69: (0, 0),
+    70: (0, 1),
+}
+
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_RA4M1
 VARIANT = ZephyrVariant(
@@ -91,16 +99,17 @@ VARIANT = ZephyrVariant(
     # 5000ms coincides with the schema's own 5s floor, so this variant only supports
     # the minimum requestable value.
     watchdog_max_timeout_ms=5000,
-    # UART0 -> ek_ra4m1's own sci1/uart1 (the default board); UART1 -> the
-    # arduino_nano_r4 board's sci2/uart2 -- same shape as nRF54's own multi-entry
-    # uart_node_labels, here spanning two different boards on this variant rather than
-    # two simultaneously-present peripherals on one board. A board other than the
-    # default must pick whichever UART name maps to its own real console UART via
-    # `logger: hardware_uart:`.
-    uart_node_labels={"UART0": "uart1", "UART1": "uart2"},
+    # Explicitly empty, not the old hardcoded {"UART0": "uart1", "UART1": "uart2"}:
+    # that held only for ek_ra4m1 (console sci1/uart1) -- arduino_uno_r4's console is
+    # sci2/uart2 instead, which would have made UART0 (always the board's console, by
+    # convention) wrong there. Empty tells resolve_uart_node_label() (dts_lookup.py)
+    # to resolve hardware_uart per board.
+    uart_node_labels={},
     adc_ain_map=_ADC_AIN_MAP,
     # Only pwm1 is enabled in ek_ra4m1.dts.
     pwm_node_labels=["pwm1"],
+    pwm_channels_per_block=2,
+    pwm_pin_map=_PWM_PIN_MAP,
 )
 
 
@@ -122,6 +131,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     return config
 
@@ -146,5 +156,5 @@ async def to_code(config: ConfigType) -> None:
 
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+        # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+        zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

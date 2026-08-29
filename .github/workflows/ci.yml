@@ -464,10 +464,21 @@ jobs:
       - name: Build benchmarks
         id: build
         run: |
+          # pipefail: without it a failed build is masked by the grep/cut
+          # pipeline below, leaving BINARY empty and silently dropping every
+          # C++ benchmark from the run while the job still reports success.
+          set -o pipefail
           . venv/bin/activate
-          export BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
-          # --build-only prints BUILD_BINARY=<path> to stdout
-          BINARY=$(script/cpp_benchmark.py --all --build-only | grep '^BUILD_BINARY=' | tail -1 | cut -d= -f2-)
+          BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
+          export BENCHMARK_LIB_CONFIG
+          # --build-only prints BUILD_BINARY=<path> to stdout; the grep is
+          # non-fatal so a missing marker reaches the check below instead of
+          # tripping errexit at this assignment
+          BINARY=$(script/cpp_benchmark.py --all --build-only | { grep '^BUILD_BINARY=' || true; } | tail -1 | cut -d= -f2-)
+          if [ -z "$BINARY" ]; then
+            echo "::error::Benchmark build did not report a binary path"
+            exit 1
+          fi
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks

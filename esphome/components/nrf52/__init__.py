@@ -20,7 +20,6 @@ from esphome.components.zephyr import (
     zephyr_setup_preferences,
     zephyr_to_code,
 )
-from esphome.components.zephyr.board_revision import parse_board_string
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
     CONF_CDC_ACM,
@@ -182,14 +181,10 @@ def _detect_bootloader(config: ConfigType) -> ConfigType:
     config = config.copy()
     bootloaders: list[str] = []
     board = config[CONF_BOARD]
-    # BOARDS_ZEPHYR is keyed on the bare board name -- strip any "@<revision>"/
-    # "/<qualifiers>" suffix before the lookup so a revisioned board string still
-    # finds its bootloader entry.
-    board_name = parse_board_string(board).name
 
-    if board_name in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board_name]:
+    if board in BOARDS_ZEPHYR and KEY_BOOTLOADER in BOARDS_ZEPHYR[board]:
         # this board have bootloaders config available
-        bootloaders = BOARDS_ZEPHYR[board_name][KEY_BOOTLOADER]
+        bootloaders = BOARDS_ZEPHYR[board][KEY_BOOTLOADER]
 
     if KEY_BOOTLOADER not in config:
         if bootloaders:
@@ -422,10 +417,6 @@ async def to_code(config: ConfigType) -> None:
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
-    # zboss (zigbee) uses a lot of CPU cycles during startup, so it needs a longer
-    # watchdog window than the default.
-    watchdog_timeout_ms = 10000 if "zigbee" in CORE.loaded_integrations else 2000
-    cg.add_define("USE_ZEPHYR_WATCHDOG_TIMEOUT_MS", watchdog_timeout_ms)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
     zephyr_add_prj_conf("CONSOLE", False, False)

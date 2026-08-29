@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -12,7 +11,13 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, KEY_MODULE_REQUESTS, ZEPHYR_VARIANT_NRF52
+from ..const import (
+    ADVANCED_SCHEMA,
+    BOOTLOADER_MCUBOOT,
+    CONF_RUNNER,
+    KEY_MODULE_REQUESTS,
+    ZEPHYR_VARIANT_NRF52,
+)
 from . import (
     MAINLINE,
     NCS,
@@ -24,7 +29,7 @@ from . import (
 
 _DEFAULT_BOARD = "adafruit_feather_nrf52840"
 
-_ADVANCED_SCHEMA = cv.Schema({})
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA
 
 # GPIO -> nRF52840 SAADC analog-input name. Fixed silicon fact (AIN0-AIN7 datasheet
 # pin assignment), independently defined here rather than imported from
@@ -95,6 +100,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     return config
 
@@ -116,7 +122,7 @@ async def to_code(config: ConfigType) -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _bootloader_to_code(config: ConfigType) -> None:
-    from .. import zephyr_add_prj_conf, zephyr_add_sysbuild_conf, zephyr_data
+    from .. import zephyr_add_sysbuild_conf, zephyr_data
 
     # ncs-zigbee's default devicetree has no boot/slot1 partitions, so zigbee only
     # gets MCUboot when OTA is actually configured. Deferred to FINAL priority: this
@@ -132,7 +138,5 @@ async def _bootloader_to_code(config: ConfigType) -> None:
         # flashed.
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
 
-        # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
-        # smaller footprint.
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+        # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+        zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

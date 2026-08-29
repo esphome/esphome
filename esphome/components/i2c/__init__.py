@@ -5,6 +5,7 @@ import sys
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32
+from esphome.components.const import CONF_EMULATION
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -100,7 +101,6 @@ LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
-CONF_EMULATION = "emulation"
 CONF_REGISTERS = "registers"
 CONF_DTS_NODE_OVERRIDE = "dts_node_override"
 MULTI_CONF = True

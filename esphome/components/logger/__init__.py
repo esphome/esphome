@@ -29,6 +29,7 @@ from esphome.components.libretiny.const import (
     COMPONENT_RTL87XX,
 )
 from esphome.components.zephyr import (
+    KEY_BOARD,
     VARIANTS,
     ZEPHYR_VARIANT_ESP32_C3,
     ZEPHYR_VARIANT_ESP32_C5,
@@ -37,6 +38,7 @@ from esphome.components.zephyr import (
     zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_data,
     zephyr_variant,
     zephyr_variant_family,
 )
@@ -144,7 +146,7 @@ UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 UART_SELECTION_NRF52 = [USB_CDC, UART0]
 
-UART_SELECTION_HOST_ZEPHYR = [UART0, UART1]
+UART_SELECTION_HOST_ZEPHYR = [UART0, UART1, UART2]
 # esp32_h2 and esp32_c6 both expose a native USB-Serial/JTAG peripheral as a Zephyr UART
 # device (see the USB_SERIAL_JTAG codegen branch below) -- shared list for both.
 UART_SELECTION_ZEPHYR_ESP32_JTAG = [UART0, UART1, USB_SERIAL_JTAG]
@@ -209,7 +211,7 @@ def uart_selection(value):
         ):
             return cv.one_of(*UART_SELECTION_ZEPHYR_ESP32_JTAG, upper=True)(value)
         family = zephyr_variant_family()
-        if family in {"nordic", "rpi_pico", "renesas"}:
+        if family in {"nordic", "rpi_pico", "renesas", "stm32"}:
             return cv.one_of(*UART_SELECTION_ZEPHYR_USB_CDC, upper=True)(value)
         return cv.one_of(*UART_SELECTION_HOST_ZEPHYR, upper=True)(value)
     raise NotImplementedError
@@ -342,7 +344,6 @@ CONFIG_SCHEMA = cv.All(
                 zephyr_nrf52=USB_CDC,
                 zephyr_rp2040=USB_CDC,
                 zephyr_rp2350=USB_CDC,
-                zephyr_ra4m1=UART1,
             ): cv.All(
                 cv.only_on(
                     [
@@ -561,10 +562,17 @@ async def _late_logger_init(config: ConfigType) -> None:
         # of hardware_uart; Zephyr's native LOG subsystem always attaches there, so leaving
         # it at the default would silently lose native log output whenever the user picks
         # a different UART. Node label varies by variant -- e.g. nRF54 numbers peripheral
-        # instances (uart20/uart30) instead of nRF52/ESP32's uart0/uart1.
-        uart_node_labels = VARIANTS[zephyr_variant()].uart_node_labels
-        if hw_uart in (UART0, UART1):
-            node = uart_node_labels[hw_uart]
+        # instances (uart20/uart30) instead of nRF52/ESP32's uart0/uart1 -- and some
+        # variants (e.g. stm32l4) declare no portable mapping at all, resolved per board
+        # from DTS instead. See resolve_uart_node_label()'s own docstring.
+        if hw_uart in (UART0, UART1, UART2):
+            from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
+
+            node = resolve_uart_node_label(
+                zephyr_data()[KEY_BOARD],
+                hw_uart,
+                VARIANTS[zephyr_variant()].uart_node_labels,
+            )
             zephyr_add_overlay(f"""&{node} {{ status = "okay";}};""")
             zephyr_add_overlay(
                 f"""/ {{ chosen {{ zephyr,console = &{node}; zephyr,shell-uart = &{node}; }}; }};"""

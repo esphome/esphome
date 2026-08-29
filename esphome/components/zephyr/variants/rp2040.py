@@ -1,7 +1,6 @@
 import logging
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADVANCED,
     CONF_BOARD,
@@ -13,9 +12,11 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 from ..const import (
+    ADVANCED_SCHEMA,
     BOOTLOADER_MCUBOOT,
-    BOOTLOADER_NONE,
+    BOOTLOADER_SCHEMA,
     CONF_BOOTLOADER,
+    CONF_RUNNER,
     KEY_BOOTLOADER,
     ZEPHYR_VARIANT_RP2040,
 )
@@ -44,13 +45,13 @@ _DEFAULT_BOARD = "rpi_pico"
 # fully qualified board themselves, e.g. board: rpi_pico/rp2040/mcuboot, same as they'd
 # supply their own MCUboot-shaped partitions via overlays: for a board without one.
 
-_ADVANCED_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_BOOTLOADER, default=BOOTLOADER_NONE): cv.one_of(
-            BOOTLOADER_NONE, BOOTLOADER_MCUBOOT, lower=True
-        ),
-    }
-)
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(BOOTLOADER_SCHEMA)
+
+# GPIO -> RP2040 ADC channel index. Fixed-function silicon: only GPIO26-29 route to
+# the ADC, channel = pin - 26 (Espressif-shaped: the devicetree channel@N address IS
+# the real silicon channel). Confirmed against Zephyr's raspberrypi,pico-adc binding
+# and rpi-pico-rp2040-pinctrl.h's ADC_CH0_P26..ADC_CH3_P29 macros.
+_ADC_CHANNEL_MAP = {26: 0, 27: 1, 28: 2, 29: 3}
 
 VARIANT_NAME = ZEPHYR_VARIANT_RP2040
 VARIANT = ZephyrVariant(
@@ -69,7 +70,12 @@ VARIANT = ZephyrVariant(
     soc="rp2040",
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
-    pwm_node_labels=["pwm"],
+    adc1_channel_map=_ADC_CHANNEL_MAP,
+    # A single "pwm" controller node covers all 8 slices reachable within the 30
+    # GPIOs this variant exposes (P0-P29) -- repeat the label once per slice so
+    # zephyr_pwm's block-count math (len(pwm_node_labels)) still works unmodified.
+    pwm_node_labels=["pwm"] * 8,
+    pwm_channels_per_block=2,
     # wdt_rpi_pico.c: RPI_PICO_MAX_WDT_TIME = 0xFFFFFF us, halved on RP2040 by errata
     # RP2040-E1 -- real ceiling ~8.39s, below the generic 10s default.
     watchdog_max_timeout_ms=8000,
@@ -100,6 +106,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     return config
 
@@ -125,5 +132,5 @@ async def to_code(config: ConfigType) -> None:
 
     if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
         zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-        zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+        # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+        zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

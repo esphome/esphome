@@ -270,8 +270,24 @@ class ZephyrVariant:
     # Devicetree node labels of this variant's PWM peripheral instances, in
     # zephyr_pwm's block-allocation order. nRF52840 numbers them pwm0-pwm3; nRF54L
     # series numbers peripheral instances instead (pwm20-pwm22), same convention as
-    # uart_node_labels above. Empty = no PWM support wired up.
+    # uart_node_labels above. RP2040/RP2350 expose a single "pwm" controller node
+    # covering every slice, so their list repeats that same label once per slice
+    # (block-allocation order still needs one entry per block). Empty = no PWM
+    # support wired up.
     pwm_node_labels: list[str] = field(default_factory=list)
+    # Channels per PWM block on this variant's hardware -- a block is one counter
+    # with a single shared period, so this many channels must share one frequency.
+    # nRF52/nRF54L's NRF_PWM peripheral has 4 channels per instance (the default).
+    # RP2040/RP2350's PWM slices have only 2 channels (A/B) each. Only consulted by
+    # zephyr_pwm's free (Nordic-style) block allocator -- RP2040/RP2350/RA4M1 assign
+    # each pin a fixed block+channel instead (see pwm_pin_map), so this field is
+    # descriptive only for those families.
+    pwm_channels_per_block: int = 4
+    # GPIO -> (index into pwm_node_labels, local channel within that block) for
+    # variants whose PWM pins are wired to one fixed hardware position each, rather
+    # than freely assignable to any channel the way Nordic's NRF_PSEL pinmux is.
+    # Empty = this variant's PWM (if any) uses the free allocator instead.
+    pwm_pin_map: dict[int, tuple[int, int]] = field(default_factory=dict)
     # Largest `zephyr: watchdog_timeout:` this variant's WDT hardware can actually
     # arm, in milliseconds. None = trust the generic 5-60s schema range (true for
     # every variant whose WDT clock gives it a multi-minute+ ceiling). Some
@@ -436,6 +452,7 @@ def set_core_data(
     shields: list[str] | None = None,
     shield_root: Path | None = None,
     snippet_root: Path | None = None,
+    runner: str | None = None,
 ) -> None:
     """Populate CORE.data for a Zephyr variant's config_schema().
 
@@ -488,6 +505,7 @@ def set_core_data(
         module_requests={},
         module_overrides={},
         blobs=[],
+        runner=runner,
     )
 
 
@@ -557,6 +575,9 @@ _VARIANT_MODULES = [
     "nrf54lm20a",
     "efr32mg24",
     "stm32l4",
+    "stm32f4",
+    "stm32wb55",
+    "stm32f1",
     "rp2040",
     "rp2350",
     "ra4m1",

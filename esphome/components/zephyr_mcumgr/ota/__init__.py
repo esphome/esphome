@@ -7,6 +7,7 @@ from esphome.components.ota import (
     ota_to_code,
 )
 from esphome.components.zephyr import (
+    KEY_BOARD,
     VARIANTS,
     HexValue,
     mcuboot,
@@ -221,9 +222,16 @@ async def to_code(config: ConfigType) -> None:
             uart_name = zephyr_add_cdc_acm(config, CDC_IDS[hw_uart])
         elif CORE.is_zephyr:
             # Physical UART peripherals are numbered/named differently per variant
-            # (e.g. nRF54 uses uart20/uart30, EFR32MG24 has only usart0) -- resolve
-            # via the variant's own node labels instead of assuming nRF52's names.
-            uart_name = VARIANTS[zephyr_variant()].uart_node_labels[hw_uart]
+            # (e.g. nRF54 uses uart20/uart30, EFR32MG24 has only usart0), and some
+            # variants declare no portable mapping at all (resolved per board from
+            # DTS instead) -- see resolve_uart_node_label()'s own docstring.
+            from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
+
+            uart_name = resolve_uart_node_label(
+                zephyr_data()[KEY_BOARD],
+                hw_uart,
+                VARIANTS[zephyr_variant()].uart_node_labels,
+            )
         else:
             # Legacy platform: nrf52 always uses uart0/uart1.
             uart_name = hw_uart.lower()

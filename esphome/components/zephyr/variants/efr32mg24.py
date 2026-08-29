@@ -11,7 +11,12 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from ..const import BOOTLOADER_MCUBOOT, ZEPHYR_VARIANT_EFR32MG24
+from ..const import (
+    ADVANCED_SCHEMA,
+    BOOTLOADER_MCUBOOT,
+    CONF_RUNNER,
+    ZEPHYR_VARIANT_EFR32MG24,
+)
 from ..dts_lookup import get_i2c_pinctrl_silabs
 from . import (
     MAINLINE,
@@ -32,7 +37,7 @@ _DEFAULT_BOARD = "xg24_ek2703a"
 # west_version:/ninja_version: vs. the Zephyr version.
 CONF_COMMANDER_VERSION = "commander_version"
 
-_ADVANCED_SCHEMA = cv.Schema(
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
     {
         cv.Optional(CONF_COMMANDER_VERSION): cv.string_strict,
     }
@@ -103,6 +108,7 @@ def config_schema(config: ConfigType) -> ConfigType:
         config,
         framework_type=sdk_name,
         sdk_source=config[CONF_FRAMEWORK].get(CONF_SOURCE),
+        runner=config[CONF_ADVANCED].get(CONF_RUNNER),
     )
     config[KEY_FRAMEWORK_VERSION] = version_str
     return config
@@ -131,7 +137,5 @@ async def to_code(config: ConfigType) -> None:
     # can only ever run via MCUboot jumping to slot0 -- this is required to boot at
     # all, regardless of whether OTA is configured.
     zephyr_add_sysbuild_conf("BOOTLOADER_MCUBOOT", True)
-    # RSA-2048 (mcuboot's default) is code-size heavy; ECDSA-P256 has a much
-    # smaller footprint. Same tradeoff nrf52/nrf54l15 make -- strictly smaller either way.
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_RSA", False, image="mcuboot")
-    zephyr_add_prj_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True, image="mcuboot")
+    # sysbuild's own BOOT_SIGNATURE_TYPE choice overrides a per-image setting.
+    zephyr_add_sysbuild_conf("BOOT_SIGNATURE_TYPE_ECDSA_P256", True)

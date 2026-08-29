@@ -4,7 +4,12 @@ import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.const import (
+    CONF_DATA_BITS,
+    CONF_EMULATION,
+    CONF_PARITY,
+    CONF_STOP_BITS,
+)
 from esphome.components.zephyr.const import ZephyrUartEmulator, ZephyrUartWriteTarget
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -220,8 +225,6 @@ UART_PARITY_OPTIONS = {
 CONF_FLUSH_TIMEOUT = "flush_timeout"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
-
-CONF_EMULATION = "emulation"
 CONF_RESPONSES = "responses"
 
 
