@@ -92,6 +92,7 @@ from .const import (
     ZEPHYR_VARIANT_RA4M1,
     ZEPHYR_VARIANT_RP2040,
     ZEPHYR_VARIANT_RP2350,
+    ZEPHYR_VARIANT_STM32F1,
     ZEPHYR_VARIANT_STM32F4,
     ZEPHYR_VARIANT_STM32L4,
     ZEPHYR_VARIANT_STM32WB55,
@@ -793,11 +794,14 @@ def zephyr_to_code(config: ConfigType) -> None:
     # sequence (unbounded busy-wait, no timeout -- see rp2350.py's TEST_RANDOM_GENERATOR).
     # STM32F4 is a whole chip family, not a single SoC -- RNG presence varies per member
     # (F401/F411 have none, F405/F410/F412 and larger do), so stm32f4.py resolves this
-    # itself from the board's own DTS instead of a blanket per-variant default.
+    # itself from the board's own DTS instead of a blanket per-variant default. STM32F1
+    # has no true RNG on any family member (dts/arm/st/f1 has no rng@ node at all), so
+    # stm32f1.py always uses TEST_RANDOM_GENERATOR unconditionally.
     if zephyr_variant() not in (
         ZEPHYR_VARIANT_RP2040,
         ZEPHYR_VARIANT_RP2350,
         ZEPHYR_VARIANT_STM32F4,
+        ZEPHYR_VARIANT_STM32F1,
     ):
         zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
     # <err> os: ***** USAGE FAULT *****
@@ -1685,6 +1689,10 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         from .variants.stm32wb55 import config_schema as _stm32wb55_config_schema
 
         config = _stm32wb55_config_schema(config)
+    elif variant == ZEPHYR_VARIANT_STM32F1:
+        from .variants.stm32f1 import config_schema as _stm32f1_config_schema
+
+        config = _stm32f1_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import config_schema as _ra4m1_config_schema
 
@@ -1835,6 +1843,11 @@ async def to_code(config: ConfigType) -> None:
         from .variants.stm32wb55 import to_code as _stm32wb55_to_code
 
         await _stm32wb55_to_code(config)
+        return
+    if variant == ZEPHYR_VARIANT_STM32F1:
+        from .variants.stm32f1 import to_code as _stm32f1_to_code
+
+        await _stm32f1_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import to_code as _ra4m1_to_code
