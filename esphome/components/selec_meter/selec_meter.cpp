@@ -46,7 +46,7 @@ struct FloatFieldSpec {
 // high word first (MSRF/big-endian), FP32_R the low word first (LSRF/word-swapped). nullopt if `reg`
 // isn't wholly inside `registers`.
 static std::optional<float> read_float(std::span<const uint16_t> registers, uint16_t start_address, uint16_t reg,
-                                        bool word_swapped) {
+                                       bool word_swapped) {
   return word_swapped ? helpers::value_at<helpers::SensorValueType::FP32_R>(registers, start_address, reg)
                       : helpers::value_at<helpers::SensorValueType::FP32>(registers, start_address, reg);
 }
@@ -119,8 +119,8 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
     // ACKNOWLEDGE/SERVER_DEVICE_BUSY (and any other exception) mean the meter is busy right now --
     // treat those like a transient timeout so a temporarily busy meter can't permanently latch an
     // optional read disabled.
-    const bool durable = *status == modbus::ExceptionCode::ILLEGAL_FUNCTION ||
-                         *status == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
+    const bool durable =
+        *status == modbus::ExceptionCode::ILLEGAL_FUNCTION || *status == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
     this->fail_current_read_(reason, durable);
     return;
   }
@@ -194,11 +194,10 @@ void SelecMeter::note_serial_number_failure_() {
 void SelecMeter::decode_serial_number_(std::span<const uint16_t> registers) {
   if (this->serial_number_sensor_ == nullptr)
     return;
-  auto serial = this->word_swap_
-                    ? helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, EM4M_SERIAL_NUMBER,
-                                                                             EM4M_SERIAL_NUMBER)
-                    : helpers::value_at<helpers::SensorValueType::U_DWORD>(registers, EM4M_SERIAL_NUMBER,
-                                                                           EM4M_SERIAL_NUMBER);
+  auto serial =
+      this->word_swap_
+          ? helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, EM4M_SERIAL_NUMBER, EM4M_SERIAL_NUMBER)
+          : helpers::value_at<helpers::SensorValueType::U_DWORD>(registers, EM4M_SERIAL_NUMBER, EM4M_SERIAL_NUMBER);
   if (!serial) {
     ESP_LOGW(TAG, "Unexpected response size for serial number");
     this->note_serial_number_failure_();
