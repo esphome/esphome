@@ -78,6 +78,16 @@ describe('handleReviews', () => {
     assert.equal(github.calls.dismiss.length, 0);
   });
 
+  it('updates the newest bot review when several exist', async () => {
+    const old = { ...botReview('DISMISSED'), id: 1 };
+    const active = { ...botReview('CHANGES_REQUESTED'), id: 2 };
+    const github = makeGithub([old, active]);
+    await run(github, ['too-big']);
+    assert.equal(github.calls.create.length, 0);
+    assert.equal(github.calls.update.length, 1);
+    assert.equal(github.calls.update[0].review_id, 2);
+  });
+
   it('ignores reviews from humans', async () => {
     const review = {
       id: 7,

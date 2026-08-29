@@ -122,12 +122,13 @@ async function handleReviews(github, context, finalLabels, originalLabelCount, d
     const reviewBody = `${BOT_COMMENT_MARKER}\n\n${reviewMessages.join('\n\n---\n\n')}`;
 
     if (botReviews.length > 0) {
-      // Update existing review
+      // Update the newest review; PRs hit by the old create-on-every-push
+      // behavior can carry several, and the newest is the one users see
       await github.rest.pulls.updateReview({
         owner,
         repo,
         pull_number: pr_number,
-        review_id: botReviews[0].id,
+        review_id: botReviews[botReviews.length - 1].id,
         body: reviewBody
       });
       console.log('Updated existing bot review');
