@@ -424,9 +424,22 @@
 #ifdef USE_ESP32
 #define USE_MICRO_WAKE_WORD
 #define USE_MICRO_WAKE_WORD_VAD
-#if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
+#if defined(USE_ESP32_VARIANT_ESP32C6)
+#define USE_OPENTHREAD
+#define USE_OPENTHREAD_BORDER_ROUTER
+#define USE_OPENTHREAD_ANTENNA_SWITCH
+#define USE_ZIGBEE
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32H2)
+// H2 has no Wi-Fi, so it cannot act as an OpenThread Border Router
+// (border_router: requires a Wi-Fi STA backbone; see _final_validate()).
 #define USE_OPENTHREAD
 #define USE_ZIGBEE
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32S3)
+#define USE_OPENTHREAD
+#define USE_OPENTHREAD_BORDER_ROUTER
+#define USE_OPENTHREAD_RCP_UART
 #endif
 #endif
 
