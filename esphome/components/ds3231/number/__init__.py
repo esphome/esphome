@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_DS3231_ID, DS3231Component, ds3231_ns
+from .. import CONF_DS3231_ID, USE_DS3231_AGING_OFFSET, DS3231Component, ds3231_ns
 
 DEPENDENCIES = ["ds3231"]
 
@@ -51,6 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     if (conf := config.get(CONF_AGING_OFFSET)) is not None:
+        cg.add_define(USE_DS3231_AGING_OFFSET)
         var = await number.new_number(
             conf,
             min_value=conf[CONF_MIN_VALUE],

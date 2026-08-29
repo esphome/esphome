@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_DS3231_ID, DS3231Component, ds3231_ns
+from .. import CONF_DS3231_ID, USE_DS3231_SQUARE_WAVE, DS3231Component, ds3231_ns
 
 DEPENDENCIES = ["ds3231"]
 
@@ -39,6 +39,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_DS3231_ID])
+    cg.add_define(USE_DS3231_SQUARE_WAVE)
 
     for key, options, setter in (
         (CONF_OUTPUT_MODE, OUTPUT_MODE_OPTIONS, "set_output_mode_select"),

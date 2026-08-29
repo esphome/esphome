@@ -4,7 +4,13 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_DS3231_ID, DS3231Component, ds3231_ns
+from .. import (
+    CONF_DS3231_ID,
+    USE_DS3231_32KHZ_OUTPUT,
+    USE_DS3231_ALARM,
+    DS3231Component,
+    ds3231_ns,
+)
 
 DEPENDENCIES = ["ds3231"]
 
@@ -47,6 +53,7 @@ async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_DS3231_ID])
 
     if (conf := config.get(CONF_ENABLE_32KHZ_OUTPUT)) is not None:
+        cg.add_define(USE_DS3231_32KHZ_OUTPUT)
         var = await switch.new_switch(conf)
         await cg.register_parented(var, config[CONF_DS3231_ID])
 
@@ -55,6 +62,7 @@ async def to_code(config: ConfigType) -> None:
         (CONF_ALARM_2, 2, "set_alarm_2_switch"),
     ):
         if (conf := config.get(key)) is not None:
+            cg.add_define(USE_DS3231_ALARM)
             var = await switch.new_switch(conf)
             await cg.register_parented(var, config[CONF_DS3231_ID])
             cg.add(var.set_alarm(alarm))

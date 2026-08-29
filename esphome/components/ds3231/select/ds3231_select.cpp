@@ -1,5 +1,7 @@
 #include "ds3231_select.h"
 
+#ifdef USE_DS3231_SQUARE_WAVE
+
 namespace esphome::ds3231 {
 
 void DS3231OutputModeSelect::control(size_t index) {
@@ -15,3 +17,5 @@ void DS3231SquareWaveFrequencySelect::control(size_t index) {
 }
 
 }  // namespace esphome::ds3231
+
+#endif  // USE_DS3231_SQUARE_WAVE

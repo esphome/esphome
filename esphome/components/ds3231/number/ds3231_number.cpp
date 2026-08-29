@@ -1,4 +1,7 @@
 #include "ds3231_number.h"
+
+#ifdef USE_DS3231_AGING_OFFSET
+
 #include "esphome/core/log.h"
 
 #include <cmath>
@@ -26,3 +29,5 @@ void DS3231AgingOffsetNumber::control(float value) {
 void DS3231AgingOffsetNumber::dump_config() { LOG_NUMBER("  ", "DS3231 Aging Offset", this); }
 
 }  // namespace esphome::ds3231
+
+#endif  // USE_DS3231_AGING_OFFSET

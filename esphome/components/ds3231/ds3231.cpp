@@ -1,9 +1,14 @@
 #include "ds3231.h"
-#include <cstdio>
 #include "binary_sensor/ds3231_binary_sensor.h"
-#include "switch/ds3231_switch.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#ifdef USE_DS3231_ALARM
+#include <cstdio>
+#include "switch/ds3231_switch.h"
+#endif
+#ifdef USE_DS3231_SQUARE_WAVE
+#include "select/ds3231_select.h"
+#endif
 
 // Datasheet:
 // - https://www.analog.com/media/en/technical-documentation/data-sheets/DS3231.pdf
@@ -13,12 +18,16 @@ namespace esphome::ds3231 {
 static const char *const TAG = "ds3231";
 
 static const uint8_t DS3231_REG_TIME = 0x00;
-static const uint8_t DS3231_REG_ALARM_1 = 0x07;
-static const uint8_t DS3231_REG_ALARM_2 = 0x0B;
 static const uint8_t DS3231_REG_CONTROL = 0x0E;
 static const uint8_t DS3231_REG_STATUS = 0x0F;
-static const uint8_t DS3231_REG_AGING_OFFSET = 0x10;
 static const uint8_t DS3231_REG_TEMPERATURE = 0x11;
+#ifdef USE_DS3231_ALARM
+static const uint8_t DS3231_REG_ALARM_1 = 0x07;
+static const uint8_t DS3231_REG_ALARM_2 = 0x0B;
+#endif
+#ifdef USE_DS3231_AGING_OFFSET
+static const uint8_t DS3231_REG_AGING_OFFSET = 0x10;
+#endif
 
 constexpr uint8_t bcd2dec(uint8_t value) { return (value >> 4) * 10 + (value & 0x0F); }
 constexpr uint8_t dec2bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
@@ -40,15 +49,14 @@ void DS3231Component::setup() {
     return;
   }
 
-  // Configure the INT/SQW pin. If a square-wave output is requested we clear INTCN so the pin
-  // emits the selected frequency; alarm actions later set INTCN back to route alarms to the pin.
   this->control_reg_ &= ~CONTROL_EOSC;  // keep the oscillator running on battery
+#ifdef USE_DS3231_SQUARE_WAVE
+  // If a square-wave output is requested we clear INTCN so the pin emits the selected
+  // frequency; alarm actions later set INTCN back to route alarms to the pin.
   this->apply_square_wave_frequency_bits_();
   if (this->square_wave_output_) {
     this->control_reg_ &= ~CONTROL_INTCN;
   } else {
-    // No square wave requested - leave the INT/SQW pin in alarm-interrupt mode so it has a
-    // defined state (high until an alarm matches) regardless of how the chip was left before.
     this->control_reg_ |= CONTROL_INTCN;
   }
   if (this->battery_backed_square_wave_) {
@@ -56,6 +64,11 @@ void DS3231Component::setup() {
   } else {
     this->control_reg_ &= ~CONTROL_BBSQW;
   }
+#else
+  // Without square-wave support the INT/SQW pin is always the alarm-interrupt line: idle
+  // high, pulled low on an alarm match, regardless of how the chip was left before.
+  this->control_reg_ |= CONTROL_INTCN;
+#endif
   if (!this->write_control_()) {
     this->mark_failed();
     return;
@@ -72,18 +85,22 @@ void DS3231Component::update() {
     return;
   }
   this->status_clear_warning();
-  this->handle_alarm_flags_();
 
+#ifdef USE_DS3231_ALARM
+  this->handle_alarm_flags_();
   if (this->alarm_1_switch_ != nullptr) {
     this->alarm_1_switch_->publish_state(this->get_alarm_1_enabled());
   }
   if (this->alarm_2_switch_ != nullptr) {
     this->alarm_2_switch_->publish_state(this->get_alarm_2_enabled());
   }
+#endif
+
   if (this->oscillator_stopped_binary_sensor_ != nullptr) {
     this->oscillator_stopped_binary_sensor_->publish_state(this->get_oscillator_stopped());
   }
 
+#ifdef USE_DS3231_SQUARE_WAVE
   // Keep the selects in step with the chip - e.g. arming an alarm forces interrupt mode.
   if (this->output_mode_select_ != nullptr) {
     size_t index = this->get_square_wave_output_enabled() ? 1 : 0;
@@ -97,38 +114,7 @@ void DS3231Component::update() {
       this->square_wave_frequency_select_->publish_state(index);
     }
   }
-}
-
-void DS3231Component::handle_alarm_flags_() {
-  // The chip sets A1F / A2F whenever the time matches the alarm registers, even when
-  // that alarm's interrupt is disabled. Only treat a flag as a real "fired" event
-  // when the matching enable bit (A1IE / A2IE) is also set.
-  bool a1_flag = (this->status_reg_ & STATUS_A1F) != 0;
-  bool a2_flag = (this->status_reg_ & STATUS_A2F) != 0;
-  bool a1 = a1_flag && this->get_alarm_1_enabled();
-  bool a2 = a2_flag && this->get_alarm_2_enabled();
-
-  if (this->alarm_1_binary_sensor_ != nullptr) {
-    this->alarm_1_binary_sensor_->publish_state(a1);
-  }
-  if (this->alarm_2_binary_sensor_ != nullptr) {
-    this->alarm_2_binary_sensor_->publish_state(a2);
-  }
-
-  // Clear whichever flag bits are set - handled or not - so a match that happened
-  // while the alarm was disabled does not linger and fire the moment it is enabled.
-  if (a1_flag || a2_flag) {
-    this->status_reg_ &= ~((a1_flag ? STATUS_A1F : 0) | (a2_flag ? STATUS_A2F : 0));
-    this->write_status_();
-  }
-  if (a1) {
-    ESP_LOGD(TAG, "Alarm 1 fired");
-    this->alarm_1_callback_.call();
-  }
-  if (a2) {
-    ESP_LOGD(TAG, "Alarm 2 fired");
-    this->alarm_2_callback_.call();
-  }
+#endif
 }
 
 void DS3231Component::dump_config() {
@@ -139,22 +125,28 @@ void DS3231Component::dump_config() {
     return;
   }
 
+#ifdef USE_DS3231_SQUARE_WAVE
   if ((this->control_reg_ & CONTROL_INTCN) != 0) {
     ESP_LOGCONFIG(TAG, "  INT/SQW pin: alarm interrupt");
   } else {
     static const char *const FREQUENCIES[] = {"1 Hz", "1.024 kHz", "4.096 kHz", "8.192 kHz"};
     ESP_LOGCONFIG(TAG, "  INT/SQW pin: square wave (%s)", FREQUENCIES[(this->control_reg_ >> 3) & 0b11]);
   }
-  ESP_LOGCONFIG(TAG,
-                "  Battery-backed square wave: %s\n"
-                "  32 kHz output: %s",
-                YESNO((this->control_reg_ & CONTROL_BBSQW) != 0), ONOFF(this->get_32khz_output()));
+  ESP_LOGCONFIG(TAG, "  Battery-backed square wave: %s", YESNO((this->control_reg_ & CONTROL_BBSQW) != 0));
+#endif
 
+#ifdef USE_DS3231_32KHZ_OUTPUT
+  ESP_LOGCONFIG(TAG, "  32 kHz output: %s", ONOFF(this->get_32khz_output()));
+#endif
+
+#ifdef USE_DS3231_AGING_OFFSET
   int8_t aging_offset;
   if (this->read_aging_offset(aging_offset)) {
     ESP_LOGCONFIG(TAG, "  Aging offset: %d", aging_offset);
   }
+#endif
 
+#ifdef USE_DS3231_ALARM
   char alarm[40];
   if (this->describe_alarm_1(alarm, sizeof(alarm))) {
     ESP_LOGCONFIG(TAG, "  Alarm 1: %s", alarm);
@@ -162,6 +154,7 @@ void DS3231Component::dump_config() {
   if (this->describe_alarm_2(alarm, sizeof(alarm))) {
     ESP_LOGCONFIG(TAG, "  Alarm 2: %s", alarm);
   }
+#endif
 
   if (this->get_oscillator_stopped()) {
     ESP_LOGW(TAG, "  Oscillator stop flag is set (clock lost power)");
@@ -244,6 +237,67 @@ void DS3231Component::force_temperature_conversion() {
     yield();
   }
   ESP_LOGD(TAG, "Forced temperature conversion complete.");
+}
+
+bool DS3231Component::read_control_status_() {
+  uint8_t raw[2];
+  if (!this->read_bytes(DS3231_REG_CONTROL, raw, sizeof(raw))) {
+    ESP_LOGE(TAG, "Can't read control/status registers.");
+    return false;
+  }
+  this->control_reg_ = raw[0];
+  this->status_reg_ = raw[1];
+  return true;
+}
+
+bool DS3231Component::write_control_() {
+  if (!this->write_byte(DS3231_REG_CONTROL, this->control_reg_)) {
+    ESP_LOGE(TAG, "Can't write control register.");
+    return false;
+  }
+  return true;
+}
+
+bool DS3231Component::write_status_() {
+  if (!this->write_byte(DS3231_REG_STATUS, this->status_reg_)) {
+    ESP_LOGE(TAG, "Can't write status register.");
+    return false;
+  }
+  return true;
+}
+
+#ifdef USE_DS3231_ALARM
+
+void DS3231Component::handle_alarm_flags_() {
+  // The chip sets A1F / A2F whenever the time matches the alarm registers, even when
+  // that alarm's interrupt is disabled. Only treat a flag as a real "fired" event
+  // when the matching enable bit (A1IE / A2IE) is also set.
+  bool a1_flag = (this->status_reg_ & STATUS_A1F) != 0;
+  bool a2_flag = (this->status_reg_ & STATUS_A2F) != 0;
+  bool a1 = a1_flag && this->get_alarm_1_enabled();
+  bool a2 = a2_flag && this->get_alarm_2_enabled();
+
+  if (this->alarm_1_binary_sensor_ != nullptr) {
+    this->alarm_1_binary_sensor_->publish_state(a1);
+  }
+  if (this->alarm_2_binary_sensor_ != nullptr) {
+    this->alarm_2_binary_sensor_->publish_state(a2);
+  }
+
+  // Clear whichever flag bits are set - handled or not - so a match that happened
+  // while the alarm was disabled does not linger and fire the moment it is enabled.
+  if (a1_flag || a2_flag) {
+    this->status_reg_ &= ~((a1_flag ? STATUS_A1F : 0) | (a2_flag ? STATUS_A2F : 0));
+    this->write_status_();
+  }
+  if (a1) {
+    ESP_LOGD(TAG, "Alarm 1 fired");
+    this->alarm_1_callback_.call();
+  }
+  if (a2) {
+    ESP_LOGD(TAG, "Alarm 2 fired");
+    this->alarm_2_callback_.call();
+  }
 }
 
 bool DS3231Component::set_alarm_1(DS3231Alarm1Mode mode, const DS3231AlarmSpec &spec) {
@@ -455,6 +509,9 @@ bool DS3231Component::clear_alarm(uint8_t alarm) {
   return this->write_status_();
 }
 
+#endif  // USE_DS3231_ALARM
+
+#ifdef USE_DS3231_32KHZ_OUTPUT
 bool DS3231Component::set_32khz_output(bool enabled) {
   if (!this->read_control_status_())
     return false;
@@ -465,7 +522,9 @@ bool DS3231Component::set_32khz_output(bool enabled) {
   }
   return this->write_status_();
 }
+#endif
 
+#ifdef USE_DS3231_SQUARE_WAVE
 bool DS3231Component::set_square_wave_output_enabled(bool enabled) {
   if (!this->read_control_status_())
     return false;
@@ -485,7 +544,9 @@ bool DS3231Component::set_square_wave_frequency(DS3231SquareWaveFrequency freque
   this->apply_square_wave_frequency_bits_();
   return this->write_control_();
 }
+#endif  // USE_DS3231_SQUARE_WAVE
 
+#ifdef USE_DS3231_AGING_OFFSET
 bool DS3231Component::set_aging_offset(int8_t offset) {
   if (!this->write_byte(DS3231_REG_AGING_OFFSET, static_cast<uint8_t>(offset))) {
     ESP_LOGE(TAG, "Can't write aging offset register.");
@@ -505,32 +566,6 @@ bool DS3231Component::read_aging_offset(int8_t &out) {
   out = static_cast<int8_t>(value);
   return true;
 }
-
-bool DS3231Component::read_control_status_() {
-  uint8_t raw[2];
-  if (!this->read_bytes(DS3231_REG_CONTROL, raw, sizeof(raw))) {
-    ESP_LOGE(TAG, "Can't read control/status registers.");
-    return false;
-  }
-  this->control_reg_ = raw[0];
-  this->status_reg_ = raw[1];
-  return true;
-}
-
-bool DS3231Component::write_control_() {
-  if (!this->write_byte(DS3231_REG_CONTROL, this->control_reg_)) {
-    ESP_LOGE(TAG, "Can't write control register.");
-    return false;
-  }
-  return true;
-}
-
-bool DS3231Component::write_status_() {
-  if (!this->write_byte(DS3231_REG_STATUS, this->status_reg_)) {
-    ESP_LOGE(TAG, "Can't write status register.");
-    return false;
-  }
-  return true;
-}
+#endif  // USE_DS3231_AGING_OFFSET
 
 }  // namespace esphome::ds3231

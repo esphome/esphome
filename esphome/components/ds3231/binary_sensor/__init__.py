@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
-from .. import CONF_DS3231_ID, DS3231Component, ds3231_ns
+from .. import CONF_DS3231_ID, USE_DS3231_ALARM, DS3231Component, ds3231_ns
 
 DEPENDENCIES = ["ds3231"]
 
@@ -44,12 +44,14 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_DS3231_ID])
 
-    for key, setter in (
-        (CONF_ALARM_1, "set_alarm_1_binary_sensor"),
-        (CONF_ALARM_2, "set_alarm_2_binary_sensor"),
-        (CONF_OSCILLATOR_STOPPED, "set_oscillator_stopped_binary_sensor"),
+    for key, setter, needs_alarm in (
+        (CONF_ALARM_1, "set_alarm_1_binary_sensor", True),
+        (CONF_ALARM_2, "set_alarm_2_binary_sensor", True),
+        (CONF_OSCILLATOR_STOPPED, "set_oscillator_stopped_binary_sensor", False),
     ):
         if (conf := config.get(key)) is not None:
+            if needs_alarm:
+                cg.add_define(USE_DS3231_ALARM)
             var = await binary_sensor.new_binary_sensor(conf)
             await cg.register_parented(var, config[CONF_DS3231_ID])
             cg.add(getattr(parent, setter)(var))

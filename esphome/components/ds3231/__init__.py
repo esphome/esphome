@@ -20,6 +20,16 @@ CONF_ALARM = "alarm"
 CONF_DAY_OF_WEEK = "day_of_week"
 CONF_DAY_OF_MONTH = "day_of_month"
 
+# Optional features are compiled in only when configured, gated behind these defines - see
+# https://developers.esphome.io/contributing/code/#gating-optional-features-behind-conditional-compilation
+# They are emitted from Python with cg.add_define() here and in the platform __init__.py
+# files (whenever a matching entity/action is configured), so esphome/core/defines.h does
+# not carry them; clang-tidy simply skips the gated blocks.
+USE_DS3231_ALARM = "USE_DS3231_ALARM"
+USE_DS3231_SQUARE_WAVE = "USE_DS3231_SQUARE_WAVE"
+USE_DS3231_32KHZ_OUTPUT = "USE_DS3231_32KHZ_OUTPUT"
+USE_DS3231_AGING_OFFSET = "USE_DS3231_AGING_OFFSET"
+
 ds3231_ns = cg.esphome_ns.namespace("ds3231")
 DS3231Component = ds3231_ns.class_(
     "DS3231Component", cg.PollingComponent, i2c.I2CDevice
@@ -59,7 +69,21 @@ ForceTemperatureConversionAction = ds3231_ns.class_(
     "ForceTemperatureConversionAction", automation.Action
 )
 
-CONFIG_SCHEMA = (
+
+def _validate(config: ConfigType) -> ConfigType:
+    if (
+        config[CONF_BATTERY_BACKED_SQUARE_WAVE]
+        and CONF_SQUARE_WAVE_OUTPUT not in config
+    ):
+        raise cv.Invalid(
+            f"'{CONF_BATTERY_BACKED_SQUARE_WAVE}' has no effect without "
+            f"'{CONF_SQUARE_WAVE_OUTPUT}'",
+            path=[CONF_BATTERY_BACKED_SQUARE_WAVE],
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DS3231Component),
@@ -70,7 +94,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("30s"))
-    .extend(i2c.i2c_device_schema(0x68))
+    .extend(i2c.i2c_device_schema(0x68)),
+    _validate,
 )
 
 
@@ -80,17 +105,19 @@ async def to_code(config: ConfigType) -> None:
     await i2c.register_i2c_device(var, config)
 
     if (freq := config.get(CONF_SQUARE_WAVE_OUTPUT)) is not None:
+        cg.add_define(USE_DS3231_SQUARE_WAVE)
         cg.add(var.set_square_wave_output(freq))
-    cg.add(var.set_battery_backed_square_wave(config[CONF_BATTERY_BACKED_SQUARE_WAVE]))
+        cg.add(
+            var.set_battery_backed_square_wave(config[CONF_BATTERY_BACKED_SQUARE_WAVE])
+        )
 
-    if (conf := config.get(CONF_ON_ALARM_1)) is not None:
-        await automation.build_callback_automation(
-            var, "add_on_alarm_1_callback", [], conf
-        )
-    if (conf := config.get(CONF_ON_ALARM_2)) is not None:
-        await automation.build_callback_automation(
-            var, "add_on_alarm_2_callback", [], conf
-        )
+    for key, method in (
+        (CONF_ON_ALARM_1, "add_on_alarm_1_callback"),
+        (CONF_ON_ALARM_2, "add_on_alarm_2_callback"),
+    ):
+        if (conf := config.get(key)) is not None:
+            cg.add_define(USE_DS3231_ALARM)
+            await automation.build_callback_automation(var, method, [], conf)
 
 
 _ALARM_1_SCHEMA = cv.Schema(
@@ -132,6 +159,7 @@ async def ds3231_set_alarm_1_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    cg.add_define(USE_DS3231_ALARM)
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     cg.add(var.set_mode(config[CONF_MODE]))
@@ -154,6 +182,7 @@ async def ds3231_set_alarm_2_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    cg.add_define(USE_DS3231_ALARM)
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     cg.add(var.set_mode(config[CONF_MODE]))
@@ -195,6 +224,7 @@ async def ds3231_clear_alarm_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    cg.add_define(USE_DS3231_ALARM)
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     cg.add(var.set_alarm(config[CONF_ALARM]))

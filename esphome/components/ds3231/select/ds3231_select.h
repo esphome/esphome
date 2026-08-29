@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_DS3231_SQUARE_WAVE
+
 #include "esphome/components/select/select.h"
 
 #include "../ds3231.h"
@@ -21,3 +25,5 @@ class DS3231SquareWaveFrequencySelect final : public select::Select, public Pare
 };
 
 }  // namespace esphome::ds3231
+
+#endif  // USE_DS3231_SQUARE_WAVE
