@@ -2333,13 +2333,23 @@ async def _reconcile_certificate_bundle_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN", True)
 
 
-# User sdkconfig_options that mean "keep TLS on"; each becomes a request_tls().
+# User sdkconfig_options that mean "keep TLS on" when set to y.
 _MBEDTLS_TLS_ON_OPTIONS = (
     "CONFIG_MBEDTLS_TLS_ENABLED",
     "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT",
     "CONFIG_MBEDTLS_TLS_SERVER_ONLY",
     "CONFIG_MBEDTLS_TLS_CLIENT_ONLY",
 )
+# Any user option under these prefixes only makes sense with TLS compiled in.
+_TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")
+
+
+def _user_sdkconfig_wants_tls(options: dict[str, Any]) -> bool:
+    return any(
+        (name in _MBEDTLS_TLS_ON_OPTIONS and value == "y")
+        or name.startswith(_TLS_OPTION_PREFIXES)
+        for name, value in options.items()
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -2352,8 +2362,14 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     """
     data = _mbedtls_sdkconfig()
     idf6 = idf_version() >= cv.Version(6, 0, 0)
+    # A component that re-includes esp-tls on its own (external components
+    # predating request_tls()) wants TLS just as much as a request_tls() call.
+    tls_required = (
+        data.tls_required
+        or "esp-tls" not in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    )
 
-    if not CORE.using_arduino and not data.tls_required:
+    if not CORE.using_arduino and not tls_required:
         # IDF 6 made CONFIG_MBEDTLS_TLS_ENABLED a normal bool; on IDF 5 it has
         # no prompt and is only reachable through the "None" TLS role choice.
         if idf6:
@@ -2363,7 +2379,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         # Enterprise WiFi selects TLS back on; wifi writes this itself, but
         # esp_wifi can also be in the build without a wifi: block (openthread).
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
-        # WiFi, Bluetooth and secure boot re-select ECP through Kconfig.
+        # WiFi (ESP_WIFI_MBEDTLS_CRYPTO), Bluetooth and signed apps
+        # (SECURE_SIGNED_APPS) select ECP back on through Kconfig.
         if not data.ecp_required:
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_ECP_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_WRITE_C", False)
@@ -3089,11 +3106,7 @@ async def to_code(config):
     # so it still gets the CMN variant pinned.
     if conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") == "y":
         require_certificate_bundle()
-    # A TLS role or esp-tls option in sdkconfig_options means the user relies on TLS.
-    elif any(
-        name in _MBEDTLS_TLS_ON_OPTIONS or name.startswith("CONFIG_ESP_TLS_")
-        for name in conf[CONF_SDKCONFIG_OPTIONS]
-    ):
+    if _user_sdkconfig_wants_tls(conf[CONF_SDKCONFIG_OPTIONS]):
         request_tls()
 
     # Components from YAML are added in a separate coroutine with FINAL priority

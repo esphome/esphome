@@ -433,7 +433,7 @@ _IDF6 = cv.Version(6, 0, 0)
 
 
 @pytest.mark.parametrize(
-    ("framework", "idf", "data", "preset", "expected"),
+    ("framework", "idf", "data", "preset", "expected", "excluded"),
     [
         pytest.param(
             PlatformFramework.ESP32_IDF,
@@ -441,7 +441,18 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(),
             {},
             {**_TLS_OFF_IDF5, **_PEER_CERT_PKCS7_OFF},
+            {"esp-tls"},
             id="idf5_no_tls_user",
+        ),
+        pytest.param(
+            # An external component that only re-included esp-tls keeps TLS.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(),
+            {},
+            _PEER_CERT_PKCS7_OFF,
+            set(),
+            id="idf_esp_tls_reincluded",
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
@@ -454,6 +465,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_SHA384_C": False,
                 "CONFIG_MBEDTLS_SHA512_C": False,
             },
+            {"esp-tls"},
             id="idf6_drops_sha512",
         ),
         pytest.param(
@@ -462,6 +474,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(sha512_required=True),
             {},
             {**_TLS_OFF_IDF6, **_PEER_CERT_PKCS7_OFF},
+            {"esp-tls"},
             id="idf6_sha512_required",
         ),
         pytest.param(
@@ -470,6 +483,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(tls_required=True),
             {},
             _PEER_CERT_PKCS7_OFF,
+            {"esp-tls"},
             id="idf_tls_requested",
         ),
         pytest.param(
@@ -485,6 +499,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_X509_CSR_PARSE_C": False,
                 **_PEER_CERT_PKCS7_OFF,
             },
+            {"esp-tls"},
             id="idf_ecp_without_tls",
         ),
         pytest.param(
@@ -497,6 +512,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_ECP_C": RawSdkconfigValue("y"),
                 **_PEER_CERT_PKCS7_OFF,
             },
+            {"esp-tls"},
             id="idf_user_ecp_wins",
         ),
         pytest.param(
@@ -509,6 +525,7 @@ _IDF6 = cv.Version(6, 0, 0)
                 "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
                 "CONFIG_MBEDTLS_PKCS7_C": True,
             },
+            {"esp-tls"},
             id="idf_peer_cert_pkcs7_required",
         ),
         pytest.param(
@@ -517,6 +534,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(disable_peer_cert=False, disable_pkcs7=False),
             {},
             _TLS_OFF_IDF5,
+            {"esp-tls"},
             id="idf_advanced_disables_off",
         ),
         pytest.param(
@@ -525,6 +543,7 @@ _IDF6 = cv.Version(6, 0, 0)
             MbedtlsSdkconfigData(),
             {},
             _PEER_CERT_PKCS7_OFF,
+            {"esp-tls"},
             id="arduino_keeps_tls",
         ),
     ],
@@ -536,6 +555,7 @@ def test_reconcile_mbedtls_sdkconfig(
     data: MbedtlsSdkconfigData,
     preset: dict[str, Any],
     expected: dict[str, Any],
+    excluded: set[str],
 ) -> None:
     """The FINAL-priority reconciler turns TLS off only when nothing requested it;
     user sdkconfig_options always win."""
@@ -544,6 +564,7 @@ def test_reconcile_mbedtls_sdkconfig(
         KEY_IDF_VERSION: idf,
         KEY_SDKCONFIG_OPTIONS: dict(preset),
         KEY_MBEDTLS_SDKCONFIG: data,
+        KEY_EXCLUDE_COMPONENTS: excluded,
     }
 
     asyncio.run(_reconcile_mbedtls_sdkconfig())
@@ -571,6 +592,12 @@ def test_reconcile_mbedtls_sdkconfig(
         ),
         pytest.param("tls_sdkconfig_esp_tls.yaml", False, False, id="raw_esp_tls"),
         pytest.param("tls_sdkconfig_tls_role.yaml", False, False, id="raw_tls_role"),
+        # A role option set to n is not a request.
+        pytest.param(
+            "tls_sdkconfig_tls_enabled_n.yaml", True, True, id="raw_tls_enabled_n"
+        ),
+        # SECURE_SIGNED_APPS selects ECP back on in Kconfig; ESPHome still writes the default.
+        pytest.param("signed_ota_ecdsa256_c6.yaml", True, True, id="signed_ota_ecdsa"),
     ],
 )
 def test_tls_disabled_sdkconfig(
