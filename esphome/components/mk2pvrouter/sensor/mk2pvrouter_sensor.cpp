@@ -19,7 +19,8 @@ void Mk2PVRouterSensor::publish_val(const char *val) {
   // device multiplied by 100 (centivolts/centi-degrees); undo that here so
   // downstream filters see the value already in volts/°C. This mirrors the
   // exact/pattern matching used by apply_tag_defaults() in sensor/__init__.py:
-  // only "V"/"T" alone or followed solely by digits are scaled.
+  // "V" alone or "V"/"T" followed solely by digits are scaled; bare "T" never
+  // occurs on the wire and has no exact-match entry, so it is excluded here too.
   const char *tag = this->get_tag();
   const char tag0 = tag[0];
   if (tag0 == 'V' || tag0 == 'T') {
@@ -29,6 +30,9 @@ void Mk2PVRouterSensor::publish_val(const char *val) {
         matches = false;
         break;
       }
+    }
+    if (matches && tag0 == 'T' && tag[1] == '\0') {
+      matches = false;
     }
     if (matches) {
       value *= 0.01f;
