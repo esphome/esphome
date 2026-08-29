@@ -23,6 +23,8 @@ class ProvisioningData:
     sources: set[str] = field(default_factory=set)
     # Names of source components that have their credentials set in the config.
     hardcoded_credentials: set[str] = field(default_factory=set)
+    # True when WiFi is configured with an access point but no station credentials.
+    ap_without_sta: bool = False
 
 
 def _get_data() -> ProvisioningData:
@@ -54,6 +56,17 @@ def report_hardcoded_credentials(name: str) -> None:
     source components stay unaware of it.
     """
     _get_data().hardcoded_credentials.add(name)
+
+
+def report_ap_without_sta() -> None:
+    """Record that WiFi runs an access point with no station credentials.
+
+    The access point (and captive portal) shut down when the provisioning window
+    closes. On a device where that access point is the only network connection,
+    closing the window makes the device unreachable until it is power-cycled, so
+    `provisioning:` warns about this combination.
+    """
+    _get_data().ap_without_sta = True
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -88,6 +101,13 @@ def _final_validate(config: ConfigType) -> None:
             "ship without credentials so they are set on first connection; "
             "hardcoding them makes the window pointless.",
             ", ".join(sorted(data.hardcoded_credentials)),
+        )
+    if data.ap_without_sta:
+        _LOGGER.warning(
+            "'provisioning' is configured with a WiFi access point and no station "
+            "credentials. The access point shuts down when the provisioning window "
+            "closes, so if it is the device's only network connection, the device "
+            "will be unreachable until it is power-cycled."
         )
 
 

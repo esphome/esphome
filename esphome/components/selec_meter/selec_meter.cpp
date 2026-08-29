@@ -1,14 +1,15 @@
 #include "selec_meter.h"
 #include "selec_meter_registers.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
 #include <cmath>
 #include <cstdio>
-#include <cstring>
+#include <optional>
 
 namespace esphome::selec_meter {
+
+namespace helpers = modbus::helpers;
 
 static const char *const TAG = "selec_meter";
 
@@ -32,16 +33,7 @@ static const char *read_state_name(ReadState state) {
   }
 }
 
-static float decode_float(std::span<const uint8_t> data, size_t i, float unit, bool word_swapped) {
-  uint32_t temp = word_swapped ? encode_uint32(data[i + 2], data[i + 3], data[i], data[i + 1])
-                               : encode_uint32(data[i], data[i + 1], data[i + 2], data[i + 3]);
-
-  float f;
-  memcpy(&f, &temp, sizeof(f));
-  return (f * unit);
-}
-
-// One measurement's sensor, register offset, and unit multiplier -- lets decode_em2m_()/decode_em4m_()
+// One measurement's sensor, register address, and unit multiplier -- lets decode_em2m_()/decode_em4m_()
 // drive their (near-identical) decode-and-publish loops off a table instead of a repeated if-block
 // per field.
 struct FloatFieldSpec {
@@ -49,6 +41,15 @@ struct FloatFieldSpec {
   uint16_t reg;
   float unit;
 };
+
+// Reads the FP32 value at register address `reg`, honouring the configured byte order: FP32 takes the
+// high word first (MSRF/big-endian), FP32_R the low word first (LSRF/word-swapped). nullopt if `reg`
+// isn't wholly inside `registers`.
+static std::optional<float> read_float(std::span<const uint16_t> registers, uint16_t start_address, uint16_t reg,
+                                        bool word_swapped) {
+  return word_swapped ? helpers::value_at<helpers::SensorValueType::FP32_R>(registers, start_address, reg)
+                      : helpers::value_at<helpers::SensorValueType::FP32>(registers, start_address, reg);
+}
 
 ReadState SelecMeter::next_read_state_after_main_block_() {
 #ifdef USE_TEXT_SENSOR
@@ -95,26 +96,37 @@ static uint16_t expected_start_address(ReadState state) {
   }
 }
 
-void SelecMeter::on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) {
+void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                                         modbus::ResponseStatus status) {
   this->waiting_for_response_ = false;
   ReadState current = this->read_state_;
   if (current == ReadState::IDLE) {
     ESP_LOGW(TAG, "Unexpected response while idle, dropping");
     return;
   }
-  // The hub pairs an incoming frame to the waiting request by device address and function code only
-  // (see modbus.cpp), and serial number / DG sensing are both 2-register FC 0x04 reads at the same
-  // address -- so a stale reply for one can be delivered as the terminal for the other once a timeout
-  // has advanced the state machine. Confirm the request this response was sent for actually matches
-  // what `current` expects before trusting the payload.
-  if (request_pdu.size() < 3 || encode_uint16(request_pdu[1], request_pdu[2]) != expected_start_address(current)) {
+  // The base class decodes start_address from the exact request this response answers (see
+  // dispatch_response_() in modbus.cpp), so unlike matching purely by device address and function
+  // code, a stale reply for one read can never be mistaken for another -- confirm it's actually for
+  // the read `current` is waiting on before trusting it.
+  if (start_address != expected_start_address(current)) {
     this->fail_current_read_("Response does not match pending read", /*durable=*/false);
     return;
   }
-  auto data = modbus::helpers::server_pdu_payload(response_pdu);
+  if (!modbus::succeeded(status)) {
+    char reason[32];
+    snprintf(reason, sizeof(reason), "Modbus error 0x%02X", static_cast<uint8_t>(*status));
+    // ILLEGAL_FUNCTION/ILLEGAL_DATA_ADDRESS are a durable "this register isn't supported" signal.
+    // ACKNOWLEDGE/SERVER_DEVICE_BUSY (and any other exception) mean the meter is busy right now --
+    // treat those like a transient timeout so a temporarily busy meter can't permanently latch an
+    // optional read disabled.
+    const bool durable = *status == modbus::ExceptionCode::ILLEGAL_FUNCTION ||
+                         *status == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
+    this->fail_current_read_(reason, durable);
+    return;
+  }
   switch (current) {
     case ReadState::MAIN_BLOCK: {
-      bool ok = this->model_ == Model::EM4M ? this->decode_em4m_(data) : this->decode_em2m_(data);
+      bool ok = this->model_ == Model::EM4M ? this->decode_em4m_(registers) : this->decode_em2m_(registers);
       if (ok) {
         this->status_clear_warning();
       } else {
@@ -124,12 +136,12 @@ void SelecMeter::on_response(std::span<const uint8_t> request_pdu, std::span<con
     }
     case ReadState::SERIAL_NUMBER:
 #ifdef USE_TEXT_SENSOR
-      this->decode_serial_number_(data);
+      this->decode_serial_number_(registers);
 #endif
       break;
     case ReadState::DG_SENSING:
 #ifdef USE_BINARY_SENSOR
-      this->decode_dg_sensing_(data);
+      this->decode_dg_sensing_(registers);
 #endif
       break;
     case ReadState::IDLE:
@@ -162,18 +174,6 @@ void SelecMeter::fail_current_read_(const char *reason, bool durable) {
   this->start_read_(this->next_read_state_after_(failed_state));
 }
 
-void SelecMeter::on_error(std::span<const uint8_t> request_pdu, modbus::ExceptionCode exception_code) {
-  char reason[32];
-  snprintf(reason, sizeof(reason), "Modbus error 0x%02X", static_cast<uint8_t>(exception_code));
-  // ILLEGAL_FUNCTION/ILLEGAL_DATA_ADDRESS are a durable "this register isn't supported" signal.
-  // ACKNOWLEDGE/SERVER_DEVICE_BUSY (and any other exception) mean the meter is busy right now --
-  // treat those like a transient timeout so a temporarily busy meter can't permanently latch an
-  // optional read disabled.
-  const bool durable = exception_code == modbus::ExceptionCode::ILLEGAL_FUNCTION ||
-                       exception_code == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
-  this->fail_current_read_(reason, durable);
-}
-
 bool SelecMeter::on_no_response(std::span<const uint8_t> request_pdu) {
   this->fail_current_read_("No Modbus response");
   return false;
@@ -191,18 +191,21 @@ void SelecMeter::note_serial_number_failure_() {
   }
 }
 
-void SelecMeter::decode_serial_number_(std::span<const uint8_t> data) {
+void SelecMeter::decode_serial_number_(std::span<const uint16_t> registers) {
   if (this->serial_number_sensor_ == nullptr)
     return;
-  if (data.size() != 4) {
-    ESP_LOGW(TAG, "Unexpected response size for serial number: %zu bytes", data.size());
+  auto serial = this->word_swap_
+                    ? helpers::value_at<helpers::SensorValueType::U_DWORD_R>(registers, EM4M_SERIAL_NUMBER,
+                                                                             EM4M_SERIAL_NUMBER)
+                    : helpers::value_at<helpers::SensorValueType::U_DWORD>(registers, EM4M_SERIAL_NUMBER,
+                                                                           EM4M_SERIAL_NUMBER);
+  if (!serial) {
+    ESP_LOGW(TAG, "Unexpected response size for serial number");
     this->note_serial_number_failure_();
     return;
   }
-  uint32_t serial = this->word_swap_ ? encode_uint32(data[2], data[3], data[0], data[1])
-                                     : encode_uint32(data[0], data[1], data[2], data[3]);
   char buf[9];
-  snprintf(buf, sizeof(buf), "%08" PRIX32, serial);
+  snprintf(buf, sizeof(buf), "%08" PRIX32, *serial);
   this->serial_number_sensor_->publish_state(buf);
   this->serial_number_published_ = true;
   this->serial_number_failures_ = 0;
@@ -217,31 +220,26 @@ void SelecMeter::note_dg_sensing_failure_() {
   }
 }
 
-void SelecMeter::decode_dg_sensing_(std::span<const uint8_t> data) {
+void SelecMeter::decode_dg_sensing_(std::span<const uint16_t> registers) {
   if (this->dg_sensing_sensor_ == nullptr)
     return;
-  if (data.size() != 4) {
-    ESP_LOGW(TAG, "Unexpected response size for DG sensing: %zu bytes", data.size());
+  auto value = read_float(registers, EM4M_DG_SENSING, EM4M_DG_SENSING, this->word_swap_);
+  if (!value) {
+    ESP_LOGW(TAG, "Unexpected response size for DG sensing");
     this->note_dg_sensing_failure_();
     return;
   }
-  float value = decode_float(data, 0, NO_DEC_UNIT, this->word_swap_);
-  if (!std::isfinite(value)) {
+  if (!std::isfinite(*value)) {
     ESP_LOGW(TAG, "Non-finite DG sensing value, ignoring");
     this->note_dg_sensing_failure_();
     return;
   }
-  this->dg_sensing_sensor_->publish_state(value != 0);
+  this->dg_sensing_sensor_->publish_state(*value != 0);
   this->dg_sensing_failures_ = 0;
 }
 #endif
 
-bool SelecMeter::decode_em2m_(std::span<const uint8_t> data) {
-  if (data.size() < EM2M_REGISTER_COUNT * 2) {
-    ESP_LOGW(TAG, "Invalid size for SelecMeter: expected %u bytes, got %zu", EM2M_REGISTER_COUNT * 2, data.size());
-    return false;
-  }
-
+bool SelecMeter::decode_em2m_(std::span<const uint16_t> registers) {
   const FloatFieldSpec fields[] = {
       {this->total_active_energy_sensor_, SELEC_TOTAL_ACTIVE_ENERGY, NO_DEC_UNIT},
       {this->import_active_energy_sensor_, SELEC_IMPORT_ACTIVE_ENERGY, NO_DEC_UNIT},
@@ -262,36 +260,24 @@ bool SelecMeter::decode_em2m_(std::span<const uint8_t> data) {
       {this->maximum_demand_apparent_power_sensor_, SELEC_MAXIMUM_DEMAND_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT},
   };
 
-  // A wrong byte_order corrupts every value the same way, so check all of them (independent of each
-  // field's unit multiplier) before publishing any -- an all-or-nothing block, same as decode_em4m_().
+  // A wrong byte_order corrupts every value the same way (and a too-short response leaves a field
+  // out of range), so check all of them before publishing any -- an all-or-nothing block, same as
+  // decode_em4m_().
   for (const auto &f : fields) {
-    if (!std::isfinite(decode_float(data, f.reg * 2, NO_DEC_UNIT, this->word_swap_))) {
-      ESP_LOGW(TAG, "Non-finite value(s) decoded, check byte_order setting");
+    auto value = read_float(registers, 0, f.reg, this->word_swap_);
+    if (!value || !std::isfinite(*value)) {
+      ESP_LOGW(TAG, "Invalid or non-finite value(s) decoded, check byte_order setting");
       return false;
     }
   }
   for (const auto &f : fields) {
     if (f.sensor != nullptr)
-      f.sensor->publish_state(decode_float(data, f.reg * 2, f.unit, this->word_swap_));
+      f.sensor->publish_state(*read_float(registers, 0, f.reg, this->word_swap_) * f.unit);
   }
   return true;
 }
 
-bool SelecMeter::decode_em4m_(std::span<const uint8_t> data) {
-  if (data.size() < EM4M_REGISTER_COUNT * 2) {
-    ESP_LOGW(TAG, "Invalid size for SelecMeter: expected %u bytes, got %zu", EM4M_REGISTER_COUNT * 2, data.size());
-    return false;
-  }
-
-  // A wrong byte_order corrupts every value in the block the same way, so one pass over the raw
-  // floats (independent of each field's unit multiplier) catches it before anything is published.
-  for (size_t i = 0; i + 4 <= EM4M_REGISTER_COUNT * 2; i += 4) {
-    if (!std::isfinite(decode_float(data, i, NO_DEC_UNIT, this->word_swap_))) {
-      ESP_LOGW(TAG, "Non-finite value(s) decoded, check byte_order setting");
-      return false;
-    }
-  }
-
+bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
   const FloatFieldSpec fields[] = {
       // Common quantities, shared sensor keys with EM2M
       {this->voltage_sensor_, EM4M_VOLTAGE, NO_DEC_UNIT},
@@ -353,9 +339,19 @@ bool SelecMeter::decode_em4m_(std::span<const uint8_t> data) {
       {this->net_reactive_energy_dg_sensor_, EM4M_NET_REACTIVE_ENERGY_DG, NO_DEC_UNIT},
       {this->net_apparent_energy_dg_sensor_, EM4M_NET_APPARENT_ENERGY_DG, NO_DEC_UNIT},
   };
+
+  // A wrong byte_order corrupts every value the same way (and a too-short response leaves a field
+  // out of range), so check all of them before publishing any.
+  for (const auto &f : fields) {
+    auto value = read_float(registers, 0, f.reg, this->word_swap_);
+    if (!value || !std::isfinite(*value)) {
+      ESP_LOGW(TAG, "Invalid or non-finite value(s) decoded, check byte_order setting");
+      return false;
+    }
+  }
   for (const auto &f : fields) {
     if (f.sensor != nullptr)
-      f.sensor->publish_state(decode_float(data, f.reg * 2, f.unit, this->word_swap_));
+      f.sensor->publish_state(*read_float(registers, 0, f.reg, this->word_swap_) * f.unit);
   }
   return true;
 }

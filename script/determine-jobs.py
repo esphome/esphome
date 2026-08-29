@@ -58,7 +58,12 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES, SDKCONFIG_DEFAULTS_PREFIX
+from clang_tidy_hash import (
+    CLANG_TIDY_GLOBAL_FILES,
+    ESP_IDF_INFRA_TRIGGER_FILES,
+    ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
+    SDKCONFIG_DEFAULTS_PREFIX,
+)
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
@@ -522,23 +527,6 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
         ):
             return True
     return False
-
-
-# Native-build infra: changes under esphome/espidf/, the shared
-# esphome/build_helpers/ package, or the modules the native ESP-IDF build
-# imports affect every esp32 IDF build (now the default toolchain) but aren't
-# components, so the component matrix wouldn't otherwise force any esp32
-# compile. When they change we fold the `esp32` component into the matrix so
-# the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/", "esphome/build_helpers/")
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset(
-    {
-        "esphome/build_gen/espidf.py",
-        "esphome/framework_helpers.py",
-        "esphome/platformio/library.py",
-        "esphome/platformio/extra_script.py",
-    }
-)
 
 
 def _esp_idf_infra_changed(files: list[str]) -> bool:
