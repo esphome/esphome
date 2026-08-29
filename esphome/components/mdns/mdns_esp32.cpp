@@ -12,7 +12,7 @@ namespace esphome::mdns {
 static const char *const TAG = "mdns";
 
 static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
-#ifdef USE_OPENTHREAD
+#if defined(USE_OPENTHREAD) && !defined(USE_OPENTHREAD_BORDER_ROUTER)
   // OpenThread handles service registration via SRP client
   // Services are compiled by MDNSComponent::compile_records_() and consumed by OpenThreadSrpComponent
 #else
@@ -51,7 +51,7 @@ static void register_esp32(MDNSComponent *comp, StaticVector<MDNSService, MDNS_S
 void MDNSComponent::setup() { this->setup_buffers_and_register_(register_esp32); }
 
 void MDNSComponent::on_shutdown() {
-#ifndef USE_OPENTHREAD
+#if !defined(USE_OPENTHREAD) || defined(USE_OPENTHREAD_BORDER_ROUTER)
   mdns_free();
   delay(40);  // Allow the mdns packets announcing service removal to be sent
 #endif

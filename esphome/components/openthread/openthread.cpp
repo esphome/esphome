@@ -25,6 +25,18 @@ OpenThreadComponent *global_openthread_component =  // NOLINT(cppcoreguidelines-
 
 OpenThreadComponent::OpenThreadComponent() { global_openthread_component = this; }
 
+#ifdef USE_OPENTHREAD_RCP_UART
+OpenThreadComponent::OpenThreadComponent(uint32_t rcp_baud_rate, int rcp_rx_pin, int rcp_tx_pin, int rcp_reset_pin,
+                                         bool rcp_reset_active_level)
+    : rcp_baud_rate_(rcp_baud_rate),
+      rcp_rx_pin_(rcp_rx_pin),
+      rcp_tx_pin_(rcp_tx_pin),
+      rcp_reset_pin_(rcp_reset_pin),
+      rcp_reset_active_level_(rcp_reset_active_level) {
+  global_openthread_component = this;
+}
+#endif
+
 void OpenThreadComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Open Thread:");
 #if CONFIG_OPENTHREAD_FTD
@@ -43,6 +55,19 @@ void OpenThreadComponent::dump_config() {
   if (this->output_power_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Output power: %" PRId8 "dBm", *this->output_power_);
   }
+#ifdef USE_OPENTHREAD_RCP_UART
+  ESP_LOGCONFIG(TAG,
+                "  Radio: External RCP\n"
+                "  Transport: UART1 at %" PRIu32 " baud\n"
+                "  RX Pin: GPIO%d\n"
+                "  TX Pin: GPIO%d",
+                this->rcp_baud_rate_, this->rcp_rx_pin_, this->rcp_tx_pin_);
+  if (this->rcp_reset_pin_ >= 0) {
+    ESP_LOGCONFIG(TAG, "  RCP Reset Pin: GPIO%d", this->rcp_reset_pin_);
+  }
+#else
+  ESP_LOGCONFIG(TAG, "  Radio: Native 802.15.4");
+#endif
 }
 
 void OpenThreadComponent::on_state_changed(otChangedFlags flags, void *context) {
@@ -89,6 +114,7 @@ void OpenThreadComponent::defer_factory_reset_external_callback() {
   this->defer([this]() { this->factory_reset_external_callback_(); });
 }
 
+#ifndef USE_OPENTHREAD_BORDER_ROUTER
 void OpenThreadSrpComponent::srp_callback(otError err, const otSrpClientHostInfo *host_info,
                                           const otSrpClientService *services,
                                           const otSrpClientService *removed_services, void *context) {
@@ -228,6 +254,7 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 }
 
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
+#endif
 
 bool OpenThreadComponent::teardown() {
   switch (this->teardown_stage_) {
@@ -242,8 +269,10 @@ bool OpenThreadComponent::teardown() {
       this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
       ESP_LOGV(TAG, "Clear SRP");
       otInstance *instance = lock.get_instance();
+#ifndef USE_OPENTHREAD_BORDER_ROUTER
       otSrpClientClearHostAndServices(instance);
       otSrpClientBuffersFreeAllServices(instance);
+#endif
       if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
         ESP_LOGW(TAG, "Failed to disable Thread during teardown");
       }
@@ -270,6 +299,12 @@ bool OpenThreadComponent::teardown() {
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  // The SRP client is compiled out for border-router builds (see
+  // set_sdkconfig_options()), so there is no host/services registration to remove here;
+  // just run the reset callback directly.
+  callback();
+#else
   this->factory_reset_external_callback_ = std::move(callback);
   ESP_LOGD(TAG, "Start Removal SRP Host and Services");
   otError error;
@@ -282,6 +317,7 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
     return;
   }
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
+#endif
 }
 
 void OpenThreadComponent::apply_linkmode_(otInstance *instance) {

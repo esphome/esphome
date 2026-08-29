@@ -642,8 +642,16 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(s_sta_netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  assert(count < addresses.size());
-  for (int i = 0; i < count; i++) {
+  if (count > addresses.size() - 1) {
+    static bool truncation_logged = false;
+    if (!truncation_logged) {
+      truncation_logged = true;
+      ESP_LOGW(TAG, "Wi-Fi STA has %u IPv6 addresses, but only %zu fit; some are not reported", count,
+               addresses.size() - 1);
+    }
+  }
+  count = std::min<size_t>(count, addresses.size() - 1);
+  for (uint8_t i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
 #endif /* USE_NETWORK_IPV6 */
