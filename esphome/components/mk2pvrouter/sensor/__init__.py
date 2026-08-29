@@ -133,23 +133,34 @@ def _apply_defaults(config: ConfigType, defaults: dict) -> None:
             config[key] = value
 
 
-def apply_tag_defaults(config: ConfigType) -> ConfigType:
-    """Apply defaults based on tag pattern or exact match."""
-    tag = config[CONF_TAG]
+def _resolve_tag_defaults(tag: str) -> dict | None:
+    """Resolve the defaults dict for a tag, by exact match then pattern match."""
     tag_upper = tag.upper()
-
-    defaults = None
 
     # First, check for exact match (single letter or special tags)
     if tag_upper in SENSOR_CONFIGS["exact"]:
-        defaults = SENSOR_CONFIGS["exact"][tag_upper]
+        return SENSOR_CONFIGS["exact"][tag_upper]
+
     # Then check for pattern match (letter + number)
-    elif len(tag_upper) >= 2:
+    if len(tag_upper) >= 2:
         prefix = tag_upper[0]
         suffix = tag_upper[1:]
         # Check if it matches pattern: letter followed by digits
         if prefix in SENSOR_CONFIGS["patterns"] and suffix.isdigit():
-            defaults = SENSOR_CONFIGS["patterns"][prefix]
+            return SENSOR_CONFIGS["patterns"][prefix]
+
+    return None
+
+
+def is_centi_scaled(tag: str) -> bool:
+    """Whether the device sends this tag multiplied by 100 (centivolts/centi-degrees)."""
+    defaults = _resolve_tag_defaults(tag)
+    return defaults is VOLTAGE_CONFIG or defaults is TEMPERATURE_CONFIG
+
+
+def apply_tag_defaults(config: ConfigType) -> ConfigType:
+    """Apply defaults based on tag pattern or exact match."""
+    defaults = _resolve_tag_defaults(config[CONF_TAG])
 
     if defaults:
         _apply_defaults(config, defaults)
@@ -170,7 +181,9 @@ CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults)
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG])
+    var = cg.new_Pvariable(
+        config[CONF_ID], config[CONF_TAG], is_centi_scaled(config[CONF_TAG])
+    )
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])

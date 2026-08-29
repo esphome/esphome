@@ -10,6 +10,7 @@ from esphome.components.mk2pvrouter.sensor import (
     TEMPERATURE_CONFIG,
     VOLTAGE_CONFIG,
     apply_tag_defaults,
+    is_centi_scaled,
 )
 from esphome.components.sensor import validate_state_class
 from esphome.const import (
@@ -83,3 +84,13 @@ def test_user_supplied_value_is_not_overridden() -> None:
     # Other defaults for the same tag are still applied.
     assert config[CONF_UNIT_OF_MEASUREMENT] == POWER_CONFIG[CONF_UNIT_OF_MEASUREMENT]
     assert config[CONF_ACCURACY_DECIMALS] == POWER_CONFIG[CONF_ACCURACY_DECIMALS]
+
+
+@pytest.mark.parametrize("tag", ["V", "V1", "V2", "T1", "T2", "v1"])
+def test_is_centi_scaled_true_for_voltage_and_temperature(tag: str) -> None:
+    assert is_centi_scaled(tag) is True
+
+
+@pytest.mark.parametrize("tag", ["P", "P1", "D", "D1", "E", "R", "R1", "T", "X9"])
+def test_is_centi_scaled_false_for_other_tags(tag: str) -> None:
+    assert is_centi_scaled(tag) is False
