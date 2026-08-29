@@ -25,6 +25,12 @@ runs:
           echo "skip=true" >> "$GITHUB_OUTPUT"
         fi
         echo "key=${{ runner.os }}-tidy-idedata-${{ inputs.environment }}-$hash-py$pyver" >> "$GITHUB_OUTPUT"
+        {
+          echo "path<<EOF"
+          printf '%s\n' '.temp/idedata-*.json' '.temp/idedata-*.hash'
+          printf '.temp/**/*.%s\n' h hpp hh hxx inc inl ipp tpp
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
     # Mirror cache-esp-idf: write on dev, restore-only on PRs. The post-step
     # save only runs when the job succeeded, so a failed generation is never saved.
     # Extend the extension list if a component ships extensionless headers.
@@ -32,31 +38,11 @@ runs:
       if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && steps.key.outputs.skip != 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: |
-          .temp/idedata-*.json
-          .temp/idedata-*.hash
-          .temp/**/*.h
-          .temp/**/*.hpp
-          .temp/**/*.hh
-          .temp/**/*.hxx
-          .temp/**/*.inc
-          .temp/**/*.inl
-          .temp/**/*.ipp
-          .temp/**/*.tpp
+        path: ${{ steps.key.outputs.path }}
         key: ${{ steps.key.outputs.key }}
     - name: Cache clang-tidy idedata (restore-only off dev)
       if: github.ref != 'refs/heads/dev' && !contains(github.event.pull_request.labels.*.name, 'ci-cache-write') && steps.key.outputs.skip != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        path: |
-          .temp/idedata-*.json
-          .temp/idedata-*.hash
-          .temp/**/*.h
-          .temp/**/*.hpp
-          .temp/**/*.hh
-          .temp/**/*.hxx
-          .temp/**/*.inc
-          .temp/**/*.inl
-          .temp/**/*.ipp
-          .temp/**/*.tpp
+        path: ${{ steps.key.outputs.path }}
         key: ${{ steps.key.outputs.key }}
