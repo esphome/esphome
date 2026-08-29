@@ -664,6 +664,49 @@ def test_run_codechecker_zephyr_invalidates_reused_cache_on_metadata_error(
     assert not reused_cache.exists()
 
 
+def test_run_codechecker_zephyr_reports_metadata_schema_drift_distinctly(
+    tmp_path: Path,
+    reused_cache: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A metadata.json that parses but no longer has the expected keys (e.g. a
+    future CodeChecker minor renaming successful_sources/failed_sources) must
+    be reported as a schema mismatch, not misattributed to an analyze failure."""
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            output_dir.mkdir(parents=True, exist_ok=True)
+            metadata = {
+                "tools": [
+                    {
+                        "analyzers": {
+                            "clang-tidy": {
+                                "analyzer_statistics": {
+                                    "failed": 0,
+                                    # successful_sources/failed_sources renamed --
+                                    # simulates schema drift in a future CodeChecker.
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+            (output_dir / "metadata.json").write_text(json.dumps(metadata))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    assert not reused_cache.exists()
+    err = capsys.readouterr().err
+    assert "unexpected shape" in err
+    assert "failed_sources" in err
+    assert "exit 0" not in err
+
+
 def test_run_codechecker_zephyr_invalidates_reused_cache_on_count_mismatch(
     tmp_path: Path, reused_cache: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

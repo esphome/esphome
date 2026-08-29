@@ -565,33 +565,10 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         check=False,
     )
 
+    # Report findings regardless of coverage below -- files that did analyze
+    # successfully still have real findings worth surfacing even if others
+    # crashed.
     parse_result = subprocess.run([executable, "parse", str(output_dir)], check=False)
-
-    fixit_returncode = 0
-    if args.fix:
-        # Apply serially (like run_tidy() below) instead of passing --fix to
-        # CodeChecker's parallel workers, which would race on shared headers.
-        # stdin=DEVNULL: fixit reads a `CodeChecker cmd diff` JSON from stdin
-        # when present; we never want that here and don't want to inherit a
-        # pipe that could block waiting for a writer that never closes.
-        fixit_result = subprocess.run(
-            [
-                executable,
-                "fixit",
-                "--apply",
-                str(output_dir),
-                "--file",
-                *file_patterns,
-            ],
-            stdin=subprocess.DEVNULL,
-            check=False,
-        )
-        fixit_returncode = fixit_result.returncode
-        if fixit_returncode != 0:
-            print(
-                f"CodeChecker fixit --apply failed (exit {fixit_returncode})",
-                file=sys.stderr,
-            )
 
     def invalidate_stale_cache() -> None:
         """Drop a reused cache entry on failure; a regenerated database failing is not a cache problem."""
@@ -599,9 +576,17 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             cache_key_path.unlink(missing_ok=True)
 
     try:
-        stats = json.loads((output_dir / "metadata.json").read_text())["tools"][0][
-            "analyzers"
-        ]["clang-tidy"]["analyzer_statistics"]
+        metadata = json.loads((output_dir / "metadata.json").read_text())
+    except (OSError, json.JSONDecodeError) as err:
+        print(
+            f"CodeChecker analyze failed (exit {result.returncode}): {err}",
+            file=sys.stderr,
+        )
+        invalidate_stale_cache()
+        return result.returncode or 1
+
+    try:
+        stats = metadata["tools"][0]["analyzers"]["clang-tidy"]["analyzer_statistics"]
         failed = stats["failed"]
         # successful_sources/failed_sources verified present (as absolute paths) against
         # the pinned CodeChecker 6.28.2; undocumented internal schema, not a stable API.
@@ -609,13 +594,18 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         analyzed_sources = failed_sources | {
             Path(p).resolve() for p in stats["successful_sources"]
         }
-    except (OSError, KeyError, IndexError, json.JSONDecodeError) as err:
+    except (KeyError, IndexError) as err:
+        # Distinct from the file-level failure above: metadata.json parsed fine,
+        # but its internal shape (undocumented, tied to the pinned version) no
+        # longer matches what this script expects -- most likely a CodeChecker
+        # version bump renamed/restructured a key, not an analysis failure.
         print(
-            f"CodeChecker analyze failed (exit {result.returncode}): {err}",
+            f"metadata.json has an unexpected shape (missing {err}) -- "
+            "CodeChecker's internal metadata format may have changed",
             file=sys.stderr,
         )
         invalidate_stale_cache()
-        return result.returncode or 1
+        return 1
 
     # A count alone can't catch an over-match/under-match that cancels out.
     missing = requested_sources - analyzed_sources
@@ -644,6 +634,35 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
             print(f"    {path}", file=sys.stderr)
         invalidate_stale_cache()
         return 1
+
+    fixit_returncode = 0
+    if args.fix:
+        # Only reached once analyze is confirmed complete (failed == 0) and
+        # covered above -- fixit --apply mutates source files in place, and
+        # must never run against a partial/incomplete result set.
+        # Apply serially (like run_tidy() below) instead of passing --fix to
+        # CodeChecker's parallel workers, which would race on shared headers.
+        # stdin=DEVNULL: fixit reads a `CodeChecker cmd diff` JSON from stdin
+        # when present; we never want that here and don't want to inherit a
+        # pipe that could block waiting for a writer that never closes.
+        fixit_result = subprocess.run(
+            [
+                executable,
+                "fixit",
+                "--apply",
+                str(output_dir),
+                "--file",
+                *file_patterns,
+            ],
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+        fixit_returncode = fixit_result.returncode
+        if fixit_returncode != 0:
+            print(
+                f"CodeChecker fixit --apply failed (exit {fixit_returncode})",
+                file=sys.stderr,
+            )
 
     # Only recorded once analyze exited clean and coverage is confirmed --
     # otherwise a regenerated database that produced failures would be
