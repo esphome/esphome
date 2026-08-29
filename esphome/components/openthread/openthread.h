@@ -59,7 +59,11 @@ class OpenThreadComponent final : public Component {
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  void on_factory_reset(const std::function<void()> &callback);
+#else
   void on_factory_reset(std::function<void()> callback);
+#endif
   void defer_factory_reset_external_callback();
 
   /// Returns nullptr when no explicit use_address is configured and the address is

@@ -298,7 +298,13 @@ bool OpenThreadComponent::teardown() {
   return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
-void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
+void OpenThreadComponent::on_factory_reset(
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+    const std::function<void()> &callback
+#else
+    std::function<void()> callback
+#endif
+) {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   // The SRP client is compiled out for border-router builds (see
   // set_sdkconfig_options()), so there is no host/services registration to remove here;
