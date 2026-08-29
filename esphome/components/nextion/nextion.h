@@ -1459,7 +1459,12 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
+ public:
   std::list<NextionQueue *> nextion_queue_;
+  inline void set_numeric_return(int value) { this->set_numeric_return_(value); }
+  inline void set_string_return(const std::string &value) { this->set_string_return_(value); }
+
+ protected:
 #ifdef USE_NEXTION_WAVEFORM
   /// Fixed-size ring buffer for waveform queue. Nextion supports at most 4 waveform
   /// channels (IDs 0-3), so 4 entries is both the correct maximum and a safe default.
@@ -1469,6 +1474,19 @@ class Nextion final : public NextionBase, public PollingComponent, public uart::
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
+
+  /// Payload for deliver_queue_response_(): either a numeric (0x71) or string (0x70) return value.
+  struct NextionQueueResponse {
+    bool is_string;
+    int int_value;
+    const std::string *str_value;
+  };
+  /// Scan the queue for the first entry matching resp's type (SENSOR/BINARY_SENSOR/SWITCH for
+  /// numeric, TEXT_SENSOR for string), skipping NO_RESULT entries ahead of it (those are consumed
+  /// by their own 0x01 ACK) and discarding any stale/invalid entries encountered along the way.
+  void deliver_queue_response_(const char *response_name, const NextionQueueResponse &resp);
+  void set_numeric_return_(int value);
+  void set_string_return_(const std::string &value);
 
   /**
    * @brief Status flags for Nextion display state management
