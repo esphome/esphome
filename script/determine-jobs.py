@@ -654,10 +654,20 @@ ESP8266_NATIVE_TRIGGER_PATH_PREFIXES = (
     "esphome/arduino/",
     "esphome/build_helpers/",
 )
-# Unions the ESP-IDF infra set (one source of truth in clang_tidy_hash) so
-# a shared native-build module change never skips this smoke test either
+# Shared library-conversion modules every native build imports; espidf-only
+# infra (build_gen/espidf.py) deliberately stays out of the esp8266 set.
+_NATIVE_SHARED_TRIGGER_FILES = frozenset(
+    {
+        "esphome/framework_helpers.py",
+        "esphome/platformio/library.py",
+        "esphome/platformio/extra_script.py",
+    }
+)
+# Tripwire: the shared modules must stay in the ESP-IDF trigger set too
+# (now defined in clang_tidy_hash), or its smoke test silently skips them
+assert _NATIVE_SHARED_TRIGGER_FILES <= ESP_IDF_INFRA_TRIGGER_FILES
 ESP8266_NATIVE_TRIGGER_FILES = (
-    ESP_IDF_INFRA_TRIGGER_FILES
+    _NATIVE_SHARED_TRIGGER_FILES
     | _SMOKE_HARNESS_TRIGGER_FILES
     | {
         "esphome/build_gen/arduino8266.py",
