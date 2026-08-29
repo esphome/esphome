@@ -18,7 +18,11 @@ async def test_api_action_metadata(
         _, services = await client.list_entities_services()
 
         services_by_name = {service.name: service for service in services}
-        assert set(services_by_name) == {"play_buzzer", "plain_action"}
+        assert set(services_by_name) == {
+            "play_buzzer",
+            "plain_action",
+            "optional_args_action",
+        }
 
         buzzer = services_by_name["play_buzzer"]
         assert buzzer.description == "Play an RTTTL melody on the buzzer"
@@ -33,3 +37,14 @@ async def test_api_action_metadata(
         plain = services_by_name["plain_action"]
         assert plain.description == ""
         assert plain.args[0].description == ""
+        assert plain.args[0].optional is False
+        assert plain.args[0].default_value == ""
+
+        optional = services_by_name["optional_args_action"]
+        opt_args = {arg.name: arg for arg in optional.args}
+        assert opt_args["song_str"].optional is True
+        assert opt_args["song_str"].default_value == ""
+        assert opt_args["octave"].optional is True
+        assert opt_args["octave"].default_value == "5"
+        assert opt_args["loud"].optional is True
+        assert opt_args["loud"].default_value == "true"

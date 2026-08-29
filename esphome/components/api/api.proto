@@ -1036,6 +1036,8 @@ message ListEntitiesServicesArgument {
   ServiceArgType type = 2;
   string description = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
   string example = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_METADATA"];
+  bool optional = 5 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS"];
+  string default_value = 6 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS"];
 }
 message ListEntitiesServicesResponse {
   option (id) = 41;

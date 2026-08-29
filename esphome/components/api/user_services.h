@@ -54,6 +54,15 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   }
 #endif
 
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  // Defaults are string literals in flash; a nullptr entry means no default.
+  // Bit i of optional_mask marks arg i optional without a default.
+  void set_optional_args(uint32_t optional_mask, const std::array<const char *, sizeof...(Ts)> &arg_defaults) {
+    this->arg_optional_mask_ = optional_mask;
+    this->arg_defaults_ = arg_defaults;
+  }
+#endif
+
   ListEntitiesServicesResponse encode_list_service_response() override {
     ListEntitiesServicesResponse msg;
     msg.name = StringRef(this->name_);
@@ -74,6 +83,14 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
         arg.description = StringRef(this->arg_descriptions_[i]);
       if (this->arg_examples_[i] != nullptr)
         arg.example = StringRef(this->arg_examples_[i]);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+      if (this->arg_defaults_[i] != nullptr) {
+        arg.optional = true;
+        arg.default_value = StringRef(this->arg_defaults_[i]);
+      } else {
+        arg.optional = this->arg_optional_mask_ & (1u << i);
+      }
 #endif
     }
     return msg;
@@ -117,6 +134,10 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   const char *description_{nullptr};
   std::array<const char *, sizeof...(Ts)> arg_descriptions_{};
   std::array<const char *, sizeof...(Ts)> arg_examples_{};
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  uint32_t arg_optional_mask_{0};
+  std::array<const char *, sizeof...(Ts)> arg_defaults_{};
 #endif
   uint32_t key_{0};
   enums::SupportsResponseType supports_response_{enums::SUPPORTS_RESPONSE_NONE};

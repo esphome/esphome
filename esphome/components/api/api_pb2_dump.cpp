@@ -1506,6 +1506,12 @@ const char *ListEntitiesServicesArgument::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   dump_field(out, ESPHOME_PSTR("example"), this->example);
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  dump_field(out, ESPHOME_PSTR("optional"), this->optional);
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  dump_field(out, ESPHOME_PSTR("default_value"), this->default_value);
+#endif
   return out.c_str();
 }
 const char *ListEntitiesServicesResponse::dump_to(DumpBuffer &out) const {

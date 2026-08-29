@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_DEFAULT,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -128,6 +129,7 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_EXAMPLE = "example"
+CONF_REQUIRED = "required"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
@@ -231,16 +233,49 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
-VARIABLE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
-        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
-        cv.Optional(CONF_EXAMPLE): cv.string_strict,
-    }
+_DEFAULT_VALUE_VALIDATORS = {
+    "bool": cv.boolean,
+    "int": cv.int_,
+    "float": cv.float_,
+    "string": cv.string,
+}
+
+
+def _validate_variable_optionality(value: ConfigType) -> ConfigType:
+    """Cross-validate required/default against the variable type."""
+    var_type = value[CONF_TYPE]
+    is_optional = CONF_DEFAULT in value or value.get(CONF_REQUIRED) is False
+    if is_optional and var_type not in _DEFAULT_VALUE_VALIDATORS:
+        raise cv.Invalid("Array variables cannot be optional")
+    if CONF_DEFAULT in value:
+        if value.get(CONF_REQUIRED) is True:
+            raise cv.Invalid("A variable with a default cannot set required: true")
+        value[CONF_DEFAULT] = _DEFAULT_VALUE_VALIDATORS[var_type](value[CONF_DEFAULT])
+    return value
+
+
+VARIABLE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
+            cv.Optional(CONF_DESCRIPTION): cv.string_strict,
+            cv.Optional(CONF_EXAMPLE): cv.string_strict,
+            cv.Optional(CONF_REQUIRED): cv.boolean,
+            cv.Optional(CONF_DEFAULT): cv.valid,
+        }
+    ),
+    _validate_variable_optionality,
 )
 
 # Accepts the plain `name: type` shorthand or the full mapping form
 validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
+
+
+def _default_to_wire(value: Any) -> str:
+    """Serialize a validated default for the wire; clients coerce by arg type."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
 
 
 ACTIONS_SCHEMA = automation.validate_automation(
@@ -440,8 +475,11 @@ async def to_code(config: ConfigType) -> None:
             service_arg_names: list[str] = []
             arg_descriptions: list[cg.MockObj | str] = []
             arg_examples: list[cg.MockObj | str] = []
+            arg_defaults: list[cg.MockObj | str] = []
+            optional_mask = 0
             has_arg_metadata = False
-            for name, var_ in conf[CONF_VARIABLES].items():
+            has_optional_args = False
+            for i, (name, var_) in enumerate(conf[CONF_VARIABLES].items()):
                 var_type = var_[CONF_TYPE]
                 if has_non_synchronous and var_type in SERVICE_ARG_FALLBACK_TYPES:
                     native = SERVICE_ARG_FALLBACK_TYPES[var_type]
@@ -454,6 +492,14 @@ async def to_code(config: ConfigType) -> None:
                     has_arg_metadata = True
                 arg_descriptions.append(var_.get(CONF_DESCRIPTION, cg.nullptr))
                 arg_examples.append(var_.get(CONF_EXAMPLE, cg.nullptr))
+                if (default := var_.get(CONF_DEFAULT)) is not None:
+                    has_optional_args = True
+                    arg_defaults.append(_default_to_wire(default))
+                else:
+                    arg_defaults.append(cg.nullptr)
+                    if var_.get(CONF_REQUIRED) is False:
+                        has_optional_args = True
+                        optional_mask |= 1 << i
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
             trigger = cg.new_Pvariable(
@@ -474,6 +520,9 @@ async def to_code(config: ConfigType) -> None:
                         arg_examples,
                     )
                 )
+            if has_optional_args:
+                cg.add_define("USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS")
+                cg.add(trigger.set_optional_args(optional_mask, arg_defaults))
             auto = await automation.build_automation(trigger, func_args, conf)
 
             # For non-none response modes, automatically append unregister action
