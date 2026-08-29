@@ -16,6 +16,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["logger"]
@@ -49,7 +50,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     if CORE.using_zephyr:
         zephyr_add_prj_conf("HWINFO", True)
         # gdb thread support

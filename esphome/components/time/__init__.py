@@ -8,7 +8,12 @@ import tzlocal
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.components.zephyr import (
+    ZEPHYR_VARIANT_NATIVE_SIM,
+    zephyr_add_prj_conf,
+    zephyr_variant,
+)
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
@@ -36,6 +41,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.helpers import cpp_string_escape
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -410,20 +416,28 @@ async def setup_time_core_(time_var, config):
     if timezone:
         cg.add_define("USE_TIME_TIMEZONE")
 
-        if CORE.is_host:
-            # Host platform needs setenv("TZ")/tzset() for libc compatibility
-            cg.add(time_var.set_timezone(timezone))
-        else:
-            # Embedded: pre-parse at codegen time, emit struct directly
-            from aioesphomeapi.posix_tz import parse_posix_tz as parse_posix_tz_python
+        if CORE.is_host or (
+            CORE.is_zephyr and zephyr_variant() == ZEPHYR_VARIANT_NATIVE_SIM
+        ):
+            # Host/native_sim also needs setenv("TZ")/tzset() for libc compatibility
+            cg.add(cg.RawExpression(f'setenv("TZ", {cpp_string_escape(timezone)}, 1)'))
+            cg.add(cg.RawExpression("tzset()"))
 
-            try:
-                parsed = parse_posix_tz_python(timezone)
-                _emit_parsed_timezone_fields(parsed)
-            except ValueError as e:
-                raise EsphomeError(f"Invalid timezone: {timezone}") from e
+        # Pre-parse at codegen time, emit struct directly
+        from aioesphomeapi.posix_tz import parse_posix_tz as parse_posix_tz_python
 
-    for conf in config.get(CONF_ON_TIME, []):
+        try:
+            parsed = parse_posix_tz_python(timezone)
+        except ValueError as e:
+            raise EsphomeError(f"Invalid timezone: {timezone}") from e
+        _emit_parsed_timezone_fields(parsed)
+
+    on_time = config.get(CONF_ON_TIME, [])
+    on_time_sync = config.get(CONF_ON_TIME_SYNC, [])
+    if on_time or on_time_sync:
+        cg.add_define("USE_TIME_TRIGGERS")
+
+    for conf in on_time:
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         seconds = conf.get(CONF_SECONDS, list(range(61)))
@@ -442,7 +456,7 @@ async def setup_time_core_(time_var, config):
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 
-    for conf in config.get(CONF_ON_TIME_SYNC, []):
+    for conf in on_time_sync:
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         await cg.register_component(trigger, conf)
@@ -478,3 +492,14 @@ async def to_code(config):
 async def time_has_time_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+# posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a
+# timezone is configured or detected; automation.cpp holds the on_time and
+# on_time_sync triggers and is #ifdef'd on USE_TIME_TRIGGERS.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "posix_tz.cpp": "USE_TIME_TIMEZONE",
+        "automation.cpp": "USE_TIME_TRIGGERS",
+    }
+)

@@ -12,6 +12,7 @@ from esphome.components.esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_HARDWARE_UART, CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
 CONFLICTS_WITH = ["usb_host"]
@@ -57,7 +58,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config) -> None:
+def _final_validate(config: ConfigType) -> None:
     full_config = fv.full_config.get()
     if not any(name in full_config for name in _USB_CLASS_COMPONENTS):
         raise cv.Invalid(
@@ -80,7 +81,7 @@ def _final_validate(config) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

@@ -9,6 +9,14 @@ esphome:
           event: esphome.button_pressed
           data:
             message: Button was pressed
+      - homeassistant.event:
+          event: esphome.button_pressed_with_variables
+          data_template:
+            message: Button {{ button_name }} ({{ button_index }}) was pressed from {{ button_source }}
+          variables:
+            button_name: !lambda 'return std::string("test_button");'
+            button_index: !lambda 'return 1;'
+            button_source: static_value
       - homeassistant.action:
           action: notify.html5
           data:

@@ -86,7 +86,7 @@ ZEPHYR_ESP32_ATTENUATION_TO_GAIN = {
 }
 
 
-def validate_config(config):
+def validate_config(config: ConfigType) -> ConfigType:
     if emulation := config.get(CONF_EMULATION):
         sample_count = config.get(CONF_SAMPLES, 1)
         for group in emulation:
@@ -260,7 +260,7 @@ def _configure_zephyr_adc_channel(var, config: ConfigType, io_index: int) -> str
     return gain
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)

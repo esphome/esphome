@@ -23,6 +23,8 @@ from esphome.const import (
     UNIT_VOLT_AMPS_REACTIVE,
     UNIT_WATT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@angelnu"]
 
@@ -163,7 +165,7 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def register_ade7953(var, config):
+async def register_ade7953(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     if irq_pin_config := config.get(CONF_IRQ_PIN):

@@ -23,6 +23,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.types import ConfigType
 
 internal_temperature_ns = cg.esphome_ns.namespace("internal_temperature")
 InternalTemperatureSensor = internal_temperature_ns.class_(
@@ -51,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 

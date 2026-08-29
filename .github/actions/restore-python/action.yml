@@ -49,7 +49,7 @@ runs:
         python -m venv venv
         source venv/bin/activate
         python --version
-        uv pip install -r requirements.txt -r requirements_test.txt
+        uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
         uv pip install -e .
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true' && runner.os == 'Windows'
@@ -58,5 +58,5 @@ runs:
         python -m venv venv
         source ./venv/Scripts/activate
         python --version
-        uv pip install -r requirements.txt -r requirements_test.txt
+        uv pip install -r requirements.txt -r requirements_dev.txt -r requirements_test.txt
         uv pip install -e .

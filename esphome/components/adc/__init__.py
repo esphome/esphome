@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -18,6 +20,7 @@ from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.const import CONF_ANALOG, CONF_INPUT, CONF_NUMBER, PLATFORM_ESP8266
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 
@@ -230,7 +233,7 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
 }
 
 
-def validate_adc_pin(value):
+def validate_adc_pin(value: Any) -> ConfigType | str:
     if str(value).upper() == "VCC":
         if CORE.is_rp2:
             return pins.internal_gpio_input_pin_schema(29)

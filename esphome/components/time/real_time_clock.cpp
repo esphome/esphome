@@ -109,35 +109,4 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   this->time_sync_callback_.call();
 }
 
-#ifdef USE_TIME_TIMEZONE
-void RealTimeClock::apply_timezone_(const char *tz) {
-  ParsedTimezone parsed{};
-
-  // Handle null or empty input - use UTC
-  if (tz == nullptr || *tz == '\0') {
-    // Skip if already UTC
-    if (!get_global_tz().has_dst() && get_global_tz().std_offset_seconds == 0) {
-      return;
-    }
-    set_global_tz(parsed);
-    return;
-  }
-
-#if defined(USE_HOST) || defined(USE_ZEPHYR_VARIANT_NATIVE_SIM)
-  // On host/native_sim, also set TZ environment variable for libc compatibility
-  setenv("TZ", tz, 1);
-  tzset();
-#endif
-
-  // Parse the POSIX TZ string using our custom parser
-  if (!parse_posix_tz(tz, parsed)) {
-    ESP_LOGW(TAG, "Failed to parse timezone: %s", tz);
-    return;
-  }
-
-  // Set global timezone for all time conversions
-  set_global_tz(parsed);
-}
-#endif
-
 }  // namespace esphome::time

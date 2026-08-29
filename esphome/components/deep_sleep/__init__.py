@@ -43,7 +43,8 @@ from esphome.const import (
     PLATFORM_ZEPHYR,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 WAKEUP_PINS = {
@@ -175,6 +176,11 @@ def validate_config(config: ConfigType) -> ConfigType:
                     "You need to remove the global wakeup_pin_mode and define it per pin"
                 )
             if wakeup_pins:
+                if CONF_WAKEUP_PIN_MODE in wakeup_pins[0]:
+                    raise cv.Invalid(
+                        "Specify wakeup_pin_mode either at the top level under deep_sleep "
+                        "or under the pin entry, not both"
+                    )
                 wakeup_pins[0][CONF_WAKEUP_PIN_MODE] = config.pop(CONF_WAKEUP_PIN_MODE)
     elif (
         isinstance(config.get(CONF_WAKEUP_PIN), list)
@@ -187,7 +193,7 @@ def validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_ex1_wakeup_mode(value):
+def _validate_ex1_wakeup_mode(value: str) -> str:
     if value == "ALL_LOW":
         esp32.only_on_variant(supported=[VARIANT_ESP32], msg_prefix="ALL_LOW")(value)
     if value == "ANY_LOW":
@@ -366,7 +372,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -479,7 +485,12 @@ DEEP_SLEEP_ENTER_SCHEMA = cv.All(
     DEEP_SLEEP_ENTER_SCHEMA,
     synchronous=True,
 )
-async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
+async def deep_sleep_enter_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_SLEEP_DURATION in config:
@@ -508,7 +519,12 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
     synchronous=True,
 )
-async def deep_sleep_action_to_code(config, action_id, template_arg, args):
+async def deep_sleep_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     return var
