@@ -5,6 +5,7 @@ from typing import Any
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.const import CONF_DESCRIPTION
 from esphome.components.logger import request_log_listener
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
@@ -41,6 +42,7 @@ from esphome.const import (
     CONF_TAG,
     CONF_THEN,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_VARIABLES,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
@@ -125,6 +127,7 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
 }
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
+CONF_EXAMPLE = "example"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
@@ -228,14 +231,27 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
+VARIABLE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
+        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
+        cv.Optional(CONF_EXAMPLE): cv.string_strict,
+    }
+)
+
+# Accepts the plain `name: type` shorthand or the full mapping form
+validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
+
+
 ACTIONS_SCHEMA = automation.validate_automation(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
         cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.valid_name,
         cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.valid_name,
+        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
         cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
             {
-                cv.validate_id_name: cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
+                cv.validate_id_name: validate_variable,
             }
         ),
         # No default - auto-detected by _auto_detect_supports_response
@@ -422,14 +438,22 @@ async def to_code(config: ConfigType) -> None:
             )
 
             service_arg_names: list[str] = []
+            arg_descriptions: list[cg.MockObj | str] = []
+            arg_examples: list[cg.MockObj | str] = []
+            has_arg_metadata = False
             for name, var_ in conf[CONF_VARIABLES].items():
-                if has_non_synchronous and var_ in SERVICE_ARG_FALLBACK_TYPES:
-                    native = SERVICE_ARG_FALLBACK_TYPES[var_]
+                var_type = var_[CONF_TYPE]
+                if has_non_synchronous and var_type in SERVICE_ARG_FALLBACK_TYPES:
+                    native = SERVICE_ARG_FALLBACK_TYPES[var_type]
                 else:
-                    native = SERVICE_ARG_NATIVE_TYPES[var_]
+                    native = SERVICE_ARG_NATIVE_TYPES[var_type]
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
+                if CONF_DESCRIPTION in var_ or CONF_EXAMPLE in var_:
+                    has_arg_metadata = True
+                arg_descriptions.append(var_.get(CONF_DESCRIPTION, cg.nullptr))
+                arg_examples.append(var_.get(CONF_EXAMPLE, cg.nullptr))
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
             trigger = cg.new_Pvariable(
@@ -439,6 +463,17 @@ async def to_code(config: ConfigType) -> None:
                 service_arg_names,
             )
             triggers.append(trigger)
+            if (
+                description := conf.get(CONF_DESCRIPTION)
+            ) is not None or has_arg_metadata:
+                cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
+                cg.add(
+                    trigger.set_metadata(
+                        description if description is not None else cg.nullptr,
+                        arg_descriptions,
+                        arg_examples,
+                    )
+                )
             auto = await automation.build_automation(trigger, func_args, conf)
 
             # For non-none response modes, automatically append unregister action

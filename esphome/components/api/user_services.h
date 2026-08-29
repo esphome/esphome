@@ -44,17 +44,37 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
     this->key_ = fnv1_hash(name);
   }
 
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  // All pointers are string literals in flash; entries may be nullptr (no metadata)
+  void set_metadata(const char *description, const std::array<const char *, sizeof...(Ts)> &arg_descriptions,
+                    const std::array<const char *, sizeof...(Ts)> &arg_examples) {
+    this->description_ = description;
+    this->arg_descriptions_ = arg_descriptions;
+    this->arg_examples_ = arg_examples;
+  }
+#endif
+
   ListEntitiesServicesResponse encode_list_service_response() override {
     ListEntitiesServicesResponse msg;
     msg.name = StringRef(this->name_);
     msg.key = this->key_;
     msg.supports_response = this->supports_response_;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+    if (this->description_ != nullptr)
+      msg.description = StringRef(this->description_);
+#endif
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
     msg.args.init(sizeof...(Ts));
     for (size_t i = 0; i < sizeof...(Ts); i++) {
       auto &arg = msg.args.emplace_back();
       arg.type = arg_types[i];
       arg.name = StringRef(this->arg_names_[i]);
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+      if (this->arg_descriptions_[i] != nullptr)
+        arg.description = StringRef(this->arg_descriptions_[i]);
+      if (this->arg_examples_[i] != nullptr)
+        arg.example = StringRef(this->arg_examples_[i]);
+#endif
     }
     return msg;
   }
@@ -93,6 +113,11 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   // Pointers to string literals in flash - no heap allocation
   const char *name_;
   std::array<const char *, sizeof...(Ts)> arg_names_;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  const char *description_{nullptr};
+  std::array<const char *, sizeof...(Ts)> arg_descriptions_{};
+  std::array<const char *, sizeof...(Ts)> arg_examples_{};
+#endif
   uint32_t key_{0};
   enums::SupportsResponseType supports_response_{enums::SUPPORTS_RESPONSE_NONE};
 };
