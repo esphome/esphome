@@ -10,6 +10,7 @@
 
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/ufm01/ufm01.h"
+#include "esphome/components/ufm01/automation.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -90,6 +91,14 @@ class TestableUFM01 : public UFM01Component {
   void loop_entering_passive() { this->loop_entering_passive_(); }
 
   void loop_passive_poll() { this->loop_passive_poll_(); }
+
+  void loop_pending_clear_action() { this->loop_pending_clear_action_(); }
+
+  void request_clear_accumulated_flow(ClearAccumulatedFlowActionInterface *action) {
+    this->request_clear_accumulated_flow_(action);
+  }
+
+  void set_pending_clear_start_ms(uint32_t ms) { this->pending_clear_start_ms_ = ms; }
 
   OperatingMode operating_mode() const { return this->operating_mode_; }
 

@@ -1,0 +1,23 @@
+esphome:
+  name: ufm01-validate
+
+host:
+
+logger:
+
+packages:
+  ufm01: !include common.yaml
+
+uart:
+  id: uart_bus
+  baud_rate: 2400
+  parity: EVEN
+  stop_bits: 1
+  port: /dev/null
+
+automation:
+  - trigger:
+      - platform: template
+        id: ufm01_clear_trigger
+    action:
+      - ufm01.clear_accumulated_flow: ufm01_component

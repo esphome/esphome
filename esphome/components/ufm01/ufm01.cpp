@@ -1,4 +1,5 @@
 #include "ufm01.h"
+#include "automation.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -178,22 +179,37 @@ bool UFM01Component::consume_ack_() {
   return false;
 }
 
-bool UFM01Component::send_command_(const std::array<uint8_t, 7> &command) {
-  this->send_command_no_wait_(command);
-  const uint32_t start = millis();
-  while (millis() - start < COMMAND_ACK_TIMEOUT_MS) {
-    if (this->consume_ack_())
-      return true;
-    delay(1);
+void UFM01Component::request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action) {
+  if (this->pending_clear_action_ != nullptr) {
+    ESP_LOGW(TAG, "Clear accumulated flow already in progress, ignoring request");
+    action->complete();
+    return;
   }
-  return false;
+  this->pending_clear_action_ = action;
+  this->pending_clear_start_ms_ = millis();
+  this->send_command_no_wait_(CLEAR_ACCUMULATED_FLOW);
 }
 
-bool UFM01Component::reset_device_() { return this->send_command_(RESET_DEVICE); }
+void UFM01Component::finish_pending_clear_action_() {
+  ClearAccumulatedFlowActionInterface *action = this->pending_clear_action_;
+  this->pending_clear_action_ = nullptr;
+  if (action != nullptr)
+    action->complete();
+}
 
-bool UFM01Component::clear_accumulated_flow_() { return this->send_command_(CLEAR_ACCUMULATED_FLOW); }
-
-bool UFM01Component::set_active_mode_() { return this->send_command_(ACTIVE_MODE); }
+void UFM01Component::loop_pending_clear_action_() {
+  if (this->pending_clear_action_ == nullptr)
+    return;
+  if (this->consume_ack_()) {
+    ESP_LOGI(TAG, "Clear accumulated flow acknowledged");
+    this->finish_pending_clear_action_();
+    return;
+  }
+  if (millis() - this->pending_clear_start_ms_ < COMMAND_ACK_TIMEOUT_MS)
+    return;
+  ESP_LOGW(TAG, "Clear accumulated flow not acknowledged");
+  this->finish_pending_clear_action_();
+}
 
 float UFM01Component::get_setup_priority() const { return setup_priority::LATE; }
 
@@ -533,6 +549,7 @@ void UFM01Component::loop_passive_poll_() {
 }
 
 void UFM01Component::loop() {
+  this->loop_pending_clear_action_();
   switch (this->operating_mode_) {
     case OperatingMode::STARTUP:
       this->loop_startup_();

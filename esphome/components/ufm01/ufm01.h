@@ -17,6 +17,8 @@
 
 namespace esphome::ufm01 {
 
+class ClearAccumulatedFlowActionInterface;
+
 namespace testing {
 class TestableUFM01;
 }  // namespace testing
@@ -70,13 +72,9 @@ class UFM01Component : public uart::UARTDevice, public Component {
 
   float get_setup_priority() const override;
 
- protected:
-  bool clear_accumulated_flow_();
-  bool set_active_mode_();
-  bool reset_device_();
+  void request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
 
  private:
-  bool send_command_(const std::array<uint8_t, 7> &command);
   void send_command_no_wait_(const std::array<uint8_t, 7> &command);
   bool consume_ack_();
   void flush_rx_();
@@ -88,6 +86,8 @@ class UFM01Component : public uart::UARTDevice, public Component {
   void loop_active_stream_();
   void loop_entering_passive_();
   void loop_passive_poll_();
+  void loop_pending_clear_action_();
+  void finish_pending_clear_action_();
   void set_startup_phase_(StartupPhase phase);
   void enter_active_stream_(const char *reason);
   void enter_passive_from_stale_();
@@ -104,6 +104,9 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint32_t last_valid_frame_ms_{0};
   uint32_t last_poll_ms_{0};
   uint8_t consecutive_passive_failures_{0};
+
+  ClearAccumulatedFlowActionInterface *pending_clear_action_{nullptr};
+  uint32_t pending_clear_start_ms_{0};
 
   bool passive_read_pending_{false};
   uint32_t passive_start_ms_{0};
