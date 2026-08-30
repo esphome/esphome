@@ -1,0 +1,20 @@
+#!/bin/sh
+# Prepare the dev environment for a new checkout or worktree.
+#
+# Installed into the git hooks directory by script/setup. Deliberately tiny and
+# self-contained: it stays valid on branches where script/setup does not exist,
+# and simply does nothing there.
+
+# $3 is 1 for a branch checkout, 0 for a file checkout.
+[ "$3" = "1" ] || exit 0
+
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+
+# This also runs on ordinary branch switches, where there is nothing to do.
+[ -x "$top/venv/bin/python" ] && exit 0
+[ -x "$top/script/setup" ] || exit 0
+
+# Clear VIRTUAL_ENV so a checkout made from a shell with an environment already
+# activated still gets its own, rather than having the active one repointed at
+# this working tree.
+exec env -u VIRTUAL_ENV "$top/script/setup"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, MutableMapping
+from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
 import ipaddress
 import logging
@@ -31,7 +31,8 @@ SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
 
-# cv.boolean's closed spelling tables, shared with the env-knob parsing below
+# cv.boolean's closed spelling tables, shared with the strict env-knob
+# parser (build_helpers.ccache.parse_enable_env)
 TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
 FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
 # cv.boolean's spelling tables plus the 1/0 env convention
@@ -401,6 +402,15 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
     return [socket.getnameinfo(r[4], socket.NI_NUMERICHOST)[0] for r in res]
 
 
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs usable by this process (affinity-aware
+    on Python 3.13+); 1 when the count is undeterminable."""
+    count = (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+    return count or 1
+
+
 def get_bool_env(var, default=False):
     """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
     anything else falls through to ``bool(value)``."""
@@ -446,23 +456,55 @@ def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) ->
         env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
 
 
-def rmtree(path: Path | str) -> None:
-    """Remove a directory tree, handling read-only files on Windows.
+# Deletion attempts when a directory keeps being repopulated mid-delete
+RMTREE_MAX_ATTEMPTS = 3
 
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail. This handles that by removing the
-    read-only flag and retrying.
+
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, tolerating common filesystem races.
+
+    Read-only files (e.g. git pack files on Windows) get the read-only flag
+    removed and are retried. Paths that are already gone, whether the target
+    itself or entries vanishing mid-delete, are treated as removed.
+    Directories repopulated mid-delete (e.g. Finder recreating .DS_Store on
+    macOS) are retried a few times.
     """
 
+    import errno
     import shutil
+    import time
 
-    def _onexc(func, path, exc):
+    def _onexc(func: Callable[..., object], path: str | Path, exc: OSError) -> None:
+        if isinstance(exc, FileNotFoundError):
+            _LOGGER.debug("rmtree: %s already gone", path)
+            return
         if os.access(path, os.W_OK):
             raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    shutil.rmtree(path, onexc=_onexc)
+    last_err: OSError | None = None
+    for attempt in range(RMTREE_MAX_ATTEMPTS - 1):
+        try:
+            shutil.rmtree(path, onexc=_onexc)
+            return
+        except OSError as err:
+            if err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                raise
+            _LOGGER.debug(
+                "rmtree: %s repopulated mid-delete (attempt %d): %s",
+                path,
+                attempt + 1,
+                err,
+            )
+            last_err = err
+            # Give the racing writer (e.g. Finder) time to settle
+            time.sleep(0.05 * (attempt + 1))
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except OSError as err:
+        # Keep the earlier races visible in the traceback
+        raise err from last_err
 
 
 def walk_files(path: Path):

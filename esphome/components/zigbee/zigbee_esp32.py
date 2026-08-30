@@ -9,6 +9,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
+    include_builtin_idf_component,
     require_vfs_select,
 )
 import esphome.config_validation as cv
@@ -209,11 +210,11 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
     # if none get BACNET unit from meas unit
     dev_class = config.get(CONF_DEVICE_CLASS)
     unit = config.get(CONF_UNIT_OF_MEASUREMENT)
-    if config[CONF_CLUSTER] == "default":
+    if config[CONF_CLUSTER] == "device_class":
         if dev_class not in SENSOR_EP_CONFIGS:
             raise cv.Invalid(
-                "'cluster: default' requires a supported 'device_class'. "
-                f"Supported: {', '.join(SENSOR_EP_CONFIGS)}. Use 'cluster: basic' otherwise."
+                "'cluster: device_class' requires a supported 'device_class'. "
+                f"Supported: {', '.join(SENSOR_EP_CONFIGS)}. Use 'cluster: generic' otherwise."
             )
         ep = copy.deepcopy(SENSOR_EP_CONFIGS[dev_class])
         if unit not in ep[ALLOWED_UNITS]:
@@ -261,13 +262,13 @@ def validate_sensor_esp32(config: ConfigType) -> ConfigType:
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
     dev_class = config.get(CONF_DEVICE_CLASS)
-    if config[CONF_CLUSTER] == "default":
+    if config[CONF_CLUSTER] == "device_class":
         if dev_class in BINARY_SENSOR_EP_CONFIGS:
             ep = copy.deepcopy(BINARY_SENSOR_EP_CONFIGS[dev_class])
         else:
             raise cv.Invalid(
-                "'cluster: default' requires a supported 'device_class'. "
-                f"Supported: {', '.join(BINARY_SENSOR_EP_CONFIGS)}. Use 'cluster: basic' otherwise."
+                "'cluster: device_class' requires a supported 'device_class'. "
+                f"Supported: {', '.join(BINARY_SENSOR_EP_CONFIGS)}. Use 'cluster: generic' otherwise."
             )
     else:
         ep = copy.deepcopy(BINARY_INPUT_EP)
@@ -348,6 +349,10 @@ async def esp32_to_code(config: ConfigType) -> "MockObj":
         name="espressif/esp-zigbee-lib",
         ref="2.0.4",
     )
+
+    if CONF_WIFI in CORE.config:
+        # zigbee_esp32.cpp uses esp_coexist.h when WiFi is present
+        include_builtin_idf_component("esp_coex")
 
     # add sdkconfigs later so they can overwrite esp32 defaults
     CORE.add_job(_zigbee_add_sdkconfigs, config)

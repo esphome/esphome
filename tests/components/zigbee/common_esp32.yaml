@@ -6,7 +6,7 @@ binary_sensor:
     name: "Occupancy Sensor"
     report: "default"
     device_class: occupancy
-    cluster: default
+    cluster: device_class
     endpoint: 3
   - platform: template
     name: "Garage Door Open 12"
@@ -25,7 +25,7 @@ sensor:
     unit_of_measurement: "°C"
     endpoint: 1
     use_device_type: true
-    cluster: default
+    cluster: device_class
   - platform: template
     name: "Light Sensor"
     lambda: return 100.0;
@@ -33,17 +33,17 @@ sensor:
     unit_of_measurement: "lx"
     endpoint: 2
     use_device_type: true
-    cluster: default
+    cluster: device_class
   - platform: template
     name: "pressure_sensor"
     unit_of_measurement: Pa
     device_class: pressure
-    cluster: default
+    cluster: device_class
   - platform: template
     name: "flow_sensor"
     unit_of_measurement: L/h
     device_class: volume_flow_rate
-    cluster: default
+    cluster: device_class
 
 switch:
   - platform: template
