@@ -569,6 +569,14 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     # successfully still have real findings worth surfacing even if others
     # crashed.
     parse_result = subprocess.run([executable, "parse", str(output_dir)], check=False)
+    if parse_result.returncode not in (0, 2):
+        # 0 = no reports, 2 = reports found -- anything else is parse/rendering
+        # itself failing, which means findings went unreported, not that there
+        # were none.
+        print(
+            f"CodeChecker parse failed (exit {parse_result.returncode})",
+            file=sys.stderr,
+        )
 
     def invalidate_stale_cache() -> None:
         """Drop a reused cache entry on failure; a regenerated database failing is not a cache problem."""
@@ -594,13 +602,13 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
         analyzed_sources = failed_sources | {
             Path(p).resolve() for p in stats["successful_sources"]
         }
-    except (KeyError, IndexError) as err:
+    except (KeyError, IndexError, TypeError) as err:
         # Distinct from the file-level failure above: metadata.json parsed fine,
         # but its internal shape (undocumented, tied to the pinned version) no
         # longer matches what this script expects -- most likely a CodeChecker
         # version bump renamed/restructured a key, not an analysis failure.
         print(
-            f"metadata.json has an unexpected shape (missing {err}) -- "
+            f"metadata.json has an unexpected shape ({err!r}) -- "
             "CodeChecker's internal metadata format may have changed",
             file=sys.stderr,
         )
@@ -609,7 +617,12 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
 
     # A count alone can't catch an over-match/under-match that cancels out.
     missing = requested_sources - analyzed_sources
-    covered = not missing
+    # file_patterns is an unanchored suffix glob (see its definition above), so
+    # a short/non-distinctive relative path can match extra files elsewhere in
+    # the compile database -- files these same patterns then let fixit --apply
+    # mutate in place. requested subset of analyzed alone can't catch that.
+    extra = analyzed_sources - requested_sources
+    covered = not missing and not extra
 
     if failed:
         # Analyzer crashes/errors must not read as a clean run just because
@@ -625,13 +638,23 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     if not covered:
         # A --file/compile-database mismatch can analyze the wrong files and
         # exit 0 -- don't let that read as a clean run.
-        print(
-            "ERROR: CodeChecker never analyzed these requested files -- --file "
-            "patterns may not match the compile database:",
-            file=sys.stderr,
-        )
-        for path in sorted(missing):
-            print(f"    {path}", file=sys.stderr)
+        if missing:
+            print(
+                "ERROR: CodeChecker never analyzed these requested files -- "
+                "--file patterns may not match the compile database:",
+                file=sys.stderr,
+            )
+            for path in sorted(missing):
+                print(f"    {path}", file=sys.stderr)
+        if extra:
+            print(
+                "ERROR: CodeChecker analyzed files that were never requested "
+                "-- an over-matching --file pattern; fixit --apply would "
+                "mutate these:",
+                file=sys.stderr,
+            )
+            for path in sorted(extra):
+                print(f"    {path}", file=sys.stderr)
         invalidate_stale_cache()
         return 1
 
