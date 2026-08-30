@@ -1,5 +1,6 @@
 #pragma once
 
+#include <span>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -19,7 +20,9 @@ class APIServer;
 
 class UserServiceDescriptor {
  public:
-  virtual ListEntitiesServicesResponse encode_list_service_response() = 0;
+  /// Build the list-entities message. On ESP8266 the strings live in PROGMEM and are copied into
+  /// `scratch`, so the returned message is only valid while `scratch` is; other platforms ignore it.
+  virtual ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) = 0;
 
   virtual bool execute_service(const ExecuteServiceRequest &req) = 0;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -34,49 +37,50 @@ template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
 
 template<typename T> enums::ServiceArgType to_service_arg_type();
 
-// Base class for YAML-defined services (most common case)
-// Stores only pointers to string literals in flash - no heap allocation
-template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
+// Scratch buffer list-entities hands to encode_list_service_response(); only ESP8266 copies into it
+#ifdef USE_ESP8266
+using UserActionScratch = std::array<char, API_USER_ACTION_STRINGS_SCRATCH_SIZE>;
+#else
+using UserActionScratch = std::array<char, 0>;
+#endif
+
+// Non-template base for YAML-defined services so the list-entities encoder is compiled once.
+// All strings live in one PROGMEM pointer table emitted by codegen (see _action_strings in
+// __init__.py), so each service costs a single pointer of RAM. Layout: the action name, then
+// each argument name; with USE_API_USER_DEFINED_ACTION_METADATA the action description follows
+// the name and every argument is (name, description, example). Unset metadata is nullptr.
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+static constexpr size_t USER_ACTION_HEADER_STRINGS = 2;
+static constexpr size_t USER_ACTION_ARG_STRINGS = 3;
+#else
+static constexpr size_t USER_ACTION_HEADER_STRINGS = 1;
+static constexpr size_t USER_ACTION_ARG_STRINGS = 1;
+#endif
+class UserServiceStatic : public UserServiceDescriptor {
  public:
-  UserServiceBase(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names,
-                  enums::SupportsResponseType supports_response = enums::SUPPORTS_RESPONSE_NONE)
-      : name_(name), arg_names_(arg_names), supports_response_(supports_response) {
-    this->key_ = fnv1_hash(name);
-  }
+  UserServiceStatic(const char *const *strings, uint32_t key,
+                    enums::SupportsResponseType supports_response = enums::SUPPORTS_RESPONSE_NONE)
+      : strings_(strings), key_(key), supports_response_(supports_response) {}
 
-#ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  // All pointers are string literals in flash; entries may be nullptr (no metadata)
-  void set_metadata(const char *description, const std::array<const char *, sizeof...(Ts)> &arg_descriptions,
-                    const std::array<const char *, sizeof...(Ts)> &arg_examples) {
-    this->description_ = description;
-    this->arg_descriptions_ = arg_descriptions;
-    this->arg_examples_ = arg_examples;
-  }
-#endif
+ protected:
+  ListEntitiesServicesResponse encode_list_service_response_(std::span<const enums::ServiceArgType> arg_types,
+                                                             std::span<char> scratch) const;
+  /// Reference table entry `idx`; nullptr gives an empty StringRef.
+  /// On ESP8266 the bytes are copied out of PROGMEM into `scratch`, which is advanced past the copy.
+  StringRef str_(size_t idx, std::span<char> &scratch) const;
 
-  ListEntitiesServicesResponse encode_list_service_response() override {
-    ListEntitiesServicesResponse msg;
-    msg.name = StringRef(this->name_);
-    msg.key = this->key_;
-    msg.supports_response = this->supports_response_;
-#ifdef USE_API_USER_DEFINED_ACTION_METADATA
-    if (this->description_ != nullptr)
-      msg.description = StringRef(this->description_);
-#endif
+  const char *const *strings_;  // PROGMEM pointer table, read with progmem_read_ptr()
+  uint32_t key_;
+  enums::SupportsResponseType supports_response_;
+};
+
+template<typename... Ts> class UserServiceBase : public UserServiceStatic {
+ public:
+  using UserServiceStatic::UserServiceStatic;
+
+  ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) override {
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
-    msg.args.init(sizeof...(Ts));
-    for (size_t i = 0; i < sizeof...(Ts); i++) {
-      auto &arg = msg.args.emplace_back();
-      arg.type = arg_types[i];
-      arg.name = StringRef(this->arg_names_[i]);
-#ifdef USE_API_USER_DEFINED_ACTION_METADATA
-      if (this->arg_descriptions_[i] != nullptr)
-        arg.description = StringRef(this->arg_descriptions_[i]);
-      if (this->arg_examples_[i] != nullptr)
-        arg.example = StringRef(this->arg_examples_[i]);
-#endif
-    }
-    return msg;
+    return this->encode_list_service_response_(arg_types, scratch);
   }
 
   bool execute_service(const ExecuteServiceRequest &req) override {
@@ -109,17 +113,6 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   void execute_(const ArgsContainer &args, uint32_t call_id, bool return_response, std::index_sequence<S...> /*type*/) {
     this->execute(call_id, return_response, (get_execute_arg_value<Ts>(args[S]))...);
   }
-
-  // Pointers to string literals in flash - no heap allocation
-  const char *name_;
-  std::array<const char *, sizeof...(Ts)> arg_names_;
-#ifdef USE_API_USER_DEFINED_ACTION_METADATA
-  const char *description_{nullptr};
-  std::array<const char *, sizeof...(Ts)> arg_descriptions_{};
-  std::array<const char *, sizeof...(Ts)> arg_examples_{};
-#endif
-  uint32_t key_{0};
-  enums::SupportsResponseType supports_response_{enums::SUPPORTS_RESPONSE_NONE};
 };
 
 // Separate class for custom_api_device services (rare case)
@@ -131,7 +124,7 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
     this->key_ = fnv1_hash(this->name_.c_str());
   }
 
-  ListEntitiesServicesResponse encode_list_service_response() override {
+  ListEntitiesServicesResponse encode_list_service_response(std::span<char> /*scratch*/) override {
     ListEntitiesServicesResponse msg;
     msg.name = StringRef(this->name_);
     msg.key = this->key_;
@@ -192,8 +185,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_NONE, Ts...> final : public UserServiceBase<Ts...>,
                                                                        public Trigger<Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_NONE) {}
+  UserServiceTrigger(const char *const *strings, uint32_t key)
+      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_NONE) {}
 
  protected:
   void execute(uint32_t /*call_id*/, bool /*return_response*/, Ts... x) override { this->trigger(x...); }
@@ -204,8 +197,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_OPTIONAL, Ts...> final : public UserServiceBase<Ts...>,
                                                                            public Trigger<uint32_t, bool, Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_OPTIONAL) {}
+  UserServiceTrigger(const char *const *strings, uint32_t key)
+      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_OPTIONAL) {}
 
  protected:
   void execute(uint32_t call_id, bool return_response, Ts... x) override {
@@ -218,8 +211,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_ONLY, Ts...> final : public UserServiceBase<Ts...>,
                                                                        public Trigger<uint32_t, Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_ONLY) {}
+  UserServiceTrigger(const char *const *strings, uint32_t key)
+      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_ONLY) {}
 
  protected:
   void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }
@@ -230,8 +223,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_STATUS, Ts...> final : public UserServiceBase<Ts...>,
                                                                          public Trigger<uint32_t, Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_STATUS) {}
+  UserServiceTrigger(const char *const *strings, uint32_t key)
+      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_STATUS) {}
 
  protected:
   void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }
