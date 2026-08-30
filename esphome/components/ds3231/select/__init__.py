@@ -4,7 +4,13 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
-from .. import CONF_DS3231_ID, USE_DS3231_SQUARE_WAVE, DS3231Component, ds3231_ns
+from .. import (
+    CONF_DS3231_ID,
+    ICON_SINE_WAVE,
+    USE_DS3231_SQUARE_WAVE,
+    DS3231Component,
+    ds3231_ns,
+)
 
 DEPENDENCIES = ["ds3231"]
 
@@ -26,12 +32,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_OUTPUT_MODE): select.select_schema(
             DS3231OutputModeSelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:sine-wave",
+            icon=ICON_SINE_WAVE,
         ),
         cv.Optional(CONF_SQUARE_WAVE_FREQUENCY): select.select_schema(
             DS3231SquareWaveFrequencySelect,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:sine-wave",
+            icon=ICON_SINE_WAVE,
         ),
     }
 ).add_extra(cv.has_at_least_one_key(CONF_OUTPUT_MODE, CONF_SQUARE_WAVE_FREQUENCY))

@@ -8,7 +8,7 @@
 
 namespace esphome::ds3231 {
 
-class DS3231Time : public time::RealTimeClock, public Parented<DS3231Component> {
+class DS3231Time final : public time::RealTimeClock, public Parented<DS3231Component> {
  public:
   void update() override;
   void dump_config() override;
@@ -17,12 +17,12 @@ class DS3231Time : public time::RealTimeClock, public Parented<DS3231Component> 
   void write_time();
 };
 
-template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<DS3231Time> {
+template<typename... Ts> class WriteAction final : public Action<Ts...>, public Parented<DS3231Time> {
  public:
   void play(const Ts &...x) override { this->parent_->write_time(); }
 };
 
-template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<DS3231Time> {
+template<typename... Ts> class ReadAction final : public Action<Ts...>, public Parented<DS3231Time> {
  public:
   void play(const Ts &...x) override { this->parent_->read_time(); }
 };

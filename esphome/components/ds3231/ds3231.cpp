@@ -1,9 +1,10 @@
 #include "ds3231.h"
-#include "binary_sensor/ds3231_binary_sensor.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 #ifdef USE_DS3231_ALARM
 #include <cstdio>
+#endif
+#include "binary_sensor/ds3231_binary_sensor.h"
+#include "esphome/core/log.h"
+#ifdef USE_DS3231_ALARM
 #include "switch/ds3231_switch.h"
 #endif
 #ifdef USE_DS3231_SQUARE_WAVE
@@ -27,6 +28,10 @@ static const uint8_t DS3231_REG_ALARM_2 = 0x0B;
 #endif
 #ifdef USE_DS3231_AGING_OFFSET
 static const uint8_t DS3231_REG_AGING_OFFSET = 0x10;
+#endif
+
+#ifdef USE_DS3231_SQUARE_WAVE
+static const char *const SQUARE_WAVE_FREQUENCY_NAMES[] = {"1 Hz", "1.024 kHz", "4.096 kHz", "8.192 kHz"};
 #endif
 
 constexpr uint8_t bcd2dec(uint8_t value) { return (value >> 4) * 10 + (value & 0x0F); }
@@ -126,39 +131,31 @@ void DS3231Component::dump_config() {
   }
 
 #ifdef USE_DS3231_SQUARE_WAVE
+  // INT/SQW pin routing and BBSQW are applied from the config in setup().
   if ((this->control_reg_ & CONTROL_INTCN) != 0) {
     ESP_LOGCONFIG(TAG, "  INT/SQW pin: alarm interrupt");
   } else {
-    static const char *const FREQUENCIES[] = {"1 Hz", "1.024 kHz", "4.096 kHz", "8.192 kHz"};
-    ESP_LOGCONFIG(TAG, "  INT/SQW pin: square wave (%s)", FREQUENCIES[(this->control_reg_ >> 3) & 0b11]);
+    ESP_LOGCONFIG(TAG, "  INT/SQW pin: square wave (%s)",
+                  SQUARE_WAVE_FREQUENCY_NAMES[(this->control_reg_ >> 3) & 0b11]);
   }
   ESP_LOGCONFIG(TAG, "  Battery-backed square wave: %s", YESNO((this->control_reg_ & CONTROL_BBSQW) != 0));
-#endif
-
-#ifdef USE_DS3231_32KHZ_OUTPUT
-  ESP_LOGCONFIG(TAG, "  32 kHz output: %s", ONOFF(this->get_32khz_output()));
-#endif
-
-#ifdef USE_DS3231_AGING_OFFSET
-  int8_t aging_offset;
-  if (this->read_aging_offset(aging_offset)) {
-    ESP_LOGCONFIG(TAG, "  Aging offset: %d", aging_offset);
-  }
-#endif
-
-#ifdef USE_DS3231_ALARM
-  char alarm[40];
-  if (this->describe_alarm_1(alarm, sizeof(alarm))) {
-    ESP_LOGCONFIG(TAG, "  Alarm 1: %s", alarm);
-  }
-  if (this->describe_alarm_2(alarm, sizeof(alarm))) {
-    ESP_LOGCONFIG(TAG, "  Alarm 2: %s", alarm);
-  }
 #endif
 
   if (this->get_oscillator_stopped()) {
     ESP_LOGW(TAG, "  Oscillator stop flag is set (clock lost power)");
   }
+
+  LOG_BINARY_SENSOR("  ", "Oscillator stopped", this->oscillator_stopped_binary_sensor_);
+#ifdef USE_DS3231_ALARM
+  LOG_BINARY_SENSOR("  ", "Alarm 1", this->alarm_1_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Alarm 2", this->alarm_2_binary_sensor_);
+  LOG_SWITCH("  ", "Alarm 1 enabled", this->alarm_1_switch_);
+  LOG_SWITCH("  ", "Alarm 2 enabled", this->alarm_2_switch_);
+#endif
+#ifdef USE_DS3231_SQUARE_WAVE
+  LOG_SELECT("  ", "INT/SQW output mode", this->output_mode_select_);
+  LOG_SELECT("  ", "Square-wave frequency", this->square_wave_frequency_select_);
+#endif
 }
 
 bool DS3231Component::read_datetime(ESPTime &out) {
@@ -217,6 +214,9 @@ bool DS3231Component::read_temperature(float &out) {
 }
 
 void DS3231Component::force_temperature_conversion() {
+  // Just kick off the conversion - the chip clears CONV and updates the temperature
+  // register on its own within ~200 ms, and the next temperature poll picks it up.
+  // Blocking here to wait for it would stall the main loop.
   if (!this->read_control_status_())
     return;
   if ((this->status_reg_ & STATUS_BSY) != 0) {
@@ -224,19 +224,7 @@ void DS3231Component::force_temperature_conversion() {
     return;
   }
   this->control_reg_ |= CONTROL_CONV;
-  if (!this->write_control_())
-    return;
-
-  uint32_t start = millis();
-  uint8_t control;
-  while (this->read_byte(DS3231_REG_CONTROL, &control) && (control & CONTROL_CONV) != 0) {
-    if (millis() - start > 200) {
-      ESP_LOGW(TAG, "Temperature conversion timed out.");
-      return;
-    }
-    yield();
-  }
-  ESP_LOGD(TAG, "Forced temperature conversion complete.");
+  this->write_control_();
 }
 
 bool DS3231Component::read_control_status_() {

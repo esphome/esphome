@@ -11,7 +11,7 @@
 
 namespace esphome::ds3231 {
 
-class DS3231AgingOffsetNumber : public number::Number, public Component, public Parented<DS3231Component> {
+class DS3231AgingOffsetNumber final : public number::Number, public Component, public Parented<DS3231Component> {
  public:
   void setup() override;
   void dump_config() override;

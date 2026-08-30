@@ -60,7 +60,7 @@ class DS3231BinarySensor;
 ///
 /// Optional features are gated behind USE_DS3231_* so a config that only reads the time
 /// does not pay for alarm callbacks, the square-wave control, etc.
-class DS3231Component : public PollingComponent, public i2c::I2CDevice {
+class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -209,7 +209,7 @@ class DS3231Component : public PollingComponent, public i2c::I2CDevice {
 };
 
 #ifdef USE_DS3231_ALARM
-template<typename... Ts> class SetAlarm1Action : public Action<Ts...>, public Parented<DS3231Component> {
+template<typename... Ts> class SetAlarm1Action final : public Action<Ts...>, public Parented<DS3231Component> {
  public:
   TEMPLATABLE_VALUE(uint8_t, second)
   TEMPLATABLE_VALUE(uint8_t, minute)
@@ -231,7 +231,7 @@ template<typename... Ts> class SetAlarm1Action : public Action<Ts...>, public Pa
   DS3231Alarm1Mode mode_{DS3231Alarm1Mode::DS3231_ALARM_1_MODE_EVERY_SECOND};
 };
 
-template<typename... Ts> class SetAlarm2Action : public Action<Ts...>, public Parented<DS3231Component> {
+template<typename... Ts> class SetAlarm2Action final : public Action<Ts...>, public Parented<DS3231Component> {
  public:
   TEMPLATABLE_VALUE(uint8_t, minute)
   TEMPLATABLE_VALUE(uint8_t, hour)
@@ -251,7 +251,7 @@ template<typename... Ts> class SetAlarm2Action : public Action<Ts...>, public Pa
   DS3231Alarm2Mode mode_{DS3231Alarm2Mode::DS3231_ALARM_2_MODE_EVERY_MINUTE};
 };
 
-template<typename... Ts> class ClearAlarmAction : public Action<Ts...>, public Parented<DS3231Component> {
+template<typename... Ts> class ClearAlarmAction final : public Action<Ts...>, public Parented<DS3231Component> {
  public:
   void set_alarm(uint8_t alarm) { this->alarm_ = alarm; }
   void play(const Ts &...x) override { this->parent_->clear_alarm(this->alarm_); }
@@ -262,7 +262,7 @@ template<typename... Ts> class ClearAlarmAction : public Action<Ts...>, public P
 #endif  // USE_DS3231_ALARM
 
 template<typename... Ts>
-class ForceTemperatureConversionAction : public Action<Ts...>, public Parented<DS3231Component> {
+class ForceTemperatureConversionAction final : public Action<Ts...>, public Parented<DS3231Component> {
  public:
   void play(const Ts &...x) override { this->parent_->force_temperature_conversion(); }
 };

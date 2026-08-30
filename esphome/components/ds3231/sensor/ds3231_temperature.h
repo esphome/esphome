@@ -8,7 +8,7 @@
 
 namespace esphome::ds3231 {
 
-class DS3231TemperatureSensor : public sensor::Sensor, public PollingComponent, public Parented<DS3231Component> {
+class DS3231TemperatureSensor final : public sensor::Sensor, public PollingComponent, public Parented<DS3231Component> {
  public:
   void update() override;
   void dump_config() override;

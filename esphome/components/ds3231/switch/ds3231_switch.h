@@ -9,7 +9,7 @@
 namespace esphome::ds3231 {
 
 #ifdef USE_DS3231_32KHZ_OUTPUT
-class DS3231Enable32kHzSwitch : public switch_::Switch, public Parented<DS3231Component> {
+class DS3231Enable32kHzSwitch final : public switch_::Switch, public Parented<DS3231Component> {
  protected:
   void write_state(bool state) override;
 };
@@ -19,7 +19,7 @@ class DS3231Enable32kHzSwitch : public switch_::Switch, public Parented<DS3231Co
 /// Enables or disables one of the two alarm interrupts (A1IE / A2IE). Turning it off leaves the
 /// programmed alarm time in place, so the alarm can be re-armed without reprogramming it. The
 /// hub republishes the real chip state on every poll.
-class DS3231AlarmSwitch : public switch_::Switch, public Parented<DS3231Component> {
+class DS3231AlarmSwitch final : public switch_::Switch, public Parented<DS3231Component> {
  public:
   void set_alarm(uint8_t alarm) { this->alarm_ = alarm; }
 

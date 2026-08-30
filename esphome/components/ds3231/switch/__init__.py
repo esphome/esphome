@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_DS3231_ID,
+    ICON_SINE_WAVE,
     USE_DS3231_32KHZ_OUTPUT,
     USE_DS3231_ALARM,
     DS3231Component,
@@ -38,7 +39,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ENABLE_32KHZ_OUTPUT): switch.switch_schema(
             DS3231Enable32kHzSwitch,
             entity_category=ENTITY_CATEGORY_CONFIG,
-            icon="mdi:sine-wave",
+            icon=ICON_SINE_WAVE,
             default_restore_mode="DISABLED",
         ),
         cv.Optional(CONF_ALARM_1): _ALARM_SWITCH_SCHEMA,

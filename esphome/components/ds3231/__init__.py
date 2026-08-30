@@ -20,6 +20,9 @@ CONF_ALARM = "alarm"
 CONF_DAY_OF_WEEK = "day_of_week"
 CONF_DAY_OF_MONTH = "day_of_month"
 
+# Shared by the switch and select platforms (INT/SQW square-wave control).
+ICON_SINE_WAVE = "mdi:sine-wave"
+
 # Optional features are compiled in only when configured, gated behind these defines - see
 # https://developers.esphome.io/contributing/code/#gating-optional-features-behind-conditional-compilation
 # They are emitted from Python with cg.add_define() here and in the platform __init__.py

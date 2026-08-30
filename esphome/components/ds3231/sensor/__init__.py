@@ -15,11 +15,13 @@ from .. import CONF_DS3231_ID, DS3231Component, ds3231_ns
 DEPENDENCIES = ["ds3231"]
 
 CONF_UNIT = "unit"
-UNIT_FAHRENHEIT = "°F"
+UNIT_CHOICE_CELSIUS = "celsius"
+UNIT_CHOICE_FAHRENHEIT = "fahrenheit"
+UNIT_FAHRENHEIT = "°F"  # not in esphome.const
 
 UNITS = {
-    "celsius": UNIT_CELSIUS,
-    "fahrenheit": UNIT_FAHRENHEIT,
+    UNIT_CHOICE_CELSIUS: UNIT_CELSIUS,
+    UNIT_CHOICE_FAHRENHEIT: UNIT_FAHRENHEIT,
 }
 
 DS3231TemperatureSensor = ds3231_ns.class_(
@@ -49,7 +51,9 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.GenerateID(CONF_DS3231_ID): cv.use_id(DS3231Component),
-            cv.Optional(CONF_UNIT, default="celsius"): cv.one_of(*UNITS, lower=True),
+            cv.Optional(CONF_UNIT, default=UNIT_CHOICE_CELSIUS): cv.one_of(
+                *UNITS, lower=True
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s")),
@@ -61,4 +65,4 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_DS3231_ID])
-    cg.add(var.set_fahrenheit(config[CONF_UNIT] == "fahrenheit"))
+    cg.add(var.set_fahrenheit(config[CONF_UNIT] == UNIT_CHOICE_FAHRENHEIT))

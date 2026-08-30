@@ -7,6 +7,6 @@
 
 namespace esphome::ds3231 {
 
-class DS3231BinarySensor : public binary_sensor::BinarySensor, public Parented<DS3231Component> {};
+class DS3231BinarySensor final : public binary_sensor::BinarySensor, public Parented<DS3231Component> {};
 
 }  // namespace esphome::ds3231
