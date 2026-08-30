@@ -1,5 +1,6 @@
 #pragma once
 
+#include <span>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -7,6 +8,7 @@
 #include "api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #include "esphome/components/json/json_util.h"
 #endif
@@ -19,7 +21,9 @@ class APIServer;
 
 class UserServiceDescriptor {
  public:
-  virtual ListEntitiesServicesResponse encode_list_service_response() = 0;
+  /// Build the list-entities message. On ESP8266 the name lives in PROGMEM and is copied into
+  /// `scratch`, so the returned message is only valid while `scratch` is; other platforms ignore it.
+  virtual ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) = 0;
 
   virtual bool execute_service(const ExecuteServiceRequest &req) = 0;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -41,12 +45,29 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   UserServiceBase(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names,
                   enums::SupportsResponseType supports_response = enums::SUPPORTS_RESPONSE_NONE)
       : name_(name), arg_names_(arg_names), supports_response_(supports_response) {
+#ifdef USE_ESP8266
+    // name is in PROGMEM, so hash it through progmem_read_byte instead of fnv1_hash()
+    uint32_t hash = FNV1_OFFSET_BASIS;
+    for (const auto *p = reinterpret_cast<const uint8_t *>(name); uint8_t c = progmem_read_byte(p); p++) {
+      hash *= FNV1_PRIME;
+      hash ^= c;
+    }
+    this->key_ = hash;
+#else
     this->key_ = fnv1_hash(name);
+#endif
   }
 
-  ListEntitiesServicesResponse encode_list_service_response() override {
+  ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) override {
     ListEntitiesServicesResponse msg;
+#ifdef USE_ESP8266
+    // Codegen sizes scratch for the longest action name, so this cannot overflow
+    size_t len = strlen_P(this->name_);
+    progmem_memcpy(scratch.data(), this->name_, len);
+    msg.name = StringRef(scratch.data(), len);
+#else
     msg.name = StringRef(this->name_);
+#endif
     msg.key = this->key_;
     msg.supports_response = this->supports_response_;
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
@@ -90,7 +111,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
     this->execute(call_id, return_response, (get_execute_arg_value<Ts>(args[S]))...);
   }
 
-  // Pointers to string literals in flash - no heap allocation
+  // Pointers to string literals - no heap allocation. name_ is PROGMEM on ESP8266.
   const char *name_;
   std::array<const char *, sizeof...(Ts)> arg_names_;
   uint32_t key_{0};
@@ -106,7 +127,7 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
     this->key_ = fnv1_hash(this->name_.c_str());
   }
 
-  ListEntitiesServicesResponse encode_list_service_response() override {
+  ListEntitiesServicesResponse encode_list_service_response(std::span<char> /*scratch*/) override {
     ListEntitiesServicesResponse msg;
     msg.name = StringRef(this->name_);
     msg.key = this->key_;

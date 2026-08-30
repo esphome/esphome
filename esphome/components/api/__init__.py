@@ -45,6 +45,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigFragmentType, ConfigType
 
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
@@ -385,10 +386,11 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
+    name_max_len = 0
     if actions := config.get(CONF_ACTIONS, []):
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.MockObj] = []
-        for conf in actions:
+        for index, conf in enumerate(actions):
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
 
@@ -432,10 +434,19 @@ async def to_code(config: ConfigType) -> None:
                 service_arg_names.append(name)
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
+            # Own PROGMEM array so the name lives in flash on ESP8266, where .rodata is RAM
+            action_name = conf[CONF_ACTION]
+            name_var = f"api_action{index}_name"
+            cg.add_global(
+                cg.RawStatement(
+                    f"static const char {name_var}[] PROGMEM = {cpp_string_escape(action_name)};"
+                )
+            )
+            name_max_len = max(name_max_len, len(action_name.encode("utf-8")))
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID],
                 templ,
-                conf[CONF_ACTION],
+                cg.RawExpression(name_var),
                 service_arg_names,
             )
             triggers.append(trigger)
@@ -458,6 +469,9 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(auto.add_actions([unregister_action]))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
+    if CORE.is_esp8266 and (actions or config[CONF_CUSTOM_SERVICES]):
+        # Stack buffer that list-entities copies the PROGMEM name into
+        cg.add_define("API_USER_ACTION_NAME_MAX_LEN", max(name_max_len, 1))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
