@@ -329,12 +329,17 @@ struct IPAddress {
 #endif /* LWIP_IPV6 */
   }
   operator esp_ip_addr_t() const {
-    esp_ip_addr_t tmp;
+    esp_ip_addr_t tmp{};
 #if LWIP_IPV6
     memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
+#if !LWIP_IPV4
+    tmp.type = IPADDR_TYPE_V6;
+#endif /* !LWIP_IPV4 */
 #elif LWIP_IPV4
     memcpy((void *) &tmp.u_addr.ip4, (void *) &ip_addr_, sizeof(ip_addr_));
     tmp.type = IPADDR_TYPE_V4;
+#else
+#error "Neither LWIP_IPV4 nor LWIP_IPV6 is enabled"
 #endif /* LWIP_IPV6 */
     return tmp;
   }
@@ -373,16 +378,18 @@ struct IPAddress {
   }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
+#if LWIP_IPV4
   IPAddress &operator+=(uint8_t increase) {
     if (IP_IS_V4(&ip_addr_)) {
-#if LWIP_IPV6 && LWIP_IPV4
+#if LWIP_IPV6
       (((u8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
-#elif LWIP_IPV4
+#else
       (((u8_t *) (&ip_addr_.addr))[3]) += increase;
-#endif  /* LWIP_IPV6 && LWIP_IPV4 */
+#endif  /* LWIP_IPV6 */
     }
     return *this;
   }
+#endif  /* LWIP_IPV4 */
 #endif  // LWIP
 
  protected:

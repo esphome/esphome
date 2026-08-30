@@ -112,6 +112,18 @@ def test_ipv4_defaults_off_when_openthread_is_the_transport(
     assert str(defines["USE_NETWORK_IPV4"].value) == "false"
 
 
+def test_ipv4_explicit_true_overrides_request_ipv4_off(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """request_ipv4_off (from openthread) is a soft preference -- an explicit
+    'network: enable_ipv4: true' still wins, keeping IPv4 on dual-stack."""
+    generate_main(component_config_path("openthread_ipv4_explicitly_on.yaml"))
+    defines = {d.name: d for d in CORE.defines}
+    assert str(defines["USE_NETWORK_IPV6"].value) == "true"
+    assert str(defines["USE_NETWORK_IPV4"].value) == "true"
+
+
 def test_ipv4_turns_on_when_ipv6_explicitly_off_and_nothing_required(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],

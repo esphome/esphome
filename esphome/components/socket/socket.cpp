@@ -128,8 +128,9 @@ size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::s
       return strlen(buf.data());
   }
 #endif
-  buf[0] = '\0';
-  return 0;
+  // Unformattable address family, make it visible
+  buf_append_printf(buf.data(), buf.size(), 0, "<af=%d>", addr_ptr->sa_family);
+  return strlen(buf.data());
 }
 
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
