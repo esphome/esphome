@@ -58,13 +58,18 @@ async def test_api_homeassistant_binary_sensor_initial_state(
         # initial_off is the last state sent, so this wait also proves the
         # earlier 'default' initial state was already processed
         await waiter.wait_for("initial_off on_release", timeout=5.0)
-        assert not any("default on_press" in line for line in waiter.lines), (
-            "default binary sensor fired on_press for its initial state"
-        )
-        assert not any("initial_off on_press" in line for line in waiter.lines)
-        assert not any(
-            "unavailable_first on_release" in line for line in waiter.lines
-        ), "'unavailable' fired a trigger instead of being ignored"
+        # Guard every phase 2 needle against being satisfied by a stale
+        # phase 1 line, and pin that the initial states fired nothing else
+        for absent in (
+            "initial_on on_release",
+            "default on_press",
+            "default on_release",
+            "unavailable_first on_release",
+            "initial_off on_press",
+        ):
+            assert not any(absent in line for line in waiter.lines), (
+                f"unexpected trigger before the second state change: {absent}"
+            )
 
         # A later change fires for all of them
         client.send_home_assistant_state("binary_sensor.initial_on", "", "off")
