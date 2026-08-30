@@ -3224,6 +3224,16 @@ def test_load_integration_durations_missing_or_corrupt(tmp_path: Path) -> None:
         assert determine_jobs._load_integration_durations() == {
             "tests/integration/test_a.py": 12.5
         }
+        # One non-numeric entry cannot discard the whole recording
+        durations_file.write_text(
+            '{"tests/integration/test_a.py": 12.5, "tests/integration/test_b.py": null}'
+        )
+        assert determine_jobs._load_integration_durations() == {
+            "tests/integration/test_a.py": 12.5
+        }
+        # A non-dict top level degrades to empty
+        durations_file.write_text("[12.5]")
+        assert determine_jobs._load_integration_durations() == {}
 
 
 def test_compute_integration_test_buckets_zero_weights_no_empty_bucket() -> None:
