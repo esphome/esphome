@@ -23,6 +23,7 @@ import pytest_asyncio
 
 import esphome.config
 from esphome.core import CORE
+from esphome.helpers import get_usable_cpu_count
 from esphome.platformio.toolchain import get_idedata
 
 from .const import (
@@ -73,7 +74,7 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
         workers = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
         # Floor of 2 keeps a lone tail compile from running fully serial
         env["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"] = str(
-            max(2, (os.cpu_count() or 1) // workers)
+            max(2, get_usable_cpu_count() // workers)
         )
     # Compile with THIS tree's esphome sources, not wherever the venv's editable
     # install points (which may be a different git worktree or checkout).

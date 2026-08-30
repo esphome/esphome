@@ -194,6 +194,7 @@ def test_main_all_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is True
+    assert output["integration_run_all"] is True
     # run_all=True expands to the full glob and pre-buckets by duration weight
     # (15 files x 200s mocked => the full fan-out).
     # Each bucket's `tests` is a JSON list of file paths.
@@ -3216,3 +3217,20 @@ def test_load_integration_durations_missing_or_corrupt(tmp_path: Path) -> None:
         assert determine_jobs._load_integration_durations() == {
             "tests/integration/test_a.py": 12.5
         }
+
+
+def test_compute_integration_test_buckets_zero_weights_no_empty_bucket() -> None:
+    """Zero recorded weights cannot produce an empty bucket."""
+    files = [f"tests/integration/test_{i:03d}.py" for i in range(12)]
+    durations = dict.fromkeys(files, 0.0)
+    durations[files[0]] = 1000.0
+    with patch.object(
+        determine_jobs, "_load_integration_durations", return_value=durations
+    ):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert all(b["tests"] for b in buckets)
+    assert [b["name"] for b in buckets] == [
+        f"{i + 1}/{len(buckets)}" for i in range(len(buckets))
+    ]
+    assert sorted(f for b in buckets for f in b["tests"]) == files

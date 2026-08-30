@@ -110,3 +110,14 @@ def test_main_merges_partial_run(tmp_path: Path) -> None:
         "tests/integration/test_a.py": 6.0,
         "tests/integration/test_b.py": 7.0,
     }
+
+
+def test_collect_durations_skips_skipped_testcases(tmp_path: Path) -> None:
+    """Skipped testcases do not record a bogus zero duration."""
+    module = next(Path(uitd.root_path, "tests/integration").glob("test_*.py")).stem
+    _write_junit(
+        tmp_path / "a.xml",
+        f'<testcase classname="tests.integration.{module}" name="t" time="0">'
+        "<skipped/></testcase>",
+    )
+    assert uitd.collect_durations(tmp_path) == {}

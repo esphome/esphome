@@ -128,8 +128,10 @@ def _load_integration_durations() -> dict[str, float]:
         if not isinstance(raw, dict):
             return {}
         return {str(k): float(v) for k, v in raw.items()}
+    except FileNotFoundError:
+        return {}
     except (OSError, ValueError, TypeError) as err:
-        # Degrade to unweighted bucketing, but leave a trace in the CI log
+        # A corrupt committed file; degrade to unweighted bucketing, loudly
         print(f"integration durations unavailable: {err}", file=sys.stderr)
         return {}
 
@@ -168,11 +170,10 @@ def _compute_integration_test_buckets(
 
     if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
         durations = _load_integration_durations()
-        known = [durations[f] for f in files if f in durations]
-        # Unrecorded files weigh the median of the known values
-        default = statistics.median(known) if known else 1.0
+        # Unrecorded files weigh the median of the whole recording
+        default = statistics.median(durations.values()) if durations else 1.0
         weights = {f: durations.get(f, default) for f in files}
-        if known:
+        if durations:
             count = min(
                 INTEGRATION_TESTS_SPLIT_BUCKETS,
                 math.ceil(
@@ -183,11 +184,12 @@ def _compute_integration_test_buckets(
         else:
             # No recorded data to size buckets by; keep the full fan-out.
             count = INTEGRATION_TESTS_SPLIT_BUCKETS
-        # Never emit an empty bucket
         count = min(count, len(files))
-        parts = [sorted(part) for part in lpt_partition(files, weights, count)]
+        # Zero weights can leave trailing groups empty; never emit an empty bucket
+        parts = [sorted(part) for part in lpt_partition(files, weights, count) if part]
         buckets = [
-            {"name": f"{i + 1}/{count}", "tests": part} for i, part in enumerate(parts)
+            {"name": f"{i + 1}/{len(parts)}", "tests": part}
+            for i, part in enumerate(parts)
         ]
     else:
         buckets = [{"name": "1/1", "tests": files}]

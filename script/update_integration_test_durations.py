@@ -35,6 +35,13 @@ def collect_durations(junit_dir: Path) -> dict[str, float]:
         raise SystemExit(f"no junit XML files found under {junit_dir}")
     for xml_file in xml_files:
         for testcase in ET.parse(xml_file).getroot().iter("testcase"):
+            # Skipped/errored testcases carry time="0"; recording them would
+            # overwrite a good previous duration
+            if (
+                testcase.find("skipped") is not None
+                or testcase.find("error") is not None
+            ):
+                continue
             # classname is the dotted module plus any test class, e.g.
             # tests.integration.test_x or tests.integration.test_x.TestFoo
             parts = testcase.get("classname", "").split(".")
@@ -45,7 +52,8 @@ def collect_durations(junit_dir: Path) -> dict[str, float]:
                 print(f"skipping unknown test module {path}", file=sys.stderr)
                 continue
             durations[path] += float(testcase.get("time", "0"))
-    return dict(durations)
+    # An all-skipped file totals 0.0; let the merge keep its previous entry
+    return {k: v for k, v in durations.items() if v > 0}
 
 
 def main() -> int:
