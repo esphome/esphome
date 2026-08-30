@@ -55,8 +55,9 @@ def test_esp8266_sizes_scratch_buffer_for_largest_action(
     """ESP8266 gets a scratch buffer define equal to the byte total of the largest action."""
     generate_main(CONFIG_ESP8266)
 
-    # play_buzzer: name, description, two variable names, one description, one example
-    assert get_define_value("API_USER_ACTION_STRINGS_SCRATCH_SIZE") == "111"
+    # play_buzzer: name, description, two variable names, one description, one example,
+    # each with a terminator
+    assert get_define_value("API_USER_ACTION_STRINGS_SCRATCH_SIZE") == "117"
 
 
 def test_shorthand_variables_emit_no_metadata(

@@ -66,7 +66,8 @@ class UserServiceStatic : public UserServiceDescriptor {
   ListEntitiesServicesResponse encode_list_service_response_(std::span<const enums::ServiceArgType> arg_types,
                                                              std::span<char> scratch) const;
   /// Reference table entry `idx`; nullptr gives an empty StringRef.
-  /// On ESP8266 the bytes are copied out of PROGMEM into `scratch`, which is advanced past the copy.
+  /// On ESP8266 the bytes are copied out of PROGMEM into `scratch` with a terminator, and the span
+  /// is advanced past the copy.
   StringRef str_(size_t idx, std::span<char> &scratch) const;
 
   const char *const *strings_;  // PROGMEM pointer table, read with progmem_read_ptr()

@@ -232,22 +232,14 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
-# Sanity caps so one runaway string cannot blow the ESP8266 stack buffer
-ACTION_NAME_MAX_LENGTH = 63
-ACTION_METADATA_MAX_LENGTH = 255
 # ESP8266 copies every string of an action into a stack buffer sized by codegen; keep it small
 ESP8266_ACTION_STRINGS_MAX_TOTAL = 384
-
-validate_action_name = cv.All(cv.valid_name, cv.ByteLength(max=ACTION_NAME_MAX_LENGTH))
-validate_action_metadata = cv.All(
-    cv.string_strict, cv.ByteLength(max=ACTION_METADATA_MAX_LENGTH)
-)
 
 VARIABLE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
-        cv.Optional(CONF_DESCRIPTION): validate_action_metadata,
-        cv.Optional(CONF_EXAMPLE): validate_action_metadata,
+        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
+        cv.Optional(CONF_EXAMPLE): cv.string_strict,
     }
 )
 
@@ -258,11 +250,9 @@ validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
 ACTIONS_SCHEMA = automation.validate_automation(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
-        cv.Exclusive(
-            CONF_SERVICE, group_of_exclusion=CONF_ACTION
-        ): validate_action_name,
-        cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): validate_action_name,
-        cv.Optional(CONF_DESCRIPTION): validate_action_metadata,
+        cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.valid_name,
+        cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.valid_name,
+        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
         cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
             {
                 cv.validate_id_name: validate_variable,
@@ -406,7 +396,8 @@ def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
 
 
 def _action_strings_size(strings: list[str | None]) -> int:
-    return sum(len(string.encode("utf-8")) for string in strings if string)
+    """Bytes needed to copy every string out of flash, each with its terminator."""
+    return sum(len(string.encode("utf-8")) + 1 for string in strings if string)
 
 
 def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:

@@ -11,10 +11,13 @@ StringRef UserServiceStatic::str_(size_t idx, std::span<char> &scratch) const {
     return {};
 #ifdef USE_ESP8266
   // Codegen sizes the scratch buffer for the largest service; the bound only guards other callers
-  size_t len = strnlen_P(s, scratch.size());
+  if (scratch.empty())
+    return {};
+  size_t len = strnlen_P(s, scratch.size() - 1);
   progmem_memcpy(scratch.data(), s, len);
+  scratch[len] = '\0';
   StringRef ref(scratch.data(), len);
-  scratch = scratch.subspan(len);
+  scratch = scratch.subspan(len + 1);
   return ref;
 #else
   return StringRef(s);
