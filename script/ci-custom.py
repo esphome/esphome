@@ -14,7 +14,7 @@ import time
 import colorama
 from helpers import filter_changed, git_ls_files, print_error_for_file, styled
 
-sys.path.append(os.path.dirname(__file__))
+sys.path.append(str(Path(__file__).parent))
 
 
 def find_all(a_str, sub):
@@ -247,10 +247,12 @@ def lint_ext_check(fname):
         "CLAUDE.md",
         "GEMINI.md",
         ".github/copilot-instructions.md",
+        # Symlink to the real wifi scan_list.h so the test stub cannot drift
+        "tests/integration/fixtures/external_components/wifi/scan_list.h",
     ]
 )
 def lint_executable_bit(fname: Path) -> str | None:
-    ex = EXECUTABLE_BIT[str(fname)]
+    ex = EXECUTABLE_BIT[fname.as_posix()]
     if ex != 100644:
         return (
             f"File has invalid executable bit {ex}. If running from a windows machine please "
@@ -259,14 +261,7 @@ def lint_executable_bit(fname: Path) -> str | None:
     return None
 
 
-@lint_content_find_check(
-    "\t",
-    only_first=True,
-    exclude=[
-        "esphome/dashboard/static/ace.js",
-        "esphome/dashboard/static/ext-searchbox.js",
-    ],
-)
+@lint_content_find_check("\t", only_first=True)
 def lint_tabs(fname, line, col, content):
     return "File contains tab character. Please convert tabs to spaces."
 
@@ -276,7 +271,7 @@ def lint_newline(fname, line, col, content):
     return "File contains Windows newline. Please set your editor to Unix newline mode."
 
 
-@lint_content_check(exclude=["*.svg", ".clang-tidy.hash"])
+@lint_content_check(exclude=["*.svg"])
 def lint_end_newline(fname, content):
     if content and not content.endswith("\n"):
         return "File does not end with a newline, please add an empty line at the end of the file."
@@ -341,9 +336,9 @@ def lint_const_ordered(fname, content):
         matching = [
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
-        ordered = list(sorted(matching, key=lambda x: x[1].replace("_", " ")))
-        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered)]
-        for (mi, mline), (_, ol) in zip(matching, ordered):
+        ordered = sorted(matching, key=lambda x: x[1].replace("_", " "))
+        ordered = [(mi, ol) for (mi, _), (_, ol) in zip(matching, ordered, strict=True)]
+        for (mi, mline), (_, ol) in zip(matching, ordered, strict=True):
             if mline == ol:
                 continue
             target = next(i for i, line in ordered if line == mline)
@@ -352,9 +347,11 @@ def lint_const_ordered(fname, content):
                 (
                     mi,
                     1,
-                    f"Constant {highlight(mline)} is not ordered, please make sure all "
-                    f"constants are ordered. See line {mi} (should go to line {target}, "
-                    f"{target_text})",
+                    (
+                        f"Constant {highlight(mline)} is not ordered, please make sure all "
+                        f"constants are ordered. See line {mi} (should go to line {target}, "
+                        f"{target_text})"
+                    ),
                 )
             )
     return errs
@@ -511,6 +508,40 @@ def lint_no_std_string_view(fname, match):
     )
 
 
+@lint_re_check(
+    r"(?:"
+    # `from esphome.components.const import ...`
+    r"from\s+esphome\.components\.const\s+import"
+    r"|"
+    # `import esphome.components.const` (with optional `as` alias)
+    r"import\s+esphome\.components\.const\b"
+    r"|"
+    # `from esphome.components import [(] ... const ... [)]`
+    # Handles parenthesized + multiline import lists by allowing newlines inside
+    # the parens via [^)]*. Single-line form falls back to the [^#\n]* branch.
+    r"from\s+esphome\.components\s+import\s*"
+    r"(?:\([^)]*\bconst\b[^)]*\)|(?:[^#\n]*[\s,])?\bconst\b)"
+    r")",
+    include=["*.py"],
+    exclude=[
+        "esphome/components/*",
+        "tests/*",
+        "script/ci-custom.py",
+    ],
+)
+def lint_no_components_const_outside_components(fname, match):
+    return (
+        f"Constants in {highlight('esphome/components/const/__init__.py')} are intended "
+        f"to be shared only between components in {highlight('esphome/components/')}. "
+        f"Code outside this folder must not import from "
+        f"{highlight('esphome.components.const')}.\n"
+        f"For core code (used outside {highlight('esphome/components/')}), define the "
+        f"constant in {highlight('esphome/const.py')} instead. When adding a new "
+        f"{highlight('CONF_')} constant there, bump {highlight('CONST_PY_MAX_CONF')} "
+        f"in this file accordingly (see {highlight('lint_const_py_frozen')})."
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errs = []
@@ -528,7 +559,7 @@ def lint_constants_usage():
 # Maximum allowed CONF_ constants in esphome/const.py.
 # This file is frozen — new constants go in esphome/components/const/__init__.py.
 # Decrease this number when constants are moved out of const.py.
-CONST_PY_MAX_CONF = 1011
+CONST_PY_MAX_CONF = 1017
 
 
 @lint_content_check(include=["esphome/const.py"])
@@ -594,6 +625,9 @@ def convert_path_to_relative(abspath, current):
         "esphome/components/web_server/__init__.py",
         # const.py has absolute import in docstring example for external components
         "esphome/components/esp8266/const.py",
+        # rp2040/__init__.py is the deprecation shim that documents the canonical
+        # rp2 module path and its own legacy import paths in docstrings/comments.
+        "esphome/components/rp2040/__init__.py",
     ],
 )
 def lint_relative_py_import(fname: Path, line, col, content):
@@ -623,13 +657,13 @@ def lint_relative_py_import(fname: Path, line, col, content):
         "esphome/components/async_tcp/async_tcp.h",
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
-        "esphome/components/rp2040/core.cpp",
+        "esphome/components/rp2/core.cpp",
         "esphome/components/libretiny/core.cpp",
         "esphome/components/host/core.cpp",
         "esphome/components/zephyr/core.cpp",
         "esphome/components/esp32/helpers.cpp",
         "esphome/components/esp8266/helpers.cpp",
-        "esphome/components/rp2040/helpers.cpp",
+        "esphome/components/rp2/helpers.cpp",
         "esphome/components/libretiny/helpers.cpp",
         "esphome/components/host/helpers.cpp",
         "esphome/components/zephyr/helpers.cpp",
@@ -659,20 +693,7 @@ def lint_esphome_h(fname, line, col, content):
     )
 
 
-@lint_content_find_check(
-    "CORE.using_esp_idf",
-    include=py_include,
-    exclude=["esphome/core/__init__.py", "script/ci-custom.py"],
-)
-def lint_using_esp_idf_deprecated(fname, line, col, content):
-    return (
-        f"{highlight('CORE.using_esp_idf')} is deprecated and will change behavior in 2026.6. "
-        "ESP32 Arduino builds on top of ESP-IDF, so ESP-IDF features are available in both frameworks. "
-        f"Please use {highlight('CORE.is_esp32')} and/or {highlight('CORE.using_arduino')} instead."
-    )
-
-
-@lint_content_check(include=["*.h"])
+@lint_content_check(include=["*.h"], exclude=["esphome/core/entity_types.h"])
 def lint_pragma_once(fname, content):
     if "#pragma once" not in content:
         return (
@@ -722,18 +743,22 @@ def lint_trailing_whitespace(fname, match):
 # Heap-allocating helpers that cause fragmentation on long-running embedded devices.
 # These return std::string and should be replaced with stack-based alternatives.
 HEAP_ALLOCATING_HELPERS = {
+    "base64_encode": "base64_encode_to() with a pre-allocated buffer",
     "format_bin": "format_bin_to() with a stack buffer",
     "format_hex": "format_hex_to() with a stack buffer",
     "format_hex_pretty": "format_hex_pretty_to() with a stack buffer",
     "format_mac_address_pretty": "format_mac_addr_upper() with a stack buffer",
     "get_mac_address": "get_mac_address_into_buffer() with a stack buffer",
     "get_mac_address_pretty": "get_mac_address_pretty_into_buffer() with a stack buffer",
+    "str_lower_case": "manual tolower() with a stack buffer",
     "str_sanitize": "str_sanitize_to() with a stack buffer",
     "str_truncate": "removal (function is unused)",
+    "str_until": "manual strchr()/find() with a StringRef or stack buffer",
     "str_upper_case": "removal (function is unused)",
     "str_snake_case": "removal (function is unused)",
     "str_sprintf": "snprintf() with a stack buffer",
     "str_snprintf": "snprintf() with a stack buffer",
+    "value_accuracy_to_string": "value_accuracy_to_buf() with a stack buffer",
 }
 
 
@@ -743,24 +768,33 @@ HEAP_ALLOCATING_HELPERS = {
     # get_mac_address(?!_) ensures we don't match get_mac_address_into_buffer, etc.
     # CPP_RE_EOL captures rest of line so NOLINT comments are detected
     r"[^\w]("
+    r"base64_encode(?!_)|"
     r"format_bin(?!_)|"
     r"format_hex(?!_)|"
     r"format_hex_pretty(?!_)|"
     r"format_mac_address_pretty|"
     r"get_mac_address_pretty(?!_)|"
     r"get_mac_address(?!_)|"
+    r"str_lower_case|"
     r"str_sanitize(?!_)|"
     r"str_truncate|"
+    r"str_until|"
     r"str_upper_case|"
     r"str_snake_case|"
     r"str_sprintf|"
-    r"str_snprintf"
+    r"str_snprintf|"
+    r"value_accuracy_to_string"
     r")\s*\(" + CPP_RE_EOL,
     include=cpp_include,
     exclude=[
         # The definitions themselves
+        "esphome/core/alloc_helpers.h",
+        "esphome/core/alloc_helpers.cpp",
+        # Backward compatibility re-exports (remove before 2026.11.0)
         "esphome/core/helpers.h",
         "esphome/core/helpers.cpp",
+        # Vendored third-party library
+        "esphome/components/http_request/httplib.h",
     ],
 )
 def lint_no_heap_allocating_helpers(fname, match):
@@ -812,6 +846,7 @@ def lint_no_sprintf(fname, match):
         "esphome/components/http_request/httplib.h",
         # Deprecated helpers that return std::string
         "esphome/core/helpers.cpp",
+        "esphome/core/alloc_helpers.cpp",
         # The using declaration itself
         "esphome/core/helpers.h",
         # Test fixtures - not production embedded code
@@ -823,7 +858,16 @@ def lint_no_std_to_string(fname, match):
         f"{highlight('std::to_string()')} (including unqualified {highlight('to_string()')}) "
         f"allocates heap memory. On long-running embedded devices, repeated heap allocations "
         f"fragment memory over time.\n"
-        f"Please use {highlight('snprintf()')} with a stack buffer instead.\n"
+        f"\n"
+        f"For plain integer formatting, prefer the dedicated helpers in helpers.h over "
+        f"{highlight('snprintf()')} — they avoid pulling in printf formatting code and are "
+        f"smaller and faster:\n"
+        f"  int8_t:                       {highlight('int8_to_str(buf, val)')}      (buf >= 5 bytes)\n"
+        f"  uint8_t/uint16_t/uint32_t:    {highlight('uint32_to_str(buf, val)')}    (buf = UINT32_MAX_STR_SIZE; smaller types auto-widen)\n"
+        f"Example: {highlight('char buf[UINT32_MAX_STR_SIZE]; uint32_to_str(buf, value);')}\n"
+        f"For sensor values, use {highlight('value_accuracy_to_buf()')} from helpers.h.\n"
+        f"\n"
+        f"Otherwise use {highlight('snprintf()')} with a stack buffer.\n"
         f"\n"
         f"Buffer sizes and format specifiers (sizes include sign and null terminator):\n"
         f"  uint8_t:          4 chars   - %u (or PRIu8)\n"
@@ -837,7 +881,6 @@ def lint_no_std_to_string(fname, match):
         f"  float/double:     24 chars  - %.8g (15 digits + sign + decimal + e+XXX)\n"
         f"                    317 chars - %f (for DBL_MAX: 309 int digits + decimal + 6 frac + sign)\n"
         f"\n"
-        f"For sensor values, use value_accuracy_to_buf() from helpers.h.\n"
         f'Example: char buf[11]; snprintf(buf, sizeof(buf), "%" PRIu32, value);\n'
         f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
     )
@@ -951,12 +994,14 @@ def lint_log_multiline_continuation(fname, content):
                 (
                     lineno,
                     col,
-                    "Multi-line log message has a continuation line that does "
-                    "not start with a space. The log viewer uses leading "
-                    "whitespace to detect continuation lines and re-add the "
-                    f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
-                    "Either start the continuation with a space/indent, or "
-                    "split into separate ESP_LOG* calls.",
+                    (
+                        "Multi-line log message has a continuation line that does "
+                        "not start with a space. The log viewer uses leading "
+                        "whitespace to detect continuation lines and re-add the "
+                        f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
+                        "Either start the continuation with a space/indent, or "
+                        "split into separate ESP_LOG* calls."
+                    ),
                 )
             )
     return errs
@@ -1012,7 +1057,12 @@ PACKAGE_BUS_RE = re.compile(
 )
 
 
-@lint_content_check(include=["tests/components/*/test.*.yaml"])
+@lint_content_check(
+    include=[
+        "tests/components/*/test.*.yaml",
+        "tests/components/*/validate.*.yaml",
+    ]
+)
 def lint_test_package_key_matches_bus(fname, content):
     """Ensure package keys match the common bus directory name.
 
@@ -1029,10 +1079,12 @@ def lint_test_package_key_matches_bus(fname, content):
                 (
                     lineno,
                     1,
-                    f"Package key {highlight(pkg_key)} does not match bus directory "
-                    f"{highlight(bus_dir)}. The package key must match the directory "
-                    f"name under tests/test_build_components/common/. "
-                    f"Change {highlight(pkg_key)} to {highlight(bus_dir)}.",
+                    (
+                        f"Package key {highlight(pkg_key)} does not match bus directory "
+                        f"{highlight(bus_dir)}. The package key must match the directory "
+                        f"name under tests/test_build_components/common/. "
+                        f"Change {highlight(pkg_key)} to {highlight(bus_dir)}."
+                    ),
                 )
             )
     return errs

@@ -5,7 +5,6 @@ import esphome.config_validation as cv
 
 from ..defines import CONF_WIDGET
 from ..lvcode import (
-    API_EVENT,
     EVENT_ARG,
     UPDATE_EVENT,
     LambdaContext,
@@ -33,7 +32,7 @@ async def to_code(config):
     await wait_for_widgets()
     async with LambdaContext([(cg.std_string, "text_value")]) as control:
         await widget.set_property("text", "text_value.c_str()")
-        lv_obj.send_event(widget.obj, API_EVENT, cg.nullptr)
+        lv_obj.send_event(widget.obj, UPDATE_EVENT, cg.nullptr)
         control.add(textvar.publish_state(widget.get_value()))
     async with LambdaContext(EVENT_ARG) as lamb:
         lv_add(textvar.publish_state(widget.get_value()))

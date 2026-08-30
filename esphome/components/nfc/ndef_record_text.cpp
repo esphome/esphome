@@ -1,8 +1,7 @@
 #include "ndef_record_text.h"
 #include "ndef_record.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.ndef_record_text";
 
@@ -41,5 +40,4 @@ std::vector<uint8_t> NdefRecordText::get_encoded_payload() {
   return data;
 }
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

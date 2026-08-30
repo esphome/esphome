@@ -1,8 +1,7 @@
 #include "gps.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace gps {
+namespace esphome::gps {
 
 static const char *const TAG = "gps";
 
@@ -91,5 +90,4 @@ void GPS::loop() {
   }
 }
 
-}  // namespace gps
-}  // namespace esphome
+}  // namespace esphome::gps

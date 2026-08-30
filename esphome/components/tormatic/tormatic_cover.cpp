@@ -5,8 +5,7 @@
 
 using namespace std;
 
-namespace esphome {
-namespace tormatic {
+namespace esphome::tormatic {
 
 static const char *const TAG = "tormatic.cover";
 
@@ -282,12 +281,13 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     }
   }
 
+  auto hdr = this->pending_hdr_.value();
+
   // Wait for all payload bytes to arrive before processing.
-  if (this->available() < this->pending_hdr_->payload_size()) {
+  if (this->available() < hdr.payload_size()) {
     return {};
   }
 
-  auto hdr = *this->pending_hdr_;
   this->pending_hdr_.reset();
 
   switch (hdr.type) {
@@ -389,5 +389,4 @@ void Tormatic::drain_rx_(uint16_t n) {
   }
 }
 
-}  // namespace tormatic
-}  // namespace esphome
+}  // namespace esphome::tormatic

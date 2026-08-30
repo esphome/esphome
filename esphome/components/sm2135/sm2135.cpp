@@ -3,8 +3,7 @@
 
 // Tnx to the work of https://github.com/arendst (Tasmota) for making the initial version of the driver
 
-namespace esphome {
-namespace sm2135 {
+namespace esphome::sm2135 {
 
 static const char *const TAG = "sm2135";
 
@@ -149,5 +148,4 @@ void SM2135::sm2135_set_high_(GPIOPin *pin) {
   pin->pin_mode(gpio::FLAG_PULLUP);
 }
 
-}  // namespace sm2135
-}  // namespace esphome
+}  // namespace esphome::sm2135

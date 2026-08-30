@@ -4,10 +4,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/output/float_output.h"
 
-namespace esphome {
-namespace slow_pwm {
+namespace esphome::slow_pwm {
 
-class SlowPWMOutput : public output::FloatOutput, public Component {
+class SlowPWMOutput final : public output::FloatOutput, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; };
   void set_period(unsigned int period) { period_ = period; };
@@ -57,5 +56,4 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
   bool restart_cycle_on_state_change_;
 };
 
-}  // namespace slow_pwm
-}  // namespace esphome
+}  // namespace esphome::slow_pwm

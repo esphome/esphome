@@ -14,7 +14,7 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request.host";
+static const char *const TAG = "http_request";
 
 std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, const std::string &method,
                                                         const std::string &body,
@@ -115,7 +115,7 @@ std::shared_ptr<HttpContainer> HttpRequestHost::perform(const std::string &url, 
   container->content_length = container->response_body_.size();
   for (auto header : response.headers) {
     ESP_LOGD(TAG, "Header: %s: %s", header.first.c_str(), header.second.c_str());
-    auto lower_name = str_lower_case(header.first);
+    auto lower_name = str_lower_case(header.first);  // NOLINT
     if (should_collect_header(lower_case_collect_headers, lower_name)) {
       container->response_headers_.push_back({lower_name, header.second});
     }

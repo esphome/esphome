@@ -3,8 +3,7 @@
 #include "esphome/core/log.h"
 #include <cstring>
 
-namespace esphome {
-namespace pmsa003i {
+namespace esphome::pmsa003i {
 
 static const char *const TAG = "pmsa003i";
 
@@ -131,5 +130,4 @@ bool PMSA003IComponent::read_data_(PM25AQIData *data) {
   return true;
 }
 
-}  // namespace pmsa003i
-}  // namespace esphome
+}  // namespace esphome::pmsa003i

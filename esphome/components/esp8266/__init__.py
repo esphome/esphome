@@ -1,6 +1,9 @@
 import logging
 from pathlib import Path
+import platform
 import re
+import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -19,12 +22,20 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    CoroPriority,
+    EsphomeError,
+    Lambda,
+    coroutine_with_priority,
+)
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import IS_MACOS, copy_file_if_changed
+from esphome.platformio.toolchain import copy_ccache_script
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS, ESP8266_LD_SCRIPTS
+from .boards import BOARDS, ESP8266_LD_SCRIPTS, board_ld_script
 from .const import (
     CONF_EARLY_PIN_INIT,
     CONF_ENABLE_SERIAL,
@@ -33,6 +44,7 @@ from .const import (
     KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
+    KEY_LDSCRIPT,
     KEY_PIN_INITIAL_STATES,
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
@@ -79,7 +91,7 @@ def lambdas_use_scanf_float(config: ConfigType) -> bool:
     return False
 
 
-def set_core_data(config):
+def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_ESP8266] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
@@ -93,7 +105,20 @@ def set_core_data(config):
     return config
 
 
-def get_download_types(storage_json):
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
+    """Binary-download entries for a built ESP8266 firmware.
+
+    Used by device-builder (esphome/device-builder), via
+    ``importlib.import_module(f"esphome.components.{platform}")``
+    then ``module.get_download_types(storage)``. The contract is
+    "returns ``list[dict]`` with at least ``title`` /
+    ``description`` / ``file`` / ``download`` keys"; please keep
+    the shape stable so the download panel
+    doesn't have to special-case per-platform schemas.
+    """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Standard format",
@@ -112,7 +137,16 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
         return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
     if ver <= cv.Version(2, 6, 2):
         return f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-    return f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+    # Same encoding the native toolchain uses for its package download, so a
+    # version bump cannot drift between the two paths.
+    from esphome.arduino8266.framework import framework_package_version
+
+    try:
+        return f"~{framework_package_version(ver)}"
+    except EsphomeError as err:
+        # Anchor the 4.x rejection to the framework version line instead of
+        # aborting with a bare traceback-level error
+        raise cv.Invalid(str(err), path=[CONF_VERSION]) from err
 
 
 # NOTE: Keep this in mind when updating the recommended version:
@@ -120,7 +154,6 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 #    The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
-#    and platformio.ini/platformio-lint.ini in the esphome-docker-base repository
 
 # The default/recommended arduino framework version
 #  - https://github.com/esp8266/Arduino/releases
@@ -136,7 +169,7 @@ ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 ARDUINO_4_PLATFORM_VERSION = cv.Version(4, 2, 1)
 
 
-def _arduino_check_versions(value):
+def _arduino_check_versions(value: ConfigType) -> ConfigType:
     value = value.copy()
     lookups = {
         "dev": (cv.Version(3, 1, 2), "https://github.com/esp8266/Arduino.git"),
@@ -179,7 +212,7 @@ def _arduino_check_versions(value):
     return value
 
 
-def _parse_platform_version(value):
+def _parse_platform_version(value: Any) -> str:
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
@@ -192,8 +225,12 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
-            cv.Optional(CONF_SOURCE): cv.string_strict,
-            cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+            cv.Optional(
+                CONF_SOURCE, visibility=cv.Visibility.YAML_ONLY
+            ): cv.string_strict,
+            cv.Optional(
+                CONF_PLATFORM_VERSION, visibility=cv.Visibility.YAML_ONLY
+            ): _parse_platform_version,
         }
     ),
     _arduino_check_versions,
@@ -219,12 +256,66 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_SCANF_FLOAT): cv.boolean,
         }
     ),
+    # Until the native toolchain lands, PlatformIO is the only backend;
+    # reject a --toolchain this platform cannot serve yet.
+    cv.require_platformio_toolchain("ESP8266"),
     set_core_data,
 )
 
 
+def check_rosetta() -> None:
+    """Fail fast when the x86_64 ESP8266 toolchain cannot run on this Mac.
+
+    There is no native arm64 build of the xtensa-lx106 toolchain; on Apple
+    Silicon it runs under Rosetta 2, which macOS updates can remove.
+    """
+    if not IS_MACOS or platform.machine() != "arm64":
+        return
+    try:
+        result = subprocess.run(
+            ["/usr/bin/arch", "-x86_64", "/usr/bin/true"],
+            capture_output=True,
+            close_fds=False,
+            check=False,
+        )
+    except OSError:
+        return  # arch(1) unavailable; let the build proceed
+    if result.returncode != 0:
+        raise EsphomeError(
+            "ESP8266 builds on Apple Silicon Macs use an Intel (x86_64) "
+            "compiler that requires Rosetta 2, which is not installed on "
+            "this system. Install it with:\n"
+            "  softwareupdate --install-rosetta --agree-to-license"
+        )
+
+
+def _choose_ld_script(board: str, ver: cv.Version) -> str | None:
+    """The flash ld to pin for this board and core, or None for cores
+    without ld-script support."""
+    board_data = BOARDS[board]
+    ld_scripts = ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]]
+    if ver <= cv.Version(2, 3, 0):
+        # No ld script support
+        return None
+    if ver <= cv.Version(2, 4, 2):
+        # Old ld script path; the modern per-board override names do not
+        # exist in this core's SDK, so the override cannot be honored.
+        # Substituting the size default would move _FS_end and the
+        # preferences sector, wiping flash-backed state on flash.
+        if KEY_LDSCRIPT in board_data:
+            raise EsphomeError(
+                f"Board {board} requires its {board_data[KEY_LDSCRIPT]} "
+                f"flash layout, which Arduino core {ver} cannot honor; "
+                "use a core newer than 2.4.2"
+            )
+        return ld_scripts[0]
+    # A per-board override preserves a layout the board shipped with
+    # (see d1_wroom_02 in boards.py)
+    return board_ld_script(board_data)
+
+
 @coroutine_with_priority(CoroPriority.PLATFORM)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add(esp8266_ns.setup_preferences())
 
     cg.add_platformio_option("lib_ldf_mode", "off")
@@ -247,9 +338,11 @@ async def to_code(config):
         )
 
     extra_scripts = [
+        "pre:ccache.py",
         "pre:testing_mode.py",
         "pre:exclude_updater.py",
         "pre:exclude_waveform.py",
+        "pre:relocate_ratetable.py",
     ]
     if not enable_scanf_float:
         extra_scripts.append("pre:remove_float_scanf.py")
@@ -300,6 +393,14 @@ async def to_code(config):
     # For cases where nullptrs can be handled, use nothrow: `new (std::nothrow) T;`
     cg.add_build_flag("-DNEW_OOM_ABORT")
 
+    # Force-include inline std::__throw_* overrides so GCC dead-strips the unused
+    # libstdc++ error message strings (e.g. "basic_string::_M_create") from DRAM.
+    # See throw_stubs.h for details. Must be prepended before <string>, so this
+    # uses build_src_flags with -include.
+    cg.add_platformio_option(
+        "build_src_flags", "-include esphome/components/esp8266/throw_stubs.h"
+    )
+
     # In testing mode, fake larger memory to allow linking grouped component tests
     # Real ESP8266 hardware only has 32KB IRAM and ~80KB RAM, but for CI testing
     # we pretend it has much larger memory to test that components compile together
@@ -314,6 +415,17 @@ async def to_code(config):
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
+    # Wrap the lwIP2 glue's do-nothing dhcp_cleanup()/dhcp_release() stubs so the
+    # linker can drop their "STUB: ..." message strings from DRAM.
+    # See lwip_glue_stubs.cpp for implementation.
+    for symbol in ("dhcp_cleanup", "dhcp_release"):
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+
+    # Wrap Arduino's millis() so all callers (including Arduino libraries and ISR
+    # handlers) use our fast accumulator instead of the expensive 4x 64-bit multiply
+    # implementation in the Arduino ESP8266 core.
+    cg.add_build_flag("-Wl,--wrap=millis")
+
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
@@ -323,17 +435,7 @@ async def to_code(config):
     )
 
     if config[CONF_BOARD] in BOARDS:
-        flash_size = BOARDS[config[CONF_BOARD]][KEY_FLASH_SIZE]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-
-        if ver <= cv.Version(2, 3, 0):
-            # No ld script support
-            ld_script = None
-        elif ver <= cv.Version(2, 4, 2):
-            # Old ld script path
-            ld_script = ld_scripts[0]
-        else:
-            ld_script = ld_scripts[1]
+        ld_script = _choose_ld_script(config[CONF_BOARD], ver)
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
@@ -377,28 +479,146 @@ async def finalize_serial_config() -> None:
 # Called by writer.py
 def copy_files() -> None:
     dir = Path(__file__).parent
-    post_build_file = dir / "post_build.py.script"
-    copy_file_if_changed(
-        post_build_file,
-        CORE.relative_build_path("post_build.py"),
-    )
-    testing_mode_file = dir / "testing_mode.py.script"
-    copy_file_if_changed(
-        testing_mode_file,
-        CORE.relative_build_path("testing_mode.py"),
-    )
-    exclude_updater_file = dir / "exclude_updater.py.script"
-    copy_file_if_changed(
-        exclude_updater_file,
-        CORE.relative_build_path("exclude_updater.py"),
-    )
-    exclude_waveform_file = dir / "exclude_waveform.py.script"
-    copy_file_if_changed(
-        exclude_waveform_file,
-        CORE.relative_build_path("exclude_waveform.py"),
-    )
-    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
-    copy_file_if_changed(
-        remove_float_scanf_file,
-        CORE.relative_build_path("remove_float_scanf.py"),
-    )
+    for script in (
+        "post_build",
+        "testing_mode",
+        "exclude_updater",
+        "exclude_waveform",
+        "remove_float_scanf",
+        "relocate_ratetable",
+    ):
+        copy_file_if_changed(
+            dir / f"{script}.py.script",
+            CORE.relative_build_path(f"{script}.py"),
+        )
+    copy_ccache_script()
+
+
+# ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
+ESP8266_EXCEPTION_CODES = {
+    0: "Illegal instruction (Is the flash damaged?)",
+    1: "SYSCALL instruction",
+    2: "InstructionFetchError: Processor internal physical address or data error during "
+    "instruction fetch",
+    3: "LoadStoreError: Processor internal physical address or data error during load or store",
+    4: "Level1Interrupt: Level-1 interrupt as indicated by set level-1 bits in the INTERRUPT "
+    "register",
+    5: "Alloca: MOVSP instruction, if caller's registers are not in the register file",
+    6: "Integer Divide By Zero",
+    7: "reserved",
+    8: "Privileged: Attempt to execute a privileged operation when CRING ? 0",
+    9: "LoadStoreAlignmentCause: Load or store to an unaligned address",
+    10: "reserved",
+    11: "reserved",
+    12: "InstrPIFDataError: PIF data error during instruction fetch",
+    13: "LoadStorePIFDataError: Synchronous PIF data error during LoadStore access",
+    14: "InstrPIFAddrError: PIF address error during instruction fetch",
+    15: "LoadStorePIFAddrError: Synchronous PIF address error during LoadStore access",
+    16: "InstTLBMiss: Error during Instruction TLB refill",
+    17: "InstTLBMultiHit: Multiple instruction TLB entries matched",
+    18: "InstFetchPrivilege: An instruction fetch referenced a virtual address at a ring level "
+    "less than CRING",
+    19: "reserved",
+    20: "InstFetchProhibited: An instruction fetch referenced a page mapped with an attribute "
+    "that does not permit instruction fetch",
+    21: "reserved",
+    22: "reserved",
+    23: "reserved",
+    24: "LoadStoreTLBMiss: Error during TLB refill for a load or store",
+    25: "LoadStoreTLBMultiHit: Multiple TLB entries matched for a load or store",
+    26: "LoadStorePrivilege: A load or store referenced a virtual address at a ring level less "
+    "than ",
+    27: "reserved",
+    28: "Access to invalid address: LOAD (wild pointer?)",
+    29: "Access to invalid address: STORE (wild pointer?)",
+}
+
+
+def _decode_pc(config: ConfigType, addr: str) -> None:
+    from esphome.platformio import toolchain
+
+    idedata = toolchain.get_idedata(config)
+    if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.debug("decode_pc no addr2line")
+        return
+    command = [idedata.addr2line_path, "-pfiaC", "-e", idedata.firmware_elf_path, addr]
+    try:
+        translation = subprocess.check_output(command, close_fds=False).decode().strip()
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
+        return
+
+    if "?? ??:0" in translation:
+        # Nothing useful
+        return
+    translation = translation.replace(" at ??:?", "").replace(":?", "")
+    _LOGGER.warning("Decoded %s", translation)
+
+
+def _parse_register(config: ConfigType, regex: re.Pattern[str], line: str) -> None:
+    match = regex.match(line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
+
+STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r"[eE]xception \((\d+)\):")
+STACKTRACE_ESP8266_PC_RE = re.compile(r"epc1=0x(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r"excvaddr=0x(4[0-9a-fA-F]{7})")
+# Structured crash handler output (crash_handler.cpp) from a previous boot:
+#   PC: 0x40220060
+#   EXCVADDR: 0x0000008A
+#   BT0: 0x40212345
+STACKTRACE_ESP8266_CRASH_PC_RE = re.compile(r".*PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})")
+STACKTRACE_ESP8266_CRASH_EXCVADDR_RE = re.compile(
+    r".*EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})"
+)
+STACKTRACE_ESP8266_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
+STACKTRACE_BAD_ALLOC_RE = re.compile(
+    r"^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$"
+)
+STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+
+
+def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
+    line = line.strip()
+    # ESP8266 Exception type
+    match = re.match(STACKTRACE_ESP8266_EXCEPTION_TYPE_RE, line)
+    if match is not None:
+        code = int(match.group(1))
+        _LOGGER.warning(
+            "Exception type: %s", ESP8266_EXCEPTION_CODES.get(code, "unknown")
+        )
+
+    # ESP8266 PC/EXCVADDR (legacy Arduino postmortem)
+    _parse_register(config, STACKTRACE_ESP8266_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP8266_EXCVADDR_RE, line)
+
+    # ESP8266 structured crash handler (crash_handler.cpp) from previous boot
+    _parse_register(config, STACKTRACE_ESP8266_CRASH_PC_RE, line)
+    _parse_register(config, STACKTRACE_ESP8266_CRASH_EXCVADDR_RE, line)
+    match = re.search(STACKTRACE_ESP8266_CRASH_BT_RE, line)
+    if match is not None:
+        _decode_pc(config, match.group(1))
+
+    # bad alloc
+    match = re.match(STACKTRACE_BAD_ALLOC_RE, line)
+    if match is not None:
+        _LOGGER.warning(
+            "Memory allocation of %s bytes failed at %s", match.group(2), match.group(1)
+        )
+        _decode_pc(config, match.group(1))
+
+    # ESP8266 multi-line backtrace
+    if ">>>stack>>>" in line:
+        # Start of backtrace
+        backtrace_state = True
+        _LOGGER.warning("Found stack trace! Trying to decode it")
+    elif "<<<stack<<<" in line:
+        # End of backtrace
+        backtrace_state = False
+
+    if backtrace_state:
+        for addr in re.finditer(STACKTRACE_ESP8266_BACKTRACE_PC_RE, line):
+            _decode_pc(config, addr.group())
+
+    return backtrace_state

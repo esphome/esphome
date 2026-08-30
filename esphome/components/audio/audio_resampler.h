@@ -5,9 +5,9 @@
 #include "audio.h"
 #include "audio_transfer_buffer.h"
 
+#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/ring_buffer.h"
 
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
@@ -17,13 +17,12 @@
 
 #include <resampler.h>  // esp-audio-libs
 
-namespace esphome {
-namespace audio {
+namespace esphome::audio {
 
 enum class AudioResamplerState : uint8_t {
   RESAMPLING,  // More data is available to resample
   FINISHED,    // All file data has been resampled and transferred
-  FAILED,      // Unused state included for consistency among Audio classes
+  FAILED,      // Failed to allocate the audio source
 };
 
 class AudioResampler {
@@ -33,20 +32,22 @@ class AudioResampler {
    * component). Also supports converting bits per sample.
    */
  public:
-  /// @brief Allocates the input and output transfer buffers
-  /// @param input_buffer_size Size of the input transfer buffer in bytes.
+  /// @brief Allocates the output transfer buffer. The input source is created later in resample().
+  /// @param input_buffer_size Max bytes exposed per fill() call on the zero-copy input source.
   /// @param output_buffer_size Size of the output transfer buffer in bytes.
   AudioResampler(size_t input_buffer_size, size_t output_buffer_size);
 
-  /// @brief Adds a source ring buffer for audio data. Takes ownership of the ring buffer in a shared_ptr.
-  /// @param input_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
-  /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
-  esp_err_t add_source(std::weak_ptr<RingBuffer> &input_ring_buffer);
+  /// @brief Sets the ring buffer the audio is read from and takes shared ownership of it. The zero-copy
+  /// RingBufferAudioSource that reads directly from its internal storage is created lazily on the first
+  /// resample() call, so add_source() and start() may be called in any order.
+  /// @param input_ring_buffer weak_ptr of a shared_ptr of the source ring buffer to transfer ownership
+  /// @return ESP_OK if successful, ESP_ERR_INVALID_STATE if the ring buffer is no longer alive
+  esp_err_t add_source(std::weak_ptr<ring_buffer::RingBuffer> &input_ring_buffer);
 
   /// @brief Adds a sink ring buffer for resampled audio. Takes ownership of the ring buffer in a shared_ptr.
   /// @param output_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
   /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
-  esp_err_t add_sink(std::weak_ptr<RingBuffer> &output_ring_buffer);
+  esp_err_t add_sink(std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer);
 
 #ifdef USE_SPEAKER
   /// @brief Adds a sink speaker for decoded audio.
@@ -79,7 +80,8 @@ class AudioResampler {
   void set_pause_output_state(bool pause_state) { this->pause_output_ = pause_state; }
 
  protected:
-  std::unique_ptr<AudioSourceTransferBuffer> input_transfer_buffer_;
+  std::shared_ptr<ring_buffer::RingBuffer> source_ring_buffer_;
+  std::unique_ptr<RingBufferAudioSource> audio_source_;
   std::unique_ptr<AudioSinkTransferBuffer> output_transfer_buffer_;
 
   size_t input_buffer_size_;
@@ -96,7 +98,6 @@ class AudioResampler {
   std::unique_ptr<esp_audio_libs::resampler::Resampler> resampler_;
 };
 
-}  // namespace audio
-}  // namespace esphome
+}  // namespace esphome::audio
 
 #endif

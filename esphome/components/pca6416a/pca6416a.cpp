@@ -1,8 +1,7 @@
 #include "pca6416a.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pca6416a {
+namespace esphome::pca6416a {
 
 enum PCA6416AGPIORegisters {
   // 0 side
@@ -49,11 +48,25 @@ void PCA6416AComponent::setup() {
 
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PCA6416AComponent::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    this->set_invalidate_on_read_(false);
+  }
+  this->disable_loop();
 }
 
+void IRAM_ATTR PCA6416AComponent::gpio_intr(PCA6416AComponent *arg) { arg->enable_loop_soon_any_context(); }
 void PCA6416AComponent::loop() {
   // Invalidate cache at the start of each loop
   this->reset_pin_cache_();
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
+    this->disable_loop();
+  }
 }
 
 void PCA6416AComponent::dump_config() {
@@ -62,6 +75,7 @@ void PCA6416AComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "PCA6416A:");
   }
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -101,6 +115,9 @@ void PCA6416AComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
       this->update_register_(pin, true, pull_dir);
       this->update_register_(pin, false, pull_en);
     }
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     this->update_register_(pin, true, io_dir);
     if (has_pullup_) {
@@ -108,6 +125,9 @@ void PCA6416AComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
       this->update_register_(pin, true, pull_en);
     } else {
       ESP_LOGW(TAG, "Your PCA6416A does not support pull-up resistors");
+    }
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
     }
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_register_(pin, false, io_dir);
@@ -184,5 +204,4 @@ size_t PCA6416AGPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCA6416A", this->pin_);
 }
 
-}  // namespace pca6416a
-}  // namespace esphome
+}  // namespace esphome::pca6416a

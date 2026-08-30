@@ -4,10 +4,9 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "../constants.h"
 
-namespace esphome {
-namespace sml {
+namespace esphome::sml {
 
-class SmlTextSensor : public SmlListener, public text_sensor::TextSensor, public Component {
+class SmlTextSensor final : public SmlListener, public text_sensor::TextSensor, public Component {
  public:
   SmlTextSensor(std::string server_id, std::string obis_code, SmlType format);
   void publish_val(const ObisInfo &obis_info) override;
@@ -17,5 +16,4 @@ class SmlTextSensor : public SmlListener, public text_sensor::TextSensor, public
   SmlType format_;
 };
 
-}  // namespace sml
-}  // namespace esphome
+}  // namespace esphome::sml

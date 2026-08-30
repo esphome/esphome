@@ -1,7 +1,8 @@
 #pragma once
 
 // Should not be needed, but it's required to pass CI clang-tidy checks
-#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include <vector>
@@ -66,6 +67,8 @@ static_assert(MAX_REQUESTS >= 1 && MAX_REQUESTS <= 32, "MAX_REQUESTS must be bet
 using trq_bitmask_t = std::conditional<(MAX_REQUESTS <= 16), uint16_t, uint32_t>::type;
 static constexpr trq_bitmask_t ALL_REQUESTS_IN_USE = MAX_REQUESTS == 32 ? ~0 : (1 << MAX_REQUESTS) - 1;
 
+static constexpr size_t USB_MAX_PACKET_SIZE =
+    USB_HOST_MAX_PACKET_SIZE;                        // Max USB packet size (64 for FS, 512 for P4 HS)
 static constexpr size_t USB_EVENT_QUEUE_SIZE = 32;   // Size of event queue between USB task and main loop
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;  // Stack size for USB task (same as ESP-IDF USB examples)
 static constexpr UBaseType_t USB_TASK_PRIORITY = 5;  // Higher priority than main loop (tskIDLE_PRIORITY + 5)
@@ -165,7 +168,7 @@ class USBClient : public Component {
 
   // USB task management
   static void usb_task_fn(void *arg);
-  [[noreturn]] void usb_task_loop() const;
+  [[noreturn]] void usb_task_loop_() const;
 
   // Members ordered to minimize struct padding on 32-bit platforms
   TransferRequest requests_[MAX_REQUESTS]{};
@@ -181,7 +184,7 @@ class USBClient : public Component {
   uint16_t vid_{};
   uint16_t pid_{};
 };
-class USBHost : public Component {
+class USBHost final : public Component {
  public:
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
@@ -193,4 +196,5 @@ class USBHost : public Component {
 
 }  // namespace esphome::usb_host
 
-#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||
+        // USE_ESP32_VARIANT_ESP32S31 || USE_ESP32_VARIANT_ESP32H4

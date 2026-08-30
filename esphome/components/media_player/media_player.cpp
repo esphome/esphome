@@ -4,8 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace media_player {
+namespace esphome::media_player {
 
 static const char *const TAG = "media_player";
 
@@ -205,5 +204,4 @@ void MediaPlayer::publish_state() {
 #endif
 }
 
-}  // namespace media_player
-}  // namespace esphome
+}  // namespace esphome::media_player

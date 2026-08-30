@@ -5,12 +5,11 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/gpio_expander/cached_gpio.h"
 
-namespace esphome {
-namespace pca9554 {
+namespace esphome::pca9554 {
 
-class PCA9554Component : public Component,
-                         public i2c::I2CDevice,
-                         public gpio_expander::CachedGpioExpander<uint16_t, 16> {
+class PCA9554Component final : public Component,
+                               public i2c::I2CDevice,
+                               public gpio_expander::CachedGpioExpander<uint16_t, 16> {
  public:
   PCA9554Component() = default;
 
@@ -54,7 +53,7 @@ class PCA9554Component : public Component,
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
-class PCA9554GPIOPin : public GPIOPin {
+class PCA9554GPIOPin final : public GPIOPin {
  public:
   void setup() override;
   void pin_mode(gpio::Flags flags) override;
@@ -76,5 +75,4 @@ class PCA9554GPIOPin : public GPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace pca9554
-}  // namespace esphome
+}  // namespace esphome::pca9554

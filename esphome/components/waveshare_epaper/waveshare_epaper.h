@@ -4,8 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 
-namespace esphome {
-namespace waveshare_epaper {
+namespace esphome::waveshare_epaper {
 
 class WaveshareEPaperBase : public display::DisplayBuffer,
                             public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
@@ -1099,5 +1098,4 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
   uint32_t idle_timeout_() override;
 };
 
-}  // namespace waveshare_epaper
-}  // namespace esphome
+}  // namespace esphome::waveshare_epaper

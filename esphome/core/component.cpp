@@ -32,10 +32,7 @@ static const char *const TAG = "component";
 namespace {
 struct ComponentErrorMessage {
   const Component *component;
-  const char *message;
-  // Track if message is flash pointer (needs LOG_STR_ARG) or RAM pointer
-  // Remove before 2026.6.0 when deprecated const char* API is removed
-  bool is_flash_ptr;
+  const LogString *message;
 };
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
@@ -56,9 +53,8 @@ std::vector<ComponentPriorityOverride> *setup_priority_overrides = nullptr;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::vector<ComponentErrorMessage> *component_error_messages = nullptr;
 
-// Helper to store error messages - reduces duplication between deprecated and new API
-// Remove before 2026.6.0 when deprecated const char* API is removed
-void store_component_error_message(const Component *component, const char *message, bool is_flash_ptr) {
+// Helper to store error messages
+void store_component_error_message(const Component *component, const LogString *message) {
   // Lazy allocate the error messages vector if needed
   if (!component_error_messages) {
     component_error_messages = new std::vector<ComponentErrorMessage>();
@@ -67,12 +63,11 @@ void store_component_error_message(const Component *component, const char *messa
   for (auto &entry : *component_error_messages) {
     if (entry.component == component) {
       entry.message = message;
-      entry.is_flash_ptr = is_flash_ptr;
       return;
     }
   }
   // Add new error message
-  component_error_messages->emplace_back(ComponentErrorMessage{component, message, is_flash_ptr});
+  component_error_messages->emplace_back(ComponentErrorMessage{component, message});
 }
 }  // namespace
 
@@ -90,74 +85,16 @@ void Component::setup() {}
 
 void Component::loop() {}
 
-void Component::set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_interval(this, name, interval, std::move(f));
-#pragma GCC diagnostic pop
-}
-
 void Component::set_interval(const char *name, uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, name, interval, std::move(f));
-}
-
-bool Component::cancel_interval(const std::string &name) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_interval(this, name);
-#pragma GCC diagnostic pop
 }
 
 bool Component::cancel_interval(const char *name) {  // NOLINT
   return App.scheduler.cancel_interval(this, name);
 }
 
-void Component::set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
-}
-
-void Component::set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
-}
-
-bool Component::cancel_retry(const std::string &name) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_retry(this, name);
-#pragma GCC diagnostic pop
-}
-
-bool Component::cancel_retry(const char *name) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_retry(this, name);
-#pragma GCC diagnostic pop
-}
-
-void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_timeout(this, name, timeout, std::move(f));
-#pragma GCC diagnostic pop
-}
-
 void Component::set_timeout(const char *name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, timeout, std::move(f));
-}
-
-bool Component::cancel_timeout(const std::string &name) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_timeout(this, name);
-#pragma GCC diagnostic pop
 }
 
 bool Component::cancel_timeout(const char *name) {  // NOLINT
@@ -189,41 +126,22 @@ void Component::set_interval(InternalSchedulerID id, uint32_t interval, std::fun
 
 bool Component::cancel_interval(InternalSchedulerID id) { return App.scheduler.cancel_interval(this, id); }
 
-void Component::set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, id, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
-}
-
-bool Component::cancel_retry(uint32_t id) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_retry(this, id);
-#pragma GCC diagnostic pop
-}
-
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config_() {
   this->dump_config();
   if (this->is_failed()) {
     // Look up error message from global vector
-    const char *error_msg = nullptr;
-    bool is_flash_ptr = false;
+    const LogString *error_msg = nullptr;
     if (component_error_messages) {
       for (const auto &entry : *component_error_messages) {
         if (entry.component == this) {
           error_msg = entry.message;
-          is_flash_ptr = entry.is_flash_ptr;
           break;
         }
       }
     }
-    // Log with appropriate format based on pointer type
     ESP_LOGE(TAG, "  %s is marked FAILED: %s", LOG_STR_ARG(this->get_component_log_str()),
-             error_msg ? (is_flash_ptr ? LOG_STR_ARG((const LogString *) error_msg) : error_msg)
-                       : LOG_STR_LITERAL("unspecified"));
+             error_msg ? LOG_STR_ARG(error_msg) : LOG_STR_LITERAL("unspecified"));
   }
 }
 
@@ -267,9 +185,11 @@ void Component::call() {
       break;
   }
 }
-bool Component::should_warn_of_blocking(uint32_t blocking_time) {
+bool Component::should_warn_of_blocking(uint32_t blocking_time, uint32_t &threshold_ms_out) {
   // Convert centisecond threshold to milliseconds for comparison
   uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  // Report the threshold that was exceeded (before any ratcheting below) so the warning is accurate.
+  threshold_ms_out = threshold_ms;
   if (blocking_time > threshold_ms) {
     // Set new threshold: blocking_time + increment, converted back to centiseconds
     uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
@@ -326,20 +246,8 @@ void Component::reset_to_construction_state() {
 void Component::defer(std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, static_cast<const char *>(nullptr), 0, std::move(f));
 }
-bool Component::cancel_defer(const std::string &name) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return App.scheduler.cancel_timeout(this, name);
-#pragma GCC diagnostic pop
-}
 bool Component::cancel_defer(const char *name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
-}
-void Component::defer(const std::string &name, std::function<void()> &&f) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_timeout(this, name, 0, std::move(f));
-#pragma GCC diagnostic pop
 }
 void Component::defer(const char *name, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_timeout(this, name, 0, std::move(f));
@@ -353,13 +261,6 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
 }
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, static_cast<const char *>(nullptr), interval, std::move(f));
-}
-void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,
-                          float backoff_increase_factor) {  // NOLINT
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
-#pragma GCC diagnostic pop
 }
 bool Component::is_ready() const {
   // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
@@ -390,31 +291,34 @@ void Component::status_set_warning(const LogString *message) {
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
 }
 void Component::status_set_error() { this->status_set_error((const LogString *) nullptr); }
-void Component::status_set_error(const char *message) {
-  if (!this->set_status_flag_(STATUS_LED_ERROR))
-    return;
-  ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
-           message ? message : LOG_STR_LITERAL("unspecified"));
-  if (message != nullptr) {
-    store_component_error_message(this, message, false);
-  }
-}
 void Component::status_set_error(const LogString *message) {
   if (!this->set_status_flag_(STATUS_LED_ERROR))
     return;
   ESP_LOGE(TAG, "%s set Error flag: %s", LOG_STR_ARG(this->get_component_log_str()),
            message ? LOG_STR_ARG(message) : LOG_STR_LITERAL("unspecified"));
   if (message != nullptr) {
-    // Store the LogString pointer directly (safe because LogString is always in flash/static memory)
-    store_component_error_message(this, LOG_STR_ARG(message), true);
+    store_component_error_message(this, message);
   }
 }
 void Component::status_clear_warning_slow_path_() {
   this->component_state_ &= ~STATUS_LED_WARNING;
+  // Clear the app-wide STATUS_LED_WARNING bit only if setup has finished
+  // AND no other component still has it set. During setup the forced
+  // STATUS_LED_WARNING (from the slow-setup busy-wait) must not be wiped
+  // by a transient component clear — Application::setup() reconciles
+  // the warning bit once at the end before setting APP_STATE_SETUP_COMPLETE.
+  // The set path is unchanged (set_status_flag_ still writes directly).
+  if (App.is_setup_complete() && !App.any_component_has_status_flag_(STATUS_LED_WARNING))
+    App.app_state_ &= ~STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
 void Component::status_clear_error_slow_path_() {
   this->component_state_ &= ~STATUS_LED_ERROR;
+  // STATUS_LED_ERROR is never artificially forced — it only ever lands
+  // in app_state_ via a real set_status_flag_ call. So the walk-and-clear
+  // path is always safe, including during setup.
+  if (!App.any_component_has_status_flag_(STATUS_LED_ERROR))
+    App.app_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
 void Component::status_momentary_warning(const char *name, uint32_t length) {
@@ -432,10 +336,8 @@ void log_update_interval(const char *tag, PollingComponent *component) {
   uint32_t update_interval = component->get_update_interval();
   if (update_interval == SCHEDULER_DONT_RUN) {
     ESP_LOGCONFIG(tag, "  Update Interval: never");
-  } else if (update_interval < 100) {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.3fs", update_interval / 1000.0f);
   } else {
-    ESP_LOGCONFIG(tag, "  Update Interval: %.1fs", update_interval / 1000.0f);
+    ESP_LOGCONFIG(tag, "  Update Interval: %" PRIu32 ".%03" PRIu32 "s", update_interval / 1000, update_interval % 1000);
   }
 }
 float Component::get_actual_setup_priority() const {
@@ -493,19 +395,29 @@ void PollingComponent::stop_poller() {
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
 
-void __attribute__((noinline, cold))
-WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
-  bool should_warn;
+#ifdef USE_RUNTIME_STATS
+uint64_t ComponentRuntimeStats::global_recorded_us = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+
+void __attribute__((noinline, cold)) LoopBlockingGuard::warn_blocking(uint32_t blocking_time) {
+  // Identity is published on App by the caller before the guard is built; read it back here.
+  Component *component = App.get_current_component();
+  // Component-less path always warns (the caller already checked the constant threshold).
+  uint32_t threshold_ms = WARN_IF_BLOCKING_OVER_MS;
+  if (component != nullptr && !component->should_warn_of_blocking(blocking_time, threshold_ms)) {
+    return;  // Component's (possibly ratcheted) threshold not exceeded yet
+  }
+  // Component name if any, else the published source (owning script), else a generic label.
+  const LogString *name;
   if (component != nullptr) {
-    should_warn = component->should_warn_of_blocking(blocking_time);
+    name = component->get_component_log_str();
   } else {
-    should_warn = true;  // Already checked > WARN_IF_BLOCKING_OVER_MS in caller
+    name = App.get_current_source();
+    if (name == nullptr)
+      name = LOG_STR("a scheduled task");
   }
-  if (should_warn) {
-    ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is 30 ms",
-             component == nullptr ? LOG_STR_LITERAL("<null>") : LOG_STR_ARG(component->get_component_log_str()),
-             blocking_time);
-  }
+  ESP_LOGW(TAG, "%s took a long time for an operation (%" PRIu32 " ms), max is %" PRIu32 " ms", LOG_STR_ARG(name),
+           blocking_time, threshold_ms);
 }
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE

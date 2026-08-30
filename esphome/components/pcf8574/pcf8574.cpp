@@ -1,8 +1,7 @@
 #include "pcf8574.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace pcf8574 {
+namespace esphome::pcf8574 {
 
 static const char *const TAG = "pcf8574";
 
@@ -31,8 +30,10 @@ void IRAM_ATTR PCF8574Component::gpio_intr(PCF8574Component *arg) { arg->enable_
 void PCF8574Component::loop() {
   // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
-  if (this->interrupt_pin_ != nullptr) {
-    // Interrupt-driven: disable loop until next interrupt fires
+  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
+  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
+  // stale state forever; keep looping until the line is released so we self-heal.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
     this->disable_loop();
   }
 }
@@ -129,5 +130,4 @@ size_t PCF8574GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCF8574", this->pin_);
 }
 
-}  // namespace pcf8574
-}  // namespace esphome
+}  // namespace esphome::pcf8574

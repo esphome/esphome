@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace remote_base {
+namespace esphome::remote_base {
 
 static constexpr uint8_t IGNORE_INDEX = 0xFF;
 
@@ -42,5 +41,4 @@ template<typename... Ts> class DysonAction : public RemoteTransmitterActionBase<
   }
 };
 
-}  // namespace remote_base
-}  // namespace esphome
+}  // namespace esphome::remote_base

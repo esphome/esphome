@@ -13,11 +13,6 @@ namespace esphome::sensor {
 
 static const char *const TAG = "sensor.filter";
 
-// Filter scheduler IDs.
-// Each filter is its own Component instance, so the scheduler scopes
-// IDs by component pointer — no risk of collisions between instances.
-constexpr uint32_t FILTER_ID = 0;
-
 // Filter
 void Filter::input(float value) {
   ESP_LOGVV(TAG, "Filter(%p)::input(%f)", this, value);
@@ -169,8 +164,6 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   }
   return {};
 }
-void ExponentialMovingAverageFilter::set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
-void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
 // ThrottleAverageFilter
 ThrottleAverageFilter::ThrottleAverageFilter(uint32_t time_period) : time_period_(time_period) {}
@@ -185,8 +178,9 @@ optional<float> ThrottleAverageFilter::new_value(float value) {
   }
   return {};
 }
-void ThrottleAverageFilter::setup() {
-  this->set_interval(FILTER_ID, this->time_period_, [this]() {
+void ThrottleAverageFilter::initialize(Sensor *parent, Filter *next) {
+  Filter::initialize(parent, next);
+  App.scheduler.set_interval(this, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "ThrottleAverageFilter(%p)::interval(sum=%f, n=%i)", this, this->sum_, this->n_);
     if (this->n_ == 0) {
       if (this->have_nan_)
@@ -199,7 +193,6 @@ void ThrottleAverageFilter::setup() {
     this->have_nan_ = false;
   });
 }
-float ThrottleAverageFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // LambdaFilter
 LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
@@ -269,6 +262,18 @@ optional<float> throttle_with_priority_new_value(Sensor *parent, float value, co
   return {};
 }
 
+// ThrottleWithPriorityNanFilter
+ThrottleWithPriorityNanFilter::ThrottleWithPriorityNanFilter(uint32_t min_time_between_inputs)
+    : min_time_between_inputs_(min_time_between_inputs) {}
+optional<float> ThrottleWithPriorityNanFilter::new_value(float value) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ || std::isnan(value)) {
+    this->last_input_ = now;
+    return value;
+  }
+  return {};
+}
+
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
     : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
@@ -276,8 +281,11 @@ DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
 void DeltaFilter::set_baseline(float (*fn)(float)) { this->baseline_ = fn; }
 
 optional<float> DeltaFilter::new_value(float value) {
-  // Always yield the first value.
-  if (std::isnan(this->last_value_)) {
+  const bool no_value = std::isnan(value);
+  const bool no_reference = std::isnan(this->last_value_);
+  if (no_value && no_reference)
+    return {};
+  if (no_value || no_reference) {
     this->last_value_ = value;
     return value;
   }
@@ -286,8 +294,7 @@ optional<float> DeltaFilter::new_value(float value) {
   float min = fabsf(this->min_a0_ + ref * this->min_a1_);
   float max = fabsf(this->max_a0_ + ref * this->max_a1_);
   float delta = fabsf(value - ref);
-  // if there is no reference, e.g. for the first value, just accept this one,
-  // otherwise accept only if within range.
+  // accept only if within range
   if (delta > min && delta <= max) {
     this->last_value_ = value;
     return value;
@@ -350,13 +357,12 @@ optional<float> TimeoutFilterConfigured::new_value(float value) {
 
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
-  this->set_timeout(FILTER_ID, this->time_period_, [this, value]() { this->output(value); });
+  App.scheduler.set_timeout(this, this->time_period_, [this, value]() { this->output(value); });
 
   return {};
 }
 
 DebounceFilter::DebounceFilter(uint32_t time_period) : time_period_(time_period) {}
-float DebounceFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 // HeartbeatFilter
 HeartbeatFilter::HeartbeatFilter(uint32_t time_period) : time_period_(time_period), last_input_(NAN) {}
@@ -372,8 +378,9 @@ optional<float> HeartbeatFilter::new_value(float value) {
   return {};
 }
 
-void HeartbeatFilter::setup() {
-  this->set_interval(FILTER_ID, this->time_period_, [this]() {
+void HeartbeatFilter::initialize(Sensor *parent, Filter *next) {
+  Filter::initialize(parent, next);
+  App.scheduler.set_interval(this, this->time_period_, [this]() {
     ESP_LOGVV(TAG, "HeartbeatFilter(%p)::interval(has_value=%s, last_input=%f)", this, YESNO(this->has_value_),
               this->last_input_);
     if (!this->has_value_)
@@ -382,8 +389,6 @@ void HeartbeatFilter::setup() {
     this->output(this->last_input_);
   });
 }
-
-float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value) {
   for (size_t i = 0; i < count; i++) {

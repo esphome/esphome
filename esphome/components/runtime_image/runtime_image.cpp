@@ -1,9 +1,10 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include <algorithm>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 
 #ifdef USE_RUNTIME_IMAGE_BMP
 #include "bmp_decoder.h"
@@ -14,10 +15,20 @@
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+#include "qoi_decoder.h"
+#endif
 
 namespace esphome::runtime_image {
 
 static const char *const TAG = "runtime_image";
+
+// Widest supported format is 4 bytes/pixel, so 32767 * 32767 * 4 still fits a 32-bit size_t
+static constexpr int MAX_IMAGE_DIMENSION = 32767;
+static constexpr int MAX_IMAGE_BPP = 32;
+static_assert((static_cast<uint64_t>(MAX_IMAGE_BPP) * MAX_IMAGE_DIMENSION + 7) / 8 * MAX_IMAGE_DIMENSION <=
+                  std::numeric_limits<size_t>::max(),
+              "MAX_IMAGE_DIMENSION must keep the worst-case buffer size within size_t");
 
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
@@ -127,9 +138,9 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       uint32_t pos = this->get_position_(x, y);
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
-      this->buffer_[pos + 0] = mapped_color.r;
+      this->buffer_[pos + 0] = mapped_color.b;
       this->buffer_[pos + 1] = mapped_color.g;
-      this->buffer_[pos + 2] = mapped_color.b;
+      this->buffer_[pos + 2] = mapped_color.r;
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
         this->buffer_[pos + 3] = color.w;
       }
@@ -162,34 +173,44 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
   // If no image is loaded and no placeholder, nothing to draw
 }
 
-bool RuntimeImage::begin_decode(size_t expected_size) {
-  if (this->decoder_) {
+bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
+  if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
   }
 
-  this->decoder_ = this->create_decoder_();
-  if (!this->decoder_) {
-    ESP_LOGE(TAG, "Failed to create decoder for format %d", this->format_);
-    return false;
+  if (format == AUTO && this->format_ != AUTO) {
+    // Fall back to the configured format before the reuse check below
+    format = this->format_;
   }
 
-  this->total_size_ = expected_size;
+  // An idle decoder for a different format cannot be reused
+  if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
+    ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
+    this->decoder_ = nullptr;
+  }
+
+  if (!this->decoder_) {
+    this->decoder_ = this->create_decoder_(format);
+    if (!this->decoder_) {
+      ESP_LOGE(TAG, "Failed to create decoder for format %d", format);
+      return false;
+    }
+  }
+
   this->decoded_bytes_ = 0;
 
-  // Initialize decoder
   int result = this->decoder_->prepare(expected_size);
   if (result < 0) {
     ESP_LOGE(TAG, "Failed to prepare decoder: %d", result);
-    this->decoder_ = nullptr;
+    this->decoder_ = nullptr;  // If prepare fails, a full reset is needed
     return false;
   }
-
   return true;
 }
 
 int RuntimeImage::feed_data(uint8_t *data, size_t len) {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     ESP_LOGE(TAG, "No decoder initialized");
     return -1;
   }
@@ -203,7 +224,7 @@ int RuntimeImage::feed_data(uint8_t *data, size_t len) {
 }
 
 bool RuntimeImage::end_decode() {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     return false;
   }
 
@@ -215,33 +236,36 @@ bool RuntimeImage::end_decode() {
     this->data_start_ = this->buffer_;
   }
 
-  // Clean up decoder
-  this->decoder_ = nullptr;
+  // End the session; the decoder object stays warm so the next decode can
+  // reuse it (and its buffers) without churning the heap.
+  this->decoder_->reset();
 
   ESP_LOGD(TAG, "Decoding complete: %dx%d, %zu bytes", this->width_, this->height_, this->decoded_bytes_);
   return true;
 }
 
-bool RuntimeImage::is_decode_finished() const {
-  if (!this->decoder_) {
-    return false;
-  }
-  return this->decoder_->is_finished();
-}
+bool RuntimeImage::is_decode_finished() const { return this->is_decoding() && this->decoder_->is_finished(); }
 
 void RuntimeImage::release() {
   this->release_buffer_();
-  // Reset decoder separately — release() can be called from within the decoder
-  // (via set_size -> resize -> resize_buffer_), so we must not destroy the decoder here.
-  // The decoder lifecycle is managed by begin_decode()/end_decode().
-  this->decoder_ = nullptr;
+  // End any active decode session; decoders free the format-specific working buffers
+  // they can (PNG), while the decoder object itself is kept warm for the next decode.
+  if (this->decoder_) {
+    this->decoder_->reset();
+  }
 }
 
 void RuntimeImage::release_buffer_() {
   if (this->buffer_) {
-    ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
-    RAMAllocator<uint8_t> allocator;
-    allocator.deallocate(this->buffer_, this->get_buffer_size_(this->buffer_width_, this->buffer_height_));
+    if (this->external_buffer_) {
+      // The caller owns this memory and goes on using it after the image lets go of it.
+      ESP_LOGV(TAG, "Letting go of the external %dx%d buffer", this->buffer_width_, this->buffer_height_);
+      this->external_buffer_ = false;
+    } else {
+      ESP_LOGV(TAG, "Releasing buffer of size %zu", this->get_buffer_size(this->buffer_width_, this->buffer_height_));
+      RAMAllocator<uint8_t> allocator;
+      allocator.deallocate(this->buffer_, this->get_buffer_size(this->buffer_width_, this->buffer_height_));
+    }
     this->buffer_ = nullptr;
     this->data_start_ = nullptr;
     this->width_ = 0;
@@ -254,12 +278,44 @@ void RuntimeImage::release_buffer_() {
   }
 }
 
-size_t RuntimeImage::resize_buffer_(int width, int height) {
-  size_t new_size = this->get_buffer_size_(width, height);
+bool RuntimeImage::set_external_buffer(uint8_t *buffer, int width, int height) {
+  this->release_buffer_();
+  if (buffer == nullptr || this->get_buffer_size(width, height) == 0) {
+    // Keep the released state rather than remembering a buffer that cannot be decoded into: an
+    // external buffer that is never handed back would otherwise block every later allocation.
+    ESP_LOGE(TAG, "Refusing an invalid external buffer for %dx%d", width, height);
+    return false;
+  }
+  this->buffer_ = buffer;
+  this->external_buffer_ = true;
+  this->buffer_width_ = width;
+  this->buffer_height_ = height;
+  return true;
+}
 
+size_t RuntimeImage::resize_buffer_(int width, int height) {
+  size_t new_size = this->get_buffer_size(width, height);
+
+  // A buffer only ever exists with dimensions the image can decode at, so a match here means
+  // new_size is non-zero. Checking it before the invalid dimension case below lets the external
+  // buffer be let go of for every decode it cannot serve, not just for valid other dimensions.
   if (this->buffer_ && this->buffer_width_ == width && this->buffer_height_ == height) {
     // Buffer already allocated with correct size
     return new_size;
+  }
+
+  if (this->external_buffer_) {
+    ESP_LOGE(TAG, "Image decoded to %dx%d, but the external buffer is %dx%d", width, height, this->buffer_width_,
+             this->buffer_height_);
+    // Let the buffer go rather than free memory that belongs to the caller. Dropping it also stops
+    // a decoder that ignores this failure from publishing a picture it never painted.
+    this->release_buffer_();
+    return 0;
+  }
+
+  if (new_size == 0) {
+    ESP_LOGE(TAG, "Refusing to allocate buffer for invalid image dimensions %dx%d", width, height);
+    return 0;
   }
 
   // Release old buffer if dimensions changed
@@ -286,18 +342,23 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
   return new_size;
 }
 
-size_t RuntimeImage::get_buffer_size_(int width, int height) const {
+size_t RuntimeImage::get_buffer_size(int width, int height) const {
+  // Dimensions come from a remote image header; reject absurd values so the size math cannot overflow
+  if (width <= 0 || height <= 0 || width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION) {
+    return 0;
+  }
   if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
     // Add extra alpha channel for RGB565 with alpha
-    return width * height * 3;
+    return static_cast<size_t>(width) * height * 3;
   }
-  return (this->get_bpp() * width + 7u) / 8u * height;
+  return (static_cast<size_t>(this->get_bpp()) * width + 7u) / 8u * height;
 }
 
 int RuntimeImage::get_position_(int x, int y) const { return (x + y * this->buffer_width_) * this->get_bpp() / 8; }
 
-std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
-  switch (this->format_) {
+std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) {
+  ESP_LOGV(TAG, "Creating decoder for format %d", format);
+  switch (format) {
 #ifdef USE_RUNTIME_IMAGE_BMP
     case BMP:
       return make_unique<BmpDecoder>(this);
@@ -310,8 +371,15 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_() {
     case PNG:
       return make_unique<PngDecoder>(this);
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    case QOI:
+      return make_unique<QoiDecoder>(this);
+#endif
+    case AUTO:
+      ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");
+      return nullptr;
     default:
-      ESP_LOGE(TAG, "Unsupported image format: %d", this->format_);
+      ESP_LOGE(TAG, "Unsupported image format: %d", format);
       return nullptr;
   }
 }

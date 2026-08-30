@@ -36,7 +36,7 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and oth
 static constexpr uint16_t RX_BUF_NULL_TERMINATOR = 1;
 
 // Maximum number of messages to batch in a single write operation
-// Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
+// Must be >= MAX_INITIAL_BATCH_SIZE in api_connection.h (enforced by static_assert there)
 static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;
 
 // Max client name length (e.g., "Home Assistant 2026.1.0.dev0" = 28 chars)
@@ -49,16 +49,16 @@ struct ReadPacketBuffer {
 };
 
 // Packed message info structure to minimize memory usage
-// Note: message_type is uint8_t — all current protobuf message types fit in 8 bits.
-// The noise wire format encodes types as 16-bit, but the high byte is always 0.
-// If message types ever exceed 255, this and encrypt_noise_message_ must be updated.
+// message_type matches the wire formats: noise carries a fixed 16-bit type
+// field, plaintext a type varint. The proto codegen caps message IDs at 16383
+// so the plaintext type varint fits the 2 bytes budgeted in HEADER_PADDING.
 struct MessageInfo {
   uint16_t offset;        // Offset in buffer where message starts
   uint16_t payload_size;  // Size of the message payload
-  uint8_t message_type;   // Message type (0-255)
+  uint16_t message_type;  // Message type (0-16383)
   uint8_t header_size;    // Actual header size used (avoids recomputation in write path)
 
-  MessageInfo(uint8_t type, uint16_t off, uint16_t size, uint8_t hdr)
+  MessageInfo(uint16_t type, uint16_t off, uint16_t size, uint8_t hdr)
       : offset(off), payload_size(size), message_type(type), header_size(hdr) {}
 };
 
@@ -87,6 +87,11 @@ enum class APIError : uint16_t {
   HANDSHAKESTATE_SETUP_FAILED = 1019,
   HANDSHAKESTATE_SPLIT_FAILED = 1020,
   BAD_HANDSHAKE_ERROR_BYTE = 1021,
+#endif
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Not an error: an unprovisioned device received a Noise client hello on a
+  // plaintext connection; the caller must hand the socket off to a Noise helper.
+  PROTOCOL_SWITCH_TO_NOISE = 1023,
 #endif
 };
 
@@ -144,7 +149,7 @@ class APIFrameHelper {
   // holding data too long waiting for Nagle's timer causes buffer exhaustion
   // and dropped messages.
   //
-  // ESP32 (TCP_SND_BUF=4×MSS+) / RP2040 (8×MSS) / LibreTiny (4×MSS): 4 logs per cycle
+  // ESP32 (TCP_SND_BUF=4×MSS+) / RP2040 (4×MSS) / LibreTiny (4×MSS): 4 logs per cycle
   // ESP8266 (2×MSS): 3 logs per cycle (tightest buffers)
   //
   // Flow (ESP32/RP2040/LT): Log 1 (Nagle on) -> Log 2 -> Log 3 -> Log 4 (NODELAY, flush)
@@ -168,7 +173,7 @@ class APIFrameHelper {
   }
   // Write a single protobuf message - the hot path (87-100% of all writes).
   // Caller must ensure state is DATA before calling.
-  virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
+  virtual APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) = 0;
   // Write multiple protobuf messages in a single batched operation.
   // Caller must ensure state is DATA and messages is not empty.
   // messages contains (message_type, offset, length) for each message in the buffer.
@@ -182,21 +187,30 @@ class APIFrameHelper {
   // Distinguishes protocols via frame_footer_size_ (noise always has a non-zero MAC
   // footer, plaintext has footer=0). If a protocol with a plaintext footer is ever
   // added, this should become a virtual method.
-  uint8_t frame_header_size(uint16_t payload_size, uint8_t message_type) const {
+  uint8_t frame_header_size(uint16_t payload_size, uint16_t message_type) const {
 #if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
     return this->frame_footer_size_
                ? this->frame_header_padding_
-               : static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint8(message_type));
+               : static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint16(message_type));
 #elif defined(USE_API_NOISE)
     return this->frame_header_padding_;
 #else  // USE_API_PLAINTEXT only
-    return static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint8(message_type));
+    return static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint16(message_type));
 #endif
   }
   // Get the frame footer size required by this protocol
   uint8_t frame_footer_size() const { return frame_footer_size_; }
-  // Check if socket has data ready to read
+  // Check if socket has buffered data ready to read.
+  // Contract: callers must read until it would block (EAGAIN/EWOULDBLOCK)
+  // or track that they stopped early and retry without this check.
+  // See Socket::ready() for details.
   bool is_socket_ready() const { return socket_ != nullptr && socket_->ready(); }
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+  // Move the socket out of this helper so a replacement helper can take it
+  // over (plaintext to Noise handoff on unprovisioned devices). The drained
+  // helper must be destroyed right after.
+  std::unique_ptr<socket::Socket> release_socket_for_switch() { return std::move(this->socket_); }
+#endif
   // Release excess memory from internal buffers after initial sync
   void release_buffers() {
     // rx_buf_: Safe to clear only if no partial read in progress.
@@ -298,7 +312,7 @@ class APIFrameHelper {
   // Values 1..LOG_NAGLE_COUNT count log messages in the current Nagle batch.
   // After LOG_NAGLE_COUNT logs, we flush by re-enabling NODELAY and resetting to 0.
   // ESP8266 has the tightest TCP send buffer (2×MSS) and needs conservative batching.
-  // ESP32 (4×MSS+), RP2040 (8×MSS), and LibreTiny (4×MSS) can coalesce more.
+  // ESP32 (4×MSS+), RP2040 (4×MSS), and LibreTiny (4×MSS) can coalesce more.
 #ifdef USE_ESP8266
   static constexpr uint8_t LOG_NAGLE_COUNT = 2;
 #else

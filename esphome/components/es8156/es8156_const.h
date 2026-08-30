@@ -2,8 +2,7 @@
 
 #include "es8156.h"
 
-namespace esphome {
-namespace es8156 {
+namespace esphome::es8156 {
 
 /* ES8156 register addresses */
 /*
@@ -64,5 +63,4 @@ static const uint8_t ES8156_REGFD_CHIPID1 = 0xFD;
 static const uint8_t ES8156_REGFE_CHIPID0 = 0xFE;
 static const uint8_t ES8156_REGFF_CHIP_VERSION = 0xFF;
 
-}  // namespace es8156
-}  // namespace esphome
+}  // namespace esphome::es8156

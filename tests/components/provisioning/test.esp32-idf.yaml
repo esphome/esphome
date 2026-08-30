@@ -1,0 +1,30 @@
+# Exercises the provisioning window: api registers as a provisioning source
+# (encryption enabled, no key), the on_timeout automation, and the wifi (AP +
+# captive portal) and esp32_improv cross-component guards. improv_serial is
+# intentionally NOT gated.
+provisioning:
+  timeout: 1min
+  on_timeout:
+    then:
+      - logger.log: "Provisioning window expired"
+
+api:
+  encryption:
+
+wifi:
+  ssid: MySSID
+  password: password1
+  ap:
+    ssid: MyAP
+
+captive_portal:
+
+improv_serial:
+
+binary_sensor:
+  - platform: gpio
+    pin: 0
+    id: io0_button
+
+esp32_improv:
+  authorizer: io0_button

@@ -18,10 +18,6 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
   LOG_ENTITY_ICON(tag, prefix, *obj);
 }
 
-void TextSensor::publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
-
-void TextSensor::publish_state(const char *state) { this->publish_state(state, strlen(state)); }
-
 void TextSensor::publish_state(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
@@ -39,16 +35,13 @@ void TextSensor::publish_state(const char *state, size_t len) {
 #ifdef USE_TEXT_SENSOR_FILTER
   } else {
     // Has filters: need separate raw storage
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
     // Only assign if changed to avoid heap allocation
-    if (len != this->raw_state.size() || memcmp(state, this->raw_state.data(), len) != 0) {
-      this->raw_state.assign(state, len);
+    if (len != this->raw_state_.size() || memcmp(state, this->raw_state_.data(), len) != 0) {
+      this->raw_state_.assign(state, len);
     }
-    this->raw_callback_.call(this->raw_state);
-    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->raw_state.c_str());
-    this->filter_list_->input(this->raw_state);
-#pragma GCC diagnostic pop
+    this->raw_callback_.call(this->raw_state_);
+    ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->raw_state_.c_str());
+    this->filter_list_->input(this->raw_state_);
   }
 #endif
 }
@@ -89,19 +82,11 @@ const std::string &TextSensor::get_state() const { return this->state; }
 const std::string &TextSensor::get_raw_state() const {
 #ifdef USE_TEXT_SENSOR_FILTER
   if (this->filter_list_ != nullptr) {
-    // Suppress deprecation warning - get_raw_state() is the replacement API
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-    return this->raw_state;
-#pragma GCC diagnostic pop
+    return this->raw_state_;
   }
 #endif
   return this->state;  // No filters, raw == filtered
 }
-void TextSensor::internal_send_state_to_frontend(const std::string &state) {
-  this->internal_send_state_to_frontend(state.data(), state.size());
-}
-
 void TextSensor::internal_send_state_to_frontend(const char *state, size_t len) {
   // Only assign if changed to avoid heap allocation
   if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {

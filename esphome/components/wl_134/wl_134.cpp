@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace wl_134 {
+namespace esphome::wl_134 {
 
 static const char *const TAG = "wl_134.sensor";
 static const uint8_t ASCII_CR = 0x0D;
@@ -114,5 +113,4 @@ void Wl134Component::dump_config() {
   // As specified in the sensor's data sheet
   this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
-}  // namespace wl_134
-}  // namespace esphome
+}  // namespace esphome::wl_134

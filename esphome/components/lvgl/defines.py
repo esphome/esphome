@@ -19,46 +19,142 @@ from esphome.cpp_generator import (
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
-from .helpers import requires_component
-
 LOGGER = logging.getLogger(__name__)
-lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 DOMAIN = "lvgl"
 KEY_COLOR_FORMATS = "color_formats"
+KEY_ESPHOME_FONTS_USED = "esphome_fonts_used"
+KEY_FOCUSED_WIDGETS = "focused_widgets"
 KEY_LV_DEFINES = "lv_defines"
+KEY_LV_FONTS_USED = "lv_fonts_used"
+KEY_LV_IMAGES_USED = "lv_images_used"
+KEY_LV_USES = "lv_uses"
+KEY_NAMED_STYLES = "named_styles"
+KEY_REFRESHED_WIDGETS = "refreshed_widgets"
 KEY_REMAPPED_USES = "remapped_uses"
+KEY_STYLES_USED = "styles_used"
+KEY_THEME_UPDATE_REQUESTS = "theme_update_requests"
+KEY_THEME_WIDGET_MAP = "theme_widget_map"
 KEY_UPDATED_WIDGETS = "updated_widgets"
+KEY_WIDGET_MAP = "widget_map"
+KEY_WIDGETS_COMPLETED = "widgets_completed"
 KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
 
+# Initial set of LVGL features that are always enabled.
+_INITIAL_LV_USES = frozenset(
+    {
+        "USER_DATA",
+        "LOG",
+        "STYLE",
+        "FONT_PLACEHOLDER",
+        "THEME_DEFAULT",
+    }
+)
 
-def get_data(key, default=None):
+
+# These collections accumulate state across a single compilation run.  They
+# are stored under ``CORE.data`` (which ``CORE.reset()`` clears between runs)
+# rather than as module-level globals, otherwise they would leak between
+# successive compilations / unit tests.
+
+
+def _get_data(key: str, default: Any) -> Any:
     """
     Get a data structure from the global data store by key
     :param key: A key for the data
-    :param default: The default data - the default is an empty dict
+    :param default: The default data
     :return:
     """
-    return CORE.data.setdefault(DOMAIN, {}).setdefault(
-        key, {} if default is None else default
-    )
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(key, default)
 
 
-def get_warnings():
-    return get_data(KEY_WARNINGS, set())
+def get_lv_images_used() -> set[ID]:
+    return _get_data(KEY_LV_IMAGES_USED, set())
 
 
-def get_remapped_uses():
-    return get_data(KEY_REMAPPED_USES, set())
+def get_lv_uses() -> set[str]:
+    return _get_data(KEY_LV_USES, set(_INITIAL_LV_USES))
 
 
-def add_warning(msg: str):
+def get_lv_fonts_used() -> set[str]:
+    return _get_data(KEY_LV_FONTS_USED, set())
+
+
+def get_esphome_fonts_used() -> set[ID]:
+    return _get_data(KEY_ESPHOME_FONTS_USED, set())
+
+
+def add_lv_use(*names: str) -> None:
+    uses = get_lv_uses()
+    for name in names:
+        uses.add(name)
+
+
+def get_warnings() -> set[str]:
+    return _get_data(KEY_WARNINGS, set())
+
+
+def get_remapped_uses() -> set[str]:
+    return _get_data(KEY_REMAPPED_USES, set())
+
+
+def add_warning(msg: str) -> None:
     get_warnings().add(msg)
 
 
-def get_options():
-    return get_data(KEY_OPTIONS)
+def get_options() -> dict[str, Any]:
+    return _get_data(KEY_OPTIONS, {})
+
+
+def get_defines() -> dict[str, str]:
+    return _get_data(KEY_LV_DEFINES, {})
+
+
+def get_updated_widgets() -> dict:
+    return _get_data(KEY_UPDATED_WIDGETS, {})
+
+
+def get_theme_widget_map() -> dict[str, Any]:
+    return _get_data(KEY_THEME_WIDGET_MAP, {})
+
+
+def get_theme_update_requests() -> dict[str, dict[tuple[str, str], None]]:
+    # Values are dicts used as ordered sets (insertion order is deterministic,
+    # unlike a plain `set` of strings/tuples, whose iteration order depends on
+    # per-process string hash randomization) so codegen output doesn't churn
+    # between builds of the same config.
+    return _get_data(KEY_THEME_UPDATE_REQUESTS, {})
+
+
+def get_styles_used() -> set[str]:
+    return _get_data(KEY_STYLES_USED, set())
+
+
+def get_widget_map() -> dict[str, Any]:
+    return _get_data(KEY_WIDGET_MAP, {})
+
+
+def get_widgets_completed() -> bool:
+    # ``[value]`` rather than the bare value so that we can mutate the
+    # entry in place; ``CORE.data`` is reset for us between runs.
+    return _get_data(KEY_WIDGETS_COMPLETED, [False])[0]
+
+
+def set_widgets_completed(value: bool) -> None:
+    _get_data(KEY_WIDGETS_COMPLETED, [False])[0] = value
+
+
+def is_widget_completed(name: ID) -> bool:
+    return name in get_widget_map()
+
+
+def get_focused_widgets() -> set:
+    return _get_data(KEY_FOCUSED_WIDGETS, set())
+
+
+def get_refreshed_widgets() -> set:
+    return _get_data(KEY_REFRESHED_WIDGETS, set())
 
 
 class StaticCastExpression(Expression):
@@ -72,8 +168,8 @@ class StaticCastExpression(Expression):
         return f"static_cast<{self.type}>({self.exp})"
 
 
-def add_define(macro, value="1"):
-    lv_defines = get_data(KEY_LV_DEFINES)
+def add_define(macro: str, value="1"):
+    lv_defines = get_defines()
     value = str(value)
     if lv_defines.setdefault(macro, value) != value:
         LOGGER.error(
@@ -82,8 +178,8 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
-def is_defined(macro):
-    return macro in get_data(KEY_LV_DEFINES)
+def is_defined(macro) -> bool:
+    return macro in get_defines()
 
 
 def literal(arg) -> MockObj:
@@ -96,7 +192,7 @@ def addr(arg) -> MockObj:
     return MockObj(f"&{arg}")
 
 
-def call_lambda(lamb: LambdaExpression):
+def call_lambda(lamb: LambdaExpression) -> Expression:
     """
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context
@@ -127,21 +223,27 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype: MockObj, retmapper=None, requires=None):
+    def __init__(
+        self, validator, rtype: MockObj, retmapper=None, requires=None, animatable=False
+    ):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
         self.requires = requires
+        self.animatable = animatable
 
     def __call__(self, value):
         if self.requires:
-            value = requires_component(self.requires)(value)
+            value = cv.requires_component(self.requires)(value)
         if isinstance(value, cv.Lambda):
             return cv.returning_lambda(value)
         return self.validator(value)
 
     async def process(
-        self, value: Any, args: list[tuple[SafeExpType, str]] | None = None
+        self,
+        value: Any,
+        args: list[tuple[SafeExpType, str]] | None = None,
+        raw_lambda: bool = False,
     ) -> Expression:
         if value is None:
             return None
@@ -149,11 +251,15 @@ class LValidator:
             # Local import to avoid circular import
             from .lvcode import get_lambda_context_args
 
-            args = args or get_lambda_context_args()
+            # `args is None` means "inherit the enclosing lambda context"; an explicit
+            # empty list means "no parameters" and must be preserved as-is.
+            if args is None:
+                args = get_lambda_context_args()
 
-            return call_lambda(
-                await cg.process_lambda(value, args, return_type=self.rtype)
-            )
+            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
+            if raw_lambda:
+                return lamb
+            return call_lambda(lamb)
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
@@ -196,7 +302,7 @@ class LvConstant(LValidator):
             cv.ensure_list(self.one_of), cg.uint32, retmapper=self.mapper
         )
 
-    def mapper(self, value):
+    def mapper(self, value) -> Any:
         if not isinstance(value, list):
             value = [value]
         value = [
@@ -248,7 +354,7 @@ TYPE_NONE = "none"
 
 DIRECTIONS = LvConstant("LV_DIR_", "LEFT", "RIGHT", "BOTTOM", "TOP")
 
-LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
+LV_FONTS = [f"montserrat_{s}" for s in range(8, 50, 2)] + [
     "dejavu_16_persian_hebrew",
     "simsun_16_cjk",
     "unscii_8",
@@ -309,6 +415,21 @@ LV_EVENT_MAP = {
     "STYLE_CHANGE": "STYLE_CHANGED",
     "TRIPLE_CLICK": "TRIPLE_CLICKED",
 }
+
+LV_PRESS_EVENTS = ("PRESS", "PRESSING", "RELEASE")
+
+VALUE_ON_CHANGE = "on_change"
+VALUE_ON_UPDATE = "on_update"
+VALUE_ON_VALUE = "on_value"
+VALUE_ON_RELEASE = "on_release"
+
+LV_VALUE_EVENTS = (VALUE_ON_CHANGE, VALUE_ON_UPDATE, VALUE_ON_VALUE, VALUE_ON_RELEASE)
+
+
+def is_press_event(event: str) -> bool:
+    return event.removeprefix("on_").upper() in LV_PRESS_EVENTS
+
+
 LV_SCREEN_EVENT_MAP = {
     "SCREEN_LOAD": "SCREEN_LOADED",
     "SCREEN_LOAD_START": "SCREEN_LOAD_START",
@@ -462,6 +583,21 @@ FLEX_FLOWS = LvConstant(
     "COLUMN_REVERSE",
     "ROW_WRAP_REVERSE",
     "COLUMN_WRAP_REVERSE",
+)
+
+TRANSFORM_STYLE_PROPS = frozenset(
+    {"transform_rotation", "transform_scale", "transform_scale_x", "transform_scale_y"}
+)
+
+DROP_SHADOW_STYLE_PROPS = frozenset(
+    {
+        "drop_shadow_color",
+        "drop_shadow_offset_x",
+        "drop_shadow_offset_y",
+        "drop_shadow_opa",
+        "drop_shadow_quality",
+        "drop_shadow_radius",
+    }
 )
 
 OBJ_FLAGS = (
@@ -627,6 +763,7 @@ CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
+CONF_IMAGE = "image"
 CONF_INDICATORS = "indicators"
 CONF_INITIAL_FOCUS = "initial_focus"
 CONF_SELECTED_DIGIT = "selected_digit"
@@ -640,15 +777,19 @@ CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
+CONF_MAPPING = "mapping"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
 CONF_ONE_LINE = "one_line"
 CONF_ON_DRAW_START = "on_draw_start"
 CONF_ON_DRAW_END = "on_draw_end"
+CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
+CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
 CONF_ON_SELECT = "on_select"
+CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
@@ -656,12 +797,14 @@ CONF_PAD_COLUMN = "pad_column"
 CONF_PAGE = "page"
 CONF_PAGE_WRAP = "page_wrap"
 CONF_PASSWORD_MODE = "password_mode"
+CONF_PAUSED = "paused"
 CONF_PIVOT_X = "pivot_x"
 CONF_PIVOT_Y = "pivot_y"
 CONF_PLACEHOLDER_TEXT = "placeholder_text"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
 CONF_RADIUS = "radius"
+CONF_REFRESH_INTERVAL = "refresh_interval"
 CONF_REPEAT_COUNT = "repeat_count"
 CONF_RECOLOR = "recolor"
 CONF_RESUME_ON_INPUT = "resume_on_input"
@@ -692,6 +835,7 @@ CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TAB_ID = "tab_id"
 CONF_TABS = "tabs"
+CONF_THEME = "theme"
 CONF_TICK_STYLE = "tick_style"
 CONF_TIME_FORMAT = "time_format"
 CONF_TILE = "tile"
@@ -703,7 +847,7 @@ CONF_TOUCHSCREENS = "touchscreens"
 CONF_TRANSFORM_ROTATION = "transform_rotation"
 CONF_TRANSFORM_SCALE = "transform_scale"
 CONF_TRANSPARENCY_KEY = "transparency_key"
-CONF_THEME = "theme"
+CONF_TRIGGER = "trigger"
 CONF_UPDATE_ON_RELEASE = "update_on_release"
 CONF_UPDATE_WHEN_DISPLAY_IDLE = "update_when_display_idle"
 CONF_VISIBLE_ROW_COUNT = "visible_row_count"

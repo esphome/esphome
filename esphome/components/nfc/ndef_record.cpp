@@ -1,7 +1,6 @@
 #include "ndef_record.h"
 
-namespace esphome {
-namespace nfc {
+namespace esphome::nfc {
 
 static const char *const TAG = "nfc.ndef_record";
 
@@ -61,5 +60,4 @@ uint8_t NdefRecord::create_flag_byte(bool first, bool last, size_t payload_size)
   return value;
 };
 
-}  // namespace nfc
-}  // namespace esphome
+}  // namespace esphome::nfc

@@ -5,8 +5,7 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace alpha3 {
+namespace esphome::alpha3 {
 
 static const char *const TAG = "alpha3";
 
@@ -185,7 +184,6 @@ void Alpha3::update() {
     delay(25);  // need to wait between requests
   }
 }
-}  // namespace alpha3
-}  // namespace esphome
+}  // namespace esphome::alpha3
 
 #endif

@@ -5,10 +5,15 @@ from esphome.core import CORE
 from esphome.cpp_types import std_string
 
 from .. import LvContext
-from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
-from ..helpers import lvgl_components_required
+from ..defines import (
+    CONF_MAIN,
+    KEYBOARD_MODES,
+    add_lv_use,
+    is_widget_completed,
+    literal,
+)
 from ..types import LvCompound, LvType
-from . import Widget, WidgetType, get_widgets, is_widget_completed
+from . import Widget, WidgetType, get_widgets
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .textarea import CONF_TEXTAREA, lv_textarea_t
 
@@ -47,24 +52,27 @@ class KeyboardType(WidgetType):
         return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX
 
     async def to_code(self, w: Widget, config: dict):
-        lvgl_components_required.add("KEY_LISTENER")
-        lvgl_components_required.add(CONF_KEYBOARD)
+        add_lv_use("KEY_LISTENER")
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
         if textarea := config.get(CONF_TEXTAREA):
-            # If a textarea is configured, it must be generated before the keyboard can attach it.
-            # If not yet configured, defer the attachment code.
+            if not is_widget_completed(textarea):
+                # Can only happen for an initial config, where the keyboard is configured before the
+                # textarea, so it's ok to always emit into the global context
+                async def add_textarea():
+                    async with LvContext():
+                        await w.set_property(
+                            CONF_TEXTAREA,
+                            (await get_widgets(config, CONF_TEXTAREA))[0].obj,
+                        )
 
-            async def add_textarea():
-                async with LvContext():
-                    await w.set_property(
-                        CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
-                    )
-
-            if is_widget_completed(textarea):
-                await add_textarea()
-            else:
                 CORE.add_job(add_textarea)
+            else:
+                # Handles updates in automations, and properly ordered initial config. Code is generated
+                # into the enclosing context (main or lambda)
+                await w.set_property(
+                    CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
+                )
 
 
 keyboard_spec = KeyboardType()

@@ -2,8 +2,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ads1115 {
+namespace esphome::ads1115 {
 
 static const char *const TAG = "ads1115.sensor";
 
@@ -29,5 +28,4 @@ void ADS1115Sensor::dump_config() {
                 this->multiplexer_, this->gain_, this->resolution_, this->samplerate_);
 }
 
-}  // namespace ads1115
-}  // namespace esphome
+}  // namespace esphome::ads1115

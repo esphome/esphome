@@ -5,8 +5,7 @@
 #include "honeywell_hih.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace honeywell_hih_i2c {
+namespace esphome::honeywell_hih_i2c {
 
 static const char *const TAG = "honeywell_hih.i2c";
 
@@ -91,5 +90,4 @@ void HoneywellHIComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace honeywell_hih_i2c
-}  // namespace esphome
+}  // namespace esphome::honeywell_hih_i2c

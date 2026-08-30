@@ -325,9 +325,13 @@ async def test_uart_mock_ld2412_engineering_truncated(
         ],
     )
 
-    # Signal when we see Phase 3 recovery values (gate_0_move=50)
+    # Signal when we see ALL Phase 3 recovery values to avoid race where some
+    # arrive after the waiter fires but before we index into the lists
     recovery_received = collector.add_waiter(
-        lambda: pytest.approx(50.0) in collector.sensor_states["gate_0_move_energy"]
+        lambda: (
+            pytest.approx(50.0) in collector.sensor_states["gate_0_move_energy"]
+            and pytest.approx(42.0) in collector.sensor_states["light"]
+        )
     )
 
     async with (

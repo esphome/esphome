@@ -31,13 +31,19 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+    setup_entity,
+)
+from esphome.cpp_generator import LambdaExpression
 
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
+FanCall = fan_ns.class_("FanCall")
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {
@@ -292,7 +298,7 @@ async def setup_fan_core_(var, config):
 async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_fan(var))
+    queue_entity_register("fan", config)
     CORE.register_platform_component("fan", var)
     await setup_fan_core_(var, config)
 
@@ -343,17 +349,46 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
 )
 async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    if (oscillating := config.get(CONF_OSCILLATING)) is not None:
-        template_ = await cg.templatable(oscillating, args, cg.bool_)
-        cg.add(var.set_oscillating(template_))
-    if (speed := config.get(CONF_SPEED)) is not None:
-        template_ = await cg.templatable(speed, args, cg.int_)
-        cg.add(var.set_speed(template_))
-    if (direction := config.get(CONF_DIRECTION)) is not None:
-        template_ = await cg.templatable(direction, args, FanDirection)
-        cg.add(var.set_direction(template_))
-    return var
+
+    # All configured fields are folded into a single stateless lambda whose
+    # constants live in flash; the action stores only a function pointer.
+    FIELDS = (
+        (CONF_OSCILLATING, "set_oscillating", cg.bool_),
+        (CONF_SPEED, "set_speed", cg.int_),
+        (CONF_DIRECTION, "set_direction", FanDirection),
+    )
+
+    # Normalize trigger args to `const std::remove_cvref_t<T> &` so the
+    # apply lambda and any inner field lambdas (generated below via
+    # `process_lambda`) share one parameter spelling that's well-formed for
+    # any T (value, ref, or const-ref). Matches TurnOnAction::ApplyFn.
+    normalized_args = [
+        (cg.RawExpression(f"const std::remove_cvref_t<{cg.safe_exp(t)}> &"), n)
+        for t, n in args
+    ]
+
+    fwd_args = ", ".join(name for _, name in args)
+    body_lines: list[str] = []
+    for conf_key, setter, type_ in FIELDS:
+        if (value := config.get(conf_key)) is None:
+            continue
+        if isinstance(value, Lambda):
+            inner = await cg.process_lambda(value, normalized_args, return_type=type_)
+            body_lines.append(f"call.{setter}(({inner})({fwd_args}));")
+        else:
+            body_lines.append(f"call.{setter}({cg.safe_exp(value)});")
+
+    apply_args = [
+        (FanCall.operator("ref"), "call"),
+        *normalized_args,
+    ]
+    apply_lambda = LambdaExpression(
+        ["\n".join(body_lines)],
+        apply_args,
+        capture="",
+        return_type=cg.void,
+    )
+    return cg.new_Pvariable(action_id, template_arg, paren, apply_lambda)
 
 
 @automation.register_action(

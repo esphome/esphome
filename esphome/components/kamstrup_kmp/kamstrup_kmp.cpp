@@ -1,9 +1,9 @@
 #include "kamstrup_kmp.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace kamstrup_kmp {
+namespace esphome::kamstrup_kmp {
 
 static const char *const TAG = "kamstrup_kmp";
 
@@ -96,10 +96,7 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
     buffer[i] = msg[i];
   }
 
-  buffer[buffer_len - 2] = 0;
-  buffer[buffer_len - 1] = 0;
-
-  uint16_t crc = crc16_ccitt(buffer, buffer_len);
+  uint16_t crc = crc16be(buffer, buffer_len - 2);
   buffer[buffer_len - 2] = crc >> 8;
   buffer[buffer_len - 1] = crc & 0xFF;
 
@@ -139,12 +136,12 @@ void KamstrupKMPComponent::clear_uart_rx_buffer_() {
 
 void KamstrupKMPComponent::read_command_(uint16_t command) {
   uint8_t buffer[20] = {0};
-  int buffer_len = 0;
+  size_t buffer_len = 0;
   int data;
   int timeout = 250;  // ms
 
   // Read the data from the UART
-  while (timeout > 0 && buffer_len < static_cast<int>(sizeof(buffer))) {
+  while (timeout > 0 && buffer_len < sizeof(buffer)) {
     if (this->available()) {
       data = this->read();
       if (data > -1) {
@@ -183,7 +180,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   // Decode
   uint8_t msg[20] = {0};
   int msg_len = 0;
-  for (int i = 1; i < buffer_len - 1; i++) {
+  for (size_t i = 1; i < buffer_len - 1; i++) {
     if (buffer[i] == 0x1B) {
       msg[msg_len++] = buffer[i + 1] ^ 0xFF;
       i++;
@@ -193,7 +190,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   }
 
   // Validate CRC
-  if (crc16_ccitt(msg, msg_len)) {
+  if (crc16be(msg, msg_len - 2) != encode_uint16(msg[msg_len - 2], msg[msg_len - 1])) {
     ESP_LOGE(TAG, "Received invalid message (CRC mismatch)");
     return;
   }
@@ -283,25 +280,4 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
   ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value, unit);
 }
 
-uint16_t crc16_ccitt(const uint8_t *buffer, int len) {
-  uint32_t poly = 0x1021;
-  uint32_t reg = 0x00;
-  for (int i = 0; i < len; i++) {
-    int mask = 0x80;
-    while (mask > 0) {
-      reg <<= 1;
-      if (buffer[i] & mask) {
-        reg |= 1;
-      }
-      mask >>= 1;
-      if (reg & 0x10000) {
-        reg &= 0xffff;
-        reg ^= poly;
-      }
-    }
-  }
-  return (uint16_t) reg;
-}
-
-}  // namespace kamstrup_kmp
-}  // namespace esphome
+}  // namespace esphome::kamstrup_kmp

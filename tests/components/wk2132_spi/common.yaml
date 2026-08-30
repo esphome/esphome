@@ -17,4 +17,4 @@ wk2132_spi:
 sensor:
   - platform: a02yyuw
     uart_id: wk2132_spi_uart1
-    id: distance_sensor
+    id: wk2132_spi_distance_sensor

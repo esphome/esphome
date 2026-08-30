@@ -9,6 +9,8 @@
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
 #else
+#include "esphome/components/watchdog/watchdog.h"
+#include <cinttypes>
 extern "C" {
 #include <esp_hosted.h>
 #include <esp_hosted_misc.h>
@@ -33,6 +35,19 @@ namespace esphome::esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+// Bringing up the remote BT controller issues synchronous RPCs to the
+// co-processor with 5 second response timeouts, and the default task watchdog
+// is also 5 seconds. If the co-processor firmware does not answer (for example
+// factory firmware without Bluetooth support), the watchdog would reboot the
+// device before the RPC could return an error, causing a boot loop. Raise the
+// watchdog for the duration of the bring-up so failures surface as error
+// returns instead. 60 seconds covers the worst case: transport reconnect
+// (up to ~20s), version preflight (1s), controller init/enable (5s each) and
+// the bluedroid host bring-up over the hosted HCI transport.
+static constexpr uint32_t HOSTED_BT_WDT_TIMEOUT_MS = 60000;
+#endif
+
 // GAP event groups for deduplication across gap_event_handler and dispatch_gap_event_
 #define GAP_SCAN_COMPLETE_EVENTS \
   case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: \
@@ -43,6 +58,7 @@ static const char *const TAG = "esp32_ble";
   case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT: \
   case ESP_GAP_BLE_SCAN_RSP_DATA_SET_COMPLETE_EVT: \
   case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT: \
+  case ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT: \
   case ESP_GAP_BLE_ADV_START_COMPLETE_EVT: \
   case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT
 
@@ -164,6 +180,9 @@ void ESP32BLE::advertising_init_() {
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
+#endif
 #ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
@@ -192,15 +211,35 @@ bool ESP32BLE::ble_setup_() {
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
-  esp_hosted_connect_to_slave();  // NOLINT
+  if (esp_hosted_connect_to_slave() != ESP_OK) {  // NOLINT
+    ESP_LOGE(TAG, "Co-processor transport failed; BLE disabled");
+    return false;
+  }
+
+  // Fast preflight (1 second RPC timeout): verifies the co-processor answers
+  // RPCs at all before the 5 second timeout BT controller RPCs below, and
+  // before hosted_hci_bluedroid_open(), which aborts if the transport is down.
+  esp_hosted_coprocessor_fwver_t fw_ver{};
+  if (esp_hosted_get_coprocessor_fwversion(&fw_ver) != ESP_OK) {
+    ESP_LOGE(TAG, "Co-processor not responding; BLE disabled. Update its firmware with the esp32_hosted "
+                  "update component");
+    return false;
+  }
+  ESP_LOGD(TAG, "Co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32, fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
 
   if (esp_hosted_bt_controller_init() != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_init failed");
+    ESP_LOGE(TAG,
+             "BT controller init failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
+             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
     return false;
   }
 
   if (esp_hosted_bt_controller_enable() != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_enable failed");
+    ESP_LOGE(TAG,
+             "BT controller enable failed; co-processor firmware %" PRIu32 ".%" PRIu32 ".%" PRIu32
+             " may lack BT support. Update it with the esp32_hosted update component; BLE disabled",
+             fw_ver.major1, fw_ver.minor1, fw_ver.patch1);
     return false;
   }
 
@@ -257,11 +296,9 @@ bool ESP32BLE::ble_setup_() {
 
   if (this->name_ != nullptr) {
     if (App.is_name_add_mac_suffix_enabled()) {
-      // MAC address length: 12 hex chars + null terminator
-      constexpr size_t mac_address_len = 13;
       // MAC address suffix length (last 6 characters of 12-char MAC address string)
       constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[mac_address_len];
+      char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
       get_mac_address_into_buffer(mac_addr);
       const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
       make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
@@ -334,6 +371,10 @@ bool ESP32BLE::ble_setup_() {
 }
 
 bool ESP32BLE::ble_dismantle_() {
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+  // Same 5 second RPCs as the bring-up path; see HOSTED_BT_WDT_TIMEOUT_MS
+  watchdog::WatchdogManager wdt(HOSTED_BT_WDT_TIMEOUT_MS);
+#endif
   esp_err_t err = esp_bluedroid_disable();
   if (err != ESP_OK) {
     // ESP_ERR_INVALID_STATE means Bluedroid is already disabled, which is fine
@@ -379,12 +420,12 @@ bool ESP32BLE::ble_dismantle_() {
   }
 #else
   if (esp_hosted_bt_controller_disable() != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_disable failed");
+    ESP_LOGE(TAG, "esp_hosted_bt_controller_disable failed");
     return false;
   }
 
   if (esp_hosted_bt_controller_deinit(false) != ESP_OK) {
-    ESP_LOGW(TAG, "esp_hosted_bt_controller_deinit failed");
+    ESP_LOGE(TAG, "esp_hosted_bt_controller_deinit failed");
     return false;
   }
 
@@ -602,11 +643,33 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
       App.wake_loop_threadsafe();
       return;
 
+    // Log the result of connection parameter updates: a peer can reject or
+    // never answer an update, and without this the link silently stays on the
+    // old parameters (visible only as unexplained supervision timeouts).
+    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: {
+      if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
+        char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+        ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
+      }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      else {
+        char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(param->update_conn_params.bda, mac_s);
+        ESP_LOGV(TAG, "[%s] Conn params updated: interval=%u (x1.25ms) latency=%u timeout=%u (x10ms)", mac_s,
+                 param->update_conn_params.conn_int, param->update_conn_params.latency,
+                 param->update_conn_params.timeout);
+      }
+#endif
+      return;
+    }
+
     // Ignore these GAP events as they are not relevant for our use case
-    case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
     case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
     case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
+    case ESP_GAP_BLE_LOCAL_IR_EVT:                  // Local identity root key generated at security init
+    case ESP_GAP_BLE_LOCAL_ER_EVT:                  // Local encryption root key generated at security init
       return;
 
     default:
@@ -633,11 +696,23 @@ void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gat
 }
 #endif
 
+void ESP32BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
+  // The running stack owns the address (on hosted controllers it lives in
+  // the remote chip's efuse); null before init becomes all-zero.
+  const uint8_t *mac = esp_bt_dev_get_address();
+  if (mac != nullptr) {
+    memcpy(out, mac, MAC_ADDRESS_SIZE);
+  } else {
+    memset(out, 0, MAC_ADDRESS_SIZE);
+  }
+}
+
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLE::dump_config() {
-  const uint8_t *mac_address = esp_bt_dev_get_address();
-  if (mac_address) {
+  uint8_t mac_address[MAC_ADDRESS_SIZE];
+  this->get_mac_msb_first(mac_address);
+  if (mac_address_is_valid(mac_address)) {
     const char *io_capability_s;
     switch (this->io_cap_) {
       case ESP_IO_CAP_OUT:
@@ -660,13 +735,16 @@ void ESP32BLE::dump_config() {
         break;
     }
 
-    char mac_s[18];
+    char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
     format_mac_addr_upper(mac_address, mac_s);
     ESP_LOGCONFIG(TAG,
                   "BLE:\n"
                   "  MAC address: %s\n"
                   "  IO Capability: %s",
                   mac_s, io_capability_s);
+#ifdef USE_ESP32_BLE_PSRAM
+    ESP_LOGCONFIG(TAG, "  PSRAM BLE allocation: enabled");
+#endif
 
 #ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
     const char *auth_req_mode_s = "<default>";

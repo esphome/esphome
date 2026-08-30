@@ -1,8 +1,7 @@
 #include "sfa30.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace sfa30 {
+namespace esphome::sfa30 {
 
 static const char *const TAG = "sfa30";
 
@@ -91,5 +90,4 @@ void SFA30Component::update() {
   });
 }
 
-}  // namespace sfa30
-}  // namespace esphome
+}  // namespace esphome::sfa30

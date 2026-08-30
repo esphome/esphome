@@ -1,8 +1,7 @@
 #include "max17043.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace max17043 {
+namespace esphome::max17043 {
 
 // MAX174043 is a 1-Cell Fuel Gauge with ModelGauge and Low-Battery Alert
 // Consult the datasheet at https://www.analog.com/en/products/max17043.html
@@ -24,7 +23,7 @@ void MAX17043Component::update() {
     if (!this->read_byte_16(MAX17043_VCELL, &raw_voltage)) {
       this->status_set_warning(LOG_STR("Unable to read MAX17043_VCELL"));
     } else {
-      float voltage = (1.25 * (float) (raw_voltage >> 4)) / 1000.0;
+      float voltage = (1.25f * (float) (raw_voltage >> 4)) / 1000.0f;
       this->voltage_sensor_->publish_state(voltage);
       this->status_clear_warning();
     }
@@ -90,5 +89,4 @@ void MAX17043Component::sleep_mode() {
   }
 }
 
-}  // namespace max17043
-}  // namespace esphome
+}  // namespace esphome::max17043

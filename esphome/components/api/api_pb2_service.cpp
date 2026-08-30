@@ -21,6 +21,7 @@ void APIServerConnectionBase::log_receive_message_(const LogString *name) {
 }
 #endif
 
+#ifdef USE_API
 void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {
   // Check authentication/connection requirements
   switch (msg_type) {
@@ -50,10 +51,12 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
     case DisconnectRequest::MESSAGE_TYPE: {
+      DisconnectRequest msg;
+      msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      this->log_receive_message_(LOG_STR("on_disconnect_request"));
+      this->log_receive_message_(LOG_STR("on_disconnect_request"), msg);
 #endif
-      this->on_disconnect_request();
+      this->on_disconnect_request(msg);
       break;
     }
     case DisconnectResponse::MESSAGE_TYPE: {
@@ -299,7 +302,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothDeviceRequest::MESSAGE_TYPE: {
       BluetoothDeviceRequest msg;
       msg.decode(msg_data, msg_size);
@@ -310,7 +313,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTGetServicesRequest::MESSAGE_TYPE: {
       BluetoothGATTGetServicesRequest msg;
       msg.decode(msg_data, msg_size);
@@ -321,7 +324,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTReadRequest::MESSAGE_TYPE: {
       BluetoothGATTReadRequest msg;
       msg.decode(msg_data, msg_size);
@@ -332,7 +335,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTWriteRequest::MESSAGE_TYPE: {
       BluetoothGATTWriteRequest msg;
       msg.decode(msg_data, msg_size);
@@ -343,7 +346,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTReadDescriptorRequest::MESSAGE_TYPE: {
       BluetoothGATTReadDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
@@ -354,7 +357,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTWriteDescriptorRequest::MESSAGE_TYPE: {
       BluetoothGATTWriteDescriptorRequest msg;
       msg.decode(msg_data, msg_size);
@@ -365,7 +368,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothGATTNotifyRequest::MESSAGE_TYPE: {
       BluetoothGATTNotifyRequest msg;
       msg.decode(msg_data, msg_size);
@@ -376,7 +379,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case 80 /* SubscribeBluetoothConnectionsFreeRequest is empty */: {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_receive_message_(LOG_STR("on_subscribe_bluetooth_connections_free_request"));
@@ -625,7 +628,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_IR_RF
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
     case InfraredRFTransmitRawTimingsRequest::MESSAGE_TYPE: {
       InfraredRFTransmitRawTimingsRequest msg;
       msg.decode(msg_data, msg_size);
@@ -691,7 +694,7 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
     case BluetoothSetConnectionParamsRequest::MESSAGE_TYPE: {
       BluetoothSetConnectionParamsRequest msg;
       msg.decode(msg_data, msg_size);
@@ -702,9 +705,17 @@ void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const ui
       break;
     }
 #endif
+    case 149 /* DeviceCapabilitiesRequest is empty */: {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_device_capabilities_request"));
+#endif
+      this->on_device_capabilities_request();
+      break;
+    }
     default:
       break;
   }
 }
+#endif  // USE_API
 
 }  // namespace esphome::api

@@ -1,8 +1,7 @@
 #include "smt100.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace smt100 {
+namespace esphome::smt100 {
 
 static const char *const TAG = "smt100";
 
@@ -91,5 +90,4 @@ int SMT100Component::readline_(int readch, char *buffer, int len) {
   return -1;
 }
 
-}  // namespace smt100
-}  // namespace esphome
+}  // namespace esphome::smt100

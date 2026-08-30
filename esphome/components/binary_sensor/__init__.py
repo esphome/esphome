@@ -5,6 +5,7 @@ from esphome.automation import Condition, maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_ON_STATE_CHANGE
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -62,6 +63,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    queue_entity_register,
     setup_device_class,
     setup_entity,
 )
@@ -142,15 +144,15 @@ BinarySensorCondition = binary_sensor_ns.class_("BinarySensorCondition", Conditi
 
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
-TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
-DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter, cg.Component)
-DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter, cg.Component)
-DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter, cg.Component)
+TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter)
+DelayedOnOffFilter = binary_sensor_ns.class_("DelayedOnOffFilter", Filter)
+DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
+DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
-AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter, cg.Component)
+AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
 LambdaFilter = binary_sensor_ns.class_("LambdaFilter", Filter)
 StatelessLambdaFilter = binary_sensor_ns.class_("StatelessLambdaFilter", Filter)
-SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter, cg.Component)
+SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter)
 
 _LOGGER = getLogger(__name__)
 
@@ -174,7 +176,6 @@ async def invert_filter_to_code(config, filter_id):
 )
 async def timeout_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_timeout_value(template_))
     return var
@@ -202,7 +203,6 @@ async def timeout_filter_to_code(config, filter_id):
 )
 async def delayed_on_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     if isinstance(config, dict):
         template_ = await cg.templatable(config[CONF_TIME_ON], [], cg.uint32)
         cg.add(var.set_on_delay(template_))
@@ -220,7 +220,6 @@ async def delayed_on_off_filter_to_code(config, filter_id):
 )
 async def delayed_on_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
     return var
@@ -233,7 +232,6 @@ async def delayed_on_filter_to_code(config, filter_id):
 )
 async def delayed_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
     return var
@@ -285,9 +283,7 @@ async def autorepeat_filter_to_code(config, filter_id):
                 ),
             )
         ]
-    var = cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
-    await cg.register_component(var, {})
-    return var
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
 
 
 @register_filter("lambda", LambdaFilter, cv.returning_lambda)
@@ -305,7 +301,6 @@ async def lambda_filter_to_code(config, filter_id):
 )
 async def settle_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
-    await cg.register_component(var, {})
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
     return var
@@ -332,8 +327,9 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
-        # pylint: disable=raise-missing-from
-        raise cv.Invalid(f"First word must either be ON or OFF, not {parts[0]}")
+        raise cv.Invalid(
+            f"First word must either be ON or OFF, not {parts[0]}"
+        ) from None
 
     if parts[1] != "for":
         raise cv.Invalid(f"Second word must be 'for', got {parts[1]}")
@@ -350,7 +346,9 @@ def parse_multi_click_timing_str(value):
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
-            raise cv.Invalid(f"Multi Click Grammar Parsing length failed: {err}")
+            raise cv.Invalid(
+                f"Multi Click Grammar Parsing length failed: {err}"
+            ) from err
         return {CONF_STATE: state, key: str(length)}
 
     if parts[3] != "to":
@@ -359,12 +357,16 @@ def parse_multi_click_timing_str(value):
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing minimum length failed: {err}"
+        ) from err
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
-        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
+        raise cv.Invalid(
+            f"Multi Click Grammar Parsing maximum length failed: {err}"
+        ) from err
 
     return {
         CONF_STATE: state,
@@ -447,7 +449,9 @@ _BINARY_SENSOR_SCHEMA = (
             cv.Exclusive(
                 CONF_TRIGGER_ON_INITIAL_STATE, CONF_TRIGGER_ON_INITIAL_STATE
             ): cv.boolean,
-            cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
             cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
             cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
@@ -557,6 +561,11 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_binary_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
+    if config.get(CONF_ON_CLICK) or config.get(CONF_ON_DOUBLE_CLICK):
+        cg.add_define("USE_BINARY_SENSOR_CLICK_TRIGGER")
+    if config.get(CONF_ON_MULTI_CLICK):
+        cg.add_define("USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER")
+
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
             conf[CONF_TRIGGER_ID], var, conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH]
@@ -617,7 +626,7 @@ async def setup_binary_sensor_core_(var, config):
 async def register_binary_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_binary_sensor(var))
+    queue_entity_register("binary_sensor", config)
     CORE.register_platform_component("binary_sensor", var)
     await setup_binary_sensor_core_(var, config)
 
@@ -670,3 +679,15 @@ async def to_code(config):
 async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+# automation.cpp only implements the click/double_click/multi_click triggers
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "automation.cpp": (
+            "USE_BINARY_SENSOR_CLICK_TRIGGER",
+            "USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER",
+        ),
+        "filter.cpp": "USE_BINARY_SENSOR_FILTER",
+    }
+)

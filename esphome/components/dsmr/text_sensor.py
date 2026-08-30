@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_INTERNAL
+from esphome.types import ConfigType
 
 from . import CONF_DSMR_ID, Dsmr
 
@@ -14,8 +15,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("p1_version"): text_sensor.text_sensor_schema(),
         cv.Optional("p1_version_be"): text_sensor.text_sensor_schema(),
         cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
+        cv.Optional("electricity_switch_position"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_tariff"): text_sensor.text_sensor_schema(),
+        cv.Optional("electricity_tariff_il"): text_sensor.text_sensor_schema(),
         cv.Optional("electricity_failure_log"): text_sensor.text_sensor_schema(),
+        cv.Optional("electricity_failure_log_il"): text_sensor.text_sensor_schema(),
         cv.Optional("message_short"): text_sensor.text_sensor_schema(),
         cv.Optional("message_long"): text_sensor.text_sensor_schema(),
         cv.Optional("equipment_id"): text_sensor.text_sensor_schema(),
@@ -36,7 +40,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_DSMR_ID])
 
     text_sensors = []
@@ -52,6 +56,7 @@ async def to_code(config):
                 text_sensors.append(f"F({key})")
 
     if text_sensors:
+        cg.add_define("DSMR_TEXT_SENSOR_LIST_DEFINED")
         cg.add_define(
             "DSMR_TEXT_SENSOR_LIST(F, sep)",
             cg.RawExpression(" sep ".join(text_sensors)),

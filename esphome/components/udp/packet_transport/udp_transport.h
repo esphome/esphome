@@ -6,10 +6,9 @@
 #include "esphome/components/packet_transport/packet_transport.h"
 #include <vector>
 
-namespace esphome {
-namespace udp {
+namespace esphome::udp {
 
-class UDPTransport : public packet_transport::PacketTransport, public Parented<UDPComponent> {
+class UDPTransport final : public packet_transport::PacketTransport, public Parented<UDPComponent> {
  public:
   void setup() override;
 
@@ -21,6 +20,6 @@ class UDPTransport : public packet_transport::PacketTransport, public Parented<U
   size_t get_max_packet_size() override { return MAX_PACKET_SIZE; }
 };
 
-}  // namespace udp
-}  // namespace esphome
+}  // namespace esphome::udp
+
 #endif

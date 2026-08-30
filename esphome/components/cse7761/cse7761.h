@@ -4,22 +4,19 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace cse7761 {
+namespace esphome::cse7761 {
 
 struct CSE7761DataStruct {
   uint32_t frequency = 0;
   uint32_t voltage_rms = 0;
   uint32_t current_rms[2] = {0};
-  uint32_t energy[2] = {0};
-  uint32_t active_power[2] = {0};
+  int32_t active_power[2] = {0};
   uint16_t coefficient[8] = {0};
-  uint8_t energy_update = 0;
   bool ready = false;
 };
 
 /// This class implements support for the CSE7761 UART power sensor.
-class CSE7761Component : public PollingComponent, public uart::UARTDevice {
+class CSE7761Component final : public PollingComponent, public uart::UARTDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_active_power_1_sensor(sensor::Sensor *power_sensor_1) { power_sensor_1_ = power_sensor_1; }
@@ -47,5 +44,4 @@ class CSE7761Component : public PollingComponent, public uart::UARTDevice {
   void get_data_();
 };
 
-}  // namespace cse7761
-}  // namespace esphome
+}  // namespace esphome::cse7761

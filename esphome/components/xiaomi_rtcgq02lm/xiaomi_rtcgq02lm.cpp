@@ -2,10 +2,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
-
-namespace esphome {
-namespace xiaomi_rtcgq02lm {
+namespace esphome::xiaomi_rtcgq02lm {
 
 static const char *const TAG = "xiaomi_rtcgq02lm";
 
@@ -25,7 +22,7 @@ void XiaomiRTCGQ02LM::dump_config() {
 #endif
 }
 
-bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiRTCGQ02LM::parse_device(const ble_device_base::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -79,7 +76,4 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
 
 void XiaomiRTCGQ02LM::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
-}  // namespace xiaomi_rtcgq02lm
-}  // namespace esphome
-
-#endif
+}  // namespace esphome::xiaomi_rtcgq02lm

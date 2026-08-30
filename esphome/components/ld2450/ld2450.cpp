@@ -184,7 +184,7 @@ void LD2450Component::setup() {
 }
 
 void LD2450Component::dump_config() {
-  char mac_s[18];
+  char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   char version_s[20];
   const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
   ld24xx::format_version_str(this->version_, version_s);
@@ -565,6 +565,7 @@ void LD2450Component::handle_periodic_data_() {
   SAFE_PUBLISH_SENSOR(this->still_target_count_sensor_, still_target_count);
   // Moving Target Count
   SAFE_PUBLISH_SENSOR(this->moving_target_count_sensor_, moving_target_count);
+
 #endif
 
 #ifdef USE_BINARY_SENSOR
@@ -679,7 +680,7 @@ bool LD2450Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      char mac_s[18];
+      char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
@@ -872,33 +873,32 @@ void LD2450Component::query_target_tracking_mode_() { this->send_command_(CMD_QU
 void LD2450Component::query_zone_() { this->send_command_(CMD_QUERY_ZONE, nullptr, 0); }
 
 #ifdef USE_SENSOR
-// These could leak memory, but they are only set once prior to 'setup()' and should never be used again.
 void LD2450Component::set_move_x_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_x_sensors_[target] = new SensorWithDedup<int16_t>(s);
+  this->move_x_sensors_[target].set_sensor(s);
 }
 void LD2450Component::set_move_y_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_y_sensors_[target] = new SensorWithDedup<int16_t>(s);
+  this->move_y_sensors_[target].set_sensor(s);
 }
 void LD2450Component::set_move_speed_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_speed_sensors_[target] = new SensorWithDedup<int16_t>(s);
+  this->move_speed_sensors_[target].set_sensor(s);
 }
 void LD2450Component::set_move_angle_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_angle_sensors_[target] = new SensorWithDedup<float>(s);
+  this->move_angle_sensors_[target].set_sensor(s);
 }
 void LD2450Component::set_move_distance_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_distance_sensors_[target] = new SensorWithDedup<uint16_t>(s);
+  this->move_distance_sensors_[target].set_sensor(s);
 }
 void LD2450Component::set_move_resolution_sensor(uint8_t target, sensor::Sensor *s) {
-  this->move_resolution_sensors_[target] = new SensorWithDedup<uint16_t>(s);
+  this->move_resolution_sensors_[target].set_sensor(s);
 }
 void LD2450Component::set_zone_target_count_sensor(uint8_t zone, sensor::Sensor *s) {
-  this->zone_target_count_sensors_[zone] = new SensorWithDedup<uint8_t>(s);
+  this->zone_target_count_sensors_[zone].set_sensor(s);
 }
 void LD2450Component::set_zone_still_target_count_sensor(uint8_t zone, sensor::Sensor *s) {
-  this->zone_still_target_count_sensors_[zone] = new SensorWithDedup<uint8_t>(s);
+  this->zone_still_target_count_sensors_[zone].set_sensor(s);
 }
 void LD2450Component::set_zone_moving_target_count_sensor(uint8_t zone, sensor::Sensor *s) {
-  this->zone_moving_target_count_sensors_[zone] = new SensorWithDedup<uint8_t>(s);
+  this->zone_moving_target_count_sensors_[zone].set_sensor(s);
 }
 #endif
 #ifdef USE_TEXT_SENSOR

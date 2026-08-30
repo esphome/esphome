@@ -13,8 +13,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace ade7880 {
+namespace esphome::ade7880 {
 
 static const char *const TAG = "ade7880";
 
@@ -88,14 +87,24 @@ void ADE7880::update_sensor_from_s16_register16_(sensor::Sensor *sensor, uint16_
   sensor->publish_state(f(val));
 }
 
-template<typename F>
-void ADE7880::update_sensor_from_s32_register16_(sensor::Sensor *sensor, uint16_t a_register, F &&f) {
-  if (sensor == nullptr) {
+void ADE7880::update_active_energy_(PowerChannel *channel, uint16_t a_register) {
+  if (channel->forward_active_energy == nullptr && channel->reverse_active_energy == nullptr) {
     return;
   }
 
-  float val = this->read_s32_register16_(a_register);
-  sensor->publish_state(f(val));
+  // The ADE7880 has no separate forward/reverse active energy accumulators. The xWATTHR registers
+  // accumulate signed energy since the last read (positive = imported/forward, negative = exported/
+  // reverse), so split the value by sign into the forward and reverse running totals.
+  float val = this->read_s32_register16_(a_register) / 14400.0f;
+  if (val >= 0.0f) {
+    if (channel->forward_active_energy != nullptr) {
+      channel->forward_active_energy->publish_state(channel->forward_active_energy_total += val);
+    }
+  } else {
+    if (channel->reverse_active_energy != nullptr) {
+      channel->reverse_active_energy->publish_state(channel->reverse_active_energy_total -= val);
+    }
+  }
 }
 
 void ADE7880::update() {
@@ -118,12 +127,7 @@ void ADE7880::update() {
     this->update_sensor_from_s24zp_register16_(chan->apparent_power, AVA, [](float val) { return val / 100.0f; });
     this->update_sensor_from_s16_register16_(chan->power_factor, APF,
                                              [](float val) { return std::abs(val / -327.68f); });
-    this->update_sensor_from_s32_register16_(chan->forward_active_energy, AFWATTHR, [&chan](float val) {
-      return chan->forward_active_energy_total += val / 14400.0f;
-    });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, ARWATTHR, [&chan](float val) {
-      return chan->reverse_active_energy_total += val / 14400.0f;
-    });
+    this->update_active_energy_(chan, AWATTHR);
   }
 
   if (this->channel_b_ != nullptr) {
@@ -134,12 +138,7 @@ void ADE7880::update() {
     this->update_sensor_from_s24zp_register16_(chan->apparent_power, BVA, [](float val) { return val / 100.0f; });
     this->update_sensor_from_s16_register16_(chan->power_factor, BPF,
                                              [](float val) { return std::abs(val / -327.68f); });
-    this->update_sensor_from_s32_register16_(chan->forward_active_energy, BFWATTHR, [&chan](float val) {
-      return chan->forward_active_energy_total += val / 14400.0f;
-    });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, BRWATTHR, [&chan](float val) {
-      return chan->reverse_active_energy_total += val / 14400.0f;
-    });
+    this->update_active_energy_(chan, BWATTHR);
   }
 
   if (this->channel_c_ != nullptr) {
@@ -150,12 +149,7 @@ void ADE7880::update() {
     this->update_sensor_from_s24zp_register16_(chan->apparent_power, CVA, [](float val) { return val / 100.0f; });
     this->update_sensor_from_s16_register16_(chan->power_factor, CPF,
                                              [](float val) { return std::abs(val / -327.68f); });
-    this->update_sensor_from_s32_register16_(chan->forward_active_energy, CFWATTHR, [&chan](float val) {
-      return chan->forward_active_energy_total += val / 14400.0f;
-    });
-    this->update_sensor_from_s32_register16_(chan->reverse_active_energy, CRWATTHR, [&chan](float val) {
-      return chan->reverse_active_energy_total += val / 14400.0f;
-    });
+    this->update_active_energy_(chan, CWATTHR);
   }
 
   ESP_LOGD(TAG, "update took %" PRIu32 " ms", millis() - start);
@@ -313,5 +307,4 @@ void ADE7880::reset_device_() {
   this->store_.reset_pending = true;
 }
 
-}  // namespace ade7880
-}  // namespace esphome
+}  // namespace esphome::ade7880

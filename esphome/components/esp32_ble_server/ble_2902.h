@@ -4,15 +4,13 @@
 
 #ifdef USE_ESP32
 
-namespace esphome {
-namespace esp32_ble_server {
+namespace esphome::esp32_ble_server {
 
 class BLE2902 : public BLEDescriptor {
  public:
   BLE2902();
 };
 
-}  // namespace esp32_ble_server
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_server
 
 #endif

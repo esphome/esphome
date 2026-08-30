@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace bme680 {
+namespace esphome::bme680 {
 
 /// Enum listing all IIR Filter options for the BME680.
 enum BME680IIRFilter {
@@ -66,7 +65,7 @@ struct BME680CalibrationData {
   int8_t ambient_temperature;
 };
 
-class BME680Component : public PollingComponent, public i2c::I2CDevice {
+class BME680Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   /// Set the temperature oversampling value. Defaults to 16X.
   void set_temperature_oversampling(BME680Oversampling temperature_oversampling);
@@ -134,5 +133,4 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *gas_resistance_sensor_{nullptr};
 };
 
-}  // namespace bme680
-}  // namespace esphome
+}  // namespace esphome::bme680

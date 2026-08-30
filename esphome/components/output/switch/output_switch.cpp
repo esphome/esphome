@@ -1,8 +1,7 @@
 #include "output_switch.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace output {
+namespace esphome::output {
 
 static const char *const TAG = "output.switch";
 
@@ -25,5 +24,4 @@ void OutputSwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace output
-}  // namespace esphome
+}  // namespace esphome::output

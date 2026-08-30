@@ -39,8 +39,7 @@ class _Schema(vol.Schema):
             try:
                 res = extra(res)
             except vol.Invalid as err:
-                # pylint: disable=raise-missing-from
-                raise ensure_multiple_invalid(err)
+                raise ensure_multiple_invalid(err) from err
         return res
 
     def _compile_mapping(self, schema, invalid_msg=None):

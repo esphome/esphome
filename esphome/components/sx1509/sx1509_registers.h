@@ -7,7 +7,6 @@ https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
 */
 #pragma once
 
-namespace esphome {
 /**
  Here you'll find the Arduino code used to interface with the SX1509 I2C
 16 I/O expander. There are functions to take advantage of everything the
@@ -25,7 +24,7 @@ local, and you've found our code helpful, please buy us a round!
 
 Distributed as-is; no warranty is given.
 */
-namespace sx1509 {
+namespace esphome::sx1509 {
 
 const uint8_t REG_INPUT_DISABLE_B =
     0x00;  //    RegInputDisableB Input buffer disable register _ I/O[15_8] (Bank B) 0000 0000
@@ -106,5 +105,4 @@ const uint8_t REG_RESET = 0x7D;   //    RegReset Software reset register 0000 00
 const uint8_t REG_TEST_1 = 0x7E;  //    RegTest1 Test register 0000 0000
 const uint8_t REG_TEST_2 = 0x7F;  //    RegTest2 Test register 0000 0000
 
-}  // namespace sx1509
-}  // namespace esphome
+}  // namespace esphome::sx1509

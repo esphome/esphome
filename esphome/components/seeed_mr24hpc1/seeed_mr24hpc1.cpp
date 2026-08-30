@@ -5,8 +5,7 @@
 
 #include <utility>
 
-namespace esphome {
-namespace seeed_mr24hpc1 {
+namespace esphome::seeed_mr24hpc1 {
 
 static const char *const TAG = "seeed_mr24hpc1";
 
@@ -1002,5 +1001,4 @@ void MR24HPC1Component::set_custom_unman_time(uint16_t value) {
   this->get_custom_unman_time();
 }
 
-}  // namespace seeed_mr24hpc1
-}  // namespace esphome
+}  // namespace esphome::seeed_mr24hpc1

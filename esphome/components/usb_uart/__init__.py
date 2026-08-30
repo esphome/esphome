@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
-from esphome.components.usb_host import register_usb_client, usb_device_schema
+from esphome.components.usb_host import (
+    get_max_packet_size,
+    register_usb_client,
+    usb_device_schema,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -11,7 +16,9 @@ from esphome.const import (
     CONF_DUMMY_RECEIVER,
     CONF_ID,
 )
+from esphome.core import CORE
 from esphome.cpp_types import Component
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["uart", "usb_host", "bytebuffer"]
 CODEOWNERS = ["@clydebarrow"]
@@ -40,27 +47,59 @@ DEFAULT_BAUD_RATE = 9600
 
 
 class Type:
-    def __init__(self, name, vid, pid, cls, max_channels=1, baud_rate_required=True):
+    def __init__(
+        self,
+        name: str,
+        vid: int,
+        pid: int,
+        cls: str | None,
+        max_channels: int = 1,
+        baud_rate_required: bool = True,
+        max_baud: int = 1_000_000,
+    ) -> None:
         self.name = name
         cls = cls or name
         self.vid = vid
         self.pid = pid
         self.cls = usb_uart_ns.class_(f"USBUartType{cls}", USBUartComponent)
-        self.max_channels = max_channels
+        self._max_channels = max_channels
         self.baud_rate_required = baud_rate_required
+        self.max_baud = max_baud
+
+    @property
+    def max_channels(self) -> int:
+        return (
+            3
+            if (
+                CORE.is_esp32
+                and get_esp32_variant() != VARIANT_ESP32P4
+                and self._max_channels > 3
+            )
+            else self._max_channels
+        )
 
 
 uart_types = (
-    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 3),
-    Type("CH340", 0x1A86, 0x7523, "CH34X", 1),
-    Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
-    Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
     Type("CDC_ACM", 0, 0, "CdcAcm", 1, baud_rate_required=False),
-    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3),
+    Type("CH34X", 0x1A86, 0x55D5, "CH34X", 4, max_baud=2_000_000),
+    Type("CH340", 0x1A86, 0x7523, "CH34X", 1, max_baud=2_000_000),
+    Type("CP210X", 0x10C4, 0xEA60, "CP210X", 3, max_baud=2_000_000),
+    Type("ESP_JTAG", 0x303A, 0x1001, "CdcAcm", 1, baud_rate_required=False),
+    Type("FT232", 0x0403, 0x6001, "FT23XX", 1, max_baud=3_000_000),
+    Type("FT2232", 0x0403, 0x6010, "FT23XX", 2, max_baud=12_000_000),
+    Type("FT4232", 0x0403, 0x6011, "FT23XX", 4, max_baud=12_000_000),
+    Type("PL2303", 0x067B, 0x2303, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GB", 0x067B, 0x23B3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GC", 0x067B, 0x23A3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GE", 0x067B, 0x23E3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GL", 0x067B, 0x23D3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GS", 0x067B, 0x23F3, "PL2303", 1, max_baud=6_000_000),
+    Type("PL2303GT", 0x067B, 0x23C3, "PL2303", 1, max_baud=6_000_000),
+    Type("STM32_VCP", 0x0483, 0x5740, "CdcAcm", 1, baud_rate_required=False),
 )
 
 
-def channel_schema(channels, baud_rate_required):
+def channel_schema(type_: "Type") -> cv.Schema:
     return cv.Schema(
         {
             cv.Required(CONF_CHANNELS): cv.All(
@@ -73,11 +112,11 @@ def channel_schema(channels, baud_rate_required):
                             ),
                             (
                                 cv.Required(CONF_BAUD_RATE)
-                                if baud_rate_required
+                                if type_.baud_rate_required
                                 else cv.Optional(
                                     CONF_BAUD_RATE, default=DEFAULT_BAUD_RATE
                                 )
-                            ): cv.int_range(min=300, max=1000000),
+                            ): cv.int_range(min=300, max=type_.max_baud),
                             cv.Optional(CONF_STOP_BITS, default="1"): cv.enum(
                                 UART_STOP_BITS_OPTIONS, upper=True
                             ),
@@ -96,7 +135,10 @@ def channel_schema(channels, baud_rate_required):
                         }
                     )
                 ),
-                cv.Length(max=channels),
+                cv.Length(
+                    max=type_.max_channels,
+                    msg=f"Device type {type_.name} supports a maximum of {type_.max_channels} channels",
+                ),
             )
         }
     )
@@ -106,7 +148,7 @@ CONFIG_SCHEMA = cv.ensure_list(
     cv.typed_schema(
         {
             it.name: usb_device_schema(it.cls, it.vid, it.pid).extend(
-                channel_schema(it.max_channels, it.baud_rate_required)
+                channel_schema(it)
             )
             for it in uart_types
         },
@@ -115,13 +157,24 @@ CONFIG_SCHEMA = cv.ensure_list(
 )
 
 
-async def to_code(config):
+async def to_code(config: list[ConfigType]) -> None:
+    # The output chunk pool/queue are compile-time-sized templates shared by all
+    # USBUartChannel instances, so use the largest buffer_size across every channel
+    # of every device. Add one extra slot because LockFreeQueue<T,N> is a ring
+    # buffer that wastes one entry.
+    max_buffer_size = max(
+        channel[CONF_BUFFER_SIZE]
+        for device in config
+        for channel in device[CONF_CHANNELS]
+    )
+    output_chunk_count = max(max_buffer_size // get_max_packet_size(), 2) + 1
+    cg.add_define("USB_UART_OUTPUT_CHUNK_COUNT", output_chunk_count)
+
     for device in config:
         var = await register_usb_client(device)
         for index, channel in enumerate(device[CONF_CHANNELS]):
             chvar = cg.new_Pvariable(channel[CONF_ID], index, channel[CONF_BUFFER_SIZE])
             await cg.register_parented(chvar, var)
-            cg.add(chvar.set_rx_buffer_size(channel[CONF_BUFFER_SIZE]))
             cg.add(chvar.set_stop_bits(channel[CONF_STOP_BITS]))
             cg.add(chvar.set_data_bits(channel[CONF_DATA_BITS]))
             cg.add(chvar.set_parity(channel[CONF_PARITY]))

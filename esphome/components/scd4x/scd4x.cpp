@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace scd4x {
+namespace esphome::scd4x {
 
 static const char *const TAG = "scd4x";
 
@@ -324,5 +323,4 @@ bool SCD4XComponent::start_measurement_() {
   return false;
 }
 
-}  // namespace scd4x
-}  // namespace esphome
+}  // namespace esphome::scd4x

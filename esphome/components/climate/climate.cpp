@@ -374,7 +374,8 @@ void Climate::save_state_(const ClimateTraits &traits) {
 #define TEMP_IGNORE_MEMACCESS
 #endif
   ClimateDeviceRestoreState state{};
-  // initialize as zero to prevent random data on stack triggering erase
+  // initialize as zero (including padding) to prevent random data on stack triggering erase
+  // NOLINTNEXTLINE(bugprone-raw-memory-call-on-non-trivial-type) -- intentional bytewise zero for RTC save
   memset(&state, 0, sizeof(ClimateDeviceRestoreState));
 #ifdef TEMP_IGNORE_MEMACCESS
 #pragma GCC diagnostic pop
@@ -510,29 +511,6 @@ ClimateTraits Climate::get_traits() {
   return traits;
 }
 
-#ifdef USE_CLIMATE_VISUAL_OVERRIDES
-void Climate::set_visual_min_temperature_override(float visual_min_temperature_override) {
-  this->visual_min_temperature_override_ = visual_min_temperature_override;
-}
-
-void Climate::set_visual_max_temperature_override(float visual_max_temperature_override) {
-  this->visual_max_temperature_override_ = visual_max_temperature_override;
-}
-
-void Climate::set_visual_temperature_step_override(float target, float current) {
-  this->visual_target_temperature_step_override_ = target;
-  this->visual_current_temperature_step_override_ = current;
-}
-
-void Climate::set_visual_min_humidity_override(float visual_min_humidity_override) {
-  this->visual_min_humidity_override_ = visual_min_humidity_override;
-}
-
-void Climate::set_visual_max_humidity_override(float visual_max_humidity_override) {
-  this->visual_max_humidity_override_ = visual_max_humidity_override;
-}
-#endif
-
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
 ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
@@ -573,7 +551,14 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
 
 void ClimateDeviceRestoreState::apply(Climate *climate) {
   auto traits = climate->get_traits();
-  climate->mode = this->mode;
+  // A saved mode the device no longer offers cannot be selected again, so skip it and leave the
+  // entity on the mode it already has. The other saved fields are still restored.
+  if (traits.supports_mode(this->mode)) {
+    climate->mode = this->mode;
+  } else {
+    ESP_LOGW(TAG, "'%s' - Saved mode %s is no longer supported, keeping %s", climate->get_name().c_str(),
+             LOG_STR_ARG(climate_mode_to_string(this->mode)), LOG_STR_ARG(climate_mode_to_string(climate->mode)));
+  }
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     climate->target_temperature_low = this->target_temperature_low;

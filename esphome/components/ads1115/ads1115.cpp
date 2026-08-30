@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace ads1115 {
+namespace esphome::ads1115 {
 
 static const char *const TAG = "ads1115";
 static const uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
@@ -208,5 +207,4 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
   return millivolts / 1e3f;
 }
 
-}  // namespace ads1115
-}  // namespace esphome
+}  // namespace esphome::ads1115

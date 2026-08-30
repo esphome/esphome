@@ -4,10 +4,9 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace adc {
+namespace esphome::adc {
 
-static const char *const TAG = "adc.esp32";
+static const char *const TAG = "adc";
 
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
@@ -364,7 +363,6 @@ float ADCSensor::sample_autorange_() {
   return final_result;
 }
 
-}  // namespace adc
-}  // namespace esphome
+}  // namespace esphome::adc
 
 #endif  // USE_ESP32

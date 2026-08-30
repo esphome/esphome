@@ -1,0 +1,10 @@
+zephyr_ble_server:
+  on_numeric_comparison_request:
+    then:
+      - logger.log:
+          format: "Compare this passkey with the one on your BLE device: %06d"
+          args: [passkey]
+      - ble_server.numeric_comparison_reply:
+          accept: True
+      - ble_server.numeric_comparison_reply:
+          accept: !lambda "return true;"

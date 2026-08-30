@@ -136,10 +136,21 @@ bool WiFiComponent::wifi_apply_power_save_() {
   https://github.com/d-a-v/Arduino/blob/0e7d21e17144cfc5f53c016191daca8723e89ee8/libraries/ESP8266WiFi/src/ESP8266WiFiSTA.cpp#L251
  */
 #undef netif_set_addr  // need to call lwIP-v1.4 netif_set_addr()
+#undef netif_set_down  // need to call lwIP-v1.4 netif_set_down()
 extern "C" {
 struct netif *eagle_lwip_getif(int netif_index);
 void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t *netmask, const ip4_addr_t *gw);
+void netif_set_down(struct netif *netif);
 };
+
+// The SDK can free its WiFi connection node before taking the STA netif down, letting lwIP
+// timers (e.g. IGMP reports armed by mDNS) transmit into the dead driver and crash in
+// cnx_node_search; taking the netif down first makes the glue drop such frames (#18308).
+static void sta_netif_down() {
+  struct netif *iface = eagle_lwip_getif(STATION_IF);
+  if (iface != nullptr)
+    netif_set_down(iface);
+}
 #endif
 
 bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
@@ -218,9 +229,18 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
     return {};
   network::IPAddresses addresses;
   uint8_t index = 0;
+  // addrList enumerates all lwIP netifs, including the SoftAP / fallback hotspot. Filter out
+  // the AP address so the STA address is reported as the device IP (see issue #17181).
+  struct ip_info ap_ip {};
+  wifi_get_ip_info(SOFTAP_IF, &ap_ip);
+  network::IPAddress ap_address(&ap_ip.ip);
+  bool filter_ap = ap_address.is_set();
   for (auto &addr : addrList) {
+    network::IPAddress ip(addr.ipFromNetifNum());
+    if (filter_ap && ip == ap_address)
+      continue;
     assert(index < addresses.size());
-    addresses[index++] = addr.ipFromNetifNum();
+    addresses[index++] = ip;
   }
   return addresses;
 }
@@ -313,10 +333,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  auto eap_opt = ap.get_eap();
+  const auto &eap_opt = ap.get_eap();
   if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = *eap_opt;
+    const EAPAuth &eap = *eap_opt;
     ret = wifi_station_set_enterprise_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
     if (ret) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed: %d", ret);
@@ -507,13 +527,16 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                  (const char *) it.ssid);
         global_wifi_component->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_NOT_FOUND);
       } else {
-        char bssid_s[18];
+        char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(it.bssid, bssid_s);
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                  (const char *) it.ssid, bssid_s, LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
         global_wifi_component->sta_state_ = static_cast<uint8_t>(ESP8266WiFiSTAState::ERROR_FAILED);
       }
       global_wifi_component->error_from_callback_ = true;
+#if LWIP_VERSION_MAJOR != 1
+      sta_netif_down();
+#endif
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       global_wifi_component->pending_.disconnect = true;
 #endif
@@ -527,6 +550,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
         ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting");
+#if LWIP_VERSION_MAJOR != 1
+        sta_netif_down();
+#endif
         wifi_station_disconnect();
         global_wifi_component->error_from_callback_ = true;
       }
@@ -621,9 +647,24 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
     ESP_LOGV(TAG, "Disabling Auto-Connect failed");
   }
 
+#ifdef USE_WIFI_PHY_MODE
+  if (!this->wifi_apply_phy_mode_()) {
+    ESP_LOGV(TAG, "Setting PHY Mode failed");
+  }
+#endif
+
   delay(10);
   return true;
 }
+
+#ifdef USE_WIFI_PHY_MODE
+bool WiFiComponent::wifi_apply_phy_mode_() {
+  if (this->phy_mode_ == WIFI_8266_PHY_MODE_AUTO)
+    return true;
+  // Values of WiFi8266PhyMode are aligned with the SDK's phy_mode_t enum.
+  return wifi_set_phy_mode(static_cast<phy_mode_t>(this->phy_mode_));
+}
+#endif
 
 void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
@@ -676,7 +717,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   static constexpr uint32_t SCAN_ACTIVE_MAX_DEFAULT_MS = 500;
   static constexpr uint32_t SCAN_ACTIVE_MIN_ROAMING_MS = 100;
   static constexpr uint32_t SCAN_ACTIVE_MAX_ROAMING_MS = 300;
-  bool roaming = this->roaming_state_ == RoamingState::SCANNING;
+  bool roaming = this->is_roaming_scan_active();
   if (passive) {
     config.scan_time.passive = roaming ? SCAN_PASSIVE_ROAMING_MS : SCAN_PASSIVE_DEFAULT_MS;
   } else {
@@ -695,8 +736,12 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 bool WiFiComponent::wifi_disconnect_() {
   bool ret = true;
   // Only call disconnect if interface is up
-  if (wifi_get_opmode() & WIFI_STA)
+  if (wifi_get_opmode() & WIFI_STA) {
+#if LWIP_VERSION_MAJOR != 1
+    sta_netif_down();
+#endif
     ret = wifi_station_disconnect();
+  }
   station_config conf{};
   memset(&conf, 0, sizeof(conf));
   ETS_UART_INTR_DISABLE();
@@ -709,6 +754,8 @@ void WiFiComponent::s_wifi_scan_done_callback(void *arg, STATUS status) {
 }
 
 void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
+  // Compiles to nothing here; kept so every scan_result_ mutation holds the lock
+  ScanResultsLock lock(this);
   this->scan_result_.clear();
 
   if (status != OK) {
@@ -897,16 +944,6 @@ bssid_t WiFiComponent::wifi_bssid() {
   }
   return bssid;
 }
-std::string WiFiComponent::wifi_ssid() {
-  struct station_config conf {};
-  if (!wifi_station_get_config(&conf)) {
-    return "";
-  }
-  // conf.ssid is uint8[32], not null-terminated if full
-  auto *ssid_s = reinterpret_cast<const char *>(conf.ssid);
-  size_t len = strnlen(ssid_s, sizeof(conf.ssid));
-  return {ssid_s, len};
-}
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
   struct station_config conf {};
   if (!wifi_station_get_config(&conf)) {
@@ -938,7 +975,10 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   return network::IPAddress(&ip.gw);
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return network::IPAddress(dns_getserver(num)); }
-void WiFiComponent::wifi_loop_() { this->process_pending_callbacks_(); }
+bool WiFiComponent::wifi_loop_() {
+  this->process_pending_callbacks_();
+  return true;
+}
 
 void WiFiComponent::process_pending_callbacks_() {
   // Process callbacks deferred from ESP8266 SDK system context (~2KB stack)
@@ -948,6 +988,8 @@ void WiFiComponent::process_pending_callbacks_() {
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   if (this->pending_.disconnect) {
     this->pending_.disconnect = false;
+    // Refresh is_connected() cache here, not in the SDK callback (sys context).
+    this->update_connected_state_();
     this->notify_disconnect_state_listeners_();
   }
 #endif

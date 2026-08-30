@@ -10,15 +10,14 @@
 
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace anova {
+namespace esphome::anova {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
 static const uint16_t ANOVA_SERVICE_UUID = 0xFFE0;
 static const uint16_t ANOVA_CHARACTERISTIC_UUID = 0xFFE1;
 
-class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
+class Anova final : public climate::Climate, public esphome::ble_client::BLEClientNode, public PollingComponent {
  public:
   void setup() override;
   void loop() override;
@@ -45,7 +44,6 @@ class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode
   bool fahrenheit_;
 };
 
-}  // namespace anova
-}  // namespace esphome
+}  // namespace esphome::anova
 
 #endif

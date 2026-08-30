@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace matrix_keypad {
+namespace esphome::matrix_keypad {
 
 static const char *const TAG = "matrix_keypad";
 
@@ -110,5 +109,4 @@ void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->lis
 
 void MatrixKeypad::register_key_trigger(MatrixKeyTrigger *trig) { this->key_triggers_.push_back(trig); }
 
-}  // namespace matrix_keypad
-}  // namespace esphome
+}  // namespace esphome::matrix_keypad

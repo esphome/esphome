@@ -1,0 +1,15 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO34
+    name: test

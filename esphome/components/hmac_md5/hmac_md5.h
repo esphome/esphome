@@ -5,8 +5,7 @@
 #include "esphome/components/md5/md5.h"
 #include <string>
 
-namespace esphome {
-namespace hmac_md5 {
+namespace esphome::hmac_md5 {
 
 class HmacMD5 {
  public:
@@ -44,6 +43,6 @@ class HmacMD5 {
   md5::MD5Digest ohash_;
 };
 
-}  // namespace hmac_md5
-}  // namespace esphome
+}  // namespace esphome::hmac_md5
+
 #endif

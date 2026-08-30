@@ -6,8 +6,7 @@
 #include <Wire.h>
 #endif
 
-namespace esphome {
-namespace scd30 {
+namespace esphome::scd30 {
 
 static const char *const TAG = "scd30";
 
@@ -230,5 +229,4 @@ uint16_t SCD30Component::get_forced_calibration_reference() {
   return forced_calibration_reference;
 }
 
-}  // namespace scd30
-}  // namespace esphome
+}  // namespace esphome::scd30

@@ -3,8 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mcp3008 {
+namespace esphome::mcp3008 {
 
 static const char *const TAG = "mcp3008";
 
@@ -36,5 +35,4 @@ float MCP3008::read_data(uint8_t pin) {
   return data / 1023.0f;
 }
 
-}  // namespace mcp3008
-}  // namespace esphome
+}  // namespace esphome::mcp3008

@@ -3,8 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 /// Converts a BedJet temp step into degrees Fahrenheit.
 float bedjet_temp_to_f(const uint8_t temp) {
@@ -177,5 +176,4 @@ float bedjet_temp_to_c(uint8_t temp) {
   return temp / 2.0f;
 }
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet

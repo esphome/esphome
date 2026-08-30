@@ -3,8 +3,7 @@
 #include "bedjet_codec.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace bedjet {
+namespace esphome::bedjet {
 
 // Forward declare BedJetHub
 class BedJetHub;
@@ -19,5 +18,4 @@ class BedJetClient : public Parented<BedJetHub> {
   virtual std::string describe() = 0;
 };
 
-}  // namespace bedjet
-}  // namespace esphome
+}  // namespace esphome::bedjet
