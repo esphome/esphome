@@ -8,13 +8,10 @@ namespace esphome::adc {
 
 static const char *const TAG = "adc";
 
-// Full-scale raw value for uncalibrated voltage conversion. The S31 reads
-// 17-bit values; the other variants read 12 bits by default.
-#if USE_ESP32_VARIANT_ESP32S31
-static constexpr float ADC_RAW_MAX = (1 << 17) - 1;
-#else
+// Full-scale raw value for uncalibrated voltage conversion. Oneshot reads
+// return 12-bit values on all variants, including the S31 (its 17-bit result
+// register field carries 12-bit oneshot values, confirmed on hardware).
 static constexpr float ADC_RAW_MAX = (1 << 12) - 1;
-#endif
 
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
