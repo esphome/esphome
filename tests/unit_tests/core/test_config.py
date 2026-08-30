@@ -1127,6 +1127,34 @@ def test_config_hash_same_for_different_config_dirs(tmp_path: Path) -> None:
     assert hash1 == hash2
 
 
+def test_config_hash_same_for_different_data_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that downloaded file paths hash the same wherever data_dir lives."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    CORE.reset()
+    CORE.config_path = config_dir / "device.yaml"
+    CORE.config = {
+        "esphome": {"name": "test"},
+        "file": config_dir / ".esphome" / "image" / "c44630d6",
+    }
+    hash1 = CORE.config_hash
+
+    other_data_dir = tmp_path / "data"
+    CORE.reset()
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(other_data_dir))
+    CORE.config_path = config_dir / "device.yaml"
+    CORE.config = {
+        "esphome": {"name": "test"},
+        "file": other_data_dir / "image" / "c44630d6",
+    }
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
 def test_make_app_name_cpp_no_mac_simple() -> None:
     """Test simple name without MAC suffix returns string literal."""
     cpp_expr, global_decl, byte_len = make_app_name_cpp(
