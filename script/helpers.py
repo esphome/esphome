@@ -43,9 +43,8 @@ ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
 # Tuple of component and test paths for efficient startswith checks
 COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
-# Per-file integration test durations recorded from CI junit output; shared by
-# script/determine-jobs.py (reader) and script/update_integration_test_durations.py
-# (writer) so the two spellings cannot drift.
+# Per-file integration test durations from CI junit output; shared by the
+# reader (determine-jobs) and writer (update_integration_test_durations)
 INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
 
 # Base bus components - these ARE the bus implementations and should not
@@ -1557,8 +1556,7 @@ def lpt_partition(
 ) -> list[list[str]]:
     """Partition items into `count` weight-balanced groups (LPT greedy).
 
-    Heaviest item first into the currently lightest group, so one expensive
-    item cannot dominate a contiguous split. Ties keep the input order, so
+    Heaviest item first into the lightest group. Ties keep input order, so
     pass pre-sorted items for deterministic output.
     """
     groups: list[list[str]] = [[] for _ in range(count)]

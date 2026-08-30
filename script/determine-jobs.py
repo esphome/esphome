@@ -100,11 +100,9 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # Isolated components count as 10x, groupable components count as 1x
 COMPONENT_TEST_BATCH_SIZE = 40
 
-# Integration test bucketing: above the threshold, fan out across up to this
-# many jobs, balanced by recorded per-file durations (regenerate with
-# script/update_integration_test_durations.py). The target is a serial
-# junit-time weight budget per bucket, not job wall time; it sizes the bucket
-# count for small selected subsets.
+# Above the threshold, fan out across up to this many jobs, balanced by the
+# recorded per-file durations. The target is serial junit-time weight per
+# bucket, not wall time; it sizes the bucket count for small subsets.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
@@ -171,8 +169,7 @@ def _compute_integration_test_buckets(
     if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
         durations = _load_integration_durations()
         known = [durations[f] for f in files if f in durations]
-        # Unrecorded files weigh the median; without any recording the value
-        # is irrelevant since every file then weighs the same
+        # Unrecorded files weigh the median of the known values
         default = statistics.median(known) if known else 1.0
         weights = {f: durations.get(f, default) for f in files}
         if known:
@@ -186,7 +183,7 @@ def _compute_integration_test_buckets(
         else:
             # No recorded data to size buckets by; keep the full fan-out.
             count = INTEGRATION_TESTS_SPLIT_BUCKETS
-        # Never emit an empty bucket, whatever the constants become
+        # Never emit an empty bucket
         count = min(count, len(files))
         parts = [sorted(part) for part in lpt_partition(files, weights, count)]
         buckets = [

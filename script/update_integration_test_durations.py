@@ -8,9 +8,8 @@ durations into the recording used by script/determine-jobs.py:
     gh run download <run-id> --repo esphome/esphome -p "junit-integration-*" -D /tmp/junit
     script/update_integration_test_durations.py /tmp/junit
 
-Files missing from the artifacts keep their previous recording and deleted
-files drop out, so a partial download cannot truncate the data; a run
-covering under 90% of the test files aborts unless --allow-partial is set.
+Missing files keep their previous recording and deleted files drop out; a
+run covering under 90% of the test files aborts unless --allow-partial.
 """
 
 from __future__ import annotations
