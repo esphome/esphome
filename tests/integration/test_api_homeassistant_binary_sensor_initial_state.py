@@ -88,11 +88,11 @@ async def test_api_homeassistant_binary_sensor_initial_state(
         client.send_home_assistant_state("binary_sensor.unavailable_first", "", "off")
         client.send_home_assistant_state("binary_sensor.initial_off", "", "on")
         client.send_home_assistant_state("binary_sensor.default_unavail", "", "off")
-        for text in (
+        await waiter.wait_for_each(
             "initial_on on_release",
             "default on_release",
             "default_unavail on_release",
             "unavailable_first on_release",
             "initial_off on_press",
-        ):
-            await waiter.wait_for(text, timeout=5.0)
+            timeout=5.0,
+        )
