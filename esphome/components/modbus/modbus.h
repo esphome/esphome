@@ -78,8 +78,9 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t frame_delay_us_{5000};
   uint32_t long_rx_buffer_delay_us_{0};
   uint32_t rx_detect_latency_us_{0};
-  // Bits on the wire per character, derived from the UART framing in setup()
-  uint32_t bits_per_char_{11};
+  // Bits on the wire per character (start + data + optional parity + stop), derived from the UART
+  // framing in setup(); 12 at most, and packs with the flag below.
+  uint8_t bits_per_char_{11};
   // Latched when a read reaches rx_full_threshold, cleared when the buffer drains: a partial frame's
   // remainder may still be streaming even after parsing shrinks the buffer below the threshold.
   bool exceeded_rx_full_threshold_{false};

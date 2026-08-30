@@ -40,11 +40,11 @@ void Modbus::setup() {
   // The schema allows neither 0 data bits nor 0 stop bits, so a zero here means the hub never called
   // the setter (weikai does not) - fall back to 8N1 rather than deriving an impossibly short character.
   // Likewise a hub that reports no baud rate (ble_nus, usb_cdc_acm) would otherwise divide by zero.
-  const uint32_t data_bits = this->parent_->get_data_bits() != 0 ? this->parent_->get_data_bits() : 8u;
-  const uint32_t stop_bits = this->parent_->get_stop_bits() != 0 ? this->parent_->get_stop_bits() : 1u;
+  const uint8_t data_bits = this->parent_->get_data_bits() != 0 ? this->parent_->get_data_bits() : 8;
+  const uint8_t stop_bits = this->parent_->get_stop_bits() != 0 ? this->parent_->get_stop_bits() : 1;
   const uint32_t baud_rate = std::max<uint32_t>(1u, this->parent_->get_baud_rate());
-  this->bits_per_char_ =
-      1u + data_bits + (this->parent_->get_parity() == uart::UART_CONFIG_PARITY_NONE ? 0u : 1u) + stop_bits;
+  this->bits_per_char_ = static_cast<uint8_t>(
+      1 + data_bits + (this->parent_->get_parity() == uart::UART_CONFIG_PARITY_NONE ? 0 : 1) + stop_bits);
 
   // 3.5 characters * bits per character * 1e6 us/sec / (bits/sec) (Standard modbus frame delay)
   this->frame_delay_us_ =
