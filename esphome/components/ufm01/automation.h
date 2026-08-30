@@ -32,7 +32,8 @@ class ClearAccumulatedFlowAction final : public Action<Ts...>, public ClearAccum
   }
 
  protected:
-  void play(const Ts &...) override { /* unused; see play_complex */ }
+  void play(const Ts &...) override { /* unused; see play_complex */
+  }
 
   void stop() override {
     if (!this->waiting_)
