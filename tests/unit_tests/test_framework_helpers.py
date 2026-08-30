@@ -2278,3 +2278,78 @@ class TestGetProjectCxxCompileFlags:
     def test_empty_flags(self) -> None:
         with patch("esphome.core.CORE", _make_core_cxx(set())):
             assert get_project_cxx_compile_flags() == []
+
+
+def test_resume_fetch_job_threads_tracker(tmp_path: Path) -> None:
+    """The batch runner passes the tracker positionally; the shared adapter
+    must deliver it as download_with_resume's progress keyword."""
+    from esphome.framework_helpers import resume_fetch_job
+
+    with patch("esphome.framework_helpers.download_with_resume") as mock_download:
+        fetch = resume_fetch_job("https://x/a.zip", tmp_path / "a", sha256="ff", size=9)
+        tracker = lambda done: None  # noqa: E731
+        fetch(tracker)
+    mock_download.assert_called_once_with(
+        "https://x/a.zip", tmp_path / "a", progress=tracker, sha256="ff", size=9
+    )
+
+
+def test_warn_prefetch_failures_names_each_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The shared failure loop warns per job with the failure reason."""
+    from esphome.framework_helpers import warn_prefetch_failures
+
+    warn_prefetch_failures([("toolchain-x@1", OSError("down"))])
+    assert "Could not prefetch toolchain-x@1: down" in caplog.text
+    warn_prefetch_failures([("lib", OSError("gone"))], "Prefetch of %s failed: %s")
+    assert "Prefetch of lib failed: gone" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("platform", "input_path", "expected"),
+    [
+        # win32: drive-letter extended-length prefix is stripped
+        (
+            "win32",
+            "\\\\?\\C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # win32: UNC extended-length prefix is translated to a regular UNC path
+        (
+            "win32",
+            "\\\\?\\UNC\\server\\share\\python.exe",
+            "\\\\server\\share\\python.exe",
+        ),
+        # win32: paths without the prefix are returned unchanged
+        (
+            "win32",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+            "C:\\Users\\jesse\\AppData\\Local\\ESPHome Builder\\python\\python.exe",
+        ),
+        # non-win32: prefix is left alone (no-op)
+        ("linux", "\\\\?\\C:\\python.exe", "\\\\?\\C:\\python.exe"),
+        ("darwin", "/usr/bin/python3", "/usr/bin/python3"),
+    ],
+)
+def test_strip_win_long_path_prefix(
+    platform: str, input_path: str, expected: str
+) -> None:
+    r"""``\\?\`` and ``\\?\UNC\`` prefixes are stripped only on win32."""
+    with patch("esphome.framework_helpers.sys.platform", platform):
+        assert framework_helpers.strip_win_long_path_prefix(input_path) == expected
+
+
+def test_discard_partial_download_logs_undeletable(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An unremovable staging file leaves a debug trace; the caller's
+    cache is never pruned, so silence would hide unbounded growth."""
+    dest = tmp_path / "archive"
+    dest.write_bytes(b"stale")
+    with (
+        patch.object(Path, "unlink", side_effect=OSError("busy")),
+        caplog.at_level(logging.DEBUG),
+    ):
+        framework_helpers.discard_partial_download(dest)
+    assert "Could not remove" in caplog.text

@@ -1,0 +1,138 @@
+esphome:
+  name: uart-mock-modbus-reg-offset
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
+  - id: virtual_uart_controller
+    baud_rate: 9600
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+globals:
+  - id: reg10
+    type: uint16_t
+    initial_value: "100"
+  - id: reg11
+    type: uint16_t
+    initial_value: "200"
+  - id: reg12
+    type: uint16_t
+    initial_value: "300"
+  - id: reg13
+    type: uint16_t
+    initial_value: "0xABCD"
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_controller
+    id: virtual_modbus_controller
+    role: client
+    turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_controller
+    id: modbus_controller_1
+    update_interval: 1s
+
+modbus_server:
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    registers:
+      - address: 0x10
+        value_type: U_WORD
+        read_lambda: return id(reg10);
+        write_lambda: id(reg10) = x; return true;
+      - address: 0x11
+        value_type: U_WORD
+        read_lambda: return id(reg11);
+        write_lambda: id(reg11) = x; return true;
+      - address: 0x12
+        value_type: U_WORD
+        read_lambda: return id(reg12);
+        write_lambda: id(reg12) = x; return true;
+      - address: 0x13
+        value_type: U_WORD
+        read_lambda: return id(reg13);
+        write_lambda: id(reg13) = x; return true;
+
+# A holding-register switch at 0x10 with a 2-BYTE offset. offset is byte-based, so the write must target
+# register 0x10 + 2/2 = 0x11. The old (pre-fix) behavior folded offset into the address as a register
+# count, hitting 0x12 instead. assumed_state keeps the switch write-only so it does not read any register.
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "offset_switch"
+    register_type: holding
+    address: 0x10
+    offset: 2
+    assumed_state: true
+  # A holding-register switch that READS its state. Byte offset 6 -> register 0x10 + 6/2 = 0x13. Post-fix
+  # the switch itself resolves to 0x13 (the even byte offset folds into the address as whole registers) and
+  # joins the 0x10..0x13 range, so no separate 0x13 sensor is needed. Pre-fix the whole byte offset folds
+  # into the address (0x16), where the server answers ILLEGAL_DATA_ADDRESS and the switch never publishes.
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "read_offset_switch"
+    register_type: holding
+    address: 0x10
+    offset: 6
+    bitmask: 0x1
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_10"
+    address: 0x10
+    register_type: holding
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_11"
+    address: 0x11
+    register_type: holding
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_12"
+    address: 0x12
+    register_type: holding
+    value_type: U_WORD
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    # This test does not have anything to start (mock is autostart)
