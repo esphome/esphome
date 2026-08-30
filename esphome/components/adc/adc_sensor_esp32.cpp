@@ -13,7 +13,7 @@ static const char *const TAG = "adc";
 #if USE_ESP32_VARIANT_ESP32S31
 static constexpr float ADC_RAW_MAX = (1 << 17) - 1;
 #else
-static constexpr float ADC_RAW_MAX = 4095.0f;
+static constexpr float ADC_RAW_MAX = (1 << 12) - 1;
 #endif
 
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
