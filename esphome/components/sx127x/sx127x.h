@@ -5,6 +5,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include <functional>
 #include <vector>
 
 namespace esphome::sx127x {
@@ -35,6 +36,7 @@ enum SX127xBw : uint8_t {
 };
 
 enum class SX127xError { NONE = 0, TIMEOUT, INVALID_PARAMS };
+using payload_length_func_t = std::function<int32_t(const std::vector<uint8_t> &)>;
 
 class SX127xListener {
  public:
@@ -58,6 +60,7 @@ class SX127x final : public Component,
   void set_crc_enable(bool crc_enable) { this->crc_enable_ = crc_enable; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
   void set_dio0_pin(InternalGPIOPin *dio0_pin) { this->dio0_pin_ = dio0_pin; }
+  void set_dio1_pin(InternalGPIOPin *dio1_pin) { this->dio1_pin_ = dio1_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   void set_mode_rx();
   void set_mode_tx();
@@ -68,7 +71,8 @@ class SX127x final : public Component,
   void set_pa_power(uint8_t power) { this->pa_power_ = power; }
   void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
   void set_packet_mode(bool packet_mode) { this->packet_mode_ = packet_mode; }
-  void set_payload_length(uint8_t payload_length) { this->payload_length_ = payload_length; }
+  void set_payload_length(uint32_t payload_length) { this->payload_length_ = payload_length; }
+  void set_payload_length_lambda(payload_length_func_t func) { this->payload_length_func_ = std::move(func); }
   void set_preamble_errors(uint8_t preamble_errors) { this->preamble_errors_ = preamble_errors; }
   void set_preamble_polarity(uint8_t preamble_polarity) { this->preamble_polarity_ = preamble_polarity; }
   void set_preamble_size(uint16_t preamble_size) { this->preamble_size_ = preamble_size; }
@@ -92,20 +96,35 @@ class SX127x final : public Component,
   void set_mode_(uint8_t modulation, uint8_t mode);
   void write_fifo_(const std::vector<uint8_t> &packet);
   void read_fifo_(std::vector<uint8_t> &packet);
+  void read_fifo_(uint8_t *data, size_t length);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   uint8_t read_register_(uint8_t reg);
+
+  // Packet handling
+  bool is_long_packet_mode_() const;
+  void reset_long_packet_rx_();
+  void restart_long_packet_rx_();
+  void handle_long_packet_(uint8_t irq2);
+  void finish_long_packet_();
+  uint32_t packet_idle_timeout_ms_() const;
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX127xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;
+  payload_length_func_t payload_length_func_{};
   InternalGPIOPin *dio0_pin_{nullptr};
+  InternalGPIOPin *dio1_pin_{nullptr};
   InternalGPIOPin *rst_pin_{nullptr};
   SX127xBw bandwidth_;
   uint32_t bitrate_;
   uint32_t deviation_;
   uint32_t frequency_;
   uint32_t payload_length_;
+  size_t packet_expected_length_{0};
+  uint32_t packet_last_byte_ms_{0};
+  float long_packet_rssi_{0.0f};
+  bool long_packet_rssi_captured_{false};
   uint16_t preamble_size_;
   uint8_t coding_rate_;
   uint8_t modulation_;
