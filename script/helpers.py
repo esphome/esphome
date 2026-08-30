@@ -43,6 +43,11 @@ ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
 # Tuple of component and test paths for efficient startswith checks
 COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
+# Per-file integration test durations recorded from CI junit output; shared by
+# script/determine-jobs.py (reader) and script/update_integration_test_durations.py
+# (writer) so the two spellings cannot drift.
+INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
+
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
 BASE_BUS_COMPONENTS = {
@@ -1545,3 +1550,21 @@ def get_cpp_changed_components(files: list[str]) -> list[str]:
         if file.startswith(ESPHOME_COMPONENTS_PATH):
             affected.update(find_children_of_component(components_graph, component))
     return sorted(c for c in affected if has_cpp_unit_tests(c, tests_dir))
+
+
+def lpt_partition(
+    items: list[str], weights: dict[str, float], count: int
+) -> list[list[str]]:
+    """Partition items into `count` weight-balanced groups (LPT greedy).
+
+    Heaviest item first into the currently lightest group, so one expensive
+    item cannot dominate a contiguous split. Ties keep the input order, so
+    pass pre-sorted items for deterministic output.
+    """
+    groups: list[list[str]] = [[] for _ in range(count)]
+    group_weights = [0.0] * count
+    for item in sorted(items, key=lambda i: -weights[i]):
+        lightest = min(range(count), key=group_weights.__getitem__)
+        groups[lightest].append(item)
+        group_weights[lightest] += weights[item]
+    return groups

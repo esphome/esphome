@@ -156,6 +156,11 @@ def test_main_all_tests_should_run(
         ),
         patch.object(
             determine_jobs,
+            "_load_integration_durations",
+            return_value=dict.fromkeys(fake_test_files, 200.0),
+        ),
+        patch.object(
+            determine_jobs,
             "get_changed_components",
             return_value=["wifi", "api", "sensor"],
         ),
@@ -189,22 +194,21 @@ def test_main_all_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is True
-    # run_all=True expands to the full glob and pre-buckets into 3 parts.
+    # run_all=True expands to the full glob and pre-buckets by duration weight
+    # (15 files x 200s mocked => the full fan-out).
     # Each bucket's `tests` is a JSON list of file paths.
+    n_buckets = determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
     assert isinstance(output["integration_test_buckets"], list)
-    assert len(output["integration_test_buckets"]) == 3
     assert [b["name"] for b in output["integration_test_buckets"]] == [
-        "1/3",
-        "2/3",
-        "3/3",
+        f"{i + 1}/{n_buckets}" for i in range(n_buckets)
     ]
     for bucket in output["integration_test_buckets"]:
         assert isinstance(bucket["tests"], list)
         for path in bucket["tests"]:
             assert isinstance(path, str)
     bucket_files = [f for b in output["integration_test_buckets"] for f in b["tests"]]
-    assert bucket_files == fake_test_files
-    # Bucket sizes are balanced (max-min difference at most 1).
+    assert sorted(bucket_files) == fake_test_files
+    # Equal mocked weights => bucket sizes are balanced (difference at most 1).
     sizes = [len(b["tests"]) for b in output["integration_test_buckets"]]
     assert max(sizes) - min(sizes) <= 1
     assert output["clang_tidy"] is True
@@ -509,14 +513,24 @@ def test_compute_integration_test_buckets_at_threshold_stays_single() -> None:
 
 
 def test_compute_integration_test_buckets_just_over_threshold_splits() -> None:
-    """One file over the threshold triggers the 3-bucket fan-out, balanced."""
+    """One file over the threshold fans out fully when the weights demand it."""
     n = determine_jobs.INTEGRATION_TESTS_SPLIT_THRESHOLD + 1
     files = [f"tests/integration/test_{i:02d}.py" for i in range(n)]
-    run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    with patch.object(
+        determine_jobs,
+        "_load_integration_durations",
+        return_value=dict.fromkeys(files, 200.0),
+    ):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
     assert run is True
-    assert [b["name"] for b in buckets] == ["1/3", "2/3", "3/3"]
-    union = [path for b in buckets for path in b["tests"]]
+    # threshold+1 files x 200s caps at the maximum bucket count.
+    n_buckets = determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
+    assert [b["name"] for b in buckets] == [
+        f"{i + 1}/{n_buckets}" for i in range(n_buckets)
+    ]
+    union = sorted(path for b in buckets for path in b["tests"])
     assert union == sorted(files)
+    # Equal weights => bucket sizes are balanced (difference at most 1).
     sizes = [len(b["tests"]) for b in buckets]
     assert max(sizes) - min(sizes) <= 1
 
@@ -3146,3 +3160,59 @@ def test_memory_impact_elf_layouts_are_found(tmp_path: Path) -> None:
         elf.write_text("")
 
         assert find_elf_path(build_path) == elf, f"{platform} ELF not found"
+
+
+def test_compute_integration_test_buckets_no_durations_full_fanout() -> None:
+    """Without recorded durations the fan-out stays at the maximum."""
+    files = [f"tests/integration/test_{i:03d}.py" for i in range(15)]
+    with patch.object(determine_jobs, "_load_integration_durations", return_value={}):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert len(buckets) == determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
+    assert sorted(f for b in buckets for f in b["tests"]) == files
+
+
+def test_compute_integration_test_buckets_adaptive_count() -> None:
+    """A small recorded total weight collapses to one bucket above the threshold."""
+    files = [f"tests/integration/test_{i:03d}.py" for i in range(15)]
+    with patch.object(
+        determine_jobs,
+        "_load_integration_durations",
+        return_value=dict.fromkeys(files, 10.0),
+    ):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    # 15 files x 10s recorded = 150s, under the per-bucket weight target.
+    assert [b["name"] for b in buckets] == ["1/1"]
+    assert buckets[0]["tests"] == files
+
+
+def test_compute_integration_test_buckets_duration_weighted() -> None:
+    """Heavy files spread across buckets instead of clustering by sorted name."""
+    files = [f"tests/integration/test_{i:03d}.py" for i in range(12)]
+    durations = dict.fromkeys(files, 10.0)
+    durations[files[0]] = 600.0
+    durations[files[1]] = 600.0
+    with patch.object(
+        determine_jobs, "_load_integration_durations", return_value=durations
+    ):
+        run, buckets = determine_jobs._compute_integration_test_buckets(False, files)
+    assert run is True
+    assert len(buckets) >= 2
+    heavy_buckets = [b for b in buckets if set(files[:2]) & set(b["tests"])]
+    assert len(heavy_buckets) == 2, "heavy files should land in different buckets"
+    assert sorted(f for b in buckets for f in b["tests"]) == files
+
+
+def test_load_integration_durations_missing_or_corrupt(tmp_path: Path) -> None:
+    """Missing or unparsable durations data degrades to an empty mapping."""
+    with patch.object(determine_jobs, "root_path", str(tmp_path)):
+        assert determine_jobs._load_integration_durations() == {}
+        durations_file = tmp_path / determine_jobs.INTEGRATION_TEST_DURATIONS_FILE
+        durations_file.parent.mkdir(parents=True)
+        durations_file.write_text("not json")
+        assert determine_jobs._load_integration_durations() == {}
+        durations_file.write_text('{"tests/integration/test_a.py": 12.5}')
+        assert determine_jobs._load_integration_durations() == {
+            "tests/integration/test_a.py": 12.5
+        }

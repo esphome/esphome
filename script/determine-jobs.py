@@ -53,8 +53,10 @@ from collections import Counter
 from enum import StrEnum
 from functools import cache
 import json
+import math
 import os
 from pathlib import Path
+import statistics
 import sys
 from typing import Any
 
@@ -67,6 +69,7 @@ from clang_tidy_hash import (
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
+    INTEGRATION_TEST_DURATIONS_FILE,
     PYTHON_FILE_EXTENSIONS,
     base_python_changed,
     changed_files,
@@ -83,6 +86,7 @@ from helpers import (
     get_target_branch,
     git_ls_files,
     is_validate_only_file,
+    lpt_partition,
     root_path,
 )
 from split_components_for_ci import create_intelligent_batches
@@ -97,9 +101,18 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 COMPONENT_TEST_BATCH_SIZE = 40
 
 # Integration test bucketing: when more than the threshold tests are scheduled,
-# fan out across this many parallel jobs. Below the threshold, a single job runs.
+# fan out across up to this many parallel jobs. Below the threshold, a single
+# job runs. Buckets are balanced by recorded per-file durations (regenerate the
+# data with script/update_integration_test_durations.py); files without a
+# recording weigh the median of the known values. When recordings exist, the
+# bucket count adapts to the selected subset's total weight so a small
+# PR-scoped run does not fan out across needless runners. The target is a
+# serial junit-time weight budget, not job wall time: each bucket runs
+# several xdist workers.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
-INTEGRATION_TESTS_SPLIT_BUCKETS = 3
+INTEGRATION_TESTS_SPLIT_BUCKETS = 5
+INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
+INTEGRATION_TESTS_DEFAULT_DURATION = 10.0
 
 # platformio and aioesphomeapi (requirements.txt), the pytest stack
 # (requirements_test.txt) and the fixture every session compiles; a change
@@ -113,10 +126,17 @@ INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
 )
 
 
-def _split_list(items: list[str], n: int) -> list[list[str]]:
-    """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
-    k, m = divmod(len(items), n)
-    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
+def _load_integration_durations() -> dict[str, float]:
+    """Return recorded per-file pytest durations in seconds; empty when unavailable."""
+    try:
+        raw = json.loads(
+            (Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE).read_text()
+        )
+        if not isinstance(raw, dict):
+            return {}
+        return {str(k): float(v) for k, v in raw.items()}
+    except (OSError, ValueError, TypeError):
+        return {}
 
 
 def _all_integration_test_files() -> list[str]:
@@ -152,12 +172,26 @@ def _compute_integration_test_buckets(
         return False, []
 
     if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
-        parts = [
-            part for part in _split_list(files, INTEGRATION_TESTS_SPLIT_BUCKETS) if part
-        ]
+        durations = _load_integration_durations()
+        known = [durations[f] for f in files if f in durations]
+        default = (
+            statistics.median(known) if known else INTEGRATION_TESTS_DEFAULT_DURATION
+        )
+        weights = {f: durations.get(f, default) for f in files}
+        if known:
+            count = min(
+                INTEGRATION_TESTS_SPLIT_BUCKETS,
+                math.ceil(
+                    sum(weights.values()) / INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT
+                )
+                or 1,
+            )
+        else:
+            # No recorded data to size buckets by; keep the full fan-out.
+            count = INTEGRATION_TESTS_SPLIT_BUCKETS
+        parts = [sorted(part) for part in lpt_partition(files, weights, count)]
         buckets = [
-            {"name": f"{i + 1}/{len(parts)}", "tests": part}
-            for i, part in enumerate(parts)
+            {"name": f"{i + 1}/{count}", "tests": part} for i, part in enumerate(parts)
         ]
     else:
         buckets = [{"name": "1/1", "tests": files}]

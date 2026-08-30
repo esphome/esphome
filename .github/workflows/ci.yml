@@ -428,7 +428,19 @@ jobs:
           . venv/bin/activate
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
-          pytest -vv --no-cov --tb=native --durations=30 -n auto "${test_files[@]}"
+          pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
+            --junitxml=junit-integration.xml "${test_files[@]}"
+      - name: Upload junit timings
+        # Feeds script/update_integration_test_durations.py, which regenerates
+        # the duration-weighted bucketing data used by script/determine-jobs.py.
+        # Only full-matrix green runs produce usable data: dev pushes and PRs
+        # carrying the ci-run-all label.
+        if: success() && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-run-all'))
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: junit-integration-${{ strategy.job-index }}
+          path: junit-integration.xml
+          retention-days: 7
       - name: Print ccache statistics
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py).

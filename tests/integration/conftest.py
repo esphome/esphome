@@ -67,6 +67,13 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
     env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps" / worker)
     # Prevent cache cleaning during integration tests
     env["ESPHOME_SKIP_CLEAN_BUILD"] = "1"
+    # Cap each compile's -j so several xdist workers do not each spawn a
+    # full-width compiler fan-out on the same machine. An explicit env wins.
+    if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" not in os.environ:
+        workers = int(os.environ.get("PYTEST_XDIST_WORKER_COUNT", "1"))
+        env["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"] = str(
+            max(1, (os.cpu_count() or 1) // workers)
+        )
     # Compile with THIS tree's esphome sources, not wherever the venv's editable
     # install points (which may be a different git worktree or checkout).
     repo_root = str(Path(__file__).resolve().parent.parent.parent)
