@@ -42,21 +42,10 @@ template<typename T> enums::ServiceArgType to_service_arg_type();
 // Stores only pointers to string literals in flash - no heap allocation
 template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
  public:
-  UserServiceBase(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names,
+  // key is fnv1_hash(name), computed by codegen because name is PROGMEM on ESP8266
+  UserServiceBase(const char *name, uint32_t key, const std::array<const char *, sizeof...(Ts)> &arg_names,
                   enums::SupportsResponseType supports_response = enums::SUPPORTS_RESPONSE_NONE)
-      : name_(name), arg_names_(arg_names), supports_response_(supports_response) {
-#ifdef USE_ESP8266
-    // name is in PROGMEM, so hash it through progmem_read_byte instead of fnv1_hash()
-    uint32_t hash = FNV1_OFFSET_BASIS;
-    for (const auto *p = reinterpret_cast<const uint8_t *>(name); uint8_t c = progmem_read_byte(p); p++) {
-      hash *= FNV1_PRIME;
-      hash ^= c;
-    }
-    this->key_ = hash;
-#else
-    this->key_ = fnv1_hash(name);
-#endif
-  }
+      : name_(name), arg_names_(arg_names), key_(key), supports_response_(supports_response) {}
 
   ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) override {
     ListEntitiesServicesResponse msg;
@@ -114,8 +103,8 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   // Pointers to string literals - no heap allocation. name_ is PROGMEM on ESP8266.
   const char *name_;
   std::array<const char *, sizeof...(Ts)> arg_names_;
-  uint32_t key_{0};
-  enums::SupportsResponseType supports_response_{enums::SUPPORTS_RESPONSE_NONE};
+  uint32_t key_;
+  enums::SupportsResponseType supports_response_;
 };
 
 // Separate class for custom_api_device services (rare case)
@@ -188,8 +177,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_NONE, Ts...> final : public UserServiceBase<Ts...>,
                                                                        public Trigger<Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_NONE) {}
+  UserServiceTrigger(const char *name, uint32_t key, const std::array<const char *, sizeof...(Ts)> &arg_names)
+      : UserServiceBase<Ts...>(name, key, arg_names, enums::SUPPORTS_RESPONSE_NONE) {}
 
  protected:
   void execute(uint32_t /*call_id*/, bool /*return_response*/, Ts... x) override { this->trigger(x...); }
@@ -200,8 +189,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_OPTIONAL, Ts...> final : public UserServiceBase<Ts...>,
                                                                            public Trigger<uint32_t, bool, Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_OPTIONAL) {}
+  UserServiceTrigger(const char *name, uint32_t key, const std::array<const char *, sizeof...(Ts)> &arg_names)
+      : UserServiceBase<Ts...>(name, key, arg_names, enums::SUPPORTS_RESPONSE_OPTIONAL) {}
 
  protected:
   void execute(uint32_t call_id, bool return_response, Ts... x) override {
@@ -214,8 +203,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_ONLY, Ts...> final : public UserServiceBase<Ts...>,
                                                                        public Trigger<uint32_t, Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_ONLY) {}
+  UserServiceTrigger(const char *name, uint32_t key, const std::array<const char *, sizeof...(Ts)> &arg_names)
+      : UserServiceBase<Ts...>(name, key, arg_names, enums::SUPPORTS_RESPONSE_ONLY) {}
 
  protected:
   void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }
@@ -226,8 +215,8 @@ template<typename... Ts>
 class UserServiceTrigger<enums::SUPPORTS_RESPONSE_STATUS, Ts...> final : public UserServiceBase<Ts...>,
                                                                          public Trigger<uint32_t, Ts...> {
  public:
-  UserServiceTrigger(const char *name, const std::array<const char *, sizeof...(Ts)> &arg_names)
-      : UserServiceBase<Ts...>(name, arg_names, enums::SUPPORTS_RESPONSE_STATUS) {}
+  UserServiceTrigger(const char *name, uint32_t key, const std::array<const char *, sizeof...(Ts)> &arg_names)
+      : UserServiceBase<Ts...>(name, key, arg_names, enums::SUPPORTS_RESPONSE_STATUS) {}
 
  protected:
   void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }

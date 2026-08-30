@@ -45,7 +45,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
-from esphome.helpers import cpp_string_escape
+from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
 
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
@@ -442,17 +442,17 @@ async def to_code(config: ConfigType) -> None:
             templ = cg.TemplateArguments(supports_response, *service_template_args)
             # Own PROGMEM array so the name lives in flash on ESP8266, where .rodata is RAM
             action_name = conf[CONF_ACTION]
-            name_var = f"api_action{index}_name"
-            cg.add_global(
-                cg.RawStatement(
-                    f"static const char {name_var}[] PROGMEM = {cpp_string_escape(action_name)};"
-                )
+            name_var = cg.progmem_array(
+                ID(f"api_action{index}_name", is_declaration=True, type=cg.char),
+                action_name,
             )
             name_max_len = max(name_max_len, len(action_name.encode("utf-8")))
+            # Key is hashed here because the name is not readable at runtime on ESP8266
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID],
                 templ,
-                cg.RawExpression(name_var),
+                name_var,
+                fnv1_hash(action_name),
                 service_arg_names,
             )
             triggers.append(trigger)
