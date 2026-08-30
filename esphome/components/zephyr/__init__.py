@@ -95,8 +95,8 @@ from .const import (
     ZEPHYR_VARIANT_STM32F1,
     ZEPHYR_VARIANT_STM32F4,
     ZEPHYR_VARIANT_STM32L4,
-    ZEPHYR_VARIANT_STM32WB55,
     ZEPHYR_VARIANT_STM32U5,
+    ZEPHYR_VARIANT_STM32WB55,
     zephyr_ns,
 )
 from .gpio import zephyr_pin_to_code as _zephyr_pin_to_code  # noqa: F401
@@ -1839,9 +1839,9 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
 
         config = _stm32f1_config_schema(config)
     elif variant == ZEPHYR_VARIANT_STM32U5:
-        from .variants.stm32u5 import config_schema as _stm32_config_schema
+        from .variants.stm32u5 import config_schema as _stm32u5_config_schema
 
-        config = _stm32_config_schema(config)
+        config = _stm32u5_config_schema(config)
     elif variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import config_schema as _ra4m1_config_schema
 
@@ -2000,9 +2000,9 @@ async def to_code(config: ConfigType) -> None:
         await _stm32f1_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_STM32U5:
-        from .variants.stm32u5 import to_code as _stm32_to_code
+        from .variants.stm32u5 import to_code as _stm32u5_to_code
 
-        await _stm32_to_code(config)
+        await _stm32u5_to_code(config)
         return
     if variant == ZEPHYR_VARIANT_RA4M1:
         from .variants.ra4m1 import to_code as _ra4m1_to_code
