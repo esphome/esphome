@@ -4,6 +4,7 @@
 
 #include <openthread/cli.h>
 #include <openthread/instance.h>
+#include <openthread/ip6.h>
 #include <openthread/logging.h>
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
@@ -229,26 +230,43 @@ void *OpenThreadSrpComponent::pool_alloc_(size_t size) {
 void OpenThreadSrpComponent::set_mdns(esphome::mdns::MDNSComponent *mdns) { this->mdns_ = mdns; }
 
 bool OpenThreadComponent::teardown() {
-  if (!this->teardown_started_) {
-    this->teardown_started_ = true;
-    ESP_LOGD(TAG, "Clear Srp");
-    auto lock = InstanceLock::try_acquire(100);
-    if (!lock) {
-      ESP_LOGW(TAG, "Failed to acquire OpenThread lock during teardown, leaking memory");
-      return true;
-    }
-    otInstance *instance = lock.get_instance();
-    otSrpClientClearHostAndServices(instance);
-    otSrpClientBuffersFreeAllServices(instance);
-    global_openthread_component = nullptr;
-    ESP_LOGD(TAG, "Exit main loop ");
-    int error = this->openthread_stop_();
-    if (error != 0) {
-      ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
-      this->teardown_complete_ = true;
-    }
+  switch (this->teardown_stage_) {
+    case TeardownStage::TEARDOWN_STAGE_NOT_STARTED: {
+      auto lock = InstanceLock::try_acquire(100);
+      if (!lock) {
+        // Try again on next teardown loop
+        ESP_LOGV(TAG, "Failed to acquire OpenThread lock during teardown");
+        return false;
+      }
+      // Start tearing down
+      this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS;
+      ESP_LOGV(TAG, "Clear SRP");
+      otInstance *instance = lock.get_instance();
+      otSrpClientClearHostAndServices(instance);
+      otSrpClientBuffersFreeAllServices(instance);
+      if (otThreadSetEnabled(instance, false) != OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Failed to disable Thread during teardown");
+      }
+      if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
+        ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
+      }
+      // Stop OpenThread
+      global_openthread_component = nullptr;
+      ESP_LOGV(TAG, "Stop OpenThread");
+      int error = this->openthread_stop_();
+      if (error != 0) {
+        ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+      }
+    } break;
+    case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
+      // Waiting on OpenThread stop
+      break;
+    case TeardownStage::TEARDOWN_STAGE_COMPLETED:
+      ESP_LOGV(TAG, "OpenThreadComponent Teardown Complete");
+      break;
   }
-  return this->teardown_complete_;
+  return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
 void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
@@ -264,6 +282,35 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
     return;
   }
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
+}
+
+void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
+  otLinkModeConfig link_mode_config{};
+#if CONFIG_OPENTHREAD_FTD
+  link_mode_config.mRxOnWhenIdle = true;
+  link_mode_config.mDeviceType = true;
+  link_mode_config.mNetworkData = true;
+#elif CONFIG_OPENTHREAD_MTD
+  if (this->poll_period_ > 0) {
+    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set pollperiod");
+    }
+    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
+  }
+  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
+  link_mode_config.mDeviceType = false;
+  link_mode_config.mNetworkData = false;
+#endif
+
+  if (otThreadSetLinkMode(instance, link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set linkmode");
+  }
+#ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
+  link_mode_config = otThreadGetLinkMode(instance);
+  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
+           TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
+           TRUEFALSE(link_mode_config.mRxOnWhenIdle));
+#endif
 }
 
 }  // namespace esphome::openthread

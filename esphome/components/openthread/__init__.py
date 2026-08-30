@@ -1,8 +1,14 @@
+from typing import Any
+
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
     include_builtin_idf_component,
@@ -10,6 +16,7 @@ from esphome.components.esp32 import (
     require_vfs_select,
 )
 from esphome.components.mdns import MDNSComponent, enable_mdns_storage
+from esphome.components.network import add_use_address
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
@@ -26,10 +33,12 @@ from esphome.const import (
 )
 from esphome.core import (
     CORE,
+    ID,
     CoroPriority,
     TimePeriodMilliseconds,
     coroutine_with_priority,
 )
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -71,7 +80,7 @@ CONF_DEVICE_TYPES = [
 ]
 
 
-def _validate_txpower(value):
+def _validate_txpower(value: Any) -> int | float:
     if CORE.is_esp32:
         variant = get_esp32_variant()
 
@@ -85,7 +94,7 @@ def _validate_txpower(value):
     return value  # Unsupported, fail later with clear error
 
 
-def set_sdkconfig_options(config):
+def set_sdkconfig_options(config: ConfigType) -> None:
     # and expose options for using SPI/UART RCPs
     add_idf_sdkconfig_option("CONFIG_IEEE802154_ENABLED", True)
     add_idf_sdkconfig_option("CONFIG_OPENTHREAD_RADIO_NATIVE", True)
@@ -175,7 +184,7 @@ def _validate(config: ConfigType) -> ConfigType:
     return config
 
 
-def _require_vfs_select(config):
+def _require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # OpenThread uses esp_vfs_eventfd which requires VFS select support (ESP32 only)
     if CORE.is_esp32:
@@ -183,15 +192,22 @@ def _require_vfs_select(config):
     return config
 
 
-def _validate_platform(config):
+def _validate_platform(config: ConfigType) -> ConfigType:
     if CORE.using_zephyr:
         return config
     return only_on_variant(
-        supported=[VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32H2]
+        supported=[
+            VARIANT_ESP32C5,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32H2,
+            VARIANT_ESP32H4,
+            VARIANT_ESP32H21,
+            VARIANT_ESP32S31,
+        ]
     )(config)
 
 
-def _validate_tlv_hex(value):
+def _validate_tlv_hex(value: Any) -> str:
     s = cv.string_strict(value)
     if len(s) % 2 != 0:
         raise cv.Invalid("TLV must have an even number of hex characters")
@@ -216,11 +232,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FORCE_DATASET): cv.boolean,
             cv.Optional(CONF_TLV): cv.All(cv.string_strict, _validate_tlv_hex),
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_OUTPUT_POWER): cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
+            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ).extend(_CONNECTION_SCHEMA),
     cv.has_exactly_one_key(CONF_NETWORK_KEY, CONF_TLV),
@@ -230,7 +246,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(_):
+def _final_validate(_: ConfigType) -> None:
     full_config = fv.full_config.get()
     network_config = full_config.get("network", {})
     if not network_config.get(CONF_ENABLE_IPV6, False):
@@ -262,7 +278,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
 
 
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Re-enable openthread IDF component (excluded by default)
     if CORE.is_esp32:
         include_builtin_idf_component("openthread")
@@ -277,7 +293,7 @@ async def to_code(config):
     enable_mdns_storage()
 
     ot = cg.new_Pvariable(config[CONF_ID])
-    cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
+    add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
     if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
         cg.add(ot.set_poll_period(poll_period))
@@ -299,3 +315,42 @@ async def to_code(config):
         )
         zephyr_add_prj_conf(f"OPENTHREAD_{config.get(CONF_DEVICE_TYPE)}", True)
         zephyr_add_prj_conf("MAIN_STACK_SIZE", 4096)
+
+
+# Actions
+OpenThreadComponentPollPeriodAction = openthread_ns.class_(
+    "OpenThreadComponentPollPeriodAction",
+    automation.Action,
+    cg.Parented.template(OpenThreadComponent),
+)
+
+POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_POLL_PERIOD,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(OpenThreadComponent),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+        }
+    ),
+)
+
+
+@automation.register_action(
+    "openthread.set_poll_period",
+    OpenThreadComponentPollPeriodAction,
+    POLL_PERIOD_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def openthread_poll_period_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_POLL_PERIOD], args, cg.uint32)
+    cg.add(var.set_poll_period(template_))
+    return var

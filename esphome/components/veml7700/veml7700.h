@@ -95,7 +95,7 @@ union PSMRegister {
   } __attribute__((packed));
 };
 
-class VEML7700Component : public PollingComponent, public i2c::I2CDevice {
+class VEML7700Component final : public PollingComponent, public i2c::I2CDevice {
  public:
   //
   // EspHome framework functions

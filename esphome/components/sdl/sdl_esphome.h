@@ -13,7 +13,7 @@ namespace esphome::sdl {
 
 constexpr static const char *const TAG = "sdl";
 
-class Sdl : public display::Display {
+class Sdl final : public display::Display {
  public:
   display::DisplayType get_display_type() override { return display::DISPLAY_TYPE_COLOR; }
   void update() override;

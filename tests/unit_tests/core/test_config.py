@@ -3,7 +3,6 @@
 from collections.abc import Callable
 import os
 from pathlib import Path
-import types
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
@@ -152,15 +151,21 @@ def test_multiple_areas_and_devices(yaml_file: Callable[[str], str]) -> None:
         ("multiple_areas_devices.yaml", "Main Area"),
     ],
 )
-async def test_to_code_records_core_area(
+async def test_core_area_recorded_at_config_load(
     yaml_file: Callable[[str], Path],
     fixture: str,
     expected_area: str,
 ) -> None:
-    """``to_code`` records the node's area name on CORE for StorageJSON."""
+    """The node's area name is recorded on CORE for StorageJSON.
+
+    It must be set during config load (preload_core_config), not deferred to
+    to_code(): storage.json is written before to_code() runs, so a late
+    assignment left the area as null in storage.json (regression #17218).
+    """
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is not None
-    assert CORE.area is None
+    # Recorded already at config-load time, before any code generation.
+    assert CORE.area == expected_area
 
     with patch("esphome.core.config.cg") as mock_cg:
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
@@ -168,6 +173,23 @@ async def test_to_code_records_core_area(
         await config.to_code(result[CONF_ESPHOME])
 
     assert CORE.area == expected_area
+
+
+def test_config_load_without_area_clears_stale_core_area(
+    yaml_file: Callable[[str], Path],
+) -> None:
+    """A config without an area must not inherit a stale CORE.area.
+
+    preload_core_config assigns CORE.area unconditionally, so the area from a
+    previous load in a long-running process cannot leak into a config that
+    omits it.
+    """
+    CORE.area = "Stale Area From Previous Load"
+    result = load_config_from_fixture(
+        yaml_file, "device_without_area.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+    assert CORE.area is None
 
 
 def test_legacy_string_area(
@@ -682,33 +704,6 @@ def test_include_file_with_c_header(
         assert '#include "c_library.h"' in mock_raw_statement.text
 
 
-def test_get_usable_cpu_count() -> None:
-    """Test get_usable_cpu_count returns CPU count."""
-    count = config.get_usable_cpu_count()
-    assert isinstance(count, int)
-    assert count > 0
-
-
-def test_get_usable_cpu_count_with_process_cpu_count() -> None:
-    """Test get_usable_cpu_count uses process_cpu_count when available."""
-    # Test with process_cpu_count (Python 3.13+)
-    # Create a mock os module with process_cpu_count
-
-    mock_os = types.SimpleNamespace(process_cpu_count=lambda: 8, cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os):
-        # When process_cpu_count exists, it should be used
-        count = config.get_usable_cpu_count()
-        assert count == 8
-
-    # Test fallback to cpu_count when process_cpu_count not available
-    mock_os_no_process = types.SimpleNamespace(cpu_count=lambda: 4)
-
-    with patch("esphome.core.config.os", mock_os_no_process):
-        count = config.get_usable_cpu_count()
-        assert count == 4
-
-
 def test_list_target_platforms(tmp_path: Path) -> None:
     """Test _list_target_platforms returns available platforms."""
     # Create mock components directory structure
@@ -1090,6 +1085,76 @@ def test_config_hash_different_for_different_configs() -> None:
     assert hash1 != hash2
 
 
+def test_config_hash_ignores_build_path() -> None:
+    """Test that config_hash does not depend on the build_path value.
+
+    build_path embeds ESPHOME_BUILD_PATH and OS path separators, so it must
+    not make the hash differ between machines.
+    """
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test", "build_path": "build\\test"}}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test", "build_path": "/build/test"}}
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_same_for_different_config_dirs(tmp_path: Path) -> None:
+    """Test that Path values under the config dir hash the same everywhere.
+
+    Simulates the same project checked out at two different locations; the
+    absolute paths differ but the layout relative to the config dir is the
+    same, so the hashes must match.
+    """
+    dir1 = tmp_path / "machine_a" / "project"
+    dir2 = tmp_path / "machine_b" / "somewhere" / "else"
+    dir1.mkdir(parents=True)
+    dir2.mkdir(parents=True)
+
+    CORE.reset()
+    CORE.config_path = dir1 / "device.yaml"
+    CORE.config = {"esphome": {"name": "test"}, "file": dir1 / "fonts" / "arial.ttf"}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config_path = dir2 / "device.yaml"
+    CORE.config = {"esphome": {"name": "test"}, "file": dir2 / "fonts" / "arial.ttf"}
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_same_for_different_data_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that downloaded file paths hash the same wherever data_dir lives."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    CORE.reset()
+    CORE.config_path = config_dir / "device.yaml"
+    CORE.config = {
+        "esphome": {"name": "test"},
+        "file": config_dir / ".esphome" / "image" / "c44630d6",
+    }
+    hash1 = CORE.config_hash
+
+    other_data_dir = tmp_path / "data"
+    CORE.reset()
+    monkeypatch.setenv("ESPHOME_DATA_DIR", str(other_data_dir))
+    CORE.config_path = config_dir / "device.yaml"
+    CORE.config = {
+        "esphome": {"name": "test"},
+        "file": other_data_dir / "image" / "c44630d6",
+    }
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
 def test_make_app_name_cpp_no_mac_simple() -> None:
     """Test simple name without MAC suffix returns string literal."""
     cpp_expr, global_decl, byte_len = make_app_name_cpp(
@@ -1177,6 +1242,15 @@ def test_make_app_name_cpp_special_chars_escaped() -> None:
             None,
             "https://github.com/esphome/noise-c.git",
         ),
+        # A local file:// source is routed to the repository, not a registry name
+        # -- including the fewer-than-two-slashes spelling.
+        (
+            "TeslaBLE=file:///config/esphome/lib_dev",
+            "TeslaBLE",
+            None,
+            "file:///config/esphome/lib_dev",
+        ),
+        ("MyLib=file:lib_dev", "MyLib", None, "file:lib_dev"),
     ],
 )
 def test_add_library_str(
@@ -1211,6 +1285,7 @@ async def test_add_platformio_options_native_idf(
     await config._add_platformio_options(
         {
             "build_flags": "-DSINGLE_FLAG",  # string and list forms both valid
+            "build_unflags": ["-Os"],
             "lib_deps": ["bblanchon/ArduinoJson@7.4.2"],
             "lib_ignore": "libsodium",
             "upload_speed": "115200",
@@ -1220,6 +1295,7 @@ async def test_add_platformio_options_native_idf(
 
     assert "-DSINGLE_FLAG" in CORE.build_flags
     assert "ArduinoJson" in CORE.platformio_libraries
+    assert "-Os" in CORE.build_unflags
     # lib_ignore is stored (listified) for generate_idf_components to read;
     # nothing else lands in platformio_options on the native toolchain.
     assert CORE.platformio_options == {"lib_ignore": ["libsodium"]}
@@ -1284,3 +1360,81 @@ async def test_to_code_adds_libraries(yaml_file: Callable[[str], Path]) -> None:
     mock_cg.add_library.assert_any_call(
         "noise-c", None, "https://github.com/esphome/noise-c.git"
     )
+
+
+def test_esphome_build_internals_are_yaml_only() -> None:
+    """Raw build-system inputs in the ``esphome:`` block are ``YAML_ONLY``.
+
+    These knobs (compiler flags, raw PlatformIO options, C/C++ includes,
+    libraries, build host parallelism, the min-version gate, …) are not
+    meaningful as visual-editor form fields and a wrong value breaks the
+    build, so they must never render in a schema-aware UI.
+    """
+    # CONFIG_SCHEMA is cv.All(cv.Schema({...}), validate_hostname).
+    inner = config.CONFIG_SCHEMA.validators[0].schema
+    markers = {str(k): k for k in inner}
+    yaml_only_fields = {
+        CONF_BUILD_PATH,
+        "platformio_options",
+        "build_flags",
+        "environment_variables",
+        "includes",
+        "includes_c",
+        "libraries",
+        "debug_scheduler",
+    }
+    for field in yaml_only_fields:
+        assert markers[field].visibility is cv.Visibility.YAML_ONLY, field
+    # Packaging / build-host knobs are real but rarely-touched overrides:
+    # surface them under the editor's advanced disclosure, not yaml-only.
+    for field in ("min_version", "compile_process_limit"):
+        assert markers[field].visibility is cv.Visibility.ADVANCED, field
+    # A regular device-config field stays on the main form.
+    assert markers[CONF_NAME_ADD_MAC_SUFFIX].visibility is None
+
+
+@pytest.mark.asyncio
+async def test_add_platformio_options_native_arduino(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The native ESP8266 Arduino toolchain honors board_build.f_cpu (a
+    real-world overclock knob) and warns about the rest like native IDF."""
+    CORE.toolchain = Toolchain.ARDUINO
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp8266",
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    await config._add_platformio_options(
+        {
+            "board_build.f_cpu": "160000000L",
+            # The schema also permits the list form; the last value wins
+            # and reaches the generator as a scalar
+            "board_build.ldscript": ["eagle.flash.2m.ld", "eagle.flash.4m2m.ld"],
+            "board_build.filesystem": "littlefs",
+            "upload_speed": "115200",
+        }
+    )
+
+    assert CORE.platformio_options["board_build.f_cpu"] == "160000000L"
+    assert CORE.platformio_options["board_build.ldscript"] == "eagle.flash.4m2m.ld"
+    assert "board_build.f_cpu is ignored" not in caplog.text
+    assert "board_build.ldscript is ignored" not in caplog.text
+    assert (
+        "esphome->platformio_options->board_build.filesystem is ignored" in caplog.text
+    )
+    # An empty list for an honored key is not a scalar; it falls through
+    # to the ignored-option warning instead of an IndexError
+    await config._add_platformio_options({"board_build.ldscript": []})
+    assert "board_build.ldscript is ignored" in caplog.text
+    assert "'arduino' toolchain" in caplog.text
+    assert "upload_speed" not in caplog.text
+
+
+def test_esp8266_rejects_unsupported_cli_toolchain() -> None:
+    """Until the native backend lands, ESP8266 serves only PlatformIO."""
+    from esphome.components.esp8266 import CONFIG_SCHEMA
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        CONFIG_SCHEMA({"board": "nodemcuv2"})

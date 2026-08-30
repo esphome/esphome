@@ -5,7 +5,7 @@
 
 namespace esphome::homeassistant {
 
-class HomeassistantBinarySensor : public binary_sensor::BinarySensor, public Component {
+class HomeassistantBinarySensor final : public binary_sensor::BinarySensor, public Component {
  public:
   void set_entity_id(const char *entity_id) { this->entity_id_ = entity_id; }
   void set_attribute(const char *attribute) { this->attribute_ = attribute; }

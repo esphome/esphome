@@ -16,7 +16,7 @@ const float WHIRLPOOL_DG11J1_3A_TEMP_MIN = 18.0;
 const float WHIRLPOOL_DG11J1_91_TEMP_MAX = 30.0;
 const float WHIRLPOOL_DG11J1_91_TEMP_MIN = 16.0;
 
-class WhirlpoolClimate : public climate_ir::ClimateIR {
+class WhirlpoolClimate final : public climate_ir::ClimateIR {
  public:
   WhirlpoolClimate();
 

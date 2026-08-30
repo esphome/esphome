@@ -23,7 +23,7 @@ what files have changed. It outputs JSON with the following structure:
 }
 
 The CI workflow uses this information to:
-- Gate the unconditional jobs (ci-custom, pytest, pre-commit-ci-lite) via core_ci;
+- Gate the unconditional jobs (ci-custom, pytest, lint-format) via core_ci;
   false when a pull_request only touches CI-irrelevant meta paths (other workflow
   files, .github/actions/build-image/*, .yamllint, .github/dependabot.yml, docker/**)
   so workflow-only PRs satisfy the required CI Status check without running the
@@ -58,14 +58,19 @@ from pathlib import Path
 import sys
 from typing import Any
 
-from clang_tidy_hash import CLANG_TIDY_GLOBAL_FILES, SDKCONFIG_DEFAULTS_PREFIX
+from clang_tidy_hash import (
+    CLANG_TIDY_GLOBAL_FILES,
+    ESP_IDF_INFRA_TRIGGER_FILES,
+    ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES,
+    SDKCONFIG_DEFAULTS_PREFIX,
+)
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
     PYTHON_FILE_EXTENSIONS,
+    base_python_changed,
     changed_files,
     core_changed,
-    filter_component_and_test_cpp_files,
     filter_component_and_test_files,
     get_changed_components,
     get_component_from_path,
@@ -160,7 +165,8 @@ class Platform(StrEnum):
     BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
     RTL87XX_ARD = "rtl87xx-ard"  # LibreTiny RTL8720x
     LN882X_ARD = "ln882x-ard"  # LibreTiny LN882x
-    RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
+    RP2040_ARD = "rp2040-ard"  # RP2 family, RP2040 chip (Pico / Pico W)
+    RP2350_ARD = "rp2350-ard"  # RP2 family, RP2350 chip (Pico 2 / Pico 2 W)
     NRF52_ZEPHYR = "nrf52-adafruit"  # Nordic nRF52 (Zephyr)
 
 
@@ -190,7 +196,8 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.BK72XX_ARD,  # LibreTiny BK7231N
     Platform.RTL87XX_ARD,  # LibreTiny RTL8720x
     Platform.LN882X_ARD,  # LibreTiny LN882x
-    Platform.RP2040_ARD,  # Raspberry Pi Pico
+    Platform.RP2040_ARD,  # Raspberry Pi Pico (RP2040)
+    Platform.RP2350_ARD,  # Raspberry Pi Pico 2 (RP2350)
     Platform.NRF52_ZEPHYR,  # Nordic nRF52 (Zephyr)
 ]
 
@@ -522,15 +529,6 @@ def _esp32_platformio_path_or_file_trigger(files: list[str]) -> bool:
     return False
 
 
-# ESP-IDF infra: changes under esphome/espidf/ or to the IDF build generator
-# affect every esp32 IDF build (now the default toolchain) but aren't
-# components, so the component matrix wouldn't otherwise force any esp32
-# compile. When they change we fold the `esp32` component into the matrix so
-# the default native-IDF build path is still compiled on an infra-only PR.
-ESP_IDF_INFRA_TRIGGER_PATH_PREFIXES = ("esphome/espidf/",)
-ESP_IDF_INFRA_TRIGGER_FILES = frozenset({"esphome/build_gen/espidf.py"})
-
-
 def _esp_idf_infra_changed(files: list[str]) -> bool:
     """Whether any changed file is ESP-IDF build/runner infrastructure."""
     for file in files:
@@ -617,12 +615,17 @@ def determine_cpp_unit_tests(
 
     C++ unit tests will run when any of the following conditions are met:
 
-    1. Any C++ core source files changed (esphome/core/*), in which case
+    1. Any core C++ or Python files changed (esphome/core/*), in which case
        all cpp unit tests run.
     2. A test file for a component changed, which triggers tests for that
        component.
     3. The code for a component changed, which triggers tests for that
-       component and all components that depend on it.
+       component and all components that depend on it. Python files count
+       too: a component's Python decides which sources and defines go into
+       the host test build, so a Python-only change can break the link.
+
+    Components without C++ test sources are dropped from the list, so the
+    job is only scheduled when there is something to build.
 
     Args:
         branch: Branch to compare against. If None, uses default.
@@ -636,9 +639,7 @@ def determine_cpp_unit_tests(
     if core_changed(files):
         return (True, [])
 
-    # Filter to only C++ files
-    cpp_files = list(filter(filter_component_and_test_cpp_files, files))
-    return (False, get_cpp_changed_components(cpp_files))
+    return (False, get_cpp_changed_components(files))
 
 
 # Paths within tests/benchmarks/ that contain component benchmark files
@@ -655,16 +656,20 @@ BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
 
 
 def should_run_benchmarks(branch: str | None = None) -> bool:
-    """Determine if C++ benchmarks should run based on changed files.
+    """Determine if benchmarks (C++ and Python) should run based on changed files.
 
     Benchmarks run when any of the following conditions are met:
 
-    1. Core C++ files changed (esphome/core/*)
-    2. The host platform changed (esphome/components/host/*) — benchmarks
+    1. Core files changed (esphome/core/*, C++ or Python)
+    2. Top-level Python files changed (esphome/*.py and esphome/*.pyi) —
+       the Python benchmarks exercise config loading (config.py,
+       yaml_util.py, ...), so a slowdown there is invisible unless the
+       benchmarks job runs
+    3. The host platform changed (esphome/components/host/*) — benchmarks
        are built and run on the host platform, so its implementations of
        ``millis()``/``micros()``/etc. affect every benchmark
-    3. A directly changed component has benchmark files (no dependency expansion)
-    4. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+    4. A directly changed component has benchmark files (no dependency expansion)
+    5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
@@ -679,6 +684,11 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     """
     files = changed_files(branch)
     if core_changed(files):
+        return True
+
+    # Top-level esphome/*.py modules are what the Python benchmarks in
+    # tests/benchmarks/python/ exercise
+    if base_python_changed(files):
         return True
 
     # Host platform supplies the runtime that benchmarks execute on
@@ -706,7 +716,7 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
 
 
 # Files / path patterns whose changes alone don't warrant running the
-# unconditional CI jobs (`ci-custom`, `pytest`, `pre-commit-ci-lite`).
+# unconditional CI jobs (`ci-custom`, `pytest`, `lint-format`).
 # Single source of truth for what we treat as "CI-irrelevant" on
 # pull_request events; ci.yml used to encode this in its own
 # `pull_request.paths` filter, but that hid the required `CI Status`
@@ -750,7 +760,7 @@ def _is_ci_irrelevant_path(path: str) -> bool:
 
 
 def should_run_core_ci(branch: str | None = None) -> bool:
-    """Determine if the unconditional CI jobs (ci-custom/pytest/pre-commit-ci-lite) should run.
+    """Determine if the unconditional CI jobs (ci-custom/pytest/lint-format) should run.
 
     Returns False only when every changed file is in the CI-irrelevant set
     above (see ``_is_ci_irrelevant_path``). Empty diffs return True so we
@@ -859,7 +869,8 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
     - *_rtl87*.* -> RTL87XX (LibreTiny Realtek)
     - *_ln882*.* -> LN882X (LibreTiny Lightning)
-    - *_pico.cpp, *_rp2040.* -> RP2040_ARD
+    - *_rp2350*.*, *_pico2*.* -> RP2350_ARD (RP2 family, RP2350 chip)
+    - *_rp2040*.*, *_pico*.* -> RP2040_ARD (RP2 family, RP2040 chip)
 
     Args:
         filename: File path to check
@@ -901,8 +912,14 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "libretiny" in filename_lower or "bk72" in filename_lower:
         return Platform.BK72XX_ARD
 
-    # RP2040 / Raspberry Pi Pico
-    if "pico" in filename_lower or "rp2040" in filename_lower:
+    # RP2 family (Raspberry Pi Pico): explicit chip names only. Family-
+    # wide files (named ``_rp2.*``) are shared between RP2040 and RP2350
+    # and intentionally don't preferentially route to either chip.
+    # Check the RP2350 patterns first since ``pico2`` substring-matches
+    # ``pico``.
+    if "rp2350" in filename_lower or "pico2" in filename_lower:
+        return Platform.RP2350_ARD
+    if "rp2040" in filename_lower or "pico" in filename_lower:
         return Platform.RP2040_ARD
 
     # nRF52 / Zephyr
@@ -1168,7 +1185,7 @@ def main() -> None:
 
     # Determine what should run
     # core_ci gates the unconditional jobs in ci.yml (ci-custom, pytest,
-    # pre-commit-ci-lite). Non-pull_request events (push to dev/beta/release
+    # lint-format). Non-pull_request events (push to dev/beta/release
     # and merge_group) always run them so behavior like venv-cache saves on
     # push to dev is preserved.
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
@@ -1338,7 +1355,7 @@ def main() -> None:
 
     # Split components into batches for CI testing
     # This intelligently groups components with similar bus configurations
-    component_test_batches: list[str]
+    component_test_batches: list[dict[str, Any]] = []
     if changed_components_with_tests:
         tests_dir = Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH
 
@@ -1363,10 +1380,20 @@ def main() -> None:
             batch_size=COMPONENT_TEST_BATCH_SIZE,
             directly_changed=batch_directly_changed,
         )
-        # Convert batches to space-separated strings for CI matrix
-        component_test_batches = [" ".join(batch) for batch in batches]
-    else:
-        component_test_batches = []
+        # Convert batches to CI matrix entries: the component list plus which
+        # native toolchain installs the batch's test platforms need, so the
+        # workflow only restores the matching multi-GB toolchain caches.
+        for batch in batches:
+            platforms: set[str] = set()
+            for component in batch:
+                platforms.update(get_component_test_platforms(component))
+            component_test_batches.append(
+                {
+                    "components": " ".join(batch),
+                    "needs_idf": any(p.startswith("esp32") for p in platforms),
+                    "needs_nrf": any(p.startswith("nrf52") for p in platforms),
+                }
+            )
 
     output: dict[str, Any] = {
         "core_ci": run_core_ci,
