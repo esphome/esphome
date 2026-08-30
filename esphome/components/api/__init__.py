@@ -236,7 +236,7 @@ def _validate_supports_response(value: Any) -> str:
 ACTION_NAME_MAX_LENGTH = 63
 ACTION_METADATA_MAX_LENGTH = 255
 # ESP8266 copies every string of an action into a stack buffer sized by codegen; keep it small
-ESP8266_ACTION_STRINGS_MAX_TOTAL = 512
+ESP8266_ACTION_STRINGS_MAX_TOTAL = 384
 
 validate_action_name = cv.All(cv.valid_name, cv.ByteLength(max=ACTION_NAME_MAX_LENGTH))
 validate_action_metadata = cv.All(
