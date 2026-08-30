@@ -431,6 +431,10 @@ jobs:
         run: |
           . venv/bin/activate
           mapfile -t test_files < <(echo "$BUCKET_TESTS" | jq -r '.[]')
+          if [ "${#test_files[@]}" -eq 0 ]; then
+            echo "::error::Empty integration test bucket; pytest would collect the whole tree"
+            exit 1
+          fi
           echo "Bucket ${{ matrix.bucket.name }}: running ${#test_files[@]} integration tests"
           pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
             --junitxml=junit-integration.xml "${test_files[@]}"

@@ -68,12 +68,18 @@ jobs:
           pip install colorama
           for id in ${green} ${rest}; do
             rm -rf /tmp/junit
-            gh run download "${id}" --repo "${GITHUB_REPOSITORY}" -p "junit-integration-*" -D /tmp/junit
+            if ! gh run download "${id}" --repo "${GITHUB_REPOSITORY}" -p "junit-integration-*" -D /tmp/junit; then
+              echo "::warning::Could not download artifacts for run ${id}; trying the next"
+              continue
+            fi
+            # Only the expected low-coverage refusal advances; anything else is a real failure
             if python script/update_integration_test_durations.py /tmp/junit; then
               echo "Refreshed from run ${id}"
               exit 0
+            elif [ "$?" -ne 3 ]; then
+              exit 1
             fi
-            echo "::warning::Run ${id} did not yield a usable recording; trying the next"
+            echo "::warning::Run ${id} covers too few test files; trying the next"
           done
           echo "::error::No dev CI run with usable junit artifacts in range; the feed is starved"
           exit 1

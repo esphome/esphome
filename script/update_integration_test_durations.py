@@ -31,6 +31,9 @@ from helpers import (
 
 DURATIONS_FILE = Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE
 MIN_COVERAGE = 0.9
+# Exit code for the expected "run covers too few files" refusal, so the
+# refresh workflow can move on to the next candidate run
+EXIT_LOW_COVERAGE = 3
 
 
 def collect_durations(junit_dir: Path, known_files: set[str]) -> dict[str, float]:
@@ -82,13 +85,17 @@ def main() -> int:
     args = parser.parse_args()
 
     on_disk = set(all_integration_test_files())
+    if not on_disk:
+        raise SystemExit("no integration test files found; wrong checkout root?")
     collected = collect_durations(args.junit_dir, on_disk)
     coverage = len(collected.keys() & on_disk) / len(on_disk)
     if coverage < MIN_COVERAGE and not args.allow_partial:
-        raise SystemExit(
+        print(
             f"artifacts cover only {coverage:.0%} of {len(on_disk)} test files; "
-            "use a full matrix run or pass --allow-partial to merge anyway"
+            "use a full matrix run or pass --allow-partial to merge anyway",
+            file=sys.stderr,
         )
+        return EXIT_LOW_COVERAGE
 
     # Validated load: a bad previous entry cannot survive the round trip, and
     # an unreadable file aborts rather than being overwritten

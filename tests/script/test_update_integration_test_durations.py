@@ -119,11 +119,8 @@ def test_main_merges_partial_run(tmp_path: Path) -> None:
         patch.object(uitd, "DURATIONS_FILE", durations_file),
     ):
         # 1 of 3 files covered: refused without --allow-partial
-        with (
-            patch.object(sys, "argv", ["uitd", str(junit_dir)]),
-            pytest.raises(SystemExit),
-        ):
-            uitd.main()
+        with patch.object(sys, "argv", ["uitd", str(junit_dir)]):
+            assert uitd.main() == uitd.EXIT_LOW_COVERAGE
         with patch.object(sys, "argv", ["uitd", str(junit_dir), "--allow-partial"]):
             assert uitd.main() == 0
     # test_a updated, test_b kept, deleted test_gone dropped
