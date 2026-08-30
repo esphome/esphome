@@ -47,6 +47,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigFragmentType, ConfigType
 
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
@@ -368,6 +369,40 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _add_action_strings(
+    index: int, strings: list[str | None], interned: dict[str, str]
+) -> tuple[MockObj, MockObj, int]:
+    """Emit the PROGMEM string table for one action; entry 0 is the action name.
+
+    Each string is its own PROGMEM array because on ESP8266 .rodata is RAM, and identical
+    strings are shared between actions through `interned`. Returns the table, the
+    compile-time FNV-1 key of the name, and the byte total needed to copy the table out.
+    """
+    entries: list[str] = []
+    total = 0
+    for string in strings:
+        if string is None:
+            entries.append("nullptr")
+            continue
+        if (var := interned.get(string)) is None:
+            var = interned[string] = f"api_action_str{len(interned)}"
+            cg.add_global(
+                cg.RawStatement(
+                    f"static constexpr char {var}[] PROGMEM = {cpp_string_escape(string)};"
+                )
+            )
+        entries.append(var)
+        total += len(string.encode("utf-8"))
+    table = f"api_action{index}_strings"
+    cg.add_global(
+        cg.RawStatement(
+            f"static const char *const {table}[] PROGMEM = {{{', '.join(entries)}}};"
+        )
+    )
+    key = cg.RawExpression(f"fnv1_hash_extend(FNV1_OFFSET_BASIS, {entries[0]})")
+    return cg.RawExpression(table), key, total
+
+
 @coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -401,10 +436,24 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
+    scratch_size = 0
     if actions := config.get(CONF_ACTIONS, []):
+        # Metadata is compiled in for every action once any action declares it, because the
+        # string table layout is fixed by the define rather than per action
+        has_metadata = any(
+            CONF_DESCRIPTION in conf
+            or any(
+                CONF_DESCRIPTION in var_ or CONF_EXAMPLE in var_
+                for var_ in conf[CONF_VARIABLES].values()
+            )
+            for conf in actions
+        )
+        if has_metadata:
+            cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
+        interned_strings: dict[str, str] = {}
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.MockObj] = []
-        for conf in actions:
+        for index, conf in enumerate(actions):
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
 
@@ -437,11 +486,8 @@ async def to_code(config: ConfigType) -> None:
                 conf.get(CONF_THEN, [])
             )
 
-            service_arg_names: list[str] = []
-            arg_descriptions: list[cg.MockObj | str] = []
-            arg_examples: list[cg.MockObj | str] = []
-            has_arg_metadata = False
-            for name, var_ in conf[CONF_VARIABLES].items():
+            variables = conf[CONF_VARIABLES]
+            for name, var_ in variables.items():
                 var_type = var_[CONF_TYPE]
                 if has_non_synchronous and var_type in SERVICE_ARG_FALLBACK_TYPES:
                     native = SERVICE_ARG_FALLBACK_TYPES[var_type]
@@ -449,31 +495,20 @@ async def to_code(config: ConfigType) -> None:
                     native = SERVICE_ARG_NATIVE_TYPES[var_type]
                 service_template_args.append(native)
                 func_args.append((native, name))
-                service_arg_names.append(name)
-                if CONF_DESCRIPTION in var_ or CONF_EXAMPLE in var_:
-                    has_arg_metadata = True
-                arg_descriptions.append(var_.get(CONF_DESCRIPTION, cg.nullptr))
-                arg_examples.append(var_.get(CONF_EXAMPLE, cg.nullptr))
+            # Table layout must match UserServiceStatic in user_services.h
+            strings: list[str | None] = [conf[CONF_ACTION], *variables]
+            if has_metadata:
+                strings += [
+                    conf.get(CONF_DESCRIPTION),
+                    *(v.get(CONF_DESCRIPTION) for v in variables.values()),
+                    *(v.get(CONF_EXAMPLE) for v in variables.values()),
+                ]
+            table, key, size = _add_action_strings(index, strings, interned_strings)
+            scratch_size = max(scratch_size, size)
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
-            trigger = cg.new_Pvariable(
-                conf[CONF_TRIGGER_ID],
-                templ,
-                conf[CONF_ACTION],
-                service_arg_names,
-            )
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], templ, table, key)
             triggers.append(trigger)
-            if (
-                description := conf.get(CONF_DESCRIPTION)
-            ) is not None or has_arg_metadata:
-                cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
-                cg.add(
-                    trigger.set_metadata(
-                        description if description is not None else cg.nullptr,
-                        arg_descriptions,
-                        arg_examples,
-                    )
-                )
             auto = await automation.build_automation(trigger, func_args, conf)
 
             # For non-none response modes, automatically append unregister action
@@ -493,6 +528,9 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(auto.add_actions([unregister_action]))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
+    if CORE.is_esp8266 and (actions or config[CONF_CUSTOM_SERVICES]):
+        # Stack buffer that list-entities copies PROGMEM strings into, sized for the largest action
+        cg.add_define("API_USER_ACTION_STRINGS_SCRATCH_SIZE", max(scratch_size, 1))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")

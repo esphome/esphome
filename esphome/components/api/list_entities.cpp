@@ -99,7 +99,13 @@ ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(clie
 static constexpr uint8_t SERVICE_YIELD_INTERVAL = 3;
 
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
-  auto resp = service->encode_list_service_response();
+#ifdef USE_ESP8266
+  // Service strings live in PROGMEM; copy them out so the message can reference RAM
+  char scratch[API_USER_ACTION_STRINGS_SCRATCH_SIZE];
+#else
+  std::span<char> scratch;
+#endif
+  auto resp = service->encode_list_service_response(scratch);
   if (!this->client_->send_message(resp))
     return false;
   // at_ is this service's index
