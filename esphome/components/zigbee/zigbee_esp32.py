@@ -278,7 +278,7 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
 
 
 def validate_switch_esp32(config: ConfigType) -> ConfigType:
-    if config[CONF_CLUSTER] == "default":
+    if config[CONF_CLUSTER] == "on_off":
         ep = copy.deepcopy(SWITCH_EP_CONFIGS["on_off"])
         if config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_OUTLET:
             ep[DEVICE_TYPE] = "MAINS_POWER_OUTLET"

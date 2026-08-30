@@ -69,34 +69,55 @@ def _check_report_deprecation(value: str) -> str:
     return value
 
 
-BASE_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_REPORT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            _check_report_deprecation,
-            cv.enum(REPORT, lower=True),
-        ),
-        cv.OnlyWith(CONF_CLUSTER, ["esp32", "zigbee"], default="generic"): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.one_of(*["generic", "device_class"], lower=True),
-        ),
-        cv.Optional(CONF_ENDPOINT): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.int_range(1, CONF_MAX_EP_NUMBER),
-        ),
-        cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
-            cv.requires_component("zigbee"),
-            cv.requires_component("esp32"),
-            cv.boolean,
-        ),
-    }
+def _get_base_schema(cluster_options: list[str] | None = None) -> cv.Schema:
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_REPORT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                _check_report_deprecation,
+                cv.enum(REPORT, lower=True),
+            ),
+            cv.Optional(CONF_ENDPOINT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.int_range(1, CONF_MAX_EP_NUMBER),
+            ),
+            cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.boolean,
+            ),
+        }
+    )
+    if cluster_options:
+        schema = cv.Schema(
+            {
+                cv.OnlyWith(
+                    CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
+                ): cv.All(
+                    cv.requires_component("zigbee"),
+                    cv.requires_component("esp32"),
+                    cv.one_of(*cluster_options, lower=True),
+                ),
+            }
+        ).extend(schema)
+    return schema
+
+
+BINARY_SENSOR_SCHEMA = (
+    cv.Schema({})
+    .extend(_get_base_schema(["generic", "device_class"]))
+    .extend(zephyr_binary_sensor)
 )
-BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_binary_sensor)
-SENSOR_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_sensor)
-SWITCH_SCHEMA = cv.Schema({}).extend(BASE_SCHEMA).extend(zephyr_switch)
+SENSOR_SCHEMA = (
+    cv.Schema({})
+    .extend(_get_base_schema(["generic", "device_class"]))
+    .extend(zephyr_sensor)
+)
+SWITCH_SCHEMA = (
+    cv.Schema({}).extend(_get_base_schema(["generic", "on_off"])).extend(zephyr_switch)
+)
 NUMBER_SCHEMA = cv.Schema({}).extend(zephyr_number)
 
 

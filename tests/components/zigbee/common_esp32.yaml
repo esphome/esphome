@@ -49,11 +49,11 @@ switch:
   - platform: template
     name: "Template Switch 1"
     optimistic: true
-    cluster: default
+    cluster: on_off
   - platform: template
     name: "Template Switch 2"
     optimistic: true
-    cluster: default
+    cluster: on_off
     device_class: outlet
 
 zigbee:
