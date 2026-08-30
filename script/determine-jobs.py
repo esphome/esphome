@@ -101,11 +101,15 @@ COMPONENT_TEST_BATCH_SIZE = 40
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 3
 
-# platformio and aioesphomeapi (requirements.txt) and the pytest stack
-# (requirements_test.txt) are used by every integration test; a change to
-# either runs the full matrix
+# platformio and aioesphomeapi (requirements.txt), the pytest stack
+# (requirements_test.txt) and the fixture every session compiles; a change
+# to any runs the full matrix
 INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
-    {"requirements.txt", "requirements_test.txt"}
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "tests/integration/fixtures/cache_init.yaml",
+    }
 )
 
 
@@ -228,9 +232,8 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     3. Integration test infrastructure files changed
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
-    4. requirements.txt or requirements_test.txt changed
-       - platformio and aioesphomeapi (requirements.txt) and the pytest stack
-         (requirements_test.txt) are used by every integration test
+    4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
+       - The dependency pins and the session init fixture affect every test
 
     Returns (run_all=False, [test_files...]) when:
 

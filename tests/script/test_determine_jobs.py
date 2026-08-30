@@ -552,9 +552,9 @@ def test_determine_integration_tests(
         assert run_all is True
         assert test_files == []
 
-    # Requirements files pin platformio and aioesphomeapi; they trigger run_all
-    for requirements in ("requirements.txt", "requirements_test.txt"):
-        with patch.object(determine_jobs, "changed_files", return_value=[requirements]):
+    # Dependency pins and the session init fixture trigger run_all
+    for trigger in sorted(determine_jobs.INTEGRATION_TESTS_TRIGGER_FILES):
+        with patch.object(determine_jobs, "changed_files", return_value=[trigger]):
             run_all, test_files = determine_jobs.determine_integration_tests()
             assert run_all is True
             assert test_files == []
