@@ -30,6 +30,7 @@ MIN_COVERAGE = 0.9
 def collect_durations(junit_dir: Path) -> dict[str, float]:
     """Sum junit testcase times per integration test file, in seconds."""
     durations: defaultdict[str, float] = defaultdict(float)
+    unmatched = 0
     xml_files = sorted(junit_dir.rglob("*.xml"))
     if not xml_files:
         raise SystemExit(f"no junit XML files found under {junit_dir}")
@@ -46,12 +47,18 @@ def collect_durations(junit_dir: Path) -> dict[str, float]:
             # tests.integration.test_x or tests.integration.test_x.TestFoo
             parts = testcase.get("classname", "").split(".")
             if parts[:2] != ["tests", "integration"] or len(parts) < 3:
+                unmatched += 1
                 continue
             path = f"tests/integration/{parts[2]}.py"
             if not (Path(root_path) / path).is_file():
                 print(f"skipping unknown test module {path}", file=sys.stderr)
                 continue
             durations[path] += float(testcase.get("time", "0"))
+    if unmatched:
+        # A junit naming change would otherwise shrink the recording silently
+        print(
+            f"skipped {unmatched} testcases with unexpected classnames", file=sys.stderr
+        )
     # An all-skipped file totals 0.0; let the merge keep its previous entry
     return {k: v for k, v in durations.items() if v > 0}
 

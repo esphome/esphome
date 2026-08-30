@@ -127,10 +127,21 @@ def _load_integration_durations() -> dict[str, float]:
         )
         if not isinstance(raw, dict):
             raise TypeError(f"expected an object, got {type(raw).__name__}")
-        durations = {str(k): float(v) for k, v in raw.items()}
-        if dropped := sorted(k for k, v in durations.items() if not v > 0):
-            print(f"dropping non-positive durations: {dropped}", file=sys.stderr)
-        return {k: v for k, v in durations.items() if v > 0}
+        durations: dict[str, float] = {}
+        bad: list[str] = []
+        for key, value in raw.items():
+            try:
+                seconds = float(value)
+            except (TypeError, ValueError):
+                seconds = 0.0
+            if seconds > 0:
+                durations[str(key)] = seconds
+            else:
+                bad.append(str(key))
+        if bad:
+            # One bad entry must not discard the whole recording
+            print(f"dropping invalid durations: {sorted(bad)}", file=sys.stderr)
+        return durations
     except (OSError, ValueError, TypeError) as err:
         # The file ships in the repo; degrade to unweighted bucketing, loudly
         print(f"integration durations unavailable: {err}", file=sys.stderr)

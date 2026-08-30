@@ -43,8 +43,9 @@ jobs:
           # (see the integration-tests job), so the newest run holding them
           # is a complete recording.
           # Assignment failures trip set -e, so API errors fail loudly instead
-          # of looking like an empty window
-          runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=dev&event=push&status=success&per_page=30" --jq '.workflow_runs[].id')
+          # of looking like an empty window. completed (any conclusion) keeps
+          # runs whose artifacts uploaded even though an unrelated job failed.
+          runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=dev&event=push&status=completed&per_page=100" --jq '.workflow_runs[].id')
           run_id=""
           for id in ${runs}; do
             count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/artifacts?per_page=100" --jq '[.artifacts[] | select(.name | startswith("junit-integration-")) | select(.expired | not)] | length')
@@ -54,22 +55,19 @@ jobs:
             fi
           done
           if [ -z "${run_id}" ]; then
-            echo "::warning::No dev run with junit artifacts in range; nothing to refresh"
-            echo "skip=true" >> "$GITHUB_ENV"
-            exit 0
+            echo "::error::No dev CI run with junit artifacts in range; the feed is starved"
+            exit 1
           fi
           echo "Using run ${run_id}"
           gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" -p "junit-integration-*" -D /tmp/junit
 
       - name: Merge into the durations file
-        if: env.skip != 'true'
         run: |
           # helpers.py imports colorama; the script needs nothing else
           pip install colorama
           python script/update_integration_test_durations.py /tmp/junit
 
       - name: Commit changes
-        if: env.skip != 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           commit-message: "[ci] Refresh integration test durations"
