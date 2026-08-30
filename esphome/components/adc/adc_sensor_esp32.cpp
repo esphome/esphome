@@ -131,6 +131,11 @@ void ADCSensor::setup() {
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
   LOG_PIN("  Pin: ", this->pin_);
+#if defined(ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED) || defined(ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED)
+  const char *calibration_status = this->setup_flags_.calibration_complete ? "OK" : "FAILED";
+#else
+  const char *calibration_status = "N/A";  // This variant has no calibration scheme
+#endif
   ESP_LOGCONFIG(TAG,
                 "  Channel:       %d\n"
                 "  Unit:          %s\n"
@@ -146,12 +151,7 @@ void ADCSensor::dump_config() {
                 this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
                 LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
                 this->setup_flags_.handle_init_complete ? "OK" : "FAILED",
-                this->setup_flags_.config_complete ? "OK" : "FAILED",
-#if defined(ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED) || defined(ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED)
-                this->setup_flags_.calibration_complete ? "OK" : "FAILED",
-#else
-                "N/A",  // This variant has no calibration scheme
-#endif
+                this->setup_flags_.config_complete ? "OK" : "FAILED", calibration_status,
                 this->setup_flags_.init_complete ? "OK" : "FAILED");
 
   LOG_UPDATE_INTERVAL(this);
