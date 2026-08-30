@@ -112,6 +112,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
     Toolchain,
@@ -7258,72 +7259,50 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
 
 def test_host_program_path_platformio_toolchain() -> None:
     """Host + PlatformIO toolchain reads the memoized idedata path."""
-    from unittest.mock import PropertyMock
-
+    setup_core(platform=PLATFORM_HOST)
     idedata = SimpleNamespace(firmware_elf_path="/build/x/.pioenvs/x/program")
-    with (
-        patch.object(
-            type(CORE),
-            "using_toolchain_esp_idf",
-            new_callable=PropertyMock,
-            return_value=False,
-        ),
-        patch(
-            "esphome.platformio.toolchain.get_idedata", return_value=idedata
-        ) as mock_get,
-    ):
+    with patch(
+        "esphome.platformio.toolchain.get_idedata", return_value=idedata
+    ) as mock_get:
         assert main._host_program_path({}) == "/build/x/.pioenvs/x/program"
     mock_get.assert_called_once_with({})
 
 
 def test_host_program_path_esp_idf_toolchain() -> None:
     """Host + native ESP-IDF toolchain asks the espidf toolchain for the ELF."""
-    from unittest.mock import PropertyMock
-
-    with (
-        patch.object(
-            type(CORE),
-            "using_toolchain_esp_idf",
-            new_callable=PropertyMock,
-            return_value=True,
-        ),
-        patch("esphome.espidf.toolchain.get_elf_path", return_value=Path("/b/app.elf")),
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.ESP_IDF
+    with patch(
+        "esphome.espidf.toolchain.get_elf_path", return_value=Path("/b/app.elf")
     ):
         assert main._host_program_path({}) == str(Path("/b/app.elf"))
 
 
-def test_command_compile_host_logs_program_path() -> None:
-    """command_compile on host resolves and logs the compiled program path."""
-    from unittest.mock import PropertyMock
-
-    setup_core(config={})
+def test_command_compile_host_logs_program_path(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """command_compile on host logs the compiled program path."""
+    setup_core(platform=PLATFORM_HOST)
     with (
         patch.object(main, "write_cpp", return_value=0),
         patch.object(main, "compile_program", return_value=0),
-        patch.object(
-            type(CORE), "is_host", new_callable=PropertyMock, return_value=True
-        ),
-        patch.object(
-            main, "_host_program_path", return_value="/b/program"
-        ) as mock_path,
+        patch.object(main, "_host_program_path", return_value="/b/program"),
+        caplog.at_level(logging.INFO),
     ):
         assert main.command_compile(SimpleNamespace(only_generate=False), {}) == 0
-    mock_path.assert_called_once_with({})
+    assert "Successfully compiled program to path '/b/program'" in caplog.text
 
 
-def test_command_run_host_executes_program() -> None:
-    """command_run on host executes the compiled program directly."""
-    from unittest.mock import PropertyMock
-
-    setup_core(config={})
+def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> None:
+    """command_run on host logs and executes the compiled program directly."""
+    setup_core(platform=PLATFORM_HOST)
     with (
         patch.object(main, "write_cpp", return_value=0),
         patch.object(main, "compile_program", return_value=0),
-        patch.object(
-            type(CORE), "is_host", new_callable=PropertyMock, return_value=True
-        ),
         patch.object(main, "_host_program_path", return_value="/b/program"),
         patch.object(main, "run_external_process", return_value=0) as mock_run,
+        caplog.at_level(logging.INFO),
     ):
         assert main.command_run(SimpleNamespace(), {}) == 0
     mock_run.assert_called_with("/b/program")
+    assert "Running program from path '/b/program'" in caplog.text
