@@ -385,19 +385,25 @@ def _has_action_metadata(actions: list[ConfigType]) -> bool:
 
 def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
     """Strings of one action in the table order UserServiceStatic (user_services.h) expects."""
+    # An empty description or example is treated as unset
     strings: list[str | None] = [conf[CONF_ACTION]]
     if has_metadata:
-        strings.append(conf.get(CONF_DESCRIPTION))
+        strings.append(conf.get(CONF_DESCRIPTION) or None)
     for name, var_ in conf[CONF_VARIABLES].items():
         strings.append(name)
         if has_metadata:
-            strings += [var_.get(CONF_DESCRIPTION), var_.get(CONF_EXAMPLE)]
+            strings += [
+                var_.get(CONF_DESCRIPTION) or None,
+                var_.get(CONF_EXAMPLE) or None,
+            ]
     return strings
 
 
 def _action_strings_size(strings: list[str | None]) -> int:
     """Bytes needed to copy every string out of flash, each with its terminator."""
-    return sum(len(string.encode("utf-8")) + 1 for string in strings if string)
+    return sum(
+        len(string.encode("utf-8")) + 1 for string in strings if string is not None
+    )
 
 
 def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:

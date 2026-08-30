@@ -5,12 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from esphome.components.api import validate_variable
+from esphome.components.api import (
+    _action_strings,
+    _action_strings_size,
+    _validate_esp8266_action_strings,
+    validate_variable,
+)
 from esphome.config_validation import Invalid
+from esphome.const import PlatformFramework
 from esphome.core import CORE
 from esphome.cpp_generator import safe_exp
 from esphome.helpers import fnv1_hash
 from tests.component_tests.helpers import get_define_value
+from tests.component_tests.types import SetCoreConfigCallable
 
 CONFIG = "tests/component_tests/api/test_action_metadata.yaml"
 CONFIG_ESP8266 = "tests/component_tests/api/test_action_metadata_esp8266.yaml"
@@ -91,3 +98,44 @@ def test_variable_rejects_invalid(value: object) -> None:
     """Missing or unknown type and unknown keys raise in both forms."""
     with pytest.raises(Invalid):
         validate_variable(value)
+
+
+def _oversized_action_config() -> dict:
+    return {
+        "actions": [
+            {
+                "action": "big",
+                "description": "x" * 300,
+                "variables": {"a": {"type": "string", "example": "y" * 300}},
+            }
+        ]
+    }
+
+
+def test_esp8266_rejects_actions_over_string_budget(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(Invalid, match="ESP8266 allows at most 384 bytes"):
+        _validate_esp8266_action_strings(_oversized_action_config())
+
+
+def test_other_platforms_have_no_string_budget(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    config = _oversized_action_config()
+    assert _validate_esp8266_action_strings(config) is config
+
+
+def test_empty_metadata_is_unset_and_not_counted() -> None:
+    """An empty description or example emits nullptr and takes no scratch space."""
+    conf = {
+        "action": "a",
+        "description": "",
+        "variables": {"b": {"type": "int", "description": "", "example": "ex"}},
+    }
+    strings = _action_strings(conf, has_metadata=True)
+    assert strings == ["a", None, "b", None, "ex"]
+    # Every emitted string counts its terminator: "a" + "b" + "ex"
+    assert _action_strings_size(strings) == 2 + 2 + 3
