@@ -777,9 +777,10 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 bool Modbus::send_frame_(const ModbusFrame &frame) {
   int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
-    // delay() only lands on tick boundaries, so yield with it to get close, then busy-wait the rest.
-    if (tx_delay_remaining > (int32_t) (2 * US_PER_MS)) {
-      delay((tx_delay_remaining - US_PER_MS) / US_PER_MS);
+    // Yield the whole-ms part: delay() never blocks past the request on FreeRTOS, and only slightly
+    // over elsewhere, which just lengthens the gap. The recompute below makes the remainder exact.
+    if (tx_delay_remaining >= (int32_t) US_PER_MS) {
+      delay(tx_delay_remaining / US_PER_MS);
       tx_delay_remaining = this->tx_delay_remaining();
     }
     if (tx_delay_remaining > 0)
@@ -814,6 +815,9 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
 }
 
 void ModbusClientHub::send_next_frame_() {
+  if (this->tx_buffer_.empty())
+    return;
+
   if (this->tx_blocked())
     return;
 
