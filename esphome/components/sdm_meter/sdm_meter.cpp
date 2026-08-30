@@ -4,6 +4,8 @@
 
 namespace esphome::sdm_meter {
 
+namespace helpers = modbus::helpers;
+
 static const char *const TAG = "sdm_meter";
 
 static const uint8_t MODBUS_REGISTER_COUNT = 80;  // 80 x 16-bit registers (40 float values)
@@ -16,13 +18,10 @@ void SDMMeter::on_read_input_registers(uint16_t start_address, std::span<const u
   // Publish a sensor if both of its registers are in this response; skipping absent registers keeps
   // this correct for any read range, so the poll may be split into multiple requests.
   auto publish = [&](uint16_t reg, sensor::Sensor *sensor) {
-    constexpr auto value_type = modbus::helpers::SensorValueType::FP32;
-    if (sensor == nullptr || reg < start_address)
+    if (sensor == nullptr)
       return;
-    size_t offset = reg - start_address;
-    if (offset + modbus::helpers::register_width_for(value_type) > registers.size())
-      return;
-    sensor->publish_state(modbus::helpers::registers_to_value<value_type>(registers.data() + offset));
+    if (auto value = helpers::value_at<helpers::SensorValueType::FP32>(registers, start_address, reg))
+      sensor->publish_state(*value);
   };
 
   for (uint8_t i = 0; i < 3; i++) {
