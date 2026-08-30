@@ -43,9 +43,52 @@ ESPHOME_TESTS_COMPONENTS_PATH = "tests/components/"
 # Tuple of component and test paths for efficient startswith checks
 COMPONENT_AND_TESTS_PATHS = (ESPHOME_COMPONENTS_PATH, ESPHOME_TESTS_COMPONENTS_PATH)
 
+# Integration tests path prefix
+INTEGRATION_TESTS_PATH = "tests/integration/"
+
 # Per-file integration test durations from CI junit output; shared by the
 # reader (determine-jobs) and writer (update_integration_test_durations)
 INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
+
+
+def all_integration_test_files() -> list[str]:
+    """Return all integration test file paths, sorted, relative to repo root."""
+    return sorted(
+        str(p.relative_to(root_path))
+        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
+    )
+
+
+def load_integration_durations() -> dict[str, float]:
+    """Return recorded per-file pytest durations in seconds; empty when unavailable."""
+    try:
+        raw = json.loads(
+            (Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE).read_text()
+        )
+        if not isinstance(raw, dict):
+            print(
+                f"integration durations unavailable: expected an object, "
+                f"got {type(raw).__name__}",
+                file=sys.stderr,
+            )
+            return {}
+    except (OSError, ValueError) as err:
+        # The file ships in the repo; degrade to unweighted bucketing, loudly
+        print(f"integration durations unavailable: {err}", file=sys.stderr)
+        return {}
+    durations = {
+        key: seconds
+        for key, value in raw.items()
+        if isinstance(value, (int, float)) and (seconds := float(value)) > 0
+    }
+    if len(durations) != len(raw):
+        # One bad entry must not discard the whole recording
+        print(
+            f"dropped {len(raw) - len(durations)} invalid duration entries",
+            file=sys.stderr,
+        )
+    return durations
+
 
 # Base bus components - these ARE the bus implementations and should not
 # be flagged as needing migration since they are the platform/base components
@@ -1557,7 +1600,8 @@ def lpt_partition(
     """Partition items into `count` weight-balanced groups (LPT greedy).
 
     Heaviest item first into the lightest group. Ties keep input order, so
-    pass pre-sorted items for deterministic output.
+    pass pre-sorted items for deterministic output. script/clang-tidy's
+    split_list is the unweighted contiguous sibling.
     """
     groups: list[list[str]] = [[] for _ in range(count)]
     group_weights = [0.0] * count

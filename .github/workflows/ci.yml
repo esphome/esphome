@@ -433,9 +433,10 @@ jobs:
           pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
             --junitxml=junit-integration.xml "${test_files[@]}"
       - name: Upload junit timings
-        # Feeds script/update_integration_test_durations.py; only full matrix
-        # dev runs produce usable data.
-        if: success() && github.event_name == 'push' && needs.determine-jobs.outputs.integration-run-all == 'true'
+        # Consumed by sync-integration-durations.yml through
+        # script/update_integration_test_durations.py; only full matrix dev
+        # runs produce usable data.
+        if: github.ref == 'refs/heads/dev' && needs.determine-jobs.outputs.integration-run-all == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: junit-integration-${{ strategy.job-index }}

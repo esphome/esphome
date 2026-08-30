@@ -21,13 +21,19 @@ from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
 
-from helpers import INTEGRATION_TEST_DURATIONS_FILE, root_path
+from helpers import (
+    INTEGRATION_TEST_DURATIONS_FILE,
+    INTEGRATION_TESTS_PATH,
+    all_integration_test_files,
+    load_integration_durations,
+    root_path,
+)
 
 DURATIONS_FILE = Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE
 MIN_COVERAGE = 0.9
 
 
-def collect_durations(junit_dir: Path) -> dict[str, float]:
+def collect_durations(junit_dir: Path, known_files: set[str]) -> dict[str, float]:
     """Sum junit testcase times per integration test file, in seconds."""
     durations: defaultdict[str, float] = defaultdict(float)
     unmatched = 0
@@ -49,15 +55,16 @@ def collect_durations(junit_dir: Path) -> dict[str, float]:
             if parts[:2] != ["tests", "integration"] or len(parts) < 3:
                 unmatched += 1
                 continue
-            path = f"tests/integration/{parts[2]}.py"
-            if not (Path(root_path) / path).is_file():
+            path = f"{INTEGRATION_TESTS_PATH}{parts[2]}.py"
+            if path not in known_files:
                 print(f"skipping unknown test module {path}", file=sys.stderr)
                 continue
             durations[path] += float(testcase.get("time", "0"))
     if unmatched:
         # A junit naming change would otherwise shrink the recording silently
         print(
-            f"skipped {unmatched} testcases with unexpected classnames", file=sys.stderr
+            f"skipped {unmatched} testcases with unexpected classnames",
+            file=sys.stderr,
         )
     # An all-skipped file totals 0.0; let the merge keep its previous entry
     return {k: v for k, v in durations.items() if v > 0}
@@ -75,11 +82,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    collected = collect_durations(args.junit_dir)
-    on_disk = {
-        f"tests/integration/{p.name}"
-        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
-    }
+    on_disk = set(all_integration_test_files())
+    collected = collect_durations(args.junit_dir, on_disk)
     coverage = len(collected.keys() & on_disk) / len(on_disk)
     if coverage < MIN_COVERAGE and not args.allow_partial:
         raise SystemExit(
@@ -87,11 +91,9 @@ def main() -> int:
             "use a full matrix run or pass --allow-partial to merge anyway"
         )
 
-    previous: dict[str, float] = {}
-    if DURATIONS_FILE.is_file():
-        previous = json.loads(DURATIONS_FILE.read_text())
-    # New recordings win, absent files keep their previous entry, deleted
-    # files drop out
+    # Validated load: a bad previous entry cannot survive the round trip.
+    # New recordings win, absent files keep theirs, deleted files drop out
+    previous = load_integration_durations()
     merged = {
         path: collected.get(path, previous.get(path))
         for path in sorted(on_disk)

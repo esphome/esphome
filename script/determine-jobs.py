@@ -69,8 +69,9 @@ from clang_tidy_hash import (
 from helpers import (
     CPP_FILE_EXTENSIONS,
     ESPHOME_TESTS_COMPONENTS_PATH,
-    INTEGRATION_TEST_DURATIONS_FILE,
+    INTEGRATION_TESTS_PATH,
     PYTHON_FILE_EXTENSIONS,
+    all_integration_test_files,
     base_python_changed,
     changed_files,
     core_changed,
@@ -86,6 +87,7 @@ from helpers import (
     get_target_branch,
     git_ls_files,
     is_validate_only_file,
+    load_integration_durations,
     lpt_partition,
     root_path,
 )
@@ -102,7 +104,8 @@ COMPONENT_TEST_BATCH_SIZE = 40
 
 # Above the threshold, fan out across up to this many jobs, balanced by the
 # recorded per-file durations. The target is serial junit-time weight per
-# bucket, not wall time; it sizes the bucket count for small subsets.
+# bucket, not wall time (calibrated with the conftest compile cap); it
+# sizes the bucket count for small subsets.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
@@ -119,50 +122,13 @@ INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
 )
 
 
-def _load_integration_durations() -> dict[str, float]:
-    """Return recorded per-file pytest durations in seconds; empty when unavailable."""
-    try:
-        raw = json.loads(
-            (Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE).read_text()
-        )
-        if not isinstance(raw, dict):
-            raise TypeError(f"expected an object, got {type(raw).__name__}")
-        durations: dict[str, float] = {}
-        bad: list[str] = []
-        for key, value in raw.items():
-            try:
-                seconds = float(value)
-            except (TypeError, ValueError):
-                seconds = 0.0
-            if seconds > 0:
-                durations[str(key)] = seconds
-            else:
-                bad.append(str(key))
-        if bad:
-            # One bad entry must not discard the whole recording
-            print(f"dropping invalid durations: {sorted(bad)}", file=sys.stderr)
-        return durations
-    except (OSError, ValueError, TypeError) as err:
-        # The file ships in the repo; degrade to unweighted bucketing, loudly
-        print(f"integration durations unavailable: {err}", file=sys.stderr)
-        return {}
-
-
-def _all_integration_test_files() -> list[str]:
-    """Return all integration test file paths, sorted, relative to repo root."""
-    return sorted(
-        str(p.relative_to(root_path))
-        for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
-    )
-
-
 def _compute_integration_test_buckets(
     integration_run_all: bool,
     integration_test_files: list[str],
 ) -> tuple[bool, list[dict[str, Any]]]:
     """Compute (run_integration, buckets) from the determine_integration_tests result.
 
-    Pure function for unit testing — no I/O beyond `_all_integration_test_files`
+    Pure function for unit testing — no I/O beyond `all_integration_test_files`
     when `integration_run_all` is set.
 
     `buckets` is a list of `{name, tests}` dicts where `tests` is a JSON-friendly
@@ -170,7 +136,7 @@ def _compute_integration_test_buckets(
     shell word-splitting / glob hazards.
     """
     if integration_run_all:
-        files = _all_integration_test_files()
+        files = all_integration_test_files()
     else:
         files = sorted(integration_test_files)
 
@@ -181,27 +147,23 @@ def _compute_integration_test_buckets(
         return False, []
 
     if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
-        durations = _load_integration_durations()
-        # Unrecorded files weigh the median of the whole recording
-        default = statistics.median(durations.values()) if durations else 1.0
+        durations = load_integration_durations()
+        # Unrecorded files weigh the recording's median; with no recording a
+        # file weighs a whole bucket, which keeps the full fan-out
+        default = (
+            statistics.median(durations.values())
+            if durations
+            else INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT
+        )
         weights = {f: durations.get(f, default) for f in files}
-        if durations:
-            count = min(
-                INTEGRATION_TESTS_SPLIT_BUCKETS,
-                math.ceil(
-                    sum(weights.values()) / INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT
-                )
-                or 1,
-            )
-        else:
-            # No recorded data to size buckets by; keep the full fan-out.
-            count = INTEGRATION_TESTS_SPLIT_BUCKETS
-        count = max(1, min(count, len(files)))
-        # Zero weights can leave trailing groups empty; never emit an empty bucket
-        parts = [sorted(part) for part in lpt_partition(files, weights, count) if part]
+        count = min(
+            INTEGRATION_TESTS_SPLIT_BUCKETS,
+            math.ceil(sum(weights.values()) / INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT),
+        )
+        # count <= SPLIT_BUCKETS < threshold < len(files): no group is empty
+        parts = [sorted(part) for part in lpt_partition(files, weights, count)]
         buckets = [
-            {"name": f"{i + 1}/{len(parts)}", "tests": part}
-            for i, part in enumerate(parts)
+            {"name": f"{i + 1}/{count}", "tests": part} for i, part in enumerate(parts)
         ]
     else:
         buckets = [{"name": "1/1", "tests": files}]
@@ -308,9 +270,9 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     # If infrastructure Python files changed (conftest, utils, etc.), run all tests
     # Excludes test files (test_*.py), fixtures, and non-Python files (README.md)
     if any(
-        f.startswith("tests/integration/")
+        f.startswith(INTEGRATION_TESTS_PATH)
         and f.endswith(".py")
-        and not f.startswith("tests/integration/test_")
+        and not f.startswith(f"{INTEGRATION_TESTS_PATH}test_")
         and "/fixtures/" not in f
         for f in files
     ):
@@ -321,9 +283,9 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     fixture_to_test_files = get_fixture_to_test_files()
 
     for f in files:
-        if f.startswith("tests/integration/test_") and f.endswith(".py"):
+        if f.startswith(f"{INTEGRATION_TESTS_PATH}test_") and f.endswith(".py"):
             test_files.add(f)
-        elif f.startswith("tests/integration/fixtures/"):
+        elif f.startswith(f"{INTEGRATION_TESTS_PATH}fixtures/"):
             if f.endswith(".yaml"):
                 # Fixture YAML changed - add corresponding test file(s)
                 test_files.update(fixture_to_test_files.get(Path(f).stem, ()))
