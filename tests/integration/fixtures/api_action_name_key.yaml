@@ -1,0 +1,24 @@
+esphome:
+  name: api-action-name-key-test
+host:
+
+api:
+  actions:
+    - action: short_action
+      then:
+        - logger.log: "short_action called"
+    - action: action_with_args
+      variables:
+        my_int: int
+        my_string: string
+      then:
+        - logger.log:
+            format: "action_with_args called: %d, %s"
+            args: [my_int, my_string.c_str()]
+    # 63 characters, the longest name allowed
+    - action: a23456789_123456789_123456789_123456789_123456789_123456789_123
+      then:
+        - logger.log: "longest_action called"
+
+logger:
+  level: DEBUG
