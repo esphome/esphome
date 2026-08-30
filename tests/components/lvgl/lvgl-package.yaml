@@ -209,6 +209,63 @@ lvgl:
           position: 212
         - color: 0xFF0000
           position: 255
+    - id: linear_grad
+      direction: LINEAR
+      linear:
+        from_x: 0%
+        from_y: 0%
+        to_x: 100%
+        to_y: 0%
+        extend: REFLECT
+      stops:
+        - color: 0xFF0000
+          position: 0
+        - color: 0x0000FF
+          position: 255
+    - id: radial_grad
+      direction: RADIAL
+      radial:
+        center_x: 50%
+        center_y: 50%
+        to_x: 100%
+        to_y: 50%
+        extend: PAD
+      stops:
+        - color: 0xFFFFFF
+          position: 0
+        - color: 0x000000
+          position: 255
+    - id: radial_focal_grad
+      direction: RADIAL
+      radial:
+        center_x: 50%
+        center_y: 50%
+        to_x: 100%
+        to_y: 50%
+        focal_x: 40%
+        focal_y: 40%
+        focal_radius: 10
+        extend: REPEAT
+      stops:
+        - color: 0xFF0000
+          position: 0
+        - color: 0x0000FF
+          position: 255
+    - id: conical_grad
+      direction: CONICAL
+      conical:
+        center_x: 50%
+        center_y: 50%
+        start_angle: 0
+        end_angle: 360
+        extend: PAD
+      stops:
+        - color: 0xFF0000
+          position: 0
+        - color: 0x00FF00
+          position: 127
+        - color: 0xFF0000
+          position: 255
 
   style_definitions:
     - id: style_test
@@ -1070,6 +1127,14 @@ lvgl:
               logger.log:
                 format: Slider released at %d/%d with value %.0f
                 args: ['(int) point.x', '(int) point.y', x]
+
+        # Exercises the style-application path for a complex gradient, not just its
+        # lv_grad_*_init() codegen: the other new gradients are only ever declared.
+        - obj:
+            bg_opa: cover
+            bg_grad: conical_grad
+            width: 40
+            height: 40
         - button:
             styles: spin_button
             id: spin_up
