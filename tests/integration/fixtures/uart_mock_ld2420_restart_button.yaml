@@ -1,0 +1,167 @@
+esphome:
+  name: uart-mock-ld2420-restart-test
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+# Exercises the module restart path. The restart command hits the module while
+# it is mid transmission, so a few tail bytes of the in-flight frame arrive
+# right after the restart. The module is then silent for 2 seconds while it
+# boots, and it locks up until power cycled if it receives any data in that
+# window. The component must not treat the tail bytes as proof the module is
+# up, and must only re-run its setup handshake after the module's first
+# post-boot frame.
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  auto_start: true
+
+  injections:
+    # Initial wake-up frame (t=700ms): energy frame (presence=1, distance=100).
+    # Delay=700ms keeps it outside the component's 500ms listen settle window,
+    # which is measured from boot and ignores earlier reception.
+    - delay: 700ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01,
+          0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+  responses:
+    # Version response: returns "v2.0.0" → 200 >= 154 → energy mode
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x0C, 0x00,
+          0x00, 0x01,
+          0x00, 0x00,
+          0x06, 0x00,
+          0x76, 0x32, 0x2E, 0x30, 0x2E, 0x30,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Config mode enable: CMD_ENABLE_CONF (0x00FF)
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xFF, 0x00, 0x02, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # System mode write: CMD_WRITE_SYS_PARAM (0x0012), mode = energy (0x0004)
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x08, 0x00, 0x12, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0x12, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Config mode disable: CMD_DISABLE_CONF (0x00FE)
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xFE, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFE, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # The module restart command (CMD_RESTART, 0x0068) gets no reply; a real
+    # module goes silent and reboots. Matching it here prevents the catch-all
+    # below from answering it.
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x68, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx: []
+
+    # Catch-all for the CMD_READ_ABD_PARAM (0x0008) reads: limits and the 16
+    # gate threshold reads. Three zeroed uint32 data values.
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x10, 0x00,
+          0x08, 0x01,
+          0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+button:
+  - platform: template
+    name: "Restart Module"
+    on_press:
+      - lambda: 'id(ld2420_dev).restart_module_action();'
+      # Tail of the energy frame the module was transmitting when the restart
+      # command hit it; must not count as proof the module is up
+      - uart_mock.inject_rx:
+          id: mock_uart
+          data: [0x00, 0x00, 0x00, 0xF8, 0xF7, 0xF6, 0xF5]
+      # The module's first frame after its ~2s boot (presence=1, distance=100)
+      - uart_mock.inject_rx:
+          id: mock_uart
+          delay: 2000ms
+          data:
+            [
+              0xF4, 0xF3, 0xF2, 0xF1,
+              0x23, 0x00,
+              0x01,
+              0x64, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0xF8, 0xF7, 0xF6, 0xF5,
+            ]
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    moving_distance:
+      name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+
+binary_sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    has_target:
+      name: "Has Target"
+      filters:
+        - settle: 50ms

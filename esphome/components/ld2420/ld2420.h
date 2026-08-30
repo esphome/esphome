@@ -51,8 +51,8 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   };
 
   struct RegConfigT {
-    uint32_t move_thresh[TOTAL_GATES];
-    uint32_t still_thresh[TOTAL_GATES];
+    uint32_t move_thresh[TOTAL_GATES]{};
+    uint32_t still_thresh[TOTAL_GATES]{};
     uint16_t min_gate{0};
     uint16_t max_gate{0};
     uint16_t timeout{0};
@@ -111,8 +111,8 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void auto_calibrate_sensitivity();
   void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);
   uint8_t set_config_mode(bool enable);
-  void set_min_max_distances_timeout(uint32_t max_gate_distance, uint32_t min_gate_distance, uint32_t timeout);
-  void set_gate_threshold(uint8_t gate);
+  uint8_t set_min_max_distances_timeout(uint32_t max_gate_distance, uint32_t min_gate_distance, uint32_t timeout);
+  uint8_t set_gate_threshold(uint8_t gate);
   void set_reg_value(uint16_t reg, uint16_t value);
   void set_system_mode(uint16_t mode);
   void ld2420_restart();
@@ -152,15 +152,40 @@ class LD2420Component final : public Component, public uart::UARTDevice {
     volatile bool ack;
   };
 
-  void get_firmware_version_();
-  int get_gate_threshold_(uint8_t gate);
-  int get_min_max_distances_timeout_();
+  // Startup runs as a non-blocking state machine driven from loop(). The module
+  // locks up until power cycled if it receives any data before it has sent its
+  // first frame after powering on, so the state machine listens for data from
+  // the module before transmitting anything.
+  enum class StartupState : uint8_t {
+    STARTUP_STATE_LISTEN_SETTLE = 0,
+    STARTUP_STATE_LISTEN,
+    STARTUP_STATE_ENTER_CONFIG,
+    STARTUP_STATE_READ_LIMITS,
+    STARTUP_STATE_READ_VERSION,
+    STARTUP_STATE_READ_GATES,
+    STARTUP_STATE_SET_MODE,
+    STARTUP_STATE_EXIT_CONFIG,
+    STARTUP_STATE_RUNNING,
+  };
+
+  void begin_startup_();
+  void begin_listen_();
+  void loop_startup_(bool got_data);
+  void start_startup_cmd_(StartupState state);
+  void send_startup_cmd_();
+  void abort_startup_cmd_();
+  void abandon_startup_();
+  bool startup_ack_check_(uint8_t min_data_len = 0);
+  bool action_allowed_(bool needs_config);
+  void drain_rx_();
   void write_cmd_frame_(const CmdFrameT &frame);
+  bool build_startup_frame_(CmdFrameT &frame);
   void build_config_mode_frame_(CmdFrameT &frame, bool enable);
   void build_min_max_timeout_frame_(CmdFrameT &frame);
   void build_gate_threshold_frame_(CmdFrameT &frame, uint8_t gate);
   void build_version_frame_(CmdFrameT &frame);
   void build_system_mode_frame_(CmdFrameT &frame, uint16_t mode);
+
   uint16_t get_mode_() { return this->system_mode_; };
   void set_mode_(uint16_t mode) { this->system_mode_ = mode; };
   bool get_presence_() { return this->presence_; };
@@ -171,7 +196,7 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void handle_energy_mode_(uint8_t *buffer, int len);
   void handle_ack_data_(uint8_t *buffer, int len);
   void readline_(int rx_data, uint8_t *buffer, int len);
-  void read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer);
+  bool read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer);
   void set_calibration_(bool state) { this->calibration_ = state; };
   bool get_calibration_() { return this->calibration_; };
 
@@ -187,9 +212,17 @@ class LD2420Component final : public Component, public uart::UARTDevice {
 #endif
 
   uint16_t distance_{0};
-  uint16_t system_mode_;
+  uint16_t system_mode_{0};          // Set to the energy mode default in begin_startup_()
+  uint16_t startup_target_mode_{0};  // Mode the startup handshake writes; applied to system_mode_ once acked
   uint16_t gate_energy_[TOTAL_GATES];
-  uint8_t buffer_pos_{0};  // where to resume processing/populating buffer
+  uint32_t phase_start_ms_{0};
+  StartupState startup_state_{StartupState::STARTUP_STATE_LISTEN_SETTLE};
+  uint8_t startup_cmd_{0};  // Command byte of the in-flight startup command, for ack matching
+  uint8_t startup_cmd_attempts_{0};
+  uint8_t startup_sequence_retries_{0};
+  uint8_t startup_gate_{0};
+  bool config_read_complete_{false};  // All limits and gate thresholds were read from the module
+  uint8_t buffer_pos_{0};             // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
   char firmware_ver_[8]{"v0.0.0"};
   bool cmd_active_{false};

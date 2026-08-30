@@ -22,10 +22,24 @@ uart_mock:
   baud_rate: 115200
   auto_start: false
   responses:
-    # Catch-all response only (no version-specific response).
-    # Without a version response, firmware_ver_ stays at default "v0.0.0".
-    # get_firmware_int("v0.0.0") = 0 < 154 → simple mode (CMD_SYSTEM_MODE_SIMPLE).
-    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+    # Version response with an old firmware version "v1.5.3".
+    # get_firmware_int("v1.5.3") = 153 < 154 → simple mode (CMD_SYSTEM_MODE_SIMPLE).
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x0C, 0x00,
+          0x00, 0x01,
+          0x00, 0x00,
+          0x06, 0x00,
+          0x76, 0x31, 0x2E, 0x35, 0x2E, 0x33,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Config mode enable: CMD_ENABLE_CONF (0x00FF)
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x04, 0x00, 0xFF, 0x00, 0x02, 0x00, 0x04, 0x03, 0x02, 0x01]
       inject_rx:
         [
           0xFD, 0xFC, 0xFB, 0xFA,
@@ -35,11 +49,50 @@ uart_mock:
           0x04, 0x03, 0x02, 0x01,
         ]
 
+    # System mode write: CMD_WRITE_SYS_PARAM (0x0012), mode = simple (0x0064)
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x08, 0x00, 0x12, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0x12, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Config mode disable: CMD_DISABLE_CONF (0x00FE)
+    - expect_tx: [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xFE, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFE, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Catch-all for the CMD_READ_ABD_PARAM (0x0008) reads: limits and the 16
+    # gate threshold reads. Three zeroed uint32 data values.
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x10, 0x00,
+          0x08, 0x01,
+          0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
   injections:
-    # Phase 1 (t=100ms): Valid simple mode text frame - happy path
-    # "ON Range 0100\r\n" → presence=true, distance=100
-    # Simple mode frames end with \r\n (0x0D 0x0A), triggering handle_simple_mode_.
-    - delay: 100ms
+    # Phase 0 (t=700ms): Wake-up frame. The component listens for data from the
+    # module before transmitting anything, so this frame starts the setup
+    # handshake. It is not parsed as simple mode because the component's system
+    # mode is only switched to simple after the firmware version is read.
+    # Delay=700ms keeps it outside the component's 500ms listen settle window,
+    # which is measured from boot and ignores earlier reception.
+    - delay: 700ms
       inject_rx:
         [
           0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
@@ -47,12 +100,24 @@ uart_mock:
           0x0D, 0x0A,
         ]
 
-    # Phase 2 (t=300ms): Garbage bytes
+    # Phase 1 (t=1600ms): Valid simple mode text frame - happy path
+    # "ON Range 0100\r\n" → presence=true, distance=100
+    # Simple mode frames end with \r\n (0x0D 0x0A), triggering handle_simple_mode_.
+    # Delay=900ms leaves time for the setup handshake to finish first.
+    - delay: 900ms
+      inject_rx:
+        [
+          0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
+          0x30, 0x31, 0x30, 0x30,
+          0x0D, 0x0A,
+        ]
+
+    # Phase 2 (t=1800ms): Garbage bytes
     # LD2420's readline_ stores all bytes regardless of header. buffer_pos_ = 7.
     - delay: 200ms
       inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
 
-    # Phase 3 (t=500ms): Overflow - inject 50 bytes of 0xFF (MAX_LINE_LENGTH=50)
+    # Phase 3 (t=2000ms): Overflow - inject 50 bytes of 0xFF (MAX_LINE_LENGTH=50)
     # buffer_pos_ starts at 7 (from Phase 2 garbage).
     # Positions 7-48 fill (42 bytes), byte 43 triggers overflow (buffer_pos_=49).
     # After overflow: buffer_pos_=0, remaining 7 bytes fill positions 0-6.
@@ -67,13 +132,13 @@ uart_mock:
           0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         ]
 
-    # Phase 4 (t=1400ms): Recovery after overflow
+    # Phase 4 (t=2700ms): Recovery after overflow
     # buffer_pos_ = 7 (from overflow remainder). These 15 bytes fill positions 7-21.
     # At position 21 (0x0A), \r\n detected → handle_simple_mode_(buffer, 22).
     # Parser skips 0xFF bytes at positions 0-6, finds "ON" at positions 7-8,
     # parses digits "0050" → distance=50.
-    # Delay=900ms ensures >1000ms gap from Phase 1 for REFRESH_RATE_MS throttle.
-    - delay: 900ms
+    # Delay=700ms ensures >1000ms gap from Phase 1 for REFRESH_RATE_MS throttle.
+    - delay: 700ms
       inject_rx:
         [
           0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
@@ -81,7 +146,7 @@ uart_mock:
           0x0D, 0x0A,
         ]
 
-    # Phase 5 (t=2500ms): 16-digit distance - tests PR #14458 bug #1
+    # Phase 5 (t=3800ms): 16-digit distance - tests PR #14458 bug #1
     # "ON Range 0000000000000000\r\n" has 16 digit characters.
     # handle_simple_mode_ outbuf is 16 bytes, can hold 15 digits (index 0-14).
     #
@@ -100,7 +165,7 @@ uart_mock:
           0x0D, 0x0A,
         ]
 
-    # Phase 6 (t=3700ms): Post-bug-trigger recovery
+    # Phase 6 (t=5000ms): Post-bug-trigger recovery
     # If Phase 5 didn't hang, this frame should parse correctly.
     # "ON Range 0025\r\n" → distance=25
     # Delay=1200ms ensures >1000ms gap from Phase 5 for throttle.
