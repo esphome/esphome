@@ -142,6 +142,7 @@ esphome/components/debug/* @esphome/core
 esphome/components/delonghi/* @grob6000
 esphome/components/dew_point/* @CFlix
 esphome/components/dfplayer/* @glmnet
+esphome/components/dfrobot_c4001/* @mikelawrence
 esphome/components/dfrobot_sen0395/* @niklasweber
 esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
