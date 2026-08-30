@@ -246,7 +246,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
-    "esp_phy",  # RF PHY - esp_wifi/bt/ieee802154 pull it back when they are in the build
+    "esp_phy",  # RF PHY - re-included by internal_temperature on the original ESP32; esp_wifi/bt/ieee802154 pull it back
     "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
