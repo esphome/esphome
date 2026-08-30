@@ -65,3 +65,48 @@ def test_collect_durations_empty_dir_aborts(tmp_path: Path) -> None:
     """No junit XML at all is a hard error, not an empty recording."""
     with pytest.raises(SystemExit):
         uitd.collect_durations(tmp_path)
+
+
+def test_main_merges_partial_run(tmp_path: Path) -> None:
+    """A partial run merges over the previous data instead of truncating it."""
+    import json
+    from unittest.mock import patch
+
+    tests_dir = tmp_path / "tests" / "integration"
+    tests_dir.mkdir(parents=True)
+    for name in ("test_a", "test_b", "test_c"):
+        (tests_dir / f"{name}.py").write_text("", encoding="utf-8")
+    durations_file = tests_dir / "durations.json"
+    durations_file.write_text(
+        json.dumps(
+            {
+                "tests/integration/test_a.py": 5.0,
+                "tests/integration/test_b.py": 7.0,
+                "tests/integration/test_gone.py": 9.0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    junit_dir = tmp_path / "junit"
+    junit_dir.mkdir()
+    _write_junit(
+        junit_dir / "a.xml",
+        '<testcase classname="tests.integration.test_a" name="t" time="6.0"/>',
+    )
+    with (
+        patch.object(uitd, "root_path", str(tmp_path)),
+        patch.object(uitd, "DURATIONS_FILE", durations_file),
+    ):
+        # 1 of 3 files covered: refused without --allow-partial
+        with (
+            patch.object(sys, "argv", ["uitd", str(junit_dir)]),
+            pytest.raises(SystemExit),
+        ):
+            uitd.main()
+        with patch.object(sys, "argv", ["uitd", str(junit_dir), "--allow-partial"]):
+            assert uitd.main() == 0
+    # test_a updated, test_b kept, deleted test_gone dropped
+    assert json.loads(durations_file.read_text()) == {
+        "tests/integration/test_a.py": 6.0,
+        "tests/integration/test_b.py": 7.0,
+    }
