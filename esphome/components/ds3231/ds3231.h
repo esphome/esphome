@@ -80,6 +80,16 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
     this->oscillator_stopped_binary_sensor_ = sensor;
   }
 
+#ifdef USE_DS3231_REFRESH_INTERVAL
+  /// Change the poll interval (how often the alarm flags / oscillator-stop flag are read and
+  /// the switch/select entities are refreshed) at runtime. Re-arms the poller.
+  void set_refresh_interval(uint32_t interval_ms) {
+    this->stop_poller();
+    this->set_update_interval(interval_ms);
+    this->start_poller();
+  }
+#endif
+
 #ifdef USE_DS3231_ALARM
   // --- Alarms ----------------------------------------------------------------
   bool set_alarm_1(DS3231Alarm1Mode mode, const DS3231AlarmSpec &spec);
@@ -259,6 +269,28 @@ template<typename... Ts> class ClearAlarmAction final : public Action<Ts...>, pu
  protected:
   uint8_t alarm_{1};
 };
+
+/// Enables an alarm's interrupt (sets A1IE / A2IE) without reprogramming its time - the action
+/// form of turning the alarm_N switch on. Pair of DisableAlarmAction.
+template<typename... Ts> class EnableAlarmAction final : public Action<Ts...>, public Parented<DS3231Component> {
+ public:
+  void set_alarm(uint8_t alarm) { this->alarm_ = alarm; }
+  void play(const Ts &...x) override { this->parent_->set_alarm_enabled(this->alarm_, true); }
+
+ protected:
+  uint8_t alarm_{1};
+};
+
+/// Disables an alarm's interrupt (clears A1IE / A2IE) without touching its programmed time, so it
+/// can be re-enabled later with enable_alarm, switch.turn_on, or set_alarm_1 / set_alarm_2.
+template<typename... Ts> class DisableAlarmAction final : public Action<Ts...>, public Parented<DS3231Component> {
+ public:
+  void set_alarm(uint8_t alarm) { this->alarm_ = alarm; }
+  void play(const Ts &...x) override { this->parent_->set_alarm_enabled(this->alarm_, false); }
+
+ protected:
+  uint8_t alarm_{1};
+};
 #endif  // USE_DS3231_ALARM
 
 template<typename... Ts>
@@ -266,5 +298,13 @@ class ForceTemperatureConversionAction final : public Action<Ts...>, public Pare
  public:
   void play(const Ts &...x) override { this->parent_->force_temperature_conversion(); }
 };
+
+#ifdef USE_DS3231_REFRESH_INTERVAL
+template<typename... Ts> class SetRefreshIntervalAction final : public Action<Ts...>, public Parented<DS3231Component> {
+ public:
+  TEMPLATABLE_VALUE(uint32_t, refresh_interval)
+  void play(const Ts &...x) override { this->parent_->set_refresh_interval(this->refresh_interval_.value(x...)); }
+};
+#endif
 
 }  // namespace esphome::ds3231

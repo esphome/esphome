@@ -58,6 +58,8 @@ number:
     ds3231_id: ds3231_component
     aging_offset:
       name: DS3231 Aging Offset
+    refresh_interval:
+      name: DS3231 Refresh Interval
 
 interval:
   - interval: 60s
@@ -77,6 +79,15 @@ interval:
       - ds3231.clear_alarm:
           id: ds3231_component
           alarm: 1
+      - ds3231.disable_alarm:
+          id: ds3231_component
+          alarm: 2
+      - ds3231.enable_alarm:
+          id: ds3231_component
+          alarm: 2
       - ds3231.force_temperature_conversion: ds3231_component
+      - ds3231.set_refresh_interval:
+          id: ds3231_component
+          refresh_interval: 30s
       - ds3231.write_time: ds3231_time
       - ds3231.read_time: ds3231_time

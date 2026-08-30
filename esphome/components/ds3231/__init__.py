@@ -19,6 +19,7 @@ CONF_ON_ALARM_2 = "on_alarm_2"
 CONF_ALARM = "alarm"
 CONF_DAY_OF_WEEK = "day_of_week"
 CONF_DAY_OF_MONTH = "day_of_month"
+CONF_REFRESH_INTERVAL = "refresh_interval"
 
 # Shared by the switch and select platforms (INT/SQW square-wave control).
 ICON_SINE_WAVE = "mdi:sine-wave"
@@ -32,6 +33,7 @@ USE_DS3231_ALARM = "USE_DS3231_ALARM"
 USE_DS3231_SQUARE_WAVE = "USE_DS3231_SQUARE_WAVE"
 USE_DS3231_32KHZ_OUTPUT = "USE_DS3231_32KHZ_OUTPUT"
 USE_DS3231_AGING_OFFSET = "USE_DS3231_AGING_OFFSET"
+USE_DS3231_REFRESH_INTERVAL = "USE_DS3231_REFRESH_INTERVAL"
 
 ds3231_ns = cg.esphome_ns.namespace("ds3231")
 DS3231Component = ds3231_ns.class_(
@@ -68,8 +70,13 @@ ALARM_2_MODES = {
 SetAlarm1Action = ds3231_ns.class_("SetAlarm1Action", automation.Action)
 SetAlarm2Action = ds3231_ns.class_("SetAlarm2Action", automation.Action)
 ClearAlarmAction = ds3231_ns.class_("ClearAlarmAction", automation.Action)
+EnableAlarmAction = ds3231_ns.class_("EnableAlarmAction", automation.Action)
+DisableAlarmAction = ds3231_ns.class_("DisableAlarmAction", automation.Action)
 ForceTemperatureConversionAction = ds3231_ns.class_(
     "ForceTemperatureConversionAction", automation.Action
+)
+SetRefreshIntervalAction = ds3231_ns.class_(
+    "SetRefreshIntervalAction", automation.Action
 )
 
 
@@ -210,18 +217,15 @@ async def _set_templatable_alarm_fields(
             cg.add(var.set_day(templ))
 
 
-@automation.register_action(
-    "ds3231.clear_alarm",
-    ClearAlarmAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(DS3231Component),
-            cv.Required(CONF_ALARM): cv.one_of(1, 2, int=True),
-        }
-    ),
-    synchronous=True,
+_ALARM_NUMBER_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(DS3231Component),
+        cv.Required(CONF_ALARM): cv.one_of(1, 2, int=True),
+    }
 )
-async def ds3231_clear_alarm_to_code(
+
+
+async def _alarm_number_action_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
@@ -232,6 +236,42 @@ async def ds3231_clear_alarm_to_code(
     await cg.register_parented(var, config[CONF_ID])
     cg.add(var.set_alarm(config[CONF_ALARM]))
     return var
+
+
+@automation.register_action(
+    "ds3231.clear_alarm", ClearAlarmAction, _ALARM_NUMBER_SCHEMA, synchronous=True
+)
+async def ds3231_clear_alarm_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await _alarm_number_action_to_code(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    "ds3231.enable_alarm", EnableAlarmAction, _ALARM_NUMBER_SCHEMA, synchronous=True
+)
+async def ds3231_enable_alarm_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await _alarm_number_action_to_code(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    "ds3231.disable_alarm", DisableAlarmAction, _ALARM_NUMBER_SCHEMA, synchronous=True
+)
+async def ds3231_disable_alarm_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    return await _alarm_number_action_to_code(config, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -252,4 +292,31 @@ async def ds3231_force_temperature_conversion_to_code(
 ) -> MockObj:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@automation.register_action(
+    "ds3231.set_refresh_interval",
+    SetRefreshIntervalAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(DS3231Component),
+            cv.Required(CONF_REFRESH_INTERVAL): cv.templatable(
+                cv.positive_time_period_milliseconds
+            ),
+        }
+    ),
+    synchronous=True,
+)
+async def ds3231_set_refresh_interval_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    cg.add_define(USE_DS3231_REFRESH_INTERVAL)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    templ = await cg.templatable(config[CONF_REFRESH_INTERVAL], args, cg.uint32)
+    cg.add(var.set_refresh_interval(templ))
     return var
