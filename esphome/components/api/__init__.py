@@ -48,6 +48,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
 
 # Compat alias: downstream consumers (e.g. device-builder) referenced the
@@ -233,6 +234,9 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
+# ESP8266 copies every string of an action into a stack buffer sized by codegen; keep it small
+ESP8266_ACTION_STRINGS_MAX_TOTAL = 384
+
 _DEFAULT_VALUE_VALIDATORS = {
     "bool": cv.boolean,
     "int": cv.int_,
@@ -269,13 +273,6 @@ VARIABLE_SCHEMA = cv.All(
 
 # Accepts the plain `name: type` shorthand or the full mapping form
 validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
-
-
-def _default_to_wire(value: Any) -> str:
-    """Serialize a validated default for the wire; clients coerce by arg type."""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
 
 
 ACTIONS_SCHEMA = automation.validate_automation(
@@ -403,6 +400,124 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _has_action_metadata(actions: list[ConfigType]) -> bool:
+    # Empty strings count as unset, matching _action_strings
+    return any(
+        conf.get(CONF_DESCRIPTION)
+        or any(
+            var_.get(CONF_DESCRIPTION) or var_.get(CONF_EXAMPLE)
+            for var_ in conf[CONF_VARIABLES].values()
+        )
+        for conf in actions
+    )
+
+
+def _is_optional_var(var_: ConfigType) -> bool:
+    return CONF_DEFAULT in var_ or var_.get(CONF_REQUIRED) is False
+
+
+def _has_optional_args(actions: list[ConfigType]) -> bool:
+    return any(
+        _is_optional_var(var_)
+        for conf in actions
+        for var_ in conf[CONF_VARIABLES].values()
+    )
+
+
+def _default_to_wire(value: Any) -> str:
+    """Serialize a validated default for the wire; clients coerce by arg type."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _action_strings(
+    conf: ConfigType, has_metadata: bool, has_optional: bool
+) -> list[str | None]:
+    """Strings of one action in the table order UserServiceStatic (user_services.h) expects."""
+    # An empty description or example is treated as unset
+    strings: list[str | None] = [conf[CONF_ACTION]]
+    if has_metadata:
+        strings.append(conf.get(CONF_DESCRIPTION) or None)
+    for name, var_ in conf[CONF_VARIABLES].items():
+        strings.append(name)
+        if has_metadata:
+            strings += [
+                var_.get(CONF_DESCRIPTION) or None,
+                var_.get(CONF_EXAMPLE) or None,
+            ]
+        if has_optional:
+            default = var_.get(CONF_DEFAULT)
+            strings.append(None if default is None else _default_to_wire(default))
+    return strings
+
+
+def _action_strings_size(strings: list[str | None]) -> int:
+    """Bytes needed to copy every string out of flash, each with its terminator."""
+    return sum(
+        len(string.encode("utf-8")) + 1 for string in strings if string is not None
+    )
+
+
+def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
+    if not CORE.is_esp8266:
+        return config
+    actions = config.get(CONF_ACTIONS, [])
+    has_metadata = _has_action_metadata(actions)
+    has_optional = _has_optional_args(actions)
+    for conf in actions:
+        size = _action_strings_size(_action_strings(conf, has_metadata, has_optional))
+        if size > ESP8266_ACTION_STRINGS_MAX_TOTAL:
+            raise cv.Invalid(
+                f"Action '{conf[CONF_ACTION]}' has {size} bytes of name, variable name, "
+                f"description and example text; ESP8266 allows at most "
+                f"{ESP8266_ACTION_STRINGS_MAX_TOTAL} bytes per action"
+            )
+    return config
+
+
+def _validate_optional_arg_positions(config: ConfigType) -> ConfigType:
+    # The optional flags travel as a 32-bit mask (user_services.h)
+    for conf in config.get(CONF_ACTIONS, []):
+        for i, var_ in enumerate(conf[CONF_VARIABLES].values()):
+            if i >= 32 and _is_optional_var(var_):
+                raise cv.Invalid(
+                    f"Action '{conf[CONF_ACTION]}' has an optional variable past "
+                    f"position 32; only the first 32 variables can be optional"
+                )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _validate_esp8266_action_strings, _validate_optional_arg_positions
+)
+
+
+def _add_action_strings(
+    index: int, strings: list[str | None], interned: dict[str, MockObj]
+) -> MockObj:
+    """Emit the PROGMEM string table for one action.
+
+    Each string is its own PROGMEM array because on ESP8266 .rodata is RAM, and identical
+    strings are shared between actions through `interned`.
+    """
+    entries: list[MockObj] = []
+    for string in strings:
+        if string is None:
+            entries.append(cg.nullptr)
+            continue
+        if (var := interned.get(string)) is None:
+            var = interned[string] = cg.progmem_array(
+                ID(f"api_action_str{len(interned)}", is_declaration=True, type=cg.char),
+                string,
+            )
+        entries.append(var)
+    return cg.progmem_array(
+        ID(f"api_action{index}_strings", is_declaration=True, type=cg.const_char_ptr),
+        entries,
+    )
+
+
 @coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -422,8 +537,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
+    actions = config.get(CONF_ACTIONS, [])
+    has_user_actions = bool(actions) or config[CONF_CUSTOM_SERVICES]
     # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
-    if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
+    if has_user_actions:
         cg.add_define("USE_API_USER_DEFINED_ACTIONS")
 
     # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
@@ -436,10 +553,20 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
-    if actions := config.get(CONF_ACTIONS, []):
+    scratch_size = 0
+    if actions:
+        # Metadata is compiled in for every action once any action declares it, because the
+        # string table layout is fixed by the define rather than per action
+        has_metadata = _has_action_metadata(actions)
+        if has_metadata:
+            cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
+        has_optional = _has_optional_args(actions)
+        if has_optional:
+            cg.add_define("USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS")
+        interned_strings: dict[str, MockObj] = {}
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.MockObj] = []
-        for conf in actions:
+        for index, conf in enumerate(actions):
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
 
@@ -472,14 +599,7 @@ async def to_code(config: ConfigType) -> None:
                 conf.get(CONF_THEN, [])
             )
 
-            service_arg_names: list[str] = []
-            arg_descriptions: list[cg.MockObj | str] = []
-            arg_examples: list[cg.MockObj | str] = []
-            arg_defaults: list[cg.MockObj | str] = []
-            optional_mask = 0
-            has_arg_metadata = False
-            has_optional_args = False
-            for i, (name, var_) in enumerate(conf[CONF_VARIABLES].items()):
+            for name, var_ in conf[CONF_VARIABLES].items():
                 var_type = var_[CONF_TYPE]
                 if has_non_synchronous and var_type in SERVICE_ARG_FALLBACK_TYPES:
                     native = SERVICE_ARG_FALLBACK_TYPES[var_type]
@@ -487,42 +607,25 @@ async def to_code(config: ConfigType) -> None:
                     native = SERVICE_ARG_NATIVE_TYPES[var_type]
                 service_template_args.append(native)
                 func_args.append((native, name))
-                service_arg_names.append(name)
-                if CONF_DESCRIPTION in var_ or CONF_EXAMPLE in var_:
-                    has_arg_metadata = True
-                arg_descriptions.append(var_.get(CONF_DESCRIPTION, cg.nullptr))
-                arg_examples.append(var_.get(CONF_EXAMPLE, cg.nullptr))
-                if (default := var_.get(CONF_DEFAULT)) is not None:
-                    has_optional_args = True
-                    arg_defaults.append(_default_to_wire(default))
-                else:
-                    arg_defaults.append(cg.nullptr)
-                    if var_.get(CONF_REQUIRED) is False:
-                        has_optional_args = True
-                        optional_mask |= 1 << i
+            strings = _action_strings(conf, has_metadata, has_optional)
+            table = _add_action_strings(index, strings, interned_strings)
+            if CORE.is_esp8266:
+                scratch_size = max(scratch_size, _action_strings_size(strings))
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
+            # Key is hashed here because the name is not readable at runtime on ESP8266
             trigger = cg.new_Pvariable(
-                conf[CONF_TRIGGER_ID],
-                templ,
-                conf[CONF_ACTION],
-                service_arg_names,
+                conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
             )
-            triggers.append(trigger)
-            if (
-                description := conf.get(CONF_DESCRIPTION)
-            ) is not None or has_arg_metadata:
-                cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
-                cg.add(
-                    trigger.set_metadata(
-                        description if description is not None else cg.nullptr,
-                        arg_descriptions,
-                        arg_examples,
-                    )
+            if has_optional and (
+                optional_mask := sum(
+                    1 << i
+                    for i, var_ in enumerate(conf[CONF_VARIABLES].values())
+                    if _is_optional_var(var_)
                 )
-            if has_optional_args:
-                cg.add_define("USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS")
-                cg.add(trigger.set_optional_args(optional_mask, arg_defaults))
+            ):
+                cg.add(trigger.set_optional_args_mask(optional_mask))
+            triggers.append(trigger)
             auto = await automation.build_automation(trigger, func_args, conf)
 
             # For non-none response modes, automatically append unregister action
@@ -542,6 +645,9 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(auto.add_actions([unregister_action]))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
+    if CORE.is_esp8266 and has_user_actions:
+        # Stack buffer that list-entities copies PROGMEM strings into, sized for the largest action
+        cg.add_define("API_USER_ACTION_STRINGS_SCRATCH_SIZE", max(scratch_size, 1))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")

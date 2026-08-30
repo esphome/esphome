@@ -19,7 +19,7 @@ namespace esphome::modbus {
 // Tx queue backstop: duplicates dedup into one entry, so only a runaway generator of distinct frames
 // (e.g. a loop writing a changing value) could grow the heap unboundedly.
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 128;
-static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
+static constexpr uint16_t MODBUS_TX_MAX_DELAY_US = 5000;
 
 // Typical frames -- reads and single-register/coil writes -- are exactly 8 bytes
 // (address + 5-byte PDU + 2-byte CRC).
@@ -70,12 +70,18 @@ class Modbus : public uart::UARTDevice, public Component {
   bool send_frame_(const ModbusFrame &frame);
   uint16_t find_frame_end_by_crc_(uint16_t min_length) const;
 
+  // All timestamps and durations below are micros()-based
   uint32_t last_modbus_byte_{0};
   uint32_t last_receive_check_{0};
   uint32_t last_send_{0};
   uint32_t last_send_tx_offset_{0};
-  uint16_t frame_delay_ms_{5};
-  uint16_t long_rx_buffer_delay_ms_{0};
+  uint32_t frame_delay_us_{5000};
+  uint32_t long_rx_buffer_delay_us_{0};
+  uint32_t rx_detect_latency_us_{0};
+  // Bits on the wire per character (start + data + optional parity + stop); 12 at most.
+  uint8_t bits_per_char_{11};
+  // Latched when a read reaches rx_full_threshold, cleared when the buffer drains.
+  bool exceeded_rx_full_threshold_{false};
 
   GPIOPin *flow_control_pin_{nullptr};
 
@@ -232,8 +238,9 @@ class ModbusClientHub : public Modbus {
   ModbusClientHub() = default;
   void dump_config() override;
   void loop() override;
-  void set_send_wait_time(uint16_t time_in_ms) { this->send_wait_time_ = time_in_ms; }
-  void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_ms_ = time_in_ms; }
+  // Config arrives in milliseconds; stored internally in microseconds like all other timing.
+  void set_send_wait_time(uint16_t time_in_ms) { this->send_wait_time_us_ = time_in_ms * 1000UL; }
+  void set_turnaround_time(uint16_t time_in_ms) { this->turnaround_delay_us_ = time_in_ms * 1000UL; }
   bool tx_buffer_empty();
   bool tx_blocked() override;
   ESPDEPRECATED("Use queue_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
@@ -279,8 +286,8 @@ class ModbusClientHub : public Modbus {
   // End the wait for a response on send-wait timeout (the loop() watchdog body); see FrameState.
   void expire_waiting_();
 
-  uint16_t send_wait_time_{2000};
-  uint16_t turnaround_delay_ms_{0};
+  uint32_t send_wait_time_us_{2000000};
+  uint32_t turnaround_delay_us_{0};
 
   // Set on transmit, cleared on the transaction-ending transition; send_next_frame_ won't select
   // while it is set, so at most one frame is awaiting a response.
