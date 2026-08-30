@@ -228,10 +228,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-  if (this->always_rx_timeout_) {
-    uart_set_always_rx_timeout(this->uart_num_, true);
-  }
-
   // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
   auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
   err = uart_set_mode(this->uart_num_, mode);
@@ -302,13 +298,6 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
     }
   }
   this->rx_timeout_ = rx_timeout;
-}
-
-void IDFUARTComponent::set_always_rx_timeout(bool always_rx_timeout) {
-  if (this->is_ready()) {
-    uart_set_always_rx_timeout(this->uart_num_, always_rx_timeout);
-  }
-  this->always_rx_timeout_ = always_rx_timeout;
 }
 
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {

@@ -134,10 +134,6 @@ class UARTComponent {
   // @return RX timeout interrupt threshold (unit: time of sending one byte).
   size_t get_rx_timeout() { return this->rx_timeout_; }
 
-  // Forces the RX timeout interrupt to fire even when the RX FIFO full threshold has already
-  // triggered, so end-of-frame detection latency is always exactly rx_timeout character-times.
-  virtual void set_always_rx_timeout(bool always_rx_timeout) {}
-
   // Sets the number of stop bits used in UART communication.
   // @param stop_bits Number of stop bits.
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
