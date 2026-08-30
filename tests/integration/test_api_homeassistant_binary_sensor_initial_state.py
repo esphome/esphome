@@ -14,6 +14,7 @@ ENTITIES = (
     "binary_sensor.default",
     "binary_sensor.unavailable_first",
     "binary_sensor.initial_off",
+    "binary_sensor.default_unavail",
 )
 
 
@@ -51,10 +52,18 @@ async def test_api_homeassistant_binary_sensor_initial_state(
             "binary_sensor.unavailable_first", "", "unavailable"
         )
         client.send_home_assistant_state("binary_sensor.unavailable_first", "", "on")
+        client.send_home_assistant_state(
+            "binary_sensor.default_unavail", "", "unavailable"
+        )
+        client.send_home_assistant_state("binary_sensor.default_unavail", "", "on")
         client.send_home_assistant_state("binary_sensor.initial_off", "", "off")
 
         await waiter.wait_for("initial_on on_press", timeout=5.0)
         await waiter.wait_for("unavailable_first on_press", timeout=5.0)
+        # Pin that the 'unavailable' message actually arrived and was rejected
+        await waiter.wait_for(
+            "Can't convert 'unavailable' to binary state", timeout=5.0
+        )
         # initial_off is the last state sent, so this wait also proves the
         # earlier 'default' initial state was already processed
         await waiter.wait_for("initial_off on_release", timeout=5.0)
@@ -64,6 +73,8 @@ async def test_api_homeassistant_binary_sensor_initial_state(
             "initial_on on_release",
             "default on_press",
             "default on_release",
+            "default_unavail on_press",
+            "default_unavail on_release",
             "unavailable_first on_release",
             "initial_off on_press",
         ):
@@ -76,9 +87,11 @@ async def test_api_homeassistant_binary_sensor_initial_state(
         client.send_home_assistant_state("binary_sensor.default", "", "off")
         client.send_home_assistant_state("binary_sensor.unavailable_first", "", "off")
         client.send_home_assistant_state("binary_sensor.initial_off", "", "on")
+        client.send_home_assistant_state("binary_sensor.default_unavail", "", "off")
         for text in (
             "initial_on on_release",
             "default on_release",
+            "default_unavail on_release",
             "unavailable_first on_release",
             "initial_off on_press",
         ):

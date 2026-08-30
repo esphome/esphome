@@ -47,3 +47,13 @@ binary_sensor:
       - logger.log: "initial_off on_press"
     on_release:
       - logger.log: "initial_off on_release"
+
+  # Same 'unavailable' first shape without the flag; must stay quiet on the
+  # first real state and only fire on the later change
+  - platform: homeassistant
+    name: Default Unavailable First
+    entity_id: binary_sensor.default_unavail
+    on_press:
+      - logger.log: "default_unavail on_press"
+    on_release:
+      - logger.log: "default_unavail on_release"
