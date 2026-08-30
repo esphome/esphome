@@ -35,11 +35,10 @@ class UserServiceDescriptor {
 #endif
 
   bool is_internal() { return false; }
-
- protected:
-  /// StringRef to `name`; on ESP8266 the bytes are first copied out of PROGMEM into `scratch`.
-  static StringRef name_ref_(const char *name, std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch);
 };
+
+/// StringRef to a PROGMEM action `name`; on ESP8266 the bytes are first copied into `scratch`.
+StringRef action_name_ref(const char *name, std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch);
 
 template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
 
@@ -57,7 +56,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
   ListEntitiesServicesResponse encode_list_service_response(
       std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch) override {
     ListEntitiesServicesResponse msg;
-    msg.name = name_ref_(this->name_, scratch);
+    msg.name = action_name_ref(this->name_, scratch);
     msg.key = this->key_;
     msg.supports_response = this->supports_response_;
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};

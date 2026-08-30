@@ -5,8 +5,7 @@
 
 namespace esphome::api {
 
-StringRef UserServiceDescriptor::name_ref_(const char *name,
-                                           [[maybe_unused]] std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch) {
+StringRef action_name_ref(const char *name, [[maybe_unused]] std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch) {
 #ifdef USE_ESP8266
   ESPHOME_strncpy_P(scratch.data(), name, scratch.size() - 1);
   scratch[scratch.size() - 1] = '\0';
