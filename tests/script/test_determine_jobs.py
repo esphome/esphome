@@ -552,6 +552,13 @@ def test_determine_integration_tests(
         assert run_all is True
         assert test_files == []
 
+    # Dependency pins and the session init fixture trigger run_all
+    for trigger in sorted(determine_jobs.INTEGRATION_TESTS_TRIGGER_FILES):
+        with patch.object(determine_jobs, "changed_files", return_value=[trigger]):
+            run_all, test_files = determine_jobs.determine_integration_tests()
+            assert run_all is True
+            assert test_files == []
+
     # Python files directly in esphome/ do NOT trigger tests
     with patch.object(
         determine_jobs, "changed_files", return_value=["esphome/config.py"]

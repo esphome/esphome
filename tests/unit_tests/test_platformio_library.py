@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.core import EsphomeError, Library
+from esphome.core import CORE, EsphomeError, Library
 import esphome.platformio.library as lib
 from esphome.platformio.library import (
     SOURCE_KIND_FOR_SUFFIX,
@@ -29,9 +29,13 @@ from esphome.platformio.library import (
 )
 
 
-def _backend(emit=lambda component: None) -> LibraryBackend:
+def _backend(emit=lambda component: None, provides=None) -> LibraryBackend:
     return LibraryBackend(
-        platform="espressif32", framework="espidf", emit=emit, cache_key="idf"
+        platform="espressif32",
+        framework="espidf",
+        emit=emit,
+        cache_key="idf",
+        provides=provides,
     )
 
 
@@ -952,3 +956,202 @@ def test_source_kind_map_shape() -> None:
     assert SOURCE_KIND_FOR_SUFFIX[".S"] == "aspp"
     assert SOURCE_KIND_FOR_SUFFIX[".c"] == "c"
     assert SOURCE_KIND_FOR_SUFFIX[".cpp"] == "cxx"
+    # SCons's case-sensitive C++ suffixes: PIO compiles .C as C++
+    assert SOURCE_KIND_FOR_SUFFIX[".C"] == "cxx"
+    assert SOURCE_KIND_FOR_SUFFIX[".C++"] == "cxx"
+
+
+def test_versionless_platform_filtered_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less dependency the platform filter excludes is
+    deliberately absent, not a drop to warn about."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "Hash", "platforms": "espressif8266"}],
+            }
+        },
+    )
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_ignored_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A lib_ignore'd version-less dependency is deliberately excluded, not
+    a drop; no reconciliation warning."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]}},
+    )
+    CORE.platformio_options = {"lib_ignore": ["Hash"]}
+    convert_libraries([Library("esphome/A", None, None)], _backend())
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_dependency_without_provider_warns(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A backend whose tree could supply the name warns on the drop; one
+    without provides() can never act on it, so it stays at debug."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                # The duplicate entry warns once (reconciliation dedup)
+                "dependencies": [{"name": "Hash"}, {"name": "Hash"}],
+            }
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
+    )
+    assert (
+        caplog.text.count(
+            "Hash of esphome/A has no version to resolve and nothing provides it"
+        )
+        == 1
+    )
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG):
+        convert_libraries([Library("esphome/A", None, None)], _backend())
+    records = [
+        r
+        for r in caplog.records
+        if "has no version to resolve and nothing provides it" in r.message
+    ]
+    assert records and all(r.levelno == logging.DEBUG for r in records)
+
+
+def test_url_version_dependency_is_not_substituted_by_provides(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A URL-valued version names one specific source; the backend-provided
+    skip must not replace it with the bundled copy."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [
+                    {"name": "Hash", "version": "https://github.com/o/Hash.git"}
+                ],
+            },
+            "o/Hash": {"name": "Hash"},
+        },
+    )
+    emitted: list[str] = []
+    convert_libraries(
+        [Library("esphome/A", "1.0.0", None)],
+        _backend(emit=lambda c: emitted.append(c.name), provides=lambda name: True),
+    )
+    assert "Skip backend-provided" not in caplog.text
+    assert "using the library bundled" not in caplog.text
+    assert any("o/hash" in n.lower() for n in emitted)
+
+
+def test_versionless_owner_qualified_dependency_warns_despite_provides(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An owner-qualified version-less dependency is not satisfied by
+    provides(); it must still warn."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {
+                "name": "A",
+                "dependencies": [{"name": "Wire", "owner": "Foo"}],
+            }
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)],
+        _backend(provides=lambda name: name == "Wire"),
+    )
+    assert "Wire of esphome/A has no version to resolve" in caplog.text
+
+
+def test_versionless_provided_dependency_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An owner-less version-less dependency the backend provides is added
+    by the backend after emit; no reconciliation warning."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "Wire"}]}},
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)],
+        _backend(provides=lambda name: name == "Wire"),
+    )
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_dependency_requested_top_level_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A version-less dependency the config also requests top-level is in
+    the build; no drop warning even without a provides backend."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "Hash"}]},
+            "Hash": {"name": "Hash"},
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None), Library("Hash", None, None)],
+        _backend(),
+    )
+    assert "has no version to resolve" not in caplog.text
+
+
+def test_versionless_url_ish_dependency_name_warns_cleanly(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A malformed URL-ish dependency name falls to the drop warning, never
+    a RuntimeError out of the key parser."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {"esphome/A": {"name": "A", "dependencies": [{"name": "file://"}]}},
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None)], _backend(provides=lambda name: False)
+    )
+    assert (
+        "file:// of esphome/A has no version to resolve and nothing provides it"
+        in caplog.text
+    )
+
+
+def test_versionless_dependency_matching_resolved_manifest_name_stays_quiet(
+    tmp_path, monkeypatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bare name satisfied by an owner-qualified component's manifest
+    name is not a drop."""
+    _patch_download_with_manifests(
+        monkeypatch,
+        tmp_path,
+        {
+            "esphome/A": {"name": "A", "dependencies": [{"name": "B"}]},
+            "esphome/B": {"name": "B"},
+        },
+    )
+    convert_libraries(
+        [Library("esphome/A", None, None), Library("esphome/B", None, None)],
+        _backend(),
+    )
+    assert "has no version to resolve" not in caplog.text
