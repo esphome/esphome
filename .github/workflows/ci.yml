@@ -153,7 +153,9 @@ jobs:
           # Extract individual fields
           echo "core-ci=$(echo "$output" | jq -r '.core_ci')" >> $GITHUB_OUTPUT
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
-          echo "integration-run-all=$(echo "$output" | jq -r '.integration_run_all')" >> $GITHUB_OUTPUT
+          # A missing key must fail here, not silently disable the junit upload
+          run_all=$(echo "$output" | jq -r 'if has("integration_run_all") then .integration_run_all else error("integration_run_all missing") end')
+          echo "integration-run-all=${run_all}" >> $GITHUB_OUTPUT
           echo "integration-test-buckets=$(echo "$output" | jq -c '.integration_test_buckets')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
@@ -442,7 +444,8 @@ jobs:
           name: junit-integration-${{ strategy.job-index }}
           path: junit-integration.xml
           if-no-files-found: error
-          retention-days: 7
+          # A full cron period of margin for the weekly refresh
+          retention-days: 14
       - name: Print ccache statistics
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py).

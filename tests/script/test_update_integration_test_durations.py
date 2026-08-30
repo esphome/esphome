@@ -29,14 +29,12 @@ def _write_junit(path: Path, testcases: str) -> None:
 
 
 def test_collect_durations_sums_per_file(tmp_path: Path) -> None:
-    """Testcases from the same module sum; other suites are ignored."""
+    """Testcases from the same module sum."""
     _write_junit(
         tmp_path / "a.xml",
         '<testcase classname="tests.integration.test_a" name="t1" time="1.5"/>'
         '<testcase classname="tests.integration.test_a" name="t2" time="2.0"/>'
-        '<testcase classname="tests.integration.test_b" name="t1" time="4.0"/>'
-        '<testcase classname="tests.unit_tests.test_x" name="t1" time="9.0"/>'
-        '<testcase classname="" name="anon" time="9.0"/>',
+        '<testcase classname="tests.integration.test_b" name="t1" time="4.0"/>',
     )
     assert uitd.collect_durations(tmp_path, KNOWN) == {
         "tests/integration/test_a.py": 3.5,
@@ -75,6 +73,16 @@ def test_collect_durations_skips_skipped_testcases(tmp_path: Path) -> None:
         "<skipped/></testcase>",
     )
     assert uitd.collect_durations(tmp_path, KNOWN) == {}
+
+
+def test_collect_durations_unexpected_classname_aborts(tmp_path: Path) -> None:
+    """A classname outside tests.integration means the junit layout changed."""
+    _write_junit(
+        tmp_path / "a.xml",
+        '<testcase classname="tests.unit_tests.test_x" name="t" time="9.0"/>',
+    )
+    with pytest.raises(SystemExit):
+        uitd.collect_durations(tmp_path, KNOWN)
 
 
 def test_collect_durations_empty_dir_aborts(tmp_path: Path) -> None:

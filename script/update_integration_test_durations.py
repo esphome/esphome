@@ -44,9 +44,9 @@ def collect_durations(junit_dir: Path, known_files: set[str]) -> dict[str, float
         for testcase in ET.parse(xml_file).getroot().iter("testcase"):
             # Skipped/errored testcases carry time="0"; recording them would
             # overwrite a good previous duration
-            if (
-                testcase.find("skipped") is not None
-                or testcase.find("error") is not None
+            if any(
+                testcase.find(tag) is not None
+                for tag in ("skipped", "error", "failure")
             ):
                 continue
             # classname is the dotted module plus any test class, e.g.
@@ -62,9 +62,8 @@ def collect_durations(junit_dir: Path, known_files: set[str]) -> dict[str, float
             durations[path] += float(testcase.get("time", "0"))
     if unmatched:
         # A junit naming change would otherwise shrink the recording silently
-        print(
-            f"skipped {unmatched} testcases with unexpected classnames",
-            file=sys.stderr,
+        raise SystemExit(
+            f"{unmatched} testcases with unexpected classnames; the junit layout changed"
         )
     # An all-skipped file totals 0.0; let the merge keep its previous entry
     return {k: v for k, v in durations.items() if v > 0}
@@ -91,9 +90,12 @@ def main() -> int:
             "use a full matrix run or pass --allow-partial to merge anyway"
         )
 
-    # Validated load: a bad previous entry cannot survive the round trip.
-    # New recordings win, absent files keep theirs, deleted files drop out
+    # Validated load: a bad previous entry cannot survive the round trip, and
+    # an unreadable file aborts rather than being overwritten
     previous = load_integration_durations()
+    if DURATIONS_FILE.is_file() and not previous:
+        raise SystemExit(f"{DURATIONS_FILE} is unreadable; refusing to overwrite it")
+    # New recordings win, absent files keep theirs, deleted files drop out
     merged = {
         path: collected.get(path, previous.get(path))
         for path in sorted(on_disk)
