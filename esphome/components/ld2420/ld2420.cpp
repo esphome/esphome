@@ -64,6 +64,8 @@ static const char *const TAG = "ld2420";
 
 // Local const's
 static constexpr uint16_t REFRESH_RATE_MS = 1000;
+static constexpr uint32_t CMD_ACK_TIMEOUT_MS = 1000;
+static constexpr uint8_t CMD_MAX_RETRIES = 3;
 
 // Command sets
 static constexpr uint16_t CMD_DISABLE_CONF = 0x00FE;
@@ -631,37 +633,39 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   }
 }
 
+void LD2420Component::write_cmd_frame_(const CmdFrameT &frame) {
+  uint8_t cmd_buffer[MAX_LINE_LENGTH];
+  uint16_t length = 0;
+  const uint16_t frame_data_bytes = frame.data_length + 2;  // Always add two bytes for the cmd size
+
+  memcpy(&cmd_buffer[length], &frame.header, sizeof(frame.header));
+  length += sizeof(frame.header);
+
+  memcpy(&cmd_buffer[length], &frame_data_bytes, sizeof(frame.data_length));
+  length += sizeof(frame.data_length);
+
+  memcpy(&cmd_buffer[length], &frame.command, sizeof(frame.command));
+  length += sizeof(frame.command);
+
+  memcpy(&cmd_buffer[length], frame.data, frame.data_length);
+  length += frame.data_length;
+
+  memcpy(&cmd_buffer[length], &frame.footer, sizeof(frame.footer));
+  length += sizeof(frame.footer);
+  this->write_array(cmd_buffer, length);
+}
+
 int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
   uint32_t start_millis = millis();
   uint8_t error = 0;
   uint8_t ack_buffer[MAX_LINE_LENGTH];
-  uint8_t cmd_buffer[MAX_LINE_LENGTH];
   this->cmd_reply_.ack = false;
   if (frame.command != CMD_RESTART) {
     this->cmd_active_ = true;
   }  // Restart does not reply, thus no ack state required
-  uint8_t retry = 3;
+  uint8_t retry = CMD_MAX_RETRIES;
   while (retry) {
-    frame.length = 0;
-    uint16_t frame_data_bytes = frame.data_length + 2;  // Always add two bytes for the cmd size
-
-    memcpy(&cmd_buffer[frame.length], &frame.header, sizeof(frame.header));
-    frame.length += sizeof(frame.header);
-
-    memcpy(&cmd_buffer[frame.length], &frame_data_bytes, sizeof(frame.data_length));
-    frame.length += sizeof(frame.data_length);
-
-    memcpy(&cmd_buffer[frame.length], &frame.command, sizeof(frame.command));
-    frame.length += sizeof(frame.command);
-
-    for (uint16_t index = 0; index < frame.data_length; index++) {
-      memcpy(&cmd_buffer[frame.length], &frame.data[index], sizeof(frame.data[index]));
-      frame.length += sizeof(frame.data[index]);
-    }
-
-    memcpy(cmd_buffer + frame.length, &frame.footer, sizeof(frame.footer));
-    frame.length += sizeof(frame.footer);
-    this->write_array(cmd_buffer, frame.length);
+    this->write_cmd_frame_(frame);
 
     error = 0;
     if (frame.command == CMD_RESTART) {
@@ -674,7 +678,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       }
       delay_microseconds_safe(1450);
       // Wait on an Rx from the LD2420 for up to 3 1 second loops, otherwise it could trigger a WDT.
-      if ((millis() - start_millis) > 1000) {
+      if ((millis() - start_millis) > CMD_ACK_TIMEOUT_MS) {
         start_millis = millis();
         error = LD2420_ERROR_TIMEOUT;
         retry--;
@@ -691,16 +695,20 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
   return error;
 }
 
+void LD2420Component::build_config_mode_frame_(CmdFrameT &frame, bool enable) {
+  frame.data_length = 0;
+  frame.header = CMD_FRAME_HEADER;
+  frame.command = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
+  if (enable) {
+    memcpy(&frame.data[0], &CMD_PROTOCOL_VER, sizeof(CMD_PROTOCOL_VER));
+    frame.data_length += sizeof(CMD_PROTOCOL_VER);
+  }
+  frame.footer = CMD_FRAME_FOOTER;
+}
+
 uint8_t LD2420Component::set_config_mode(bool enable) {
   CmdFrameT cmd_frame;
-  cmd_frame.data_length = 0;
-  cmd_frame.header = CMD_FRAME_HEADER;
-  cmd_frame.command = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
-  if (enable) {
-    memcpy(&cmd_frame.data[0], &CMD_PROTOCOL_VER, sizeof(CMD_PROTOCOL_VER));
-    cmd_frame.data_length += sizeof(CMD_PROTOCOL_VER);
-  }
-  cmd_frame.footer = CMD_FRAME_FOOTER;
+  this->build_config_mode_frame_(cmd_frame, enable);
   ESP_LOGV(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
 }
@@ -715,18 +723,6 @@ void LD2420Component::ld2420_restart() {
   cmd_frame.command = CMD_RESTART;
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending restart command: %2X", cmd_frame.command);
-  this->send_cmd_from_array(cmd_frame);
-}
-
-void LD2420Component::get_reg_value_(uint16_t reg) {
-  CmdFrameT cmd_frame;
-  cmd_frame.data_length = 0;
-  cmd_frame.header = CMD_FRAME_HEADER;
-  cmd_frame.command = CMD_READ_REGISTER;
-  cmd_frame.data[1] = reg;
-  cmd_frame.data_length += 2;
-  cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending read register %4X command: %2X", reg, cmd_frame.command);
   this->send_cmd_from_array(cmd_frame);
 }
 
@@ -753,19 +749,22 @@ void LD2420Component::handle_cmd_error(uint16_t error) {
   }
 }
 
+void LD2420Component::build_gate_threshold_frame_(CmdFrameT &frame, uint8_t gate) {
+  frame.data_length = 0;
+  frame.header = CMD_FRAME_HEADER;
+  frame.command = CMD_READ_ABD_PARAM;
+  memcpy(&frame.data[frame.data_length], &CMD_GATE_MOVE_THRESH[gate], sizeof(CMD_GATE_MOVE_THRESH[gate]));
+  frame.data_length += 2;
+  memcpy(&frame.data[frame.data_length], &CMD_GATE_STILL_THRESH[gate], sizeof(CMD_GATE_STILL_THRESH[gate]));
+  frame.data_length += 2;
+  frame.footer = CMD_FRAME_FOOTER;
+  ESP_LOGV(TAG, "Sending read gate %d high/low threshold command: %2X", gate, frame.command);
+}
+
 int LD2420Component::get_gate_threshold_(uint8_t gate) {
-  uint8_t error;
   CmdFrameT cmd_frame;
-  cmd_frame.data_length = 0;
-  cmd_frame.header = CMD_FRAME_HEADER;
-  cmd_frame.command = CMD_READ_ABD_PARAM;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_GATE_MOVE_THRESH[gate], sizeof(CMD_GATE_MOVE_THRESH[gate]));
-  cmd_frame.data_length += 2;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_GATE_STILL_THRESH[gate], sizeof(CMD_GATE_STILL_THRESH[gate]));
-  cmd_frame.data_length += 2;
-  cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending read gate %d high/low threshold command: %2X", gate, cmd_frame.command);
-  error = this->send_cmd_from_array(cmd_frame);
+  this->build_gate_threshold_frame_(cmd_frame, gate);
+  uint8_t error = this->send_cmd_from_array(cmd_frame);
   if (error == 0) {
     this->current_config.move_thresh[gate] = cmd_reply_.data[0];
     this->current_config.still_thresh[gate] = cmd_reply_.data[1];
@@ -773,24 +772,27 @@ int LD2420Component::get_gate_threshold_(uint8_t gate) {
   return error;
 }
 
-int LD2420Component::get_min_max_distances_timeout_() {
-  uint8_t error;
-  CmdFrameT cmd_frame;
-  cmd_frame.data_length = 0;
-  cmd_frame.header = CMD_FRAME_HEADER;
-  cmd_frame.command = CMD_READ_ABD_PARAM;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_MIN_GATE_REG,
+void LD2420Component::build_min_max_timeout_frame_(CmdFrameT &frame) {
+  frame.data_length = 0;
+  frame.header = CMD_FRAME_HEADER;
+  frame.command = CMD_READ_ABD_PARAM;
+  memcpy(&frame.data[frame.data_length], &CMD_MIN_GATE_REG,
          sizeof(CMD_MIN_GATE_REG));  // Register: global min detect gate number
-  cmd_frame.data_length += sizeof(CMD_MIN_GATE_REG);
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_MAX_GATE_REG,
+  frame.data_length += sizeof(CMD_MIN_GATE_REG);
+  memcpy(&frame.data[frame.data_length], &CMD_MAX_GATE_REG,
          sizeof(CMD_MAX_GATE_REG));  // Register: global max detect gate number
-  cmd_frame.data_length += sizeof(CMD_MAX_GATE_REG);
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_TIMEOUT_REG,
+  frame.data_length += sizeof(CMD_MAX_GATE_REG);
+  memcpy(&frame.data[frame.data_length], &CMD_TIMEOUT_REG,
          sizeof(CMD_TIMEOUT_REG));  // Register: global delay time
-  cmd_frame.data_length += sizeof(CMD_TIMEOUT_REG);
-  cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending read gate min max and timeout command: %2X", cmd_frame.command);
-  error = this->send_cmd_from_array(cmd_frame);
+  frame.data_length += sizeof(CMD_TIMEOUT_REG);
+  frame.footer = CMD_FRAME_FOOTER;
+  ESP_LOGV(TAG, "Sending read gate min max and timeout command: %2X", frame.command);
+}
+
+int LD2420Component::get_min_max_distances_timeout_() {
+  CmdFrameT cmd_frame;
+  this->build_min_max_timeout_frame_(cmd_frame);
+  uint8_t error = this->send_cmd_from_array(cmd_frame);
   if (error == 0) {
     this->current_config.min_gate = (uint16_t) cmd_reply_.data[0];
     this->current_config.max_gate = (uint16_t) cmd_reply_.data[1];
@@ -799,33 +801,40 @@ int LD2420Component::get_min_max_distances_timeout_() {
   return error;
 }
 
+void LD2420Component::build_system_mode_frame_(CmdFrameT &frame, uint16_t mode) {
+  uint16_t unknown_parm = 0x0000;
+  frame.data_length = 0;
+  frame.header = CMD_FRAME_HEADER;
+  frame.command = CMD_WRITE_SYS_PARAM;
+  memcpy(&frame.data[frame.data_length], &CMD_SYSTEM_MODE, sizeof(CMD_SYSTEM_MODE));
+  frame.data_length += sizeof(CMD_SYSTEM_MODE);
+  memcpy(&frame.data[frame.data_length], &mode, sizeof(mode));
+  frame.data_length += sizeof(mode);
+  memcpy(&frame.data[frame.data_length], &unknown_parm, sizeof(unknown_parm));
+  frame.data_length += sizeof(unknown_parm);
+  frame.footer = CMD_FRAME_FOOTER;
+  ESP_LOGV(TAG, "Sending write system mode command: %2X", frame.command);
+}
+
 void LD2420Component::set_system_mode(uint16_t mode) {
   CmdFrameT cmd_frame;
-  uint16_t unknown_parm = 0x0000;
-  cmd_frame.data_length = 0;
-  cmd_frame.header = CMD_FRAME_HEADER;
-  cmd_frame.command = CMD_WRITE_SYS_PARAM;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &CMD_SYSTEM_MODE, sizeof(CMD_SYSTEM_MODE));
-  cmd_frame.data_length += sizeof(CMD_SYSTEM_MODE);
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &mode, sizeof(mode));
-  cmd_frame.data_length += sizeof(mode);
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &unknown_parm, sizeof(unknown_parm));
-  cmd_frame.data_length += sizeof(unknown_parm);
-  cmd_frame.footer = CMD_FRAME_FOOTER;
-  ESP_LOGV(TAG, "Sending write system mode command: %2X", cmd_frame.command);
+  this->build_system_mode_frame_(cmd_frame, mode);
   if (this->send_cmd_from_array(cmd_frame) == 0) {
     this->set_mode_(mode);
   }
 }
 
+void LD2420Component::build_version_frame_(CmdFrameT &frame) {
+  frame.data_length = 0;
+  frame.header = CMD_FRAME_HEADER;
+  frame.command = CMD_READ_VERSION;
+  frame.footer = CMD_FRAME_FOOTER;
+  ESP_LOGV(TAG, "Sending read firmware version command: %2X", frame.command);
+}
+
 void LD2420Component::get_firmware_version_() {
   CmdFrameT cmd_frame;
-  cmd_frame.data_length = 0;
-  cmd_frame.header = CMD_FRAME_HEADER;
-  cmd_frame.command = CMD_READ_VERSION;
-  cmd_frame.footer = CMD_FRAME_FOOTER;
-
-  ESP_LOGV(TAG, "Sending read firmware version command: %2X", cmd_frame.command);
+  this->build_version_frame_(cmd_frame);
   this->send_cmd_from_array(cmd_frame);
 }
 

@@ -45,7 +45,6 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   struct CmdFrameT {
     uint32_t header{0};
     uint32_t footer{0};
-    uint16_t length{0};
     uint16_t command{0};
     uint16_t data_length{0};
     uint8_t data[18];
@@ -155,8 +154,13 @@ class LD2420Component final : public Component, public uart::UARTDevice {
 
   void get_firmware_version_();
   int get_gate_threshold_(uint8_t gate);
-  void get_reg_value_(uint16_t reg);
   int get_min_max_distances_timeout_();
+  void write_cmd_frame_(const CmdFrameT &frame);
+  void build_config_mode_frame_(CmdFrameT &frame, bool enable);
+  void build_min_max_timeout_frame_(CmdFrameT &frame);
+  void build_gate_threshold_frame_(CmdFrameT &frame, uint8_t gate);
+  void build_version_frame_(CmdFrameT &frame);
+  void build_system_mode_frame_(CmdFrameT &frame, uint16_t mode);
   uint16_t get_mode_() { return this->system_mode_; };
   void set_mode_(uint16_t mode) { this->system_mode_ = mode; };
   bool get_presence_() { return this->presence_; };
