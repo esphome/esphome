@@ -8,11 +8,6 @@ namespace esphome::adc {
 
 static const char *const TAG = "adc";
 
-// Full-scale raw value for uncalibrated voltage conversion. Oneshot reads
-// return 12-bit values on all variants, including the S31 (its 17-bit result
-// register field carries 12-bit oneshot values, confirmed on hardware).
-static constexpr float ADC_RAW_MAX = (1 << 12) - 1;
-
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
 const LogString *attenuation_to_str(adc_atten_t attenuation) {
@@ -206,7 +201,7 @@ float ADCSensor::sample_fixed_attenuation_() {
     }
   }
 
-  return final_value * 3.3f / ADC_RAW_MAX;
+  return final_value * 3.3f / 4095.0f;
 }
 
 float ADCSensor::sample_autorange_() {
@@ -290,7 +285,7 @@ float ADCSensor::sample_autorange_() {
         voltage = voltage_mv / 1000.0f;
         ESP_LOGVV(TAG, "Autorange atten=%d: CALIBRATED - raw=%d -> %dmV -> %.6fV", atten, raw, voltage_mv, voltage);
       } else {
-        voltage = raw * 3.3f / ADC_RAW_MAX;
+        voltage = raw * 3.3f / 4095.0f;
         ESP_LOGVV(TAG, "Autorange atten=%d: UNCALIBRATED FALLBACK - raw=%d -> %.6fV (3.3V ref)", atten, raw, voltage);
       }
       // Clean up calibration handle
@@ -300,7 +295,7 @@ float ADCSensor::sample_autorange_() {
       adc_cali_delete_scheme_line_fitting(handle);
 #endif
     } else {
-      voltage = raw * 3.3f / ADC_RAW_MAX;
+      voltage = raw * 3.3f / 4095.0f;
       ESP_LOGVV(TAG, "Autorange atten=%d: NO CALIBRATION - raw=%d -> %.6fV (3.3V ref)", atten, raw, voltage);
     }
 
