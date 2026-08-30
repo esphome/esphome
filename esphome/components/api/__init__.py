@@ -124,6 +124,8 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
         for name, t in _SERVICE_ARG_SCALAR_TYPES.items()
     },
 }
+# Bounds the ESP8266 stack buffer the action name is copied into (API_USER_ACTION_NAME_MAX_LEN)
+ACTION_NAME_MAX_LENGTH = 63
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
@@ -229,11 +231,15 @@ def _validate_supports_response(value: Any) -> str:
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
 
 
+validate_action_name = cv.All(cv.valid_name, cv.Length(max=ACTION_NAME_MAX_LENGTH))
+
 ACTIONS_SCHEMA = automation.validate_automation(
     {
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
-        cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.valid_name,
-        cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.valid_name,
+        cv.Exclusive(
+            CONF_SERVICE, group_of_exclusion=CONF_ACTION
+        ): validate_action_name,
+        cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): validate_action_name,
         cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
             {
                 cv.validate_id_name: cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
