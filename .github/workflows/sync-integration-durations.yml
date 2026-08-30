@@ -1,0 +1,78 @@
+---
+name: Refresh integration test durations
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 5 * * 1"
+
+# Repo writes (branch push, PR open) happen via the App token minted below,
+# so the workflow's GITHUB_TOKEN does not need any write scopes.
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Refresh integration test durations
+    runs-on: ubuntu-latest
+    if: github.repository == 'esphome/esphome'
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.ESPHOME_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
+          permission-contents: write       # push the sync branch
+          permission-pull-requests: write  # open or refresh the sync PR
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Download junit artifacts from the newest full matrix dev run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only full matrix dev pushes upload junit-integration-* artifacts
+          # (see the integration-tests job), so the newest run holding them
+          # is a complete recording.
+          run_id=""
+          for id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=dev&event=push&status=success&per_page=30" --jq '.workflow_runs[].id'); do
+            count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/artifacts?per_page=100" --jq '[.artifacts[] | select(.name | startswith("junit-integration-")) | select(.expired | not)] | length')
+            if [ "${count}" -gt 0 ]; then
+              run_id="${id}"
+              break
+            fi
+          done
+          if [ -z "${run_id}" ]; then
+            echo "No dev run with junit artifacts in range; nothing to refresh"
+            echo "skip=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "Using run ${run_id}"
+          gh run download "${run_id}" --repo "${GITHUB_REPOSITORY}" -p "junit-integration-*" -D /tmp/junit
+
+      - name: Merge into the durations file
+        if: env.skip != 'true'
+        run: |
+          # helpers.py imports colorama; the script needs nothing else
+          pip install colorama
+          python script/update_integration_test_durations.py /tmp/junit
+
+      - name: Commit changes
+        if: env.skip != 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: "[ci] Refresh integration test durations"
+          committer: esphome[bot] <115708604+esphome[bot]@users.noreply.github.com>
+          author: esphome[bot] <115708604+esphome[bot]@users.noreply.github.com>
+          branch: sync/integration-durations
+          delete-branch: true
+          title: "[ci] Refresh integration test durations"
+          body-path: .github/PULL_REQUEST_TEMPLATE.md
+          token: ${{ steps.generate-token.outputs.token }}
