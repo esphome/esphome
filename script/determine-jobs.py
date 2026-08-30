@@ -126,12 +126,13 @@ def _load_integration_durations() -> dict[str, float]:
             (Path(root_path) / INTEGRATION_TEST_DURATIONS_FILE).read_text()
         )
         if not isinstance(raw, dict):
-            return {}
-        return {str(k): float(v) for k, v in raw.items()}
-    except FileNotFoundError:
-        return {}
+            raise TypeError(f"expected an object, got {type(raw).__name__}")
+        durations = {str(k): float(v) for k, v in raw.items()}
+        if dropped := sorted(k for k, v in durations.items() if not v > 0):
+            print(f"dropping non-positive durations: {dropped}", file=sys.stderr)
+        return {k: v for k, v in durations.items() if v > 0}
     except (OSError, ValueError, TypeError) as err:
-        # A corrupt committed file; degrade to unweighted bucketing, loudly
+        # The file ships in the repo; degrade to unweighted bucketing, loudly
         print(f"integration durations unavailable: {err}", file=sys.stderr)
         return {}
 
@@ -184,7 +185,7 @@ def _compute_integration_test_buckets(
         else:
             # No recorded data to size buckets by; keep the full fan-out.
             count = INTEGRATION_TESTS_SPLIT_BUCKETS
-        count = min(count, len(files))
+        count = max(1, min(count, len(files)))
         # Zero weights can leave trailing groups empty; never emit an empty bucket
         parts = [sorted(part) for part in lpt_partition(files, weights, count) if part]
         buckets = [

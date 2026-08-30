@@ -3217,6 +3217,13 @@ def test_load_integration_durations_missing_or_corrupt(tmp_path: Path) -> None:
         assert determine_jobs._load_integration_durations() == {
             "tests/integration/test_a.py": 12.5
         }
+        # Non-positive entries are dropped, valid ones survive
+        durations_file.write_text(
+            '{"tests/integration/test_a.py": 12.5, "tests/integration/test_b.py": -1}'
+        )
+        assert determine_jobs._load_integration_durations() == {
+            "tests/integration/test_a.py": 12.5
+        }
 
 
 def test_compute_integration_test_buckets_zero_weights_no_empty_bucket() -> None:
@@ -3234,3 +3241,11 @@ def test_compute_integration_test_buckets_zero_weights_no_empty_bucket() -> None
         f"{i + 1}/{len(buckets)}" for i in range(len(buckets))
     ]
     assert sorted(f for b in buckets for f in b["tests"]) == files
+
+
+def test_committed_integration_durations_are_sane() -> None:
+    """The committed recording parses to positive bounded floats."""
+    durations = determine_jobs._load_integration_durations()
+    assert durations, "committed durations file missing or unparsable"
+    assert all(0 < v < 86400 for v in durations.values())
+    assert all(k.startswith("tests/integration/test_") for k in durations)

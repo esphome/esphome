@@ -10,6 +10,7 @@ on:
 # so the workflow's GITHUB_TOKEN does not need any write scopes.
 permissions:
   contents: read
+  actions: read  # gh api / gh run download for the CI junit artifacts
 
 jobs:
   sync:
@@ -41,8 +42,11 @@ jobs:
           # Only full matrix dev pushes upload junit-integration-* artifacts
           # (see the integration-tests job), so the newest run holding them
           # is a complete recording.
+          # Assignment failures trip set -e, so API errors fail loudly instead
+          # of looking like an empty window
+          runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=dev&event=push&status=success&per_page=30" --jq '.workflow_runs[].id')
           run_id=""
-          for id in $(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=dev&event=push&status=success&per_page=30" --jq '.workflow_runs[].id'); do
+          for id in ${runs}; do
             count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/artifacts?per_page=100" --jq '[.artifacts[] | select(.name | startswith("junit-integration-")) | select(.expired | not)] | length')
             if [ "${count}" -gt 0 ]; then
               run_id="${id}"
@@ -50,7 +54,7 @@ jobs:
             fi
           done
           if [ -z "${run_id}" ]; then
-            echo "No dev run with junit artifacts in range; nothing to refresh"
+            echo "::warning::No dev run with junit artifacts in range; nothing to refresh"
             echo "skip=true" >> "$GITHUB_ENV"
             exit 0
           fi
