@@ -13,17 +13,14 @@ static const char *const TAG = "modbus";
 
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
-// Microseconds per second / per millisecond
 static constexpr uint32_t US_PER_SEC = 1000000;
 static constexpr uint32_t US_PER_MS = 1000;
 
 // Minimum interframe delay per the Modbus spec (fixed 1750us above 19200 baud)
 static constexpr uint32_t MODBUS_MIN_FRAME_DELAY_US = 1750;
 
-// Time from our last transmission to the last received byte, for diagnostics only. The byte stamp is
-// backdated by the receive detection latency, so it can precede last_send_ when bytes arrive within
-// that latency of our own send (bus echo, or noise during transmission); report 0 rather than let the
-// unsigned subtraction wrap into a ~4.29e9 value in the log.
+// Diagnostics only: the backdated byte stamp can precede last_send_ (echo, or noise during our own
+// send), where an unsigned wrap would print ~4.29e9.
 static uint32_t us_since_send(uint32_t last_modbus_byte, uint32_t last_send) {
   const uint32_t elapsed = last_modbus_byte - last_send;
   return (int32_t) elapsed < 0 ? 0 : elapsed;
@@ -34,12 +31,8 @@ void Modbus::setup() {
     this->flow_control_pin_->setup();
   }
 
-  // Wire framing: start bit + data bits + optional parity bit + stop bits. Modbus RTU specifies 11 bits
-  // per character (8E1), but the UART may be configured without parity (10), so derive it rather than
-  // assume: too few would under-wait the interframe gap, too many would waste bus time.
-  // The schema allows neither 0 data bits nor 0 stop bits, so a zero here means the hub never called
-  // the setter (weikai does not) - fall back to 8N1 rather than deriving an impossibly short character.
-  // Likewise a hub that reports no baud rate (ble_nus, usb_cdc_acm) would otherwise divide by zero.
+  // RTU specifies 11 bits per character but 8N1 is 10, so derive it from the framing. The schema
+  // forbids a zero, so one here means the hub never set it (weikai): fall back to 8N1 and a 1 baud floor.
   const uint8_t data_bits = this->parent_->get_data_bits() != 0 ? this->parent_->get_data_bits() : 8;
   const uint8_t stop_bits = this->parent_->get_stop_bits() != 0 ? this->parent_->get_stop_bits() : 1;
   const uint32_t baud_rate = std::max<uint32_t>(1u, this->parent_->get_baud_rate());
@@ -59,9 +52,8 @@ void Modbus::setup() {
                                        ? (uint32_t) (rx_threshold * this->bits_per_char_ * US_PER_SEC / baud_rate) + 1
                                        : DEFAULT_LONG_RX_BUFFER_DELAY_US;
 
-  // The UART's RX idle-timeout interrupt fires rx_timeout character-times after the last byte, so by
-  // the time we read, that much true silence has already passed; backdating the byte stamp keeps
-  // the enforced interframe gap at exactly frame_delay_us_ of wire silence.
+  // The idle-timeout interrupt fires rx_timeout characters after the last byte, so that much silence
+  // has already passed by the time we read it: backdate so the gap measures silence on the wire.
   this->rx_detect_latency_us_ =
       (uint32_t) (this->parent_->get_rx_timeout() * this->bits_per_char_ * US_PER_SEC / baud_rate);
 }
@@ -115,12 +107,9 @@ void ModbusClientHub::expire_waiting_() {
 bool Modbus::timeout_() {
   // If the response frame is finished (including interframe delay) - we timeout.
   // The long_rx_buffer_delay accounts for long responses (larger than the UART rx_full_threshold) to avoid timeouts
-  // when the buffer is filling the back half of the response. The latch (not the current size) decides:
+  // when the buffer is filling the back half of the response. The latch decides, not the current size:
   // parsing a leading frame can shrink the buffer below the threshold while the rest is still streaming.
-  // The latency term: the final sub-threshold batch arrives via the idle interrupt up to one
-  // detection latency after its last byte. Stamps are true arrival times (or the read time for a
-  // threshold-delivered batch, which is later), so no further slack is needed and the unlatched
-  // case compares true wire silence directly against frame_delay.
+  // The latency term covers the final batch, which is idle-delivered.
   const uint32_t timeout =
       this->exceeded_rx_full_threshold_
           ? std::max(this->frame_delay_us_, this->long_rx_buffer_delay_us_ + this->rx_detect_latency_us_)
@@ -134,9 +123,8 @@ bool Modbus::timeout_() {
 // If we use a cached value in place of micros() and last_modbus_byte_ is updated inside our loop
 // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
 // So in this component we don't use any cached timestamp values to avoid these annoying bugs.
-// Remaining time is computed with unsigned compares (elapsed >= required -> 0) rather than signed
-// subtraction, so a bus idle for longer than half the micros() wrap (~35 min) reads as "no delay owed"
-// instead of a huge positive delay.
+// Compare before subtracting: a signed difference would read a bus idle past half the micros() wrap
+// (~35 min) as a huge delay still owed.
 static inline uint32_t remaining_delay(uint32_t elapsed, uint32_t required) {
   return elapsed >= required ? 0 : required - elapsed;
 }
@@ -181,9 +169,8 @@ void Modbus::receive_bytes_() {
 
   if (bytes) {
     size_t buffer_size = this->rx_buffer_.size();
-    // A batch smaller than rx_full_threshold can only have been delivered by the idle-timeout
-    // interrupt, so the last byte finished one detection latency before the read - backdate the stamp
-    // to measure true wire silence. A threshold-delivered batch may still be streaming: stamp now.
+    // Below the threshold the batch can only be idle-delivered, so its last byte finished one detection
+    // latency ago; at or above it the frame may still be streaming, so stamp now.
     this->last_modbus_byte_ = bytes < this->parent_->get_rx_full_threshold()
                                   ? this->last_receive_check_ - this->rx_detect_latency_us_
                                   : this->last_receive_check_;
@@ -790,8 +777,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 bool Modbus::send_frame_(const ModbusFrame &frame) {
   int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
-    // delay() rounds up to RTOS tick boundaries and can overshoot by up to ~1ms, so only use it
-    // (it yields) to get within a tick of the target, then recompute and busy-wait the exact rest.
+    // delay() only lands on tick boundaries, so yield with it to get close, then busy-wait the rest.
     if (tx_delay_remaining > (int32_t) (2 * US_PER_MS)) {
       delay((tx_delay_remaining - US_PER_MS) / US_PER_MS);
       tx_delay_remaining = this->tx_delay_remaining();
