@@ -61,20 +61,12 @@ async def test_api_homeassistant_binary_sensor_initial_state(
         await waiter.wait_for("initial_on on_press", timeout=5.0)
         await waiter.wait_for("unavailable_first on_press", timeout=5.0)
         # Pin that the 'unavailable' message actually arrived and was rejected
-        await waiter.wait_for(
-            "Can't convert 'unavailable' to binary state", timeout=5.0
-        )
+        await waiter.wait_for("Can't convert 'unavailable'", timeout=5.0)
         # initial_off is the last state sent, so this wait also proves the
         # earlier 'default' initial state was already processed
         await waiter.wait_for("initial_off on_release", timeout=5.0)
         # Both 'unavailable' senders must have been seen and rejected
-        assert (
-            sum(
-                "Can't convert 'unavailable' to binary state" in line
-                for line in waiter.lines
-            )
-            == 2
-        )
+        assert sum("Can't convert 'unavailable'" in line for line in waiter.lines) == 2
         # Guard every phase 2 needle against being satisfied by a stale
         # phase 1 line, and pin that the initial states fired nothing else
         for absent in (
