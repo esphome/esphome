@@ -39,7 +39,10 @@ async def test_api_homeassistant_binary_sensor_initial_state(
         api_client_connected() as client,
     ):
         client.subscribe_home_assistant_states(on_state_sub)
-        await asyncio.wait_for(all_subscribed, timeout=5.0)
+        try:
+            await asyncio.wait_for(all_subscribed, timeout=5.0)
+        except TimeoutError:
+            pytest.fail(f"never subscribed: {set(ENTITIES) - subscribed}")
 
         # First state from HA
         client.send_home_assistant_state("binary_sensor.initial_on", "", "on")
@@ -59,6 +62,9 @@ async def test_api_homeassistant_binary_sensor_initial_state(
             "default binary sensor fired on_press for its initial state"
         )
         assert not any("initial_off on_press" in line for line in waiter.lines)
+        assert not any(
+            "unavailable_first on_release" in line for line in waiter.lines
+        ), "'unavailable' fired a trigger instead of being ignored"
 
         # A later change fires for all of them
         client.send_home_assistant_state("binary_sensor.initial_on", "", "off")
