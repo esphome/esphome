@@ -221,12 +221,15 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     3. Integration test infrastructure files changed
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
+    4. requirements.txt or requirements_test.txt changed
+       - They pin platformio and aioesphomeapi, which every integration test uses
+
     Returns (run_all=False, [test_files...]) when:
 
-    4. Specific integration test files changed
+    5. Specific integration test files changed
        - Only those specific test files are returned
 
-    5. Components used by integration tests (or their dependencies) changed
+    6. Components used by integration tests (or their dependencies) changed
        - Only test files whose fixtures use the changed components are returned
 
     Args:
@@ -242,6 +245,10 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
 
     if core_changed(files):
         # If any core files changed, run all integration tests
+        return (True, [])
+
+    # They pin platformio and aioesphomeapi, which every integration test uses
+    if any(f in ("requirements.txt", "requirements_test.txt") for f in files):
         return (True, [])
 
     # If infrastructure Python files changed (conftest, utils, etc.), run all tests

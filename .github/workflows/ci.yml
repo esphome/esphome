@@ -355,6 +355,14 @@ jobs:
       fail-fast: false
       matrix:
         bucket: ${{ fromJson(needs.determine-jobs.outputs.integration-test-buckets) }}
+    env:
+      # What the cache steps persist; libdeps is excluded (keyed per xdist
+      # worker and env, it never crosses runs).
+      INTEGRATION_PIO_CACHE_PATH: |
+        ~/.esphome-integration-tests/platformio/platforms
+        ~/.esphome-integration-tests/platformio/packages
+        ~/.esphome-integration-tests/platformio/appstate.json
+        ~/.esphome-integration-tests/platformio/.cache
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -373,6 +381,14 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
+      - name: Restore integration PlatformIO cache
+        # Native platform + toolchain installed by shared_platformio_cache in
+        # tests/integration/conftest.py; a miss self-heals, so no restore-keys.
+        id: pio-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_PIO_CACHE_PATH }}
+          key: integration-pio-v1-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt', 'tests/integration/fixtures/cache_init.yaml', 'esphome/components/host/__init__.py') }}
       - name: Restore Python virtual environment
         id: cache-venv
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -416,6 +432,13 @@ jobs:
         # esphome stores the PlatformIO ccache under the machine-global cache
         # dir (see _ccache_env() in esphome/platformio/toolchain.py).
         run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
+      - name: Save integration PlatformIO cache
+        # Bucket 0 only; the others would race the same immutable key.
+        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && strategy.job-index == 0 && steps.pio-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.INTEGRATION_PIO_CACHE_PATH }}
+          key: ${{ steps.pio-cache.outputs.cache-primary-key }}
 
   import-time:
     name: Check import esphome.__main__ time
