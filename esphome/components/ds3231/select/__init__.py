@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 from .. import (
     CONF_DS3231_ID,
     ICON_SINE_WAVE,
+    USE_DS3231_SELECT,
     USE_DS3231_SQUARE_WAVE,
     DS3231Component,
     ds3231_ns,
@@ -46,6 +47,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     parent = await cg.get_variable(config[CONF_DS3231_ID])
     cg.add_define(USE_DS3231_SQUARE_WAVE)
+    cg.add_define(USE_DS3231_SELECT)
 
     for key, options, setter in (
         (CONF_OUTPUT_MODE, OUTPUT_MODE_OPTIONS, "set_output_mode_select"),

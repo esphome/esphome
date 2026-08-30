@@ -2,14 +2,7 @@
 #ifdef USE_DS3231_ALARM
 #include <cstdio>
 #endif
-#include "binary_sensor/ds3231_binary_sensor.h"
 #include "esphome/core/log.h"
-#ifdef USE_DS3231_ALARM
-#include "switch/ds3231_switch.h"
-#endif
-#ifdef USE_DS3231_SQUARE_WAVE
-#include "select/ds3231_select.h"
-#endif
 
 // Datasheet:
 // - https://www.analog.com/media/en/technical-documentation/data-sheets/DS3231.pdf
@@ -93,6 +86,7 @@ void DS3231Component::update() {
 
 #ifdef USE_DS3231_ALARM
   this->handle_alarm_flags_();
+#ifdef USE_DS3231_SWITCH
   if (this->alarm_1_switch_ != nullptr) {
     this->alarm_1_switch_->publish_state(this->get_alarm_1_enabled());
   }
@@ -100,12 +94,15 @@ void DS3231Component::update() {
     this->alarm_2_switch_->publish_state(this->get_alarm_2_enabled());
   }
 #endif
+#endif
 
+#ifdef USE_DS3231_BINARY_SENSOR
   if (this->oscillator_stopped_binary_sensor_ != nullptr) {
     this->oscillator_stopped_binary_sensor_->publish_state(this->get_oscillator_stopped());
   }
+#endif
 
-#ifdef USE_DS3231_SQUARE_WAVE
+#if defined(USE_DS3231_SQUARE_WAVE) && defined(USE_DS3231_SELECT)
   // Keep the selects in step with the chip - e.g. arming an alarm forces interrupt mode.
   if (this->output_mode_select_ != nullptr) {
     size_t index = this->get_square_wave_output_enabled() ? 1 : 0;
@@ -145,14 +142,18 @@ void DS3231Component::dump_config() {
     ESP_LOGW(TAG, "  Oscillator stop flag is set (clock lost power)");
   }
 
+#ifdef USE_DS3231_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Oscillator stopped", this->oscillator_stopped_binary_sensor_);
 #ifdef USE_DS3231_ALARM
   LOG_BINARY_SENSOR("  ", "Alarm 1", this->alarm_1_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Alarm 2", this->alarm_2_binary_sensor_);
+#endif
+#endif
+#if defined(USE_DS3231_ALARM) && defined(USE_DS3231_SWITCH)
   LOG_SWITCH("  ", "Alarm 1 enabled", this->alarm_1_switch_);
   LOG_SWITCH("  ", "Alarm 2 enabled", this->alarm_2_switch_);
 #endif
-#ifdef USE_DS3231_SQUARE_WAVE
+#if defined(USE_DS3231_SQUARE_WAVE) && defined(USE_DS3231_SELECT)
   LOG_SELECT("  ", "INT/SQW output mode", this->output_mode_select_);
   LOG_SELECT("  ", "Square-wave frequency", this->square_wave_frequency_select_);
 #endif
@@ -265,12 +266,14 @@ void DS3231Component::handle_alarm_flags_() {
   bool a1 = a1_flag && this->get_alarm_1_enabled();
   bool a2 = a2_flag && this->get_alarm_2_enabled();
 
+#ifdef USE_DS3231_BINARY_SENSOR
   if (this->alarm_1_binary_sensor_ != nullptr) {
     this->alarm_1_binary_sensor_->publish_state(a1);
   }
   if (this->alarm_2_binary_sensor_ != nullptr) {
     this->alarm_2_binary_sensor_->publish_state(a2);
   }
+#endif
 
   // Clear whichever flag bits are set - handled or not - so a match that happened
   // while the alarm was disabled does not linger and fire the moment it is enabled.

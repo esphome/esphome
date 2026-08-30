@@ -9,6 +9,7 @@ from .. import (
     ICON_SINE_WAVE,
     USE_DS3231_32KHZ_OUTPUT,
     USE_DS3231_ALARM,
+    USE_DS3231_SWITCH,
     DS3231Component,
     ds3231_ns,
 )
@@ -64,6 +65,7 @@ async def to_code(config: ConfigType) -> None:
     ):
         if (conf := config.get(key)) is not None:
             cg.add_define(USE_DS3231_ALARM)
+            cg.add_define(USE_DS3231_SWITCH)
             var = await switch.new_switch(conf)
             await cg.register_parented(var, config[CONF_DS3231_ID])
             cg.add(var.set_alarm(alarm))

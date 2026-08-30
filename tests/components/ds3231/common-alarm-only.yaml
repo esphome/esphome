@@ -1,0 +1,50 @@
+# Alarm triggers + actions, temperature, but NO ds3231 binary_sensor / switch / select
+# platforms - exercises the hub compiling without those base entity components.
+ds3231:
+  - id: ds3231_component
+    i2c_id: i2c_bus
+    address: 0x68
+    update_interval: never
+    # square-wave configured on the hub, but no select platform -> USE_DS3231_SQUARE_WAVE
+    # without USE_SELECT.
+    square_wave_output: 1Hz
+    on_alarm_1:
+      then:
+        - logger.log: "alarm 1"
+    on_alarm_2:
+      then:
+        - logger.log: "alarm 2"
+
+time:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    id: ds3231_time
+    update_interval: never
+
+sensor:
+  - platform: ds3231
+    ds3231_id: ds3231_component
+    name: DS3231 Temperature
+    update_interval: never
+
+interval:
+  - interval: 60s
+    then:
+      - ds3231.set_alarm_1:
+          id: ds3231_component
+          mode: MATCH_HOUR_MINUTE_SECOND
+          hour: 7
+          minute: 30
+          second: 0
+      - ds3231.disable_alarm:
+          id: ds3231_component
+          alarm: 1
+      - ds3231.enable_alarm:
+          id: ds3231_component
+          alarm: 1
+      - ds3231.clear_alarm:
+          id: ds3231_component
+          alarm: 2
+      - ds3231.set_refresh_interval:
+          id: ds3231_component
+          refresh_interval: 30s

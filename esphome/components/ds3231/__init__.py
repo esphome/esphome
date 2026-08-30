@@ -34,6 +34,11 @@ USE_DS3231_SQUARE_WAVE = "USE_DS3231_SQUARE_WAVE"
 USE_DS3231_32KHZ_OUTPUT = "USE_DS3231_32KHZ_OUTPUT"
 USE_DS3231_AGING_OFFSET = "USE_DS3231_AGING_OFFSET"
 USE_DS3231_REFRESH_INTERVAL = "USE_DS3231_REFRESH_INTERVAL"
+# Set by the matching platform __init__.py so the hub pulls in binary_sensor.h /
+# switch.h / select.h (and its entity pointers) only when that ds3231 platform is used.
+USE_DS3231_BINARY_SENSOR = "USE_DS3231_BINARY_SENSOR"
+USE_DS3231_SWITCH = "USE_DS3231_SWITCH"
+USE_DS3231_SELECT = "USE_DS3231_SELECT"
 
 ds3231_ns = cg.esphome_ns.namespace("ds3231")
 DS3231Component = ds3231_ns.class_(

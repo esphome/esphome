@@ -6,7 +6,16 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 #include "esphome/components/i2c/i2c.h"
-#ifdef USE_DS3231_SQUARE_WAVE
+// Base entity headers, only when that entity type is used anywhere in the config. The hub
+// keeps base-class pointers to the ds3231 platform entities (the platforms upcast) so a
+// config that never uses one of these platforms does not need it compiled or linked.
+#ifdef USE_DS3231_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_DS3231_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_DS3231_SELECT
 #include "esphome/components/select/select.h"
 #endif
 
@@ -49,11 +58,7 @@ struct DS3231AlarmSpec {
   uint8_t hour{0};
   uint8_t day{1};
 };
-
-class DS3231AlarmSwitch;
 #endif
-
-class DS3231BinarySensor;
 
 /// Hub for a single DS3231 real-time clock. Owns all register access; the time, sensor,
 /// binary_sensor, switch, select and number platforms talk to the chip through this class.
@@ -76,9 +81,11 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
   void force_temperature_conversion();
 
   bool get_oscillator_stopped() const { return (this->status_reg_ & STATUS_OSF) != 0; }
-  void set_oscillator_stopped_binary_sensor(DS3231BinarySensor *sensor) {
+#ifdef USE_DS3231_BINARY_SENSOR
+  void set_oscillator_stopped_binary_sensor(binary_sensor::BinarySensor *sensor) {
     this->oscillator_stopped_binary_sensor_ = sensor;
   }
+#endif
 
 #ifdef USE_DS3231_REFRESH_INTERVAL
   /// Change the poll interval (how often the alarm flags / oscillator-stop flag are read and
@@ -121,10 +128,14 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
   bool get_alarm_1_enabled() const { return (this->control_reg_ & CONTROL_A1IE) != 0; }
   bool get_alarm_2_enabled() const { return (this->control_reg_ & CONTROL_A2IE) != 0; }
 
-  void set_alarm_1_binary_sensor(DS3231BinarySensor *sensor) { this->alarm_1_binary_sensor_ = sensor; }
-  void set_alarm_2_binary_sensor(DS3231BinarySensor *sensor) { this->alarm_2_binary_sensor_ = sensor; }
-  void set_alarm_1_switch(DS3231AlarmSwitch *sw) { this->alarm_1_switch_ = sw; }
-  void set_alarm_2_switch(DS3231AlarmSwitch *sw) { this->alarm_2_switch_ = sw; }
+#ifdef USE_DS3231_BINARY_SENSOR
+  void set_alarm_1_binary_sensor(binary_sensor::BinarySensor *sensor) { this->alarm_1_binary_sensor_ = sensor; }
+  void set_alarm_2_binary_sensor(binary_sensor::BinarySensor *sensor) { this->alarm_2_binary_sensor_ = sensor; }
+#endif
+#ifdef USE_DS3231_SWITCH
+  void set_alarm_1_switch(switch_::Switch *sw) { this->alarm_1_switch_ = sw; }
+  void set_alarm_2_switch(switch_::Switch *sw) { this->alarm_2_switch_ = sw; }
+#endif
 #endif  // USE_DS3231_ALARM
 
 #ifdef USE_DS3231_SQUARE_WAVE
@@ -148,8 +159,10 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
     return static_cast<DS3231SquareWaveFrequency>((this->control_reg_ >> 3) & 0b11);
   }
 
+#ifdef USE_DS3231_SELECT
   void set_output_mode_select(select::Select *sel) { this->output_mode_select_ = sel; }
   void set_square_wave_frequency_select(select::Select *sel) { this->square_wave_frequency_select_ = sel; }
+#endif
 #endif  // USE_DS3231_SQUARE_WAVE
 
 #ifdef USE_DS3231_32KHZ_OUTPUT
@@ -201,18 +214,24 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
   uint8_t control_reg_{0};
   uint8_t status_reg_{0};
 
-  DS3231BinarySensor *oscillator_stopped_binary_sensor_{nullptr};
+#ifdef USE_DS3231_BINARY_SENSOR
+  binary_sensor::BinarySensor *oscillator_stopped_binary_sensor_{nullptr};
+#endif
 
 #ifdef USE_DS3231_ALARM
   CallbackManager<void()> alarm_1_callback_;
   CallbackManager<void()> alarm_2_callback_;
-  DS3231BinarySensor *alarm_1_binary_sensor_{nullptr};
-  DS3231BinarySensor *alarm_2_binary_sensor_{nullptr};
-  DS3231AlarmSwitch *alarm_1_switch_{nullptr};
-  DS3231AlarmSwitch *alarm_2_switch_{nullptr};
+#ifdef USE_DS3231_BINARY_SENSOR
+  binary_sensor::BinarySensor *alarm_1_binary_sensor_{nullptr};
+  binary_sensor::BinarySensor *alarm_2_binary_sensor_{nullptr};
 #endif
+#ifdef USE_DS3231_SWITCH
+  switch_::Switch *alarm_1_switch_{nullptr};
+  switch_::Switch *alarm_2_switch_{nullptr};
+#endif
+#endif  // USE_DS3231_ALARM
 
-#ifdef USE_DS3231_SQUARE_WAVE
+#if defined(USE_DS3231_SQUARE_WAVE) && defined(USE_DS3231_SELECT)
   select::Select *output_mode_select_{nullptr};
   select::Select *square_wave_frequency_select_{nullptr};
 #endif
