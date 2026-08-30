@@ -29,7 +29,7 @@ class LineWaiter:
             self._future = None
 
     async def wait_for_each(self, *texts: str, timeout: float = 10.0) -> None:
-        """Await one line per text, in order; each wait uses the full timeout."""
+        """Await each text in turn; a text may match a line already received."""
         for text in texts:
             await self.wait_for(text, timeout=timeout)
 
