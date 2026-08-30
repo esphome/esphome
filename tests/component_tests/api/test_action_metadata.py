@@ -77,21 +77,16 @@ def test_variable_shorthand_normalizes_to_mapping() -> None:
     assert validate_variable("string") == {"type": "string"}
 
 
-def test_variable_mapping_requires_type() -> None:
-    """The mapping form without type raises."""
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"description": "no type given"},
+        {"type": "string", "selector": "text"},
+        "stringy",
+        {"type": "stringy"},
+    ],
+)
+def test_variable_rejects_invalid(value: object) -> None:
+    """Missing or unknown type and unknown keys raise in both forms."""
     with pytest.raises(Invalid):
-        validate_variable({"description": "no type given"})
-
-
-def test_variable_rejects_unknown_keys() -> None:
-    """Unknown keys in the mapping form raise."""
-    with pytest.raises(Invalid):
-        validate_variable({"type": "string", "selector": "text"})
-
-
-def test_variable_rejects_invalid_type() -> None:
-    """An unknown variable type raises in both forms."""
-    with pytest.raises(Invalid):
-        validate_variable("stringy")
-    with pytest.raises(Invalid):
-        validate_variable({"type": "stringy"})
+        validate_variable(value)
