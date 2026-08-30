@@ -1,11 +1,11 @@
 number:
   - platform: toptronic
     name: Temp ambiente normale riscaldamento (1)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 0
     datapoint: 3051
-    id: WEZ_1_0_3051_set
+    id: HKW_1_0_3051_set
     type: S16
     min_value: 100
     max_value: 300
@@ -16,11 +16,11 @@ number:
     device_class: temperature
   - platform: toptronic
     name: Temp ambiente risparmio riscaldamento (1)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 0
     datapoint: 3053
-    id: WEZ_1_0_3053_set
+    id: HKW_1_0_3053_set
     type: S16
     min_value: 50
     max_value: 200
@@ -31,11 +31,11 @@ number:
     device_class: temperature
   - platform: toptronic
     name: Temp ambiente normale riscaldamento (2)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 1
     datapoint: 3051
-    id: WEZ_1_1_3051_set
+    id: HKW_1_1_3051_set
     type: S16
     min_value: 100
     max_value: 300
@@ -46,11 +46,11 @@ number:
     device_class: temperature
   - platform: toptronic
     name: Temp ambiente risparmio riscaldamento (2)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 1
     datapoint: 3053
-    id: WEZ_1_1_3053_set
+    id: HKW_1_1_3053_set
     type: S16
     min_value: 50
     max_value: 200
@@ -61,11 +61,11 @@ number:
     device_class: temperature
   - platform: toptronic
     name: Temp ambiente normale riscaldamento (3)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 2
     datapoint: 3051
-    id: WEZ_1_2_3051_set
+    id: HKW_1_2_3051_set
     type: S16
     min_value: 100
     max_value: 300
@@ -76,11 +76,11 @@ number:
     device_class: temperature
   - platform: toptronic
     name: Temp ambiente risparmio riscaldamento (3)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 2
     datapoint: 3053
-    id: WEZ_1_2_3053_set
+    id: HKW_1_2_3053_set
     type: S16
     min_value: 50
     max_value: 200
@@ -90,12 +90,102 @@ number:
     icon: mdi:temperature-celsius
     device_class: temperature
   - platform: toptronic
+    name: Temperatura nominale modo manuale (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7009
+    id: HKW_1_0_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temperatura nominale modo manuale (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7009
+    id: HKW_1_1_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Temperatura nominale modo manuale (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7009
+    id: HKW_1_2_7009_set
+    type: S16
+    min_value: 100
+    max_value: 900
+    step: 5
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante risc (1)
+    device_type: HKW
+    function_group: 1
+    function_number: 0
+    datapoint: 7036
+    id: HKW_1_0_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante risc (2)
+    device_type: HKW
+    function_group: 1
+    function_number: 1
+    datapoint: 7036
+    id: HKW_1_1_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante risc (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7036
+    id: HKW_1_2_7036_set
+    type: S16
+    min_value: 0
+    max_value: 1100
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
     name: Temperatura acqua calda normale
-    device_type: WEZ
+    device_type: HKW
     function_group: 2
     function_number: 0
     datapoint: 5051
-    id: WEZ_2_0_5051_set
+    id: HKW_2_0_5051_set
     type: S16
     min_value: 100
     max_value: 700
@@ -106,11 +196,11 @@ number:
     device_class: temperature
   - platform: toptronic
     name: Temperatura di risparmio acqua calda
-    device_type: WEZ
+    device_type: HKW
     function_group: 2
     function_number: 0
     datapoint: 5086
-    id: WEZ_2_0_5086_set
+    id: HKW_2_0_5086_set
     type: U8
     min_value: 10
     max_value: 70
@@ -120,103 +210,103 @@ number:
     icon: mdi:temperature-celsius
     device_class: temperature
   - platform: toptronic
-    name: Smart-Grid (offset) valore nominale AC
-    device_type: WEZ
-    function_group: 2
-    function_number: 0
-    datapoint: 5077
-    id: WEZ_2_0_5077_set
-    type: S16
-    min_value: 0
-    max_value: 800
-    step: 5
-    decimal: 1
-    unit_of_measurement: "\xB0C"
-    icon: mdi:temperature-kelvin
-    device_class: temperature
-  - platform: toptronic
-    name: SmartGrid offset val nom ambiente risc (1)
-    device_type: WEZ
+    name: Ambiente-effettivo (1)
+    device_type: HKW
     function_group: 1
     function_number: 0
-    datapoint: 7031
-    id: WEZ_1_0_7031_set
+    datapoint: 1
+    id: HKW_1_0_1_set
     type: S16
     min_value: 0
-    max_value: 120
-    step: 5
+    max_value: 0
+    step: 1
     decimal: 1
     unit_of_measurement: "\xB0C"
-    icon: mdi:temperature-kelvin
+    icon: mdi:temperature-celsius
     device_class: temperature
   - platform: toptronic
-    name: SmartGrid offset val nom ambiente risc (2)
-    device_type: WEZ
+    name: Ambiente-effettivo (2)
+    device_type: HKW
     function_group: 1
     function_number: 1
-    datapoint: 7031
-    id: WEZ_1_1_7031_set
+    datapoint: 1
+    id: HKW_1_1_1_set
     type: S16
     min_value: 0
-    max_value: 120
-    step: 5
+    max_value: 0
+    step: 1
     decimal: 1
     unit_of_measurement: "\xB0C"
-    icon: mdi:temperature-kelvin
+    icon: mdi:temperature-celsius
     device_class: temperature
   - platform: toptronic
-    name: SmartGrid offset val nom ambiente risc (3)
-    device_type: WEZ
+    name: Ambiente-effettivo (3)
+    device_type: HKW
     function_group: 1
     function_number: 2
-    datapoint: 7031
-    id: WEZ_1_2_7031_set
+    datapoint: 1
+    id: HKW_1_2_1_set
     type: S16
     min_value: 0
-    max_value: 120
-    step: 5
+    max_value: 0
+    step: 1
     decimal: 1
     unit_of_measurement: "\xB0C"
-    icon: mdi:temperature-kelvin
+    icon: mdi:temperature-celsius
     device_class: temperature
   - platform: toptronic
-    name: SmartGrid offset val nom ambiente raff (1)
-    device_type: WEZ
+    name: Mandata nominale richiesta costante raff (1)
+    device_type: HKW
     function_group: 1
     function_number: 0
-    datapoint: 7046
-    id: WEZ_1_0_7046_set
+    datapoint: 7047
+    id: HKW_1_0_7047_set
     type: S16
-    min_value: -600
-    max_value: 0
-    step: 1
+    min_value: 0
+    max_value: 300
+    step: 10
     decimal: 1
     unit_of_measurement: "\xB0C"
-    icon: mdi:temperature-kelvin
+    icon: mdi:temperature-celsius
     device_class: temperature
   - platform: toptronic
-    name: SmartGrid offset val nom ambiente raff (2)
-    device_type: WEZ
+    name: Mandata nominale richiesta costante raff (2)
+    device_type: HKW
     function_group: 1
     function_number: 1
-    datapoint: 7046
-    id: WEZ_1_1_7046_set
+    datapoint: 7047
+    id: HKW_1_1_7047_set
     type: S16
-    min_value: -600
-    max_value: 0
-    step: 1
+    min_value: 0
+    max_value: 300
+    step: 10
     decimal: 1
     unit_of_measurement: "\xB0C"
-    icon: mdi:temperature-kelvin
+    icon: mdi:temperature-celsius
+    device_class: temperature
+  - platform: toptronic
+    name: Mandata nominale richiesta costante raff (3)
+    device_type: HKW
+    function_group: 1
+    function_number: 2
+    datapoint: 7047
+    id: HKW_1_2_7047_set
+    type: S16
+    min_value: 0
+    max_value: 300
+    step: 10
+    decimal: 1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
     device_class: temperature
 select:
   - platform: toptronic
     name: Selezione modo funzionam.to riscaldam.to (1)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 0
     datapoint: 3050
-    id: WEZ_1_0_3050_set
+    id: HKW_1_0_3050_set
     options:
       - Stand-by
       - Settimana 1
@@ -235,11 +325,11 @@ select:
       - 8
   - platform: toptronic
     name: Selezione modo funzionam.to riscaldam.to (2)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 1
     datapoint: 3050
-    id: WEZ_1_1_3050_set
+    id: HKW_1_1_3050_set
     options:
       - Stand-by
       - Settimana 1
@@ -258,11 +348,11 @@ select:
       - 8
   - platform: toptronic
     name: Selezione modo funzionam.to riscaldam.to (3)
-    device_type: WEZ
+    device_type: HKW
     function_group: 1
     function_number: 2
     datapoint: 3050
-    id: WEZ_1_2_3050_set
+    id: HKW_1_2_3050_set
     options:
       - Stand-by
       - Settimana 1
@@ -281,11 +371,11 @@ select:
       - 8
   - platform: toptronic
     name: Selezione modo funzionamento acqua calda
-    device_type: WEZ
+    device_type: HKW
     function_group: 2
     function_number: 0
     datapoint: 5050
-    id: WEZ_2_0_5050_set
+    id: HKW_2_0_5050_set
     options:
       - Stand-by
       - Settimana 1
@@ -298,54 +388,3 @@ select:
       - 2
       - 4
       - 6
-  - platform: toptronic
-    name: Selezione modo funz.to generatore calore
-    device_type: WEZ
-    function_group: 10
-    function_number: 1
-    datapoint: 9075
-    id: WEZ_10_1_9075_set
-    options:
-      - Deakt.
-      - Automatik
-      - Heizen
-      - K?hlen
-    values:
-      - 0
-      - 1
-      - 4
-      - 5
-  - platform: toptronic
-    name: Smart Grid tramite bus di sistema
-    device_type: WEZ
-    function_group: 0
-    function_number: 0
-    datapoint: 38012
-    id: WEZ_0_0_38012_set
-    options:
-      - Normal
-      - Priority operation
-      - Locked
-      - Forced demand
-    values:
-      - 0
-      - 1
-      - 2
-      - 3
-  - platform: toptronic
-    name: Dispositivo attivaz. funzione Smart Grid
-    device_type: WEZ
-    function_group: 0
-    function_number: 0
-    datapoint: 38013
-    id: WEZ_0_0_38013_set
-    options:
-      - 'Off'
-      - Input contacts
-      - System bus
-      - Power damped
-    values:
-      - 0
-      - 1
-      - 2
-      - 3

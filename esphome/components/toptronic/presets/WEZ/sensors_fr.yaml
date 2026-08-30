@@ -2,7 +2,6 @@ sensor:
   - platform: toptronic
     name: "AF 1 - sonde ext\xE9rieure 1"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 0
     function_number: 0
     datapoint: 0
@@ -18,7 +17,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (1)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 0
     datapoint: 3051
@@ -35,7 +33,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (1)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 0
     datapoint: 3053
@@ -52,7 +49,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (2)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 1
     datapoint: 3051
@@ -69,7 +65,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (2)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 1
     datapoint: 3053
@@ -86,7 +81,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature local normale mode chauffage (3)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 2
     datapoint: 3051
@@ -103,7 +97,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature local \xE9co mode chauffage (3)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 2
     datapoint: 3053
@@ -120,7 +113,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature d'eau chaude normale"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 2
     function_number: 0
     datapoint: 5051
@@ -137,7 +129,6 @@ sensor:
   - platform: toptronic
     name: "temp\xE9rature eau chaude \xE9co"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 2
     function_number: 0
     datapoint: 5086
@@ -151,7 +142,6 @@ sensor:
   - platform: toptronic
     name: Eau chaude consigne
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 2
     function_number: 0
     datapoint: 1004
@@ -167,7 +157,6 @@ sensor:
   - platform: toptronic
     name: "Eau chaude r\xE9elle SF"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 2
     function_number: 0
     datapoint: 4
@@ -183,7 +172,6 @@ sensor:
   - platform: toptronic
     name: "Aller r\xE9el (1)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 0
     datapoint: 2
@@ -199,7 +187,6 @@ sensor:
   - platform: toptronic
     name: "Aller r\xE9el (2)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 1
     datapoint: 2
@@ -215,7 +202,6 @@ sensor:
   - platform: toptronic
     name: "Aller r\xE9el (3)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 2
     datapoint: 2
@@ -231,7 +217,6 @@ sensor:
   - platform: toptronic
     name: Puissance GDC
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 60
     function_number: 254
     datapoint: 30
@@ -244,7 +229,6 @@ sensor:
   - platform: toptronic
     name: "\xC9nergie \xE9lectrique GdC MWh"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 10
     function_number: 1
     datapoint: 23009
@@ -260,7 +244,6 @@ sensor:
   - platform: toptronic
     name: "Quantit\xE9 de chaleur chauffage"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 60
     function_number: 254
     datapoint: 47
@@ -276,7 +259,6 @@ sensor:
   - platform: toptronic
     name: "Quantit\xE9 chaleur EC"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 60
     function_number: 254
     datapoint: 55
@@ -289,11 +271,106 @@ sensor:
     icon: mdi:flash
     device_class: energy
     state_class: measurement
+  - platform: toptronic
+    name: Valeur cons. EC (offset) Smart-Grid
+    device_type: WEZ
+    function_group: 2
+    function_number: 0
+    datapoint: 5077
+    id: WEZ_2_0_5077
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SmartGrid offset val. cons. local chauff (1)
+    device_type: WEZ
+    function_group: 1
+    function_number: 0
+    datapoint: 7031
+    id: WEZ_1_0_7031
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SmartGrid offset val. cons. local chauff (2)
+    device_type: WEZ
+    function_group: 1
+    function_number: 1
+    datapoint: 7031
+    id: WEZ_1_1_7031
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SmartGrid offset val. cons. local chauff (3)
+    device_type: WEZ
+    function_group: 1
+    function_number: 2
+    datapoint: 7031
+    id: WEZ_1_2_7031
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SmartGrid offset val cons local refroid. (1)
+    device_type: WEZ
+    function_group: 1
+    function_number: 0
+    datapoint: 7046
+    id: WEZ_1_0_7046
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: SmartGrid offset val cons local refroid. (2)
+    device_type: WEZ
+    function_group: 1
+    function_number: 1
+    datapoint: 7046
+    id: WEZ_1_1_7046
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-kelvin
+    device_class: temperature
+    state_class: measurement
+    internal: true
 text_sensor:
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (1)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 0
     datapoint: 3050
@@ -317,7 +394,6 @@ text_sensor:
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (2)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 1
     datapoint: 3050
@@ -341,7 +417,6 @@ text_sensor:
   - platform: toptronic
     name: "S\xE9lection fonctionnement chauffage (3)"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 1
     function_number: 2
     datapoint: 3050
@@ -365,7 +440,6 @@ text_sensor:
   - platform: toptronic
     name: "S\xE9lection fonct. eau chaude"
     device_type: WEZ
-    device_addr: ${TT_WEZ_addr}
     function_group: 2
     function_number: 0
     datapoint: 5050
@@ -382,3 +456,246 @@ text_sensor:
       - 2
       - 4
       - 6
+  - platform: toptronic
+    name: "Statut r\xE9gulation circuit de chauffage (1)"
+    device_type: WEZ
+    function_group: 1
+    function_number: 0
+    datapoint: 2051
+    id: WEZ_1_0_2051
+    options:
+      - 'Off'
+      - Heating normal
+      - Heating comfort
+      - Heating eco
+      - Frost protection
+      - Holiday
+      - Party
+      - Cooling normal
+      - Cooling comfort
+      - Cooling eco
+      - FAULT
+      - Manual mode
+      - Protection cooling
+      - Cooling external/constant
+      - Heating external/constant
+      - SmartGrid priority
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: "Statut r\xE9gulation circuit de chauffage (2)"
+    device_type: WEZ
+    function_group: 1
+    function_number: 1
+    datapoint: 2051
+    id: WEZ_1_1_2051
+    options:
+      - 'Off'
+      - Heating normal
+      - Heating comfort
+      - Heating eco
+      - Frost protection
+      - Holiday
+      - Party
+      - Cooling normal
+      - Cooling comfort
+      - Cooling eco
+      - FAULT
+      - Manual mode
+      - Protection cooling
+      - Cooling external/constant
+      - Heating external/constant
+      - SmartGrid priority
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 7
+      - 8
+      - 9
+      - 10
+      - 11
+      - 12
+      - 13
+      - 14
+      - 22
+      - 23
+      - 26
+  - platform: toptronic
+    name: "Statut r\xE9gulation eau chaude"
+    device_type: WEZ
+    function_group: 2
+    function_number: 0
+    datapoint: 2052
+    id: WEZ_2_0_2052
+    options:
+      - 'Off'
+      - Charging normal
+      - Charging comfort
+      - FAULT
+      - Draw-off
+      - Charging reduced
+      - SmartGrid priority
+      - SmartGrid forced
+    values:
+      - 0
+      - 1
+      - 2
+      - 5
+      - 6
+      - 8
+      - 12
+      - 13
+  - platform: toptronic
+    name: Statut de service
+    device_type: WEZ
+    function_group: 60
+    function_number: 254
+    datapoint: 34
+    id: WEZ_60_254_34
+    options:
+      - 'Off'
+      - Heating
+      - Active cooling
+      - Lockout
+      - DHW charging
+      - Frost protection
+      - WEZ temp too low
+      - Flow too high
+      - Defrost
+      - Passive cooling
+      - High pressure fault
+      - Low pressure fault
+      - Restart delay
+      - Utility block
+      - Pre-run
+      - After-run
+      - MOP
+      - Defrost failed
+      - Condensate pump
+      - Inverter fault
+      - Oil preheat
+      - Cold start
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8
+      - 9
+      - 11
+      - 12
+      - 16
+      - 17
+      - 18
+      - 19
+      - 44
+      - 49
+      - 51
+      - 55
+      - 97
+      - 98
+  - platform: toptronic
+    name: "S\xE9lection fonct. g\xE9n\xE9rateur de chaleur"
+    device_type: WEZ
+    function_group: 10
+    function_number: 1
+    datapoint: 9075
+    id: WEZ_10_1_9075
+    options:
+      - Deakt.
+      - Automatik
+      - Heizen
+      - K?hlen
+    values:
+      - 0
+      - 1
+      - 4
+      - 5
+  - platform: toptronic
+    name: Statut froid module activ UKA
+    device_type: WEZ
+    function_group: 3
+    function_number: 0
+    datapoint: 22024
+    id: WEZ_3_0_22024
+    options:
+      - closed
+      - open
+    values:
+      - 0
+      - 1
+  - platform: toptronic
+    name: Status Smart Grid
+    device_type: WEZ
+    function_group: 0
+    function_number: 0
+    datapoint: 21090
+    id: WEZ_0_0_21090
+    options:
+      - Normal
+      - Priority operation
+      - Locked
+      - Forced demand
+      - inactive
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 255
+  - platform: toptronic
+    name: "Smart Grid via bus de donn\xE9es"
+    device_type: WEZ
+    function_group: 0
+    function_number: 0
+    datapoint: 38012
+    id: WEZ_0_0_38012
+    options:
+      - Normal
+      - Priority operation
+      - Locked
+      - Forced demand
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+  - platform: toptronic
+    name: "D\xE9clencheur fonction Smart Grid"
+    device_type: WEZ
+    function_group: 0
+    function_number: 0
+    datapoint: 38013
+    id: WEZ_0_0_38013
+    options:
+      - 'Off'
+      - Input contacts
+      - System bus
+      - Power damped
+    values:
+      - 0
+      - 1
+      - 2
+      - 3

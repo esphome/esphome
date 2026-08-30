@@ -29,6 +29,7 @@
 #include <map>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -93,6 +94,10 @@ class TopTronicBase : public PollingComponent {
   void add_on_update_callback(std::function<void()> &&callback);
   void add_on_set_callback(std::function<void(const std::vector<uint8_t> &)> &&callback);
 
+  // Human-readable entity name (the YAML name). TopTronicBase has no Entity
+  // base, so each concrete entity type forwards this to its ESPHome Entity.
+  virtual const StringRef &get_name() const = 0;
+
  protected:
   uint8_t function_group_;
   uint8_t function_number_;
@@ -114,7 +119,12 @@ class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
   // Decode raw bytes from the CAN response into a float using the configured type.
   // data/len point into the reassembly buffer or the received CAN frame — no copy.
   float parse_value(const uint8_t *data, size_t len);
+  // Number of value bytes a complete RESPONSE must carry for this sensor's
+  // configured type (1/2/4/8) - used to reject truncated frames before they
+  // are decoded and before the cold-cache write guard is unlocked.
+  size_t value_width() const;
   SensorType type() override { return SENSOR; }
+  const StringRef &get_name() const override { return this->sensor::Sensor::get_name(); }
 
  protected:
   TypeName type_;
@@ -134,6 +144,7 @@ class TopTronicNumber : public number::Number, public TopTronicBase {
   void set_multiplier(float multiplier) { this->multiplier_ = multiplier; }
   float get_multiplier() { return this->multiplier_; }
   SensorType type() override { return SENSOR; }
+  const StringRef &get_name() const override { return this->number::Number::get_name(); }
   // Called by ESPHome when the user sets a new value from Home Assistant.
   void control(float value) override;
 
@@ -152,6 +163,7 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase
   // data/len point into the reassembly buffer or the received CAN frame — no copy.
   std::string parse_value(const uint8_t *data, size_t len);
   SensorType type() override { return TEXTSENSOR; }
+  const StringRef &get_name() const override { return this->text_sensor::TextSensor::get_name(); }
 
   // Register a value↔text mapping (called from generated YAML code at startup).
   void add_option(uint8_t value, const std::string &text) {
@@ -177,6 +189,7 @@ class TopTronicSelect : public select::Select, public TopTronicBase {
   TopTronicSelect() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
   SensorType type() override { return TEXTSENSOR; }
+  const StringRef &get_name() const override { return this->select::Select::get_name(); }
   TypeName get_value_type() { return this->type_; }
 
   // Register a value↔text mapping (called from generated YAML code at startup).
@@ -206,6 +219,7 @@ class TopTronicButton : public button::Button, public TopTronicBase {
   void set_type(TypeName type) { this->type_ = type; }
   void set_value(float value) { this->value_ = value; }
   SensorType type() override { return BUTTON; }
+  const StringRef &get_name() const override { return this->button::Button::get_name(); }
 
  protected:
   TypeName type_;
@@ -385,6 +399,16 @@ class TopTronic : public Component {
     this->refresh_retry_interval_ms_ = refresh_retry_interval_ms;
   }
 
+  // Write safety: minimum spacing (ms) between two SET requests for the same
+  // datapoint. 0 disables the rate limit (default 2000 ms). Protects the
+  // 50 kbps bus and the boiler controller from rapid SET spamming.
+  void set_write_min_interval(uint32_t ms) { this->write_min_interval_ms_ = ms; }
+  // Write safety (cold-cache guard): reject SET requests for datapoints that
+  // have not delivered at least one RESPONSE since boot, so we never write
+  // blind. Datapoints without a registered read sensor (e.g. the HV
+  // filter-maintenance button) are never blocked. Default true.
+  void set_reject_writes_before_read(bool reject) { this->reject_writes_before_read_ = reject; }
+
   // Debug frame logging (candump / find-can_id). Each feature is an independent
   // build-wide boolean flag, so the two debug switches never interfere with each
   // other and can even both be active at the same time. Both flags reset to OFF
@@ -529,6 +553,16 @@ class TopTronic : public Component {
 
   // Timestamp of the last stale-fragment sweep in loop().
   uint32_t last_cleanup_ms_{0};
+
+  // Write safety state.
+  // Last SET timestamp per datapoint (keyed by get_id()) for the rate limit.
+  std::unordered_map<uint32_t, uint32_t> last_write_ms_;
+  // Datapoints (get_id()) that have published at least one value since boot.
+  std::unordered_set<uint32_t> read_ok_ids_;
+  // Minimum ms between two SETs of the same datapoint (0 = no limit).
+  uint32_t write_min_interval_ms_{2000};
+  // Cold-cache guard: reject SETs until the datapoint answered a GET.
+  bool reject_writes_before_read_{true};
 
   // When true, parse_frame() ignores incoming CAN frames (used during OTA).
   bool paused_{false};

@@ -240,6 +240,25 @@ template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
   return static_cast<T>(u);
 }
 
+// Byte width of a numeric datapoint value for the given TypeName. A RESPONSE
+// must carry at least this many value bytes before its payload is decoded.
+static size_t type_width(TypeName type) {
+  switch (type) {
+    case U8:
+    case S8:
+      return 1;
+    case U16:
+    case S16:
+      return 2;
+    case U32:
+    case S32:
+      return 4;
+    case S64:
+      return 8;
+  }
+  return 1;
+}
+
 // Convert raw CAN bytes to a float, interpreting them as the configured integer type.
 float bytes_to_float(const uint8_t *data, size_t len, TypeName type) {
   switch (type) {
@@ -292,6 +311,8 @@ std::vector<uint8_t> float_to_bytes(float value, TypeName type) {
 
 #ifdef USE_SENSOR
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) { return bytes_to_float(data, len, this->type_); }
+// Minimum value bytes a complete RESPONSE for this sensor must carry.
+size_t TopTronicSensor::value_width() const { return type_width(this->type_); }
 #endif
 
 #ifdef USE_NUMBER
@@ -517,12 +538,42 @@ static void send_can_frames(canbus::Canbus *canbus, uint32_t can_id, const std::
 void TopTronic::register_input_callbacks() {
   for (const auto &d : this->devices_) {
     auto *device = d.second.get();
+    uint32_t device_id = d.first;
     for (const auto &i : device->get_inputs()) {
       auto *input = i.second;
       auto *canbus = this->canbus_;
-      uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | this->device_addr_, this->get_device_id());
+      uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | this->device_addr_, device_id);
 
-      input->add_on_set_callback([canbus, can_id](const std::vector<uint8_t> &data) -> void {
+      input->add_on_set_callback([this, canbus, can_id, device_id, input](const std::vector<uint8_t> &data) -> void {
+        const uint32_t id = input->get_id();
+        const uint32_t now = millis();
+
+        // Write-safety rate limit: ignore repeats of the same datapoint that
+        // arrive faster than write_min_interval_ms_ (default 2000 ms). This
+        // protects the 50 kbps bus and the boiler controller from rapid SET
+        // spamming (e.g. a misbehaving HA automation).
+        if (this->write_min_interval_ms_ > 0) {
+          const auto last = this->last_write_ms_.find(id);
+          if (last != this->last_write_ms_.end() && (now - last->second) < this->write_min_interval_ms_) {
+            TT_LOGW("[SET] %s rate-limited (min %u ms between writes to this datapoint)", input->get_name().c_str(),
+                    (unsigned) this->write_min_interval_ms_);
+            return;
+          }
+        }
+
+        // Write-safety cold-cache guard: do not SET a datapoint that has never
+        // answered a GET since boot (we would be writing blind). Datapoints with
+        // no registered read sensor — e.g. the HV filter-maintenance button —
+        // are exempt because there is nothing to have read.
+        if (this->reject_writes_before_read_) {
+          TopTronicBase *sensor = this->get_sensor_(device_id, id);
+          if (sensor != nullptr && !this->read_ok_ids_.contains(id)) {
+            TT_LOGW("[SET] %s rejected (datapoint never read since boot — cold cache)", input->get_name().c_str());
+            return;
+          }
+        }
+
+        this->last_write_ms_[id] = now;
         // send_can_frames handles single-frame (≤8 bytes) and multi-frame (>8 bytes) automatically.
         send_can_frames(canbus, can_id, data);
       });
@@ -971,6 +1022,8 @@ void TopTronic::dump_config() {
   ESP_LOGCONFIG(TAG, "  Devices: %u, sensors: %u, inputs: %u", (unsigned) this->devices_.size(),
                 (unsigned) sensor_count, (unsigned) input_count);
   ESP_LOGCONFIG(TAG, "  Boot refresh delay: %u ms", (unsigned) this->boot_refresh_delay_ms_);
+  ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %u ms, reject writes before read: %s",
+                (unsigned) this->write_min_interval_ms_, this->reject_writes_before_read_ ? "yes" : "no");
 }
 
 static void log_response_frame(const uint8_t *data, size_t len, uint32_t can_id, const std::string &sensor_name) {
@@ -1400,6 +1453,28 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
   }
   TopTronicBase *sensor_base = sensor_it->second;
 
+  // Reject truncated responses before they can unlock write safety or publish
+  // a partial/zero value: the payload must carry at least as many value bytes
+  // as the sensor's configured type decodes (1 for text sensors, 1/2/4/8 for
+  // numeric types).
+  const size_t value_len = len - value_off;
+  size_t required_value_len = 1;  // text sensors decode a single uint8 code
+#ifdef USE_SENSOR
+  if (sensor_base->type() == SENSOR) {
+    required_value_len = static_cast<TopTronicSensor *>(sensor_base)->value_width();
+  }
+#endif
+  if (value_len < required_value_len) {
+    TT_LOGW("Response for %s truncated (%u of %u value bytes), ignoring", sensor_base->get_name().c_str(),
+            (unsigned) value_len, (unsigned) required_value_len);
+    return;
+  }
+
+  // A RESPONSE with a complete value for this datapoint arrived, so the
+  // cold-cache write guard (reject_writes_before_read_) may let SET requests
+  // through from now on.
+  this->read_ok_ids_.insert(id);
+
   // This sensor was answered — drop it from the refresh-retry queue so loop()
   // does not re-poll it. The deque is small (self-hub sensors) and the burst
   // drain is O(1) at the front, so a linear erase here is cheap and only runs
@@ -1424,7 +1499,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
 #ifdef USE_SENSOR
   if (sensor_base->type() == SENSOR) {
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
-    float value = sensor->parse_value(data + value_off, len - value_off);
+    float value = sensor->parse_value(data + value_off, value_len);
     sensor->publish_state(value);
     log_response_frame(data, len, can_id, sensor->get_name());
   }
@@ -1432,7 +1507,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len, uint32_t can
 #ifdef USE_TEXT_SENSOR
   if (sensor_base->type() == TEXTSENSOR) {
     auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
-    std::string value = sensor->parse_value(data + value_off, len - value_off);
+    std::string value = sensor->parse_value(data + value_off, value_len);
     sensor->publish_state(value);
     log_response_frame(data, len, can_id, sensor->get_name());
   }
