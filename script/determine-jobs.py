@@ -100,19 +100,14 @@ CLANG_TIDY_SPLIT_THRESHOLD = 65
 # Isolated components count as 10x, groupable components count as 1x
 COMPONENT_TEST_BATCH_SIZE = 40
 
-# Integration test bucketing: when more than the threshold tests are scheduled,
-# fan out across up to this many parallel jobs. Below the threshold, a single
-# job runs. Buckets are balanced by recorded per-file durations (regenerate the
-# data with script/update_integration_test_durations.py); files without a
-# recording weigh the median of the known values. When recordings exist, the
-# bucket count adapts to the selected subset's total weight so a small
-# PR-scoped run does not fan out across needless runners. The target is a
-# serial junit-time weight budget, not job wall time: each bucket runs
-# several xdist workers.
+# Integration test bucketing: above the threshold, fan out across up to this
+# many jobs, balanced by recorded per-file durations (regenerate with
+# script/update_integration_test_durations.py). The target is a serial
+# junit-time weight budget per bucket, not job wall time; it sizes the bucket
+# count for small selected subsets.
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 5
 INTEGRATION_TESTS_TARGET_BUCKET_WEIGHT = 360.0
-INTEGRATION_TESTS_DEFAULT_DURATION = 10.0
 
 # platformio and aioesphomeapi (requirements.txt), the pytest stack
 # (requirements_test.txt) and the fixture every session compiles; a change
@@ -135,7 +130,9 @@ def _load_integration_durations() -> dict[str, float]:
         if not isinstance(raw, dict):
             return {}
         return {str(k): float(v) for k, v in raw.items()}
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError) as err:
+        # Degrade to unweighted bucketing, but leave a trace in the CI log
+        print(f"integration durations unavailable: {err}", file=sys.stderr)
         return {}
 
 
@@ -174,9 +171,9 @@ def _compute_integration_test_buckets(
     if len(files) > INTEGRATION_TESTS_SPLIT_THRESHOLD:
         durations = _load_integration_durations()
         known = [durations[f] for f in files if f in durations]
-        default = (
-            statistics.median(known) if known else INTEGRATION_TESTS_DEFAULT_DURATION
-        )
+        # Unrecorded files weigh the median; without any recording the value
+        # is irrelevant since every file then weighs the same
+        default = statistics.median(known) if known else 1.0
         weights = {f: durations.get(f, default) for f in files}
         if known:
             count = min(
@@ -189,6 +186,8 @@ def _compute_integration_test_buckets(
         else:
             # No recorded data to size buckets by; keep the full fan-out.
             count = INTEGRATION_TESTS_SPLIT_BUCKETS
+        # Never emit an empty bucket, whatever the constants become
+        count = min(count, len(files))
         parts = [sorted(part) for part in lpt_partition(files, weights, count)]
         buckets = [
             {"name": f"{i + 1}/{count}", "tests": part} for i, part in enumerate(parts)
@@ -1449,6 +1448,7 @@ def main() -> None:
     output: dict[str, Any] = {
         "core_ci": run_core_ci,
         "integration_tests": run_integration,
+        "integration_run_all": integration_run_all,
         "integration_test_buckets": integration_test_buckets,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,

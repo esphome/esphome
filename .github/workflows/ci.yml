@@ -92,6 +92,7 @@ jobs:
     outputs:
       core-ci: ${{ steps.determine.outputs.core-ci }}
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
+      integration-run-all: ${{ steps.determine.outputs.integration-run-all }}
       integration-test-buckets: ${{ steps.determine.outputs.integration-test-buckets }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
@@ -152,6 +153,7 @@ jobs:
           # Extract individual fields
           echo "core-ci=$(echo "$output" | jq -r '.core_ci')" >> $GITHUB_OUTPUT
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
+          echo "integration-run-all=$(echo "$output" | jq -r '.integration_run_all')" >> $GITHUB_OUTPUT
           echo "integration-test-buckets=$(echo "$output" | jq -c '.integration_test_buckets')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
@@ -431,15 +433,14 @@ jobs:
           pytest -vv --no-cov --tb=native --durations=30 -n auto --dist worksteal \
             --junitxml=junit-integration.xml "${test_files[@]}"
       - name: Upload junit timings
-        # Feeds script/update_integration_test_durations.py, which regenerates
-        # the duration-weighted bucketing data used by script/determine-jobs.py.
-        # Only full-matrix green runs produce usable data: dev pushes and PRs
-        # carrying the ci-run-all label.
-        if: success() && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-run-all'))
+        # Feeds script/update_integration_test_durations.py; only full matrix
+        # dev runs produce usable data.
+        if: success() && github.event_name == 'push' && needs.determine-jobs.outputs.integration-run-all == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: junit-integration-${{ strategy.job-index }}
           path: junit-integration.xml
+          if-no-files-found: error
           retention-days: 7
       - name: Print ccache statistics
         # esphome stores the PlatformIO ccache under the machine-global cache
