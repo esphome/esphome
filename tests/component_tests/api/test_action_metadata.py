@@ -8,6 +8,7 @@ import pytest
 from esphome.components.api import (
     _action_strings,
     _action_strings_size,
+    _has_action_metadata,
     _validate_esp8266_action_strings,
     validate_variable,
 )
@@ -139,3 +140,16 @@ def test_empty_metadata_is_unset_and_not_counted() -> None:
     assert strings == ["a", None, "b", None, "ex"]
     # Every emitted string counts its terminator: "a" + "b" + "ex"
     assert _action_strings_size(strings) == 2 + 2 + 3
+
+
+def test_empty_metadata_does_not_enable_the_define() -> None:
+    actions = [
+        {
+            "action": "a",
+            "description": "",
+            "variables": {"b": {"type": "int", "example": ""}},
+        }
+    ]
+    assert not _has_action_metadata(actions)
+    actions[0]["variables"]["b"]["example"] = "1"
+    assert _has_action_metadata(actions)

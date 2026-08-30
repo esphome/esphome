@@ -373,10 +373,11 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _has_action_metadata(actions: list[ConfigType]) -> bool:
+    # Empty strings count as unset, matching _action_strings
     return any(
-        CONF_DESCRIPTION in conf
+        conf.get(CONF_DESCRIPTION)
         or any(
-            CONF_DESCRIPTION in var_ or CONF_EXAMPLE in var_
+            var_.get(CONF_DESCRIPTION) or var_.get(CONF_EXAMPLE)
             for var_ in conf[CONF_VARIABLES].values()
         )
         for conf in actions
