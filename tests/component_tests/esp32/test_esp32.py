@@ -313,6 +313,12 @@ def test_esp32_configuration_errors(
             ("esp_wifi",),
             id="espnow",
         ),
+        pytest.param(
+            # temprature_sens_read() on the original ESP32 lives in the esp_phy blob.
+            "exclusion_reincludes_internal_temperature.yaml",
+            ("esp_phy",),
+            id="internal_temperature",
+        ),
     ],
 )
 def test_default_exclusions_reincluded_by_owning_components(
@@ -335,6 +341,15 @@ def test_default_exclusions_reincluded_by_owning_components(
     assert "fatfs" in excluded
     # The HTTP server only comes back for configs that run one.
     assert ("esp_http_server" in excluded) == ("esp_http_server" not in reincluded)
+
+
+def test_esp_phy_stays_excluded_for_internal_temperature_on_newer_variants(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Only the original ESP32 reads the PHY blob; other variants use esp_driver_tsens."""
+    generate_main(component_config_path("exclusion_stays_internal_temperature_s3.yaml"))
+    assert "esp_phy" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
 
 def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
