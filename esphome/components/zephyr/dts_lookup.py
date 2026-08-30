@@ -226,6 +226,19 @@ def get_console_uart_label(board: str) -> str | None:
     return node.labels[0]
 
 
+def get_can_controller_labels(board: str) -> list[str] | None:
+    r"""Return CAN controller node labels for board, or None when DTS info is
+    unavailable.
+
+    Matched by label name (r"(fd)?can\d+"), not by `compatible`: STM32 alone spells the
+    peripheral two ways (bxCAN's `can1`/`can2` on F0/F1/F3/F4/L4, FDCAN's `fdcan1` on
+    U5/C0), and a `bus: can` property does not exist the way it does for uart. Disabled
+    nodes count -- every STM32 SoC dtsi ships its CAN nodes `status = "disabled"` and
+    expects the application overlay to turn one on, which is exactly what zephyr_can does.
+    """
+    return _lookup_bus_labels(board, r"(fd)?can\d+")
+
+
 def get_uart_controller_labels(board: str) -> list[str] | None:
     """Matches by `bus: uart` (every uart-controller binding sets this), not
     `current-speed` -- a real but unconfigured peripheral (e.g. RA4M1's sci0/sci9)
@@ -1072,6 +1085,7 @@ _FEATURE_COMPATIBLES: dict[str, list[str]] = {
         "nordic,nrf-can",
         "nxp,flexcan",
         "st,stm32-can",
+        "st,stm32-fdcan",
     ],
 }
 

@@ -23,6 +23,7 @@ from esphome.components.zephyr.dts_lookup import (
     _snippet_overlay_files,
     get_board_partitions,
     get_board_yaml_supported,
+    get_can_controller_labels,
     get_enabled_spi_buses,
     get_enabled_uart_buses,
     get_i2c_pinctrl_esp32,
@@ -563,6 +564,27 @@ def test_get_enabled_uart_buses_falls_back_to_disabled_when_none_enabled(
     ]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
     assert get_enabled_uart_buses("some_board") == ["uart0", "uart1"]
+
+
+def test_get_can_controller_labels_returns_disabled_nodes(monkeypatch) -> None:
+    """Every STM32 SoC dtsi ships its CAN node disabled, so a disabled-only board
+    must still report it -- zephyr_can is what enables the node."""
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [_FakeNode(labels=["fdcan1"], status="disabled")]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_can_controller_labels("some_board") == ["fdcan1"]
+
+
+def test_get_can_controller_labels_matches_bxcan_and_fdcan_only(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [
+        _FakeNode(labels=["can1"]),
+        _FakeNode(labels=["fdcan2"]),
+        _FakeNode(labels=["can"]),
+        _FakeNode(labels=["scan1"]),
+    ]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_can_controller_labels("some_board") == ["can1", "fdcan2"]
 
 
 def test_get_enabled_spi_buses_returns_none_when_dts_unavailable(monkeypatch) -> None:
