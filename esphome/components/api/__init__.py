@@ -448,7 +448,10 @@ def _action_strings(
             ]
         if has_optional:
             default = var_.get(CONF_DEFAULT)
-            strings.append(None if default is None else _default_to_wire(default))
+            # An empty string default is the same as no default on the wire
+            strings.append(
+                None if default is None else (_default_to_wire(default) or None)
+            )
     return strings
 
 
@@ -470,7 +473,7 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
         if size > ESP8266_ACTION_STRINGS_MAX_TOTAL:
             raise cv.Invalid(
                 f"Action '{conf[CONF_ACTION]}' has {size} bytes of name, variable name, "
-                f"description and example text; ESP8266 allows at most "
+                f"description, example and default text; ESP8266 allows at most "
                 f"{ESP8266_ACTION_STRINGS_MAX_TOTAL} bytes per action"
             )
     return config
@@ -482,8 +485,8 @@ def _validate_optional_arg_positions(config: ConfigType) -> ConfigType:
         for i, var_ in enumerate(conf[CONF_VARIABLES].values()):
             if i >= 32 and _is_optional_var(var_):
                 raise cv.Invalid(
-                    f"Action '{conf[CONF_ACTION]}' has an optional variable past "
-                    f"position 32; only the first 32 variables can be optional"
+                    f"Action '{conf[CONF_ACTION]}': only the first 32 variables "
+                    f"can be optional"
                 )
     return config
 

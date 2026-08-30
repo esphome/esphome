@@ -88,6 +88,15 @@ def test_required_false_is_optional_without_default() -> None:
     ]
 
 
+def test_empty_string_default_is_unset() -> None:
+    conf = {"action": "a", "variables": {"b": {"type": "string", "default": ""}}}
+    assert _action_strings(conf, has_metadata=False, has_optional=True) == [
+        "a",
+        "b",
+        None,
+    ]
+
+
 def test_default_is_validated_against_type() -> None:
     assert validate_variable({"type": "int", "default": "5"})["default"] == 5
     assert validate_variable({"type": "bool", "default": "true"})["default"] is True
