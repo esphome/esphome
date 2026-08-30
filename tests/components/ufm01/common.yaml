@@ -32,8 +32,13 @@ binary_sensor:
 text_sensor:
   - platform: ufm01
     device_id:
-      id: device_id
+      id: ufm01_device_id
       name: "Device ID"
     software_version:
-      id: software_version
+      id: ufm01_software_version
       name: "Software version"
+
+script:
+  - id: ufm01_clear_accumulated_flow
+    then:
+      - ufm01.clear_accumulated_flow: ufm01_component

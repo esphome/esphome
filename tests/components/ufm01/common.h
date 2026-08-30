@@ -1,8 +1,8 @@
 #pragma once
 
 #include <array>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <deque>
 #include <vector>
 
@@ -10,7 +10,6 @@
 
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/ufm01/ufm01.h"
-#include "esphome/components/ufm01/automation.h"
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -23,6 +22,7 @@ namespace esphome::ufm01::testing {
 static constexpr uint8_t FRAME_START_BYTE_1 = 0x3C;
 static constexpr uint8_t FRAME_START_BYTE_2 = 0x32;
 static constexpr uint8_t PASSIVE_START_BYTE_2 = 0x64;
+static constexpr uint8_t PASSIVE_START_BYTE_2_WITH_ID = 0x96;
 static constexpr uint8_t FRAME_STOP_BYTE = 0x16;
 static constexpr uint8_t FRAME_FLAG_INSTANT_FLOW = 0x0B;
 static constexpr uint8_t FRAME_FLAG_RESERVED_SECTION = 0x0C;
@@ -109,6 +109,12 @@ class TestableUFM01 : public UFM01Component {
     this->request_clear_accumulated_flow_(action);
   }
 
+  void cancel_pending_clear_action(ClearAccumulatedFlowActionInterface *action) {
+    this->cancel_pending_clear_action_(action);
+  }
+
+  bool pending_clear_sent() const { return this->pending_clear_sent_; }
+
   void set_pending_clear_start_ms(uint32_t ms) { this->pending_clear_start_ms_ = ms; }
 
   OperatingMode operating_mode() const { return this->operating_mode_; }
@@ -182,6 +188,9 @@ class TestableUFM01 : public UFM01Component {
     this->software_version_published_ = false;
     this->software_version_index_ = 0;
     this->software_version_read_pending_ = false;
+    this->startup_phase_ = StartupPhase::WAIT;
+    this->pending_clear_action_ = nullptr;
+    this->pending_clear_sent_ = false;
   }
 };
 
@@ -234,6 +243,35 @@ inline std::array<uint8_t, PASSIVE_FRAME_SIZE> make_passive_frame() {
   for (size_t i = 0; i < 21; ++i)
     sum += frame[i];
   frame[21] = sum;
+  return frame;
+}
+
+inline std::array<uint8_t, PASSIVE_FRAME_WITH_ID_SIZE> make_passive_with_id_frame() {
+  std::array<uint8_t, PASSIVE_FRAME_WITH_ID_SIZE> frame{};
+  frame[0] = FRAME_START_BYTE_1;
+  frame[1] = PASSIVE_START_BYTE_2_WITH_ID;
+  frame[2] = 0x01;
+  frame[3] = 0x00;
+  frame[4] = 0x14;
+  frame[5] = 0x07;
+  frame[6] = 0x23;
+  frame[7] = 0x01;
+  frame[8] = 0x0A;
+  // Non-measurement bytes ensure a shifted instant-flow offset is detected.
+  for (size_t i = 17; i < 22; ++i)
+    frame[i] = 0x99;
+  frame[22] = FRAME_FLAG_INSTANT_FLOW;
+  frame[23] = 0x34;
+  frame[24] = 0x12;
+  frame[27] = 0x00;
+  frame[31] = FRAME_FLAG_TEMP;
+  frame[32] = 0x50;
+  frame[33] = 0x23;
+  frame[38] = FRAME_STOP_BYTE;
+  uint8_t sum = 0;
+  for (size_t i = 0; i < 37; ++i)
+    sum += frame[i];
+  frame[37] = sum;
   return frame;
 }
 

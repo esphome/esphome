@@ -1,14 +1,18 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ICON_CHIP, ICON_FINGERPRINT
+from esphome.const import (
+    CONF_DEVICE_ID,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_CHIP,
+    ICON_FINGERPRINT,
+)
 from esphome.types import ConfigType
 
 from . import CONF_UFM01_ID, UFM01Component
 
 DEPENDENCIES = ["ufm01"]
 
-CONF_DEVICE_ID = "device_id"
 CONF_SOFTWARE_VERSION = "software_version"
 
 CONFIG_SCHEMA = {

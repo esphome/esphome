@@ -1,5 +1,4 @@
 #include "ufm01.h"
-#include "automation.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -14,6 +13,7 @@ static const char *const TAG = "ufm01";
 
 static constexpr uint8_t COMMAND_ACK = 0xE5;
 static constexpr uint32_t COMMAND_ACK_TIMEOUT_MS = 500;
+static constexpr uint32_t CLEAR_QUEUE_TIMEOUT_MS = 15000;
 static constexpr uint32_t STARTUP_DELAY_MS = 2000;
 static constexpr uint32_t POST_RESET_DELAY_MS = 2000;
 static constexpr uint32_t RESET_RETRY_DELAY_MS = 800;
@@ -47,6 +47,17 @@ static constexpr uint8_t FRAME_START_BYTE_2 = 0x32;
 static constexpr uint8_t PASSIVE_START_BYTE_2 = 0x64;
 static constexpr uint8_t PASSIVE_START_BYTE_2_WITH_ID = 0x96;
 static constexpr uint8_t FRAME_STOP_BYTE = 0x16;
+static constexpr size_t PASSIVE_WITH_ID_DEVICE_ID_INDEX = 2;
+static constexpr size_t PASSIVE_WITH_ID_ACC_FLOW_FLAG_INDEX = 8;
+static constexpr size_t PASSIVE_WITH_ID_ACC_FLOW_INDEX = 9;
+static constexpr size_t PASSIVE_WITH_ID_INSTANT_FLOW_FLAG_INDEX = 22;
+static constexpr size_t PASSIVE_WITH_ID_INSTANT_FLOW_INDEX = 23;
+static constexpr size_t PASSIVE_WITH_ID_TEMP_FLAG_INDEX = 31;
+static constexpr size_t PASSIVE_WITH_ID_TEMP_INDEX = 32;
+static constexpr size_t PASSIVE_WITH_ID_ST1_INDEX = 35;
+static constexpr size_t PASSIVE_WITH_ID_ST2_INDEX = 36;
+static constexpr size_t PASSIVE_WITH_ID_CHECKSUM_INDEX = 37;
+static constexpr size_t PASSIVE_WITH_ID_STOP_INDEX = 38;
 static constexpr uint8_t FRAME_INDEX_INSTANT_FLOW_FLAG = 15;
 static constexpr uint8_t FRAME_INDEX_RESERVED_SECTION = 21;
 static constexpr uint8_t FRAME_INDEX_TEMP_FLAG = 24;
@@ -140,12 +151,12 @@ static bool validate_passive_frame(const uint8_t data[PASSIVE_FRAME_SIZE]) {
 
 static bool validate_passive_with_id_frame(const uint8_t data[PASSIVE_FRAME_WITH_ID_SIZE]) {
   if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2_WITH_ID ||
-      data[PASSIVE_FRAME_WITH_ID_SIZE - 1] != FRAME_STOP_BYTE)
+      data[PASSIVE_WITH_ID_STOP_INDEX] != FRAME_STOP_BYTE)
     return false;
   uint8_t sum = 0;
-  for (size_t i = 0; i < PASSIVE_FRAME_WITH_ID_SIZE - 2; ++i)
+  for (size_t i = 0; i < PASSIVE_WITH_ID_CHECKSUM_INDEX; ++i)
     sum += data[i];
-  return data[PASSIVE_FRAME_WITH_ID_SIZE - 2] == (sum & 0xFF);
+  return data[PASSIVE_WITH_ID_CHECKSUM_INDEX] == sum;
 }
 
 static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SIZE], uint8_t active[FRAME_SIZE]) {
@@ -169,26 +180,27 @@ static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SI
   active[31] = FRAME_STOP_BYTE;
 }
 
-static void passive_with_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_WITH_ID_SIZE], uint8_t active[FRAME_SIZE]) {
+static void passive_with_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_WITH_ID_SIZE],
+                                            uint8_t active[FRAME_SIZE]) {
   std::memset(active, 0, FRAME_SIZE);
   active[0] = FRAME_START_BYTE_1;
   active[1] = FRAME_START_BYTE_2;
   for (size_t i = 0; i < DEVICE_ID_LENGTH; ++i)
-    active[FRAME_DEVICE_ID_INDEX + i] = passive[2 + i];
+    active[FRAME_DEVICE_ID_INDEX + i] = passive[PASSIVE_WITH_ID_DEVICE_ID_INDEX + i];
   active[7] = passive[7];
-  active[8] = passive[8];
+  active[8] = passive[PASSIVE_WITH_ID_ACC_FLOW_FLAG_INDEX];
   for (size_t i = 0; i < 6; ++i)
-    active[9 + i] = passive[9 + i];
-  active[15] = passive[17];
+    active[9 + i] = passive[PASSIVE_WITH_ID_ACC_FLOW_INDEX + i];
+  active[15] = passive[PASSIVE_WITH_ID_INSTANT_FLOW_FLAG_INDEX];
   for (size_t i = 0; i < 5; ++i)
-    active[16 + i] = passive[18 + i];
+    active[16 + i] = passive[PASSIVE_WITH_ID_INSTANT_FLOW_INDEX + i];
   active[21] = FRAME_FLAG_RESERVED_SECTION;
-  active[24] = passive[29];
+  active[24] = passive[PASSIVE_WITH_ID_TEMP_FLAG_INDEX];
   for (size_t i = 0; i < 3; ++i)
-    active[25 + i] = passive[32 + i];
-  active[28] = passive[35];
-  active[29] = passive[36];
-  active[30] = passive[37];
+    active[25 + i] = passive[PASSIVE_WITH_ID_TEMP_INDEX + i];
+  active[28] = passive[PASSIVE_WITH_ID_ST1_INDEX];
+  active[29] = passive[PASSIVE_WITH_ID_ST2_INDEX];
+  active[30] = passive[PASSIVE_WITH_ID_CHECKSUM_INDEX];
   active[31] = FRAME_STOP_BYTE;
 }
 
@@ -206,7 +218,7 @@ static float read_flow(const uint8_t data[FRAME_SIZE]) {
 }
 
 static void log_hex(const uint8_t *data, size_t len) {
-  char hex_buf[format_hex_pretty_size(FRAME_SIZE)];
+  char hex_buf[format_hex_pretty_size(PASSIVE_FRAME_MAX_SIZE)];
   ESP_LOGD(TAG, "%s", format_hex_pretty_to(hex_buf, data, len, ' '));
 }
 
@@ -257,6 +269,19 @@ bool UFM01Component::consume_ack_() {
   return false;
 }
 
+bool UFM01Component::can_start_clear_action_() const {
+  switch (this->operating_mode_) {
+    case OperatingMode::ACTIVE_STREAM:
+      return true;
+    case OperatingMode::PASSIVE_POLL:
+      return !this->passive_read_pending_ && !this->software_version_read_pending_;
+    case OperatingMode::STARTUP:
+    case OperatingMode::ENTERING_PASSIVE:
+      return false;
+  }
+  return false;
+}
+
 void UFM01Component::request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action) {
   if (this->pending_clear_action_ != nullptr) {
     ESP_LOGW(TAG, "Clear accumulated flow already in progress, ignoring request");
@@ -264,13 +289,21 @@ void UFM01Component::request_clear_accumulated_flow_(ClearAccumulatedFlowActionI
     return;
   }
   this->pending_clear_action_ = action;
+  this->pending_clear_sent_ = false;
   this->pending_clear_start_ms_ = millis();
-  this->send_command_no_wait_(CLEAR_ACCUMULATED_FLOW);
+}
+
+void UFM01Component::cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action) {
+  if (this->pending_clear_action_ != action)
+    return;
+  this->pending_clear_action_ = nullptr;
+  this->pending_clear_sent_ = false;
 }
 
 void UFM01Component::finish_pending_clear_action_() {
   ClearAccumulatedFlowActionInterface *action = this->pending_clear_action_;
   this->pending_clear_action_ = nullptr;
+  this->pending_clear_sent_ = false;
   if (action != nullptr)
     action->complete();
 }
@@ -278,6 +311,19 @@ void UFM01Component::finish_pending_clear_action_() {
 void UFM01Component::loop_pending_clear_action_() {
   if (this->pending_clear_action_ == nullptr)
     return;
+  if (!this->pending_clear_sent_) {
+    if (!this->can_start_clear_action_()) {
+      if (millis() - this->pending_clear_start_ms_ < CLEAR_QUEUE_TIMEOUT_MS)
+        return;
+      ESP_LOGW(TAG, "Clear accumulated flow timed out waiting for an idle UART");
+      this->finish_pending_clear_action_();
+      return;
+    }
+    this->pending_clear_start_ms_ = millis();
+    this->pending_clear_sent_ = true;
+    this->send_command_no_wait_(CLEAR_ACCUMULATED_FLOW);
+    return;
+  }
   if (this->consume_ack_()) {
     ESP_LOGI(TAG, "Clear accumulated flow acknowledged");
     this->finish_pending_clear_action_();
@@ -377,13 +423,15 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
 #ifdef USE_TEXT_SENSOR
   if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
     uint64_t version = 0;
-    if (decode_decimal_nibbles(&this->software_version_frame_[1], SOFTWARE_VERSION_LENGTH, &version)) {
-      char version_str[SOFTWARE_VERSION_STRING_LENGTH + 1];
-      format_decimal_digits(version, SOFTWARE_VERSION_STRING_LENGTH, version_str);
-      this->software_version_text_sensor_->publish_state(version_str);
-      this->software_version_published_ = true;
-      ESP_LOGI(TAG, "UFM-01 software version: %s", version_str);
+    if (!decode_decimal_nibbles(&this->software_version_frame_[1], SOFTWARE_VERSION_LENGTH, &version)) {
+      ESP_LOGW(TAG, "invalid BCD data in software version response");
+      return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE;
     }
+    char version_str[SOFTWARE_VERSION_STRING_LENGTH + 1];
+    format_decimal_digits(version, SOFTWARE_VERSION_STRING_LENGTH, version_str);
+    this->software_version_text_sensor_->publish_state(version_str);
+    this->software_version_published_ = true;
+    ESP_LOGI(TAG, "UFM-01 software version: %s", version_str);
   }
 #endif
 
@@ -477,6 +525,7 @@ void UFM01Component::enter_active_stream_(const char *reason) {
   ESP_LOGI(TAG, "UFM-01 active stream %s", reason);
   this->operating_mode_ = OperatingMode::ACTIVE_STREAM;
   this->passive_read_pending_ = false;
+  this->software_version_read_pending_ = false;
   this->consecutive_passive_failures_ = 0;
 }
 
@@ -498,6 +547,7 @@ void UFM01Component::restart_startup_(const char *reason) {
   this->publish_stale_flow_and_temperature_();
   this->operating_mode_ = OperatingMode::STARTUP;
   this->passive_read_pending_ = false;
+  this->software_version_read_pending_ = false;
   this->consecutive_passive_failures_ = 0;
   this->reset_retried_ = false;
   this->status_set_warning("re-initializing UFM-01");
@@ -556,8 +606,7 @@ void UFM01Component::start_passive_read_() {
 // Accumulates the reply to a passive read request across loop iterations.
 PassiveReadResult UFM01Component::continue_passive_read_() {
   const size_t expected_size = this->passive_expected_frame_size_();
-  const uint8_t expected_start_byte_2 =
-      this->passive_expects_id_ ? PASSIVE_START_BYTE_2_WITH_ID : PASSIVE_START_BYTE_2;
+  const uint8_t expected_start_byte_2 = this->passive_expects_id_ ? PASSIVE_START_BYTE_2_WITH_ID : PASSIVE_START_BYTE_2;
 
   while (this->available() && this->passive_index_ < expected_size) {
     uint8_t byte;
@@ -608,6 +657,13 @@ void UFM01Component::loop_startup_() {
     case StartupPhase::WAIT:
       // Pick up an already-streaming device without resetting it
       if (this->process_active_stream_()) {
+#ifdef USE_TEXT_SENSOR
+        if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
+          this->start_software_version_read_();
+          this->set_startup_phase_(StartupPhase::SOFTWARE_VERSION_WAIT_REPLY);
+          return;
+        }
+#endif
         this->enter_active_stream_("started");
         return;
       }
@@ -781,6 +837,8 @@ void UFM01Component::loop_passive_poll_() {
 
 void UFM01Component::loop() {
   this->loop_pending_clear_action_();
+  if (this->pending_clear_action_ != nullptr && this->pending_clear_sent_)
+    return;
   switch (this->operating_mode_) {
     case OperatingMode::STARTUP:
       this->loop_startup_();

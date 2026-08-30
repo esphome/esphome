@@ -1,5 +1,5 @@
-import esphome.codegen as cg
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
@@ -16,7 +16,7 @@ DEPENDENCIES = ["uart"]
 ufm01_ns = cg.esphome_ns.namespace("ufm01")
 UFM01Component = ufm01_ns.class_("UFM01Component", uart.UARTDevice, cg.Component)
 ClearAccumulatedFlowAction = ufm01_ns.class_(
-    "ClearAccumulatedFlowAction", automation.Action, cg.Parented.template(UFM01Component)
+    "ClearAccumulatedFlowAction", automation.Action
 )
 
 CONF_UFM01_ID = "ufm01_id"
@@ -31,7 +31,7 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
-CLEAR_ACCUMULATED_FLOW_ACTION_SCHEMA = cv.Schema(
+CLEAR_ACCUMULATED_FLOW_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(UFM01Component),
     }
@@ -60,8 +60,10 @@ async def to_code(config: ConfigType) -> None:
     synchronous=False,
 )
 async def clear_accumulated_flow_action_to_code(
-    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: TemplateArgsType
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
 ) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+    parent = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, parent)

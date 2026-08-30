@@ -20,7 +20,13 @@
 
 namespace esphome::ufm01 {
 
-class ClearAccumulatedFlowActionInterface;
+class ClearAccumulatedFlowActionInterface {
+ public:
+  virtual ~ClearAccumulatedFlowActionInterface() = default;
+  virtual void complete() = 0;
+};
+
+template<typename... Ts> class ClearAccumulatedFlowAction;
 
 namespace testing {
 class TestableUFM01;
@@ -94,9 +100,10 @@ class UFM01Component : public uart::UARTDevice, public Component {
 
   float get_setup_priority() const override;
 
-  void request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
-
  private:
+  void request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
+  void cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action);
+  bool can_start_clear_action_() const;
   void send_command_no_wait_(const std::array<uint8_t, 7> &command);
   bool consume_ack_();
   void flush_rx_();
@@ -139,6 +146,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
 
   ClearAccumulatedFlowActionInterface *pending_clear_action_{nullptr};
   uint32_t pending_clear_start_ms_{0};
+  bool pending_clear_sent_{false};
 
   bool passive_read_pending_{false};
   uint32_t passive_start_ms_{0};
@@ -151,6 +159,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   int32_t read_index_ = 0;
   uint8_t data_[FRAME_SIZE];
 
+  template<typename... Ts> friend class ClearAccumulatedFlowAction;
   friend class testing::TestableUFM01;
 };
 

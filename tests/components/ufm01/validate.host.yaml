@@ -14,10 +14,3 @@ uart:
   parity: EVEN
   stop_bits: 1
   port: /dev/null
-
-automation:
-  - trigger:
-      - platform: template
-        id: ufm01_clear_trigger
-    action:
-      - ufm01.clear_accumulated_flow: ufm01_component
