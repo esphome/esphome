@@ -216,7 +216,7 @@ inline std::array<uint8_t, SOFTWARE_VERSION_RESPONSE_SIZE> make_software_version
   response[3] = 0x38;
   response[4] = 0x23;
   uint8_t sum = 0;
-  for (size_t i = 0; i < 5; ++i)
+  for (size_t i = 1; i < 5; ++i)
     sum += response[i];
   response[5] = sum;
   response[6] = FRAME_STOP_BYTE;

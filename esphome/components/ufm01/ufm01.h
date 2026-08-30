@@ -28,6 +28,8 @@ class TestableUFM01;
 
 static constexpr size_t FRAME_SIZE = 32;
 static constexpr size_t PASSIVE_FRAME_SIZE = 23;
+static constexpr size_t PASSIVE_FRAME_WITH_ID_SIZE = 39;
+static constexpr size_t PASSIVE_FRAME_MAX_SIZE = PASSIVE_FRAME_WITH_ID_SIZE;
 static constexpr size_t SOFTWARE_VERSION_RESPONSE_SIZE = 7;
 static constexpr size_t DEVICE_ID_LENGTH = 5;
 static constexpr size_t DEVICE_ID_STRING_LENGTH = 10;
@@ -118,6 +120,8 @@ class UFM01Component : public uart::UARTDevice, public Component {
   void start_passive_read_();
   PassiveReadResult continue_passive_read_();
   void note_passive_poll_result_(PassiveReadResult result);
+  void try_pending_software_version_read_();
+  size_t passive_expected_frame_size_() const;
 
   OperatingMode operating_mode_{OperatingMode::STARTUP};
   StartupPhase startup_phase_{StartupPhase::WAIT};
@@ -129,6 +133,9 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint8_t consecutive_passive_failures_{0};
   bool device_id_published_{false};
   bool software_version_published_{false};
+  bool passive_expects_id_{false};
+  bool software_version_read_pending_{false};
+  uint32_t last_software_version_attempt_ms_{0};
 
   ClearAccumulatedFlowActionInterface *pending_clear_action_{nullptr};
   uint32_t pending_clear_start_ms_{0};
@@ -136,9 +143,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   bool passive_read_pending_{false};
   uint32_t passive_start_ms_{0};
   size_t passive_index_{0};
-  uint8_t passive_frame_[PASSIVE_FRAME_SIZE];
-
-  bool software_version_read_pending_{false};
+  uint8_t passive_frame_[PASSIVE_FRAME_MAX_SIZE];
   uint32_t software_version_start_ms_{0};
   size_t software_version_index_{0};
   uint8_t software_version_frame_[SOFTWARE_VERSION_RESPONSE_SIZE];

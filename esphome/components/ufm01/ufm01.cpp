@@ -21,6 +21,8 @@ static constexpr uint32_t STARTUP_RETRY_MS = 3000;
 static constexpr uint32_t PASSIVE_POLL_INTERVAL_MS = 1000;
 static constexpr uint32_t ACTIVE_STALE_MS = 5000;
 static constexpr uint32_t PASSIVE_READ_TIMEOUT_MS = 1000;
+static constexpr uint32_t SOFTWARE_VERSION_READ_TIMEOUT_MS = 2000;
+static constexpr uint32_t SOFTWARE_VERSION_RETRY_MS = 30000;
 static constexpr uint32_t ACTIVE_FRAME_TIMEOUT_MS = 3000;
 // After this many consecutive passive poll failures, re-run the reset/startup sequence
 static constexpr uint8_t PASSIVE_FAIL_ESCALATE_COUNT = 8;
@@ -33,6 +35,7 @@ static constexpr std::array<uint8_t, 7> PASSIVE_MODE = {0xFE, 0xFE, 0x11, 0x5C, 
 static constexpr std::array<uint8_t, 7> CLEAR_ACCUMULATED_FLOW = {0xFE, 0xFE, 0x11, 0x5A, 0xFD, 0x57, 0x16};
 static constexpr std::array<uint8_t, 7> RESET_DEVICE = {0xFE, 0xFE, 0x11, 0x5D, 0xCB, 0x28, 0x16};
 static constexpr std::array<uint8_t, 7> READ_SENSOR_DATA_NO_ID = {0xFE, 0xFE, 0x11, 0x5B, 0x0F, 0x6A, 0x16};
+static constexpr std::array<uint8_t, 7> READ_SENSOR_DATA_WITH_ID = {0xFE, 0xFE, 0x11, 0x5B, 0xCB, 0x26, 0x16};
 static constexpr std::array<uint8_t, 7> GET_SOFTWARE_VERSION = {0xFE, 0xFE, 0x11, 0x5E, 0x62, 0xC0, 0x16};
 
 // Active-mode frame layout (datasheet Table 7)
@@ -42,6 +45,7 @@ static constexpr size_t FRAME_STOP_INDEX = 31;
 static constexpr uint8_t FRAME_START_BYTE_1 = 0x3C;
 static constexpr uint8_t FRAME_START_BYTE_2 = 0x32;
 static constexpr uint8_t PASSIVE_START_BYTE_2 = 0x64;
+static constexpr uint8_t PASSIVE_START_BYTE_2_WITH_ID = 0x96;
 static constexpr uint8_t FRAME_STOP_BYTE = 0x16;
 static constexpr uint8_t FRAME_INDEX_INSTANT_FLOW_FLAG = 15;
 static constexpr uint8_t FRAME_INDEX_RESERVED_SECTION = 21;
@@ -100,7 +104,7 @@ static bool validate_software_version_response(const uint8_t data[SOFTWARE_VERSI
   if (data[0] != COMMAND_ACK || data[SOFTWARE_VERSION_STOP_INDEX] != FRAME_STOP_BYTE)
     return false;
   uint8_t sum = 0;
-  for (size_t i = 0; i < SOFTWARE_VERSION_CHECKSUM_INDEX; ++i)
+  for (size_t i = 1; i < SOFTWARE_VERSION_CHECKSUM_INDEX; ++i)
     sum += data[i];
   return data[SOFTWARE_VERSION_CHECKSUM_INDEX] == sum;
 }
@@ -134,6 +138,16 @@ static bool validate_passive_frame(const uint8_t data[PASSIVE_FRAME_SIZE]) {
   return data[21] == (sum & 0xFF);
 }
 
+static bool validate_passive_with_id_frame(const uint8_t data[PASSIVE_FRAME_WITH_ID_SIZE]) {
+  if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2_WITH_ID ||
+      data[PASSIVE_FRAME_WITH_ID_SIZE - 1] != FRAME_STOP_BYTE)
+    return false;
+  uint8_t sum = 0;
+  for (size_t i = 0; i < PASSIVE_FRAME_WITH_ID_SIZE - 2; ++i)
+    sum += data[i];
+  return data[PASSIVE_FRAME_WITH_ID_SIZE - 2] == (sum & 0xFF);
+}
+
 static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SIZE], uint8_t active[FRAME_SIZE]) {
   std::memset(active, 0, FRAME_SIZE);
   active[0] = FRAME_START_BYTE_1;
@@ -152,6 +166,29 @@ static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SI
   active[28] = passive[19];
   active[29] = passive[20];
   active[30] = passive[21];
+  active[31] = FRAME_STOP_BYTE;
+}
+
+static void passive_with_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_WITH_ID_SIZE], uint8_t active[FRAME_SIZE]) {
+  std::memset(active, 0, FRAME_SIZE);
+  active[0] = FRAME_START_BYTE_1;
+  active[1] = FRAME_START_BYTE_2;
+  for (size_t i = 0; i < DEVICE_ID_LENGTH; ++i)
+    active[FRAME_DEVICE_ID_INDEX + i] = passive[2 + i];
+  active[7] = passive[7];
+  active[8] = passive[8];
+  for (size_t i = 0; i < 6; ++i)
+    active[9 + i] = passive[9 + i];
+  active[15] = passive[17];
+  for (size_t i = 0; i < 5; ++i)
+    active[16 + i] = passive[18 + i];
+  active[21] = FRAME_FLAG_RESERVED_SECTION;
+  active[24] = passive[29];
+  for (size_t i = 0; i < 3; ++i)
+    active[25 + i] = passive[32 + i];
+  active[28] = passive[35];
+  active[29] = passive[36];
+  active[30] = passive[37];
   active[31] = FRAME_STOP_BYTE;
 }
 
@@ -297,6 +334,8 @@ void UFM01Component::publish_device_id_from_frame_(const uint8_t data[FRAME_SIZE
   uint64_t device_id = 0;
   if (!decode_decimal_nibbles(&data[FRAME_DEVICE_ID_INDEX], DEVICE_ID_LENGTH, &device_id))
     return;
+  if (device_id == 0)
+    return;
 
   char device_id_str[DEVICE_ID_STRING_LENGTH + 1];
   format_decimal_digits(device_id, DEVICE_ID_STRING_LENGTH, device_id_str);
@@ -322,7 +361,7 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
   }
 
   if (this->software_version_index_ < SOFTWARE_VERSION_RESPONSE_SIZE) {
-    if (millis() - this->software_version_start_ms_ < PASSIVE_READ_TIMEOUT_MS)
+    if (millis() - this->software_version_start_ms_ < SOFTWARE_VERSION_READ_TIMEOUT_MS)
       return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING;
     ESP_LOGD(TAG, "software version read timeout (%zu/%zu bytes)", this->software_version_index_,
              SOFTWARE_VERSION_RESPONSE_SIZE);
@@ -480,22 +519,54 @@ void UFM01Component::note_passive_poll_result_(PassiveReadResult result) {
   this->restart_startup_("Passive poll failed repeatedly");
 }
 
+void UFM01Component::try_pending_software_version_read_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->software_version_text_sensor_ == nullptr || this->software_version_published_ ||
+      this->software_version_read_pending_ || this->passive_read_pending_)
+    return;
+  if (this->last_software_version_attempt_ms_ != 0 &&
+      millis() - this->last_software_version_attempt_ms_ < SOFTWARE_VERSION_RETRY_MS)
+    return;
+
+  this->start_software_version_read_();
+#endif
+}
+
+size_t UFM01Component::passive_expected_frame_size_() const {
+  return this->passive_expects_id_ ? PASSIVE_FRAME_WITH_ID_SIZE : PASSIVE_FRAME_SIZE;
+}
+
 void UFM01Component::start_passive_read_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->device_id_text_sensor_ != nullptr && !this->device_id_published_) {
+    this->passive_expects_id_ = true;
+    this->send_command_no_wait_(READ_SENSOR_DATA_WITH_ID);
+  } else {
+    this->passive_expects_id_ = false;
+    this->send_command_no_wait_(READ_SENSOR_DATA_NO_ID);
+  }
+#else
+  this->passive_expects_id_ = false;
   this->send_command_no_wait_(READ_SENSOR_DATA_NO_ID);
+#endif
   this->passive_index_ = 0;
   this->passive_start_ms_ = millis();
 }
 
 // Accumulates the reply to a passive read request across loop iterations.
 PassiveReadResult UFM01Component::continue_passive_read_() {
-  while (this->available() && this->passive_index_ < PASSIVE_FRAME_SIZE) {
+  const size_t expected_size = this->passive_expected_frame_size_();
+  const uint8_t expected_start_byte_2 =
+      this->passive_expects_id_ ? PASSIVE_START_BYTE_2_WITH_ID : PASSIVE_START_BYTE_2;
+
+  while (this->available() && this->passive_index_ < expected_size) {
     uint8_t byte;
     if (!this->read_byte(&byte))
       break;
 
     if (this->passive_index_ == 0 && byte != FRAME_START_BYTE_1)
       continue;
-    if (this->passive_index_ == 1 && byte != PASSIVE_START_BYTE_2) {
+    if (this->passive_index_ == 1 && byte != expected_start_byte_2) {
       // The mismatched byte may itself be the start of the real frame
       this->passive_index_ = (byte == FRAME_START_BYTE_1) ? 1 : 0;
       continue;
@@ -503,21 +574,29 @@ PassiveReadResult UFM01Component::continue_passive_read_() {
     this->passive_frame_[this->passive_index_++] = byte;
   }
 
-  if (this->passive_index_ < PASSIVE_FRAME_SIZE) {
+  if (this->passive_index_ < expected_size) {
     if (millis() - this->passive_start_ms_ < PASSIVE_READ_TIMEOUT_MS)
       return PassiveReadResult::PASSIVE_READ_RESULT_PENDING;
-    ESP_LOGD(TAG, "passive read timeout (%zu/%zu bytes)", this->passive_index_, PASSIVE_FRAME_SIZE);
-    return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
-  }
-
-  if (!validate_passive_frame(this->passive_frame_)) {
-    log_hex(this->passive_frame_, PASSIVE_FRAME_SIZE);
-    ESP_LOGW(TAG, "invalid passive frame");
+    ESP_LOGD(TAG, "passive read timeout (%zu/%zu bytes)", this->passive_index_, expected_size);
     return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
   }
 
   uint8_t active_frame[FRAME_SIZE];
-  passive_no_id_to_active_frame(this->passive_frame_, active_frame);
+  if (this->passive_expects_id_) {
+    if (!validate_passive_with_id_frame(this->passive_frame_)) {
+      log_hex(this->passive_frame_, PASSIVE_FRAME_WITH_ID_SIZE);
+      ESP_LOGW(TAG, "invalid passive frame with ID");
+      return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
+    }
+    passive_with_id_to_active_frame(this->passive_frame_, active_frame);
+  } else {
+    if (!validate_passive_frame(this->passive_frame_)) {
+      log_hex(this->passive_frame_, PASSIVE_FRAME_SIZE);
+      ESP_LOGW(TAG, "invalid passive frame");
+      return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
+    }
+    passive_no_id_to_active_frame(this->passive_frame_, active_frame);
+  }
   this->on_active_frame_(active_frame);
   return PassiveReadResult::PASSIVE_READ_RESULT_SUCCESS;
 }
@@ -591,6 +670,7 @@ void UFM01Component::loop_startup_() {
           break;
       }
       this->software_version_read_pending_ = false;
+      this->last_software_version_attempt_ms_ = millis();
       this->send_command_no_wait_(ACTIVE_MODE);
       this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME);
       return;
@@ -658,6 +738,21 @@ void UFM01Component::loop_entering_passive_() {
 }
 
 void UFM01Component::loop_passive_poll_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->software_version_read_pending_) {
+    switch (this->continue_software_version_read_()) {
+      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
+        return;
+      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS:
+      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE:
+        this->software_version_read_pending_ = false;
+        this->last_software_version_attempt_ms_ = millis();
+        break;
+    }
+    return;
+  }
+#endif
+
   if (this->passive_read_pending_) {
     const PassiveReadResult result = this->continue_passive_read_();
     if (result == PassiveReadResult::PASSIVE_READ_RESULT_PENDING)
@@ -674,6 +769,11 @@ void UFM01Component::loop_passive_poll_() {
 
   if (millis() - this->last_poll_ms_ >= PASSIVE_POLL_INTERVAL_MS) {
     this->last_poll_ms_ = millis();
+#ifdef USE_TEXT_SENSOR
+    this->try_pending_software_version_read_();
+    if (this->software_version_read_pending_)
+      return;
+#endif
     this->start_passive_read_();
     this->passive_read_pending_ = true;
   }
