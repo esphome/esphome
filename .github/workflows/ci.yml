@@ -363,6 +363,7 @@ jobs:
         ~/.esphome-integration-tests/platformio/packages
         ~/.esphome-integration-tests/platformio/appstate.json
         ~/.esphome-integration-tests/platformio/.cache
+        ~/.esphome-integration-tests/platformio/.esphome.pio.stamp.json
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -434,7 +435,7 @@ jobs:
         run: CCACHE_DIR="$HOME/.cache/esphome/platformio-ccache" ccache -s
       - name: Save integration PlatformIO cache
         # Bucket 0 only; the others would race the same immutable key.
-        if: (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && strategy.job-index == 0 && steps.pio-cache.outputs.cache-hit != 'true'
+        if: success() && (github.ref == 'refs/heads/dev' || contains(github.event.pull_request.labels.*.name, 'ci-cache-write')) && strategy.job-index == 0 && steps.pio-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.INTEGRATION_PIO_CACHE_PATH }}

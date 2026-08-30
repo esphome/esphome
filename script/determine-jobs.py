@@ -101,6 +101,13 @@ COMPONENT_TEST_BATCH_SIZE = 40
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 3
 
+# platformio and aioesphomeapi (requirements.txt) and the pytest stack
+# (requirements_test.txt) are used by every integration test; a change to
+# either runs the full matrix
+INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
+    {"requirements.txt", "requirements_test.txt"}
+)
+
 
 def _split_list(items: list[str], n: int) -> list[list[str]]:
     """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
@@ -222,7 +229,8 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
     4. requirements.txt or requirements_test.txt changed
-       - They pin platformio and aioesphomeapi, which every integration test uses
+       - platformio and aioesphomeapi (requirements.txt) and the pytest stack
+         (requirements_test.txt) are used by every integration test
 
     Returns (run_all=False, [test_files...]) when:
 
@@ -247,8 +255,7 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
         # If any core files changed, run all integration tests
         return (True, [])
 
-    # They pin platformio and aioesphomeapi, which every integration test uses
-    if any(f in ("requirements.txt", "requirements_test.txt") for f in files):
+    if any(f in INTEGRATION_TESTS_TRIGGER_FILES for f in files):
         return (True, [])
 
     # If infrastructure Python files changed (conftest, utils, etc.), run all tests
