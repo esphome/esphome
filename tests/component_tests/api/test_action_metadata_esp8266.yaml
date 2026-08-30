@@ -1,8 +1,8 @@
 esphome:
   name: test
 
-esp32:
-  board: esp32dev
+esp8266:
+  board: d1_mini
 
 wifi:
   ssid: MySSID

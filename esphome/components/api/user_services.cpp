@@ -4,6 +4,45 @@
 
 namespace esphome::api {
 
+StringRef UserServiceStatic::str_(size_t idx, std::span<char> &scratch) const {
+  const char *s = progmem_read_ptr(&this->strings_[idx]);
+#ifdef USE_ESP8266
+  if (s == nullptr)
+    return StringRef();
+  // Codegen sizes the scratch buffer for the largest service, so this cannot overflow
+  size_t len = strlen_P(s);
+  progmem_memcpy(scratch.data(), s, len);
+  StringRef ref(scratch.data(), len);
+  scratch = scratch.subspan(len);
+  return ref;
+#else
+  return StringRef::from_maybe_nullptr(s);
+#endif
+}
+
+ListEntitiesServicesResponse UserServiceStatic::encode_list_service_response_(const enums::ServiceArgType *arg_types,
+                                                                              size_t num_args,
+                                                                              std::span<char> scratch) const {
+  ListEntitiesServicesResponse msg;
+  msg.name = this->str_(0, scratch);
+  msg.key = this->key_;
+  msg.supports_response = this->supports_response_;
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+  msg.description = this->str_(num_args + 1, scratch);
+#endif
+  msg.args.init(num_args);
+  for (size_t i = 0; i < num_args; i++) {
+    auto &arg = msg.args.emplace_back();
+    arg.type = arg_types[i];
+    arg.name = this->str_(1 + i, scratch);
+#ifdef USE_API_USER_DEFINED_ACTION_METADATA
+    arg.description = this->str_(num_args + 2 + i, scratch);
+    arg.example = this->str_(2 * num_args + 2 + i, scratch);
+#endif
+  }
+  return msg;
+}
+
 template<> bool get_execute_arg_value<bool>(const ExecuteServiceArgument &arg) { return arg.bool_; }
 template<> int32_t get_execute_arg_value<int32_t>(const ExecuteServiceArgument &arg) {
   if (arg.legacy_int != 0)
