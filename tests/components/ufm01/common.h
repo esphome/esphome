@@ -14,6 +14,9 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome::ufm01::testing {
 
@@ -94,6 +97,14 @@ class TestableUFM01 : public UFM01Component {
 
   void loop_pending_clear_action() { this->loop_pending_clear_action_(); }
 
+  void start_software_version_read() { this->start_software_version_read_(); }
+
+  SoftwareVersionReadResult continue_software_version_read() { return this->continue_software_version_read_(); }
+
+  bool device_id_published() const { return this->device_id_published_; }
+
+  bool software_version_published() const { return this->software_version_published_; }
+
   void request_clear_accumulated_flow(ClearAccumulatedFlowActionInterface *action) {
     this->request_clear_accumulated_flow_(action);
   }
@@ -151,6 +162,15 @@ class TestableUFM01 : public UFM01Component {
     this->phase_start_ms_ = millis() - 4000;
   }
 
+  void prepare_post_reset_wait_phase() {
+    this->operating_mode_ = OperatingMode::STARTUP;
+    this->startup_phase_ = StartupPhase::POST_RESET_WAIT;
+    this->phase_start_ms_ = millis() - 3000;
+    this->software_version_published_ = false;
+  }
+
+  void set_software_version_start_ms(uint32_t ms) { this->software_version_start_ms_ = ms; }
+
   void reset_state() {
     this->read_index_ = 0;
     this->last_valid_frame_ms_ = 0;
@@ -158,6 +178,10 @@ class TestableUFM01 : public UFM01Component {
     this->passive_read_pending_ = false;
     this->operating_mode_ = OperatingMode::STARTUP;
     this->consecutive_passive_failures_ = 0;
+    this->device_id_published_ = false;
+    this->software_version_published_ = false;
+    this->software_version_index_ = 0;
+    this->software_version_read_pending_ = false;
   }
 };
 
@@ -165,6 +189,13 @@ inline std::array<uint8_t, FRAME_SIZE> make_active_frame() {
   std::array<uint8_t, FRAME_SIZE> frame{};
   frame[0] = FRAME_START_BYTE_1;
   frame[1] = FRAME_START_BYTE_2;
+  // Datasheet example device ID 2307140001
+  frame[2] = 0x01;
+  frame[3] = 0x00;
+  frame[4] = 0x14;
+  frame[5] = 0x07;
+  frame[6] = 0x23;
+  frame[7] = 0x01;
   frame[15] = FRAME_FLAG_INSTANT_FLOW;
   frame[21] = FRAME_FLAG_RESERVED_SECTION;
   frame[24] = FRAME_FLAG_TEMP;
@@ -174,6 +205,22 @@ inline std::array<uint8_t, FRAME_SIZE> make_active_frame() {
     sum += frame[i];
   frame[30] = sum;
   return frame;
+}
+
+inline std::array<uint8_t, SOFTWARE_VERSION_RESPONSE_SIZE> make_software_version_response() {
+  // Datasheet example version 23380315
+  std::array<uint8_t, SOFTWARE_VERSION_RESPONSE_SIZE> response{};
+  response[0] = COMMAND_ACK;
+  response[1] = 0x15;
+  response[2] = 0x03;
+  response[3] = 0x38;
+  response[4] = 0x23;
+  uint8_t sum = 0;
+  for (size_t i = 0; i < 5; ++i)
+    sum += response[i];
+  response[5] = sum;
+  response[6] = FRAME_STOP_BYTE;
+  return response;
 }
 
 inline std::array<uint8_t, PASSIVE_FRAME_SIZE> make_passive_frame() {
@@ -209,6 +256,16 @@ class UFM01Test : public ::testing::Test {
 
   sensor::Sensor flow_sensor_;
   sensor::Sensor temperature_sensor_;
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  void attach_diagnostic_text_sensors() {
+    this->ufm01_.set_device_id_text_sensor(&this->device_id_text_sensor_);
+    this->ufm01_.set_software_version_text_sensor(&this->software_version_text_sensor_);
+  }
+
+  text_sensor::TextSensor device_id_text_sensor_;
+  text_sensor::TextSensor software_version_text_sensor_;
 #endif
 
   QueuedMockUART mock_uart_;

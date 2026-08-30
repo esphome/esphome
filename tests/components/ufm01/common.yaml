@@ -28,3 +28,12 @@ binary_sensor:
     flow_rate_out_of_range:
       id: flow_rate_out_of_range
       name: "Flow rate out of range"
+
+text_sensor:
+  - platform: ufm01
+    device_id:
+      id: device_id
+      name: "Device ID"
+    software_version:
+      id: software_version
+      name: "Software version"

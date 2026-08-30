@@ -8,6 +8,9 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
 
 #include <array>
@@ -25,6 +28,11 @@ class TestableUFM01;
 
 static constexpr size_t FRAME_SIZE = 32;
 static constexpr size_t PASSIVE_FRAME_SIZE = 23;
+static constexpr size_t SOFTWARE_VERSION_RESPONSE_SIZE = 7;
+static constexpr size_t DEVICE_ID_LENGTH = 5;
+static constexpr size_t DEVICE_ID_STRING_LENGTH = 10;
+static constexpr size_t SOFTWARE_VERSION_LENGTH = 4;
+static constexpr size_t SOFTWARE_VERSION_STRING_LENGTH = 8;
 
 enum class OperatingMode : uint8_t {
   STARTUP = 0,
@@ -38,15 +46,22 @@ enum class StartupPhase : uint8_t {
   RESET_WAIT_ACK = 1,
   RESET_RETRY_WAIT = 2,
   POST_RESET_WAIT = 3,
-  ACTIVE_WAIT_FRAME = 4,
-  SET_PASSIVE_WAIT_ACK = 5,
-  PASSIVE_WAIT_REPLY = 6,
+  SOFTWARE_VERSION_WAIT_REPLY = 4,
+  ACTIVE_WAIT_FRAME = 5,
+  SET_PASSIVE_WAIT_ACK = 6,
+  PASSIVE_WAIT_REPLY = 7,
 };
 
 enum class PassiveReadResult : uint8_t {
   PASSIVE_READ_RESULT_PENDING = 0,
   PASSIVE_READ_RESULT_SUCCESS = 1,
   PASSIVE_READ_RESULT_FAILURE = 2,
+};
+
+enum class SoftwareVersionReadResult : uint8_t {
+  SOFTWARE_VERSION_READ_RESULT_PENDING = 0,
+  SOFTWARE_VERSION_READ_RESULT_SUCCESS = 1,
+  SOFTWARE_VERSION_READ_RESULT_FAILURE = 2,
 };
 
 class UFM01Component : public uart::UARTDevice, public Component {
@@ -61,6 +76,11 @@ class UFM01Component : public uart::UARTDevice, public Component {
   SUB_BINARY_SENSOR(flow_direction_wrong)
   SUB_BINARY_SENSOR(empty_tube)
   SUB_BINARY_SENSOR(flow_rate_out_of_range)
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(device_id)
+  SUB_TEXT_SENSOR(software_version)
 #endif
 
  public:
@@ -80,7 +100,10 @@ class UFM01Component : public uart::UARTDevice, public Component {
   void flush_rx_();
   bool process_active_stream_();
   void on_active_frame_(uint8_t data[FRAME_SIZE]);
+  void publish_device_id_from_frame_(const uint8_t data[FRAME_SIZE]);
   void publish_stale_flow_and_temperature_();
+  void start_software_version_read_();
+  SoftwareVersionReadResult continue_software_version_read_();
 
   void loop_startup_();
   void loop_active_stream_();
@@ -104,6 +127,8 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint32_t last_valid_frame_ms_{0};
   uint32_t last_poll_ms_{0};
   uint8_t consecutive_passive_failures_{0};
+  bool device_id_published_{false};
+  bool software_version_published_{false};
 
   ClearAccumulatedFlowActionInterface *pending_clear_action_{nullptr};
   uint32_t pending_clear_start_ms_{0};
@@ -112,6 +137,11 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint32_t passive_start_ms_{0};
   size_t passive_index_{0};
   uint8_t passive_frame_[PASSIVE_FRAME_SIZE];
+
+  bool software_version_read_pending_{false};
+  uint32_t software_version_start_ms_{0};
+  size_t software_version_index_{0};
+  uint8_t software_version_frame_[SOFTWARE_VERSION_RESPONSE_SIZE];
 
   int32_t read_index_ = 0;
   uint8_t data_[FRAME_SIZE];

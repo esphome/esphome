@@ -33,8 +33,10 @@ static constexpr std::array<uint8_t, 7> PASSIVE_MODE = {0xFE, 0xFE, 0x11, 0x5C, 
 static constexpr std::array<uint8_t, 7> CLEAR_ACCUMULATED_FLOW = {0xFE, 0xFE, 0x11, 0x5A, 0xFD, 0x57, 0x16};
 static constexpr std::array<uint8_t, 7> RESET_DEVICE = {0xFE, 0xFE, 0x11, 0x5D, 0xCB, 0x28, 0x16};
 static constexpr std::array<uint8_t, 7> READ_SENSOR_DATA_NO_ID = {0xFE, 0xFE, 0x11, 0x5B, 0x0F, 0x6A, 0x16};
+static constexpr std::array<uint8_t, 7> GET_SOFTWARE_VERSION = {0xFE, 0xFE, 0x11, 0x5E, 0x62, 0xC0, 0x16};
 
 // Active-mode frame layout (datasheet Table 7)
+static constexpr size_t FRAME_DEVICE_ID_INDEX = 2;
 static constexpr size_t FRAME_CHECKSUM_INDEX = 30;
 static constexpr size_t FRAME_STOP_INDEX = 31;
 static constexpr uint8_t FRAME_START_BYTE_1 = 0x3C;
@@ -62,7 +64,46 @@ static constexpr uint8_t ST2_UFC_ERROR_MASK = 0x20;
 static constexpr uint8_t ST2_FLOW_DIRECTION_WRONG_MASK = 0x08;
 static constexpr uint8_t ST2_FLOW_RATE_OUT_OF_RANGE_MASK = 0x04;
 
+static constexpr size_t SOFTWARE_VERSION_CHECKSUM_INDEX = 5;
+static constexpr size_t SOFTWARE_VERSION_STOP_INDEX = 6;
+
 static float to_float(uint8_t data) { return (data >> 4) * 10 + (data & 0x0F); }
+
+static bool decode_decimal_nibbles(const uint8_t *data, size_t len, uint64_t *result) {
+  uint64_t value = 0;
+  uint64_t multiplier = 1;
+
+  for (size_t i = 0; i < len; ++i) {
+    const uint8_t low_nibble = data[i] & 0x0F;
+    const uint8_t high_nibble = (data[i] >> 4) & 0x0F;
+    if (low_nibble > 9 || high_nibble > 9)
+      return false;
+    value += low_nibble * multiplier;
+    multiplier *= 10;
+    value += high_nibble * multiplier;
+    multiplier *= 10;
+  }
+
+  *result = value;
+  return true;
+}
+
+static void format_decimal_digits(uint64_t value, size_t width, char *buffer) {
+  for (size_t i = width; i > 0; --i) {
+    buffer[i - 1] = static_cast<char>('0' + (value % 10));
+    value /= 10;
+  }
+  buffer[width] = '\0';
+}
+
+static bool validate_software_version_response(const uint8_t data[SOFTWARE_VERSION_RESPONSE_SIZE]) {
+  if (data[0] != COMMAND_ACK || data[SOFTWARE_VERSION_STOP_INDEX] != FRAME_STOP_BYTE)
+    return false;
+  uint8_t sum = 0;
+  for (size_t i = 0; i < SOFTWARE_VERSION_CHECKSUM_INDEX; ++i)
+    sum += data[i];
+  return data[SOFTWARE_VERSION_CHECKSUM_INDEX] == sum;
+}
 
 static bool check_byte(const uint8_t data[FRAME_SIZE], size_t index, uint8_t expected, const char *name) {
   if (data[index] == expected)
@@ -232,6 +273,10 @@ void UFM01Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "Empty Tube", this->empty_tube_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
 #endif
+#ifdef USE_TEXT_SENSOR
+  LOG_TEXT_SENSOR("  ", "Device ID", this->device_id_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "Software Version", this->software_version_text_sensor_);
+#endif
   this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
@@ -244,7 +289,70 @@ void UFM01Component::publish_stale_flow_and_temperature_() {
 #endif
 }
 
+void UFM01Component::publish_device_id_from_frame_(const uint8_t data[FRAME_SIZE]) {
+#ifdef USE_TEXT_SENSOR
+  if (this->device_id_text_sensor_ == nullptr || this->device_id_published_)
+    return;
+
+  uint64_t device_id = 0;
+  if (!decode_decimal_nibbles(&data[FRAME_DEVICE_ID_INDEX], DEVICE_ID_LENGTH, &device_id))
+    return;
+
+  char device_id_str[DEVICE_ID_STRING_LENGTH + 1];
+  format_decimal_digits(device_id, DEVICE_ID_STRING_LENGTH, device_id_str);
+  this->device_id_text_sensor_->publish_state(device_id_str);
+  this->device_id_published_ = true;
+  ESP_LOGI(TAG, "UFM-01 device ID: %s", device_id_str);
+#endif
+}
+
+void UFM01Component::start_software_version_read_() {
+  this->send_command_no_wait_(GET_SOFTWARE_VERSION);
+  this->software_version_index_ = 0;
+  this->software_version_start_ms_ = millis();
+  this->software_version_read_pending_ = true;
+}
+
+SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
+  while (this->available() && this->software_version_index_ < SOFTWARE_VERSION_RESPONSE_SIZE) {
+    uint8_t byte;
+    if (!this->read_byte(&byte))
+      break;
+    this->software_version_frame_[this->software_version_index_++] = byte;
+  }
+
+  if (this->software_version_index_ < SOFTWARE_VERSION_RESPONSE_SIZE) {
+    if (millis() - this->software_version_start_ms_ < PASSIVE_READ_TIMEOUT_MS)
+      return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING;
+    ESP_LOGD(TAG, "software version read timeout (%zu/%zu bytes)", this->software_version_index_,
+             SOFTWARE_VERSION_RESPONSE_SIZE);
+    return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE;
+  }
+
+  if (!validate_software_version_response(this->software_version_frame_)) {
+    log_hex(this->software_version_frame_, SOFTWARE_VERSION_RESPONSE_SIZE);
+    ESP_LOGW(TAG, "invalid software version response");
+    return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE;
+  }
+
+#ifdef USE_TEXT_SENSOR
+  if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
+    uint64_t version = 0;
+    if (decode_decimal_nibbles(&this->software_version_frame_[1], SOFTWARE_VERSION_LENGTH, &version)) {
+      char version_str[SOFTWARE_VERSION_STRING_LENGTH + 1];
+      format_decimal_digits(version, SOFTWARE_VERSION_STRING_LENGTH, version_str);
+      this->software_version_text_sensor_->publish_state(version_str);
+      this->software_version_published_ = true;
+      ESP_LOGI(TAG, "UFM-01 software version: %s", version_str);
+    }
+  }
+#endif
+
+  return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS;
+}
+
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
+  this->publish_device_id_from_frame_(data);
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
   if (this->ufc_chip_error_binary_sensor_ != nullptr)
@@ -460,6 +568,29 @@ void UFM01Component::loop_startup_() {
     case StartupPhase::POST_RESET_WAIT:
       if (elapsed < POST_RESET_DELAY_MS)
         return;
+#ifdef USE_TEXT_SENSOR
+      if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
+        this->start_software_version_read_();
+        this->set_startup_phase_(StartupPhase::SOFTWARE_VERSION_WAIT_REPLY);
+        return;
+      }
+#endif
+      this->send_command_no_wait_(ACTIVE_MODE);
+      this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME);
+      return;
+
+    case StartupPhase::SOFTWARE_VERSION_WAIT_REPLY:
+      switch (this->continue_software_version_read_()) {
+        case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
+          return;
+        case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS:
+          ESP_LOGD(TAG, "Software version read during startup");
+          break;
+        case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE:
+          ESP_LOGW(TAG, "Software version read failed during startup, continuing");
+          break;
+      }
+      this->software_version_read_pending_ = false;
       this->send_command_no_wait_(ACTIVE_MODE);
       this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME);
       return;
