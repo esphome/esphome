@@ -8,6 +8,19 @@ namespace esphome::adc {
 
 static const char *const TAG = "adc";
 
+#if USE_ESP32_VARIANT_ESP32S31
+// The S31 ADC is differential and returns offset binary codes: 0 V reads as
+// code 2198 (ADC_LL_ZERO_DIFF_CODE in the IDF HAL, not yet applied by the
+// driver) and each volt is 1024 counts, decreasing as the input rises.
+static constexpr int32_t S31_ZERO_DIFF_CODE = 2198;
+static constexpr float S31_COUNTS_PER_VOLT = 1024.0f;
+
+static float s31_raw_to_voltage(uint32_t raw) {
+  float voltage = (S31_ZERO_DIFF_CODE - (int32_t) raw) / S31_COUNTS_PER_VOLT;
+  return voltage < 0.0f ? 0.0f : voltage;
+}
+#endif
+
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
 const LogString *attenuation_to_str(adc_atten_t attenuation) {
@@ -201,7 +214,11 @@ float ADCSensor::sample_fixed_attenuation_() {
     }
   }
 
+#if USE_ESP32_VARIANT_ESP32S31
+  return s31_raw_to_voltage(final_value);
+#else
   return final_value * 3.3f / 4095.0f;
+#endif
 }
 
 float ADCSensor::sample_autorange_() {
