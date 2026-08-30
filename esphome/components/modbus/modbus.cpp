@@ -862,7 +862,7 @@ void ModbusClientHub::dump_config() {
                 "  Turnaround Time: %" PRIu32 " ms\n"
                 "  Frame Delay: %" PRIu32 " us\n"
                 "  Long Rx Buffer Delay: %" PRIu32 " us\n"
-                "  Bits Per Character: %" PRIu32 "\n"
+                "  Bits Per Character: %" PRIu8 "\n"
                 "  Rx Detect Latency: %" PRIu32 " us",
                 this->send_wait_time_us_ / US_PER_MS, this->turnaround_delay_us_ / US_PER_MS, this->frame_delay_us_,
                 this->long_rx_buffer_delay_us_, this->bits_per_char_, this->rx_detect_latency_us_);
@@ -873,7 +873,7 @@ void ModbusServerHub::dump_config() {
                 "Modbus:\n"
                 "  Frame Delay: %" PRIu32 " us\n"
                 "  Long Rx Buffer Delay: %" PRIu32 " us\n"
-                "  Bits Per Character: %" PRIu32 "\n"
+                "  Bits Per Character: %" PRIu8 "\n"
                 "  Rx Detect Latency: %" PRIu32 " us",
                 this->frame_delay_us_, this->long_rx_buffer_delay_us_, this->bits_per_char_,
                 this->rx_detect_latency_us_);
