@@ -54,7 +54,7 @@ INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.
 def all_integration_test_files() -> list[str]:
     """Return all integration test file paths, sorted, relative to repo root."""
     return sorted(
-        str(p.relative_to(root_path))
+        p.relative_to(root_path).as_posix()
         for p in (Path(root_path) / "tests" / "integration").glob("test_*.py")
     )
 
