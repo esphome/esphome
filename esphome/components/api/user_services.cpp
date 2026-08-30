@@ -1,8 +1,20 @@
 #include "user_services.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::api {
+
+StringRef UserServiceDescriptor::name_ref_(const char *name,
+                                           [[maybe_unused]] std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch) {
+#ifdef USE_ESP8266
+  ESPHOME_strncpy_P(scratch.data(), name, scratch.size() - 1);
+  scratch[scratch.size() - 1] = '\0';
+  return StringRef(scratch.data());
+#else
+  return StringRef(name);
+#endif
+}
 
 template<> bool get_execute_arg_value<bool>(const ExecuteServiceArgument &arg) { return arg.bool_; }
 template<> int32_t get_execute_arg_value<int32_t>(const ExecuteServiceArgument &arg) {

@@ -8,7 +8,6 @@
 #include "api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #include "esphome/components/json/json_util.h"
 #endif
@@ -19,11 +18,15 @@ namespace esphome::api {
 // Forward declaration - full definition in api_server.h
 class APIServer;
 
+// Keep in sync with ACTION_NAME_MAX_LENGTH in esphome/components/api/__init__.py (63 chars + null)
+static constexpr size_t API_USER_ACTION_NAME_MAX_LEN = 64;
+
 class UserServiceDescriptor {
  public:
   /// Build the list-entities message. On ESP8266 the name lives in PROGMEM and is copied into
   /// `scratch`, so the returned message is only valid while `scratch` is; other platforms ignore it.
-  virtual ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) = 0;
+  virtual ListEntitiesServicesResponse encode_list_service_response(
+      std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch) = 0;
 
   virtual bool execute_service(const ExecuteServiceRequest &req) = 0;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -32,6 +35,10 @@ class UserServiceDescriptor {
 #endif
 
   bool is_internal() { return false; }
+
+ protected:
+  /// StringRef to `name`; on ESP8266 the bytes are first copied out of PROGMEM into `scratch`.
+  static StringRef name_ref_(const char *name, std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch);
 };
 
 template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
@@ -47,16 +54,10 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
                   enums::SupportsResponseType supports_response = enums::SUPPORTS_RESPONSE_NONE)
       : name_(name), arg_names_(arg_names), key_(key), supports_response_(supports_response) {}
 
-  ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) override {
+  ListEntitiesServicesResponse encode_list_service_response(
+      std::span<char, API_USER_ACTION_NAME_MAX_LEN> scratch) override {
     ListEntitiesServicesResponse msg;
-#ifdef USE_ESP8266
-    // Codegen sizes scratch for the longest action name, so this cannot overflow
-    size_t len = strlen_P(this->name_);
-    progmem_memcpy(scratch.data(), this->name_, len);
-    msg.name = StringRef(scratch.data(), len);
-#else
-    msg.name = StringRef(this->name_);
-#endif
+    msg.name = name_ref_(this->name_, scratch);
     msg.key = this->key_;
     msg.supports_response = this->supports_response_;
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
@@ -116,7 +117,8 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
     this->key_ = fnv1_hash(this->name_.c_str());
   }
 
-  ListEntitiesServicesResponse encode_list_service_response(std::span<char> /*scratch*/) override {
+  ListEntitiesServicesResponse encode_list_service_response(
+      std::span<char, API_USER_ACTION_NAME_MAX_LEN> /*scratch*/) override {
     ListEntitiesServicesResponse msg;
     msg.name = StringRef(this->name_);
     msg.key = this->key_;
