@@ -248,7 +248,7 @@ DEFAULT_EXCLUDED_IDF_COMPONENTS = (
     "esp_https_server",  # HTTPS server - ESPHome has its own web server
     "esp_lcd",  # LCD controller drivers - only needed by display component
     "esp_local_ctrl",  # Local control over HTTPS/BLE - ESPHome has native API
-    "esp_phy",  # RF PHY - esp_wifi/bt/ieee802154 pull it back when they are in the build
+    "esp_phy",  # RF PHY - re-included by internal_temperature on the original ESP32; esp_wifi/bt/ieee802154 pull it back
     "esp_wifi",  # WiFi stack - re-included by request_wifi(), espnow; bt pulls it back for BLE builds
     "espcoredump",  # Core dump support - ESPHome has its own debug component
     "fatfs",  # FAT filesystem - ESPHome doesn't use filesystem storage
@@ -3256,7 +3256,13 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
-        clean_build(clear_pio_cache=False)
+        if not CORE.using_toolchain_esp_idf:
+            # PIO's dependency tracking under-declares sdkconfig inputs
+            # (ldgen, linker scripts); without a clean the image can be
+            # unbootable (esphome#15336). The esp-idf toolchain tracks
+            # sdkconfig via IDF's cmake and has_outdated_files(), so a
+            # reconfigure suffices there; everything else fails safe.
+            clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():
