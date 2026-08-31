@@ -188,6 +188,8 @@ lvgl:
     dark_mode: true
     obj:
       border_width: 1
+      user_1:
+        bg_color: black
 
   gradients:
     - id: color_bar
