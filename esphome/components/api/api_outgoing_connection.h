@@ -21,28 +21,21 @@ class APIServer;
 class APIConnection;
 
 struct SavedOutgoingTarget {
-  // Null-terminated IP string; empty when no peer has been remembered yet.
-  // Stored as text so the platform-specific v4-mapped-IPv6 normalization in
-  // the socket component is reused on both ends.
+  // IP as text so the socket component's v4-mapped-IPv6 normalization is
+  // reused on both ends; empty = none remembered
   char host[socket::SOCKADDR_STR_LEN];
 } PACKED;  // NOLINT
 
-/// Dials out to Home Assistant when no dial-back target client is connected.
-/// The TCP direction flips but the protocol roles do not: this device stays
-/// the Noise responder, so both sides still verify each other by the shared
-/// key. The target is either a host from YAML or the persisted address of the
-/// last client whose hello declared it a dial-back target; the listening
-/// socket keeps accepting inbound clients the whole time.
+/// Dials out when no dial-back target client is connected. Only the TCP
+/// direction flips: the device stays the Noise responder, so both sides
+/// still verify by key. Targets the YAML host or the last remembered client.
 class OutgoingConnectionManager {
  public:
   void setup();
   void loop(APIServer *server);
-  /// Called when a key-verified client declares itself a dial-back target;
-  /// the last such client wins as the remembered address.
+  /// A key-verified client declared itself a dial-back target; last one wins
   void on_target_client(APIConnection *conn);
-  /// Called for every removed connection so a dialed one stops gating
-  /// re-dials. A dialed connection dying without ever sending the flagged
-  /// hello is the unproven-peer case, so the backoff escalates here.
+  /// Clears the dialed-connection gate; dying unproven escalates the backoff
   void on_client_removed(APIConnection *conn);
   void on_shutdown() {
     this->dial_socket_.reset();
@@ -82,19 +75,18 @@ class OutgoingConnectionManager {
   }
   static constexpr uint32_t PRECONDITION_RETRY_MS = 5000;
 
+  // Pointers first (4 bytes each on 32-bit)
   std::unique_ptr<socket::Socket> dial_socket_;
-  // Connection created by the last successful dial; compared, never
-  // dereferenced. Cleared by on_client_removed()/on_target_client().
+  // Compared only, never dereferenced
   APIConnection *dialed_conn_{nullptr};
 #ifndef API_OUTGOING_CONNECTION_HOST
   ESPPreferenceObject target_pref_;
-  SavedOutgoingTarget saved_{};
 #endif
+
+  // 4-byte types
   uint32_t backoff_{BACKOFF_MIN_MS};
-  // Boot starts in WAITING, measured from boot: normally the client is
-  // expected to connect in first, so the full delay applies. A deep sleep
-  // device wakes for a short window where connecting out IS the wake state,
-  // so it dials as soon as the network is up.
+  // Boot waits for the client to connect in first; a deep sleep wake window
+  // is short, so connecting out immediately is the wake state
 #ifdef USE_DEEP_SLEEP
   uint32_t wait_{0};
 #else
@@ -102,6 +94,11 @@ class OutgoingConnectionManager {
 #endif
   uint32_t state_ts_{0};
   uint32_t last_poll_{0};
+
+  // Byte-aligned types last
+#ifndef API_OUTGOING_CONNECTION_HOST
+  SavedOutgoingTarget saved_{};
+#endif
   DialState state_{DialState::DIAL_STATE_WAITING};
 };
 

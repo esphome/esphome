@@ -1823,11 +1823,8 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   this->complete_authentication_();
 
 #ifdef USE_API_OUTGOING_CONNECTION
-  // Only honor the flag once a real key is active. With a PSK set, plaintext
-  // and the all-zeros provisioning PSK are rejected at the transport, and any
-  // session that predates key activation is force-closed when the key is
-  // applied (see update_noise_psk_), so a client reaching this point has
-  // proven possession of the key.
+  // With a PSK set only key-verified transports reach hello: plaintext and
+  // zero-PSK are rejected, and pre-activation sessions are force-closed
   if (msg.outgoing_connection_target && !this->flags_.outgoing_connection_target) {
     if (this->parent_->get_noise_ctx().has_psk()) {
       this->flags_.outgoing_connection_target = true;

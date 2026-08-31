@@ -30,10 +30,9 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError init_from_handoff(const uint8_t *header, uint8_t header_len);
 #endif
 #ifdef USE_API_OUTGOING_CONNECTION
-  // Outgoing connection: init() sends the server hello immediately so the
-  // peer can identify this device and select the matching key before it sends
-  // the PSK-mixed first handshake message. Must be called before init();
-  // stored in state_ so the helper does not grow.
+  // init() then sends the server hello first so the peer can pick the key
+  // before its PSK-mixed message. Call before init(); stored in state_ so
+  // the helper does not grow.
   void set_server_hello_first() { this->state_ = State::CLIENT_HELLO_OUTGOING; }
 #endif
   APIError loop() override;

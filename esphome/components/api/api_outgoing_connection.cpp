@@ -32,21 +32,16 @@ void OutgoingConnectionManager::setup() {
 
 void OutgoingConnectionManager::loop(APIServer *server) {
   if (server->has_outgoing_target_client_()) {
-    // on_target_client() already reset the dial state when this client's
-    // hello arrived; nothing to do while it stays connected.
-    return;
+    return;  // on_target_client() already reset the dial state
   }
   if (this->dialed_conn_ != nullptr) {
-    // A dialed connection is still open but its peer has not sent a flagged
-    // hello (yet); dialing again would only burn connection slots. The
-    // connection's own timeouts remove it eventually if the peer is silent.
+    // Dialed peer still connected but unproven; its own timeouts free the slot
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
   switch (this->state_) {
     case DialState::DIAL_STATE_IDLE:
-      // The connected target went away; give it the configured delay to
-      // reconnect on its own before dialing.
+      // Target went away; give it the configured delay to reconnect first
       this->state_ = DialState::DIAL_STATE_WAITING;
       this->state_ts_ = now;
       this->wait_ = API_OUTGOING_CONNECTION_DELAY;
@@ -121,8 +116,7 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
-  // Connect completion is a write event; the main loop select() only watches
-  // read readiness, so poll it here with a zero timeout.
+  // Connect completion is a write event; the main loop only selects on reads
   fd_set writefds;
   FD_ZERO(&writefds);
   FD_SET(fd, &writefds);
@@ -154,9 +148,7 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
-  // The dial worked; hold without escalating until the peer proves itself
-  // with a flagged hello (on_target_client() resets to idle) or dies
-  // unproven (on_client_removed() escalates the backoff).
+  // Hold unescalated until the peer proves itself or dies unproven
   this->schedule_wait_(now, PRECONDITION_RETRY_MS);
 }
 

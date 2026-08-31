@@ -287,10 +287,8 @@ void APIServer::add_client_(APIConnection *conn) {
 
 #ifdef USE_API_OUTGOING_CONNECTION
 APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
-  // Inbound clients may have taken the remaining slots while the dial was in
-  // flight; re-check at the handoff so add_client_ cannot write past clients_.
-  // The PSK can also have been cleared mid-dial, and mark_outgoing() requires
-  // the noise helper the constructor only picks while a PSK is set.
+  // Re-check at the handoff: inbound clients may have filled the slots and
+  // the PSK may have been cleared (mark_outgoing() needs the noise helper)
   if (this->at_client_limit_() || !this->noise_ctx_.has_psk()) {
     ESP_LOGW(TAG, "Dropping outgoing connection (%s)", this->at_client_limit_() ? "max connections" : "no key active");
     return nullptr;
@@ -620,9 +618,7 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
         if (!c->send_message(req)) {
           API_LOG_MSG_DROPPED(TAG, "Disconnect request");
         }
-        // Force the disconnect: a session opened before the key was active
-        // (plaintext or zero-PSK) must not survive activation, or its peer
-        // could later claim capabilities reserved for key-verified clients.
+        // Force it: a session from before the key was active must not survive
         c->flags_.next_close = true;
       }
     });
