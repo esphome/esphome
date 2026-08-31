@@ -243,6 +243,21 @@ def _discover_uart_node_labels(board: str) -> dict[str, str] | None:
     return mapping
 
 
+def validate_uart_label_override(value: str) -> str | None:
+    """If value is a '&<label>' devicetree label override, validate and return its
+    normalized ('&' + lowercased label) form; otherwise return None so the caller can
+    fall through to its own UART0/UART1/... symbol validation."""
+    if not value.startswith("&"):
+        return None
+    label = value[1:]
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", label):
+        raise cv.Invalid(
+            f"'{value}' is not a valid devicetree label override -- expected "
+            "'&<label>', e.g. '&usart2'"
+        )
+    return f"&{label.lower()}"
+
+
 def resolve_uart_node_label(
     board: str, hw_uart: str, static_labels: dict[str, str]
 ) -> str:

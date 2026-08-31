@@ -68,15 +68,6 @@ LibreTinyUARTComponent = uart_ns.class_(
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
 ZephyrUartComponent = uart_ns.class_("ZephyrUartComponent", UARTComponent, cg.Component)
-ZephyrUartPort = uart_ns.enum("ZephyrUartPort")
-ZEPHYR_UART_PORTS = {
-    "uart0": ZephyrUartPort.ZEPHYR_UART_PORT_0,
-    "uart1": ZephyrUartPort.ZEPHYR_UART_PORT_1,
-    "uart2": ZephyrUartPort.ZEPHYR_UART_PORT_2,
-    "uart3": ZephyrUartPort.ZEPHYR_UART_PORT_3,
-    "uart4": ZephyrUartPort.ZEPHYR_UART_PORT_4,
-    "uart5": ZephyrUartPort.ZEPHYR_UART_PORT_5,
-}
 
 
 NATIVE_UART_CLASSES = (
@@ -324,7 +315,18 @@ def maybe_empty_debug(value):
 
 def validate_port(value):
     if CORE.is_zephyr:
-        return cv.one_of(*ZEPHYR_UART_PORTS, lower=True)(value)
+        value = cv.string_strict(value)
+        from esphome.components.zephyr.dts_lookup import validate_uart_label_override
+
+        if (override := validate_uart_label_override(value)) is not None:
+            return override
+        if re.match(r"^UART[0-9]+$", value.upper()):
+            return value.upper()
+        raise cv.Invalid(
+            f"'{value}' is not a valid UART port -- use 'UART0', 'UART1', etc. to "
+            "select a mapped port, or '&<devicetree-label>' to bind directly to a "
+            "devicetree node"
+        )
     if not re.match(r"^/(?:[^/]+/)[^/]+$", value):
         raise cv.Invalid("Port must be a valid device path")
     return value
@@ -333,7 +335,7 @@ def validate_port(value):
 def _fill_zephyr_uart_defaults(config):
     if CORE.is_zephyr and CONF_PORT not in config and CONF_EMULATION not in config:
         config = dict(config)
-        config[CONF_PORT] = "uart0"
+        config[CONF_PORT] = "UART0"
     return config
 
 
@@ -456,9 +458,14 @@ async def to_code(config):
     if CONF_PORT in config:
         if CORE.is_zephyr:
             from esphome.components.zephyr import (
+                KEY_BOARD,
+                VARIANTS,
                 zephyr_add_overlay,
                 zephyr_add_prj_conf,
+                zephyr_data,
+                zephyr_variant,
             )
+            from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
 
             zephyr_add_prj_conf("SERIAL", True)
             zephyr_add_prj_conf("RING_BUFFER", True)
@@ -466,8 +473,24 @@ async def to_code(config):
             # uart_irq_rx_enable() for RX -- without this, those become no-ops and RX
             # silently never arrives.
             zephyr_add_prj_conf("UART_INTERRUPT_DRIVEN", True)
-            cg.add(var.set_port(ZEPHYR_UART_PORTS[config[CONF_PORT]]))
-            port_label = config[CONF_PORT]
+
+            port_value = config[CONF_PORT]
+            if port_value.startswith("&"):
+                port_label = port_value[1:]
+            else:
+                port_label = resolve_uart_node_label(
+                    zephyr_data()[KEY_BOARD],
+                    port_value,
+                    VARIANTS[zephyr_variant()].uart_node_labels,
+                )
+            cg.add(
+                var.set_configured_device(
+                    cg.RawExpression(
+                        f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({port_label}))"
+                    ),
+                    port_label,
+                )
+            )
             if CONF_TX_PIN in config or CONF_RX_PIN in config:
                 # esp32-family only. Ports other than uart0 have no default pinctrl on
                 # stock devkit boards, so `port: uart1` fails at devicetree-generation
@@ -533,10 +556,10 @@ async def to_code(config):
             f" current-speed = <{config[CONF_BAUD_RATE]}>;"
             ' status = "okay"; }; };'
         )
-        cg.add(var.set_port(ZephyrUartPort.ZEPHYR_UART_PORT_EMUL))
         cg.add(
-            var.set_emul_device(
-                cg.RawExpression(f"DEVICE_DT_GET(DT_NODELABEL({emul_label}))")
+            var.set_configured_device(
+                cg.RawExpression(f"DEVICE_DT_GET(DT_NODELABEL({emul_label}))"),
+                "emulated",
             )
         )
 

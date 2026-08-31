@@ -10,16 +10,6 @@
 
 namespace esphome::uart {
 
-enum ZephyrUartPort : uint8_t {
-  ZEPHYR_UART_PORT_0 = 0,
-  ZEPHYR_UART_PORT_1 = 1,
-  ZEPHYR_UART_PORT_2 = 2,
-  ZEPHYR_UART_PORT_3 = 3,
-  ZEPHYR_UART_PORT_4 = 4,
-  ZEPHYR_UART_PORT_5 = 5,
-  ZEPHYR_UART_PORT_EMUL = 6,
-};
-
 class ZephyrUartComponent : public UARTComponent, public Component {
  public:
   void setup() override;
@@ -30,11 +20,14 @@ class ZephyrUartComponent : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
   UARTFlushResult flush() override;
-  void set_port(ZephyrUartPort port) { this->port_ = port; }
-  /// Only used for ZEPHYR_UART_PORT_EMUL -- codegen resolves each instance's own
-  /// devicetree node (label is unique per `uart: emulation:` block) and passes it here,
-  /// since a fixed DT_NODELABEL() lookup can't vary per instance at compile time.
-  void set_emul_device(const struct device *dev) { this->emul_dev_ = dev; }
+  /// Devicetree node this instance binds to. Codegen resolves the node label (a real
+  /// hardware port, an explicit override, or a generated emulation node) and passes both
+  /// the DEVICE_DT_GET_OR_NULL() result and the label text here, since a fixed lookup
+  /// can't vary per instance at compile time.
+  void set_configured_device(const struct device *dev, const char *label) {
+    this->configured_dev_ = dev;
+    this->port_label_ = label;
+  }
 
  protected:
   void check_logger_conflict() override {}
@@ -42,9 +35,9 @@ class ZephyrUartComponent : public UARTComponent, public Component {
   static void uart_irq_handler_s(const struct device *dev, void *user_data);
   void uart_irq_handler_();
 
+  const struct device *configured_dev_{nullptr};
   const struct device *uart_dev_{nullptr};
-  const struct device *emul_dev_{nullptr};
-  ZephyrUartPort port_{ZEPHYR_UART_PORT_0};
+  const char *port_label_{""};
 
   // Interrupt-driven RX ring buffer — allocated once in setup() from rx_buffer_size_
   std::unique_ptr<uint8_t[]> rx_buf_mem_;

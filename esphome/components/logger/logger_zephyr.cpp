@@ -168,10 +168,12 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
 
 const LogString *Logger::get_uart_selection_() {
   switch (this->uart_) {
+#if defined(CONFIG_SERIAL) && defined(LOGGER_UART_NODE_LABEL)
+    // Report the real node label -- an "&<label>" override may not match the UART0/UART1 symbol.
     case UART_SELECTION_UART0:
-      return LOG_STR("UART0");
     case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
+      return LOG_STR(STRINGIFY(LOGGER_UART_NODE_LABEL));
+#endif
 #ifdef USE_LOGGER_USB_CDC
     case UART_SELECTION_USB_CDC:
       return LOG_STR("USB_CDC");
