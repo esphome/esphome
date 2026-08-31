@@ -632,6 +632,8 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
                 # downloadable archive), then drops here as derived-name
                 _FakeSpec(uri="https://x/unnorm.git", name="unnorm"),
                 _FakeSpec(uri="file:///local/dir", name="local"),
+                # A local .git path is copied in place, never cloned
+                _FakeSpec(uri="file:///local/repo.git", name="localgit"),
                 _FakeSpec(uri="symlink:///local/dir", name="link"),
             ],
             set(),

@@ -384,11 +384,11 @@ def _is_vcs_spec_uri(url: str | None) -> bool:
     copy or download it (PackageSpec normalizes git URLs to ``git+``).
     The .git check runs first so an un-normalized repo URL degrades to a
     failed clone and pio run, never an archive download of a repo page."""
-    if not url:
+    if not url or url.startswith(("file://", "symlink://")):
         return False
     if url.split("#", 1)[0].endswith(".git"):
         return True
-    if url.startswith(("file://", "symlink://", "http://", "https://")):
+    if url.startswith(("http://", "https://")):
         return False
     return url.startswith(_VCS_URI_PREFIXES)
 
