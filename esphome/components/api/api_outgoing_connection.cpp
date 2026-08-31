@@ -46,8 +46,7 @@ void OutgoingConnectionManager::loop(APIServer *server) {
   switch (this->state_) {
     case DialState::DIAL_STATE_IDLE:
       // The connected target went away; give it the configured delay to
-      // reconnect on its own before dialing. (Boot skips this state so a
-      // device whose client never reached it dials right away.)
+      // reconnect on its own before dialing.
       this->state_ = DialState::DIAL_STATE_WAITING;
       this->state_ts_ = now;
       this->wait_ = API_OUTGOING_CONNECTION_DELAY;

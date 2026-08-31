@@ -91,12 +91,17 @@ class OutgoingConnectionManager {
   SavedOutgoingTarget saved_{};
 #endif
   uint32_t backoff_{BACKOFF_MIN_MS};
+  // Boot starts in WAITING, measured from boot: normally the client is
+  // expected to connect in first, so the full delay applies. A deep sleep
+  // device wakes for a short window where connecting out IS the wake state,
+  // so it dials as soon as the network is up.
+#ifdef USE_DEEP_SLEEP
   uint32_t wait_{0};
+#else
+  uint32_t wait_{API_OUTGOING_CONNECTION_DELAY};
+#endif
   uint32_t state_ts_{0};
   uint32_t last_poll_{0};
-  // Boot starts in WAITING with wait_ 0: when no dial-back client has ever
-  // connected (a device its client could never reach), dial immediately.
-  // The configured delay only applies after a connected target goes away.
   DialState state_{DialState::DIAL_STATE_WAITING};
 };
 
