@@ -25,7 +25,8 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
                 "  SPI Bus width: %d",
                 model, width, height, YESNO(madctl & MADCTL_MV), YESNO(madctl & (MADCTL_MX | MADCTL_XFLIP)),
                 YESNO(madctl & (MADCTL_MY | MADCTL_YFLIP)), YESNO(has_hardware_rotation), YESNO(invert_colors),
-                (madctl & MADCTL_BGR) ? "BGR" : "RGB", display_bits, is_big_endian ? "Big" : "Little", spi_mode,
+                (madctl & MADCTL_BGR) ? LOG_STR_LITERAL("BGR") : LOG_STR_LITERAL("RGB"), display_bits,
+                is_big_endian ? LOG_STR_LITERAL("Big") : LOG_STR_LITERAL("Little"), spi_mode,
                 static_cast<unsigned>(data_rate / 1000000), bus_width);
   LOG_PIN("  CS Pin: ", cs);
   LOG_PIN("  Reset Pin: ", reset);

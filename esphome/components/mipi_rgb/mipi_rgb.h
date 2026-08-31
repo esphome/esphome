@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "esphome/core/gpio.h"
 #include "esphome/components/display/display.h"
 #include "esp_lcd_panel_ops.h"
