@@ -1033,7 +1033,9 @@ def _find_ternary_literals(text: str) -> Iterator[tuple[int, str]]:
     branch = False
     for m in LOG_TERNARY_LITERAL_RE.finditer(text):
         tok = m.group(0)
-        if branch and tok[0] == '"':
+        # An empty literal is merged with every other string's terminator, so it costs no RAM,
+        # while a PSTR("") would add its own flash array; leave it alone.
+        if branch and tok[0] == '"' and tok != '""':
             yield m.start(), tok
         branch = tok[0] in "?:"
 
