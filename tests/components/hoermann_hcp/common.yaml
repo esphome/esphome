@@ -12,6 +12,13 @@ binary_sensor:
     is_connected:
       name: Garage Connected
 
+button:
+  - platform: hoermann_hcp
+    vent:
+      name: Garage Vent
+    half_open:
+      name: Garage Half Open
+
 light:
   - platform: hoermann_hcp
     name: Garage Light
