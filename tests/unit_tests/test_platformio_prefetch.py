@@ -597,7 +597,7 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
             m,
             [
                 _FakeSpec(uri="https://x/big.zip", name="big", custom_name=True),
-                _FakeSpec(uri="git+https://x/repo.git", name="repo"),
+                _FakeSpec(uri="git+https://x/repo.git", name="repo", custom_name=True),
                 _FakeSpec(name="registry"),
             ],
             set(),
@@ -614,20 +614,20 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
-    """VCS specs never probe the network here (there is no archive); an
-    uninstalled one is handed to the pre-install, an installed one and
-    file/symlink specs are skipped."""
+    """VCS specs never probe the network here (there is no archive); a
+    custom-named uninstalled one is handed to the pre-install, while a
+    derived-name one, an installed one, and file/symlink specs are left
+    to pio run (a derived name is not the destination dir)."""
     m = _fake_manager(tmp_path)
     with patch("esphome.net_retry.http_request") as mock_head:
         jobs, failed, installable = pf._uri_jobs(
             m,
             [
-                _FakeSpec(uri="git+https://x/tool.git#1.0", name="tool"),
-                _FakeSpec(uri="hg+https://x/old", name="mercurial"),
-                # Name falls back to the URL basename, fragment excluded
-                _FakeSpec(uri="git+https://x/noname#v2", name=None),
-                # A trailing slash must not derive an empty (colliding) name
-                _FakeSpec(uri="git+https://x/trail/", name=None),
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                ),
+                _FakeSpec(uri="hg+https://x/old", name="mercurial", custom_name=True),
+                _FakeSpec(uri="git+https://x/derived.git", name="derived"),
                 _FakeSpec(uri="file:///local/dir", name="local"),
                 _FakeSpec(uri="symlink:///local/dir", name="link"),
             ],
@@ -635,7 +635,7 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
         )
     mock_head.assert_not_called()
     assert (jobs, failed) == ([], 0)
-    assert [n for n, _ in installable] == ["tool", "mercurial", "noname", "trail"]
+    assert [n for n, _ in installable] == ["tool", "mercurial"]
     # Positive classification: an unknown scheme is left to pio run
     with patch("esphome.net_retry.http_request") as mock_head:
         assert pf._uri_jobs(
@@ -646,7 +646,13 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
     m.get_package.return_value = object()  # already installed: warm and silent
     with patch("esphome.net_retry.http_request"):
         assert pf._uri_jobs(
-            m, [_FakeSpec(uri="git+https://x/tool.git#1.0", name="tool")], set()
+            m,
+            [
+                _FakeSpec(
+                    uri="git+https://x/tool.git#1.0", name="tool", custom_name=True
+                )
+            ],
+            set(),
         ) == ([], 0, [])
 
 
@@ -1469,59 +1475,6 @@ def test_prefetch_installs_cached_archives_without_downloads(
     assert not (tmp_path / pf._SENTINEL_NAME).exists()
 
 
-def test_prefetch_orders_clones_first_in_preinstall(tmp_path: Path) -> None:
-    """The wiring, not just the helper: _prefetch hands _preinstall the
-    clones-first ordering of each group's entries."""
-    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
-    fake_platform = MagicMock()
-    fake_platform.packages = {}
-    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
-    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    archive = ("zip", _FakeSpec(uri="https://x/a.zip", name="zip", custom_name=True))
-    clone = ("repo", _FakeSpec(uri="git+https://x/repo.git", name="repo"))
-    with (
-        patch.dict("sys.modules", modules),
-        patch.object(
-            pf, "_registry_jobs", side_effect=[([], 0, [archive]), ([], 0, [])]
-        ),
-        patch.object(pf, "_uri_jobs", side_effect=[([], 0, [clone]), ([], 0, [])]),
-        patch.object(pf, "_preinstall") as mock_install,
-    ):
-        pf._prefetch(tmp_path, "testenv")
-    assert mock_install.call_count == 1
-    assert mock_install.call_args[0][1] == [clone, archive]
-
-
-def test_prefetch_drops_derived_name_lib_clones(tmp_path: Path) -> None:
-    """A lib_deps clone with a URI-derived name stays with pio run: its
-    destination dir comes from the cloned manifest, so two entries could
-    race one directory. Custom-named lib clones and the curated platform
-    batch keep the parallel pre-install."""
-    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
-    fake_platform = MagicMock()
-    fake_platform.packages = {}
-    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
-    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    tool = ("tool", _FakeSpec(uri="git+https://x/tool.git", name="tool"))
-    derived = ("lib", _FakeSpec(uri="git+https://x/lib.git", name="lib"))
-    custom = (
-        "mylib",
-        _FakeSpec(uri="git+https://x/mylib.git", name="mylib", custom_name=True),
-    )
-    with (
-        patch.dict("sys.modules", modules),
-        patch.object(pf, "_registry_jobs", return_value=([], 0, [])),
-        patch.object(
-            pf,
-            "_uri_jobs",
-            side_effect=[([], 0, [tool]), ([], 0, [derived, custom])],
-        ),
-        patch.object(pf, "_preinstall") as mock_install,
-    ):
-        pf._prefetch(tmp_path, "testenv")
-    assert [c.args[1] for c in mock_install.call_args_list] == [[tool], [custom]]
-
-
 @pytest.mark.parametrize(
     ("platform_group", "lib_group", "expected"),
     [
@@ -1704,12 +1657,9 @@ def test_preinstall_dependency_wave_skips_seen_names(tmp_path: Path) -> None:
     assert installed == ["noise-c"]
 
 
-def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
-    """Each worker thread gets its own pre-built manager and installs
-    genuinely overlap (the barrier deadlocks a serial pool). The worker
-    count is pinned so a 1-CPU host cannot serialize the pool."""
-    barrier = threading.Barrier(2, timeout=5)
-    used: set = set()
+def _wave_manager(tmp_path, on_install):
+    """A minimal pio-manager stand-in for _preinstall pool tests;
+    ``on_install(manager, spec)`` observes each _install call."""
 
     class _WaveManager:
         package_dir = str(tmp_path)
@@ -1740,70 +1690,59 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
             return None
 
         def _install(self, spec, skip_dependencies, compatibility=None) -> None:
-            used.add(id(self))
-            barrier.wait()
+            on_install(self, spec)
 
-    seed = _WaveManager(str(tmp_path))
-    with patch.object(pf, "get_usable_cpu_count", return_value=2):
-        pf._preinstall(
-            seed,
-            [
-                ("a@1", _FakeSpec(name="a")),
-                ("b@1", _FakeSpec(name="b")),
-            ],
-        )
-    assert len(used) == 2
-    assert id(seed) not in used
+    return _WaveManager
 
 
-def test_preinstall_clone_floor_widens_small_core_pool(tmp_path: Path) -> None:
-    """Network-bound clones run wide even on a 1-CPU host: the barrier
-    deadlocks unless all four clone entries get concurrent workers."""
-    barrier = threading.Barrier(4, timeout=5)
-    used: set = set()
-
-    class _WaveManager:
-        package_dir = str(tmp_path)
-        compatibility = None
-
-        def __init__(self, package_dir, **kwargs) -> None:
-            assert package_dir == str(tmp_path)
-
-        def lock(self) -> None:
-            pass
-
-        def unlock(self) -> None:
-            pass
-
-        def memcache_reset(self) -> None:
-            pass
-
-        def get_tmp_dir(self) -> str:
-            return str(tmp_path)
-
-        def get_download_dir(self) -> str:
-            return str(tmp_path)
-
-        def get_package(self, spec):
-            return None
-
-        def get_pkg_dependencies(self, pkg):
-            return None
-
-        def _install(self, spec, skip_dependencies, compatibility=None) -> None:
-            used.add(id(self))
-            barrier.wait()
-
-    seed = _WaveManager(str(tmp_path))
-    with patch.object(pf, "get_usable_cpu_count", return_value=1):
-        pf._preinstall(
-            seed,
+@pytest.mark.parametrize(
+    ("cpu_count", "entries"),
+    [
+        (2, [("a@1", _FakeSpec(name="a")), ("b@1", _FakeSpec(name="b"))]),
+        # The clone floor: network-bound clones run wide on a 1-CPU host
+        (
+            1,
             [
                 (f"r{i}", _FakeSpec(uri=f"git+https://x/r{i}.git", name=f"r{i}"))
                 for i in range(4)
             ],
+        ),
+    ],
+    ids=("cpu-sized", "clone-floor"),
+)
+def test_preinstall_pool_width(tmp_path: Path, cpu_count: int, entries: list) -> None:
+    """Each worker gets its own pre-built manager and installs genuinely
+    overlap: the barrier deadlocks unless every entry runs concurrently."""
+    barrier = threading.Barrier(len(entries), timeout=5)
+    used: set = set()
+
+    def on_install(mgr, spec) -> None:
+        used.add(id(mgr))
+        barrier.wait()
+
+    cls = _wave_manager(tmp_path, on_install)
+    seed = cls(str(tmp_path))
+    with patch.object(pf, "get_usable_cpu_count", return_value=cpu_count):
+        pf._preinstall(seed, entries)
+    assert len(used) == len(entries)
+    assert id(seed) not in used
+
+
+def test_preinstall_orders_clones_before_extractions(tmp_path: Path) -> None:
+    """The pool owner sorts its own wave: with one worker, the clone
+    installs before the archive regardless of caller order."""
+    order: list[str] = []
+    cls = _wave_manager(tmp_path, lambda mgr, spec: order.append(spec.name))
+    seed = cls(str(tmp_path))
+    with patch.object(pf, "get_usable_cpu_count", return_value=1):
+        pf._preinstall(
+            seed,
+            [
+                ("zip", _FakeSpec(uri="https://x/a.zip", name="zip")),
+                ("repo", _FakeSpec(uri="git+https://x/repo.git", name="repo")),
+            ],
         )
-    assert len(used) == 4
+    assert order == ["repo", "zip"]
 
 
 def test_sibling_manager_and_sigterm() -> None:
@@ -1957,6 +1896,10 @@ def test_platformio_private_api_contract() -> None:
     # _is_vcs_spec_uri relies on bare .git URLs normalizing to git+, on
     # both parse paths (raw string, and requirements= for platform tools)
     assert PackageSpec("https://github.com/x/y.git#v1").uri.startswith("git+")
-    assert PackageSpec(
+    platform_tool = PackageSpec(
         owner="o", name="tool-x", requirements="https://github.com/x/y.git"
-    ).uri.startswith("git+")
+    )
+    assert platform_tool.uri.startswith("git+")
+    # A URL requirement re-parses as name=url, marking the name custom;
+    # this is what keeps platform tool clones in the parallel pre-install
+    assert platform_tool.has_custom_name()

@@ -55,11 +55,9 @@ def _preserved_sys_path() -> Iterator[None]:
         sys.path[:] = saved
 
 
-# Concurrent registry resolutions / HEAD probes (each is network-bound)
-_RESOLVE_WORKERS = 8
-
-# Floor cap for network-bound clones in the pre-install pool
-_CLONE_WORKERS = 8
+# One cap for concurrent network-bound work: registry resolutions,
+# HEAD probes, and the pre-install pool's clone floor
+_NETWORK_WORKERS = 8
 
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
@@ -344,7 +342,7 @@ def _registry_jobs(
     if not pending:
         return [], 0, []
     # Serial resolutions (registry GET + mirror HEAD each) dominate
-    with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(pending))) as ex:
+    with ThreadPoolExecutor(max_workers=min(_NETWORK_WORKERS, len(pending))) as ex:
         results = list(ex.map(_resolve, pending))
     jobs: list[tuple[str, int, Any]] = []
     installable: list[tuple[str, Any]] = []
@@ -381,54 +379,29 @@ def _registry_jobs(
 _VCS_URI_PREFIXES = ("git+", "hg+", "svn+", "git://", "hg://", "svn://")
 
 
-def _is_vcs_spec_uri(url: str) -> bool:
+def _is_vcs_spec_uri(url: str | None) -> bool:
     """Whether pio's ``install_from_uri`` would clone this URI rather than
     copy or download it (PackageSpec normalizes git URLs to ``git+``).
-    Positive match, with a .git path as the backstop; an unrecognized
-    scheme is skipped here and left to pio run."""
-    if url.startswith(("file://", "symlink://", "http://", "https://")):
+    Positive match, with a .git path as the backstop."""
+    if not url or url.startswith(("file://", "symlink://", "http://", "https://")):
         return False
-    if url.startswith(_VCS_URI_PREFIXES) or url.split("#", 1)[0].endswith(".git"):
-        return True
-    _LOGGER.debug("Unrecognized package URI scheme, leaving it to pio run: %s", url)
-    return False
+    return url.startswith(_VCS_URI_PREFIXES) or url.split("#", 1)[0].endswith(".git")
 
 
-def _spec_name(spec: Any, url: str) -> str:
-    """The spec's name; the URL fallbacks are defensive only
-    (PackageSpec derives a name from the URI itself). Never empty:
-    an empty name would coalesce distinct to_install keys."""
-    return spec.name or url.split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1] or url
+# (name, spec) from wave 1, (name, spec, compatibility) from dep waves
+_Entry = tuple[str, Any] | tuple[str, Any, Any]
 
 
-def _entry_is_vcs(entry: tuple[str, Any] | tuple[str, Any, Any]) -> bool:
+def _entry_is_vcs(entry: _Entry) -> bool:
     """Whether this (name, spec[, compatibility]) pre-install entry is
     cloned rather than unpacked."""
-    url = entry[1].uri
-    return bool(url and _is_vcs_spec_uri(url))
+    return _is_vcs_spec_uri(entry[1].uri)
 
 
-def _clones_first(entries: Iterable[tuple[str, Any]]) -> list[tuple[str, Any]]:
+def _clones_first(entries: Iterable[_Entry]) -> list[_Entry]:
     """Clones first: they wait on the network, so they must not queue
     behind CPU-bound archive extractions in the pre-install pool."""
     return sorted(entries, key=lambda entry: not _entry_is_vcs(entry))
-
-
-def _installable_in_parallel(
-    entries: list[tuple[str, Any]], curated: bool
-) -> list[tuple[str, Any]]:
-    """Drop derived-name clones from uncurated (lib_deps) groups: their
-    destination dir comes from the cloned manifest, so two entries whose
-    manifests share a name could race one directory in the pool. The
-    platform's tool manifests are curated, and pio run installs anything
-    dropped here serially."""
-    if curated:
-        return entries
-    return [
-        entry
-        for entry in entries
-        if not _entry_is_vcs(entry) or entry[1].has_custom_name()
-    ]
 
 
 def _uri_jobs(
@@ -451,15 +424,22 @@ def _uri_jobs(
             continue
         is_vcs = _is_vcs_spec_uri(url)
         if not is_vcs and not url.startswith(("http://", "https://")):
+            if not url.startswith(("file://", "symlink://")):
+                _LOGGER.debug(
+                    "Unrecognized package URI, leaving it to pio run: %s", url
+                )
             continue  # file/symlink specs are copied in place by pio run
         if manager.get_package(spec):
             continue
-        name = _spec_name(spec, url)
+        name = spec.name
         if is_vcs:
-            # No download stage: the pre-install itself clones it.
-            # Derived-name clones from uncurated groups are dropped at
-            # the group site by _installable_in_parallel
-            installable.append((name, spec))
+            # No download stage: the pre-install itself clones it. Same
+            # rule as the cached-archive branch below: only a custom name
+            # is the destination dir. Platform tool specs (owner, name,
+            # requirements=url) always parse as custom-named, so the
+            # curated batch stays parallel; pio run installs the rest
+            if spec.has_custom_name():
+                installable.append((name, spec))
             continue
         # PlatformIO downloads URL specs with no checksum
         dl_path = Path(manager.compute_download_path(url, ""))
@@ -500,7 +480,7 @@ def _uri_jobs(
 
     if not candidates:
         return [], 0, installable
-    with ThreadPoolExecutor(max_workers=min(_RESOLVE_WORKERS, len(candidates))) as ex:
+    with ThreadPoolExecutor(max_workers=min(_NETWORK_WORKERS, len(candidates))) as ex:
         sizes = list(ex.map(_head_size, [url for _, url, _, _ in candidates]))
     jobs: list[tuple[str, int, Any]] = []
     failed = 0
@@ -648,10 +628,6 @@ def _uri_fetch_job(manager: Any, url: str, dl_path: Path, size: int) -> Any:
     return run
 
 
-# (name, spec) from wave 1, (name, spec, compatibility) from dep waves
-_Entry = tuple[str, Any] | tuple[str, Any, Any]
-
-
 def _dependency_entries(
     manager: Any, entries: list[_Entry], seen_names: set[str]
 ) -> list[_Entry]:
@@ -766,13 +742,14 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
+    entries = _clones_first(entries)
     clones = sum(1 for entry in entries if _entry_is_vcs(entry))
     # Clones are network-bound: let them run wide even on small-core
     # runners. Capped, since every worker builds a sibling manager and
     # may run a postinstall script; the tail of a mixed wave runs its
     # (largely I/O-bound) extractions at the same width
     workers = min(
-        max(get_usable_cpu_count(), min(clones, _CLONE_WORKERS)), len(entries)
+        max(get_usable_cpu_count(), min(clones, _NETWORK_WORKERS)), len(entries)
     )
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
@@ -946,7 +923,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             jobs += batch_jobs
             unresolved += failed
             entries += installable
-        if entries := _installable_in_parallel(entries, curated=is_platform):
+        if entries:
             groups.append(_Group(mgr, entries, is_platform))
 
     sentinel = build_dir / _SENTINEL_NAME
@@ -986,9 +963,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
             if name not in failed_names
         }
         if to_install:
-            ordered = _clones_first(to_install.values())
             try:
-                _preinstall(mgr, ordered)
+                _preinstall(mgr, list(to_install.values()))
                 if is_platform:
                     platform_packages_installed = True
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
