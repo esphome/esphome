@@ -35,6 +35,8 @@ def _ternary_errors(content: str) -> list[tuple[int, int]]:
         "ESP_LOGD(TAG, \"%d\", 1'000'000)",
         'ESP_LOGD(TAG,  // it\'s a comment with ) and (\n         "x")',
         'ESP_LOGD(TAG, /* :) */ "x")',
+        'ESP_LOGD(TAG, "%s", R"(say "hi" :) )")',
+        'ESP_LOGD(TAG, "%s", R"x(a)"b)x")',
     ],
 )
 def test_iter_log_calls_spans_whole_call(content: str) -> None:
@@ -42,13 +44,44 @@ def test_iter_log_calls_spans_whole_call(content: str) -> None:
     assert calls == [content]
 
 
-def test_iter_log_calls_reports_unbalanced_call() -> None:
+def test_iter_log_calls_reports_unbalanced_call_once() -> None:
     content = 'ESP_LOGD(TAG, "x";\nvoid f();'
     assert _calls(content) == [None]
-    errs = ci_custom.lint_log_no_bare_literal_ternary(Path("x.cpp"), content)
+    errs = ci_custom.lint_log_multiline_continuation(Path("x.cpp"), content)
     assert len(errs) == 1
     assert errs[0][:2] == (1, 1)
     assert "no matching closing parenthesis" in errs[0][2]
+    assert _ternary_errors(content) == []
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        # A ; inside the format string no longer cuts the call short
+        ('ESP_LOGD(TAG, "a; b\\nc %s", x);', [(1, 20)]),
+        # A \n%s continuation is exempt since %s may expand to leading whitespace
+        ('ESP_LOGD(TAG, "a\\n%s", x);', []),
+        ('ESP_LOGD(TAG, "a\\n  b");', []),
+    ],
+)
+def test_multiline_continuation_detection(
+    content: str, expected: list[tuple[int, int]]
+) -> None:
+    errs = ci_custom.lint_log_multiline_continuation(Path("x.cpp"), content)
+    assert [(line, col) for line, col, _ in errs] == expected
+
+
+def test_exclusion_list_only_names_components_without_esp8266_tests() -> None:
+    root = Path(__file__).parent / ".." / ".."
+    for pattern in ci_custom.LOG_LITERAL_LINT_EXCLUDE:
+        if not pattern.startswith("esphome/components/"):
+            continue
+        prefix = pattern.removeprefix("esphome/components/").split("/")[0]
+        for comp in (root / "esphome" / "components").glob(prefix):
+            test = root / "tests" / "components" / comp.name / "test.esp8266-ard.yaml"
+            assert not test.exists(), (
+                f"{comp.name} builds for ESP8266, drop {pattern!r}"
+            )
 
 
 @pytest.mark.parametrize(
@@ -70,6 +103,11 @@ def test_iter_log_calls_reports_unbalanced_call() -> None:
         ('ESP_LOGD(TAG, "x:" "y %s", p);', []),
         ('ESP_LOGD(TAG, "%s", x ? "on" : "off");  // NOLINT', []),
         ('ESP_LOGD(TAG, "%s",\n         x ? "yes"\n           : "no");  // NOLINT', []),
+        ('ESP_LOGD(TAG, "%s", x ? /* c */ "on" : "off");', [(1, 33), (1, 40)]),
+        (
+            'ESP_LOGD(TAG, "%s",\n         x ? "on"  // NOLINT(some-clang-check)\n           : "off");',
+            [(2, 14), (3, 14)],
+        ),
     ],
 )
 def test_ternary_literal_detection(

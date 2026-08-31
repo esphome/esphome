@@ -974,13 +974,21 @@ def lint_no_std_bind(fname, match):
 
 
 LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
-# Comments, string literals and single char literals are consumed whole so ; ( ) ? : inside them
-# are never seen. A char literal is exactly one (escaped) char so a digit separator like 1'000'000
-# cannot open one.
-CPP_SKIP_RE = r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
+# Comments, raw/plain string literals and single char literals are consumed whole so ; ( ) ? :
+# inside them are never seen. A char literal is exactly one (escaped) char so a digit separator
+# like 1'000'000 cannot open one.
+CPP_COMMENT_RE = r"//[^\n]*|/\*.*?\*/"
+CPP_SKIP_RE = (
+    CPP_COMMENT_RE + r'|R"([^(\s]*)\(.*?\)\1"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
+)
 LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
-# The last alternative matches a ? or : whose next non-space char opens a literal, a ternary branch.
-LOG_TERNARY_LITERAL_RE = re.compile(CPP_SKIP_RE + r'|[?:]\s*(?=")', re.DOTALL)
+# The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
+# i.e. a string literal used as a ternary branch.
+LOG_TERNARY_LITERAL_RE = re.compile(
+    CPP_SKIP_RE + r"|[?:](?:\s|" + CPP_COMMENT_RE + r')*(?=")', re.DOTALL
+)
+# A bare NOLINT; a clang-tidy NOLINT(check-name) is aimed at a different tool.
+NOLINT_RE = re.compile(r"\bNOLINT\b(?!\()")
 
 
 def _line_col(content: str, pos: int) -> tuple[int, int]:
@@ -1090,8 +1098,9 @@ LOG_LITERAL_LINT_EXCLUDE = [
     "esphome/components/usb_host/*",
     "esphome/components/zigbee/*",
     "esphome/components/lvgl/*",
-    # Test fixtures - not production embedded code
+    # Test fixtures and host only unit tests - not production embedded code
     "tests/integration/fixtures/*",
+    "tests/components/*",
 ]
 
 
@@ -1102,12 +1111,13 @@ def lint_log_no_bare_literal_ternary(
     errs = []
     for log_start, log_text in _iter_log_calls(content):
         if log_text is None:
-            errs.append(_unbalanced_log_call_error(content, log_start))
-            continue
+            continue  # reported by lint_log_multiline_continuation, which sees every file
         # A NOLINT anywhere on the lines the call spans silences every branch in it
         first_line = content.rfind("\n", 0, log_start) + 1
         last_line = content.find("\n", log_start + len(log_text))
-        if "NOLINT" in content[first_line : last_line if last_line != -1 else None]:
+        if NOLINT_RE.search(
+            content[first_line : last_line if last_line != -1 else None]
+        ):
             continue
         for offset, literal in _find_ternary_literals(log_text):
             lineno, col = _line_col(content, log_start + offset)
