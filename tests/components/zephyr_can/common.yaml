@@ -1,0 +1,31 @@
+canbus:
+  - platform: zephyr_can
+    id: zephyr_can_bus
+    can_id: 4
+    bit_rate: 500kbps
+    tx_pin: PA12
+    rx_pin: PA11
+    on_frame:
+      - can_id: 500
+        then:
+          - lambda: |-
+              std::string b(x.begin(), x.end());
+              ESP_LOGD("canid 500", "%s", b.c_str());
+      - can_id: 0x1FFFFF00
+        can_id_mask: 0x1FFFFF00
+        use_extended_id: true
+        then:
+          - logger.log: extended frame
+
+button:
+  - platform: template
+    name: Zephyr CAN Actions
+    on_press:
+      - canbus.send:
+          can_id: 0x601
+          data: [0, 1, 2]
+      - canbus.send:
+          can_id: 0x1FFFFFFF
+          use_extended_id: true
+          remote_transmission_request: true
+          data: [0, 1, 2]
