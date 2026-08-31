@@ -973,7 +973,28 @@ def lint_no_std_bind(fname, match):
     )
 
 
-LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
+LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
+# A C++ string or char literal, escapes included, so ; ( ) ? : inside one are never seen.
+CPP_LITERAL_RE = r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\''
+LOG_CALL_TOKEN_RE = re.compile(CPP_LITERAL_RE + r"|[()]", re.DOTALL)
+# Alt 2 matches a ? or : whose next non-space char opens a literal; that literal is a ternary branch.
+LOG_TERNARY_LITERAL_RE = re.compile(CPP_LITERAL_RE + r'|[?:]\s*(?=")', re.DOTALL)
+
+
+def _iter_log_calls(content: str) -> Iterator[tuple[int, str]]:
+    """Yield (start, text) for every ESP_LOG*(...) call, text running to the matching close paren."""
+    for head in LOG_CALL_START_RE.finditer(content):
+        depth = 1
+        for tok in LOG_CALL_TOKEN_RE.finditer(content, head.end()):
+            if tok.group(0) == "(":
+                depth += 1
+            elif tok.group(0) == ")":
+                depth -= 1
+                if depth == 0:
+                    yield head.start(), content[head.start() : tok.end()]
+                    break
+
+
 LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
 LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
 
@@ -981,14 +1002,13 @@ LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
 @lint_content_check(include=cpp_include)
 def lint_log_multiline_continuation(fname, content):
     errs = []
-    for log_match in LOG_MULTILINE_RE.finditer(content):
-        log_text = log_match.group(0)
+    for log_start, log_text in _iter_log_calls(content):
         for bad_match in LOG_BAD_CONTINUATION_RE.finditer(log_text):
             # %s may expand to a whitespace prefix at runtime, skip those
             if LOG_PERCENT_S_CONTINUATION_RE.match(log_text, bad_match.start()):
                 continue
             # Calculate line number from position in full content
-            abs_pos = log_match.start() + bad_match.start()
+            abs_pos = log_start + bad_match.start()
             lineno = content.count("\n", 0, abs_pos) + 1
             col = abs_pos - content.rfind("\n", 0, abs_pos)
             errs.append(
@@ -1009,40 +1029,21 @@ def lint_log_multiline_continuation(fname, content):
 
 
 def _find_ternary_literals(text: str) -> Iterator[int]:
-    """Yield the start offset of every string literal that is a ternary branch, i.e. whose
-    previous non-space character outside a string literal is ``?`` or ``:``."""
-    prev = ""
-    i = 0
-    n = len(text)
-    while i < n:
-        c = text[i]
-        if c == '"':
-            if prev in ("?", ":"):
-                yield i
-            i += 1
-            while i < n and text[i] != '"':
-                i += 2 if text[i] == "\\" else 1
-            prev = '"'
-        elif c == "'":
-            i += 1
-            while i < n and text[i] != "'":
-                i += 2 if text[i] == "\\" else 1
-            prev = "'"
-        elif not c.isspace():
-            prev = c
-        i += 1
+    """Yield the start offset of every string literal used as a ternary branch."""
+    for m in LOG_TERNARY_LITERAL_RE.finditer(text):
+        if text[m.start()] in "?:":
+            yield m.end()
 
 
-@lint_content_check(include=cpp_include, exclude=["esphome/core/log.h"])
+@lint_content_check(include=cpp_include, exclude=["tests/integration/fixtures/*"])
 def lint_log_no_bare_literal_ternary(
     fname: Path, content: str
 ) -> list[tuple[int, int, str]]:
     errs = []
-    for log_match in LOG_MULTILINE_RE.finditer(content):
-        for offset in _find_ternary_literals(log_match.group(0)):
-            abs_pos = log_match.start() + offset
-            line_end = content.find("\n", abs_pos)
-            if "NOLINT" in content[abs_pos : line_end if line_end != -1 else None]:
+    for log_start, log_text in _iter_log_calls(content):
+        for offset in _find_ternary_literals(log_text):
+            abs_pos = log_start + offset
+            if "NOLINT" in content[abs_pos:].partition("\n")[0]:
                 continue
             lineno = content.count("\n", 0, abs_pos) + 1
             col = abs_pos - content.rfind("\n", 0, abs_pos)
