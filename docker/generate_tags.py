@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import os
 import re
 
 CHANNEL_DEV = "dev"
@@ -64,7 +65,8 @@ def main():
 
     suffix = f"-{args.suffix}" if args.suffix else ""
 
-    image_name = f"esphome/esphome{suffix}"
+    repository = os.environ.get("GITHUB_REPOSITORY", "esphome/esphome")
+    image_name = f"{repository}{suffix}"
 
     print(f"channel={channel}")
 
