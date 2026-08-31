@@ -355,8 +355,7 @@ void BedJetClimate::update() {
   // TODO: if the hub component is already polling, do we also need to include polling?
   //  We're already going to get on_status() at the hub's polling interval.
   auto result = this->update_status_();
-  ESP_LOGD(TAG, "[%s] update_status result=%s", this->get_name().c_str(),
-           result ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"));
+  ESP_LOGD(TAG, "[%s] update_status result=%s", this->get_name().c_str(), result ? "true" : "false");
 }
 
 }  // namespace esphome::bedjet

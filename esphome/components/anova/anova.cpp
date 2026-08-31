@@ -102,8 +102,7 @@ void Anova::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_
       }
       if (this->codec_->has_unit()) {
         this->fahrenheit_ = (this->codec_->unit_ == 'f');
-        ESP_LOGD(TAG, "Anova units is %s",
-                 this->fahrenheit_ ? LOG_STR_LITERAL("fahrenheit") : LOG_STR_LITERAL("celsius"));
+        ESP_LOGD(TAG, "Anova units is %s", this->fahrenheit_ ? "fahrenheit" : "celsius");
         this->current_request_++;
       }
       this->publish_state();

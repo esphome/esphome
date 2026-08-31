@@ -72,8 +72,7 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
     case EZB_BDB_SIGNAL_DEVICE_REBOOT: {
       ezb_bdb_comm_status_t status = *((ezb_bdb_comm_status_t *) ezb_app_signal_get_params(app_signal));
       if (status == EZB_BDB_STATUS_SUCCESS) {
-        ESP_LOGD(TAG, "Device started up in %sfactory-reset mode",
-                 ezb_bdb_is_factory_new() ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("non "));
+        ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", ezb_bdb_is_factory_new() ? "" : "non ");
         if (ezb_bdb_is_factory_new()) {
           global_zigbee->factory_new_ = true;
           ESP_LOGD(TAG, "Start network steering");
@@ -158,8 +157,7 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
                       message->info.status);
   ESP_LOGD(TAG, "ZCL SetAttributeValue message for endpoint(%d) cluster(0x%04x) %s with status(0x%02x)",
            message->info.dst_ep, message->info.cluster_id,
-           message->info.cluster_role == EZB_ZCL_CLUSTER_SERVER ? LOG_STR_LITERAL("server") : LOG_STR_LITERAL("client"),
-           message->info.status);
+           message->info.cluster_role == EZB_ZCL_CLUSTER_SERVER ? "server" : "client", message->info.status);
 }
 
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {

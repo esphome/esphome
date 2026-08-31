@@ -534,7 +534,7 @@ void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConn
   if (connection == nullptr || !connection->connected()) {
     ESP_LOGW(TAG, "[%d] [%s] Cannot set connection params, not connected",
              connection ? static_cast<int>(connection->get_connection_index()) : -1,
-             connection ? connection->address_str() : LOG_STR_LITERAL("unknown"));
+             connection ? connection->address_str() : "unknown");
     resp.error = GATT_NOT_CONNECTED;
     if (!this->api_connection_->send_message(resp)) {
       this->log_reply_dropped_("Connection-params", msg.address);
@@ -564,7 +564,7 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
   if (this->hub_->get_scan_active() == active) {
     return;
   }
-  ESP_LOGD(TAG, "Setting scanner mode to %s", active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"));
+  ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
   this->hub_->set_scan_active(active);
   this->hub_->stop_scan();
   this->hub_->set_scan_continuous(
@@ -575,13 +575,12 @@ void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
 
 void BluetoothProxy::bluetooth_scanner_set_mode(bool active) {
   if (this->hub_->scan_active() != active) {
-    ESP_LOGD(TAG, "Setting scanner mode to %s", active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"));
+    ESP_LOGD(TAG, "Setting scanner mode to %s", active ? "active" : "passive");
     if (!this->hub_->request_scan_mode(active)) {
       // Passive-only controller asked for active scanning; the state report
       // below carries the real, unchanged mode so the subscriber does not
       // assume the change happened.
-      ESP_LOGW(TAG, "Scanner mode %s not supported by this tracker",
-               active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"));
+      ESP_LOGW(TAG, "Scanner mode %s not supported by this tracker", active ? "active" : "passive");
     }
   }
 #ifndef USE_BLE_SCANNER_STATE_CALLBACK

@@ -727,7 +727,7 @@ void WiFiComponent::wifi_scan_done_callback_() {
   }
 
   ESP_LOGV(TAG, "Scan complete: %d found, %zu stored%s", num, this->scan_result_.size(),
-           needs_full ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(" (filtered)"));
+           needs_full ? "" : " (filtered)");
   WiFi.scanDelete();
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   this->notify_scan_results_listeners_();

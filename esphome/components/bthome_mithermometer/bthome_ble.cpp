@@ -428,8 +428,7 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
   }
 
   if (reported) {
-    ESP_LOGD(TAG, "BTHome data%sfrom %s", is_trigger_based ? LOG_STR_LITERAL(" (triggered) ") : LOG_STR_LITERAL(" "),
-             device.address_str_to(addr_buf));
+    ESP_LOGD(TAG, "BTHome data%sfrom %s", is_trigger_based ? " (triggered) " : " ", device.address_str_to(addr_buf));
   }
 
   return reported;

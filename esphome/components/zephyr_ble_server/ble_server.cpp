@@ -308,7 +308,7 @@ void BLEServer::numeric_comparison_reply(bool accept) {
     ESP_LOGE(TAG, "Not connected");
     return;
   }
-  ESP_LOGD(TAG, "Numeric comparison %s", accept ? LOG_STR_LITERAL("accepted") : LOG_STR_LITERAL("rejected"));
+  ESP_LOGD(TAG, "Numeric comparison %s", accept ? "accepted" : "rejected");
   if (accept) {
     bt_conn_auth_passkey_confirm(this->conn_);
   } else {

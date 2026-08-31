@@ -430,16 +430,16 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const char
     ESP_LOGD(TAG, "  Mosquito tablet: %.0f%%", *result->tablet);
   }
   if (result->is_active.has_value()) {
-    ESP_LOGD(TAG, "  Repellent: %s", (*result->is_active) ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off"));
+    ESP_LOGD(TAG, "  Repellent: %s", (*result->is_active) ? "on" : "off");
   }
   if (result->has_motion.has_value()) {
-    ESP_LOGD(TAG, "  Motion: %s", (*result->has_motion) ? LOG_STR_LITERAL("yes") : LOG_STR_LITERAL("no"));
+    ESP_LOGD(TAG, "  Motion: %s", (*result->has_motion) ? "yes" : "no");
   }
   if (result->is_light.has_value()) {
-    ESP_LOGD(TAG, "  Light: %s", (*result->is_light) ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off"));
+    ESP_LOGD(TAG, "  Light: %s", (*result->is_light) ? "on" : "off");
   }
   if (result->button_press.has_value()) {
-    ESP_LOGD(TAG, "  Button: %s", (*result->button_press) ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL(""));
+    ESP_LOGD(TAG, "  Button: %s", (*result->button_press) ? "pressed" : "");
   }
 
   return true;

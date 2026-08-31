@@ -970,7 +970,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       }
     }
     ESP_LOGV(TAG, "Scan complete: %u found, %zu stored%s", number, this->scan_result_.size(),
-             needs_full ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(" (filtered)"));
+             needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     this->notify_scan_results_listeners_();
 #endif

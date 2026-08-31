@@ -435,7 +435,7 @@ conn_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enab
   if (conn_err_t err = this->check_connected_op_("notify", "characteristic"); err != CONN_OK)
     return err;
   ESP_LOGV(TAG, "[%d] [%s] %s GATT characteristic notifications handle %d", this->connection_index_, this->address_str_,
-           enable ? LOG_STR_LITERAL("Registering for") : LOG_STR_LITERAL("Unregistering for"), handle);
+           enable ? "Registering for" : "Unregistering for", handle);
   return this->backend_->notify_characteristic(handle, enable);
 }
 

@@ -309,7 +309,7 @@ bool WiFiComponent::wifi_loop_() {
     this->scan_done_ = true;
     bool needs_full = this->needs_full_scan_results_();
     ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", s_scan_result_count, this->scan_result_.size(),
-             needs_full ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(" (filtered)"));
+             needs_full ? "" : " (filtered)");
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
     this->notify_scan_results_listeners_();
 #endif

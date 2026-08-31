@@ -206,10 +206,8 @@ void BK72xxBLETracker::dump_config() {
                 "  Scan Type: %s (configured %s)\n"
                 "  Continuous Scanning: %s",
                 this->scan_duration_ / 1000, ble_units_to_ms(this->scan_interval_), this->scan_interval_,
-                ble_units_to_ms(this->scan_window_), this->scan_window_,
-                this->scan_active_ ? LOG_STR_LITERAL("ACTIVE") : LOG_STR_LITERAL("PASSIVE"),
-                this->scan_active_configured_ ? LOG_STR_LITERAL("ACTIVE") : LOG_STR_LITERAL("PASSIVE"),
-                YESNO(this->scan_continuous_));
+                ble_units_to_ms(this->scan_window_), this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
+                this->scan_active_configured_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
 }
 
 // ---------------------------------------------------------------------------
@@ -319,8 +317,8 @@ void BK72xxBLETracker::start_scan_() {
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
   ESP_LOGD(TAG, "Scan started (%s, window=%" PRIu32 "ms, interval=%" PRIu32 "ms)",
-           this->scan_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"),
-           ble_units_to_ms(this->scan_window_), ble_units_to_ms(this->scan_interval_));
+           this->scan_active_ ? "active" : "passive", ble_units_to_ms(this->scan_window_),
+           ble_units_to_ms(this->scan_interval_));
   // Re-anchor the on_scan_end period to every successful start — first start (so the
   // period counts from the scan, not from boot) and every restart after a stop (so
   // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
@@ -367,7 +365,7 @@ bool BK72xxBLETracker::request_scan_mode(bool active) {
     return true;
   this->scan_active_ = active;
   // V: the proxy's "Setting scanner mode" line already narrates this at D.
-  ESP_LOGV(TAG, "Scan mode %s", active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"));
+  ESP_LOGV(TAG, "Scan mode %s", active ? "active" : "passive");
   // The controller reconciler restarts a running scan itself; the scan stays
   // logically running. An idle scanner picks the mode up on its next start.
   if (this->scan_running_)

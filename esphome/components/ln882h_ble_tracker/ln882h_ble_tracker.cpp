@@ -117,7 +117,7 @@ bool LN882HBLETracker::request_scan_mode(bool active) {
     return true;
   this->scan_active_ = active;
   // V: the proxy's "Setting scanner mode" line already narrates this at D.
-  ESP_LOGV(TAG, "Scan mode %s", active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"));
+  ESP_LOGV(TAG, "Scan mode %s", active ? "active" : "passive");
   // scan_start() re-enters cleanly (stops + GAPM settle). No on_scan_end and
   // no period reset: the scan logically continues, only the mode changes.
   if (this->scan_running_) {
@@ -135,8 +135,7 @@ void LN882HBLETracker::dump_config() {
                 "  Scan Type: %s\n"
                 "  Continuous Scanning: %s",
                 this->scan_duration_ / 1000, this->scan_interval_ * BLE_SCAN_UNIT_MS, this->scan_interval_,
-                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_,
-                this->scan_active_ ? LOG_STR_LITERAL("ACTIVE") : LOG_STR_LITERAL("PASSIVE"),
+                this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
                 YESNO(this->scan_continuous_));
 }
 
@@ -219,8 +218,7 @@ void LN882HBLETracker::start_scan_() {
   // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
   // in non-continuous mode each period is an explicit start, so asymmetric logging
   // would read as the scanner failing to come back up.
-  ESP_LOGD(TAG, "BLE scan started (%s, window=%.0fms, interval=%.0fms)",
-           this->scan_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"),
+  ESP_LOGD(TAG, "BLE scan started (%s, window=%.0fms, interval=%.0fms)", this->scan_active_ ? "active" : "passive",
            this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_interval_ * BLE_SCAN_UNIT_MS);
   // Re-anchor the on_scan_end period to every successful start, so a restart
   // later than scan_duration (e.g. a failed OTA restoring continuous mode)
