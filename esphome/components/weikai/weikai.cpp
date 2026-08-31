@@ -238,7 +238,7 @@ void WeikaiComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 
 void WeikaiGPIOPin::setup() {
   ESP_LOGCONFIG(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
-                flags_ == gpio::FLAG_INPUT          ? LOG_STR_LITERAL("Input")
+                this->flags_ == gpio::FLAG_INPUT    ? LOG_STR_LITERAL("Input")
                 : this->flags_ == gpio::FLAG_OUTPUT ? LOG_STR_LITERAL("Output")
                                                     : LOG_STR_LITERAL("NOT SPECIFIED"));
   this->pin_mode(this->flags_);
