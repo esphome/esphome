@@ -1268,3 +1268,35 @@ def test_parse_pio_platform_version(value: str, expected: str) -> None:
     from esphome.components.esp32 import _parse_pio_platform_version
 
     assert _parse_pio_platform_version(value) == expected
+
+
+def test_esp32_s31_gpio_validation(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """S31: flash uses dedicated pins so GPIO33 is a normal pin, GPIO29/GPIO41
+    do not exist, and GPIO36 is a strapping pin."""
+    from esphome.components.esp32.const import VARIANT_ESP32S31
+    from esphome.components.esp32.gpio import validate_supports
+    from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32S31}
+    )
+
+    pin = {CONF_NUMBER: 33, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    assert validate_gpio_pin(pin)[CONF_NUMBER] == 33
+
+    for num in (29, 41):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} does not exist"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+
+    pin = {
+        CONF_NUMBER: 36,
+        CONF_MODE: {CONF_INPUT: True, CONF_OUTPUT: False, CONF_OPEN_DRAIN: False},
+    }
+    with caplog.at_level("WARNING"):
+        validate_supports(pin)
+    assert "GPIO36 is a strapping PIN" in caplog.text
