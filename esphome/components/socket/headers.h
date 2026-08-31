@@ -194,8 +194,7 @@ using socklen_t = uint32_t;
 
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 
-// Defensive fallback only -- network's to_code() always defines this; absence must
-// default to IPv4 on, unlike IPv6.
+// socket can compile without network in build tests, otherwise network always provides
 #ifndef USE_NETWORK_IPV4
 #define USE_NETWORK_IPV4 1
 #endif

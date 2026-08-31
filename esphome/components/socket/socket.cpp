@@ -183,7 +183,10 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 #else
     // Use LWIP-specific functions
     ip6_addr_t ip6;
-    inet6_aton(ip_address, &ip6);
+    if (inet6_aton(ip_address, &ip6) != 1) {
+      errno = EINVAL;
+      return 0;
+    }
     memcpy(server->sin6_addr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
 #endif
     return sizeof(sockaddr_in6);
@@ -206,6 +209,11 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   }
 #else
   server->sin_addr.s_addr = inet_addr(ip_address);
+  if (server->sin_addr.s_addr == ESPHOME_INADDR_NONE) {
+    memset(server, 0, sizeof(sockaddr_in));
+    errno = EINVAL;
+    return 0;
+  }
 #endif
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);

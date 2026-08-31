@@ -142,7 +142,13 @@ struct IPAddress {
   bool is_ip4() const { return false; }
   bool is_ip6() const { return this->is_set(); }
 #endif /* CONFIG_NET_IPV4 */
-  bool is_multicast() const { return net_ipv6_is_addr_mcast(&ip_addr_); }
+  bool is_multicast() const {
+#if defined(CONFIG_NET_IPV4)
+    if (this->is_ip4())
+      return (ntohl(ip_addr_.s6_addr32[3]) & 0xF0000000) == 0xE0000000;
+#endif /* CONFIG_NET_IPV4 */
+    return net_ipv6_is_addr_mcast(&ip_addr_);
+  }
   char *str_to(char *buf) const {
 #if defined(CONFIG_NET_IPV4)
     if (this->is_ip4()) {
