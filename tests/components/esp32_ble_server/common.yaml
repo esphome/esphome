@@ -4,12 +4,32 @@ esp32_ble_server:
   manufacturer: ESPHome
   appearance: 0x1
   model: Test
+  passkey: 123456
   on_connect:
     - lambda: |-
         ESP_LOGD("BLE", "Connection from %d", id);
   on_disconnect:
     - lambda: |-
         ESP_LOGD("BLE", "Disconnection from %d", id);
+  on_numeric_comparison_request:
+    - logger.log:
+        format: "Compare this passkey with the one on your BLE device: %06ld"
+        args: [passkey]
+    - ble_server.numeric_comparison_reply:
+        id: ble_server
+        address: !lambda return address;
+        accept: true
+  on_passkey_notification:
+    - logger.log:
+        format: "Passkey: %06ld"
+        args: [passkey]
+  on_passkey_request:
+    - logger.log: "Got passkey request"
+    - ble_server.passkey_reply:
+        id: ble_server
+        address: !lambda return address;
+        passkey: 123456
+
   services:
     - uuid: 2a24b789-7aab-4535-af3e-ee76a35cc12d
       advertise: false
@@ -18,6 +38,7 @@ esp32_ble_server:
           description: "Notify characteristic"
           uuid: cad48e28-7fbe-41cf-bae9-d77a6c233423
           read: true
+          read_encrypt: true
           notify: true
           value: [1, 2, 3, 4]
           descriptors:
@@ -57,6 +78,7 @@ esp32_ble_server:
                     ESP_LOGD("BLE", "Descriptor received: %s from %d", std::string(x.begin(), x.end()).c_str(), id);
         - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc99a
           write: true
+          write_encrypt: true
           on_write:
             then:
               - lambda: |-

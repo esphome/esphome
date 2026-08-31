@@ -1,9 +1,10 @@
 #include "ble_server.h"
 
 #include "esphome/components/esp32_ble/ble.h"
-#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 
@@ -234,6 +235,54 @@ void BLEServer::ble_before_disabled_event_handler() {
   }
   this->registered_ = false;
   this->state_ = INIT;
+}
+
+void BLEServer::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+  switch (event) {
+    case ESP_GAP_BLE_SEC_REQ_EVT:
+      if (this->passkey_) {
+        esp_ble_gap_set_security_param(ESP_BLE_SM_SET_STATIC_PASSKEY, &this->passkey_, sizeof(uint32_t));
+      }
+      esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, this->pairing_enabled_);
+      break;
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+      esp_bd_addr_t bd_addr;
+      memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
+      ESP_LOGW(TAG, "remote BD_ADDR: %08x%04x",
+               (bd_addr[0] << 24) + (bd_addr[1] << 16) + (bd_addr[2] << 8) + bd_addr[3],
+               (bd_addr[4] << 8) + bd_addr[5]);
+      ESP_LOGW(TAG, "address type = %d", param->ble_security.auth_cmpl.addr_type);
+      ESP_LOGW(TAG, "pair status = %s", param->ble_security.auth_cmpl.success ? "success" : "fail");
+      break;
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_REQUEST
+    case ESP_GAP_BLE_PASSKEY_REQ_EVT: {
+      char mac_buf[18];
+      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
+      this->passkey_request_callback_.call(mac_buf);
+      break;
+    }
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_PASSKEY_NOTIFICATION
+    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT: {
+      char mac_buf[18];
+      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
+      this->passkey_notification_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
+      break;
+    }
+#endif
+#ifdef USE_ESP32_BLE_SERVER_ON_NUMERIC_COMPARISON_REQUEST
+    case ESP_GAP_BLE_NC_REQ_EVT: {
+      char mac_buf[18];
+      format_mac_addr_upper(param->ble_security.ble_req.bd_addr, mac_buf);
+      this->numeric_comparison_request_callback_.call(mac_buf, param->ble_security.key_notif.passkey);
+      break;
+    }
+#endif
+    default:
+      break;
+  }
+#endif
 }
 
 float BLEServer::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH + 10; }
