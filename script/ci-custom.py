@@ -979,7 +979,8 @@ LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
 # like 1'000'000 cannot open one.
 CPP_COMMENT_RE = r"//[^\n]*|/\*.*?\*/"
 CPP_SKIP_RE = (
-    CPP_COMMENT_RE + r'|R"([^(\s]*)\(.*?\)\1"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
+    CPP_COMMENT_RE
+    + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
 )
 LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
 # The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
@@ -1084,6 +1085,7 @@ LOG_LITERAL_LINT_EXCLUDE = [
     "esphome/components/esp32*/*",
     "esphome/components/bk72xx*/*",
     "esphome/components/ln882h*/*",
+    "esphome/components/ln882x*/*",
     "esphome/components/rp2*/*",
     "esphome/components/zephyr*/*",
     "esphome/components/host/*",
@@ -1128,7 +1130,7 @@ def lint_log_no_bare_literal_ternary(
                     (
                         "String literal used as a ternary branch in a log call. On ESP8266 the "
                         "log macro moves the format string to flash, but bare literal arguments "
-                        "stay in RAM. Wrap each branch in "
+                        "stay in RAM. Wrap each branch passed straight to the log call in "
                         f"{highlight('LOG_STR_LITERAL(...)')}:\n"
                         f"  Before: {highlight(literal)}\n"
                         f"  After:  {highlight(f'LOG_STR_LITERAL({literal})')}\n"

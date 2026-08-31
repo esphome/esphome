@@ -77,11 +77,22 @@ def test_exclusion_list_only_names_components_without_esp8266_tests() -> None:
         if not pattern.startswith("esphome/components/"):
             continue
         prefix = pattern.removeprefix("esphome/components/").split("/")[0]
-        for comp in (root / "esphome" / "components").glob(prefix):
+        comps = list((root / "esphome" / "components").glob(prefix))
+        assert comps, f"{pattern!r} matches no component"
+        for comp in comps:
             test = root / "tests" / "components" / comp.name / "test.esp8266-ard.yaml"
             assert not test.exists(), (
                 f"{comp.name} builds for ESP8266, drop {pattern!r}"
             )
+
+
+def test_unbalanced_calls_are_reported_by_a_check_that_sees_every_file() -> None:
+    # lint_log_no_bare_literal_ternary skips unbalanced calls and relies on this
+    checks = {c["func"].__name__: c for c in ci_custom.LINT_CONTENT_CHECKS}
+    continuation = checks["lint_log_multiline_continuation"]
+    ternary = checks["lint_log_no_bare_literal_ternary"]
+    assert continuation["exclude"] == []
+    assert continuation["include"] == ternary["include"]
 
 
 @pytest.mark.parametrize(
