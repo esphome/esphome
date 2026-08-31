@@ -1786,6 +1786,10 @@ void APIConnection::complete_authentication_() {
 #endif
 }
 
+#ifdef USE_API_OUTGOING_CONNECTION
+void APIConnection::notify_state_subscription_() { this->parent_->on_client_state_subscription(this); }
+#endif
+
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());

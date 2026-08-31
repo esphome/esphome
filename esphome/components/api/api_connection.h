@@ -275,6 +275,9 @@ class APIConnection final : public APIServerConnectionBase {
   void on_list_entities_request() { this->begin_iterator_(ActiveIterator::LIST_ENTITIES); }
   void on_subscribe_states_request() {
     this->flags_.state_subscription = true;
+#ifdef USE_API_OUTGOING_CONNECTION
+    this->notify_state_subscription_();
+#endif
     // Start initial state iterator only if no iterator is active
     // If list_entities is running, we'll start initial_state when it completes
     if (this->active_iterator_ == ActiveIterator::NONE) {
@@ -375,8 +378,21 @@ class APIConnection final : public APIServerConnectionBase {
     return this->helper_->get_peername_to(buf);
   }
 
+#ifdef USE_API_OUTGOING_CONNECTION
+  /// Outgoing connection: the noise helper sends its server hello
+  /// first so the peer can pick the matching key. Outgoing connections are only
+  /// dialed when a PSK is set, so the helper is always the noise helper.
+  /// Must be called before start().
+  void mark_outgoing() { static_cast<APINoiseFrameHelper *>(this->helper_.get())->set_server_hello_first(); }
+#endif
+
  protected:
   bool try_to_clear_buffer_slow_(bool log_out_of_space);
+
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Out of line: forwards to the server, which is an incomplete type here
+  void notify_state_subscription_();
+#endif
 
   // Helper function to handle authentication completion
   void complete_authentication_();

@@ -1,0 +1,11 @@
+packages:
+  common: !include common-base.yaml
+
+network:
+
+# No host set: the device dials the last remembered Home Assistant address
+api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
+  outgoing_connection:
+    delay: 30s

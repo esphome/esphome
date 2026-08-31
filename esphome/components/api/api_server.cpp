@@ -135,6 +135,9 @@ void APIServer::setup() {
   if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
   }
+#ifdef USE_API_OUTGOING_CONNECTION
+  this->outgoing_conn_.setup();
+#endif
 }
 
 void APIServer::loop() {
@@ -142,6 +145,12 @@ void APIServer::loop() {
   if (this->socket_ && this->socket_->ready()) {
     this->accept_new_connections_();
   }
+
+#ifdef USE_API_OUTGOING_CONNECTION
+  if (!this->shutting_down_) {
+    this->outgoing_conn_.loop(this);
+  }
+#endif
 
   if (this->api_connection_count_ == 0) {
     // Check reboot timeout - done in loop to avoid scheduler heap churn
@@ -254,17 +263,36 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 
     ESP_LOGD(TAG, "Accept %s", peername);
 
-    auto *conn = new APIConnection(std::move(sock), this);
-    this->clients_[this->api_connection_count_++].reset(conn);
-    conn->start();
-
-    // First client connected - clear warning and update timestamp
-    if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
-      this->status_clear_warning();
-      this->last_connected_ = App.get_loop_component_start_time();
-    }
+    this->add_client_(new APIConnection(std::move(sock), this));
   }
 }
+
+void APIServer::add_client_(APIConnection *conn) {
+  this->clients_[this->api_connection_count_++].reset(conn);
+  conn->start();
+
+  // First client connected - clear warning and update timestamp
+  if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
+    this->status_clear_warning();
+    this->last_connected_ = App.get_loop_component_start_time();
+  }
+}
+
+#ifdef USE_API_OUTGOING_CONNECTION
+void APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
+  char peername[socket::SOCKADDR_STR_LEN];
+  sock->getpeername_to(peername);
+  ESP_LOGD(TAG, "Outgoing connection to %s", peername);
+
+  auto *conn = new APIConnection(std::move(sock), this);
+  conn->mark_outgoing();
+  this->add_client_(conn);
+}
+
+void APIServer::on_client_state_subscription(APIConnection *conn) {
+  this->outgoing_conn_.on_state_subscription(conn->get_name(), conn->helper_.get());
+}
+#endif
 
 void APIServer::dump_config() {
   char addr_buf[network::USE_ADDRESS_BUFFER_SIZE];
@@ -281,6 +309,9 @@ void APIServer::dump_config() {
   }
 #else
   ESP_LOGCONFIG(TAG, "  Noise encryption: NO");
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  this->outgoing_conn_.dump_config();
 #endif
 }
 
@@ -685,6 +716,9 @@ void APIServer::on_shutdown() {
 
   // Close the listening socket to prevent new connections
   this->destroy_socket_();
+#ifdef USE_API_OUTGOING_CONNECTION
+  this->outgoing_conn_.on_shutdown();
+#endif
 
   // Change batch delay to 5ms for quick flushing during shutdown
   this->batch_delay_ = 5;

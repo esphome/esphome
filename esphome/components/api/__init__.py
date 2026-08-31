@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import re
 from typing import Any
@@ -24,6 +25,7 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_DELAY,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -129,10 +131,12 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_EXAMPLE = "example"
+CONF_HOST = "host"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
 CONF_MAX_SEND_QUEUE = "max_send_queue"
+CONF_OUTGOING_CONNECTION = "outgoing_connection"
 CONF_STATE_SUBSCRIPTION_ONLY = "state_subscription_only"
 
 
@@ -284,7 +288,52 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
     # (not max_connections, which is the upper limit rarely reached)
     socket.consume_sockets(3, "api")(config)
     socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
+    if CONF_OUTGOING_CONNECTION in config:
+        socket.consume_sockets(1, "api_outgoing_connection")(config)
     return config
+
+
+def _validate_ip_literal(value: Any) -> str:
+    value = cv.string_strict(value)
+    try:
+        ipaddress.ip_address(value)
+    except ValueError as err:
+        raise cv.Invalid(
+            f"outgoing_connection host must be an IP address, got {value!r}"
+        ) from err
+    return value
+
+
+def _validate_outgoing_connection_platform(value: ConfigType) -> ConfigType:
+    if CORE.is_esp8266 or CORE.is_rp2:
+        raise cv.Invalid(
+            "outgoing_connection is not supported on this platform because its "
+            "socket layer cannot make outgoing connections"
+        )
+    return value
+
+
+def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
+    if CONF_OUTGOING_CONNECTION in config and CONF_ENCRYPTION not in config:
+        raise cv.Invalid(
+            "outgoing_connection requires 'encryption' so the peer is verified by key",
+            path=[CONF_OUTGOING_CONNECTION],
+        )
+    return config
+
+
+OUTGOING_CONNECTION_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_HOST): _validate_ip_literal,
+            cv.Optional(CONF_PORT, default=6054): cv.port,
+            cv.Optional(
+                CONF_DELAY, default="60s"
+            ): cv.positive_time_period_milliseconds,
+        }
+    ),
+    _validate_outgoing_connection_platform,
+)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -311,6 +360,7 @@ CONFIG_SCHEMA = cv.All(
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
+            cv.Optional(CONF_OUTGOING_CONNECTION): OUTGOING_CONNECTION_SCHEMA,
             cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -367,6 +417,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
+    _validate_outgoing_connection,
     _consume_api_sockets,
     _register_provisioning_source,
 )
@@ -605,6 +656,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_API_NOISE")
     else:
         cg.add_define("USE_API_PLAINTEXT")
+
+    if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is not None:
+        cg.add_define("USE_API_OUTGOING_CONNECTION")
+        if (host := outgoing.get(CONF_HOST)) is not None:
+            cg.add(var.set_outgoing_connection_host(host))
+        cg.add(var.set_outgoing_connection_port(outgoing[CONF_PORT]))
+        cg.add(var.set_outgoing_connection_delay(outgoing[CONF_DELAY]))
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)
@@ -992,6 +1050,7 @@ _define_filter = filter_source_files_from_defines(
         "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
         "api_frame_helper_noise.cpp": "USE_API_NOISE",
         "api_frame_helper_plaintext.cpp": "USE_API_PLAINTEXT",
+        "api_outgoing_connection.cpp": "USE_API_OUTGOING_CONNECTION",
     }
 )
 

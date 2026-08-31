@@ -11,6 +11,7 @@
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
+#include "api_outgoing_connection.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -81,6 +82,13 @@ class APIServer final : public Component,
   void set_noise_psk(noise::psk_t psk) { this->noise_ctx_.set_psk(psk); }
   noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  void set_outgoing_connection_host(const char *host) { this->outgoing_conn_.set_target_host(host); }
+  void set_outgoing_connection_port(uint16_t port) { this->outgoing_conn_.set_port(port); }
+  void set_outgoing_connection_delay(uint32_t delay) { this->outgoing_conn_.set_delay(delay); }
+  // Called by APIConnection when a client subscribes to states
+  void on_client_state_subscription(APIConnection *conn);
+#endif
 
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
@@ -258,6 +266,12 @@ class APIServer final : public Component,
  protected:
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
+  // Insert a constructed connection into the client slots and start it.
+  void add_client_(APIConnection *conn);
+#ifdef USE_API_OUTGOING_CONNECTION
+  void add_outgoing_client_(std::unique_ptr<socket::Socket> sock);
+  friend class OutgoingConnectionManager;
+#endif
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
@@ -360,6 +374,9 @@ class APIServer final : public Component,
   noise::NoiseContext noise_ctx_;
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  OutgoingConnectionManager outgoing_conn_;
+#endif
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -29,6 +29,12 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // until it would block.
   APIError init_from_handoff(const uint8_t *header, uint8_t header_len);
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Outgoing connection: send the server hello immediately in init()
+  // so the peer can identify this device and select the matching key before it
+  // sends the PSK-mixed first handshake message. Must be called before init().
+  void set_server_hello_first() { this->server_hello_first_ = true; }
+#endif
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint16_t type, ProtoWriteBuffer buffer) override;
@@ -39,6 +45,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError state_action_();
   APIError state_action_client_hello_();
   APIError state_action_server_hello_();
+  APIError send_server_hello_frame_();
   APIError state_action_handshake_();
   APIError state_action_handshake_read_();
   APIError state_action_handshake_write_();
@@ -69,6 +76,9 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Note: Maximum message size is UINT16_MAX (65535), with a limit of 128 bytes during handshake phase
   uint8_t rx_header_buf_[noise::FRAME_HEADER_SIZE];
   uint8_t rx_header_buf_len_ = 0;
+#ifdef USE_API_OUTGOING_CONNECTION
+  bool server_hello_first_{false};
+#endif
   // 4 bytes total, no padding
 };
 
