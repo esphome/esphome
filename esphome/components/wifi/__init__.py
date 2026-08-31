@@ -388,9 +388,15 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
+
+    if CONF_HIDDEN in config and CONF_SSID not in config:
+        raise cv.Invalid(
+            "Cannot have 'hidden' without 'ssid'. If you are using the 'networks' "
+            "list, put 'hidden' inside the network entry instead."
+        )
 
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section
@@ -400,6 +406,8 @@ def _validate(config):
             network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
         if CONF_EAP in config:
             network[CONF_EAP] = config.pop(CONF_EAP)
+        if CONF_HIDDEN in config:
+            network[CONF_HIDDEN] = config.pop(CONF_HIDDEN)
         if CONF_NETWORKS in config:
             # In testing mode, merged component tests may have both ssid and networks
             # Just use the networks list and ignore the single ssid
@@ -484,6 +492,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
             cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
+            cv.Optional(CONF_HIDDEN): cv.boolean,
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
             cv.Optional(CONF_AP): wifi_network_ap,
