@@ -5,6 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER, CONF_SCL, CONF_SDA
 from esphome.pins import check_strapping_pin
 
+from .const import CONF_HOLD_DURING_SLEEP
+
 # https://documentation.espressif.com/esp32-p4-chip-revision-v1.3_datasheet_en.pdf
 _ESP32P4_LP_PINS = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 
@@ -38,6 +40,11 @@ def esp32_p4_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
     if is_input:
         # All ESP32 pins support input mode
         pass
+    if value.get(CONF_HOLD_DURING_SLEEP) and num in _ESP32P4_USB_JTAG_PINS:
+        _LOGGER.warning(
+            "GPIO%d cannot hold at low level during wakeup from deep sleep.",
+            num,
+        )
     check_strapping_pin(value, _ESP32P4_STRAPPING_PINS, _LOGGER)
     return value
 

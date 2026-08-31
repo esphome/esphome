@@ -30,7 +30,7 @@ static const gpio_hal_context_t GPIO_HAL = {.dev = GPIO_HAL_GET_HW(GPIO_PORT_0)}
 bool ESP32InternalGPIOPin::isr_service_installed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static gpio_mode_t flags_to_mode(gpio::Flags flags) {
-  flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
+  flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN | gpio::FLAG_HOLD));
   if (flags == gpio::FLAG_INPUT)
     return GPIO_MODE_INPUT;
   if (flags == gpio::FLAG_OUTPUT)
@@ -49,6 +49,9 @@ struct ISRPinArg {
   gpio_num_t pin;
   gpio::Flags flags;
   bool inverted;
+#ifdef USE_GPIO_HOLD
+  bool hold;
+#endif
 #if defined(USE_ESP32_VARIANT_ESP32)
   bool use_rtc;
   int rtc_pin;
@@ -60,6 +63,9 @@ ISRInternalGPIOPin ESP32InternalGPIOPin::to_isr() const {
   arg->pin = this->get_pin_num();
   arg->flags = gpio::FLAG_NONE;
   arg->inverted = this->pin_flags_.inverted;
+#ifdef USE_GPIO_HOLD
+  arg->hold = this->hold_;
+#endif
 #if defined(USE_ESP32_VARIANT_ESP32)
   arg->use_rtc = rtc_gpio_is_valid_gpio(this->get_pin_num());
   if (arg->use_rtc)
@@ -112,9 +118,20 @@ void ESP32InternalGPIOPin::setup() {
   conf.pull_down_en = this->flags_ & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
   conf.intr_type = GPIO_INTR_DISABLE;
   gpio_config(&conf);
+  gpio_sleep_sel_dis(this->get_pin_num());
   if (this->flags_ & gpio::FLAG_OUTPUT) {
     gpio_set_drive_capability(this->get_pin_num(), this->get_drive_strength());
   }
+#ifdef USE_GPIO_HOLD
+  if (conf.mode == GPIO_MODE_INPUT) {
+    // for inputs apply config now in case it was configured as output before sleep
+    // for outputs defer until the first write
+    gpio_hold_dis(this->get_pin_num());
+  }
+  if (this->hold_) {
+    gpio_hold_en(this->get_pin_num());
+  }
+#endif
 }
 
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
@@ -129,6 +146,12 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
     pull_mode = GPIO_PULLDOWN_ONLY;
   }
   gpio_set_pull_mode(this->get_pin_num(), pull_mode);
+#ifdef USE_GPIO_HOLD
+  if (this->hold_) {
+    gpio_hold_dis(this->get_pin_num());
+    gpio_hold_en(this->get_pin_num());
+  }
+#endif
 }
 
 bool ESP32InternalGPIOPin::digital_read() {
@@ -136,6 +159,12 @@ bool ESP32InternalGPIOPin::digital_read() {
 }
 void ESP32InternalGPIOPin::digital_write(bool value) {
   gpio_set_level(this->get_pin_num(), value != this->pin_flags_.inverted ? 1 : 0);
+#ifdef USE_GPIO_HOLD
+  if (this->hold_) {
+    gpio_hold_dis(this->get_pin_num());
+    gpio_hold_en(this->get_pin_num());
+  }
+#endif
 }
 void ESP32InternalGPIOPin::detach_interrupt() const { gpio_intr_disable(this->get_pin_num()); }
 
@@ -151,6 +180,12 @@ bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
 void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   auto *arg = reinterpret_cast<ISRPinArg *>(this->arg_);
   gpio_hal_set_level(&GPIO_HAL, arg->pin, value != arg->inverted);
+#ifdef USE_GPIO_HOLD
+  if (arg->hold) {
+    gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
+    gpio_hal_hold_en(&GPIO_HAL, arg->pin);
+  }
+#endif
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
@@ -202,6 +237,12 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
       gpio_hal_input_disable(&GPIO_HAL, arg->pin);
     }
   }
+#ifdef USE_GPIO_HOLD
+  if (arg->hold) {
+    gpio_hal_hold_dis(&GPIO_HAL, arg->pin);
+    gpio_hal_hold_en(&GPIO_HAL, arg->pin);
+  }
+#endif
   arg->flags = flags;
 }
 

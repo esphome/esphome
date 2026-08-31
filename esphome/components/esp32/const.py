@@ -16,6 +16,7 @@ from esphome.espidf import (  # noqa: F401  # pylint: disable=unused-import
     variant_to_idf_target,
 )
 
+CONF_HOLD_DURING_SLEEP = "hold_during_sleep"
 KEY_BOARD = "board"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"
