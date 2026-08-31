@@ -16,7 +16,13 @@ from . import MAINLINE, ZephyrVariant, resolve_framework_version, set_core_data
 _DEFAULT_BOARD = "native_sim/native/64"
 _VALID_BOARDS = [_DEFAULT_BOARD]
 
-_ADVANCED_SCHEMA = ADVANCED_SCHEMA
+# advanced: mac_address: -- native_sim has no real network hardware to read a MAC
+# from, so this is the only variant where it's user-settable at all.
+_ADVANCED_SCHEMA = ADVANCED_SCHEMA.extend(
+    {
+        cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+    }
+)
 
 # Registry entries — collected by variants/__init__.py
 VARIANT_NAME = ZEPHYR_VARIANT_NATIVE_SIM
@@ -30,8 +36,6 @@ VARIANT = ZephyrVariant(
 
 def config_schema(config: ConfigType) -> ConfigType:
     config = dict(config)
-    if CONF_MAC_ADDRESS not in config:
-        config[CONF_MAC_ADDRESS] = cv.mac_address("98:35:69:ab:f6:79")
     if CONF_BOARD not in config:
         config[CONF_BOARD] = _DEFAULT_BOARD
     config[CONF_ADVANCED] = _ADVANCED_SCHEMA(config.get(CONF_ADVANCED, {}))
@@ -64,7 +68,9 @@ async def to_code(config: ConfigType) -> None:
     zephyr_to_code(config)
     cg.add_build_flag("-DUSE_ZEPHYR_VARIANT_NATIVE_SIM")
     cg.add_define("ESPHOME_BOARD", ZEPHYR_VARIANT_NATIVE_SIM)
-    cg.add_define("USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_MAC_ADDRESS].parts)
+    cg.add_define(
+        "USE_ESPHOME_HOST_MAC_ADDRESS", config[CONF_ADVANCED][CONF_MAC_ADDRESS].parts
+    )
     cg.add_define(ThreadModel.MULTI_ATOMICS)
     zephyr_setup_preferences()
     zephyr_add_prj_conf("REBOOT", True)
