@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
     CONF_LOG_LEVEL,
-    CONF_MAC_ADDRESS,
     CONF_NAME,
     CONF_PASSWORD,
     CONF_PATH,
@@ -1478,7 +1477,6 @@ _ZEPHYR_SCHEMA = cv.Schema(
         # CONF_VERSION since their release cadence isn't tied to Zephyr's.
         cv.Optional(CONF_WEST_VERSION): cv.string_strict,
         cv.Optional(CONF_NINJA_VERSION): cv.string_strict,
-        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
         cv.Optional(CONF_WATCHDOG_TIMEOUT): _WATCHDOG_TIMEOUT_VALIDATOR,
         # Zephyr's own native logging verbosity (CONFIG_LOG_DEFAULT_LEVEL) -- separate
         # from ESPHome's own `logger: level:`, mirroring esp32's `framework: log_level:`.
@@ -1703,12 +1701,6 @@ def _variant_config_schema(config: ConfigType) -> ConfigType:
         return config
     config = _ZEPHYR_SCHEMA(config)
     variant = config[CONF_VARIANT]
-    if CONF_MAC_ADDRESS in config and variant != ZEPHYR_VARIANT_NATIVE_SIM:
-        raise cv.Invalid(
-            f"'{CONF_MAC_ADDRESS}' is only valid for variant "
-            f"'{ZEPHYR_VARIANT_NATIVE_SIM}', but the current variant is {variant!r}",
-            [CONF_MAC_ADDRESS],
-        )
     if variant == ZEPHYR_VARIANT_NATIVE_SIM:
         if CONF_WATCHDOG_TIMEOUT in config:
             raise cv.Invalid(
