@@ -18,7 +18,6 @@
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #include "WString.h"
-#include "esphome/core/defines.h"  // for USE_ARDUINO_VERSION_CODE
 #endif
 
 // Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later

@@ -369,6 +369,7 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 
 void Climate::save_state_(const ClimateTraits &traits) {
 #if (defined(USE_ESP32) || defined(USE_ESP8266)) && !defined(CLANG_TIDY)
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #define TEMP_IGNORE_MEMACCESS
 #endif

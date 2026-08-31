@@ -44,8 +44,7 @@ def get_arduino8266_tools_path() -> Path:
     return tools_cache_path(*ARDUINO8266_TOOLS_CACHE)
 
 
-# 3.1.1 rather than 3.1.0: the registry has no package for 3.1.0, and the
-# encoder below cannot name 3.0.0/3.0.1 either (see its docstring)
+# 3.1.1 rather than 3.1.0: the registry has no packages for 3.0.0, 3.0.1 or 3.1.0
 MIN_FRAMEWORK_VERSION = Version(3, 1, 1)
 
 
