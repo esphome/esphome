@@ -144,17 +144,22 @@ def test_metadata_records_rotation(
 
 
 @pytest.mark.parametrize(
-    ("variant", "board"),
+    ("variant", "board", "model"),
     [
-        (VARIANT_ESP32S3, "esp32-s3-devkitc-1"),
-        (VARIANT_ESP32P4, "esp32-p4-evboard"),
+        # ESP32-8048S070 is a real Sunton board wired for ESP32-S3 (e.g. its
+        # default de_pin is GPIO41, which doesn't exist on S31), so it is
+        # only meaningful as a config on that variant.
+        (VARIANT_ESP32S3, "esp32-s3-devkitc-1", "ESP32-8048S070"),
+        # P4 and S31 use the pin-agnostic CUSTOM model so this only checks
+        # that the chip itself is accepted, independent of board wiring.
+        (VARIANT_ESP32P4, "esp32-p4-evboard", "CUSTOM"),
         # No dedicated board is registered for ESP32-S31 yet; an unknown board
         # name simply skips per-board pin validation.
-        (VARIANT_ESP32S31, "esp32-s31-devkitc"),
+        (VARIANT_ESP32S31, "esp32-s31-devkitc", "CUSTOM"),
     ],
 )
 def test_configuration_succeeds_on_supported_variants(
-    variant: str, board: str, set_core_config: SetCoreConfigCallable
+    variant: str, board: str, model: str, set_core_config: SetCoreConfigCallable
 ) -> None:
     """mipi_rgb requires a chip with an RGB LCD peripheral: S3, P4 or S31."""
     set_core_config(
@@ -164,7 +169,11 @@ def test_configuration_succeeds_on_supported_variants(
 
     from esphome.components.mipi_rgb.display import CONFIG_SCHEMA
 
-    CONFIG_SCHEMA({"model": "ESP32-8048S070", "data_pins": DATA_PINS, "pclk_pin": 21})
+    config = {"model": model, "data_pins": DATA_PINS, "pclk_pin": 21}
+    if model == "CUSTOM":
+        config[CONF_INIT_SEQUENCE] = [[0xA0, 0x01]]
+        config[CONF_DIMENSIONS] = {CONF_WIDTH: 480, CONF_HEIGHT: 480}
+    CONFIG_SCHEMA(config)
 
 
 def test_only_on_variant_rejects_unsupported_variant(
