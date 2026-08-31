@@ -1007,6 +1007,60 @@ def lint_log_multiline_continuation(fname, content):
     return errs
 
 
+def _find_ternary_literals(text: str):
+    """Yield the start offset of every string literal that is a ternary branch, i.e. whose
+    previous non-space character outside a string literal is ``?`` or ``:``."""
+    prev = ""
+    i = 0
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if c == '"':
+            if prev in ("?", ":"):
+                yield i
+            i += 1
+            while i < n and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+            prev = '"'
+        elif c == "'":
+            i += 1
+            while i < n and text[i] != "'":
+                i += 2 if text[i] == "\\" else 1
+            prev = "'"
+        elif not c.isspace():
+            prev = c
+        i += 1
+
+
+@lint_content_check(include=cpp_include, exclude=["esphome/core/log.h"])
+def lint_log_no_bare_literal_ternary(fname, content):
+    errs = []
+    for log_match in LOG_MULTILINE_RE.finditer(content):
+        for offset in _find_ternary_literals(log_match.group(0)):
+            abs_pos = log_match.start() + offset
+            line_end = content.find("\n", abs_pos)
+            if "NOLINT" in content[abs_pos : line_end if line_end != -1 else None]:
+                continue
+            lineno = content.count("\n", 0, abs_pos) + 1
+            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            errs.append(
+                (
+                    lineno,
+                    col,
+                    (
+                        "String literal used as a ternary branch in a log call. On ESP8266 the "
+                        "log macro moves the format string to flash, but bare literal arguments "
+                        "stay in RAM. Wrap each branch in "
+                        f"{highlight('LOG_STR_LITERAL(...)')}:\n"
+                        f"  Before: {highlight('x ? "on" : "off"')}\n"
+                        f"  After:  {highlight('x ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off")')}\n"
+                        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+                    ),
+                )
+            )
+    return errs
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
