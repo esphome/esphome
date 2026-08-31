@@ -377,10 +377,21 @@ def _registry_jobs(
     return jobs, failed, installable
 
 
+# The schemes pio's VCSClientFactory dispatches on (Git/Hg/SvnClient)
+_VCS_URI_PREFIXES = ("git+", "hg+", "svn+", "git://", "hg://", "svn://")
+
+
 def _is_vcs_spec_uri(url: str) -> bool:
     """Whether pio's ``install_from_uri`` would clone this URI rather than
-    copy or download it (PackageSpec normalizes git URLs to ``git+``)."""
-    return not url.startswith(("file://", "symlink://", "http://", "https://"))
+    copy or download it (PackageSpec normalizes git URLs to ``git+``).
+    Positive match, with a .git path as the backstop; an unrecognized
+    scheme is skipped here and left to pio run."""
+    if url.startswith(("file://", "symlink://", "http://", "https://")):
+        return False
+    if url.startswith(_VCS_URI_PREFIXES) or url.split("#", 1)[0].endswith(".git"):
+        return True
+    _LOGGER.debug("Unrecognized package URI scheme, leaving it to pio run: %s", url)
+    return False
 
 
 def _spec_name(spec: Any, url: str) -> str:
@@ -390,8 +401,9 @@ def _spec_name(spec: Any, url: str) -> str:
     return spec.name or url.split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1] or url
 
 
-def _entry_is_vcs(entry: tuple[str, Any]) -> bool:
-    """Whether this pre-install entry is cloned rather than unpacked."""
+def _entry_is_vcs(entry: tuple[str, Any] | tuple[str, Any, Any]) -> bool:
+    """Whether this (name, spec[, compatibility]) pre-install entry is
+    cloned rather than unpacked."""
     url = entry[1].uri
     return bool(url and _is_vcs_spec_uri(url))
 
@@ -757,7 +769,8 @@ def _preinstall(
     clones = sum(1 for entry in entries if _entry_is_vcs(entry))
     # Clones are network-bound: let them run wide even on small-core
     # runners. Capped, since every worker builds a sibling manager and
-    # may run a postinstall script
+    # may run a postinstall script; the tail of a mixed wave runs its
+    # (largely I/O-bound) extractions at the same width
     workers = min(
         max(get_usable_cpu_count(), min(clones, _CLONE_WORKERS)), len(entries)
     )

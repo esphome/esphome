@@ -636,6 +636,12 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
     mock_head.assert_not_called()
     assert (jobs, failed) == ([], 0)
     assert [n for n, _ in installable] == ["tool", "mercurial", "noname", "trail"]
+    # Positive classification: an unknown scheme is left to pio run
+    with patch("esphome.net_retry.http_request") as mock_head:
+        assert pf._uri_jobs(
+            m, [_FakeSpec(uri="weird://x/pkg", name="weird")], set()
+        ) == ([], 0, [])
+    mock_head.assert_not_called()
 
     m.get_package.return_value = object()  # already installed: warm and silent
     with patch("esphome.net_retry.http_request"):
@@ -1748,6 +1754,56 @@ def test_preinstall_uses_distinct_managers_in_parallel(tmp_path: Path) -> None:
         )
     assert len(used) == 2
     assert id(seed) not in used
+
+
+def test_preinstall_clone_floor_widens_small_core_pool(tmp_path: Path) -> None:
+    """Network-bound clones run wide even on a 1-CPU host: the barrier
+    deadlocks unless all four clone entries get concurrent workers."""
+    barrier = threading.Barrier(4, timeout=5)
+    used: set = set()
+
+    class _WaveManager:
+        package_dir = str(tmp_path)
+        compatibility = None
+
+        def __init__(self, package_dir, **kwargs) -> None:
+            assert package_dir == str(tmp_path)
+
+        def lock(self) -> None:
+            pass
+
+        def unlock(self) -> None:
+            pass
+
+        def memcache_reset(self) -> None:
+            pass
+
+        def get_tmp_dir(self) -> str:
+            return str(tmp_path)
+
+        def get_download_dir(self) -> str:
+            return str(tmp_path)
+
+        def get_package(self, spec):
+            return None
+
+        def get_pkg_dependencies(self, pkg):
+            return None
+
+        def _install(self, spec, skip_dependencies, compatibility=None) -> None:
+            used.add(id(self))
+            barrier.wait()
+
+    seed = _WaveManager(str(tmp_path))
+    with patch.object(pf, "get_usable_cpu_count", return_value=1):
+        pf._preinstall(
+            seed,
+            [
+                (f"r{i}", _FakeSpec(uri=f"git+https://x/r{i}.git", name=f"r{i}"))
+                for i in range(4)
+            ],
+        )
+    assert len(used) == 4
 
 
 def test_sibling_manager_and_sigterm() -> None:
