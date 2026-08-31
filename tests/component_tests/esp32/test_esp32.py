@@ -1274,8 +1274,9 @@ def test_esp32_s31_gpio_validation(
     set_core_config: SetCoreConfigCallable,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """S31: flash uses dedicated pins so GPIO27-33 are normal pins, GPIO29 and
-    GPIO41 do not exist, and GPIO36 is a strapping pin."""
+    """S31: GPIO26-28/31/32 are reserved for the SPI flash interface, GPIO29
+    and GPIO41 do not exist, GPIO33 is a normal pin, and GPIO36 is a
+    strapping pin."""
     from esphome.components.esp32.const import VARIANT_ESP32S31
     from esphome.components.esp32.gpio import validate_supports
     from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
@@ -1286,9 +1287,18 @@ def test_esp32_s31_gpio_validation(
 
     input_mode = {CONF_INPUT: True, CONF_OUTPUT: False, CONF_OPEN_DRAIN: False}
 
-    # Previously reserved for the flash interface, which uses dedicated pins
-    for num in (27, 28, 31, 32, 33):
-        pin = {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    # Not reserved; a normal GPIO
+    pin = {CONF_NUMBER: 33, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    assert validate_gpio_pin(pin)[CONF_NUMBER] == 33
+
+    # Reserved for the SPI flash interface, but can be bypassed with
+    # ignore_pin_validation_error
+    for num in (26, 27, 28, 31, 32):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} is reserved"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+        pin = {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
         assert validate_gpio_pin(pin)[CONF_NUMBER] == num
 
     for num in (29, 41):

@@ -22,12 +22,12 @@ _LOGGER = logging.getLogger(__name__)
 def esp32_s31_validate_gpio_pin(value: int) -> int:
     if value < 0 or value > 61:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-61)")
+    if value in _ESP32S31_INVALID_PINS:
+        raise cv.Invalid(f"GPIO{value} does not exist on ESP32-S31.")
     if value in _ESP32S31_SPI_FLASH_PINS:
         raise cv.Invalid(
             f"GPIO{value} is reserved for the SPI flash interface on ESP32-S31 and cannot be used."
         )
-    if value in _ESP32S31_INVALID_PINS:
-        raise cv.Invalid(f"GPIO{value} does not exist on ESP32-S31.")
     return value
 
 
