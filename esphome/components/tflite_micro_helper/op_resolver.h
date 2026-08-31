@@ -27,8 +27,7 @@ void log_op_failed(const char *tag, const char *op_name);
 #define TFLITE_MICRO_HELPER_DEFINE_OPTIONAL_ADD(snake_name, method_name) \
   template<typename Resolver, typename = void> struct has_##snake_name : std::false_type {}; \
   template<typename Resolver> \
-  struct has_##snake_name<Resolver, \
-                          std::void_t<decltype(std::declval<Resolver &>().method_name())>> \
+  struct has_##snake_name<Resolver, std::void_t<decltype(std::declval<Resolver &>().method_name())>> \
       : std::true_type {}; \
   template<typename Resolver> \
   TfLiteStatus add_optional_##snake_name(Resolver &resolver, const char *tag, const char *op_name) { \
