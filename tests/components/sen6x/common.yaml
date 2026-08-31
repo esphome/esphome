@@ -1,9 +1,23 @@
 sensor:
+  - platform: template
+    id: pressure_source
+    name: Pressure Source
+    unit_of_measurement: hPa
   # Test with explicit type parameter
   - platform: sen6x
     id: sen6x_sensor
     type: SEN69C
     i2c_id: i2c_bus
+    startup_delay: 30s
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    temperature_acceleration:
+      k: 20.0
+      p: 20.0
+      t1: 100.0
+      t2: 300.0
     temperature:
       name: Temperature
       accuracy_decimals: 1
@@ -28,10 +42,27 @@ sensor:
       accuracy_decimals: 1
     nox_index:
       name: NOx Index
+      algorithm_tuning:
+        index_offset: 8
+        learning_time_offset_hours: 6
+        learning_time_gain_hours: 24
+        gating_max_duration_minutes: 900
+        gain_factor: 180
     voc_index:
       name: VOC Index
+      algorithm_tuning:
+        index_offset: 120
+        learning_time_offset_hours: 6
+        learning_time_gain_hours: 24
+        gating_max_duration_minutes: 240
+        std_initial: 75
+        gain_factor: 180
     co2:
       name: Carbon Dioxide
+      automatic_self_calibration: true
+      altitude_compensation: 100
+      ambient_pressure_compensation: 1013
+      ambient_pressure_compensation_source: pressure_source
     formaldehyde:
       name: Formaldehyde
     address: 0x6B
