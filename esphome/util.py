@@ -390,6 +390,20 @@ def is_dev_esphome_version():
     return "dev" in const.__version__
 
 
+# Remove before 2027.2.0
+def parse_esphome_version() -> tuple[int, int, int]:
+    """Deprecated: use esphome.config_validation.require_esphome_version instead."""
+    from esphome.core import Version
+
+    _LOGGER.warning(
+        "parse_esphome_version() is deprecated. Use "
+        "cv.require_esphome_version to gate on a minimum version. "
+        "Removed in 2027.2.0"
+    )
+    version = Version.parse(const.__version__)
+    return version.major, version.minor, version.patch
+
+
 # Custom OrderedDict with nicer repr method for debugging
 class OrderedDict(collections.OrderedDict):
     def __repr__(self):
