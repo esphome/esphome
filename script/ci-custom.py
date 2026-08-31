@@ -1064,6 +1064,7 @@ LOG_LITERAL_LINT_EXCLUDE = [
     "esphome/components/usb_host/*",
     "esphome/components/zigbee/*",
     "esphome/components/zwave_proxy/*",
+    "esphome/components/lvgl/*",
     # Test fixtures - not production embedded code
     "tests/integration/fixtures/*",
 ]
