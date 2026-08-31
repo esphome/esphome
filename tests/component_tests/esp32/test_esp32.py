@@ -1268,3 +1268,50 @@ def test_parse_pio_platform_version(value: str, expected: str) -> None:
     from esphome.components.esp32 import _parse_pio_platform_version
 
     assert _parse_pio_platform_version(value) == expected
+
+
+def test_esp32_s31_gpio_validation(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """S31: GPIO26-28/30-32 are reserved for the SPI flash interface, GPIO29
+    and GPIO41 do not exist, GPIO33 is a normal pin, and GPIO36 is a
+    strapping pin."""
+    from esphome.components.esp32.const import VARIANT_ESP32S31
+    from esphome.components.esp32.gpio import validate_supports
+    from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32S31}
+    )
+
+    input_mode = {CONF_INPUT: True, CONF_OUTPUT: False, CONF_OPEN_DRAIN: False}
+
+    # Not reserved; a normal GPIO
+    pin = {CONF_NUMBER: 33, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    assert validate_gpio_pin(pin)[CONF_NUMBER] == 33
+
+    # Reserved for the SPI flash interface, but can be bypassed with
+    # ignore_pin_validation_error
+    for num in (26, 27, 28, 30, 31, 32):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} is reserved"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+        pin = {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
+        assert validate_gpio_pin(pin)[CONF_NUMBER] == num
+
+    for num in (29, 41):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} does not exist"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+        # Also rejected in validate_supports so ignore_pin_validation_error
+        # cannot bypass it
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} does not exist"):
+            validate_supports({CONF_NUMBER: num, CONF_MODE: input_mode})
+
+    pin = {CONF_NUMBER: 36, CONF_MODE: input_mode}
+    with caplog.at_level("WARNING"):
+        validate_supports(pin)
+    assert "GPIO36 is a strapping PIN" in caplog.text
