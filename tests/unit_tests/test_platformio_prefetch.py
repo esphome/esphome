@@ -628,6 +628,9 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
                 ),
                 _FakeSpec(uri="hg+https://x/old", name="mercurial", custom_name=True),
                 _FakeSpec(uri="git+https://x/derived.git", name="derived"),
+                # An un-normalized repo URL classifies as VCS (never as a
+                # downloadable archive), then drops here as derived-name
+                _FakeSpec(uri="https://x/unnorm.git", name="unnorm"),
                 _FakeSpec(uri="file:///local/dir", name="local"),
                 _FakeSpec(uri="symlink:///local/dir", name="link"),
             ],

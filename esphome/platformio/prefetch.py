@@ -382,10 +382,15 @@ _VCS_URI_PREFIXES = ("git+", "hg+", "svn+", "git://", "hg://", "svn://")
 def _is_vcs_spec_uri(url: str | None) -> bool:
     """Whether pio's ``install_from_uri`` would clone this URI rather than
     copy or download it (PackageSpec normalizes git URLs to ``git+``).
-    Positive match, with a .git path as the backstop."""
-    if not url or url.startswith(("file://", "symlink://", "http://", "https://")):
+    The .git check runs first so an un-normalized repo URL degrades to a
+    failed clone and pio run, never an archive download of a repo page."""
+    if not url:
         return False
-    return url.startswith(_VCS_URI_PREFIXES) or url.split("#", 1)[0].endswith(".git")
+    if url.split("#", 1)[0].endswith(".git"):
+        return True
+    if url.startswith(("file://", "symlink://", "http://", "https://")):
+        return False
+    return url.startswith(_VCS_URI_PREFIXES)
 
 
 # (name, spec) from wave 1, (name, spec, compatibility) from dep waves
@@ -431,13 +436,13 @@ def _uri_jobs(
             continue  # file/symlink specs are copied in place by pio run
         if manager.get_package(spec):
             continue
-        name = spec.name
+        name = spec.name or url.rsplit("/", 1)[-1]
         if is_vcs:
             # No download stage: the pre-install itself clones it. Same
             # rule as the cached-archive branch below: only a custom name
             # is the destination dir. Platform tool specs (owner, name,
-            # requirements=url) always parse as custom-named, so the
-            # curated batch stays parallel; pio run installs the rest
+            # requirements=url) always parse as custom-named, so their
+            # clones run in parallel; pio run installs the rest
             if spec.has_custom_name():
                 installable.append((name, spec))
             continue
