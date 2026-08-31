@@ -626,6 +626,8 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
                 _FakeSpec(uri="hg+https://x/old", name="mercurial"),
                 # Name falls back to the URL basename, fragment excluded
                 _FakeSpec(uri="git+https://x/noname#v2", name=None),
+                # A trailing slash must not derive an empty (colliding) name
+                _FakeSpec(uri="git+https://x/trail/", name=None),
                 _FakeSpec(uri="file:///local/dir", name="local"),
                 _FakeSpec(uri="symlink:///local/dir", name="link"),
             ],
@@ -633,13 +635,28 @@ def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
         )
     mock_head.assert_not_called()
     assert (jobs, failed) == ([], 0)
-    assert [n for n, _ in installable] == ["tool", "mercurial", "noname"]
+    assert [n for n, _ in installable] == ["tool", "mercurial", "noname", "trail"]
 
     m.get_package.return_value = object()  # already installed: warm and silent
     with patch("esphome.net_retry.http_request"):
         assert pf._uri_jobs(
             m, [_FakeSpec(uri="git+https://x/tool.git#1.0", name="tool")], set()
         ) == ([], 0, [])
+
+
+def test_clones_first_orders_vcs_before_archives() -> None:
+    """The pre-install pool receives clones first: they wait on the
+    network and must not queue behind CPU-bound archive extractions."""
+    archive = ("zip", _FakeSpec(uri="https://x/a.zip", name="zip"))
+    registry = ("reg", _FakeSpec(uri=None, name="reg"))
+    clone = ("repo", _FakeSpec(uri="git+https://x/repo.git", name="repo"))
+    ordered = pf._clones_first([archive, registry, clone])
+    assert ordered[0] == clone
+    # Stable partition: non-clone relative order is preserved
+    assert ordered[1:] == [archive, registry]
+    assert pf._entry_is_vcs(clone)
+    assert not pf._entry_is_vcs(archive)
+    assert not pf._entry_is_vcs(registry)
 
 
 def test_uri_jobs_head_failure_counts_as_unresolved(

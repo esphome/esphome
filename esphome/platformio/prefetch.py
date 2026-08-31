@@ -16,7 +16,7 @@ name and promote with an atomic rename.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
 import hashlib
@@ -381,9 +381,22 @@ def _is_vcs_spec_uri(url: str) -> bool:
 
 
 def _spec_name(spec: Any, url: str) -> str:
-    """The spec's name; the URL basename fallback is defensive only
-    (PackageSpec derives a name from the URI itself)."""
-    return spec.name or url.split("#", 1)[0].rsplit("/", 1)[-1]
+    """The spec's name; the URL fallbacks are defensive only
+    (PackageSpec derives a name from the URI itself). Never empty:
+    an empty name would coalesce distinct to_install keys."""
+    return spec.name or url.split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1] or url
+
+
+def _entry_is_vcs(entry: tuple[str, Any]) -> bool:
+    """Whether this pre-install entry is cloned rather than unpacked."""
+    url = entry[1].uri
+    return bool(url and _is_vcs_spec_uri(url))
+
+
+def _clones_first(entries: Iterable[tuple[str, Any]]) -> list[tuple[str, Any]]:
+    """Clones first: they wait on the network, so they must not queue
+    behind CPU-bound archive extractions in the pre-install pool."""
+    return sorted(entries, key=lambda entry: not _entry_is_vcs(entry))
 
 
 def _uri_jobs(
@@ -411,6 +424,10 @@ def _uri_jobs(
             continue
         name = _spec_name(spec, url)
         if is_vcs:
+            # Kept even with a derived name, unlike archives below: the
+            # platform tool packages this exists for carry name= without
+            # being "custom". A manifest-name collision fails that wave
+            # entry and pio run installs it serially.
             installable.append((name, spec))
             continue
         # PlatformIO downloads URL specs with no checksum
@@ -750,7 +767,7 @@ def _preinstall(
             raise
 
     _LOGGER.info(
-        "Installing %d PlatformIO package(s) with %d extraction worker(s): %s",
+        "Installing %d PlatformIO package(s) with %d worker(s): %s",
         len(entries),
         workers,
         ", ".join(name for name, *_ in entries),
@@ -931,12 +948,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             if name not in failed_names
         }
         if to_install:
-            # Clones first: they wait on the network, so they must not
-            # queue behind CPU-bound archive extractions
-            ordered = sorted(
-                to_install.values(),
-                key=lambda entry: not ((url := entry[1].uri) and _is_vcs_spec_uri(url)),
-            )
+            ordered = _clones_first(to_install.values())
             try:
                 _preinstall(mgr, ordered)
                 if is_platform:
