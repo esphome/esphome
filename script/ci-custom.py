@@ -3,6 +3,7 @@
 import argparse
 import codecs
 import collections
+from collections.abc import Iterator
 import fnmatch
 import functools
 import os.path
@@ -1007,7 +1008,7 @@ def lint_log_multiline_continuation(fname, content):
     return errs
 
 
-def _find_ternary_literals(text: str):
+def _find_ternary_literals(text: str) -> Iterator[int]:
     """Yield the start offset of every string literal that is a ternary branch, i.e. whose
     previous non-space character outside a string literal is ``?`` or ``:``."""
     prev = ""
@@ -1033,7 +1034,9 @@ def _find_ternary_literals(text: str):
 
 
 @lint_content_check(include=cpp_include, exclude=["esphome/core/log.h"])
-def lint_log_no_bare_literal_ternary(fname, content):
+def lint_log_no_bare_literal_ternary(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
     errs = []
     for log_match in LOG_MULTILINE_RE.finditer(content):
         for offset in _find_ternary_literals(log_match.group(0)):
