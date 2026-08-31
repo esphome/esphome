@@ -65,7 +65,7 @@ def main():
 
     suffix = f"-{args.suffix}" if args.suffix else ""
 
-    repository = os.environ.get("GITHUB_REPOSITORY", "esphome/esphome")
+    repository = (os.environ.get("GITHUB_REPOSITORY") or "esphome/esphome").strip().lower()
     image_name = f"{repository}{suffix}"
 
     print(f"channel={channel}")
