@@ -1,6 +1,5 @@
 """Tests for the per-board linker-script rule."""
 
-
 from esphome.components.esp8266 import _choose_ld_script
 from esphome.components.esp8266.boards import BOARDS, board_ld_script
 
