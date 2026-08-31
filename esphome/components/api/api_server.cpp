@@ -216,6 +216,7 @@ void APIServer::remove_client_(uint8_t client_index) {
   if (client->flags_.outgoing_connection_target) {
     this->outgoing_target_count_--;
   }
+  this->outgoing_conn_.on_client_removed(client.get());
 #endif
 
   // Close socket now (was deferred from on_fatal_error to allow getpeername)
@@ -285,10 +286,17 @@ void APIServer::add_client_(APIConnection *conn) {
 }
 
 #ifdef USE_API_OUTGOING_CONNECTION
-void APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
+APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
+  // Inbound clients may have taken the remaining slots while the dial was in
+  // flight; re-check at the handoff so add_client_ cannot write past clients_
+  if (this->at_client_limit_()) {
+    ESP_LOGW(TAG, "Max connections (%d), dropping outgoing connection", MAX_API_CONNECTIONS);
+    return nullptr;
+  }
   auto *conn = new APIConnection(std::move(sock), this);
   conn->mark_outgoing();
   this->add_client_(conn);
+  return conn;
 }
 
 void APIServer::on_outgoing_target_client(APIConnection *conn) {

@@ -1012,6 +1012,9 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_API_NOISE
   dump_field(out, ESPHOME_PSTR("api_encryption_provisionable"), this->api_encryption_provisionable);
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  dump_field(out, ESPHOME_PSTR("api_outgoing_connection_supported"), this->api_outgoing_connection_supported);
+#endif
   return out.c_str();
 }
 #ifdef USE_BLUETOOTH_PROXY

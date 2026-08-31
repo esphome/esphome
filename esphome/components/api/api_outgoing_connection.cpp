@@ -16,6 +16,7 @@ namespace esphome::api {
 static const char *const TAG = "api.outgoing";
 
 void OutgoingConnectionManager::setup() {
+#ifndef API_OUTGOING_CONNECTION_HOST
   this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
   if (this->target_pref_.load(&this->saved_)) {
     // Defend against a corrupt or truncated preference blob
@@ -23,12 +24,19 @@ void OutgoingConnectionManager::setup() {
   } else {
     this->saved_.host[0] = '\0';
   }
+#endif
 }
 
 void OutgoingConnectionManager::loop(APIServer *server) {
   if (server->has_outgoing_target_client_()) {
     // on_target_client() already reset the dial state when this client's
     // hello arrived; nothing to do while it stays connected.
+    return;
+  }
+  if (this->dialed_conn_ != nullptr) {
+    // A dialed connection is still open but its peer has not sent a flagged
+    // hello (yet); dialing again would only burn connection slots. The
+    // connection's own timeouts remove it eventually if the peer is silent.
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
@@ -54,7 +62,8 @@ void OutgoingConnectionManager::loop(APIServer *server) {
 void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   const char *host = this->target_host_();
   if (host == nullptr || !network::is_connected() || server->at_client_limit_() || !server->noise_ctx_.has_psk()) {
-    this->schedule_retry_(now);
+    // Not a dial failure; retry soon without escalating the backoff
+    this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     return;
   }
   struct sockaddr_storage addr;
@@ -74,7 +83,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   int err = this->dial_socket_->connect((struct sockaddr *) &addr, addr_len);
   if (err == 0) {
     // Immediate success (possible for localhost)
-    server->add_outgoing_client_(std::move(this->dial_socket_));
+    this->dialed_conn_ = server->add_outgoing_client_(std::move(this->dial_socket_));
     this->schedule_retry_(now);
     return;
   }
@@ -99,7 +108,7 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   }
   this->last_poll_ = now;
   int fd = this->dial_socket_->get_fd();
-  if (fd < 0) {
+  if (fd < 0 || fd >= FD_SETSIZE) {
     this->schedule_retry_(now);
     return;
   }
@@ -109,8 +118,14 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   FD_ZERO(&writefds);
   FD_SET(fd, &writefds);
   struct timeval tv = {0, 0};
-  int ret = select(fd + 1, nullptr, &writefds, nullptr, &tv);
-  if (ret <= 0 || !FD_ISSET(fd, &writefds)) {
+  // Global-scope select: the entity namespace esphome::select shadows it here
+  int ret = ::select(fd + 1, nullptr, &writefds, nullptr, &tv);
+  if (ret < 0) {
+    ESP_LOGW(TAG, "Connect poll failed: errno %d", errno);
+    this->schedule_retry_(now);
+    return;
+  }
+  if (ret == 0 || !FD_ISSET(fd, &writefds)) {
     return;  // still in progress
   }
   int error = 0;
@@ -120,7 +135,7 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
-  server->add_outgoing_client_(std::move(this->dial_socket_));
+  this->dialed_conn_ = server->add_outgoing_client_(std::move(this->dial_socket_));
   // Stay in a retry wait until the peer proves itself by sending a flagged
   // hello; on_target_client() then resets to idle and clears the backoff.
   this->schedule_retry_(now);
@@ -139,19 +154,23 @@ void OutgoingConnectionManager::schedule_retry_(uint32_t now) {
 void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
   // The target is connected; stop any dial in flight and reset the backoff.
   this->dial_socket_.reset();
+  this->dialed_conn_ = nullptr;
   this->state_ = DialState::DIAL_STATE_IDLE;
   this->backoff_ = BACKOFF_MIN_MS;
+#ifndef API_OUTGOING_CONNECTION_HOST
   SavedOutgoingTarget target{};
   conn->get_peername_to(target.host);
   if (target.host[0] == '\0' || strcmp(target.host, this->saved_.host) == 0) {
     return;  // unknown peer or unchanged; avoid flash wear
   }
-  this->saved_ = target;
-  if (!this->target_pref_.save(&this->saved_) || !global_preferences->sync()) {
+  if (!this->target_pref_.save(&target) || !global_preferences->sync()) {
+    // Keep the old value so the save is retried on the next flagged hello
     ESP_LOGW(TAG, "Failed to save target");
     return;
   }
+  this->saved_ = target;
   ESP_LOGD(TAG, "Saved %s as outgoing connection target", this->saved_.host);
+#endif
 }
 
 void OutgoingConnectionManager::dump_config() const {

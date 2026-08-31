@@ -37,6 +37,12 @@ class OutgoingConnectionManager {
   /// Called when a key-verified client declares itself a dial-back target;
   /// the last such client wins as the remembered address.
   void on_target_client(APIConnection *conn);
+  /// Called for every removed connection so a dialed one stops gating re-dials
+  void on_client_removed(APIConnection *conn) {
+    if (conn == this->dialed_conn_) {
+      this->dialed_conn_ = nullptr;
+    }
+  }
   void on_shutdown() { this->dial_socket_.reset(); }
   void dump_config() const;
 
@@ -56,6 +62,13 @@ class OutgoingConnectionManager {
   void poll_connect_(APIServer *server, uint32_t now);
   // Close any half-open dial and wait a jittered backoff before retrying
   void schedule_retry_(uint32_t now);
+  // Wait without escalating the backoff (used for unmet preconditions)
+  void schedule_wait_(uint32_t now, uint32_t wait) {
+    this->dial_socket_.reset();
+    this->state_ = DialState::DIAL_STATE_WAITING;
+    this->state_ts_ = now;
+    this->wait_ = wait;
+  }
   const char *target_host_() const {
 #ifdef API_OUTGOING_CONNECTION_HOST
     return API_OUTGOING_CONNECTION_HOST;
@@ -63,10 +76,16 @@ class OutgoingConnectionManager {
     return this->saved_.host[0] != '\0' ? this->saved_.host : nullptr;
 #endif
   }
+  static constexpr uint32_t PRECONDITION_RETRY_MS = 5000;
 
   std::unique_ptr<socket::Socket> dial_socket_;
+  // Connection created by the last successful dial; compared, never
+  // dereferenced. Cleared by on_client_removed()/on_target_client().
+  APIConnection *dialed_conn_{nullptr};
+#ifndef API_OUTGOING_CONNECTION_HOST
   ESPPreferenceObject target_pref_;
   SavedOutgoingTarget saved_{};
+#endif
   uint32_t backoff_{BACKOFF_MIN_MS};
   uint32_t wait_{0};
   uint32_t state_ts_{0};

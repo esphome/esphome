@@ -1955,6 +1955,9 @@ bool APIConnection::send_device_info_response_() {
   // one) so this advertisement survives the plaintext removal in 2027.2.0.
   resp.api_encryption_provisionable = !this->parent_->get_noise_ctx().has_psk();
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  resp.api_outgoing_connection_supported = true;
+#endif
 #endif
 #ifdef USE_DEVICES
   size_t device_index = 0;

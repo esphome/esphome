@@ -267,7 +267,8 @@ class APIServer final : public Component,
   void add_client_(APIConnection *conn);
   bool at_client_limit_() const { return this->api_connection_count_ >= MAX_API_CONNECTIONS; }
 #ifdef USE_API_OUTGOING_CONNECTION
-  void add_outgoing_client_(std::unique_ptr<socket::Socket> sock);
+  // Returns the new connection, or nullptr (socket dropped) when at the limit
+  APIConnection *add_outgoing_client_(std::unique_ptr<socket::Socket> sock);
   bool has_outgoing_target_client_() const { return this->outgoing_target_count_ != 0; }
   friend class OutgoingConnectionManager;
 #endif

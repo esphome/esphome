@@ -181,6 +181,9 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 26, this->api_encryption_provisionable);
 #endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 27, this->api_outgoing_connection_supported);
+#endif
   return pos;
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
@@ -245,6 +248,9 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_provisionable);
+#endif
+#ifdef USE_API_OUTGOING_CONNECTION
+  size += ProtoSize::calc_bool(2, this->api_outgoing_connection_supported);
 #endif
   return size;
 }
