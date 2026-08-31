@@ -95,15 +95,8 @@ class TestableUFM01 : public UFM01Component {
 
   void loop_passive_poll() { this->loop_passive_poll_(); }
 
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   void loop_pending_clear_action() { this->loop_pending_clear_action_(); }
-
-  void start_software_version_read() { this->start_software_version_read_(); }
-
-  SoftwareVersionReadResult continue_software_version_read() { return this->continue_software_version_read_(); }
-
-  bool device_id_published() const { return this->device_id_published_; }
-
-  bool software_version_published() const { return this->software_version_published_; }
 
   void request_clear_accumulated_flow(ClearAccumulatedFlowActionInterface *action) {
     this->request_clear_accumulated_flow_(action);
@@ -116,6 +109,21 @@ class TestableUFM01 : public UFM01Component {
   bool pending_clear_sent() const { return this->pending_clear_sent_; }
 
   void set_pending_clear_start_ms(uint32_t ms) { this->pending_clear_start_ms_ = ms; }
+#endif
+
+#ifdef USE_UFM01_DEVICE_ID
+  bool device_id_published() const { return this->device_id_published_; }
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  void start_software_version_read() { this->start_software_version_read_(); }
+
+  SoftwareVersionReadResult continue_software_version_read() { return this->continue_software_version_read_(); }
+
+  bool software_version_published() const { return this->software_version_published_; }
+
+  void set_software_version_start_ms(uint32_t ms) { this->software_version_start_ms_ = ms; }
+#endif
 
   OperatingMode operating_mode() const { return this->operating_mode_; }
 
@@ -172,10 +180,10 @@ class TestableUFM01 : public UFM01Component {
     this->operating_mode_ = OperatingMode::STARTUP;
     this->startup_phase_ = StartupPhase::POST_RESET_WAIT;
     this->phase_start_ms_ = millis() - 3000;
+#ifdef USE_TEXT_SENSOR
     this->software_version_published_ = false;
+#endif
   }
-
-  void set_software_version_start_ms(uint32_t ms) { this->software_version_start_ms_ = ms; }
 
   void reset_state() {
     this->read_index_ = 0;
@@ -184,13 +192,19 @@ class TestableUFM01 : public UFM01Component {
     this->passive_read_pending_ = false;
     this->operating_mode_ = OperatingMode::STARTUP;
     this->consecutive_passive_failures_ = 0;
+#ifdef USE_UFM01_DEVICE_ID
     this->device_id_published_ = false;
+#endif
+#ifdef USE_TEXT_SENSOR
     this->software_version_published_ = false;
     this->software_version_index_ = 0;
     this->software_version_read_pending_ = false;
+#endif
     this->startup_phase_ = StartupPhase::WAIT;
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
     this->pending_clear_action_ = nullptr;
     this->pending_clear_sent_ = false;
+#endif
   }
 };
 

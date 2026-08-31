@@ -20,6 +20,7 @@
 
 namespace esphome::ufm01 {
 
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
 class ClearAccumulatedFlowActionInterface {
  public:
   virtual ~ClearAccumulatedFlowActionInterface() = default;
@@ -27,6 +28,7 @@ class ClearAccumulatedFlowActionInterface {
 };
 
 template<typename... Ts> class ClearAccumulatedFlowAction;
+#endif
 
 namespace testing {
 class TestableUFM01;
@@ -35,7 +37,11 @@ class TestableUFM01;
 static constexpr size_t FRAME_SIZE = 32;
 static constexpr size_t PASSIVE_FRAME_SIZE = 23;
 static constexpr size_t PASSIVE_FRAME_WITH_ID_SIZE = 39;
+#ifdef USE_UFM01_DEVICE_ID
 static constexpr size_t PASSIVE_FRAME_MAX_SIZE = PASSIVE_FRAME_WITH_ID_SIZE;
+#else
+static constexpr size_t PASSIVE_FRAME_MAX_SIZE = PASSIVE_FRAME_SIZE;
+#endif
 static constexpr size_t SOFTWARE_VERSION_RESPONSE_SIZE = 7;
 static constexpr size_t DEVICE_ID_LENGTH = 5;
 static constexpr size_t DEVICE_ID_STRING_LENGTH = 10;
@@ -101,25 +107,33 @@ class UFM01Component : public uart::UARTDevice, public Component {
   float get_setup_priority() const override;
 
  private:
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   void request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
   void cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action);
   bool can_start_clear_action_() const;
+#endif
   void send_command_no_wait_(const std::array<uint8_t, 7> &command);
   bool consume_ack_();
   void flush_rx_();
   bool process_active_stream_();
   void on_active_frame_(uint8_t data[FRAME_SIZE]);
+#ifdef USE_UFM01_DEVICE_ID
   void publish_device_id_from_frame_(const uint8_t data[FRAME_SIZE]);
+#endif
   void publish_stale_flow_and_temperature_();
+#ifdef USE_TEXT_SENSOR
   void start_software_version_read_();
   SoftwareVersionReadResult continue_software_version_read_();
+#endif
 
   void loop_startup_();
   void loop_active_stream_();
   void loop_entering_passive_();
   void loop_passive_poll_();
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   void loop_pending_clear_action_();
   void finish_pending_clear_action_();
+#endif
   void set_startup_phase_(StartupPhase phase);
   void enter_active_stream_(const char *reason);
   void enter_passive_from_stale_();
@@ -127,7 +141,9 @@ class UFM01Component : public uart::UARTDevice, public Component {
   void start_passive_read_();
   PassiveReadResult continue_passive_read_();
   void note_passive_poll_result_(PassiveReadResult result);
+#ifdef USE_TEXT_SENSOR
   void try_pending_software_version_read_();
+#endif
   size_t passive_expected_frame_size_() const;
 
   OperatingMode operating_mode_{OperatingMode::STARTUP};
@@ -138,28 +154,36 @@ class UFM01Component : public uart::UARTDevice, public Component {
   uint32_t last_valid_frame_ms_{0};
   uint32_t last_poll_ms_{0};
   uint8_t consecutive_passive_failures_{0};
-  bool device_id_published_{false};
+#ifdef USE_TEXT_SENSOR
   bool software_version_published_{false};
-  bool passive_expects_id_{false};
   bool software_version_read_pending_{false};
   uint32_t last_software_version_attempt_ms_{0};
+  uint32_t software_version_start_ms_{0};
+  size_t software_version_index_{0};
+  uint8_t software_version_frame_[SOFTWARE_VERSION_RESPONSE_SIZE];
+#endif
+#ifdef USE_UFM01_DEVICE_ID
+  bool device_id_published_{false};
+  bool passive_expects_id_{false};
+#endif
 
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   ClearAccumulatedFlowActionInterface *pending_clear_action_{nullptr};
   uint32_t pending_clear_start_ms_{0};
   bool pending_clear_sent_{false};
+#endif
 
   bool passive_read_pending_{false};
   uint32_t passive_start_ms_{0};
   size_t passive_index_{0};
   uint8_t passive_frame_[PASSIVE_FRAME_MAX_SIZE];
-  uint32_t software_version_start_ms_{0};
-  size_t software_version_index_{0};
-  uint8_t software_version_frame_[SOFTWARE_VERSION_RESPONSE_SIZE];
 
   int32_t read_index_ = 0;
   uint8_t data_[FRAME_SIZE];
 
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   template<typename... Ts> friend class ClearAccumulatedFlowAction;
+#endif
   friend class testing::TestableUFM01;
 };
 

@@ -2,6 +2,8 @@
 
 namespace esphome::ufm01::testing {
 
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
+
 class MockClearAction : public ClearAccumulatedFlowActionInterface {
  public:
   void complete() override { this->completed = true; }
@@ -113,5 +115,7 @@ TEST_F(UFM01Test, CancelPendingClearDoesNotSend) {
   EXPECT_TRUE(this->mock_uart_.written_data.empty());
   EXPECT_FALSE(action.completed);
 }
+
+#endif  // USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
 
 }  // namespace esphome::ufm01::testing

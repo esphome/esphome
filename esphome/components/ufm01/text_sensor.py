@@ -32,6 +32,7 @@ async def to_code(config: ConfigType) -> None:
     if device_id_config := config.get(CONF_DEVICE_ID):
         sens = await text_sensor.new_text_sensor(device_id_config)
         cg.add(ufm01_component.set_device_id_text_sensor(sens))
+        cg.add_define("USE_UFM01_DEVICE_ID")
 
     if software_version_config := config.get(CONF_SOFTWARE_VERSION):
         sens = await text_sensor.new_text_sensor(software_version_config)

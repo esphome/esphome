@@ -149,6 +149,7 @@ static bool validate_passive_frame(const uint8_t data[PASSIVE_FRAME_SIZE]) {
   return data[21] == (sum & 0xFF);
 }
 
+#ifdef USE_UFM01_DEVICE_ID
 static bool validate_passive_with_id_frame(const uint8_t data[PASSIVE_FRAME_WITH_ID_SIZE]) {
   if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2_WITH_ID ||
       data[PASSIVE_WITH_ID_STOP_INDEX] != FRAME_STOP_BYTE)
@@ -158,6 +159,7 @@ static bool validate_passive_with_id_frame(const uint8_t data[PASSIVE_FRAME_WITH
     sum += data[i];
   return data[PASSIVE_WITH_ID_CHECKSUM_INDEX] == sum;
 }
+#endif
 
 static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SIZE], uint8_t active[FRAME_SIZE]) {
   std::memset(active, 0, FRAME_SIZE);
@@ -180,6 +182,7 @@ static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SI
   active[31] = FRAME_STOP_BYTE;
 }
 
+#ifdef USE_UFM01_DEVICE_ID
 static void passive_with_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_WITH_ID_SIZE],
                                             uint8_t active[FRAME_SIZE]) {
   std::memset(active, 0, FRAME_SIZE);
@@ -203,6 +206,7 @@ static void passive_with_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_
   active[30] = passive[PASSIVE_WITH_ID_CHECKSUM_INDEX];
   active[31] = FRAME_STOP_BYTE;
 }
+#endif
 
 static float read_accumulated_flow(const uint8_t data[FRAME_SIZE]) {
   return (data[FRAME_ACC_FLOW_FLAG_INDEX] == ACC_FLOW_M3_FLAG ? L_PER_M3 : 1.0f) *
@@ -269,12 +273,17 @@ bool UFM01Component::consume_ack_() {
   return false;
 }
 
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
 bool UFM01Component::can_start_clear_action_() const {
   switch (this->operating_mode_) {
     case OperatingMode::ACTIVE_STREAM:
       return true;
     case OperatingMode::PASSIVE_POLL:
+#ifdef USE_TEXT_SENSOR
       return !this->passive_read_pending_ && !this->software_version_read_pending_;
+#else
+      return !this->passive_read_pending_;
+#endif
     case OperatingMode::STARTUP:
     case OperatingMode::ENTERING_PASSIVE:
       return false;
@@ -334,6 +343,7 @@ void UFM01Component::loop_pending_clear_action_() {
   ESP_LOGW(TAG, "Clear accumulated flow not acknowledged");
   this->finish_pending_clear_action_();
 }
+#endif  // USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
 
 float UFM01Component::get_setup_priority() const { return setup_priority::LATE; }
 
@@ -372,8 +382,8 @@ void UFM01Component::publish_stale_flow_and_temperature_() {
 #endif
 }
 
+#if defined(USE_UFM01_DEVICE_ID) && defined(USE_TEXT_SENSOR)
 void UFM01Component::publish_device_id_from_frame_(const uint8_t data[FRAME_SIZE]) {
-#ifdef USE_TEXT_SENSOR
   if (this->device_id_text_sensor_ == nullptr || this->device_id_published_)
     return;
 
@@ -388,9 +398,10 @@ void UFM01Component::publish_device_id_from_frame_(const uint8_t data[FRAME_SIZE
   this->device_id_text_sensor_->publish_state(device_id_str);
   this->device_id_published_ = true;
   ESP_LOGI(TAG, "UFM-01 device ID: %s", device_id_str);
-#endif
 }
+#endif
 
+#ifdef USE_TEXT_SENSOR
 void UFM01Component::start_software_version_read_() {
   this->send_command_no_wait_(GET_SOFTWARE_VERSION);
   this->software_version_index_ = 0;
@@ -420,7 +431,6 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
     return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE;
   }
 
-#ifdef USE_TEXT_SENSOR
   if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
     uint64_t version = 0;
     if (!decode_decimal_nibbles(&this->software_version_frame_[1], SOFTWARE_VERSION_LENGTH, &version)) {
@@ -433,13 +443,15 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
     this->software_version_published_ = true;
     ESP_LOGI(TAG, "UFM-01 software version: %s", version_str);
   }
-#endif
 
   return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS;
 }
+#endif  // USE_TEXT_SENSOR
 
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
+#if defined(USE_UFM01_DEVICE_ID) && defined(USE_TEXT_SENSOR)
   this->publish_device_id_from_frame_(data);
+#endif
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
   if (this->ufc_chip_error_binary_sensor_ != nullptr)
@@ -525,7 +537,9 @@ void UFM01Component::enter_active_stream_(const char *reason) {
   ESP_LOGI(TAG, "UFM-01 active stream %s", reason);
   this->operating_mode_ = OperatingMode::ACTIVE_STREAM;
   this->passive_read_pending_ = false;
+#ifdef USE_TEXT_SENSOR
   this->software_version_read_pending_ = false;
+#endif
   this->consecutive_passive_failures_ = 0;
 }
 
@@ -547,7 +561,9 @@ void UFM01Component::restart_startup_(const char *reason) {
   this->publish_stale_flow_and_temperature_();
   this->operating_mode_ = OperatingMode::STARTUP;
   this->passive_read_pending_ = false;
+#ifdef USE_TEXT_SENSOR
   this->software_version_read_pending_ = false;
+#endif
   this->consecutive_passive_failures_ = 0;
   this->reset_retried_ = false;
   this->status_set_warning("re-initializing UFM-01");
@@ -569,8 +585,8 @@ void UFM01Component::note_passive_poll_result_(PassiveReadResult result) {
   this->restart_startup_("Passive poll failed repeatedly");
 }
 
-void UFM01Component::try_pending_software_version_read_() {
 #ifdef USE_TEXT_SENSOR
+void UFM01Component::try_pending_software_version_read_() {
   if (this->software_version_text_sensor_ == nullptr || this->software_version_published_ ||
       this->software_version_read_pending_ || this->passive_read_pending_)
     return;
@@ -579,15 +595,19 @@ void UFM01Component::try_pending_software_version_read_() {
     return;
 
   this->start_software_version_read_();
+}
+#endif
+
+size_t UFM01Component::passive_expected_frame_size_() const {
+#ifdef USE_UFM01_DEVICE_ID
+  return this->passive_expects_id_ ? PASSIVE_FRAME_WITH_ID_SIZE : PASSIVE_FRAME_SIZE;
+#else
+  return PASSIVE_FRAME_SIZE;
 #endif
 }
 
-size_t UFM01Component::passive_expected_frame_size_() const {
-  return this->passive_expects_id_ ? PASSIVE_FRAME_WITH_ID_SIZE : PASSIVE_FRAME_SIZE;
-}
-
 void UFM01Component::start_passive_read_() {
-#ifdef USE_TEXT_SENSOR
+#if defined(USE_UFM01_DEVICE_ID) && defined(USE_TEXT_SENSOR)
   if (this->device_id_text_sensor_ != nullptr && !this->device_id_published_) {
     this->passive_expects_id_ = true;
     this->send_command_no_wait_(READ_SENSOR_DATA_WITH_ID);
@@ -596,7 +616,6 @@ void UFM01Component::start_passive_read_() {
     this->send_command_no_wait_(READ_SENSOR_DATA_NO_ID);
   }
 #else
-  this->passive_expects_id_ = false;
   this->send_command_no_wait_(READ_SENSOR_DATA_NO_ID);
 #endif
   this->passive_index_ = 0;
@@ -606,7 +625,11 @@ void UFM01Component::start_passive_read_() {
 // Accumulates the reply to a passive read request across loop iterations.
 PassiveReadResult UFM01Component::continue_passive_read_() {
   const size_t expected_size = this->passive_expected_frame_size_();
+#ifdef USE_UFM01_DEVICE_ID
   const uint8_t expected_start_byte_2 = this->passive_expects_id_ ? PASSIVE_START_BYTE_2_WITH_ID : PASSIVE_START_BYTE_2;
+#else
+  const uint8_t expected_start_byte_2 = PASSIVE_START_BYTE_2;
+#endif
 
   while (this->available() && this->passive_index_ < expected_size) {
     uint8_t byte;
@@ -631,6 +654,7 @@ PassiveReadResult UFM01Component::continue_passive_read_() {
   }
 
   uint8_t active_frame[FRAME_SIZE];
+#ifdef USE_UFM01_DEVICE_ID
   if (this->passive_expects_id_) {
     if (!validate_passive_with_id_frame(this->passive_frame_)) {
       log_hex(this->passive_frame_, PASSIVE_FRAME_WITH_ID_SIZE);
@@ -638,7 +662,9 @@ PassiveReadResult UFM01Component::continue_passive_read_() {
       return PassiveReadResult::PASSIVE_READ_RESULT_FAILURE;
     }
     passive_with_id_to_active_frame(this->passive_frame_, active_frame);
-  } else {
+  } else
+#endif
+  {
     if (!validate_passive_frame(this->passive_frame_)) {
       log_hex(this->passive_frame_, PASSIVE_FRAME_SIZE);
       ESP_LOGW(TAG, "invalid passive frame");
@@ -714,6 +740,7 @@ void UFM01Component::loop_startup_() {
       this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME);
       return;
 
+#ifdef USE_TEXT_SENSOR
     case StartupPhase::SOFTWARE_VERSION_WAIT_REPLY:
       switch (this->continue_software_version_read_()) {
         case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
@@ -730,6 +757,7 @@ void UFM01Component::loop_startup_() {
       this->send_command_no_wait_(ACTIVE_MODE);
       this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME);
       return;
+#endif
 
     case StartupPhase::ACTIVE_WAIT_FRAME:
       // The command ACK (0xE5) is consumed by the frame parser as noise
@@ -836,9 +864,11 @@ void UFM01Component::loop_passive_poll_() {
 }
 
 void UFM01Component::loop() {
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   this->loop_pending_clear_action_();
   if (this->pending_clear_action_ != nullptr && this->pending_clear_sent_)
     return;
+#endif
   switch (this->operating_mode_) {
     case OperatingMode::STARTUP:
       this->loop_startup_();

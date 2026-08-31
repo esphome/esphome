@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
+
 #include "ufm01.h"
 
 #include "esphome/core/automation.h"
@@ -48,3 +52,5 @@ class ClearAccumulatedFlowAction final : public Action<Ts...>, public ClearAccum
 };
 
 }  // namespace esphome::ufm01
+
+#endif  // USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION

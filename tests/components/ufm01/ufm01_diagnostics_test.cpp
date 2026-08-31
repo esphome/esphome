@@ -3,6 +3,7 @@
 namespace esphome::ufm01::testing {
 
 #ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_DEVICE_ID
 TEST_F(UFM01Test, ActiveFramePublishesDeviceIdOnce) {
   this->attach_diagnostic_text_sensors();
   auto frame = make_active_frame();
@@ -16,8 +17,10 @@ TEST_F(UFM01Test, ActiveFramePublishesDeviceIdOnce) {
   EXPECT_TRUE(this->ufm01_.process_active_stream());
   EXPECT_STREQ(this->device_id_text_sensor_.state.c_str(), "2307140001");
 }
+#endif
 
 #ifdef USE_SENSOR
+#ifdef USE_UFM01_DEVICE_ID
 TEST_F(UFM01Test, PassiveFrameWithIdUsesDocumentedMeasurementOffsets) {
   this->attach_diagnostic_text_sensors();
   this->attach_flow_and_temperature_sensors();
@@ -34,7 +37,9 @@ TEST_F(UFM01Test, PassiveFrameWithIdUsesDocumentedMeasurementOffsets) {
   EXPECT_NEAR(this->temperature_sensor_.get_state(), 23.5f, 0.001f);
 }
 #endif
+#endif
 
+#ifdef USE_UFM01_DEVICE_ID
 TEST_F(UFM01Test, InvalidPassiveFrameWithIdIsRejected) {
   this->attach_diagnostic_text_sensors();
   this->ufm01_.start_passive_read();
@@ -45,6 +50,7 @@ TEST_F(UFM01Test, InvalidPassiveFrameWithIdIsRejected) {
   EXPECT_EQ(this->ufm01_.continue_passive_read(), PassiveReadResult::PASSIVE_READ_RESULT_FAILURE);
   EXPECT_FALSE(this->ufm01_.device_id_published());
 }
+#endif
 
 TEST_F(UFM01Test, SoftwareVersionResponseDecoded) {
   this->attach_diagnostic_text_sensors();
@@ -115,7 +121,9 @@ TEST_F(UFM01Test, AlreadyActiveStartupRequestsSoftwareVersion) {
   EXPECT_EQ(this->ufm01_.startup_phase(), StartupPhase::SOFTWARE_VERSION_WAIT_REPLY);
   ASSERT_EQ(this->mock_uart_.written_data.size(), 7u);
   EXPECT_EQ(this->mock_uart_.written_data[3], 0x5E);
+#ifdef USE_UFM01_DEVICE_ID
   EXPECT_TRUE(this->ufm01_.device_id_published());
+#endif
 }
 #endif
 

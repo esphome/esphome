@@ -65,5 +65,6 @@ async def clear_accumulated_flow_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    cg.add_define("USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION")
     parent = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, parent)
