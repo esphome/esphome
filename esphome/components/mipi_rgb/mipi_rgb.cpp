@@ -243,8 +243,9 @@ void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const ui
       ptr += stride;  // next line
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 bool MipiRgb::check_buffer_() {
