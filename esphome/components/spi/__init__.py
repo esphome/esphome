@@ -508,6 +508,7 @@ def _zephyr_setup_spi(spi, resolved_buses: set[str]) -> tuple[str, str]:
     bus = resolve_zephyr_bus(
         "spi",
         zephyr_dts_board_id(board),
+        override_key=CONF_INTERFACE,
         override=override,
     )
     if bus in resolved_buses:

@@ -33,12 +33,14 @@ _BUS_OVERRIDES: dict[str, dict[str, str]] = {
 }
 
 
-def resolve_zephyr_bus(platform: str, board: str, override: str | None = None) -> str:
-    """Resolve the Zephyr bus label for a given ESPHome bus platform and board.
-
-    Resolution order: ``override`` (caller-supplied bus label) -> hardcoded
-    ``_BUS_OVERRIDES`` table -> DTS lookup via ``_BUS_LOOKUP`` -> ``cv.Invalid``.
-    """
+def resolve_zephyr_bus(
+    platform: str, board: str, override_key: str, override: str | None = None
+) -> str:
+    """Resolve board's bus label, trying explicit override, then a hardcoded
+    board-specific fix, then DTS auto-detection, in that priority order.
+    override_key (required, no default) is the platform's own override YAML key
+    -- a wrong guess here would point the error message at a key that doesn't
+    exist."""
     if override is not None:
         _LOGGER.info(
             "[zephyr] %s bus for '%s': %s (explicit override)",
@@ -86,12 +88,7 @@ def resolve_zephyr_bus(platform: str, board: str, override: str | None = None) -
         )
     else:
         detail = "Install gcc/cpp (C preprocessor) for automatic DTS detection."
-    # spi uses 'interface:' for this now; i2c still has its own 'dts_node_override:'.
-    override_hint = (
-        f"    interface: {platform}0  # replace with your board's Zephyr {platform.upper()} bus label"
-        if platform == "spi"
-        else f"    dts_node_override: {platform}0  # replace with your board's Zephyr {platform.upper()} bus label"
-    )
+    override_hint = f"    {override_key}: {platform}0  # replace with your board's Zephyr {platform.upper()} bus label"
     raise cv.Invalid(
         f"Cannot determine {platform.upper()} bus label for board '{board}'. "
         f"{detail}\n"
@@ -106,54 +103,13 @@ def resolve_zephyr_bus(platform: str, board: str, override: str | None = None) -
 # ---------------------------------------------------------------------------
 
 
-def get_enabled_i2c_buses(board: str) -> list[str] | None:
-    """Return enabled I2C bus labels for board, or None when DTS info is unavailable.
-
-    Returns an empty list when the DTS is parseable but has no enabled I2C buses.
-    Results are cached in CORE.data[KEY_ZEPHYR] and cleared between runs.
-    """
-    cache: dict[str, object] = CORE.data[KEY_ZEPHYR]["i2c_bus_cache"]
-    if board in cache:
-        result = cache[board]
-        return None if result is _NOT_FOUND else list(result)  # type: ignore[arg-type]
-
-    buses = _lookup_bus_labels(board, r"i2c\d+")
-    cache[board] = _NOT_FOUND if buses is None else list(buses)
-    return buses
-
-
-def get_enabled_spi_buses(board: str) -> list[str] | None:
-    """Return enabled SPI bus labels for board, or None when DTS info is unavailable.
-
-    Returns an empty list when the DTS is parseable but has no enabled SPI buses.
-    Results are cached in CORE.data[KEY_ZEPHYR] and cleared between runs.
-    """
-    cache: dict[str, object] = CORE.data[KEY_ZEPHYR]["spi_bus_cache"]
-    if board in cache:
-        result = cache[board]
-        return None if result is _NOT_FOUND else list(result)  # type: ignore[arg-type]
-
-    buses = _lookup_bus_labels(board, r"spi\d+")
-    cache[board] = _NOT_FOUND if buses is None else list(buses)
-    return buses
-
-
-def get_enabled_uart_buses(board: str) -> list[str] | None:
-    """Return present UART bus labels for board, or None when DTS info is unavailable.
-
-    Report-only, same rationale as get_enabled_spi_buses().
-    """
-    return _lookup_bus_labels(board, r"uart\d+")
-
-
-def _lookup_bus_labels(board: str, label_pattern: str) -> list[str] | None:
-    r"""Return sorted DTS node labels matching label_pattern (e.g. r"i2c\d+"), or None.
-
-    Prefers enabled (status = "okay") nodes; falls back to disabled-but-present ones,
-    since some SoC families (e.g. Espressif) disable all peripherals by default in the
-    SoC DTS and rely on application overlays to enable them -- callers that just want
-    to know what exists on the board still need those labels.
-    """
+def _lookup_bus_labels_by_name_match(
+    board: str, label_pattern: str
+) -> list[str] | None:
+    r"""Return sorted DTS node labels whose label matches label_pattern (e.g.
+    r"i2c\d+"), enabled first then disabled, or None if DTS is unavailable --
+    disabled nodes count since some SoCs (e.g. Espressif) ship everything
+    disabled by default and expect an application overlay to enable it."""
     edt = _get_edt(board)
     if edt is None:
         return None
@@ -166,9 +122,33 @@ def _lookup_bus_labels(board: str, label_pattern: str) -> list[str] | None:
                 (enabled if node.status == "okay" else disabled).append(label)
                 break
 
-    result = sorted(set(enabled or disabled))
+    result = sorted(set(enabled)) + sorted(set(disabled) - set(enabled))
     _LOGGER.debug(
         "[zephyr] Buses matching '%s' for '%s': %s", label_pattern, board, result
+    )
+    return result
+
+
+def _lookup_bus_labels_by_property_match(
+    board: str, property_label: str
+) -> list[str] | None:
+    """Return sorted DTS node labels whose binding declares `bus: property_label`,
+    enabled first then disabled, or None if DTS is unavailable -- robust to
+    per-vendor label naming a regex match can't handle."""
+    edt = _get_edt(board)
+    if edt is None:
+        return None
+
+    enabled: list[str] = []
+    disabled: list[str] = []
+
+    for node in _iter_nodes(edt):
+        if property_label in node.buses and node.labels:
+            (enabled if node.status == "okay" else disabled).append(node.labels[0])
+
+    result = sorted(set(enabled)) + sorted(set(disabled) - set(enabled))
+    _LOGGER.debug(
+        "[zephyr] Buses with bus='%s' for '%s': %s", property_label, board, result
     )
     return result
 
@@ -176,14 +156,10 @@ def _lookup_bus_labels(board: str, label_pattern: str) -> list[str] | None:
 def _find_node_label_by_compat(
     board: str, compat: str, *, enabled_only: bool
 ) -> str | None:
-    """Return the label of the first node whose `compatible` includes `compat`, or
-    None if the board's DTS declares no such node (or DTS info is unavailable).
-
-    `enabled_only` requires `status = "okay"` -- some peripherals instead ship
-    `status = "disabled"` in the SoC dtsi itself with no board turning them on by
-    default (e.g. STM32's `rng`), so presence has to be checked independently of
-    enablement there.
-    """
+    """Return the label of the first node whose `compatible` includes compat, or
+    None if not found. enabled_only=True is needed for peripherals that ship
+    `status = "disabled"` in the SoC dtsi itself (e.g. STM32's rng), so presence
+    must be checked independently of enablement."""
     edt = _get_edt(board)
     if edt is None:
         return None
@@ -198,15 +174,10 @@ def _find_node_label_by_compat(
 
 
 def get_existing_cdc_acm_uart_label(board: str) -> str | None:
-    r"""Return the label of an already-enabled `zephyr,cdc-acm-uart` node on the
-    board, or None if the board doesn't declare one.
-
-    Unlike _lookup_bus_labels() (which matches by label name pattern, e.g.
-    r"uart\d+"), this matches by `compatible` string -- board-provided CDC-ACM
-    nodes aren't guaranteed to follow any particular label naming convention
-    (e.g. the generic zephyr/boards/common/usb/cdc_acm_serial.dtsi snippet
-    labels its node `board_cdc_acm_uart`, not `cdc_acm_uart0`).
-    """
+    """Return an already-enabled `zephyr,cdc-acm-uart` node's label, or None.
+    Matched by `compatible`, not label name -- board-provided CDC-ACM nodes don't
+    follow any consistent label naming convention (e.g. the generic
+    cdc_acm_serial.dtsi snippet labels its node `board_cdc_acm_uart`)."""
     return _find_node_label_by_compat(board, "zephyr,cdc-acm-uart", enabled_only=True)
 
 
@@ -217,6 +188,8 @@ def get_rng_node_label(board: str) -> str | None:
 
 
 def get_console_uart_label(board: str) -> str | None:
+    """Return the board's `zephyr,console` chosen-node label, or None -- the
+    anchor every UART-numbering function treats as UART0."""
     edt = _get_edt(board)
     if edt is None:
         return None
@@ -227,43 +200,38 @@ def get_console_uart_label(board: str) -> str | None:
 
 
 def get_can_controller_labels(board: str) -> list[str] | None:
-    r"""Return CAN controller node labels for board, or None when DTS info is
-    unavailable.
+    r"""Return CAN controller node labels (enabled first, then disabled), or None
+    if DTS unavailable. Matched by label name, not `compatible` or a `bus: can`
+    property (neither exists uniformly for CAN across STM32's bxCAN/FDCAN split)
+    -- disabled nodes count since STM32 ships CAN disabled by default, expecting
+    the application overlay to enable it."""
+    return _lookup_bus_labels_by_name_match(board, r"(fd)?can\d+")
 
-    Matched by label name (r"(fd)?can\d+"), not by `compatible`: STM32 alone spells the
-    peripheral two ways (bxCAN's `can1`/`can2` on F0/F1/F3/F4/L4, FDCAN's `fdcan1` on
-    U5/C0), and a `bus: can` property does not exist the way it does for uart. Disabled
-    nodes count -- every STM32 SoC dtsi ships its CAN nodes `status = "disabled"` and
-    expects the application overlay to turn one on, which is exactly what zephyr_can does.
-    """
-    return _lookup_bus_labels(board, r"(fd)?can\d+")
+
+def get_i2c_controller_labels(board: str) -> list[str] | None:
+    """Return I2C controller node labels (enabled first, then disabled), or None
+    if DTS unavailable."""
+    return _lookup_bus_labels_by_property_match(board, "i2c")
+
+
+def get_spi_controller_labels(board: str) -> list[str] | None:
+    """Return SPI controller node labels (enabled first, then disabled), or None
+    if DTS unavailable."""
+    return _lookup_bus_labels_by_property_match(board, "spi")
 
 
 def get_uart_controller_labels(board: str) -> list[str] | None:
-    """Matches by `bus: uart` (every uart-controller binding sets this), not
-    `current-speed` -- a real but unconfigured peripheral (e.g. RA4M1's sci0/sci9)
-    has no current-speed until enabled, and would otherwise be missed. Returns every
-    enabled node, then every disabled one -- unlike _lookup_bus_labels(), which only
-    falls back to disabled when nothing enabled matched.
-    """
-    edt = _get_edt(board)
-    if edt is None:
-        return None
-    enabled: list[str] = []
-    disabled: list[str] = []
-    for node in _iter_nodes(edt):
-        if "uart" in node.buses and node.labels:
-            (enabled if node.status == "okay" else disabled).append(node.labels[0])
-    return enabled + disabled
+    """Return UART controller node labels (enabled first, then disabled), or None
+    if DTS unavailable. Matched by `bus: uart` property, not label name -- some
+    vendors (e.g. Renesas' sci0/sci9) don't use a `uart<N>` label convention."""
+    return _lookup_bus_labels_by_property_match(board, "uart")
 
 
 def _discover_uart_node_labels(board: str) -> dict[str, str] | None:
-    """UART0 is always the board's real `zephyr,console` node, by convention -- not
-    just whichever UART happens to be discovered first.
-
-    No logging, no hard failure -- resolve_uart_node_label() and
-    log_board_capabilities() both build on this and log it their own way.
-    """
+    """Map UART0..N to real DTS labels for board, UART0 always the console by
+    convention, not whichever UART is discovered first. No logging/failure of
+    its own -- resolve_uart_node_label() and log_board_capabilities() each log
+    it their own way."""
     console = get_console_uart_label(board)
     if console is None:
         return None
@@ -278,13 +246,10 @@ def _discover_uart_node_labels(board: str) -> dict[str, str] | None:
 def resolve_uart_node_label(
     board: str, hw_uart: str, static_labels: dict[str, str]
 ) -> str:
-    """`static_labels` empty means the variant declares no portable mapping across
-    its boards (e.g. stm32l4, where UART naming and which one is console both vary
-    per board) -- labels are discovered from DTS instead (_discover_uart_node_labels()).
-    Otherwise the hand-declared label is used, with UART0 verified (best effort)
-    against the board's real console -- a mismatch warns rather than hard-fails,
-    since the declared UART is still real and working, just not that board's console.
-    """
+    """Resolve hw_uart to a real DTS label: from static_labels if the variant
+    declares a portable per-board mapping, otherwise via DTS auto-discovery.
+    Warns rather than fails if a hardcoded UART0 doesn't match the board's real
+    console -- the mapping is still real, just not that board's console."""
     if static_labels:
         label = static_labels.get(hw_uart)
         if label is None:
@@ -333,9 +298,8 @@ def resolve_uart_node_label(
 
 
 def format_uart_node_label_map(board: str, static_labels: dict[str, str]) -> str:
-    """Same source data resolve_uart_node_label() resolves against -- purely
-    informational here, no logging or hard failure of its own.
-    """
+    """Render the same UART label mapping resolve_uart_node_label() resolves
+    against, for logging only."""
     mapping = (
         dict(static_labels) if static_labels else _discover_uart_node_labels(board)
     )
@@ -350,13 +314,9 @@ def format_uart_node_label_map(board: str, static_labels: dict[str, str]) -> str
 
 
 def _load_edtlib(zephyr_base: Path | None):
-    """Import edtlib, preferring Zephyr's own bundled copy over the PyPI package.
-
-    The PyPI devicetree 0.0.2 snapshot is older than the in-tree version and may
-    reject binding keys added in recent Zephyr releases (e.g. 'examples:').
-    Inserting the bundled path before any existing devicetree in sys.modules ensures
-    we get the version that matches the bindings we're parsing.
-    """
+    """Import edtlib, preferring Zephyr's bundled copy over the PyPI package --
+    the PyPI devicetree 0.0.2 snapshot is older and can reject binding keys newer
+    Zephyr releases add (e.g. 'examples:')."""
     import importlib
     import sys
 
@@ -395,13 +355,9 @@ def _load_edtlib(zephyr_base: Path | None):
 
 
 def _get_edt(board: str):
-    """Return a parsed edtlib.EDT for the board (merged with any selected shields:
-    and snippets: devicetree overlays), or None when unavailable.
-
-    Result is cached in CORE.data[KEY_ZEPHYR]["board_edt_cache"], keyed on the
-    board plus the selected shields/snippets (a different selection can add or
-    remove nodes), so cpp is only invoked once per unique combination per run.
-    """
+    """Return a parsed, cached edtlib.EDT for board merged with its shields/
+    snippets overlays, or None if unavailable -- cached per (board, shields,
+    snippets) so cpp only runs once per unique combination per run."""
     zd = CORE.data.get(KEY_ZEPHYR, {})
     shields: list[str] = zd.get(KEY_SHIELDS) or []
     snippets: list[str] = zd.get(KEY_SNIPPETS) or []
@@ -538,6 +494,9 @@ def _get_edt(board: str):
 
 
 def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
+    """Find board's on-disk board directory, or None. Falls back to scanning
+    board.yml `name:` fields -- some HWMv2 dirs drop the vendor prefix the
+    dirname would otherwise need."""
     cache = CORE.data[KEY_ZEPHYR]["board_dir_cache"]
     if board in cache:
         cached = cache[board]
@@ -594,6 +553,9 @@ def _find_board_dir(zephyr_base: Path, board: str) -> Path | None:
 
 
 def _find_qualified_file(board_dir: Path, board: str, suffix: str) -> Path | None:
+    """Find board's suffix file, trying progressively less-qualified name
+    variants -- HWMv2 board strings can be arbitrarily deep, but the on-disk
+    filename doesn't always include every segment."""
     # HWMv2 board strings are "<board>[/<soc>[/<variant>[/...]]]" (arbitrarily deep,
     # e.g. rpi_pico2's rp2350a/m33/w/mcuboot). The on-disk filename joins every
     # remaining segment with "_", except <soc> is dropped when it's already part of
@@ -627,15 +589,10 @@ def _find_qualified_file(board_dir: Path, board: str, suffix: str) -> Path | Non
 def _find_revision_overlay(
     board_dir: Path, board: str, resolved_revision: str
 ) -> Path | None:
-    """Find a board@revision target's devicetree overlay file, if any.
-
-    Revision overlays are named like base .dts files but with the resolved revision
-    (dots replaced by underscores) appended as an extra trailing segment after any
-    qualifiers, e.g. boards/actinius/icarus/actinius_icarus_nrf9160_ns_2_0_0.overlay
-    for board "actinius_icarus/nrf9160/ns" at revision "2.0.0". Reuses
-    _find_qualified_file()'s existing full/soc-dropped/bare fallback chain by
-    building a synthetic board string with the revision as its own segment.
-    """
+    """Find a board@revision's devicetree overlay file, if any. Overlay filenames
+    add the resolved revision as an extra trailing segment (dots -> underscores)
+    -- reuses _find_qualified_file()'s naming fallback via a synthetic board
+    string with the revision as its own segment."""
     parts = parse_board_string(board)
     revision_segment = resolved_revision.replace(".", "_")
     qualifiers = parts.qualifiers or ""  # Already has a leading "/", or is empty.
@@ -644,6 +601,7 @@ def _find_revision_overlay(
 
 
 def _find_dts_file(board_dir: Path, board: str) -> Path | None:
+    """Find board's .dts file, disambiguating when a dir holds more than one."""
     # A board directory can contain more than one .dts file (e.g.
     # esp32c6_devkitc_hpcore.dts and _lpcore.dts side by side) so an unqualified glob
     # is ambiguous; _find_qualified_file's naming match must disambiguate first.
@@ -658,12 +616,8 @@ def _find_dts_file(board_dir: Path, board: str) -> Path | None:
 
 
 def _find_board_yaml(board_dir: Path, board: str) -> Path | None:
-    """Find the Twister board-metadata YAML (<board>[_<qualifier>].yaml) for board.
-
-    Same naming/qualifier convention as _find_dts_file, different extension -- this
-    file sits next to the .dts and carries the board author's own declared
-    `supported:` capability list, maintained independently of the DTS.
-    """
+    """Find board's Twister board-metadata YAML -- carries the author's own
+    declared `supported:` capability list, independent of the DTS."""
     found = _find_qualified_file(board_dir, board, ".yaml")
     if found is not None:
         return found
@@ -675,14 +629,9 @@ def _find_board_yaml(board_dir: Path, board: str) -> Path | None:
 def _read_dts_with_includes(
     dts_file: Path, base_dir: Path, _seen: set[Path] | None = None
 ) -> str:
-    """Read a DTS file and recursively inline any quoted #include files from the same directory.
-
-    Unlike _preprocess_dts (which runs the full C preprocessor and expands pinctrl
-    macros like I2C0_SDA_GPIO0 down to opaque packed integers), this keeps macro
-    names intact -- needed by extractors that read the pin number back out of the
-    macro name itself (e.g. _extract_esp32_i2c_pins) rather than decoding it from
-    an encoded bit-field value.
-    """
+    """Read dts_file, inlining quoted #includes from the same directory, with
+    macro names left intact -- needed by extractors that read a pin number back
+    out of a macro name itself (unlike _preprocess_dts's full cpp expansion)."""
     if _seen is None:
         _seen = set()
     abs_file = dts_file.resolve()
@@ -707,6 +656,9 @@ def _read_dts_with_includes(
 def _preprocess_dts_file(
     src_file: Path, zephyr_base: Path, extra_include_dirs: list[str]
 ) -> str | None:
+    """Run cpp over src_file the same way west's own DTS build does
+    (assembler-with-cpp, no standard includes), or None if cpp is unavailable
+    or preprocessing fails."""
     cpp = _find_cpp()
     if cpp is None:
         _LOGGER.debug(
@@ -739,13 +691,9 @@ def _preprocess_dts(dts_file: Path, zephyr_base: Path, board_dir: Path) -> str |
 def _find_in_search_roots(
     search_roots: list[Path], subpath: str, name: str
 ) -> Path | None:
-    """Return the first `<root>/<subpath>/<name>` directory that exists, or None.
-
-    Shared by _find_shield_dir()/_find_snippet_dir() -- both just need the first
-    matching root under a different fixed subpath (shields have no vendor
-    subdirectory layer, unlike boards, so the path is always directly
-    boards/shields/<shield>/; snippets are always directly under snippets/<name>/).
-    """
+    """Return the first `<root>/<subpath>/<name>` directory that exists, or None
+    -- shared by _find_shield_dir()/_find_snippet_dir(), which only differ in
+    subpath."""
     for root in search_roots:
         candidate = root / subpath / name
         if candidate.is_dir():
@@ -759,15 +707,9 @@ def _find_shield_dir(search_roots: list[Path], shield: str) -> Path | None:
 
 
 def _shield_overlay_files(shield_dir: Path, board: str) -> list[Path]:
-    """Return a shield's devicetree overlay file(s) for the given board.
-
-    A shield always contributes <shield_dir>/<shield>.overlay (applied to every
-    board it's used with), and may additionally contribute a board-specific
-    override at <shield_dir>/boards/<qualified board name>.overlay -- unlike some
-    base board .dts files, this filename keeps every board-string segment (e.g.
-    nrf5340dk_nrf5340_cpuapp.overlay), so it reuses _find_qualified_file()'s own
-    fallback convention rather than a bare-name-only lookup.
-    """
+    """Return a shield's overlay file(s) for board: its own base overlay
+    (applied to every board it's used with), plus a board-specific override if
+    the shield ships one."""
     files = []
     base_overlay = shield_dir / f"{shield_dir.name}.overlay"
     if base_overlay.is_file():
@@ -784,12 +726,9 @@ def _find_snippet_dir(search_roots: list[Path], snippet: str) -> Path | None:
 
 
 def _as_str_list(value: object) -> list[str]:
-    """Normalize a snippet.yml append: value into a list of strings.
-
-    CMake's EXTRA_DTC_OVERLAY_FILE is itself a list-typed cache variable, so a
-    snippet.yml is free to declare it as a YAML list rather than a single string --
-    without this, a list value would reach `snippet_dir / p` and raise TypeError.
-    """
+    """Normalize a snippet.yml append: value to a list of strings -- CMake's
+    EXTRA_DTC_OVERLAY_FILE cache var is itself list-typed, so YAML may declare
+    it either way."""
     if not value:
         return []
     if isinstance(value, list):
@@ -798,13 +737,9 @@ def _as_str_list(value: object) -> list[str]:
 
 
 def _snippet_overlay_files(snippet_dir: Path, board: str) -> list[Path]:
-    """Return a snippet's devicetree overlay file(s) for board, from snippet.yml.
-
-    A snippet.yml declares overlay paths rather than shipping a fixed <name>.overlay
-    at its root, keyed per-SoC under boards: <regex>:. Both the top-level append: and
-    any matching boards: entry are included -- CMake's zephyr_get() accumulates
-    rather than replaces, so a real `west build` applies both when both are present.
-    """
+    """Return a snippet's overlay file(s) for board, from snippet.yml's
+    append: and any matching boards: entry -- both apply, since CMake's
+    zephyr_get() accumulates rather than replaces."""
     yml_file = snippet_dir / "snippet.yml"
     if not yml_file.is_file():
         return []
@@ -844,6 +779,8 @@ def _snippet_overlay_files(snippet_dir: Path, board: str) -> list[Path]:
 
 
 def _find_cpp() -> str | None:
+    """Return the cached path to cpp/gcc on PATH, or None if neither is
+    installed."""
     zd = CORE.data[KEY_ZEPHYR]
     if zd["cpp_path"] == "":
         found = shutil.which("cpp") or shutil.which("gcc") or None
@@ -852,6 +789,8 @@ def _find_cpp() -> str | None:
 
 
 def _get_dts_include_paths(zephyr_base: Path) -> list[str]:
+    """Return (and cache) cpp include search paths for zephyr_base, including
+    per-vendor HAL dts/ dirs some SoCs #include directly."""
     zd = CORE.data[KEY_ZEPHYR]
     if zd["dts_include_paths"] is None:
         dts_dir = zephyr_base / "dts"
@@ -892,13 +831,9 @@ def _iter_nodes(edt):
 
 
 def get_i2c_pinctrl_esp32(board: str, bus_label: str) -> dict[str, int] | None:
-    """Return default I2C SDA/SCL flat GPIO numbers for an Espressif esp32-family board.
-
-    Reads the raw (un-preprocessed) DTS and quoted .dtsi includes to find
-    {BUS_LABEL}_SDA_GPIO{n} / {BUS_LABEL}_SCL_GPIO{n} pinctrl macros (e.g.
-    I2C0_SDA_GPIO6) in the ``{bus_label}_default`` pinctrl node -- the pin number is
-    embedded directly in the macro name, no bit-field to decode.
-    """
+    """Return default I2C SDA/SCL GPIO numbers for an esp32-family board, read
+    from raw (un-preprocessed) DTS so the pin number stays embedded in the
+    macro name rather than encoded into a bit-field."""
     zd = CORE.data.get(KEY_ZEPHYR, {})
     dts_base = zd.get("dts_base_path")
     if not dts_base:
@@ -930,13 +865,10 @@ def get_i2c_pinctrl_esp32(board: str, bus_label: str) -> dict[str, int] | None:
 
 
 def _extract_esp32_i2c_pins(text: str, bus_label: str) -> dict[str, int] | None:
-    """Extract SDA/SCL flat GPIO numbers from I2C{n}_SDA/SCL_GPIO{pin} macro names.
-
-    Scoped to the ``{bus_label}_default { ... }`` pinctrl node specifically
-    (brace-matched), not a blind whole-file search -- a board's DTS can define
-    other boards' overlay variants or comments mentioning the same macro name
-    outside the node that's actually active for this board.
-    """
+    """Extract SDA/SCL GPIO numbers from a {bus_label}_default pinctrl node's
+    macro names -- scoped to that node specifically (brace-matched), since other
+    boards' overlay variants can mention the same macro name elsewhere in the
+    file."""
     node_start_re = re.compile(
         rf"{re.escape(bus_label)}_default"
         rf"(?:\s*:\s*{re.escape(bus_label)}_default)?\s*\{{",
@@ -975,12 +907,9 @@ def _extract_esp32_i2c_pins(text: str, bus_label: str) -> dict[str, int] | None:
 
 
 def get_i2c_pinctrl_silabs(board: str, bus_label: str) -> dict[str, int] | None:
-    """Return default I2C SDA/SCL flat GPIO numbers for a Silicon Labs (silabs) board.
-
-    Same approach as get_i2c_pinctrl_esp32, but Silicon Labs' pinctrl macros are
-    lettered-port form ({BUS_LABEL}_SDA_P{PORT}{n}, e.g. I2C0_SDA_PC5) rather than
-    ESP32's flat GPIO{n} form.
-    """
+    """Return default I2C SDA/SCL pin numbers for a Silicon Labs board -- same
+    approach as get_i2c_pinctrl_esp32, but silabs macros use a lettered-port
+    form instead of flat GPIO numbers."""
     zd = CORE.data.get(KEY_ZEPHYR, {})
     dts_base = zd.get("dts_base_path")
     if not dts_base:
@@ -1012,11 +941,9 @@ def get_i2c_pinctrl_silabs(board: str, bus_label: str) -> dict[str, int] | None:
 
 
 def _extract_silabs_i2c_pins(text: str, bus_label: str) -> dict[str, int] | None:
-    """Extract SDA/SCL flat GPIO numbers from I2C{n}_SDA/SCL_P{port}{pin} macro names.
-
-    Scoped to the ``{bus_label}_default { ... }`` pinctrl node, same brace-matching
-    approach as _extract_esp32_i2c_pins.
-    """
+    """Extract SDA/SCL pin numbers from a {bus_label}_default pinctrl node's
+    lettered-port macro names (e.g. I2C0_SDA_PC5), same brace-matching approach
+    as _extract_esp32_i2c_pins."""
     node_start_re = re.compile(
         rf"{re.escape(bus_label)}_default"
         rf"(?:\s*:\s*{re.escape(bus_label)}_default)?\s*\{{",
@@ -1091,28 +1018,26 @@ _FEATURE_COMPATIBLES: dict[str, list[str]] = {
 
 
 def get_board_features(board: str) -> list[str] | None:
-    """Return sorted list of detected hardware feature names for the board.
-
-    Returns None when DTS info is unavailable (cpp absent or DTS not fetched).
-    Callers that want this surfaced to the user should log it themselves --
-    log_board_capabilities() folds this into its combined report.
-    """
+    """Return sorted hardware feature names detected via DTS `compatible`
+    matches, or None if DTS is unavailable. Disabled nodes count -- the SoC has
+    the hardware either way, an application overlay just hasn't turned it on."""
     edt = _get_edt(board)
     if edt is None:
         return None
 
-    enabled_compats: set[str] = set()
+    present_compats: set[str] = set()
     for node in _iter_nodes(edt):
-        if node.status == "okay":
-            enabled_compats.update(node.compats)
+        present_compats.update(node.compats)
 
     features = sorted(
         name
         for name, compats in _FEATURE_COMPATIBLES.items()
-        if any(c in enabled_compats for c in compats)
+        if any(c in present_compats for c in compats)
     )
     _LOGGER.debug(
-        "[zephyr] DTS-detected hardware features for '%s': %s", board, features
+        "[zephyr] DTS-detected (might be disabled) hardware features for '%s': %s",
+        board,
+        features,
     )
     return features
 
@@ -1123,14 +1048,8 @@ def get_board_features(board: str) -> list[str] | None:
 
 
 def get_board_yaml_supported(board: str) -> list[str] | None:
-    """Return the board's own `supported:` capability list from its Twister board YAML.
-
-    This is the board author's own maintained list (adc, i2c, spi, netif:wifi, ...),
-    read straight from <board>[_<qualifier>].yaml next to the .dts -- independent of
-    DTS parsing, so no cpp/gcc dependency and it still works when DTS preprocessing
-    is unavailable. Returns None when the file can't be found/parsed. Results are
-    cached in CORE.data[KEY_ZEPHYR] and cleared between runs.
-    """
+    """Return the board's own `supported:` list from its Twister YAML, or None.
+    Independent of DTS parsing, so it still works without cpp/gcc installed."""
     cache: dict[str, object] = CORE.data[KEY_ZEPHYR]["board_yaml_cache"]
     if board in cache:
         result = cache[board]
@@ -1142,6 +1061,7 @@ def get_board_yaml_supported(board: str) -> list[str] | None:
 
 
 def _lookup_board_yaml_supported(board: str) -> list[str] | None:
+    """Uncached implementation behind get_board_yaml_supported()."""
     zd = CORE.data.get(KEY_ZEPHYR, {})
     dts_base = zd.get("dts_base_path")
     if not dts_base:
@@ -1180,8 +1100,7 @@ _PARTITION_NODE_COMPATS = {"zephyr,mapped-partition", "fixed-subpartitions"}
 
 def get_board_partitions(board: str) -> list[tuple[str, int, int]] | None:
     """Return (label, offset, size) flash partitions defined by the board's DTS,
-    sorted by offset, or None when DTS info is unavailable (cpp absent).
-    """
+    sorted by offset, or None if DTS is unavailable."""
     edt = _get_edt(board)
     if edt is None:
         return None
@@ -1222,14 +1141,9 @@ def log_board_capabilities(
     board_root: Path | None,
     shields: list[str] | None = None,
 ) -> None:
-    """Log one combined block describing what Zephyr thinks this board can do.
-
-    Purely informational: never restricts or warns about the user's config, just
-    surfaces the board's own declared/DTS-derived hardware and partition layout so
-    a user doesn't have to go digging through the Zephyr board definition folder
-    themselves. Always logs at INFO with every line present -- "(none)"/
-    "(unavailable)" shown explicitly rather than the line being omitted.
-    """
+    """Log one INFO block of what Zephyr thinks board can do -- purely
+    informational (never restricts/warns), with every line always present so a
+    user doesn't have to dig through the board definition folder themselves."""
     source = (
         f"custom board, from board_source: {Path(board_root).resolve()}"
         if board_root is not None
@@ -1254,14 +1168,15 @@ def log_board_capabilities(
 
     dts_features = get_board_features(board)
     lines.append(
-        "[zephyr]   Also detected via DTS scan (BLE/IEEE802154/NFC/USB/WiFi/CAN only): "
+        "[zephyr]   Also detected via DTS scan, might be disabled: (BLE/IEEE802154/NFC/USB/WiFi/CAN only): "
         + (", ".join(dts_features) if dts_features else "(none or unavailable)")
     )
 
     for name, buses in (
-        ("I2C", get_enabled_i2c_buses(board)),
-        ("SPI", get_enabled_spi_buses(board)),
-        ("UART", get_enabled_uart_buses(board)),
+        ("CAN", get_can_controller_labels(board)),
+        ("I2C", get_i2c_controller_labels(board)),
+        ("SPI", get_spi_controller_labels(board)),
+        ("UART", get_uart_controller_labels(board)),
     ):
         lines.append(
             f"[zephyr]   {name} buses present: "
@@ -1307,11 +1222,8 @@ def log_board_capabilities(
 
 
 def validate_board(board: str) -> bool | None:
-    """Check whether `board` resolves to a real board directory.
-
-    Returns None (can't tell, not invalid) when the standard tree isn't available to
-    check against.
-    """
+    """Check whether board resolves to a real board directory. None means "can't
+    tell" (standard tree unavailable), not invalid."""
     zd = CORE.data.get(KEY_ZEPHYR, {})
     dts_base = zd.get("dts_base_path")
     if not dts_base:
@@ -1320,13 +1232,9 @@ def validate_board(board: str) -> bool | None:
 
 
 def validate_board_revision(board: str) -> bool | None:
-    """Check whether `board`'s "@<revision>" (if any) resolves against its board.yml.
-
-    Returns None when there's nothing to check: the standard tree isn't available, the
-    board itself doesn't resolve, `board` has no "@<revision>" suffix, or the resolved
-    board declares no revisions at all (a revision on such a board is meaningless, but
-    not this function's job to reject -- Zephyr's own build would just ignore it).
-    """
+    """Check whether board's "@<revision>" resolves against its board.yml. None
+    means nothing to check -- no revision requested, board doesn't resolve, or
+    the board declares no revisions at all."""
     requested_revision = parse_board_string(board).revision
     if requested_revision is None:
         return None
@@ -1348,6 +1256,7 @@ def validate_board_revision(board: str) -> bool | None:
 # ---------------------------------------------------------------------------
 
 _BUS_LOOKUP: dict[str, Callable[[str], list[str] | None]] = {
-    "i2c": get_enabled_i2c_buses,
-    "spi": get_enabled_spi_buses,
+    "can": get_can_controller_labels,
+    "i2c": get_i2c_controller_labels,
+    "spi": get_spi_controller_labels,
 }

@@ -400,6 +400,7 @@ async def to_code(config: ConfigType) -> None:
             i2c = resolve_zephyr_bus(
                 "i2c",
                 zephyr_dts_board_id(board),
+                override_key=CONF_DTS_NODE_OVERRIDE,
                 override=config.get(CONF_DTS_NODE_OVERRIDE),
             )
             zephyr_add_overlay(f'&{i2c} {{ status = "okay"; }};')
@@ -426,6 +427,7 @@ async def to_code(config: ConfigType) -> None:
                 i2c = resolve_zephyr_bus(
                     "i2c",
                     zephyr_dts_board_id(board),
+                    override_key=CONF_DTS_NODE_OVERRIDE,
                     override=config.get(CONF_DTS_NODE_OVERRIDE),
                 )
             zephyr_add_overlay(f'&{i2c} {{ status = "okay"; }};')
