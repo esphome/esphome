@@ -64,3 +64,20 @@ ssd1677.extend(
     busy_pin=18,
     data_rate="10MHz",
 )
+
+# Same panel/pins as seeed-reterminal-sticky, but drives the controller's built-in four-level
+# grayscale (factory OTP waveform, no microcontroller-uploaded LUT) instead of 1bpp black/white.
+# Partial refresh is not supported in this mode; see EPaperSSD1677Gray4.
+ssd1677.extend(
+    "seeed-reterminal-sticky-gray4",
+    class_name="EPaperSSD1677Gray4",
+    width=800,
+    height=480,
+    mirror_x=True,
+    enable_pin=47,
+    cs_pin=15,
+    dc_pin=16,
+    reset_pin=17,
+    busy_pin=18,
+    data_rate="10MHz",
+)

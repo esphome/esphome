@@ -1,0 +1,73 @@
+esphome:
+  name: sticky-gray4-test
+  friendly_name: Sticky Gray4 Test
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+
+spi:
+  - id: epaper_spi_bus
+    clk_pin: GPIO13
+    mosi_pin: GPIO14
+    miso_pin: GPIO12
+
+# The MicroSD card shares this SPI bus (CS on GPIO8) and is not otherwise used in this test.
+# Force its CS high at boot so it does not also respond to traffic meant for the display.
+switch:
+  - platform: gpio
+    pin: GPIO8
+    id: sd_cs_park
+    internal: true
+    restore_mode: ALWAYS_ON
+
+display:
+  - platform: epaper_spi
+    id: gray4_display
+    spi_id: epaper_spi_bus
+    model: seeed-reterminal-sticky-gray4
+    # Cycles through a few very different frames so ghosting between refreshes is easy to spot,
+    # and so refresh timing can be observed across several repeats without needing a serial console.
+    update_interval: 15s
+    lambda: |-
+      static int frame = 0;
+      frame = (frame + 1) % 4;
+      it.fill(Color::WHITE);
+      it.rectangle(10, 10, it.get_width() - 20, it.get_height() - 20, Color::BLACK);
+      switch (frame) {
+        case 0:
+          it.filled_rectangle(50, 50, 100, 100, Color(64, 64, 64));
+          it.filled_rectangle(200, 50, 100, 100, Color(160, 160, 160));
+          break;
+        case 1:
+          it.filled_rectangle(50, 50, 100, 100, Color::BLACK);
+          it.filled_rectangle(200, 50, 100, 100, Color::WHITE);
+          break;
+        case 2:
+          // Checkerboard over most of the panel: a strong ghosting stress test.
+          for (int y = 40; y < it.get_height() - 40; y += 40) {
+            for (int x = 40; x < it.get_width() - 40; x += 40) {
+              if (((x / 40) + (y / 40)) % 2 == 0) {
+                it.filled_rectangle(x, y, 40, 40, Color::BLACK);
+              }
+            }
+          }
+          break;
+        case 3:
+          it.filled_rectangle(400, 50, 350, 380, Color(128, 128, 128));
+          break;
+      }
+      it.print(it.get_width() / 2, it.get_height() / 2, id(my_font), Color::BLACK, TextAlign::CENTER,
+               "Sticky Gray4 Test");
+
+font:
+  - file: "gfonts://Roboto"
+    id: my_font
+    size: 20
+
+logger:
