@@ -1,3 +1,5 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 from esphome.components.const import CONF_NOX_INDEX, CONF_VOC_INDEX
@@ -32,6 +34,8 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@martgras", "@mebner86", "@tuct"]
@@ -42,6 +46,10 @@ sen6x_ns = cg.esphome_ns.namespace("sen6x")
 SEN6XComponent = sen6x_ns.class_(
     "SEN6XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
 )
+StartMeasurementAction = sen6x_ns.class_("StartMeasurementAction", automation.Action)
+StopMeasurementAction = sen6x_ns.class_("StopMeasurementAction", automation.Action)
+StartFanCleaningAction = sen6x_ns.class_("StartFanCleaningAction", automation.Action)
+ActivateHeaterAction = sen6x_ns.class_("ActivateHeaterAction", automation.Action)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -149,3 +157,44 @@ async def to_code(config: ConfigType) -> None:
         if cfg := config.get(key):
             sens = await sensor.new_sensor(cfg)
             cg.add(getattr(var, func_name)(sens))
+
+
+SEN6X_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
+    }
+)
+
+
+@automation.register_action(
+    "sen6x.start_measurement",
+    StartMeasurementAction,
+    SEN6X_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "sen6x.stop_measurement",
+    StopMeasurementAction,
+    SEN6X_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "sen6x.start_fan_cleaning",
+    StartFanCleaningAction,
+    SEN6X_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "sen6x.activate_sht_heater",
+    ActivateHeaterAction,
+    SEN6X_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def sen6x_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)

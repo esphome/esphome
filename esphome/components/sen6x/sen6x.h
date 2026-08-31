@@ -27,14 +27,23 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   enum Sen6xType { SEN62, SEN63C, SEN65, SEN66, SEN68, SEN69C, UNKNOWN };
 
   void set_type(const std::string &type) { sen6x_type_ = infer_type_from_product_name_(type); }
+  void start_measurement();
+  void stop_measurement();
+  void start_fan_cleaning();
+  void activate_sht_heater();
 
  protected:
   Sen6xType infer_type_from_product_name_(const std::string &product_name);
+  bool command_blocked_() const;
   void poll_data_ready_();
   void read_measurements_();
   void parse_and_publish_measurements_();
 
   bool initialized_{false};
+  bool measuring_{false};
+  // Deadlines (millis-based) enforcing the datasheet's post-command wait times
+  uint32_t command_ready_at_{0};
+  uint32_t co2_restart_at_{0};
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
   std::string serial_number_;
