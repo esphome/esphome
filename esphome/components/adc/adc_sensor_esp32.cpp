@@ -110,7 +110,7 @@ void ADCSensor::setup() {
       ESP_LOGW(TAG, "Line fitting calibration failed with error %d, will use uncalibrated readings", err);
       this->setup_flags_.calibration_complete = false;
     }
-#else   // No calibration scheme available (S31)
+#else   // No calibration scheme available
     (void) handle;
     ESP_LOGD(TAG, "No calibration scheme for this variant, readings are uncalibrated");
     this->setup_flags_.calibration_complete = false;
