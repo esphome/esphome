@@ -1552,7 +1552,7 @@ void ThermostatClimate::dump_config() {
     for (const auto &entry : this->preset_config_) {
       const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(entry.preset));
       ESP_LOGCONFIG(TAG, "    %s:%s", preset_name,
-                    entry.preset == this->default_preset_ ? LOG_STR_LITERAL(" (default)") : LOG_STR_LITERAL(""));
+                    entry.preset == this->default_preset_ ? LOG_STR_LITERAL(" (default)") : "");
       this->dump_preset_config_(preset_name, entry.config);
     }
   }
@@ -1564,7 +1564,7 @@ void ThermostatClimate::dump_config() {
       ESP_LOGCONFIG(TAG, "    %s:%s", preset_name,
                     (this->default_custom_preset_ != nullptr && strcmp(entry.name, this->default_custom_preset_) == 0)
                         ? LOG_STR_LITERAL(" (default)")
-                        : LOG_STR_LITERAL(""));
+                        : "");
       this->dump_preset_config_(preset_name, entry.config);
     }
   }

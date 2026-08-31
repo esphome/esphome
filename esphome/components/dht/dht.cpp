@@ -20,7 +20,7 @@ void DHT::dump_config() {
                 "DHT:\n"
                 "  %sModel: %s\n"
                 "  Internal pull-up: %s",
-                this->is_auto_detect_ ? LOG_STR_LITERAL("Auto-detected ") : LOG_STR_LITERAL(""),
+                this->is_auto_detect_ ? LOG_STR_LITERAL("Auto-detected ") : "",
                 this->model_ == DHT_MODEL_DHT11 ? LOG_STR_LITERAL("DHT11") : LOG_STR_LITERAL("DHT22 or equivalent"),
                 ONOFF(this->t_pin_->get_flags() & gpio::FLAG_PULLUP));
   LOG_PIN("  Pin: ", this->t_pin_);

@@ -2087,8 +2087,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
-           ssid != nullptr ? ssid : LOG_STR_LITERAL(""), bssid_s, old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
+           bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start

@@ -342,13 +342,12 @@ void HonClimate::dump_config() {
                   this->hvac_hardware_info_.value().protocol_version_,
                   this->hvac_hardware_info_.value().software_version_,
                   this->hvac_hardware_info_.value().hardware_version_, this->hvac_hardware_info_.value().device_name_);
-    ESP_LOGCONFIG(
-        TAG, "  Device features:%s%s%s%s%s",
-        (this->hvac_hardware_info_.value().functions_[0] ? LOG_STR_LITERAL(" interactive") : LOG_STR_LITERAL("")),
-        (this->hvac_hardware_info_.value().functions_[1] ? LOG_STR_LITERAL(" controller-device") : LOG_STR_LITERAL("")),
-        (this->hvac_hardware_info_.value().functions_[2] ? LOG_STR_LITERAL(" crc") : LOG_STR_LITERAL("")),
-        (this->hvac_hardware_info_.value().functions_[3] ? LOG_STR_LITERAL(" multinode") : LOG_STR_LITERAL("")),
-        (this->hvac_hardware_info_.value().functions_[4] ? LOG_STR_LITERAL(" role") : LOG_STR_LITERAL("")));
+    ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
+                  (this->hvac_hardware_info_.value().functions_[0] ? LOG_STR_LITERAL(" interactive") : ""),
+                  (this->hvac_hardware_info_.value().functions_[1] ? LOG_STR_LITERAL(" controller-device") : ""),
+                  (this->hvac_hardware_info_.value().functions_[2] ? LOG_STR_LITERAL(" crc") : ""),
+                  (this->hvac_hardware_info_.value().functions_[3] ? LOG_STR_LITERAL(" multinode") : ""),
+                  (this->hvac_hardware_info_.value().functions_[4] ? LOG_STR_LITERAL(" role") : ""));
     ESP_LOGCONFIG(TAG, "  Active alarms: %s", buf_to_hex(this->active_alarms_, sizeof(this->active_alarms_)).c_str());
   }
 }
