@@ -37,12 +37,10 @@ class OutgoingConnectionManager {
   /// Called when a key-verified client declares itself a dial-back target;
   /// the last such client wins as the remembered address.
   void on_target_client(APIConnection *conn);
-  /// Called for every removed connection so a dialed one stops gating re-dials
-  void on_client_removed(APIConnection *conn) {
-    if (conn == this->dialed_conn_) {
-      this->dialed_conn_ = nullptr;
-    }
-  }
+  /// Called for every removed connection so a dialed one stops gating
+  /// re-dials. A dialed connection dying without ever sending the flagged
+  /// hello is the unproven-peer case, so the backoff escalates here.
+  void on_client_removed(APIConnection *conn);
   void on_shutdown() { this->dial_socket_.reset(); }
   void dump_config() const;
 

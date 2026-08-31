@@ -1823,13 +1823,18 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   this->complete_authentication_();
 
 #ifdef USE_API_OUTGOING_CONNECTION
-  // Only honor the flag once a real key is active: with a PSK set, plaintext
-  // and the all-zeros provisioning PSK are rejected at the transport, so a
-  // client reaching this point has proven possession of the key.
-  if (msg.outgoing_connection_target && !this->flags_.outgoing_connection_target &&
-      this->parent_->get_noise_ctx().has_psk()) {
-    this->flags_.outgoing_connection_target = true;
-    this->parent_->on_outgoing_target_client(this);
+  // Only honor the flag once a real key is active. With a PSK set, plaintext
+  // and the all-zeros provisioning PSK are rejected at the transport, and any
+  // session that predates key activation is force-closed when the key is
+  // applied (see update_noise_psk_), so a client reaching this point has
+  // proven possession of the key.
+  if (msg.outgoing_connection_target && !this->flags_.outgoing_connection_target) {
+    if (this->parent_->get_noise_ctx().has_psk()) {
+      this->flags_.outgoing_connection_target = true;
+      this->parent_->on_outgoing_target_client(this);
+    } else {
+      this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Dial-back target refused; no key active"));
+    }
   }
 #endif
 

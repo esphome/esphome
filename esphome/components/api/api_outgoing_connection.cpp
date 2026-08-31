@@ -10,6 +10,9 @@
 
 #include <cerrno>
 #include <cstring>
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+#include <sys/select.h>
+#endif
 
 namespace esphome::api {
 
@@ -76,6 +79,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   }
   this->dial_socket_ = socket::socket_loop_monitored(((struct sockaddr *) &addr)->sa_family, SOCK_STREAM, IPPROTO_TCP);
   if (!this->dial_socket_ || this->dial_socket_->setblocking(false) != 0) {
+    ESP_LOGW(TAG, "Socket create failed: errno %d", errno);
     this->schedule_retry_(now);
     return;
   }
@@ -84,7 +88,11 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   if (err == 0) {
     // Immediate success (possible for localhost)
     this->dialed_conn_ = server->add_outgoing_client_(std::move(this->dial_socket_));
-    this->schedule_retry_(now);
+    if (this->dialed_conn_ == nullptr) {
+      this->schedule_retry_(now);
+    } else {
+      this->schedule_wait_(now, PRECONDITION_RETRY_MS);
+    }
     return;
   }
   if (errno != EINPROGRESS) {
@@ -118,8 +126,13 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   FD_ZERO(&writefds);
   FD_SET(fd, &writefds);
   struct timeval tv = {0, 0};
+#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
+  // LWIP_COMPAT_SOCKETS may be off (LibreTiny), so use the lwip symbol directly
+  int ret = lwip_select(fd + 1, nullptr, &writefds, nullptr, &tv);
+#else
   // Global-scope select: the entity namespace esphome::select shadows it here
   int ret = ::select(fd + 1, nullptr, &writefds, nullptr, &tv);
+#endif
   if (ret < 0) {
     ESP_LOGW(TAG, "Connect poll failed: errno %d", errno);
     this->schedule_retry_(now);
@@ -136,9 +149,14 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     return;
   }
   this->dialed_conn_ = server->add_outgoing_client_(std::move(this->dial_socket_));
-  // Stay in a retry wait until the peer proves itself by sending a flagged
-  // hello; on_target_client() then resets to idle and clears the backoff.
-  this->schedule_retry_(now);
+  if (this->dialed_conn_ == nullptr) {
+    this->schedule_retry_(now);
+    return;
+  }
+  // The dial worked; hold without escalating until the peer proves itself
+  // with a flagged hello (on_target_client() resets to idle) or dies
+  // unproven (on_client_removed() escalates the backoff).
+  this->schedule_wait_(now, PRECONDITION_RETRY_MS);
 }
 
 void OutgoingConnectionManager::schedule_retry_(uint32_t now) {
@@ -149,6 +167,13 @@ void OutgoingConnectionManager::schedule_retry_(uint32_t now) {
   const uint32_t jitter_span = this->backoff_ / 5;
   this->wait_ = this->backoff_ - jitter_span + (random_uint32() % (2 * jitter_span + 1));
   this->backoff_ = std::min(this->backoff_ * 2, BACKOFF_MAX_MS);
+}
+
+void OutgoingConnectionManager::on_client_removed(APIConnection *conn) {
+  if (conn == this->dialed_conn_) {
+    this->dialed_conn_ = nullptr;
+    this->schedule_retry_(App.get_loop_component_start_time());
+  }
 }
 
 void OutgoingConnectionManager::on_target_client(APIConnection *conn) {

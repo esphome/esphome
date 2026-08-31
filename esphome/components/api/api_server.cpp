@@ -616,6 +616,10 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
         if (!c->send_message(req)) {
           API_LOG_MSG_DROPPED(TAG, "Disconnect request");
         }
+        // Force the disconnect: a session opened before the key was active
+        // (plaintext or zero-PSK) must not survive activation, or its peer
+        // could later claim capabilities reserved for key-verified clients.
+        c->flags_.next_close = true;
       }
     });
   }
