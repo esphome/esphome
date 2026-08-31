@@ -14,6 +14,8 @@ MULTI_CONF = True
 CONF_DS3231_ID = "ds3231_id"
 CONF_SQUARE_WAVE_OUTPUT = "square_wave_output"
 CONF_BATTERY_BACKED_SQUARE_WAVE = "battery_backed_square_wave"
+CONF_ENABLE_32KHZ_OUTPUT = "enable_32khz_output"
+CONF_INT_SQW_STARTUP_MODE = "int_sqw_startup_mode"
 CONF_ON_ALARM_1 = "on_alarm_1"
 CONF_ON_ALARM_2 = "on_alarm_2"
 CONF_ALARM = "alarm"
@@ -44,6 +46,11 @@ ds3231_ns = cg.esphome_ns.namespace("ds3231")
 DS3231Component = ds3231_ns.class_(
     "DS3231Component", cg.PollingComponent, i2c.I2CDevice
 )
+
+# Startup routing of the INT/SQW pin. The select platform can change this at runtime.
+INT_SQW_STARTUP_MODE_ALARM = "alarm_interrupt"
+INT_SQW_STARTUP_MODE_SQUARE_WAVE = "square_wave"
+INT_SQW_STARTUP_MODES = [INT_SQW_STARTUP_MODE_ALARM, INT_SQW_STARTUP_MODE_SQUARE_WAVE]
 
 DS3231SquareWaveFrequency = ds3231_ns.enum("DS3231SquareWaveFrequency", is_class=True)
 SQUARE_WAVE_FREQUENCIES = {
@@ -95,6 +102,14 @@ def _validate(config: ConfigType) -> ConfigType:
             f"'{CONF_SQUARE_WAVE_OUTPUT}'",
             path=[CONF_BATTERY_BACKED_SQUARE_WAVE],
         )
+    # Default the INT/SQW startup routing: square wave when a frequency is configured,
+    # otherwise the alarm-interrupt line.
+    if CONF_INT_SQW_STARTUP_MODE not in config:
+        config[CONF_INT_SQW_STARTUP_MODE] = (
+            INT_SQW_STARTUP_MODE_SQUARE_WAVE
+            if CONF_SQUARE_WAVE_OUTPUT in config
+            else INT_SQW_STARTUP_MODE_ALARM
+        )
     return config
 
 
@@ -104,6 +119,10 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(DS3231Component),
             cv.Optional(CONF_SQUARE_WAVE_OUTPUT): cv.enum(SQUARE_WAVE_FREQUENCIES),
             cv.Optional(CONF_BATTERY_BACKED_SQUARE_WAVE, default=False): cv.boolean,
+            cv.Optional(CONF_INT_SQW_STARTUP_MODE): cv.one_of(
+                *INT_SQW_STARTUP_MODES, lower=True
+            ),
+            cv.Optional(CONF_ENABLE_32KHZ_OUTPUT, default=True): cv.boolean,
             cv.Optional(CONF_ON_ALARM_1): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_ALARM_2): automation.validate_automation(single=True),
         }
@@ -121,10 +140,21 @@ async def to_code(config: ConfigType) -> None:
 
     if (freq := config.get(CONF_SQUARE_WAVE_OUTPUT)) is not None:
         cg.add_define(USE_DS3231_SQUARE_WAVE)
-        cg.add(var.set_square_wave_output(freq))
+        cg.add(var.set_square_wave_frequency_config(freq))
         cg.add(
             var.set_battery_backed_square_wave(config[CONF_BATTERY_BACKED_SQUARE_WAVE])
         )
+
+    if config[CONF_INT_SQW_STARTUP_MODE] == INT_SQW_STARTUP_MODE_SQUARE_WAVE:
+        cg.add_define(USE_DS3231_SQUARE_WAVE)
+        cg.add(var.set_start_in_square_wave_mode(True))
+
+    # The DS3231 powers up with its 32 kHz output enabled, so the default (True) is the
+    # hardware behaviour and needs no code; only generate the boot-time write when the
+    # config turns it off. (A switch platform, if used, pulls in the feature itself.)
+    if not config[CONF_ENABLE_32KHZ_OUTPUT]:
+        cg.add_define(USE_DS3231_32KHZ_OUTPUT)
+        cg.add(var.set_enable_32khz_output(False))
 
     for key, method in (
         (CONF_ON_ALARM_1, "add_on_alarm_1_callback"),

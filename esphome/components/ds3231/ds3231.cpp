@@ -52,7 +52,7 @@ void DS3231Component::setup() {
   // If a square-wave output is requested we clear INTCN so the pin emits the selected
   // frequency; alarm actions later set INTCN back to route alarms to the pin.
   this->apply_square_wave_frequency_bits_();
-  if (this->square_wave_output_) {
+  if (this->start_in_square_wave_mode_) {
     this->control_reg_ &= ~CONTROL_INTCN;
   } else {
     this->control_reg_ |= CONTROL_INTCN;
@@ -71,6 +71,17 @@ void DS3231Component::setup() {
     this->mark_failed();
     return;
   }
+
+#ifdef USE_DS3231_32KHZ_OUTPUT
+  // Apply the configured 32 kHz output boot state (this block is only compiled in when the
+  // config turns it off or a switch entity uses it).
+  if (this->enable_32khz_output_) {
+    this->status_reg_ |= STATUS_EN32KHZ;
+  } else {
+    this->status_reg_ &= ~STATUS_EN32KHZ;
+  }
+  this->write_status_();
+#endif
 
   if (this->get_oscillator_stopped()) {
     ESP_LOGW(TAG, "Oscillator stop flag set - the clock lost power and the time is not reliable.");
@@ -149,6 +160,10 @@ void DS3231Component::dump_config() {
                   SQUARE_WAVE_FREQUENCY_NAMES[(this->control_reg_ >> 3) & 0b11]);
   }
   ESP_LOGCONFIG(TAG, "  Battery-backed square wave: %s", YESNO((this->control_reg_ & CONTROL_BBSQW) != 0));
+#endif
+
+#ifdef USE_DS3231_32KHZ_OUTPUT
+  ESP_LOGCONFIG(TAG, "  32 kHz output: %s", ONOFF(this->get_32khz_output()));
 #endif
 
   if (this->get_oscillator_stopped()) {

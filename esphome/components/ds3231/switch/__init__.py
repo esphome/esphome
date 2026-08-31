@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 from .. import (
     CONF_DS3231_ID,
+    CONF_ENABLE_32KHZ_OUTPUT,
     ICON_SINE_WAVE,
     USE_DS3231_32KHZ_OUTPUT,
     USE_DS3231_ALARM,
@@ -16,7 +17,6 @@ from .. import (
 
 DEPENDENCIES = ["ds3231"]
 
-CONF_ENABLE_32KHZ_OUTPUT = "enable_32khz_output"
 CONF_ALARM_1 = "alarm_1"
 CONF_ALARM_2 = "alarm_2"
 

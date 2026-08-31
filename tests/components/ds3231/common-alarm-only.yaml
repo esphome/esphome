@@ -5,9 +5,13 @@ ds3231:
     i2c_id: i2c_bus
     address: 0x68
     update_interval: never
-    # square-wave configured on the hub, but no select platform -> USE_DS3231_SQUARE_WAVE
-    # without USE_SELECT.
+    # square-wave frequency configured on the hub, but no select platform -> USE_DS3231_SQUARE_WAVE
+    # without USE_SELECT. The pin still starts as the alarm-interrupt line (override below).
     square_wave_output: 1Hz
+    int_sqw_startup_mode: alarm_interrupt
+    # 32 kHz output turned off on the hub, but no switch platform -> USE_DS3231_32KHZ_OUTPUT
+    # without USE_DS3231_SWITCH.
+    enable_32khz_output: false
     on_alarm_1:
       then:
         - logger.log: "alarm 1"

@@ -140,10 +140,14 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
 
 #ifdef USE_DS3231_SQUARE_WAVE
   // --- Square-wave output ------------------------------------------------
-  void set_square_wave_output(DS3231SquareWaveFrequency frequency) {
+  /// Square-wave frequency to use at startup and whenever the square wave is (re-)enabled.
+  /// Does not change the INT/SQW pin routing - see set_start_in_square_wave_mode().
+  void set_square_wave_frequency_config(DS3231SquareWaveFrequency frequency) {
     this->square_wave_frequency_ = frequency;
-    this->square_wave_output_ = true;
   }
+  /// If true, the INT/SQW pin comes up in square-wave mode; if false, as the alarm-interrupt
+  /// line. The select platform / an armed alarm can change this at runtime.
+  void set_start_in_square_wave_mode(bool enabled) { this->start_in_square_wave_mode_ = enabled; }
   void set_battery_backed_square_wave(bool enabled) { this->battery_backed_square_wave_ = enabled; }
 
   /// Route the INT/SQW pin at runtime: true drives the square-wave output at the configured
@@ -168,6 +172,10 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_DS3231_32KHZ_OUTPUT
   bool set_32khz_output(bool enabled);
   bool get_32khz_output() const { return (this->status_reg_ & STATUS_EN32KHZ) != 0; }
+
+  /// Set the 32 kHz output state to write once at boot (from YAML). Defaults to enabled,
+  /// which matches the chip's own power-on state.
+  void set_enable_32khz_output(bool enabled) { this->enable_32khz_output_ = enabled; }
 #ifdef USE_DS3231_SWITCH
   void set_enable_32khz_switch(switch_::Switch *sw) { this->enable_32khz_switch_ = sw; }
 #endif
@@ -210,15 +218,18 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
   }
 
   DS3231SquareWaveFrequency square_wave_frequency_{DS3231SquareWaveFrequency::DS3231_SQUARE_WAVE_FREQUENCY_1_HZ};
-  bool square_wave_output_{false};
+  bool start_in_square_wave_mode_{false};
   bool battery_backed_square_wave_{false};
 #endif
 
   uint8_t control_reg_{0};
   uint8_t status_reg_{0};
 
-#if defined(USE_DS3231_32KHZ_OUTPUT) && defined(USE_DS3231_SWITCH)
+#ifdef USE_DS3231_32KHZ_OUTPUT
+  bool enable_32khz_output_{true};  // boot state; true matches the chip's power-on default
+#ifdef USE_DS3231_SWITCH
   switch_::Switch *enable_32khz_switch_{nullptr};
+#endif
 #endif
 
 #ifdef USE_DS3231_BINARY_SENSOR
