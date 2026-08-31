@@ -404,7 +404,7 @@ class Scheduler {
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Helper for debug logging in set_timer_common_ - extracted to reduce code size
   void debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                        SchedulerItem::Type type, uint32_t delay, uint64_t now);
+                        uint32_t delay, uint64_t now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
 #ifndef ESPHOME_THREAD_SINGLE

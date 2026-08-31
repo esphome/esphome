@@ -193,7 +193,7 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     }
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
-    this->debug_log_timer_(item, name_type, static_name, hash_or_id, type, delay, now_64);
+    this->debug_log_timer_(item, name_type, static_name, hash_or_id, delay, now_64);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
   }
 
@@ -795,7 +795,7 @@ void Scheduler::trim_freelist() {
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
 void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name,
-                                 uint32_t hash_or_id, SchedulerItem::Type type, uint32_t delay, uint64_t now) {
+                                 uint32_t hash_or_id, uint32_t delay, uint64_t now) {
   // Validate static strings in debug mode
   if (name_type == NameType::STATIC_STRING && static_name != nullptr) {
     validate_static_string(static_name);
@@ -804,7 +804,7 @@ void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, 
   // Debug logging
   SchedulerNameLog name_log;
   const char *type_str = LOG_STR_ARG(item->get_type_str());
-  if (type == SchedulerItem::TIMEOUT) {
+  if (item->type == SchedulerItem::TIMEOUT) {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
              name_log.format(name_type, static_name, hash_or_id), type_str, delay);
   } else {
