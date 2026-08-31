@@ -45,6 +45,7 @@ from . import models
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
 
+CONF_FULL_REFRESH_AFTER_DEEP_SLEEP = "full_refresh_after_deep_sleep"
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
 
@@ -97,6 +98,7 @@ def model_schema(config):
                 }
             ),
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
+            cv.Optional(CONF_FULL_REFRESH_AFTER_DEEP_SLEEP, default=True): cv.boolean,
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
             model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
@@ -219,6 +221,11 @@ async def to_code(config):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
         cg.add(var.set_enable_pins(enable))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
+    cg.add(
+        var.set_full_refresh_after_deep_sleep(
+            config[CONF_FULL_REFRESH_AFTER_DEEP_SLEEP]
+        )
+    )
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
     if transform := config.get(CONF_TRANSFORM):
