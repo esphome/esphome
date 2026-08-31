@@ -72,13 +72,14 @@ jobs:
               echo "::warning::Could not download artifacts for run ${id}; trying the next"
               continue
             fi
-            # Only the expected low-coverage refusal advances; anything else is a real failure
-            if python script/update_integration_test_durations.py /tmp/junit; then
+            status=0
+            python script/update_integration_test_durations.py /tmp/junit || status=$?
+            if [ "${status}" -eq 0 ]; then
               echo "Refreshed from run ${id}"
               exit 0
-            elif [ "$?" -ne 3 ]; then
-              exit 1
             fi
+            # Only EXIT_LOW_COVERAGE (3) from the script advances to the next run
+            [ "${status}" -eq 3 ] || exit 1
             echo "::warning::Run ${id} covers too few test files; trying the next"
           done
           echo "::error::No dev CI run with usable junit artifacts in range; the feed is starved"
