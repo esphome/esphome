@@ -1028,11 +1028,14 @@ def lint_log_multiline_continuation(fname, content):
     return errs
 
 
-def _find_ternary_literals(text: str) -> Iterator[int]:
-    """Yield the start offset of every string literal used as a ternary branch."""
+def _find_ternary_literals(text: str) -> Iterator[tuple[int, str]]:
+    """Yield (offset, literal) for every string literal used as a ternary branch."""
+    branch = False
     for m in LOG_TERNARY_LITERAL_RE.finditer(text):
-        if text[m.start()] in "?:":
-            yield m.end()
+        tok = m.group(0)
+        if branch and tok[0] == '"':
+            yield m.start(), tok
+        branch = tok[0] in "?:"
 
 
 # LOG_STR_LITERAL is a no op everywhere except ESP8266, so code that never builds there is skipped
@@ -1076,7 +1079,7 @@ def lint_log_no_bare_literal_ternary(
 ) -> list[tuple[int, int, str]]:
     errs = []
     for log_start, log_text in _iter_log_calls(content):
-        for offset in _find_ternary_literals(log_text):
+        for offset, literal in _find_ternary_literals(log_text):
             abs_pos = log_start + offset
             if "NOLINT" in content[abs_pos:].partition("\n")[0]:
                 continue
@@ -1091,8 +1094,8 @@ def lint_log_no_bare_literal_ternary(
                         "log macro moves the format string to flash, but bare literal arguments "
                         "stay in RAM. Wrap each branch in "
                         f"{highlight('LOG_STR_LITERAL(...)')}:\n"
-                        f"  Before: {highlight('x ? "on" : "off"')}\n"
-                        f"  After:  {highlight('x ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off")')}\n"
+                        f"  Before: {highlight(literal)}\n"
+                        f"  After:  {highlight(f'LOG_STR_LITERAL({literal})')}\n"
                         f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
                     ),
                 )
