@@ -81,12 +81,12 @@ void SerialProxy::dump_config() {
                 "  Port Type: %s\n"
                 "  RTS Pin: %s\n"
                 "  DTR Pin: %s",
-                this->instance_index_, this->name_ != nullptr ? this->name_ : "",
-                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? "RS485"
-                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? "RS232"
-                                                                               : "TTL",
-                this->rts_pin_ != nullptr ? "configured" : "not configured",
-                this->dtr_pin_ != nullptr ? "configured" : "not configured");
+                this->instance_index_, this->name_ != nullptr ? this->name_ : LOG_STR_LITERAL(""),
+                this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? LOG_STR_LITERAL("RS485")
+                : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? LOG_STR_LITERAL("RS232")
+                                                                               : LOG_STR_LITERAL("TTL"),
+                this->rts_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"),
+                this->dtr_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"));
 }
 
 SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control,

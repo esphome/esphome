@@ -933,7 +933,7 @@ void WiFiComponent::loop() {
     if (semaphore_count > 0 && !this->is_high_performance_mode_) {
       // Transition to high-performance mode (no power save)
       ESP_LOGV(TAG, "Switching to high-performance mode (%" PRIu32 " active %s)", (uint32_t) semaphore_count,
-               semaphore_count == 1 ? "request" : "requests");
+               semaphore_count == 1 ? LOG_STR_LITERAL("request") : LOG_STR_LITERAL("requests"));
       this->power_save_ = WIFI_POWER_SAVE_NONE;
       if (this->wifi_apply_power_save_()) {
         this->is_high_performance_mode_ = true;
@@ -1181,8 +1181,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
              "    CA Cert:     %s\n"
              "    Client Cert: %s\n"
              "    Client Key:  %s",
-             ca_cert_present ? "present" : "not present", client_cert_present ? "present" : "not present",
-             client_key_present ? "present" : "not present");
+             ca_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_cert_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"),
+             client_key_present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("not present"));
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.password_.c_str());
@@ -1316,7 +1317,8 @@ void WiFiComponent::print_connect_params_() {
   ESP_LOGCONFIG(TAG,
                 "  BTM: %s\n"
                 "  RRM: %s",
-                this->btm_ ? "enabled" : "disabled", this->rrm_ ? "enabled" : "disabled");
+                this->btm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->rrm_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
 #endif
 }
 
@@ -2085,8 +2087,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
-           bssid_s, old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
+           ssid != nullptr ? ssid : LOG_STR_LITERAL(""), bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start

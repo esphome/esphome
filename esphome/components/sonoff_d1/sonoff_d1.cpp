@@ -303,8 +303,8 @@ void SonoffD1Output::dump_config() {
                 "  Use RM433 Remote: %s\n"
                 "  Minimal brightness: %d\n"
                 "  Maximal brightness: %d",
-                this->light_state_ ? this->light_state_->get_name().c_str() : "", ONOFF(this->use_rm433_remote_),
-                this->min_value_, this->max_value_);
+                this->light_state_ ? this->light_state_->get_name().c_str() : LOG_STR_LITERAL(""),
+                ONOFF(this->use_rm433_remote_), this->min_value_, this->max_value_);
 }
 
 void SonoffD1Output::loop() {
