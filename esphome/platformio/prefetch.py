@@ -58,6 +58,9 @@ def _preserved_sys_path() -> Iterator[None]:
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
 
+# Floor cap for network-bound clones in the pre-install pool
+_CLONE_WORKERS = 8
+
 # A hung child must not block the build; downloads resume on the next run
 _PREFETCH_TIMEOUT = 20 * 60
 
@@ -399,6 +402,23 @@ def _clones_first(entries: Iterable[tuple[str, Any]]) -> list[tuple[str, Any]]:
     return sorted(entries, key=lambda entry: not _entry_is_vcs(entry))
 
 
+def _installable_in_parallel(
+    entries: list[tuple[str, Any]], curated: bool
+) -> list[tuple[str, Any]]:
+    """Drop derived-name clones from uncurated (lib_deps) groups: their
+    destination dir comes from the cloned manifest, so two entries whose
+    manifests share a name could race one directory in the pool. The
+    platform's tool manifests are curated, and pio run installs anything
+    dropped here serially."""
+    if curated:
+        return entries
+    return [
+        entry
+        for entry in entries
+        if not _entry_is_vcs(entry) or entry[1].has_custom_name()
+    ]
+
+
 def _uri_jobs(
     manager: Any, specs: list[Any], seen: set[str]
 ) -> tuple[list[tuple[str, int, Any]], int, list[tuple[str, Any]]]:
@@ -424,10 +444,9 @@ def _uri_jobs(
             continue
         name = _spec_name(spec, url)
         if is_vcs:
-            # Kept even with a derived name, unlike archives below: the
-            # platform tool packages this exists for carry name= without
-            # being "custom". A manifest-name collision fails that wave
-            # entry and pio run installs it serially.
+            # No download stage: the pre-install itself clones it.
+            # Derived-name clones from uncurated groups are dropped at
+            # the group site by _installable_in_parallel
             installable.append((name, spec))
             continue
         # PlatformIO downloads URL specs with no checksum
@@ -735,7 +754,13 @@ def _preinstall(
     would hang, not fail). Waves skip dependencies; the installed
     manifests feed the next wave. Any failure falls back to pio run.
     """
-    workers = min(get_usable_cpu_count(), len(entries))
+    clones = sum(1 for entry in entries if _entry_is_vcs(entry))
+    # Clones are network-bound: let them run wide even on small-core
+    # runners. Capped, since every worker builds a sibling manager and
+    # may run a postinstall script
+    workers = min(
+        max(get_usable_cpu_count(), min(clones, _CLONE_WORKERS)), len(entries)
+    )
     # One manager per worker (_install mutates instance state); built
     # serially because construction rewires the shared manager logger
     managers: SimpleQueue = SimpleQueue()
@@ -908,7 +933,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             jobs += batch_jobs
             unresolved += failed
             entries += installable
-        if entries:
+        if entries := _installable_in_parallel(entries, curated=is_platform):
             groups.append(_Group(mgr, entries, is_platform))
 
     sentinel = build_dir / _SENTINEL_NAME

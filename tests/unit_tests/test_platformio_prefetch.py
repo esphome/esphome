@@ -1463,6 +1463,59 @@ def test_prefetch_installs_cached_archives_without_downloads(
     assert not (tmp_path / pf._SENTINEL_NAME).exists()
 
 
+def test_prefetch_orders_clones_first_in_preinstall(tmp_path: Path) -> None:
+    """The wiring, not just the helper: _prefetch hands _preinstall the
+    clones-first ordering of each group's entries."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    archive = ("zip", _FakeSpec(uri="https://x/a.zip", name="zip", custom_name=True))
+    clone = ("repo", _FakeSpec(uri="git+https://x/repo.git", name="repo"))
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf, "_registry_jobs", side_effect=[([], 0, [archive]), ([], 0, [])]
+        ),
+        patch.object(pf, "_uri_jobs", side_effect=[([], 0, [clone]), ([], 0, [])]),
+        patch.object(pf, "_preinstall") as mock_install,
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    assert mock_install.call_count == 1
+    assert mock_install.call_args[0][1] == [clone, archive]
+
+
+def test_prefetch_drops_derived_name_lib_clones(tmp_path: Path) -> None:
+    """A lib_deps clone with a URI-derived name stays with pio run: its
+    destination dir comes from the cloned manifest, so two entries could
+    race one directory. Custom-named lib clones and the curated platform
+    batch keep the parallel pre-install."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    tool = ("tool", _FakeSpec(uri="git+https://x/tool.git", name="tool"))
+    derived = ("lib", _FakeSpec(uri="git+https://x/lib.git", name="lib"))
+    custom = (
+        "mylib",
+        _FakeSpec(uri="git+https://x/mylib.git", name="mylib", custom_name=True),
+    )
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(pf, "_registry_jobs", return_value=([], 0, [])),
+        patch.object(
+            pf,
+            "_uri_jobs",
+            side_effect=[([], 0, [tool]), ([], 0, [derived, custom])],
+        ),
+        patch.object(pf, "_preinstall") as mock_install,
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    assert [c.args[1] for c in mock_install.call_args_list] == [[tool], [custom]]
+
+
 @pytest.mark.parametrize(
     ("platform_group", "lib_group", "expected"),
     [
