@@ -5,10 +5,11 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INPUT, CONF_MODE, CONF_NUMBER, CONF_SCL, CONF_SDA
 from esphome.pins import check_strapping_pin
 
-# Per the ESP32-S31 datasheet, the SPI flash interface uses dedicated package
-# pins (SPICS/SPIQ/SPIWP/SPIHD/SPICLK/SPID) outside the GPIO matrix, so no
-# GPIOs are reserved for flash. GPIO29 and GPIO41 do not exist on this chip
-# (SOC_GPIO_VALID_GPIO_MASK excludes them).
+# Per the ESP32-S31 datasheet, the SPI flash and PSRAM interfaces use
+# dedicated package pins (SPICS/SPIQ/SPIWP/SPIHD/SPICLK/SPID) outside the
+# GPIO matrix, so no GPIOs are reserved for them. GPIO29 and GPIO41 do not
+# exist on this chip (SOC_GPIO_VALID_GPIO_MASK excludes them).
+# https://documentation.espressif.com/esp32-s31_datasheet_en.html
 _ESP32S31_INVALID_PINS: set[int] = {29, 41}
 # GPIO60/GPIO61 set the boot mode; GPIO37 selects the JTAG signal source;
 # GPIO36 sets the VDD_SPI voltage.
@@ -34,6 +35,8 @@ def esp32_s31_validate_supports(value: dict[str, Any]) -> dict[str, Any]:
 
     if num < 0 or num > 61:
         raise cv.Invalid(f"Invalid pin number: {num} (must be 0-61)")
+    # Checked here as well so ignore_pin_validation_error cannot bypass it;
+    # these pins are not bonded and can never work
     if num in _ESP32S31_INVALID_PINS:
         raise cv.Invalid(f"GPIO{num} does not exist on ESP32-S31.")
     if is_input:
