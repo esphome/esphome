@@ -18,6 +18,9 @@ import subprocess
 #   .ram_image2.text in sections_ram, so code there is silently dropped from
 #   the flashed image. Inject KEEP(*(.sram.text*)) at the top of
 #   .ram_image2.data (which IS extracted) instead.
+# - RTL8720D: stock linker collects *(.image2.ram.text*) into .ram_image2.text
+#   but has no glob for ".sram.text". Unlike AmebaZ, the AmebaD image packer
+#   does extract .ram_image2.text, so the KEEP goes there.
 # - LN882H: stock linker has no glob for ".sram.text", so we inject
 #   KEEP(*(.sram.text*)) into ".flash_copysection" (> RAM0 AT> FLASH)
 #   immediately after KEEP(*(.vectors)), so the vector table stays at
@@ -54,6 +57,20 @@ _LN_COPY = re.compile(r"(KEEP\(\*\(\.vectors\)\)[^\n]*\n)")
 # rather than silently shipping a binary with IRAM_ATTR code dropped from
 # one or both OTA slots.
 _AMBZ_DATA = re.compile(r"(\.ram_image2\.data\s*:\s*\n?\s*\{\s*\n)")
+# AmebaD: .ram_image2.text is extracted into the KM4 RAM image, so IRAM_ATTR
+# code placed there reaches the device.
+# Prepending is safe here (verified against the emitted rlx8721d_img2_all.ld -
+# the single .ld AmebaD places in $BUILD_DIR - and by BW16 boots and repeated
+# OTA cycles): the boot-critical entry table (__image2_entry_func__,
+# KEEP(SORT(.image2.entry.data*)) and the validate code) lives in the
+# preceding output section, so nothing shifts off the image start; within
+# .ram_image2.text the injection lands before __ram_text_start__, keeping the
+# injected code outside the SDK's text range markers - the same reasoning as
+# the __data_start__ note above.
+# Unlike _AMBZ_DATA, no CI compile job covers this regex yet (no released
+# framework carries realtek-ambd) - a future AmebaD linker-template change is
+# caught only by local builds until that lands.
+_AMBD_TEXT = re.compile(r"(\.ram_image2\.text\s*:\s*\n?\s*\{\s*\n)")
 
 
 def _detect(env):
@@ -78,6 +95,7 @@ KNOWN_VARIANTS = frozenset({
     "LN882H",
     "RTL8710B",
     "RTL8720C",
+    "RTL8720D",
 })
 
 
@@ -96,6 +114,7 @@ def _inject_keep(host_section):
 _PATCHERS_BY_VARIANT = {
     "LN882H": (_inject_keep(_LN_COPY),),
     "RTL8710B": (_inject_keep(_AMBZ_DATA),),
+    "RTL8720D": (_inject_keep(_AMBD_TEXT),),
 }
 
 
