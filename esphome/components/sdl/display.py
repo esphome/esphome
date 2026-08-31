@@ -129,7 +129,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def headless_final_validate(platform: str):
+def headless_final_validate(platform: str) -> cv.Schema:
     """Build a FINAL_VALIDATE_SCHEMA rejecting a platform whose sdl display is headless.
 
     Mouse and keyboard platforms are driven by window events, so under a headless display they
