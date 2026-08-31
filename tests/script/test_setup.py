@@ -2,11 +2,11 @@
 
 import importlib.util
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import runpy
 import sys
 from types import ModuleType
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -29,52 +29,62 @@ def script_setup() -> ModuleType:
 # --- bin_dir / venv_python / activate_hint -----------------------------------
 
 
-def test_bin_dir_posix_layout(script_setup: ModuleType, tmp_path: Path) -> None:
-    """The venv scheme resolves executables under bin/ on this host."""
-    assert script_setup.bin_dir(tmp_path) == tmp_path / "bin"
+def test_bin_dir_matches_host_layout(script_setup: ModuleType, tmp_path: Path) -> None:
+    """The venv scheme resolves to Scripts on Windows and bin everywhere else."""
+    expected = "Scripts" if os.name == "nt" else "bin"
+    assert script_setup.bin_dir(tmp_path) == tmp_path / expected
+
+
+# Both flavours are exercised on every host. Pure paths are used because a real
+# Path refuses to change flavour: PosixPath cannot be built on Windows, and
+# WindowsPath cannot be built on Unix.
 
 
 def test_venv_python_posix(script_setup: ModuleType, tmp_path: Path) -> None:
-    with patch.object(script_setup.os, "name", "posix"):
+    with (
+        patch.object(
+            script_setup, "bin_dir", return_value=PurePosixPath("/x/venv/bin")
+        ),
+        patch.object(script_setup.os, "name", "posix"),
+    ):
         result = script_setup.venv_python(tmp_path)
-    assert result == tmp_path / "bin" / "python"
+    assert result == PurePosixPath("/x/venv/bin/python")
 
 
 def test_venv_python_nt(script_setup: ModuleType, tmp_path: Path) -> None:
-    # A real Path cannot flip OS flavour mid-test (Python refuses to build a
-    # WindowsPath on a POSIX host), so bin_dir is stubbed with a MagicMock:
-    # only the "python.exe" vs "python" branch is under test here.
-    fake_bin = MagicMock()
     with (
-        patch.object(script_setup, "bin_dir", return_value=fake_bin),
+        patch.object(
+            script_setup, "bin_dir", return_value=PureWindowsPath(r"C:\x\venv\Scripts")
+        ),
         patch.object(script_setup.os, "name", "nt"),
     ):
-        script_setup.venv_python(tmp_path)
-    fake_bin.__truediv__.assert_called_once_with("python.exe")
+        result = script_setup.venv_python(tmp_path)
+    assert result == PureWindowsPath(r"C:\x\venv\Scripts\python.exe")
 
 
 def test_activate_hint_posix(script_setup: ModuleType) -> None:
-    with patch.object(script_setup.os, "name", "posix"):
+    with (
+        patch.object(script_setup, "ROOT", PurePosixPath("/x")),
+        patch.object(
+            script_setup, "bin_dir", return_value=PurePosixPath("/x/venv/bin")
+        ),
+        patch.object(script_setup.os, "name", "posix"),
+    ):
         hint = script_setup.activate_hint()
     assert hint == "source venv/bin/activate"
 
 
 def test_activate_hint_nt(script_setup: ModuleType) -> None:
-    # Same reasoning as test_venv_python_nt: stub bin_dir with a MagicMock so
-    # no real Path is built while os.name is patched to "nt".
-    fake_bin = MagicMock()
-    fake_bin.relative_to.return_value.__truediv__.return_value = (
-        "venv\\Scripts\\activate"
-    )
     with (
-        patch.object(script_setup, "bin_dir", return_value=fake_bin),
+        patch.object(script_setup, "ROOT", PureWindowsPath(r"C:\x")),
+        patch.object(
+            script_setup, "bin_dir", return_value=PureWindowsPath(r"C:\x\venv\Scripts")
+        ),
         patch.object(script_setup.os, "name", "nt"),
     ):
         hint = script_setup.activate_hint()
     # The nt branch returns str(activate) as-is, skipping the "source " prefix.
-    assert hint == "venv\\Scripts\\activate"
-    fake_bin.relative_to.assert_called_once_with(script_setup.ROOT)
-    fake_bin.relative_to.return_value.__truediv__.assert_called_once_with("activate")
+    assert hint == r"venv\Scripts\activate"
 
 
 # --- run -----------------------------------------------------------------
@@ -199,7 +209,8 @@ def test_venv_environment_path_fallback_when_unset(
     venv = tmp_path / "venv"
     monkeypatch.delenv("PATH", raising=False)
     env = script_setup.venv_environment(venv)
-    assert env["PATH"] == str(script_setup.bin_dir(venv)) + os.pathsep
+    # No trailing separator: an empty PATH entry means "search the cwd".
+    assert env["PATH"] == str(script_setup.bin_dir(venv))
 
 
 # --- find_uv -----------------------------------------------------------------
@@ -395,7 +406,9 @@ def test_install_git_hooks_happy_path_installs_hook(
     )
     installed = hooks_dir / "post-checkout"
     assert installed.read_text() == source_hook.read_text()
-    assert (installed.stat().st_mode & 0o777) == 0o755
+    if os.name != "nt":
+        # Windows has no POSIX permission bits for chmod to set.
+        assert (installed.stat().st_mode & 0o777) == 0o755
 
 
 def test_install_git_hooks_skips_copy_when_hooks_dir_missing(

@@ -88,7 +88,12 @@ def venv_environment(venv: Path) -> dict[str, str]:
     env = dict(os.environ)
     env["VIRTUAL_ENV"] = str(venv)
     env.pop("PYTHONHOME", None)
-    env["PATH"] = os.pathsep.join([str(bin_dir(venv)), env.get("PATH", "")])
+    path = str(bin_dir(venv))
+    # An empty entry would be appended if PATH is unset, and on Unix that means
+    # the working directory is searched for executables.
+    if existing := env.get("PATH"):
+        path = os.pathsep.join([path, existing])
+    env["PATH"] = path
     return env
 
 
