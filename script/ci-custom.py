@@ -1040,6 +1040,7 @@ def _find_ternary_literals(text: str) -> Iterator[tuple[int, str]]:
 
 # LOG_STR_LITERAL is a no op everywhere except ESP8266, so code that never builds there is skipped
 # to avoid churn: platform specific sources and components for ESP32, LibreTiny, RP2 and Zephyr only.
+# A component belongs here only if it has no tests/components/<name>/test.esp8266-ard.yaml.
 LOG_LITERAL_LINT_EXCLUDE = [
     "*_esp32.cpp",
     "*_esp32_*.cpp",
@@ -1066,7 +1067,6 @@ LOG_LITERAL_LINT_EXCLUDE = [
     "esphome/components/bthome_mithermometer/*",
     "esphome/components/usb_host/*",
     "esphome/components/zigbee/*",
-    "esphome/components/zwave_proxy/*",
     "esphome/components/lvgl/*",
     # Test fixtures - not production embedded code
     "tests/integration/fixtures/*",
