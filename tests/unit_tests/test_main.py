@@ -112,6 +112,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
     Toolchain,
@@ -7195,6 +7196,42 @@ def test_compile_program_espidf_idedata_none_warns(
     assert "No idedata was generated" in caplog.text
 
 
+def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
+    """An explicit --toolchain must run the per-platform validators, so the
+    upload/logs fast path becomes a cache miss."""
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "arduino", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_cache,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
+    ):
+        assert run_esphome(argv) == 2
+    mock_cache.assert_not_called()
+    mock_read.assert_called_once()
+
+
+def test_cli_toolchain_still_refreshes_the_validated_config_cache(
+    tmp_path: Path,
+) -> None:
+    """An explicit --toolchain gates only the cache read; with a matching
+    sidecar the freshly validated config is still saved."""
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "platformio", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_load,
+        patch("esphome.config.read_config", return_value={CONF_ESPHOME: {}}),
+        patch("esphome.compiled_config.save_compiled_config_and_sidecar") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS", {"logs": Mock(return_value=0)}
+        ),
+    ):
+        assert run_esphome(argv) == 0
+    mock_load.assert_not_called()
+    mock_save.assert_called_once()
+
+
 @pytest.mark.asyncio
 async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     """The config comment dumps with sorted keys: voluptuous fills schema
@@ -7218,3 +7255,54 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     assert first == second
     assert second.index("alpha") < second.index("beta")
     assert second.index("a: 2") < second.index("z: 1")
+
+
+def test_host_program_path_platformio_toolchain() -> None:
+    """Host + PlatformIO toolchain reads the memoized idedata path."""
+    setup_core(platform=PLATFORM_HOST)
+    idedata = SimpleNamespace(firmware_elf_path="/build/x/.pioenvs/x/program")
+    with patch(
+        "esphome.platformio.toolchain.get_idedata", return_value=idedata
+    ) as mock_get:
+        assert main._host_program_path({}) == "/build/x/.pioenvs/x/program"
+    mock_get.assert_called_once_with({})
+
+
+def test_host_program_path_esp_idf_toolchain() -> None:
+    """Host + native ESP-IDF toolchain asks the espidf toolchain for the ELF."""
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.ESP_IDF
+    with patch(
+        "esphome.espidf.toolchain.get_elf_path", return_value=Path("/b/app.elf")
+    ):
+        assert main._host_program_path({}) == str(Path("/b/app.elf"))
+
+
+def test_command_compile_host_logs_program_path(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """command_compile on host logs the compiled program path."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch.object(main, "write_cpp", return_value=0),
+        patch.object(main, "compile_program", return_value=0),
+        patch.object(main, "_host_program_path", return_value="/b/program"),
+        caplog.at_level(logging.INFO),
+    ):
+        assert main.command_compile(SimpleNamespace(only_generate=False), {}) == 0
+    assert "Successfully compiled program to path '/b/program'" in caplog.text
+
+
+def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> None:
+    """command_run on host logs and executes the compiled program directly."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch.object(main, "write_cpp", return_value=0),
+        patch.object(main, "compile_program", return_value=0),
+        patch.object(main, "_host_program_path", return_value="/b/program"),
+        patch.object(main, "run_external_process", return_value=0) as mock_run,
+        caplog.at_level(logging.INFO),
+    ):
+        assert main.command_run(SimpleNamespace(), {}) == 0
+    mock_run.assert_called_with("/b/program")
+    assert "Running program from path '/b/program'" in caplog.text
