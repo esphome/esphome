@@ -465,7 +465,10 @@ async def to_code(config):
                 zephyr_data,
                 zephyr_variant,
             )
-            from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
+            from esphome.components.zephyr.dts_lookup import (
+                resolve_uart_node_label,
+                validate_dts_label_exists,
+            )
 
             zephyr_add_prj_conf("SERIAL", True)
             zephyr_add_prj_conf("RING_BUFFER", True)
@@ -477,6 +480,7 @@ async def to_code(config):
             port_value = config[CONF_PORT]
             if port_value.startswith("&"):
                 port_label = port_value[1:]
+                validate_dts_label_exists("uart", zephyr_data()[KEY_BOARD], port_label)
             else:
                 port_label = resolve_uart_node_label(
                     zephyr_data()[KEY_BOARD],

@@ -581,7 +581,12 @@ async def _late_logger_init(config: ConfigType) -> None:
         # from DTS instead. See resolve_uart_node_label()'s own docstring.
         if hw_uart.startswith("&") or hw_uart in (UART0, UART1, UART2):
             if hw_uart.startswith("&"):
+                from esphome.components.zephyr.dts_lookup import (
+                    validate_dts_label_exists,
+                )
+
                 node = hw_uart[1:]
+                validate_dts_label_exists("uart", zephyr_data()[KEY_BOARD], node)
             else:
                 from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
 

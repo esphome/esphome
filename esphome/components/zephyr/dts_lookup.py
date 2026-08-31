@@ -11,7 +11,7 @@ from typing import Final
 import yaml
 
 import esphome.config_validation as cv
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 from .board_revision import parse_board_string, resolve_revision
 from .const import (
@@ -33,6 +33,20 @@ _BUS_OVERRIDES: dict[str, dict[str, str]] = {
 }
 
 
+def validate_dts_label_exists(platform: str, board: str, label: str) -> None:
+    """Called from to_code(), not CONFIG_SCHEMA -- raise EsphomeError (not cv.Invalid,
+    which only the schema-validation phase catches and formats) if label isn't among
+    board's real DTS node labels for platform ("uart"/"i2c"/"spi"/"can"); no-op if DTS
+    auto-detection is unavailable, same fallback the symbolic mapping paths accept."""
+    lookup_fn = _BUS_LOOKUP.get(platform)
+    labels = lookup_fn(board) if lookup_fn is not None else None
+    if labels is not None and label not in labels:
+        raise EsphomeError(
+            f"'{label}' is not a devicetree node on board '{board}' -- available "
+            f"{platform.upper()} labels: {', '.join(labels) or 'none'}"
+        )
+
+
 def resolve_zephyr_bus(
     platform: str, board: str, override_key: str, override: str | None = None
 ) -> str:
@@ -42,6 +56,7 @@ def resolve_zephyr_bus(
     -- a wrong guess here would point the error message at a key that doesn't
     exist."""
     if override is not None:
+        validate_dts_label_exists(platform, board, override)
         _LOGGER.info(
             "[zephyr] %s bus for '%s': %s (explicit override)",
             platform.upper(),
@@ -89,7 +104,7 @@ def resolve_zephyr_bus(
     else:
         detail = "Install gcc/cpp (C preprocessor) for automatic DTS detection."
     override_hint = f"    {override_key}: {platform}0  # replace with your board's Zephyr {platform.upper()} bus label"
-    raise cv.Invalid(
+    raise EsphomeError(
         f"Cannot determine {platform.upper()} bus label for board '{board}'. "
         f"{detail}\n"
         f"To explicitly set the bus label, configure it directly on your {platform}: entry:\n"
@@ -258,6 +273,13 @@ def validate_uart_label_override(value: str) -> str | None:
     return f"&{label.lower()}"
 
 
+def normalize_dts_label(value: str) -> str:
+    """Strip a leading '&' (added internally at overlay-generation time) and
+    lowercase (Zephyr devicetree labels are always lowercase)."""
+    value = value.removeprefix("&")
+    return value.lower()
+
+
 def resolve_uart_node_label(
     board: str, hw_uart: str, static_labels: dict[str, str]
 ) -> str:
@@ -268,7 +290,7 @@ def resolve_uart_node_label(
     if static_labels:
         label = static_labels.get(hw_uart)
         if label is None:
-            raise cv.Invalid(
+            raise EsphomeError(
                 f"'{hw_uart}' is not a valid hardware_uart for board '{board}'. "
                 f"Valid values: {', '.join(static_labels)}"
             )
@@ -294,7 +316,7 @@ def resolve_uart_node_label(
 
     mapping = _discover_uart_node_labels(board)
     if mapping is None:
-        raise cv.Invalid(
+        raise EsphomeError(
             f"Cannot determine the console UART for board '{board}' -- its DTS "
             "could not be resolved. Install gcc/cpp (C preprocessor) for automatic "
             "DTS detection, or verify the board name."
@@ -302,7 +324,7 @@ def resolve_uart_node_label(
     label = mapping.get(hw_uart)
     if label is None:
         others = [v for k, v in mapping.items() if k != "UART0"]
-        raise cv.Invalid(
+        raise EsphomeError(
             f"Board '{board}' has no '{hw_uart}' -- besides its console "
             f"({mapping['UART0']}), its DTS has {len(others)} other enabled "
             f"UART(s): {others or 'none'}."
@@ -1274,4 +1296,5 @@ _BUS_LOOKUP: dict[str, Callable[[str], list[str] | None]] = {
     "can": get_can_controller_labels,
     "i2c": get_i2c_controller_labels,
     "spi": get_spi_controller_labels,
+    "uart": get_uart_controller_labels,
 }

@@ -33,7 +33,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_ESP32_C6,
     ZEPHYR_VARIANT_ESP32_H2,
 )
-from esphome.components.zephyr.dts_lookup import resolve_zephyr_bus
+from esphome.components.zephyr.dts_lookup import normalize_dts_label, resolve_zephyr_bus
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -258,7 +258,7 @@ def one_of_interface_validator(additional_values: list[str] | None = None) -> An
         if CORE.is_zephyr:
             # Zephyr's real bus list isn't known until fetch_board_dts() runs in
             # to_code() -- validated for real by resolve_zephyr_bus() there instead.
-            value = cv.string(value).lower()
+            value = normalize_dts_label(cv.string(value))
             if value in additional_values:
                 return value
             return value

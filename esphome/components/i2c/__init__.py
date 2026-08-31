@@ -39,6 +39,7 @@ from esphome.components.zephyr.const import (
     ZEPHYR_VARIANT_NATIVE_SIM,
     ZephyrI2CEmulator,
 )
+from esphome.components.zephyr.dts_lookup import normalize_dts_label
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -285,7 +286,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.only_on([PLATFORM_HOST, PLATFORM_ZEPHYR]), validate_device
             ),
             cv.Optional(CONF_DTS_NODE_OVERRIDE): cv.All(
-                cv.only_on([PLATFORM_ZEPHYR]), cv.string
+                cv.only_on([PLATFORM_ZEPHYR]), cv.string_strict, normalize_dts_label
             ),
             cv.Optional(CONF_EMULATION): cv.All(
                 cv.only_on([PLATFORM_ZEPHYR]),
