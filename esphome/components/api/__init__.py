@@ -25,6 +25,7 @@ from esphome.const import (
     CONF_DATA,
     CONF_DATA_TEMPLATE,
     CONF_DELAY,
+    CONF_ENABLE_IPV6,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -48,6 +49,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
 
@@ -462,7 +464,27 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
+def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
+    """An IPv6 host silently dials 255.255.255.255 on a build without IPv6."""
+    if (
+        (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None
+        or (host := outgoing.get(CONF_HOST)) is None
+        or host.version != 6
+    ):
+        return config
+    network_conf = fv.full_config.get().get("network") or {}
+    if not network_conf.get(CONF_ENABLE_IPV6):
+        raise cv.Invalid(
+            "outgoing_connection host is an IPv6 address but IPv6 is not "
+            "enabled; set 'network: enable_ipv6: true'",
+            path=[CONF_OUTGOING_CONNECTION, CONF_HOST],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _validate_esp8266_action_strings, _validate_outgoing_host_ipv6
+)
 
 
 def _add_action_strings(

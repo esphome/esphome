@@ -6,6 +6,9 @@
 #ifdef USE_SOCKET_IMPL_LWIP_TCP
 #error "api outgoing_connection needs a socket implementation that can make outgoing connections"
 #endif
+#ifndef USE_API_NOISE
+#error "api outgoing_connection needs noise encryption so the peer is verified by key"
+#endif
 
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/preferences.h"
@@ -41,7 +44,10 @@ class OutgoingConnectionManager {
   /// re-dials. A dialed connection dying without ever sending the flagged
   /// hello is the unproven-peer case, so the backoff escalates here.
   void on_client_removed(APIConnection *conn);
-  void on_shutdown() { this->dial_socket_.reset(); }
+  void on_shutdown() {
+    this->dial_socket_.reset();
+    this->state_ = DialState::DIAL_STATE_IDLE;
+  }
   void dump_config() const;
 
  protected:
@@ -88,7 +94,10 @@ class OutgoingConnectionManager {
   uint32_t wait_{0};
   uint32_t state_ts_{0};
   uint32_t last_poll_{0};
-  DialState state_{DialState::DIAL_STATE_IDLE};
+  // Boot starts in WAITING with wait_ 0: when no dial-back client has ever
+  // connected (a device its client could never reach), dial immediately.
+  // The configured delay only applies after a connected target goes away.
+  DialState state_{DialState::DIAL_STATE_WAITING};
 };
 
 }  // namespace esphome::api

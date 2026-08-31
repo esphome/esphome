@@ -5,9 +5,8 @@ wifi:
   ssid: MySSID
   password: password1
 
-# Outgoing connection: the device dials Home Assistant when no client with a
-# state subscription is connected. Requires encryption so the peer is
-# verified by key.
+# Outgoing connection: the device dials out when no dial-back client is
+# connected. Requires encryption so the peer is verified by key.
 api:
   encryption:
     key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=

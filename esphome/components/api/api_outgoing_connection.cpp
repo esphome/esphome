@@ -45,8 +45,9 @@ void OutgoingConnectionManager::loop(APIServer *server) {
   const uint32_t now = App.get_loop_component_start_time();
   switch (this->state_) {
     case DialState::DIAL_STATE_IDLE:
-      // The target client just went away; give it the configured delay to
-      // reconnect on its own before dialing.
+      // The connected target went away; give it the configured delay to
+      // reconnect on its own before dialing. (Boot skips this state so a
+      // device whose client never reached it dials right away.)
       this->state_ = DialState::DIAL_STATE_WAITING;
       this->state_ts_ = now;
       this->wait_ = API_OUTGOING_CONNECTION_DELAY;
@@ -117,6 +118,7 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   this->last_poll_ = now;
   int fd = this->dial_socket_->get_fd();
   if (fd < 0 || fd >= FD_SETSIZE) {
+    ESP_LOGW(TAG, "Bad fd for connect poll: %d", fd);
     this->schedule_retry_(now);
     return;
   }
@@ -205,6 +207,8 @@ void OutgoingConnectionManager::dump_config() const {
 #else
   if (this->saved_.host[0] != '\0') {
     ESP_LOGCONFIG(TAG, "  Outgoing connection host: %s (remembered)", this->saved_.host);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Outgoing connection host: none remembered yet");
   }
 #endif
 }

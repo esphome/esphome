@@ -153,8 +153,9 @@ async def test_api_outgoing_connection_remembered(
     """No host configured: the device remembers the client whose hello carried
     the dial-back flag and dials that address after a restart."""
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # Bound but not yet listening: dial attempts in the first phase are
-    # refused, exercising the retry path without queueing stale connections.
+    # Bound but not yet listening so first-phase dials cannot queue stale
+    # connections; whether the device attempts any dial before the restart
+    # is timing dependent and not asserted here.
     listener.bind(("127.0.0.1", 0))
     port = listener.getsockname()[1]
 

@@ -288,9 +288,11 @@ void APIServer::add_client_(APIConnection *conn) {
 #ifdef USE_API_OUTGOING_CONNECTION
 APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
   // Inbound clients may have taken the remaining slots while the dial was in
-  // flight; re-check at the handoff so add_client_ cannot write past clients_
-  if (this->at_client_limit_()) {
-    ESP_LOGW(TAG, "Max connections (%d), dropping outgoing connection", MAX_API_CONNECTIONS);
+  // flight; re-check at the handoff so add_client_ cannot write past clients_.
+  // The PSK can also have been cleared mid-dial, and mark_outgoing() requires
+  // the noise helper the constructor only picks while a PSK is set.
+  if (this->at_client_limit_() || !this->noise_ctx_.has_psk()) {
+    ESP_LOGW(TAG, "Dropping outgoing connection (%s)", this->at_client_limit_() ? "max connections" : "no key active");
     return nullptr;
   }
   auto *conn = new APIConnection(std::move(sock), this);
