@@ -177,20 +177,7 @@ struct LogString;
 
 #include <pgmspace.h>
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
 #define LOG_STR_ARG(s) ((PGM_P) (s))
-#else
-// Pre-Arduino 2.5, we can't pass a PSTR() to printf(). Emulate support by copying the message to a
-// local buffer first. String length is limited to 63 characters.
-// https://github.com/esp8266/Arduino/commit/6280e98b0360f85fdac2b8f10707fffb4f6e6e31
-#define LOG_STR_ARG(s) \
-  ({ \
-    char __buf[64]; \
-    __buf[63] = '\0'; \
-    strncpy_P(__buf, (PGM_P) (s), 63); \
-    __buf; \
-  })
-#endif
 
 #define LOG_STR(s) (reinterpret_cast<const LogString *>(PSTR(s)))
 #define LOG_STR_LITERAL(s) LOG_STR_ARG(LOG_STR(s))

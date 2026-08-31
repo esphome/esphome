@@ -53,20 +53,16 @@ def framework_package_version(ver: Version) -> str:
     """Map an Arduino core version to its registry package version (3.1.2 ->
     3.30102.0; the leading 3 is the package major).
 
-    Exact registry names only for cores > 2.6.2 and >= 3.0.2; callers floor
-    at MIN_FRAMEWORK_VERSION.
+    Exact registry names for 3.x cores; callers floor at MIN_FRAMEWORK_VERSION.
     """
     if ver.major > 3:
         raise EsphomeError(
             f"Arduino core {ver} is not supported yet; "
             "the newest known core series is 3.x"
         )
-    if ver <= Version(2, 6, 2):
-        # Cores <= 2.6.2 use the older 1.x/2.x package-major encodings (same
-        # boundary as _format_framework_arduino_version's era guard)
+    if ver.major < 3:
         raise EsphomeError(
-            f"Arduino core {ver} uses an older package encoding than this "
-            "helper implements (newer than 2.6.2)"
+            f"Arduino core {ver} is not supported; ESPHome requires core 3.x"
         )
     return f"3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
