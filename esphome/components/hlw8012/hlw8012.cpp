@@ -97,7 +97,8 @@ void HLW8012Component::update() {
 
   if (this->change_mode_every_ != 0 && this->change_mode_at_++ == this->change_mode_every_) {
     this->current_mode_ = !this->current_mode_;
-    ESP_LOGV(TAG, "Changing mode to %s mode", this->current_mode_ ? "CURRENT" : "VOLTAGE");
+    ESP_LOGV(TAG, "Changing mode to %s mode",
+             this->current_mode_ ? LOG_STR_LITERAL("CURRENT") : LOG_STR_LITERAL("VOLTAGE"));
     this->change_mode_at_ = 0;
     this->sel_pin_->digital_write(this->current_mode_);
   }

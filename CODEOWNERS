@@ -350,6 +350,7 @@ esphome/components/mipi_spi/* @clydebarrow
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mitsubishi_cn105/* @crnjan
 esphome/components/mixer/speaker/* @kahrendt
+esphome/components/mk2pvrouter/* @FredM67
 esphome/components/mlx90393/* @functionpointer
 esphome/components/mlx90614/* @jesserockz
 esphome/components/mmc5603/* @benhoff
