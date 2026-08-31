@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 
 from .. import (
+    RANGE_REUSE,
     ModbusItemBaseSchema,
     SensorItem,
     add_modbus_base_properties,
@@ -12,12 +13,13 @@ from .. import (
     modbus_controller_ns,
     validate_custom_pdu_item,
     validate_modbus_register,
+    validate_range_reuse_migration,
 )
 from ..const import (
     CONF_BITMASK,
-    CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
+    CONF_REUSE_PREVIOUS_RANGE,
 )
 
 DEPENDENCIES = ["modbus_controller"]
@@ -38,20 +40,21 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_modbus_register,
+    validate_range_reuse_migration,
 )
 
 FINAL_VALIDATE_SCHEMA = validate_custom_pdu_item
 
 
 async def to_code(config):
-    byte_offset, _ = modbus_calc_properties(config)
+    byte_offset = modbus_calc_properties(config)
     var = cg.new_Pvariable(
         config[CONF_ID],
         config[CONF_REGISTER_TYPE],
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],
-        config[CONF_FORCE_NEW_RANGE],
+        RANGE_REUSE[config[CONF_REUSE_PREVIOUS_RANGE]],
     )
     await cg.register_component(var, config)
     await binary_sensor.register_binary_sensor(var, config)

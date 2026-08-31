@@ -112,6 +112,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
     Toolchain,
@@ -7254,3 +7255,54 @@ async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
     assert first == second
     assert second.index("alpha") < second.index("beta")
     assert second.index("a: 2") < second.index("z: 1")
+
+
+def test_host_program_path_platformio_toolchain() -> None:
+    """Host + PlatformIO toolchain reads the memoized idedata path."""
+    setup_core(platform=PLATFORM_HOST)
+    idedata = SimpleNamespace(firmware_elf_path="/build/x/.pioenvs/x/program")
+    with patch(
+        "esphome.platformio.toolchain.get_idedata", return_value=idedata
+    ) as mock_get:
+        assert main._host_program_path({}) == "/build/x/.pioenvs/x/program"
+    mock_get.assert_called_once_with({})
+
+
+def test_host_program_path_esp_idf_toolchain() -> None:
+    """Host + native ESP-IDF toolchain asks the espidf toolchain for the ELF."""
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.ESP_IDF
+    with patch(
+        "esphome.espidf.toolchain.get_elf_path", return_value=Path("/b/app.elf")
+    ):
+        assert main._host_program_path({}) == str(Path("/b/app.elf"))
+
+
+def test_command_compile_host_logs_program_path(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """command_compile on host logs the compiled program path."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch.object(main, "write_cpp", return_value=0),
+        patch.object(main, "compile_program", return_value=0),
+        patch.object(main, "_host_program_path", return_value="/b/program"),
+        caplog.at_level(logging.INFO),
+    ):
+        assert main.command_compile(SimpleNamespace(only_generate=False), {}) == 0
+    assert "Successfully compiled program to path '/b/program'" in caplog.text
+
+
+def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> None:
+    """command_run on host logs and executes the compiled program directly."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch.object(main, "write_cpp", return_value=0),
+        patch.object(main, "compile_program", return_value=0),
+        patch.object(main, "_host_program_path", return_value="/b/program"),
+        patch.object(main, "run_external_process", return_value=0) as mock_run,
+        caplog.at_level(logging.INFO),
+    ):
+        assert main.command_run(SimpleNamespace(), {}) == 0
+    mock_run.assert_called_with("/b/program")
+    assert "Running program from path '/b/program'" in caplog.text

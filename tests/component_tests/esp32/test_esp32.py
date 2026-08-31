@@ -24,6 +24,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
@@ -298,6 +299,26 @@ def test_esp32_configuration_errors(
             ("esp-tls", "esp_http_client"),
             id="nextion",
         ),
+        pytest.param(
+            # esp_wifi/wpa_supplicant from request_wifi(), bt from
+            # request_bluetooth(), esp_coex from esp32_ble_tracker's software
+            # coexistence (defaults on with wifi). esp_phy stays excluded;
+            # IDF requirement expansion pulls it back via esp_wifi.
+            "exclusion_reincludes_wifi_ble.yaml",
+            ("esp_wifi", "wpa_supplicant", "bt", "esp_coex"),
+            id="wifi_ble",
+        ),
+        pytest.param(
+            "exclusion_reincludes_espnow.yaml",
+            ("esp_wifi",),
+            id="espnow",
+        ),
+        pytest.param(
+            # temprature_sens_read() on the original ESP32 lives in the esp_phy blob.
+            "exclusion_reincludes_internal_temperature.yaml",
+            ("esp_phy",),
+            id="internal_temperature",
+        ),
     ],
 )
 def test_default_exclusions_reincluded_by_owning_components(
@@ -309,8 +330,6 @@ def test_default_exclusions_reincluded_by_owning_components(
     """Components whose IDF driver is excluded by default must re-include it
     during codegen; a dropped include_builtin_idf_component() call would only
     surface as a missing-header failure in a full compile job."""
-    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
-
     generate_main(component_config_path(config_file))
     excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
@@ -324,13 +343,20 @@ def test_default_exclusions_reincluded_by_owning_components(
     assert ("esp_http_server" in excluded) == ("esp_http_server" not in reincluded)
 
 
+def test_esp_phy_stays_excluded_for_internal_temperature_on_newer_variants(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Only the original ESP32 reads the PHY blob; other variants use esp_driver_tsens."""
+    generate_main(component_config_path("exclusion_stays_internal_temperature_s3.yaml"))
+    assert "esp_phy" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+
 def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
     """An explicit CONFIG_NVS_ENCRYPTION=n keeps nvs_sec_provider excluded."""
-    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
-
     generate_main(component_config_path("exclusion_stays_nvs_sdkconfig_off.yaml"))
     assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
@@ -939,6 +965,14 @@ def test_network_wifi_only_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
+    # request_wifi() also puts the WiFi components back in the build set;
+    # esp_phy stays excluded, IDF requirement expansion pulls it back.
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    assert "esp_wifi" not in excluded
+    assert "wpa_supplicant" not in excluded
+    assert "esp_phy" in excluded
+    # With wifi present mdns keeps its predefined interfaces.
+    assert "CONFIG_MDNS_PREDEF_NETIF_STA" not in sdkconfig
     # WiFi stack stays enabled (no ethernet) and no Bluetooth requested.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
     assert "CONFIG_BT_ENABLED" not in sdkconfig
@@ -954,6 +988,12 @@ def test_network_ethernet_only_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_ENABLED") is False
     assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is False
+    # The whole radio stack stays out of the build set as well.
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    assert {"esp_wifi", "wpa_supplicant", "esp_phy", "esp_coex", "bt"} <= excluded
+    # Without wifi, mdns drops its predefined STA/AP interfaces.
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_STA") is False
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_AP") is False
 
 
 def test_network_wifi_ble_coexistence_reconciles_end_to_end(
@@ -1228,3 +1268,50 @@ def test_parse_pio_platform_version(value: str, expected: str) -> None:
     from esphome.components.esp32 import _parse_pio_platform_version
 
     assert _parse_pio_platform_version(value) == expected
+
+
+def test_esp32_s31_gpio_validation(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """S31: GPIO26-28/30-32 are reserved for the SPI flash interface, GPIO29
+    and GPIO41 do not exist, GPIO33 is a normal pin, and GPIO36 is a
+    strapping pin."""
+    from esphome.components.esp32.const import VARIANT_ESP32S31
+    from esphome.components.esp32.gpio import validate_supports
+    from esphome.const import CONF_INPUT, CONF_MODE, CONF_OPEN_DRAIN, CONF_OUTPUT
+
+    set_core_config(
+        PlatformFramework.ESP32_IDF, platform_data={KEY_VARIANT: VARIANT_ESP32S31}
+    )
+
+    input_mode = {CONF_INPUT: True, CONF_OUTPUT: False, CONF_OPEN_DRAIN: False}
+
+    # Not reserved; a normal GPIO
+    pin = {CONF_NUMBER: 33, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+    assert validate_gpio_pin(pin)[CONF_NUMBER] == 33
+
+    # Reserved for the SPI flash interface, but can be bypassed with
+    # ignore_pin_validation_error
+    for num in (26, 27, 28, 30, 31, 32):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} is reserved"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+        pin = {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: True}
+        assert validate_gpio_pin(pin)[CONF_NUMBER] == num
+
+    for num in (29, 41):
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} does not exist"):
+            validate_gpio_pin(
+                {CONF_NUMBER: num, CONF_IGNORE_PIN_VALIDATION_ERROR: False}
+            )
+        # Also rejected in validate_supports so ignore_pin_validation_error
+        # cannot bypass it
+        with pytest.raises(cv.Invalid, match=f"GPIO{num} does not exist"):
+            validate_supports({CONF_NUMBER: num, CONF_MODE: input_mode})
+
+    pin = {CONF_NUMBER: 36, CONF_MODE: input_mode}
+    with caplog.at_level("WARNING"):
+        validate_supports(pin)
+    assert "GPIO36 is a strapping PIN" in caplog.text
