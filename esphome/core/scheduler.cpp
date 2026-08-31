@@ -803,7 +803,7 @@ void Scheduler::debug_log_timer_(const SchedulerItem *item, NameType name_type, 
 
   // Debug logging
   SchedulerNameLog name_log;
-  const char *type_str = (type == SchedulerItem::TIMEOUT) ? "timeout" : "interval";
+  const char *type_str = LOG_STR_ARG(item->get_type_str());
   if (type == SchedulerItem::TIMEOUT) {
     ESP_LOGD(TAG, "set_%s(name='%s/%s', %s=%" PRIu32 ")", type_str, LOG_STR_ARG(item->get_source()),
              name_log.format(name_type, static_name, hash_or_id), type_str, delay);
