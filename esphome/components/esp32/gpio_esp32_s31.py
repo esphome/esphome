@@ -8,7 +8,7 @@ from esphome.pins import check_strapping_pin
 # Per the ESP32-S31 IDF DOCS and datasheet:
 # https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32s31/api-reference/peripherals/gpio.html
 # https://documentation.espressif.com/esp32-s31_datasheet_en.pdf
-_ESP32S31_SPI_FLASH_PINS: set[int] = {26, 27, 28, 31, 32}
+_ESP32S31_SPI_FLASH_PINS: set[int] = {26, 27, 28, 30, 31, 32}
 _ESP32S31_INVALID_PINS: set[int] = {29, 41}
 # GPIO60/GPIO61 set the boot mode; GPIO37 selects the JTAG signal source;
 # GPIO36 sets the VDD_SPI voltage.
