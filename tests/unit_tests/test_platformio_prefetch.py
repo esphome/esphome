@@ -614,10 +614,8 @@ def test_uri_jobs_head_sizes_the_bar(tmp_path: Path) -> None:
 
 
 def test_uri_jobs_vcs_specs_installable_without_probe(tmp_path: Path) -> None:
-    """VCS specs never probe the network here (there is no archive); a
-    custom-named uninstalled one is handed to the pre-install, while a
-    derived-name one, an installed one, and file/symlink specs are left
-    to pio run (a derived name is not the destination dir)."""
+    """VCS specs never probe the network; custom-named uninstalled ones
+    pre-install, everything else is left to pio run."""
     m = _fake_manager(tmp_path)
     with patch("esphome.net_retry.http_request") as mock_head:
         jobs, failed, installable = pf._uri_jobs(
@@ -1716,8 +1714,8 @@ def _wave_manager(tmp_path, on_install):
     ids=("cpu-sized", "clone-floor"),
 )
 def test_preinstall_pool_width(tmp_path: Path, cpu_count: int, entries: list) -> None:
-    """Each worker gets its own pre-built manager and installs genuinely
-    overlap: the barrier deadlocks unless every entry runs concurrently."""
+    """The barrier deadlocks unless every entry gets its own manager
+    and runs concurrently."""
     barrier = threading.Barrier(len(entries), timeout=5)
     used: set = set()
 
@@ -1734,8 +1732,8 @@ def test_preinstall_pool_width(tmp_path: Path, cpu_count: int, entries: list) ->
 
 
 def test_preinstall_orders_clones_before_extractions(tmp_path: Path) -> None:
-    """The pool owner sorts its own wave: with one worker, the clone
-    installs before the archive regardless of caller order."""
+    """With one worker, the clone installs before the archive
+    regardless of caller order."""
     order: list[str] = []
     cls = _wave_manager(tmp_path, lambda mgr, spec: order.append(spec.name))
     seed = cls(str(tmp_path))

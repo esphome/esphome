@@ -55,8 +55,7 @@ def _preserved_sys_path() -> Iterator[None]:
         sys.path[:] = saved
 
 
-# One cap for concurrent network-bound work: registry resolutions,
-# HEAD probes, and the pre-install pool's clone floor
+# Cap for network-bound work: resolutions, HEAD probes, clone floor
 _NETWORK_WORKERS = 8
 
 # A hung child must not block the build; downloads resume on the next run
@@ -380,10 +379,9 @@ _VCS_URI_PREFIXES = ("git+", "hg+", "svn+", "git://", "hg://", "svn://")
 
 
 def _is_vcs_spec_uri(url: str | None) -> bool:
-    """Whether pio's ``install_from_uri`` would clone this URI rather than
-    copy or download it (PackageSpec normalizes git URLs to ``git+``).
-    The .git check runs first so an un-normalized repo URL degrades to a
-    failed clone and pio run, never an archive download of a repo page."""
+    """Whether pio's ``install_from_uri`` would clone this URI (PackageSpec
+    normalizes git URLs to ``git+``). The .git check runs first so an
+    un-normalized repo URL fails as a clone, not as an archive download."""
     if not url or url.startswith(("file://", "symlink://")):
         return False
     if url.split("#", 1)[0].endswith(".git"):
@@ -398,8 +396,7 @@ _Entry = tuple[str, Any] | tuple[str, Any, Any]
 
 
 def _entry_is_vcs(entry: _Entry) -> bool:
-    """Whether this (name, spec[, compatibility]) pre-install entry is
-    cloned rather than unpacked."""
+    """Whether this pre-install entry is cloned rather than unpacked."""
     return _is_vcs_spec_uri(entry[1].uri)
 
 
@@ -438,11 +435,9 @@ def _uri_jobs(
             continue
         name = spec.name or url.rsplit("/", 1)[-1]
         if is_vcs:
-            # No download stage: the pre-install itself clones it. Same
-            # rule as the cached-archive branch below: only a custom name
-            # is the destination dir. Platform tool specs (owner, name,
-            # requirements=url) always parse as custom-named, so their
-            # clones run in parallel; pio run installs the rest
+            # The pre-install clones it, gated like the cached-archive
+            # branch below: only a custom name is the destination dir.
+            # Platform tool specs always parse as custom-named
             if spec.has_custom_name():
                 installable.append((name, spec))
             continue
@@ -749,10 +744,9 @@ def _preinstall(
     """
     entries = _clones_first(entries)
     clones = sum(1 for entry in entries if _entry_is_vcs(entry))
-    # Clones are network-bound: let them run wide even on small-core
-    # runners. Capped, since every worker builds a sibling manager and
-    # may run a postinstall script; the tail of a mixed wave runs its
-    # (largely I/O-bound) extractions at the same width
+    # Network-bound clones run wide even on small-core runners; capped
+    # since each worker builds a sibling manager and may run a
+    # postinstall, and a mixed wave's extractions inherit the width
     workers = min(
         max(get_usable_cpu_count(), min(clones, _NETWORK_WORKERS)), len(entries)
     )
