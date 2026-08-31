@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.components.api import CONFIG_SCHEMA
+from esphome.components.api import CONFIG_SCHEMA, _validate_outgoing_host_ipv6
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
@@ -74,3 +74,33 @@ def test_outgoing_connection_rejects_hostnames(
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
     with pytest.raises(cv.Invalid, match="not a valid IP address"):
         CONFIG_SCHEMA(_api_config({"host": "homeassistant.local"}))
+
+
+def test_outgoing_connection_ipv6_host_requires_ipv6(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = CONFIG_SCHEMA(_api_config({"host": "fd00::1"}))
+    with pytest.raises(cv.Invalid, match="IPv6 is not"):
+        _validate_outgoing_host_ipv6(config)
+
+
+def test_outgoing_connection_ipv6_host_passes_with_ipv6_enabled(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data=ESP32_PLATFORM_DATA,
+        full_config={"network": {"enable_ipv6": True}},
+    )
+    config = CONFIG_SCHEMA(_api_config({"host": "fd00::1"}))
+    assert _validate_outgoing_host_ipv6(config) is config
+
+
+def test_outgoing_connection_ipv6_host_with_ipv6(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    generate_main("tests/component_tests/api/test_outgoing_connection_ipv6.yaml")
+
+    defines = {define.name: define.value for define in CORE.defines}
+    assert str(defines["API_OUTGOING_CONNECTION_HOST"]) == '"fd00::1"'

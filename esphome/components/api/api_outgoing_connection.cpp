@@ -35,7 +35,8 @@ void OutgoingConnectionManager::loop(APIServer *server) {
     return;  // on_target_client() already reset the dial state
   }
   if (this->dialed_conn_ != nullptr) {
-    // Dialed peer still connected but unproven; its own timeouts free the slot
+    // A live dialed session (flagged or not, e.g. a host: peer) is the
+    // target; a silent one dies on the handshake timeout
     return;
   }
   const uint32_t now = App.get_loop_component_start_time();
@@ -58,12 +59,33 @@ void OutgoingConnectionManager::loop(APIServer *server) {
 }
 
 void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
+  if (!network::is_connected()) {
+    // Flips within seconds of boot; recheck fast so a deep sleep wake
+    // window is not spent waiting
+    this->schedule_wait_(now, NETWORK_RETRY_MS);
+    return;
+  }
   const char *host = this->target_host_();
-  if (host == nullptr || !network::is_connected() || server->at_client_limit_() || !server->noise_ctx_.has_psk()) {
-    // Not a dial failure; retry soon without escalating the backoff
+  if (host == nullptr || server->at_client_limit_() || !server->noise_ctx_.has_psk()) {
+    ESP_LOGD(TAG, "Not dialing: %s",
+             host == nullptr              ? "no target"
+             : server->at_client_limit_() ? "max connections"
+                                          : "no key");
+    // Not a dial failure; retry without escalating the backoff
     this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     return;
   }
+#if !defined(USE_NETWORK_IPV6) && !defined(API_OUTGOING_CONNECTION_HOST)
+  if (strchr(host, ':') != nullptr) {
+    // Remembered by an earlier IPv6 build; set_sockaddr() would silently
+    // turn it into 255.255.255.255 here
+    ESP_LOGW(TAG, "Clearing unusable IPv6 target %s", host);
+    this->saved_.host[0] = '\0';
+    this->target_pref_.save(&this->saved_);
+    this->schedule_wait_(now, PRECONDITION_RETRY_MS);
+    return;
+  }
+#endif
   struct sockaddr_storage addr;
   socklen_t addr_len =
       socket::set_sockaddr((struct sockaddr *) &addr, sizeof(addr), host, API_OUTGOING_CONNECTION_PORT);
@@ -86,6 +108,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     if (this->dialed_conn_ == nullptr) {
       this->schedule_retry_(now);
     } else {
+      this->dial_handoff_ts_ = now;
       this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     }
     return;
@@ -138,7 +161,12 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   }
   int error = 0;
   socklen_t len = sizeof(error);
-  if (this->dial_socket_->getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0 || error != 0) {
+  if (this->dial_socket_->getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
+    ESP_LOGW(TAG, "Connect status check failed: errno %d", errno);
+    this->schedule_retry_(now);
+    return;
+  }
+  if (error != 0) {
     ESP_LOGW(TAG, "Connect failed: %d", error);
     this->schedule_retry_(now);
     return;
@@ -148,6 +176,7 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
+  this->dial_handoff_ts_ = now;
   // Hold unescalated until the peer proves itself or dies unproven
   this->schedule_wait_(now, PRECONDITION_RETRY_MS);
 }
@@ -163,23 +192,40 @@ void OutgoingConnectionManager::schedule_retry_(uint32_t now) {
 }
 
 void OutgoingConnectionManager::on_client_removed(APIConnection *conn) {
-  if (conn == this->dialed_conn_) {
-    this->dialed_conn_ = nullptr;
-    this->schedule_retry_(App.get_loop_component_start_time());
+  if (conn != this->dialed_conn_) {
+    return;
+  }
+  this->dialed_conn_ = nullptr;
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->dial_handoff_ts_ >= DIAL_PROVEN_MS) {
+    // Outlived the handshake timeout, so it authenticated: a working peer
+    // (e.g. a host: target that never sends the flag) disconnected normally
+    this->backoff_ = BACKOFF_MIN_MS;
+    this->schedule_wait_(now, API_OUTGOING_CONNECTION_DELAY);
+  } else {
+    this->schedule_retry_(now);
   }
 }
 
 void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
   // The target is connected; stop any dial in flight and reset the backoff.
+  // A dialed connection stays tracked unless it is this one: an inbound
+  // target must not orphan a still-open dial.
   this->dial_socket_.reset();
-  this->dialed_conn_ = nullptr;
+  if (conn == this->dialed_conn_) {
+    this->dialed_conn_ = nullptr;
+  }
   this->state_ = DialState::DIAL_STATE_IDLE;
   this->backoff_ = BACKOFF_MIN_MS;
 #ifndef API_OUTGOING_CONNECTION_HOST
   SavedOutgoingTarget target{};
   conn->get_peername_to(target.host);
-  if (target.host[0] == '\0' || strcmp(target.host, this->saved_.host) == 0) {
-    return;  // unknown peer or unchanged; avoid flash wear
+  if (target.host[0] == '\0') {
+    ESP_LOGW(TAG, "Could not read peer address; not remembering target");
+    return;
+  }
+  if (strcmp(target.host, this->saved_.host) == 0) {
+    return;  // unchanged; avoid flash wear
   }
   if (!this->target_pref_.save(&target) || !global_preferences->sync()) {
     // Keep the old value so the save is retried on the next flagged hello

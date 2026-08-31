@@ -217,6 +217,8 @@ void APIServer::remove_client_(uint8_t client_index) {
     this->outgoing_target_count_--;
   }
   this->outgoing_conn_.on_client_removed(client.get());
+  // Read before the swap-and-reset below destroys the connection
+  const bool was_authenticated = client->is_authenticated();
 #endif
 
   // Close socket now (was deferred from on_fatal_error to allow getpeername)
@@ -239,7 +241,12 @@ void APIServer::remove_client_(uint8_t client_index) {
   // (suppressed while provisioning is pending - see loop()).
   if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
-    this->last_connected_ = App.get_loop_component_start_time();
+#ifdef USE_API_OUTGOING_CONNECTION
+    // An unauthenticated session (e.g. a dial to a host that accepts TCP but
+    // never speaks the API) must not keep resetting the reboot watchdog
+    if (was_authenticated)
+#endif
+      this->last_connected_ = App.get_loop_component_start_time();
   }
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
@@ -295,8 +302,18 @@ APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> s
   }
   auto *conn = new APIConnection(std::move(sock), this);
   conn->mark_outgoing();
-  this->add_client_(conn);
+  // Unlike add_client_, no watchdog refresh: a dial that never authenticates
+  // must not keep petting the no-client reboot timeout
+  this->clients_[this->api_connection_count_++].reset(conn);
+  conn->start();
   return conn;
+}
+
+void APIServer::on_client_authenticated() {
+  if (this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
+    this->status_clear_warning();
+    this->last_connected_ = App.get_loop_component_start_time();
+  }
 }
 
 void APIServer::on_outgoing_target_client(APIConnection *conn) {

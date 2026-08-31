@@ -54,6 +54,10 @@ class OutgoingConnectionManager {
   static constexpr uint32_t BACKOFF_MAX_MS = 300000;
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
   static constexpr uint32_t CONNECT_POLL_INTERVAL_MS = 250;
+  static constexpr uint32_t NETWORK_RETRY_MS = 500;
+  // Longer than the 60s handshake timeout: a dialed session still alive past
+  // this authenticated, so its death is a normal disconnect, not a bad dial
+  static constexpr uint32_t DIAL_PROVEN_MS = 65000;
 
   void try_dial_(APIServer *server, uint32_t now);
   void poll_connect_(APIServer *server, uint32_t now);
@@ -94,6 +98,7 @@ class OutgoingConnectionManager {
 #endif
   uint32_t state_ts_{0};
   uint32_t last_poll_{0};
+  uint32_t dial_handoff_ts_{0};
 
   // Byte-aligned types last
 #ifndef API_OUTGOING_CONNECTION_HOST
