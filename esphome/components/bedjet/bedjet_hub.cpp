@@ -379,7 +379,7 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         // Set reentrant flag to prevent processing multiple packets.
         this->processing_ = true;
         ESP_LOGVV(TAG, "[%s] Decoding packet: last=%" PRId32 ", delta=%" PRId32 ", force=%s", this->get_name().c_str(),
-                  this->last_notify_, delta, this->force_refresh_ ? "y" : "n");
+                  this->last_notify_, delta, this->force_refresh_ ? LOG_STR_LITERAL("y") : LOG_STR_LITERAL("n"));
         bool needs_extra = this->codec_->decode_notify(param->notify.value, param->notify.value_len);
 
         if (needs_extra) {
@@ -437,7 +437,7 @@ uint8_t BedJetHub::write_notify_config_descriptor_(bool enable) {
     return status;
   }
   ESP_LOGD(TAG, "[%s] wrote notify=%s to status config 0x%04x, for conn %d", this->get_name().c_str(),
-           enable ? "true" : "false", handle, this->parent_->get_conn_id());
+           enable ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"), handle, this->parent_->get_conn_id());
   return ESP_GATT_OK;
 }
 

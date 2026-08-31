@@ -121,23 +121,24 @@ void ADCSensor::setup() {
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(
-      TAG,
-      "  Channel:       %d\n"
-      "  Unit:          %s\n"
-      "  Attenuation:   %s\n"
-      "  Samples:       %i\n"
-      "  Sampling mode: %s\n"
-      "  Setup Status:\n"
-      "    Handle Init:  %s\n"
-      "    Config:       %s\n"
-      "    Calibration:  %s\n"
-      "    Overall Init: %s",
-      this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-      this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
-      LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
-      this->setup_flags_.handle_init_complete ? "OK" : "FAILED", this->setup_flags_.config_complete ? "OK" : "FAILED",
-      this->setup_flags_.calibration_complete ? "OK" : "FAILED", this->setup_flags_.init_complete ? "OK" : "FAILED");
+  ESP_LOGCONFIG(TAG,
+                "  Channel:       %d\n"
+                "  Unit:          %s\n"
+                "  Attenuation:   %s\n"
+                "  Samples:       %i\n"
+                "  Sampling mode: %s\n"
+                "  Setup Status:\n"
+                "    Handle Init:  %s\n"
+                "    Config:       %s\n"
+                "    Calibration:  %s\n"
+                "    Overall Init: %s",
+                this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
+                this->autorange_ ? LOG_STR_LITERAL("Auto") : LOG_STR_ARG(attenuation_to_str(this->attenuation_)),
+                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
+                this->setup_flags_.handle_init_complete ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"),
+                this->setup_flags_.config_complete ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"),
+                this->setup_flags_.calibration_complete ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"),
+                this->setup_flags_.init_complete ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("FAILED"));
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -241,7 +242,7 @@ float ADCSensor::sample_autorange_() {
 
     err = adc_cali_create_scheme_curve_fitting(&cali_config, &handle);
     ESP_LOGVV(TAG, "Autorange atten=%d: Calibration handle creation %s (err=%d)", atten,
-              (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
+              (err == ESP_OK) ? LOG_STR_LITERAL("SUCCESS") : LOG_STR_LITERAL("FAILED"), err);
 #else
     adc_cali_line_fitting_config_t cali_config = {
       .unit_id = this->adc_unit_,
@@ -253,13 +254,13 @@ float ADCSensor::sample_autorange_() {
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
     ESP_LOGVV(TAG, "Autorange atten=%d: Calibration handle creation %s (err=%d)", atten,
-              (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
+              (err == ESP_OK) ? LOG_STR_LITERAL("SUCCESS") : LOG_STR_LITERAL("FAILED"), err);
 #endif
 
     int raw;
     err = adc_oneshot_read(this->adc_handle_, this->channel_, &raw);
     ESP_LOGVV(TAG, "Autorange atten=%d: Raw ADC read %s, value=%d (err=%d)", atten,
-              (err == ESP_OK) ? "SUCCESS" : "FAILED", raw, err);
+              (err == ESP_OK) ? LOG_STR_LITERAL("SUCCESS") : LOG_STR_LITERAL("FAILED"), raw, err);
 
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "ADC read failed in autorange with error %d", err);

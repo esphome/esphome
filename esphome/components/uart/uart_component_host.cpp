@@ -187,9 +187,9 @@ void HostUartComponent::dump_config() {
                 "  Parity: %s\n"
                 "  Stop Bits: %d",
                 this->baud_rate_, this->data_bits_,
-                this->parity_ == UART_CONFIG_PARITY_NONE   ? "None"
-                : this->parity_ == UART_CONFIG_PARITY_EVEN ? "Even"
-                                                           : "Odd",
+                this->parity_ == UART_CONFIG_PARITY_NONE   ? LOG_STR_LITERAL("None")
+                : this->parity_ == UART_CONFIG_PARITY_EVEN ? LOG_STR_LITERAL("Even")
+                                                           : LOG_STR_LITERAL("Odd"),
                 this->stop_bits_);
   this->check_logger_conflict();
 }

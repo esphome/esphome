@@ -136,7 +136,7 @@ OTAResponseTypes IDFOTABackend::finalize_bootloader_update_(esp_err_t ota_end_er
   ESP_LOGI(TAG,
            "Successfully installed the new bootloader\n"
            "  ESP-IDF %s",
-           (desc_err == ESP_OK) ? bootloader_desc.idf_ver : "version unknown");
+           (desc_err == ESP_OK) ? bootloader_desc.idf_ver : LOG_STR_LITERAL("version unknown"));
   // Wipe first sector of staging partition to make sure the device can't boot from it
   err = esp_partition_erase_range(this->partition_, 0, this->partition_->erase_size);
   if (err != ESP_OK) {

@@ -134,7 +134,7 @@ void WeikaiComponent::loop() {
       }
       bool status = children_[i]->uart_receive_test_(message);
       ESP_LOGI(TAG, "Test %s => send/received %u bytes %s - execution time %" PRIu32 " ms", message, RING_BUFFER_SIZE,
-               status ? "correctly" : "with error", elapsed_ms(time));
+               status ? LOG_STR_LITERAL("correctly") : LOG_STR_LITERAL("with error"), elapsed_ms(time));
     }
   }
 
@@ -238,9 +238,9 @@ void WeikaiComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
 
 void WeikaiGPIOPin::setup() {
   ESP_LOGCONFIG(TAG, "Setting GPIO pin %d mode to %s", this->pin_,
-                flags_ == gpio::FLAG_INPUT          ? "Input"
-                : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
-                                                    : "NOT SPECIFIED");
+                flags_ == gpio::FLAG_INPUT          ? LOG_STR_LITERAL("Input")
+                : this->flags_ == gpio::FLAG_OUTPUT ? LOG_STR_LITERAL("Output")
+                                                    : LOG_STR_LITERAL("NOT SPECIFIED"));
   this->pin_mode(this->flags_);
 }
 
@@ -420,7 +420,7 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
     this->receive_buffer_.pop(buffer[i]);
   }
   ESP_LOGVV(TAG, "read_array(ch=%d buffer[0]=%02X, length=%d): status %s", this->channel_, *buffer, length,
-            status ? "OK" : "ERROR");
+            status ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("ERROR"));
   return status;
 }
 
@@ -558,8 +558,8 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
     }
   }
 
-  ESP_LOGV(TAG, "%s => received %d bytes  status %s - exec time %d µs", message, received, status ? "OK" : "ERROR",
-           micros() - start_exec);
+  ESP_LOGV(TAG, "%s => received %d bytes  status %s - exec time %d µs", message, received,
+           status ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("ERROR"), micros() - start_exec);
   return status;
 }
 

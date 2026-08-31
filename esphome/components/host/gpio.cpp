@@ -30,7 +30,7 @@ size_t HostGPIOPin::dump_summary(char *buffer, size_t len) const { return snprin
 bool HostGPIOPin::digital_read() { return inverted_; }
 void HostGPIOPin::digital_write(bool value) {
   // pass
-  ESP_LOGD(TAG, "Setting pin %d to %s", pin_, value != inverted_ ? "HIGH" : "LOW");
+  ESP_LOGD(TAG, "Setting pin %d to %s", pin_, value != inverted_ ? LOG_STR_LITERAL("HIGH") : LOG_STR_LITERAL("LOW"));
 }
 void HostGPIOPin::detach_interrupt() const {}
 

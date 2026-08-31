@@ -433,7 +433,8 @@ void ESP32BLETracker::dump_config() {
                 "  Scan Type: %s\n"
                 "  Continuous Scanning: %s",
                 this->scan_duration_, this->scan_interval_ * 0.625f, this->scan_window_ * 0.625f,
-                this->scan_active_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
+                this->scan_active_ ? LOG_STR_LITERAL("ACTIVE") : LOG_STR_LITERAL("PASSIVE"),
+                YESNO(this->scan_continuous_));
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   if (this->connection_scan_window_ != 0) {
     ESP_LOGCONFIG(TAG, "  Connection Scan Window: %.1f ms", this->connection_scan_window_ * 0.625f);
@@ -511,7 +512,8 @@ void ESP32BLETracker::process_scan_result_(const BLEScanResult &scan_result) {
 }
 
 void ESP32BLETracker::cleanup_scan_state_(bool is_stop_complete) {
-  ESP_LOGV(TAG, "Scan %scomplete, set scanner state to IDLE.", is_stop_complete ? "stop " : "");
+  ESP_LOGV(TAG, "Scan %scomplete, set scanner state to IDLE.",
+           is_stop_complete ? LOG_STR_LITERAL("stop ") : LOG_STR_LITERAL(""));
 #ifdef USE_ESP32_BLE_DEVICE
   this->discovered_log_.clear();
 #endif

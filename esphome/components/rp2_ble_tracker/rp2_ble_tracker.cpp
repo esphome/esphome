@@ -206,7 +206,7 @@ bool RP2BLETracker::request_scan_mode(bool active) {
     return true;
   this->scan_active_ = active;
   // V: the proxy's "Setting scanner mode" line already narrates this at D.
-  ESP_LOGV(TAG, "Scan mode %s", active ? "active" : "passive");
+  ESP_LOGV(TAG, "Scan mode %s", active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"));
   // Restart the controller scan only: the scan logically continues, so no
   // on_scan_end and no period reset. An idle scanner applies it on next start.
   if (this->scan_running_) {

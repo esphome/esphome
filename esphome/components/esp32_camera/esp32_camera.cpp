@@ -161,7 +161,8 @@ void ESP32Camera::dump_config() {
                 "  Horizontal Mirror: %s\n"
                 "  Special Effect: %u\n"
                 "  White Balance Mode: %u",
-                st.quality, conf.fb_count, this->config_.fb_location == CAMERA_FB_IN_PSRAM ? "PSRAM" : "DRAM",
+                st.quality, conf.fb_count,
+                this->config_.fb_location == CAMERA_FB_IN_PSRAM ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("DRAM"),
                 st.contrast, st.brightness, st.saturation, ONOFF(st.vflip), ONOFF(st.hmirror), st.special_effect,
                 st.wb_mode);
   // ESP_LOGCONFIG(TAG, "  Auto White Balance: %u", st.awb);

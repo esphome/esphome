@@ -109,7 +109,8 @@ BdkOpResult bdk_scan_release(uint8_t activity_idx, bool created, int *err_out) {
     return BdkOpResult::OK;
   // DEBUG on purpose: the reconciler WARNs once per streak and the stuck
   // ERROR carries this code — a per-retry ERROR would be unbounded.
-  ESP_LOGD(TAG, "Scan release %s (err %d)", ret == ERR_BLE_STATUS ? "rejected" : "failed", static_cast<int>(ret));
+  ESP_LOGD(TAG, "Scan release %s (err %d)",
+           ret == ERR_BLE_STATUS ? LOG_STR_LITERAL("rejected") : LOG_STR_LITERAL("failed"), static_cast<int>(ret));
   return ret == ERR_BLE_STATUS ? BdkOpResult::BUSY : BdkOpResult::FAILED;
 }
 

@@ -44,7 +44,7 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
       } else {
         char char_buf[esp32_ble::UUID_STR_LEN];
         ESP_LOGE(TAG, "Characteristic %s does not allow writing with%s response", this->char_uuid_.to_str(char_buf),
-                 this->require_response_ ? "" : "out");
+                 this->require_response_ ? LOG_STR_LITERAL("") : LOG_STR_LITERAL("out"));
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;

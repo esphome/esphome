@@ -49,8 +49,8 @@ static void print_ep_desc(const usb_ep_desc_t *ep_desc) {
            "\t\twMaxPacketSize %d\n"
            "\t\tbInterval %d",
            ep_desc->bLength, ep_desc->bDescriptorType, ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
-           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT", ep_desc->bmAttributes, ep_type_str, ep_desc->wMaxPacketSize,
-           ep_desc->bInterval);
+           USB_EP_DESC_GET_EP_DIR(ep_desc) ? LOG_STR_LITERAL("IN") : LOG_STR_LITERAL("OUT"), ep_desc->bmAttributes,
+           ep_type_str, ep_desc->wMaxPacketSize, ep_desc->bInterval);
 }
 
 static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
