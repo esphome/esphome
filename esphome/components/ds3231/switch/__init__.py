@@ -5,6 +5,8 @@ from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_ALARM_1,
+    CONF_ALARM_2,
     CONF_DS3231_ID,
     CONF_ENABLE_32KHZ_OUTPUT,
     ICON_SINE_WAVE,
@@ -16,9 +18,6 @@ from .. import (
 )
 
 DEPENDENCIES = ["ds3231"]
-
-CONF_ALARM_1 = "alarm_1"
-CONF_ALARM_2 = "alarm_2"
 
 DS3231Enable32kHzSwitch = ds3231_ns.class_(
     "DS3231Enable32kHzSwitch", switch.Switch, cg.Parented.template(DS3231Component)

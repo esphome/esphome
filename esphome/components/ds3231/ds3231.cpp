@@ -72,6 +72,18 @@ void DS3231Component::setup() {
     return;
   }
 
+#ifdef USE_DS3231_ALARM
+  // Program the alarms configured in YAML. set_alarm_* rewrites the control register: an
+  // enabled alarm routes the INT/SQW pin to the interrupt line, a disabled one leaves the
+  // pin routing set above (e.g. a square-wave output) in place.
+  if (this->boot_alarm_1_configured_) {
+    this->set_alarm_1(this->boot_alarm_1_mode_, this->boot_alarm_1_spec_, this->boot_alarm_1_enabled_);
+  }
+  if (this->boot_alarm_2_configured_) {
+    this->set_alarm_2(this->boot_alarm_2_mode_, this->boot_alarm_2_spec_, this->boot_alarm_2_enabled_);
+  }
+#endif
+
 #ifdef USE_DS3231_32KHZ_OUTPUT
   // Apply the configured 32 kHz output boot state (this block is only compiled in when the
   // config turns it off or a switch entity uses it).
@@ -164,6 +176,15 @@ void DS3231Component::dump_config() {
 
 #ifdef USE_DS3231_32KHZ_OUTPUT
   ESP_LOGCONFIG(TAG, "  32 kHz output: %s", ONOFF(this->get_32khz_output()));
+#endif
+
+#ifdef USE_DS3231_ALARM
+  if (this->boot_alarm_1_configured_) {
+    ESP_LOGCONFIG(TAG, "  Alarm 1 set from config (%s)", this->boot_alarm_1_enabled_ ? "armed" : "disarmed");
+  }
+  if (this->boot_alarm_2_configured_) {
+    ESP_LOGCONFIG(TAG, "  Alarm 2 set from config (%s)", this->boot_alarm_2_enabled_ ? "armed" : "disarmed");
+  }
 #endif
 
   if (this->get_oscillator_stopped()) {
@@ -322,7 +343,7 @@ void DS3231Component::handle_alarm_flags_() {
   }
 }
 
-bool DS3231Component::set_alarm_1(DS3231Alarm1Mode mode, const DS3231AlarmSpec &spec) {
+bool DS3231Component::set_alarm_1(DS3231Alarm1Mode mode, const DS3231AlarmSpec &spec, bool enable) {
   bool m1 = true, m2 = true, m3 = true, m4 = true, dydt = false;
   switch (mode) {
     case DS3231Alarm1Mode::DS3231_ALARM_1_MODE_EVERY_SECOND:
@@ -354,10 +375,10 @@ bool DS3231Component::set_alarm_1(DS3231Alarm1Mode mode, const DS3231AlarmSpec &
     ESP_LOGE(TAG, "Can't write alarm 1 registers.");
     return false;
   }
-  return this->set_alarm_enabled(1, true);
+  return this->set_alarm_enabled(1, enable);
 }
 
-bool DS3231Component::set_alarm_2(DS3231Alarm2Mode mode, const DS3231AlarmSpec &spec) {
+bool DS3231Component::set_alarm_2(DS3231Alarm2Mode mode, const DS3231AlarmSpec &spec, bool enable) {
   bool m2 = true, m3 = true, m4 = true, dydt = false;
   switch (mode) {
     case DS3231Alarm2Mode::DS3231_ALARM_2_MODE_EVERY_MINUTE:
@@ -385,7 +406,7 @@ bool DS3231Component::set_alarm_2(DS3231Alarm2Mode mode, const DS3231AlarmSpec &
     ESP_LOGE(TAG, "Can't write alarm 2 registers.");
     return false;
   }
-  return this->set_alarm_enabled(2, true);
+  return this->set_alarm_enabled(2, enable);
 }
 
 bool DS3231Component::get_alarm_1(DS3231Alarm1Mode &mode, DS3231AlarmSpec &spec) {

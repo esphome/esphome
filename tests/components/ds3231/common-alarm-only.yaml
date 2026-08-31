@@ -12,6 +12,13 @@ ds3231:
     # 32 kHz output turned off on the hub, but no switch platform -> USE_DS3231_32KHZ_OUTPUT
     # without USE_DS3231_SWITCH.
     enable_32khz_output: false
+    # Alarm programmed straight from the hub config (day-of-month mode).
+    alarm_1:
+      mode: MATCH_DAY_OF_MONTH
+      day_of_month: 15
+      hour: 12
+      minute: 0
+      second: 0
     on_alarm_1:
       then:
         - logger.log: "alarm 1"

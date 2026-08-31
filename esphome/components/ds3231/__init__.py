@@ -1,6 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import CONF_HOUR, CONF_ID, CONF_MINUTE, CONF_MODE, CONF_SECOND
 from esphome.core import ID
@@ -19,6 +20,8 @@ CONF_INT_SQW_STARTUP_MODE = "int_sqw_startup_mode"
 CONF_ON_ALARM_1 = "on_alarm_1"
 CONF_ON_ALARM_2 = "on_alarm_2"
 CONF_ALARM = "alarm"
+CONF_ALARM_1 = "alarm_1"
+CONF_ALARM_2 = "alarm_2"
 CONF_DAY_OF_WEEK = "day_of_week"
 CONF_DAY_OF_MONTH = "day_of_month"
 CONF_REFRESH_INTERVAL = "refresh_interval"
@@ -92,6 +95,33 @@ SetRefreshIntervalAction = ds3231_ns.class_(
 )
 
 
+def _validate_boot_alarm(config: ConfigType) -> ConfigType:
+    mode = config[CONF_MODE]
+    if mode.endswith("DAY_OF_WEEK") and CONF_DAY_OF_WEEK not in config:
+        raise cv.Invalid(f"'{CONF_DAY_OF_WEEK}' is required for mode '{mode}'")
+    if mode.endswith("DAY_OF_MONTH") and CONF_DAY_OF_MONTH not in config:
+        raise cv.Invalid(f"'{CONF_DAY_OF_MONTH}' is required for mode '{mode}'")
+    return config
+
+
+def _boot_alarm_schema(modes: dict, *, with_second: bool) -> cv.All:
+    schema = {
+        cv.Required(CONF_MODE): cv.one_of(*modes, upper=True, space="_"),
+        cv.Optional(CONF_MINUTE, default=0): cv.int_range(min=0, max=59),
+        cv.Optional(CONF_HOUR, default=0): cv.int_range(min=0, max=23),
+        cv.Optional(CONF_DAY_OF_WEEK): cv.int_range(min=1, max=7),
+        cv.Optional(CONF_DAY_OF_MONTH): cv.int_range(min=1, max=31),
+        cv.Optional(CONF_ENABLED, default=True): cv.boolean,
+    }
+    if with_second:
+        schema[cv.Optional(CONF_SECOND, default=0)] = cv.int_range(min=0, max=59)
+    return cv.All(
+        cv.Schema(schema),
+        cv.has_at_most_one_key(CONF_DAY_OF_WEEK, CONF_DAY_OF_MONTH),
+        _validate_boot_alarm,
+    )
+
+
 def _validate(config: ConfigType) -> ConfigType:
     if (
         config[CONF_BATTERY_BACKED_SQUARE_WAVE]
@@ -123,6 +153,12 @@ CONFIG_SCHEMA = cv.All(
                 *INT_SQW_STARTUP_MODES, lower=True
             ),
             cv.Optional(CONF_ENABLE_32KHZ_OUTPUT, default=True): cv.boolean,
+            cv.Optional(CONF_ALARM_1): _boot_alarm_schema(
+                ALARM_1_MODES, with_second=True
+            ),
+            cv.Optional(CONF_ALARM_2): _boot_alarm_schema(
+                ALARM_2_MODES, with_second=False
+            ),
             cv.Optional(CONF_ON_ALARM_1): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_ALARM_2): automation.validate_automation(single=True),
         }
@@ -163,6 +199,33 @@ async def to_code(config: ConfigType) -> None:
         if (conf := config.get(key)) is not None:
             cg.add_define(USE_DS3231_ALARM)
             await automation.build_callback_automation(var, method, [], conf)
+
+    if (alarm := config.get(CONF_ALARM_1)) is not None:
+        cg.add_define(USE_DS3231_ALARM)
+        day = alarm.get(CONF_DAY_OF_WEEK) or alarm.get(CONF_DAY_OF_MONTH) or 1
+        cg.add(
+            var.set_boot_alarm_1(
+                ALARM_1_MODES[alarm[CONF_MODE]],
+                alarm[CONF_SECOND],
+                alarm[CONF_MINUTE],
+                alarm[CONF_HOUR],
+                day,
+                alarm[CONF_ENABLED],
+            )
+        )
+
+    if (alarm := config.get(CONF_ALARM_2)) is not None:
+        cg.add_define(USE_DS3231_ALARM)
+        day = alarm.get(CONF_DAY_OF_WEEK) or alarm.get(CONF_DAY_OF_MONTH) or 1
+        cg.add(
+            var.set_boot_alarm_2(
+                ALARM_2_MODES[alarm[CONF_MODE]],
+                alarm[CONF_MINUTE],
+                alarm[CONF_HOUR],
+                day,
+                alarm[CONF_ENABLED],
+            )
+        )
 
 
 _ALARM_1_SCHEMA = cv.Schema(

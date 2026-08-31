@@ -99,8 +99,26 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
 
 #ifdef USE_DS3231_ALARM
   // --- Alarms ----------------------------------------------------------------
-  bool set_alarm_1(DS3231Alarm1Mode mode, const DS3231AlarmSpec &spec);
-  bool set_alarm_2(DS3231Alarm2Mode mode, const DS3231AlarmSpec &spec);
+  /// Program an alarm's match registers. enable also arms it (A1IE/A2IE + INT/SQW to the
+  /// interrupt line); pass false to program the time but leave the alarm disarmed.
+  bool set_alarm_1(DS3231Alarm1Mode mode, const DS3231AlarmSpec &spec, bool enable = true);
+  bool set_alarm_2(DS3231Alarm2Mode mode, const DS3231AlarmSpec &spec, bool enable = true);
+
+  /// Program alarm 1/2 from the YAML config once at boot. day is a day-of-week (1=Sunday) or
+  /// day-of-month depending on the mode, and is ignored by the other modes.
+  void set_boot_alarm_1(DS3231Alarm1Mode mode, uint8_t second, uint8_t minute, uint8_t hour, uint8_t day,
+                        bool enabled) {
+    this->boot_alarm_1_mode_ = mode;
+    this->boot_alarm_1_spec_ = DS3231AlarmSpec{second, minute, hour, day};
+    this->boot_alarm_1_enabled_ = enabled;
+    this->boot_alarm_1_configured_ = true;
+  }
+  void set_boot_alarm_2(DS3231Alarm2Mode mode, uint8_t minute, uint8_t hour, uint8_t day, bool enabled) {
+    this->boot_alarm_2_mode_ = mode;
+    this->boot_alarm_2_spec_ = DS3231AlarmSpec{0, minute, hour, day};
+    this->boot_alarm_2_enabled_ = enabled;
+    this->boot_alarm_2_configured_ = true;
+  }
 
   /// Read the alarm currently programmed into the chip back into mode and spec.
   /// Returns false on a bus error or if the registers hold an unrecognized mask pattern
@@ -239,6 +257,16 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_DS3231_ALARM
   CallbackManager<void()> alarm_1_callback_;
   CallbackManager<void()> alarm_2_callback_;
+
+  // Alarm to program from the YAML config in setup(). *_configured_ gates whether to apply.
+  bool boot_alarm_1_configured_{false};
+  bool boot_alarm_2_configured_{false};
+  bool boot_alarm_1_enabled_{true};
+  bool boot_alarm_2_enabled_{true};
+  DS3231Alarm1Mode boot_alarm_1_mode_{DS3231Alarm1Mode::DS3231_ALARM_1_MODE_EVERY_SECOND};
+  DS3231Alarm2Mode boot_alarm_2_mode_{DS3231Alarm2Mode::DS3231_ALARM_2_MODE_EVERY_MINUTE};
+  DS3231AlarmSpec boot_alarm_1_spec_{};
+  DS3231AlarmSpec boot_alarm_2_spec_{};
 #ifdef USE_DS3231_BINARY_SENSOR
   binary_sensor::BinarySensor *alarm_1_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *alarm_2_binary_sensor_{nullptr};

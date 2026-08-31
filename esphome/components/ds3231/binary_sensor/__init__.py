@@ -5,6 +5,8 @@ from esphome.const import DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.types import ConfigType
 
 from .. import (
+    CONF_ALARM_1,
+    CONF_ALARM_2,
     CONF_DS3231_ID,
     USE_DS3231_ALARM,
     USE_DS3231_BINARY_SENSOR,
@@ -14,8 +16,6 @@ from .. import (
 
 DEPENDENCIES = ["ds3231"]
 
-CONF_ALARM_1 = "alarm_1"
-CONF_ALARM_2 = "alarm_2"
 CONF_OSCILLATOR_STOPPED = "oscillator_stopped"
 
 DS3231BinarySensor = ds3231_ns.class_(
