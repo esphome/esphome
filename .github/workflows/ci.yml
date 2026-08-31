@@ -672,6 +672,14 @@ jobs:
           . venv/bin/activate
           pip install -c requirements.txt -c requirements_dev.txt -c requirements_test.txt -r requirements_codechecker.txt
 
+      - name: Verify problem matcher matches CodeChecker's report format
+        # Only this leg's venv has codechecker_report_converter installed,
+        # so only here do these tests run instead of vacuously skipping.
+        if: matrix.cache_sdk_nrf
+        run: |
+          . venv/bin/activate
+          pytest tests/script/test_clang_tidy_codechecker.py -k matcher -q
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"

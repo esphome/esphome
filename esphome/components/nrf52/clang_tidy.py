@@ -14,9 +14,6 @@ CodeChecker, which adapts GCC's flags/headers for Clang-based analysis.
   mcumgr, zigbee) so their include paths land in the compile commands;
 * the platform defines (USE_ZEPHYR, USE_NRF52) match what a real ESPHome
   nrf52 build adds via its generated project.
-
-``ESPHOME_ZEPHYR_COMPILE_COMMANDS`` may point at an existing build's
-``compile_commands.json`` to skip generation (fast iteration).
 """
 
 from __future__ import annotations

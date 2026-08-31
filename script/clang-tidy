@@ -445,6 +445,12 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     CodeChecker ingests the real, unmodified GCC compile commands from a west
     build and does its own GCC->Clang toolchain/flag translation -- reuse that
     instead of reimplementing it in clang_options() below.
+
+    ``ESPHOME_ZEPHYR_COMPILE_COMMANDS`` may point at a previously generated
+    tidy ``compile_commands.json`` (same source list) to skip regeneration
+    (fast iteration) -- not a real firmware build's database, which lacks a
+    per-file compile command for each requested source and would fail the
+    coverage check below.
     """
     from esphome.components.nrf52.clang_tidy import generate_compile_commands
 
