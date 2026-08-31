@@ -974,15 +974,23 @@ def lint_no_std_bind(fname, match):
 
 
 LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
-# A C++ string or char literal, escapes included, so ; ( ) ? : inside one are never seen.
-CPP_LITERAL_RE = r'"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\''
-LOG_CALL_TOKEN_RE = re.compile(CPP_LITERAL_RE + r"|[()]", re.DOTALL)
-# Alt 2 matches a ? or : whose next non-space char opens a literal; that literal is a ternary branch.
-LOG_TERNARY_LITERAL_RE = re.compile(CPP_LITERAL_RE + r'|[?:]\s*(?=")', re.DOTALL)
+# Comments, string literals and single char literals are consumed whole so ; ( ) ? : inside them
+# are never seen. A char literal is exactly one (escaped) char so a digit separator like 1'000'000
+# cannot open one.
+CPP_SKIP_RE = r'//[^\n]*|/\*.*?\*/|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
+LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
+# The last alternative matches a ? or : whose next non-space char opens a literal, a ternary branch.
+LOG_TERNARY_LITERAL_RE = re.compile(CPP_SKIP_RE + r'|[?:]\s*(?=")', re.DOTALL)
 
 
-def _iter_log_calls(content: str) -> Iterator[tuple[int, str]]:
-    """Yield (start, text) for every ESP_LOG*(...) call, text running to the matching close paren."""
+def _line_col(content: str, pos: int) -> tuple[int, int]:
+    """1-based line and column of an offset in content."""
+    return content.count("\n", 0, pos) + 1, pos - content.rfind("\n", 0, pos)
+
+
+def _iter_log_calls(content: str) -> Iterator[tuple[int, str | None]]:
+    """Yield (start, text) for every ESP_LOG*(...) call, text running to the matching close paren.
+    text is None when no matching paren exists so callers can report the call instead of skipping it."""
     for head in LOG_CALL_START_RE.finditer(content):
         depth = 1
         for tok in LOG_CALL_TOKEN_RE.finditer(content, head.end()):
@@ -993,6 +1001,17 @@ def _iter_log_calls(content: str) -> Iterator[tuple[int, str]]:
                 if depth == 0:
                     yield head.start(), content[head.start() : tok.end()]
                     break
+        else:
+            yield head.start(), None
+
+
+def _unbalanced_log_call_error(content: str, pos: int) -> tuple[int, int, str]:
+    lineno, col = _line_col(content, pos)
+    return (
+        lineno,
+        col,
+        "ESP_LOG call has no matching closing parenthesis, so it cannot be checked.",
+    )
 
 
 LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
@@ -1003,14 +1022,15 @@ LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
 def lint_log_multiline_continuation(fname, content):
     errs = []
     for log_start, log_text in _iter_log_calls(content):
+        if log_text is None:
+            errs.append(_unbalanced_log_call_error(content, log_start))
+            continue
         for bad_match in LOG_BAD_CONTINUATION_RE.finditer(log_text):
             # %s may expand to a whitespace prefix at runtime, skip those
             if LOG_PERCENT_S_CONTINUATION_RE.match(log_text, bad_match.start()):
                 continue
             # Calculate line number from position in full content
-            abs_pos = log_start + bad_match.start()
-            lineno = content.count("\n", 0, abs_pos) + 1
-            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            lineno, col = _line_col(content, log_start + bad_match.start())
             errs.append(
                 (
                     lineno,
@@ -1081,12 +1101,16 @@ def lint_log_no_bare_literal_ternary(
 ) -> list[tuple[int, int, str]]:
     errs = []
     for log_start, log_text in _iter_log_calls(content):
+        if log_text is None:
+            errs.append(_unbalanced_log_call_error(content, log_start))
+            continue
+        # A NOLINT anywhere on the lines the call spans silences every branch in it
+        first_line = content.rfind("\n", 0, log_start) + 1
+        last_line = content.find("\n", log_start + len(log_text))
+        if "NOLINT" in content[first_line : last_line if last_line != -1 else None]:
+            continue
         for offset, literal in _find_ternary_literals(log_text):
-            abs_pos = log_start + offset
-            if "NOLINT" in content[abs_pos:].partition("\n")[0]:
-                continue
-            lineno = content.count("\n", 0, abs_pos) + 1
-            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            lineno, col = _line_col(content, log_start + offset)
             errs.append(
                 (
                     lineno,
