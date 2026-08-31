@@ -105,6 +105,9 @@ def _get_base_schema(cluster_options: list[str] | None = None) -> cv.Schema:
     return schema
 
 
+# set BASE_SCHEMA for CI and backwards compatibility
+BASE_SCHEMA = _get_base_schema()
+
 BINARY_SENSOR_SCHEMA = (
     cv.Schema({})
     .extend(_get_base_schema(["generic", "device_class"]))
