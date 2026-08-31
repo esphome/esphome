@@ -193,12 +193,6 @@ class ZephyrData(TypedDict):
     dts_base_path: (
         str | None
     )  # local path to zephyr/ tree root with boards/; set by dts_fetch
-    i2c_bus_cache: dict[
-        str, object
-    ]  # board -> list[str] | _NOT_FOUND; cleared each run
-    spi_bus_cache: dict[
-        str, object
-    ]  # board -> list[str] | _NOT_FOUND; cleared each run
     cpp_path: str | None  # "" = unchecked; None = not found; else = executable path
     board_dir_cache: dict[str, str]  # board -> abs path str, "" = not found
     dts_include_paths: list[str] | None  # None = not yet computed
@@ -259,8 +253,6 @@ def zephyr_set_core_data(config: ConfigType) -> None:
         kconfig="",
         fake_board_manifest=None,
         dts_base_path=None,
-        i2c_bus_cache={},
-        spi_bus_cache={},
         cpp_path="",
         board_dir_cache={},
         dts_include_paths=None,

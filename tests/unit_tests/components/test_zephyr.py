@@ -93,7 +93,6 @@ def _empty_zephyr_data(
         "kconfig": "",
         "fake_board_manifest": None,
         "dts_base_path": None,
-        "i2c_bus_cache": {},
         "cpp_path": "",
         "board_dir_cache": {},
         "dts_include_paths": None,

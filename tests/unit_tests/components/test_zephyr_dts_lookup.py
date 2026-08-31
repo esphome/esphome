@@ -24,9 +24,10 @@ from esphome.components.zephyr.dts_lookup import (
     get_board_partitions,
     get_board_yaml_supported,
     get_can_controller_labels,
-    get_enabled_spi_buses,
-    get_enabled_uart_buses,
+    get_i2c_controller_labels,
     get_i2c_pinctrl_esp32,
+    get_spi_controller_labels,
+    get_uart_controller_labels,
     log_board_capabilities,
     resolve_zephyr_bus,
     validate_board_revision,
@@ -37,8 +38,6 @@ from esphome.core import CORE
 
 def _empty_zd(**overrides) -> dict:
     return {
-        "i2c_bus_cache": {},
-        "spi_bus_cache": {},
         "cpp_path": "",
         "board_dir_cache": {},
         "dts_include_paths": None,
@@ -64,6 +63,7 @@ class _FakeNode:
         label: str | None = None,
         regs: list[_FakeReg] | None = None,
         parent: _FakeNode | None = None,
+        buses: list[str] | None = None,
     ) -> None:
         self.labels = labels or []
         self.status = status
@@ -71,6 +71,7 @@ class _FakeNode:
         self.label = label
         self.regs = regs or []
         self.parent = parent
+        self.buses = buses or []
 
 
 class _FakeEdt:
@@ -85,13 +86,24 @@ class _FakeEdt:
 
 def test_resolve_zephyr_bus_returns_explicit_override() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zd()
-    assert resolve_zephyr_bus("i2c", "some_board", override="i2c99") == "i2c99"
+    assert (
+        resolve_zephyr_bus(
+            "i2c", "some_board", override_key="dts_node_override", override="i2c99"
+        )
+        == "i2c99"
+    )
 
 
 def test_resolve_zephyr_bus_raises_when_nothing_resolves() -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zd()
     with pytest.raises(cv.Invalid, match="Cannot determine I2C bus label"):
-        resolve_zephyr_bus("i2c", "unknown_board")
+        resolve_zephyr_bus("i2c", "unknown_board", override_key="dts_node_override")
+
+
+def test_resolve_zephyr_bus_error_hint_uses_caller_supplied_override_key() -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    with pytest.raises(cv.Invalid, match="interface: spi0"):
+        resolve_zephyr_bus("spi", "unknown_board", override_key="interface")
 
 
 # ---------------------------------------------------------------------------
@@ -538,32 +550,44 @@ def test_get_board_yaml_supported_is_cached(tmp_path: Path, monkeypatch) -> None
 
 
 # ---------------------------------------------------------------------------
-# get_enabled_spi_buses / get_enabled_uart_buses / get_board_partitions
-# -- via a fake EDT (real edtlib/cpp integration is exercised manually; these
-# functions only touch _get_edt()/_iter_nodes(), so a duck-typed fake node is
-# sufficient and much cheaper than a full DTS+bindings+cpp fixture).
+# get_i2c_controller_labels / get_spi_controller_labels /
+# get_uart_controller_labels / get_board_partitions -- via a fake EDT (real
+# edtlib/cpp integration is exercised manually; these functions only touch
+# _get_edt()/_iter_nodes(), so a duck-typed fake node is sufficient and much
+# cheaper than a full DTS+bindings+cpp fixture).
 # ---------------------------------------------------------------------------
 
 
-def test_get_enabled_spi_buses_prefers_enabled_over_disabled(monkeypatch) -> None:
+def test_get_i2c_controller_labels_returns_enabled_then_disabled(monkeypatch) -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zd()
     nodes = [
-        _FakeNode(labels=["spi0"], status="disabled"),
-        _FakeNode(labels=["spi1"], status="okay"),
+        _FakeNode(labels=["i2c0"], buses=["i2c"], status="disabled"),
+        _FakeNode(labels=["i2c1"], buses=["i2c"], status="okay"),
     ]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
-    assert get_enabled_spi_buses("some_board") == ["spi1"]
+    assert get_i2c_controller_labels("some_board") == ["i2c1", "i2c0"]
 
 
-def test_get_enabled_uart_buses_falls_back_to_disabled_when_none_enabled(
+def test_get_spi_controller_labels_returns_enabled_then_disabled(monkeypatch) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
+    nodes = [
+        _FakeNode(labels=["spi0"], buses=["spi"], status="disabled"),
+        _FakeNode(labels=["spi1"], buses=["spi"], status="okay"),
+    ]
+    monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
+    assert get_spi_controller_labels("some_board") == ["spi1", "spi0"]
+
+
+def test_get_uart_controller_labels_returns_disabled_when_none_enabled(
     monkeypatch,
 ) -> None:
+    CORE.data[KEY_ZEPHYR] = _empty_zd()
     nodes = [
-        _FakeNode(labels=["uart0"], status="disabled"),
-        _FakeNode(labels=["uart1"], status="disabled"),
+        _FakeNode(labels=["uart0"], buses=["uart"], status="disabled"),
+        _FakeNode(labels=["uart1"], buses=["uart"], status="disabled"),
     ]
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: _FakeEdt(nodes))
-    assert get_enabled_uart_buses("some_board") == ["uart0", "uart1"]
+    assert get_uart_controller_labels("some_board") == ["uart0", "uart1"]
 
 
 def test_get_can_controller_labels_returns_disabled_nodes(monkeypatch) -> None:
@@ -587,10 +611,12 @@ def test_get_can_controller_labels_matches_bxcan_and_fdcan_only(monkeypatch) -> 
     assert get_can_controller_labels("some_board") == ["can1", "fdcan2"]
 
 
-def test_get_enabled_spi_buses_returns_none_when_dts_unavailable(monkeypatch) -> None:
+def test_get_spi_controller_labels_returns_none_when_dts_unavailable(
+    monkeypatch,
+) -> None:
     CORE.data[KEY_ZEPHYR] = _empty_zd()
     monkeypatch.setattr(dts_lookup, "_get_edt", lambda board: None)
-    assert get_enabled_spi_buses("some_board") is None
+    assert get_spi_controller_labels("some_board") is None
 
 
 def test_get_board_partitions_matches_parent_fixed_partitions_compat(
@@ -667,9 +693,10 @@ def test_log_board_capabilities_stock_board_full_report(monkeypatch, caplog) -> 
         dts_lookup, "get_board_yaml_supported", lambda board: ["adc", "i2c"]
     )
     monkeypatch.setattr(dts_lookup, "get_board_features", lambda board: ["WiFi"])
-    monkeypatch.setattr(dts_lookup, "get_enabled_i2c_buses", lambda board: ["i2c0"])
-    monkeypatch.setattr(dts_lookup, "get_enabled_spi_buses", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_enabled_uart_buses", lambda board: [])
+    monkeypatch.setattr(dts_lookup, "get_i2c_controller_labels", lambda board: ["i2c0"])
+    monkeypatch.setattr(dts_lookup, "get_spi_controller_labels", lambda board: None)
+    monkeypatch.setattr(dts_lookup, "get_uart_controller_labels", lambda board: [])
+    monkeypatch.setattr(dts_lookup, "get_can_controller_labels", lambda board: ["can1"])
     monkeypatch.setattr(
         dts_lookup,
         "get_board_partitions",
@@ -686,6 +713,7 @@ def test_log_board_capabilities_stock_board_full_report(monkeypatch, caplog) -> 
     assert "I2C buses present: i2c0" in message
     assert "SPI buses present: (none or unavailable)" in message
     assert "UART buses present: (none or unavailable)" in message
+    assert "CAN buses present: can1" in message
     assert "MCUboot swap methods this variant's port supports: move, scratch" in message
     assert "Flash partitions defined by the board:" in message
     assert "mcuboot" in message and "0x001000" in message and "60K" in message
@@ -702,9 +730,10 @@ def test_log_board_capabilities_custom_board_shows_board_root(
     for name in (
         "get_board_yaml_supported",
         "get_board_features",
-        "get_enabled_i2c_buses",
-        "get_enabled_spi_buses",
-        "get_enabled_uart_buses",
+        "get_i2c_controller_labels",
+        "get_spi_controller_labels",
+        "get_uart_controller_labels",
+        "get_can_controller_labels",
         "get_board_partitions",
     ):
         monkeypatch.setattr(dts_lookup, name, lambda board: None)
@@ -732,9 +761,10 @@ def test_log_board_capabilities_empty_swap_methods_omits_partitions(
     )  # swap_methods defaults to frozenset() (empty)
     monkeypatch.setattr(dts_lookup, "get_board_yaml_supported", lambda board: None)
     monkeypatch.setattr(dts_lookup, "get_board_features", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_enabled_i2c_buses", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_enabled_spi_buses", lambda board: None)
-    monkeypatch.setattr(dts_lookup, "get_enabled_uart_buses", lambda board: None)
+    monkeypatch.setattr(dts_lookup, "get_i2c_controller_labels", lambda board: None)
+    monkeypatch.setattr(dts_lookup, "get_spi_controller_labels", lambda board: None)
+    monkeypatch.setattr(dts_lookup, "get_uart_controller_labels", lambda board: None)
+    monkeypatch.setattr(dts_lookup, "get_can_controller_labels", lambda board: None)
     partitions_called = False
 
     def _unexpected_partitions_call(board):
@@ -763,9 +793,10 @@ def test_log_board_capabilities_lists_shields(monkeypatch, caplog) -> None:
     for name in (
         "get_board_yaml_supported",
         "get_board_features",
-        "get_enabled_i2c_buses",
-        "get_enabled_spi_buses",
-        "get_enabled_uart_buses",
+        "get_i2c_controller_labels",
+        "get_spi_controller_labels",
+        "get_uart_controller_labels",
+        "get_can_controller_labels",
         "get_board_partitions",
     ):
         monkeypatch.setattr(dts_lookup, name, lambda board: None)
