@@ -17,12 +17,14 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANTS,
     NetworkSdkconfigData,
+    RawSdkconfigValue,
     _ota_downgrade_protection_errors,
     _reconcile_network_sdkconfig,
     _reconcile_vfs_fatfs_sdkconfig,
 )
 from esphome.components.esp32.const import (
     KEY_ESP32,
+    KEY_EXCLUDE_COMPONENTS,
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
@@ -129,6 +131,20 @@ def test_esp32_rejects_unsupported_toolchains(
     CORE.toolchain = None
     with pytest.raises(cv.Invalid, match="Unknown value"):
         CONFIG_SCHEMA({"variant": VARIANT_ESP32, "toolchain": config_toolchain})
+
+
+def test_esp32_rejects_unsupported_cli_toolchain(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A --toolchain the platform cannot serve fails instead of silently
+    building with PlatformIO (the CLI path bypasses the YAML validator)."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(cv.Invalid, match="Unsupported toolchain 'arduino'"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32})
 
 
 @pytest.mark.parametrize(
@@ -260,13 +276,48 @@ def test_esp32_configuration_errors(
         ),
         pytest.param(
             "exclusion_reincludes_web_server.yaml",
-            ("esp-tls",),
+            ("esp-tls", "esp_http_server"),
             id="web_server_idf",
+        ),
+        pytest.param(
+            "nvs_encryption_s3.yaml",
+            ("nvs_sec_provider",),
+            id="nvs_encryption",
+        ),
+        pytest.param(
+            "exclusion_reincludes_nvs_sdkconfig.yaml",
+            ("nvs_sec_provider",),
+            id="nvs_encryption_raw_sdkconfig",
+        ),
+        pytest.param(
+            "exclusion_reincludes_camera_web_server.yaml",
+            ("esp_http_server",),
+            id="esp32_camera_web_server",
         ),
         pytest.param(
             "exclusion_reincludes_nextion.yaml",
             ("esp-tls", "esp_http_client"),
             id="nextion",
+        ),
+        pytest.param(
+            # esp_wifi/wpa_supplicant from request_wifi(), bt from
+            # request_bluetooth(), esp_coex from esp32_ble_tracker's software
+            # coexistence (defaults on with wifi). esp_phy stays excluded;
+            # IDF requirement expansion pulls it back via esp_wifi.
+            "exclusion_reincludes_wifi_ble.yaml",
+            ("esp_wifi", "wpa_supplicant", "bt", "esp_coex"),
+            id="wifi_ble",
+        ),
+        pytest.param(
+            "exclusion_reincludes_espnow.yaml",
+            ("esp_wifi",),
+            id="espnow",
+        ),
+        pytest.param(
+            # temprature_sens_read() on the original ESP32 lives in the esp_phy blob.
+            "exclusion_reincludes_internal_temperature.yaml",
+            ("esp_phy",),
+            id="internal_temperature",
         ),
     ],
 )
@@ -279,8 +330,6 @@ def test_default_exclusions_reincluded_by_owning_components(
     """Components whose IDF driver is excluded by default must re-include it
     during codegen; a dropped include_builtin_idf_component() call would only
     surface as a missing-header failure in a full compile job."""
-    from esphome.components.esp32.const import KEY_EXCLUDE_COMPONENTS
-
     generate_main(component_config_path(config_file))
     excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
 
@@ -290,6 +339,83 @@ def test_default_exclusions_reincluded_by_owning_components(
     # Components no part of this config touches stay excluded.
     assert "unity" in excluded
     assert "fatfs" in excluded
+    # The HTTP server only comes back for configs that run one.
+    assert ("esp_http_server" in excluded) == ("esp_http_server" not in reincluded)
+
+
+def test_esp_phy_stays_excluded_for_internal_temperature_on_newer_variants(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Only the original ESP32 reads the PHY blob; other variants use esp_driver_tsens."""
+    generate_main(component_config_path("exclusion_stays_internal_temperature_s3.yaml"))
+    assert "esp_phy" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+
+def test_nvs_sec_provider_stays_excluded_when_encryption_is_off(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """An explicit CONFIG_NVS_ENCRYPTION=n keeps nvs_sec_provider excluded."""
+    generate_main(component_config_path("exclusion_stays_nvs_sdkconfig_off.yaml"))
+    assert "nvs_sec_provider" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+
+
+_BUNDLE_OPTIONS = (
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE",
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN",
+    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL",
+)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("exclusion_reincludes.yaml", (False, None, None), id="no_tls"),
+        pytest.param(
+            "certificate_bundle_http_request.yaml",
+            (True, True, False),
+            id="http_request",
+        ),
+        pytest.param(
+            "exclusion_reincludes_http_request.yaml",
+            (False, None, None),
+            id="http_request_no_verify",
+        ),
+        pytest.param(
+            "certificate_bundle_full.yaml", (True, None, True), id="full_option"
+        ),
+        pytest.param(
+            "certificate_bundle_arduino_tls.yaml",
+            (True, True, False),
+            id="arduino_network_client_secure",
+        ),
+    ],
+)
+def test_certificate_bundle_sdkconfig(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: tuple[bool | None, ...],
+) -> None:
+    """The bundle and its CMN/FULL variant are written only when requested."""
+    generate_main(component_config_path(config_file))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert tuple(sdkconfig.get(name) for name in _BUNDLE_OPTIONS) == expected
+
+
+def test_user_sdkconfig_certificate_bundle_wins(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A raw sdkconfig_options bundle setting is kept and still pins CMN."""
+    generate_main(component_config_path("certificate_bundle_sdkconfig.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    value = sdkconfig["CONFIG_MBEDTLS_CERTIFICATE_BUNDLE"]
+    assert isinstance(value, RawSdkconfigValue)
+    assert value.value == "y"
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_CMN") is True
+    assert sdkconfig.get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL") is False
 
 
 def test_execute_from_psram_s3_sdkconfig(
@@ -839,6 +965,14 @@ def test_network_wifi_only_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_SOFTAP_SUPPORT") is False
     assert sdkconfig.get("CONFIG_LWIP_DHCPS") is False
+    # request_wifi() also puts the WiFi components back in the build set;
+    # esp_phy stays excluded, IDF requirement expansion pulls it back.
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    assert "esp_wifi" not in excluded
+    assert "wpa_supplicant" not in excluded
+    assert "esp_phy" in excluded
+    # With wifi present mdns keeps its predefined interfaces.
+    assert "CONFIG_MDNS_PREDEF_NETIF_STA" not in sdkconfig
     # WiFi stack stays enabled (no ethernet) and no Bluetooth requested.
     assert "CONFIG_ESP_WIFI_ENABLED" not in sdkconfig
     assert "CONFIG_BT_ENABLED" not in sdkconfig
@@ -854,6 +988,12 @@ def test_network_ethernet_only_reconciles_end_to_end(
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_ESP_WIFI_ENABLED") is False
     assert sdkconfig.get("CONFIG_SW_COEXIST_ENABLE") is False
+    # The whole radio stack stays out of the build set as well.
+    excluded = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+    assert {"esp_wifi", "wpa_supplicant", "esp_phy", "esp_coex", "bt"} <= excluded
+    # Without wifi, mdns drops its predefined STA/AP interfaces.
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_STA") is False
+    assert sdkconfig.get("CONFIG_MDNS_PREDEF_NETIF_AP") is False
 
 
 def test_network_wifi_ble_coexistence_reconciles_end_to_end(

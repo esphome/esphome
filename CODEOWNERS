@@ -352,6 +352,7 @@ esphome/components/mipi_spi/* @clydebarrow
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mitsubishi_cn105/* @crnjan
 esphome/components/mixer/speaker/* @kahrendt
+esphome/components/mk2pvrouter/* @FredM67
 esphome/components/mlx90393/* @functionpointer
 esphome/components/mlx90614/* @jesserockz
 esphome/components/mmc5603/* @benhoff
@@ -478,6 +479,7 @@ esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/serial_proxy/* @kbx81
 esphome/components/sfa30/* @ghsensdev
+esphome/components/sfa40/* @NoQuarrel
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sgp4x/* @martgras @SenexCrenshaw
 esphome/components/sha256/* @esphome/core
@@ -578,6 +580,7 @@ esphome/components/tuya/select/* @bearpawmaxim
 esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
+esphome/components/tuya/water_heater/* @iago-veiga
 esphome/components/uart/* @esphome/core
 esphome/components/uart/button/* @ssieb
 esphome/components/uart/event/* @eoasmxd
