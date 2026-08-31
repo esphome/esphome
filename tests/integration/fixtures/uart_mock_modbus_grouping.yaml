@@ -27,8 +27,8 @@ uart_mock:
       # so these also pin the grouping: an extra or differently shaped read fails the test.
       - expect_tx: [0x01, 0x01, 0x00, 0x10, 0x00, 0x02, 0xBC, 0x0E] # coils 0x10 count 2
         inject_rx: [0x01, 0x01, 0x01, 0x01, 0x90, 0x48] # bit0 set, bit1 clear
-      - expect_tx: [0x01, 0x03, 0x01, 0x60, 0x00, 0x01, 0x85, 0xE8] # holding 0x160 count 1
-        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x60, 0xB9, 0xFC] # 352
+      - expect_tx: [0x01, 0x03, 0x01, 0x60, 0x00, 0x02, 0xC5, 0xE9] # holding 0x160 count 2
+        inject_rx: [0x01, 0x03, 0x04, 0x01, 0x60, 0x01, 0x61, 0x3B, 0xA9] # 352, 353
       - expect_tx: [0x01, 0x03, 0x01, 0x00, 0x00, 0x01, 0x85, 0xF6] # holding 0x100 count 1
         inject_rx: [0x01, 0x03, 0x04, 0x01, 0x11, 0x02, 0x22, 0x2A, 0xB3] # 4 bytes: 273 then 546
       - expect_tx: [0x01, 0x03, 0x01, 0x20, 0x00, 0x04, 0x44, 0x3F] # holding 0x120 count 4
@@ -49,8 +49,6 @@ uart_mock:
         inject_rx: [0x01, 0x03, 0x02, 0x33, 0x33, 0xEC, 0xA1] # 13107
       - expect_tx: [0x01, 0x03, 0x01, 0x70, 0x00, 0x03, 0x05, 0xEC] # holding 0x170 count 3
         inject_rx: [0x01, 0x03, 0x06, 0x00, 0x2A, 0x1B, 0x2C, 0x03, 0x0D, 0x3E, 0xAB] # 6 bytes
-      - expect_tx: [0x01, 0x03, 0x01, 0x61, 0x00, 0x01, 0xD4, 0x28] # holding 0x161 count 1
-        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x61, 0x78, 0x3C] # 353
 
 modbus:
   uart_id: virtual_uart_dev
@@ -104,8 +102,9 @@ sensor:
     value_type: U_DWORD
     modbus_controller_id: modbus_controller_ok
 
-  # D - a wide (response_size) register followed by a contiguous one: the follower must start after the
-  # bytes the wide register actually returned, not after 2 * register_count.
+  # D - a wide (response_size) register followed by a contiguous reuse:true one (auto never joins past
+  # a response_size register): the follower must start after the bytes the wide register actually
+  # returned, not after two per register.
   - platform: modbus_controller
     name: "wide_first"
     address: 0x130
@@ -118,6 +117,7 @@ sensor:
     address: 0x131
     register_type: holding
     value_type: U_WORD
+    reuse_previous_range: true
     modbus_controller_id: modbus_controller_ok
 
   # E - a gap: these must never share a range.
@@ -195,13 +195,14 @@ sensor:
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok
 
-  # H - a sensor pinned to its own range, followed by a contiguous one.
+  # H - a sensor that never joins the range built before it (reuse_previous_range: false), followed
+  # by a contiguous plain item that extends the new range it started.
   - platform: modbus_controller
     name: "forced_first"
     address: 0x160
     register_type: holding
     value_type: U_WORD
-    force_new_range: true
+    reuse_previous_range: false
     modbus_controller_id: modbus_controller_ok
   - platform: modbus_controller
     name: "forced_next"
