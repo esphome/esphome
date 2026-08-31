@@ -520,6 +520,33 @@ def test_check_esp_idf_install_feature_failure(espidf_mocks: SimpleNamespace) ->
         check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
 
 
+def test_python_deps_use_uv_when_available(
+    espidf_mocks: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The python env installs go through uv when on the PATH, pip otherwise."""
+    monkeypatch.delenv("UV_HTTP_RETRIES", raising=False)
+    with patch(
+        "esphome.espidf.framework.shutil.which",
+        # Keyed on the name: the same which() also probes the default tools
+        side_effect=lambda name: "/usr/bin/uv" if name == "uv" else None,
+    ):
+        check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+    upgrade_call, feature_call = espidf_mocks.run_ok.call_args_list[1:3]
+    upgrade_cmd, feature_cmd = upgrade_call.args[0], feature_call.args[0]
+    assert upgrade_cmd[:3] == ["/usr/bin/uv", "pip", "install"]
+    assert "--python" in upgrade_cmd
+    assert feature_cmd[:3] == ["/usr/bin/uv", "pip", "install"]
+    assert upgrade_call.kwargs["env"]["UV_HTTP_RETRIES"] == "10"
+
+    espidf_mocks.run_ok.reset_mock()
+    monkeypatch.setenv("UV_HTTP_RETRIES", "3")  # an explicit user value wins
+    with patch("esphome.espidf.framework.shutil.which", return_value=None):
+        check_esp_idf_install(_IDF_VERSION, force=True, features=["fb"])
+    upgrade_call = espidf_mocks.run_ok.call_args_list[1]
+    assert upgrade_call.args[0][1:4] == ["-m", "pip", "install"]
+    assert upgrade_call.kwargs["env"]["UV_HTTP_RETRIES"] == "3"
+
+
 def _mark_installed() -> None:
     """Create the extracted marker and python-env interpreter so the install
     check takes the already-installed path rather than force-installing."""
@@ -911,7 +938,7 @@ def test_prefetch_leaves_unverifiable_entries_to_the_installer(
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
@@ -934,7 +961,7 @@ def test_prefetch_all_entries_unverifiable_is_a_noop(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -952,7 +979,7 @@ def test_prefetch_dedupes_entries_by_dest(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress"),
     ):
@@ -967,7 +994,7 @@ def test_prefetch_downloads_each_archive_with_resume(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
     ):
@@ -1011,7 +1038,7 @@ def test_prefetch_downloads_archives_concurrently(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, json.dumps(entries), ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch(
             "esphome.framework_helpers.ThreadPoolExecutor", wraps=ThreadPoolExecutor
@@ -1032,7 +1059,7 @@ def test_prefetch_skips_already_downloaded_archives(tmp_path: Path) -> None:
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume") as download,
+        patch("esphome.framework_helpers.download_with_resume") as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
     ):
         _prefetch_idf_tool_archives(tmp_path, "esp32", ["required"], None)
@@ -1065,7 +1092,7 @@ def test_prefetch_failures_never_raise(
     with (
         patch("esphome.espidf.framework.run_command", return_value=run_result),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=download_error,
         ),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1087,7 +1114,7 @@ def test_prefetch_total_failure_logs_error(
             return_value=(True, _PREFETCH_JSON, ""),
         ),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=OSError("proxy refuses everything"),
         ),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1112,7 +1139,7 @@ def test_prefetch_one_failed_archive_does_not_stop_the_rest(
             return_value=(True, _PREFETCH_JSON, ""),
         ),
         patch(
-            "esphome.espidf.framework.download_with_resume",
+            "esphome.framework_helpers.download_with_resume",
             side_effect=_fail_cmake_download,
         ) as download,
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
@@ -1133,7 +1160,7 @@ def test_prefetch_finishes_progress_bar_and_cancels_queue(tmp_path: Path) -> Non
             "esphome.espidf.framework.run_command",
             return_value=(True, _PREFETCH_JSON, ""),
         ),
-        patch("esphome.espidf.framework.download_with_resume"),
+        patch("esphome.framework_helpers.download_with_resume"),
         patch("esphome.espidf.framework.get_system_python_path", return_value="python"),
         patch("esphome.framework_helpers._BatchDownloadProgress") as progress_cls,
         patch("esphome.framework_helpers.ThreadPoolExecutor") as pool_cls,
