@@ -35,3 +35,21 @@ sensor:
     formaldehyde:
       name: Formaldehyde
     address: 0x6B
+
+binary_sensor:
+  - platform: sen6x
+    sen6x_id: sen6x_sensor
+    fan_error:
+      name: Fan Error
+    fan_speed_warning:
+      name: Fan Speed Warning
+    rht_error:
+      name: RHT Error
+    gas_error:
+      name: Gas Error
+    co2_error:
+      name: CO2 Error
+    hcho_error:
+      name: HCHO Error
+    pm_error:
+      name: PM Error
