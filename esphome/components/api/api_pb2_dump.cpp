@@ -885,6 +885,9 @@ const char *HelloRequest::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("client_info"), this->client_info);
   dump_field(out, ESPHOME_PSTR("api_version_major"), this->api_version_major);
   dump_field(out, ESPHOME_PSTR("api_version_minor"), this->api_version_minor);
+#ifdef USE_API_OUTGOING_CONNECTION
+  dump_field(out, ESPHOME_PSTR("outgoing_connection_target"), this->outgoing_connection_target);
+#endif
   return out.c_str();
 }
 const char *HelloResponse::dump_to(DumpBuffer &out) const {

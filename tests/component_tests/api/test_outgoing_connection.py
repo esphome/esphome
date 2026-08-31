@@ -9,6 +9,7 @@ from esphome.components.api import CONFIG_SCHEMA
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
+from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -23,15 +24,17 @@ def _api_config(outgoing: ConfigType, *, encryption: bool = True) -> ConfigType:
     return config
 
 
-def test_outgoing_connection_generates_setters(
+def test_outgoing_connection_generates_defines(
     generate_main: Callable[[str | Path], str],
 ) -> None:
-    """A valid config emits the setters with defaults applied."""
-    main_cpp = generate_main("tests/component_tests/api/test_outgoing_connection.yaml")
+    """A valid config emits the compile-time defines with defaults applied."""
+    generate_main("tests/component_tests/api/test_outgoing_connection.yaml")
 
-    assert 'set_outgoing_connection_host("192.168.1.2")' in main_cpp
-    assert "set_outgoing_connection_port(6054)" in main_cpp
-    assert "set_outgoing_connection_delay(60000)" in main_cpp
+    defines = {define.name: define.value for define in CORE.defines}
+    assert "USE_API_OUTGOING_CONNECTION" in defines
+    assert str(defines["API_OUTGOING_CONNECTION_HOST"]) == '"192.168.1.2"'
+    assert str(defines["API_OUTGOING_CONNECTION_PORT"]) == "6054"
+    assert str(defines["API_OUTGOING_CONNECTION_DELAY"]) == "60000"
 
 
 def test_outgoing_connection_defaults(
@@ -69,5 +72,5 @@ def test_outgoing_connection_rejects_hostnames(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
-    with pytest.raises(cv.Invalid, match="must be an IP address"):
+    with pytest.raises(cv.Invalid, match="not a valid IP address"):
         CONFIG_SCHEMA(_api_config({"host": "homeassistant.local"}))

@@ -1,4 +1,3 @@
-import ipaddress
 import logging
 import re
 from typing import Any
@@ -293,17 +292,6 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_ip_literal(value: Any) -> str:
-    value = cv.string_strict(value)
-    try:
-        ipaddress.ip_address(value)
-    except ValueError as err:
-        raise cv.Invalid(
-            f"outgoing_connection host must be an IP address, got {value!r}"
-        ) from err
-    return value
-
-
 def _validate_outgoing_connection_platform(value: ConfigType) -> ConfigType:
     if CORE.is_esp8266 or CORE.is_rp2:
         raise cv.Invalid(
@@ -325,7 +313,7 @@ def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
 OUTGOING_CONNECTION_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_HOST): _validate_ip_literal,
+            cv.Optional(CONF_HOST): cv.ipaddress,
             cv.Optional(CONF_PORT, default=6054): cv.port,
             cv.Optional(
                 CONF_DELAY, default="60s"
@@ -660,9 +648,9 @@ async def to_code(config: ConfigType) -> None:
     if (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is not None:
         cg.add_define("USE_API_OUTGOING_CONNECTION")
         if (host := outgoing.get(CONF_HOST)) is not None:
-            cg.add(var.set_outgoing_connection_host(host))
-        cg.add(var.set_outgoing_connection_port(outgoing[CONF_PORT]))
-        cg.add(var.set_outgoing_connection_delay(outgoing[CONF_DELAY]))
+            cg.add_define("API_OUTGOING_CONNECTION_HOST", str(host))
+        cg.add_define("API_OUTGOING_CONNECTION_PORT", outgoing[CONF_PORT])
+        cg.add_define("API_OUTGOING_CONNECTION_DELAY", outgoing[CONF_DELAY])
 
     cg.add_define("USE_API")
     cg.add_global(api_ns.using)

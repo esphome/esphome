@@ -83,11 +83,8 @@ class APIServer final : public Component,
   noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
 #ifdef USE_API_OUTGOING_CONNECTION
-  void set_outgoing_connection_host(const char *host) { this->outgoing_conn_.set_target_host(host); }
-  void set_outgoing_connection_port(uint16_t port) { this->outgoing_conn_.set_port(port); }
-  void set_outgoing_connection_delay(uint32_t delay) { this->outgoing_conn_.set_delay(delay); }
-  // Called by APIConnection when a client subscribes to states
-  void on_client_state_subscription(APIConnection *conn);
+  // Called by APIConnection when a client declares itself a dial-back target in its hello
+  void on_outgoing_target_client(APIConnection *conn);
 #endif
 
   void handle_disconnect(APIConnection *conn);
@@ -268,8 +265,10 @@ class APIServer final : public Component,
   void __attribute__((noinline)) accept_new_connections_();
   // Insert a constructed connection into the client slots and start it.
   void add_client_(APIConnection *conn);
+  bool at_client_limit_() const { return this->api_connection_count_ >= MAX_API_CONNECTIONS; }
 #ifdef USE_API_OUTGOING_CONNECTION
   void add_outgoing_client_(std::unique_ptr<socket::Socket> sock);
+  bool has_outgoing_target_client_() const { return this->outgoing_target_count_ != 0; }
   friend class OutgoingConnectionManager;
 #endif
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
@@ -365,6 +364,10 @@ class APIServer final : public Component,
   uint8_t listen_backlog_{4};
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Connected clients whose hello declared them a dial-back target
+  uint8_t outgoing_target_count_{0};
+#endif
 #if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
   // Index assigned by the provisioning manager for reporting this transport's state.
   uint8_t provisioning_source_{0};

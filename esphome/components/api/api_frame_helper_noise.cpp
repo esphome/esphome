@@ -61,6 +61,14 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 /// Initialize the frame helper, returns OK if successful.
 APIError APINoiseFrameHelper::init() {
+#ifdef USE_API_OUTGOING_CONNECTION
+  // set_server_hello_first() marks the outgoing mode in state_; restore the
+  // state init_common_() expects before running it.
+  const bool outgoing = this->state_ == State::CLIENT_HELLO_OUTGOING;
+  if (outgoing) {
+    this->state_ = State::INITIALIZE;
+  }
+#endif
   APIError err = init_common_();
   if (err != APIError::OK) {
     return err;
@@ -80,9 +88,10 @@ APIError APINoiseFrameHelper::init() {
 
   state_ = State::CLIENT_HELLO;
 #ifdef USE_API_OUTGOING_CONNECTION
-  if (this->server_hello_first_) {
+  if (outgoing) {
     // Outgoing connection: the peer needs our name and MAC to pick
     // the matching key before it can send its PSK-mixed handshake message.
+    state_ = State::CLIENT_HELLO_OUTGOING;
     return this->send_server_hello_frame_();
   }
 #endif
@@ -260,6 +269,9 @@ APIError APINoiseFrameHelper::state_action_() {
       HELPER_LOG("Bad state for method: %d", (int) this->state_);
       return APIError::BAD_STATE;
     case State::CLIENT_HELLO:
+#ifdef USE_API_OUTGOING_CONNECTION
+    case State::CLIENT_HELLO_OUTGOING:
+#endif
       return this->state_action_client_hello_();
     case State::SERVER_HELLO:
       return this->state_action_server_hello_();
@@ -293,7 +305,7 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
   }
 
 #ifdef USE_API_OUTGOING_CONNECTION
-  if (this->server_hello_first_) {
+  if (this->state_ == State::CLIENT_HELLO_OUTGOING) {
     // Server hello already went out in init(); go straight to the handshake.
     aerr = init_handshake_();
     if (aerr != APIError::OK)

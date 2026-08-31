@@ -18,7 +18,7 @@
 namespace esphome::api {
 
 // uncomment to log raw packets
-//#define HELPER_LOG_PACKETS
+// #define HELPER_LOG_PACKETS
 
 // Maximum message size limits to prevent OOM on constrained devices
 // Handshake messages are limited to a small size for security
@@ -282,7 +282,8 @@ class APIFrameHelper {
     DATA = 5,
     CLOSED = 6,
     FAILED = 7,
-    EXPLICIT_REJECT = 8,  // Noise only
+    EXPLICIT_REJECT = 8,        // Noise only
+    CLIENT_HELLO_OUTGOING = 9,  // Noise only: like CLIENT_HELLO but the server hello already went out (outgoing conn)
   };
 
   // Fast inline state check for read_packet/write_protobuf_messages hot path.

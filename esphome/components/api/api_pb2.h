@@ -412,13 +412,16 @@ class CommandProtoMessage : public ProtoDecodableMessage {
 class HelloRequest final : public ProtoDecodableMessage {
  public:
   static constexpr uint16_t MESSAGE_TYPE = 1;
-  static constexpr uint8_t ESTIMATED_SIZE = 17;
+  static constexpr uint8_t ESTIMATED_SIZE = 19;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("hello_request"); }
 #endif
   StringRef client_info{};
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
+#ifdef USE_API_OUTGOING_CONNECTION
+  bool outgoing_connection_target{false};
+#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif

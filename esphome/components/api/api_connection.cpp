@@ -1786,10 +1786,6 @@ void APIConnection::complete_authentication_() {
 #endif
 }
 
-#ifdef USE_API_OUTGOING_CONNECTION
-void APIConnection::notify_state_subscription_() { this->parent_->on_client_state_subscription(this); }
-#endif
-
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
@@ -1825,6 +1821,17 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   // Auto-authenticate - password auth was removed in ESPHome 2026.1.0
   this->complete_authentication_();
+
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Only honor the flag once a real key is active: with a PSK set, plaintext
+  // and the all-zeros provisioning PSK are rejected at the transport, so a
+  // client reaching this point has proven possession of the key.
+  if (msg.outgoing_connection_target && !this->flags_.outgoing_connection_target &&
+      this->parent_->get_noise_ctx().has_psk()) {
+    this->flags_.outgoing_connection_target = true;
+    this->parent_->on_outgoing_target_client(this);
+  }
+#endif
 
   return this->send_message(resp);
 }

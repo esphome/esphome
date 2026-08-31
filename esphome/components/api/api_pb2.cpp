@@ -15,6 +15,11 @@ bool HelloRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) 
     case 3:
       this->api_version_minor = value;
       break;
+#ifdef USE_API_OUTGOING_CONNECTION
+    case 4:
+      this->outgoing_connection_target = value != 0;
+      break;
+#endif
     default:
       return false;
   }

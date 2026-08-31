@@ -212,6 +212,12 @@ void APIServer::remove_client_(uint8_t client_index) {
   std::string client_peername(client->get_peername_to(peername_buf));
 #endif
 
+#ifdef USE_API_OUTGOING_CONNECTION
+  if (client->flags_.outgoing_connection_target) {
+    this->outgoing_target_count_--;
+  }
+#endif
+
   // Close socket now (was deferred from on_fatal_error to allow getpeername)
   client->helper_->close();
 
@@ -254,7 +260,7 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
     sock->getpeername_to(peername);
 
     // Check if we're at the connection limit
-    if (this->api_connection_count_ >= MAX_API_CONNECTIONS) {
+    if (this->at_client_limit_()) {
       ESP_LOGW(TAG, "Max connections (%d), rejecting %s", MAX_API_CONNECTIONS, peername);
       // Immediately close - socket destructor will handle cleanup
       sock.reset();
@@ -280,17 +286,14 @@ void APIServer::add_client_(APIConnection *conn) {
 
 #ifdef USE_API_OUTGOING_CONNECTION
 void APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
-  char peername[socket::SOCKADDR_STR_LEN];
-  sock->getpeername_to(peername);
-  ESP_LOGD(TAG, "Outgoing connection to %s", peername);
-
   auto *conn = new APIConnection(std::move(sock), this);
   conn->mark_outgoing();
   this->add_client_(conn);
 }
 
-void APIServer::on_client_state_subscription(APIConnection *conn) {
-  this->outgoing_conn_.on_state_subscription(conn->get_name(), conn->helper_.get());
+void APIServer::on_outgoing_target_client(APIConnection *conn) {
+  this->outgoing_target_count_++;
+  this->outgoing_conn_.on_target_client(conn);
 }
 #endif
 
