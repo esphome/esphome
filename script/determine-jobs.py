@@ -101,6 +101,17 @@ COMPONENT_TEST_BATCH_SIZE = 40
 INTEGRATION_TESTS_SPLIT_THRESHOLD = 10
 INTEGRATION_TESTS_SPLIT_BUCKETS = 3
 
+# platformio and aioesphomeapi (requirements.txt), the pytest stack
+# (requirements_test.txt) and the fixture every session compiles; a change
+# to any runs the full matrix
+INTEGRATION_TESTS_TRIGGER_FILES = frozenset(
+    {
+        "requirements.txt",
+        "requirements_test.txt",
+        "tests/integration/fixtures/cache_init.yaml",
+    }
+)
+
 
 def _split_list(items: list[str], n: int) -> list[list[str]]:
     """Split a list into n roughly-equal contiguous parts (matches script/clang-tidy)."""
@@ -221,12 +232,15 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     3. Integration test infrastructure files changed
        - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
+    4. A file in INTEGRATION_TESTS_TRIGGER_FILES changed
+       - The dependency pins and the session init fixture affect every test
+
     Returns (run_all=False, [test_files...]) when:
 
-    4. Specific integration test files changed
+    5. Specific integration test files changed
        - Only those specific test files are returned
 
-    5. Components used by integration tests (or their dependencies) changed
+    6. Components used by integration tests (or their dependencies) changed
        - Only test files whose fixtures use the changed components are returned
 
     Args:
@@ -242,6 +256,9 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
 
     if core_changed(files):
         # If any core files changed, run all integration tests
+        return (True, [])
+
+    if any(f in INTEGRATION_TESTS_TRIGGER_FILES for f in files):
         return (True, [])
 
     # If infrastructure Python files changed (conftest, utils, etc.), run all tests
