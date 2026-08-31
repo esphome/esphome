@@ -25,7 +25,7 @@ constexpr uint16_t BLUE_MAX = 0x1F;
 void SnapshotDisplay::setup() {
   this->init_internal_(static_cast<uint32_t>(this->width_) * this->height_ * 2);
   if (this->buffer_ == nullptr) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Could not allocate display buffer"));
   }
 }
 
@@ -58,7 +58,7 @@ void SnapshotDisplay::draw_pixels_at(int x_start, int y_start, int w, int h, con
   }
 }
 
-bool SnapshotDisplay::capture_bgr_(uint8_t *dest, size_t row_stride) {
+bool SnapshotDisplay::capture_bgr(uint8_t *dest, size_t row_stride) {
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Snapshot requested but there is no buffer to read");
     return false;

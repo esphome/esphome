@@ -34,15 +34,18 @@ class Snapshot {
   /// already there is never written over. Returns true if a file was written.
   bool take_snapshot(const char *filename);
 
+  /// Log that an action-triggered snapshot did not write a file.
+  static void log_action_failed();
+
  protected:
   /// Width of the picture in pixels.
-  virtual int snapshot_width_() = 0;
+  virtual int snapshot_width() = 0;
   /// Height of the picture in pixels.
-  virtual int snapshot_height_() = 0;
+  virtual int snapshot_height() = 0;
   /// Fill in the picture: three bytes per pixel in blue, green, red order, topmost row first, with
   /// `row_stride` bytes from the start of one row to the start of the next. Returns false, having
   /// logged why, if the picture could not be read.
-  virtual bool capture_bgr_(uint8_t *dest, size_t row_stride) = 0;
+  virtual bool capture_bgr(uint8_t *dest, size_t row_stride) = 0;
 
   const char *snapshot_prefix_{"snapshot"};
 };
@@ -51,12 +54,16 @@ template<typename... Ts> class SnapshotAction final : public Action<Ts...>, publ
  public:
   TEMPLATABLE_VALUE(std::string, filename)
 
+ protected:
   void play(const Ts &...x) override {
+    bool ok;
     if (this->filename_.has_value()) {
-      this->parent_->take_snapshot(this->filename_.value(x...).c_str());
+      ok = this->parent_->take_snapshot(this->filename_.value(x...).c_str());
     } else {
-      this->parent_->take_snapshot(nullptr);
+      ok = this->parent_->take_snapshot(nullptr);
     }
+    if (!ok)
+      this->parent_->log_action_failed();
   }
 };
 

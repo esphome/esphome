@@ -31,9 +31,9 @@ class SnapshotDisplay final : public display::DisplayBuffer, public Snapshot {
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
 
-  int snapshot_width_() override { return this->width_; }
-  int snapshot_height_() override { return this->height_; }
-  bool capture_bgr_(uint8_t *dest, size_t row_stride) override;
+  int snapshot_width() override { return this->width_; }
+  int snapshot_height() override { return this->height_; }
+  bool capture_bgr(uint8_t *dest, size_t row_stride) override;
 
   /// The picture, one 16 bit RGB565 value per pixel, topmost row first. Owned by DisplayBuffer as
   /// a byte pointer; this is the same memory seen as what is actually stored in it.

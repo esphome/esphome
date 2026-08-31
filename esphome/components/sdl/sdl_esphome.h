@@ -61,19 +61,12 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   void destroy_renderer_();
   /// Log an SDL failure during setup, release anything already created, and return false.
   bool setup_failed_(const char *what);
-  int snapshot_width_() override { return this->width_; }
-  int snapshot_height_() override { return this->height_; }
-  bool capture_bgr_(uint8_t *dest, size_t row_stride) override;
+  int snapshot_width() override { return this->width_; }
+  int snapshot_height() override { return this->height_; }
+  bool capture_bgr(uint8_t *dest, size_t row_stride) override;
   void handle_event_(const SDL_Event &event);
   /// The display owning the given window, or nullptr if it is not one of ours.
   static Sdl *instance_for_window_(uint32_t window_id);
-  int width_{};
-  int height_{};
-  uint32_t window_options_{0};
-  int32_t pos_x_{SDL_WINDOWPOS_UNDEFINED};
-  int32_t pos_y_{SDL_WINDOWPOS_UNDEFINED};
-  bool headless_{false};
-  int32_t snapshot_key_{0};
   SDL_Renderer *renderer_{};
   SDL_Window *window_{};
   SDL_Texture *texture_{};
@@ -83,11 +76,18 @@ class Sdl final : public display::Display, public snapshot::Snapshot {
   SDL_Surface *surface_{};
   // Capture target, created on first snapshot.
   SDL_Texture *shot_target_{};
+  std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
+  int width_{};
+  int height_{};
+  uint32_t window_options_{0};
+  int32_t pos_x_{SDL_WINDOWPOS_UNDEFINED};
+  int32_t pos_y_{SDL_WINDOWPOS_UNDEFINED};
+  int32_t snapshot_key_{0};
   uint16_t x_low_{0};
   uint16_t y_low_{0};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
-  std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
+  bool headless_{false};
 };
 
 }  // namespace esphome::sdl

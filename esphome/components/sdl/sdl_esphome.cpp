@@ -94,14 +94,16 @@ bool Sdl::setup_renderer_() {
   }
   if (this->renderer_ == nullptr)
     return this->setup_failed_("Could not create renderer");
-  SDL_RenderSetLogicalSize(this->renderer_, this->width_, this->height_);
+  if (SDL_RenderSetLogicalSize(this->renderer_, this->width_, this->height_) != 0)
+    return this->setup_failed_("Could not set renderer logical size");
   this->texture_ =
       SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
   if (this->texture_ == nullptr)
     return this->setup_failed_("Could not create texture");
   // The texture has no alpha channel, so blending is pointless. Headless it would also force a
   // different software blit path onto the 16 bit target surface.
-  SDL_SetTextureBlendMode(this->texture_, this->headless_ ? SDL_BLENDMODE_NONE : SDL_BLENDMODE_BLEND);
+  if (SDL_SetTextureBlendMode(this->texture_, this->headless_ ? SDL_BLENDMODE_NONE : SDL_BLENDMODE_BLEND) != 0)
+    return this->setup_failed_("Could not set texture blend mode");
   return true;
 }
 
@@ -115,8 +117,8 @@ void Sdl::setup() {
     this->disable_loop();
   } else if (this->snapshot_key_ != 0) {
     this->add_key_listener(this->snapshot_key_, [this](bool down) {
-      if (down)
-        this->take_snapshot(nullptr);
+      if (down && !this->take_snapshot(nullptr))
+        ESP_LOGW(TAG, "snapshot key did not write a file");
     });
   }
 }
@@ -301,7 +303,7 @@ void Sdl::loop() {
   }
 }
 
-bool Sdl::capture_bgr_(uint8_t *dest, size_t row_stride) {
+bool Sdl::capture_bgr(uint8_t *dest, size_t row_stride) {
   if (this->texture_ == nullptr || this->renderer_ == nullptr) {
     ESP_LOGE(TAG, "Snapshot requested but SDL is not set up");
     return false;
@@ -327,7 +329,12 @@ bool Sdl::capture_bgr_(uint8_t *dest, size_t row_stride) {
          SDL_RenderClear(this->renderer_) == 0 &&
          SDL_RenderCopy(this->renderer_, this->texture_, nullptr, nullptr) == 0 &&
          SDL_RenderReadPixels(this->renderer_, nullptr, SDL_PIXELFORMAT_BGR24, dest, static_cast<int>(row_stride)) == 0;
-    SDL_SetRenderTarget(this->renderer_, nullptr);
+    if (SDL_SetRenderTarget(this->renderer_, nullptr) != 0) {
+      // Stuck rendering into shot_target_ from here on, so there's no point continuing.
+      ESP_LOGE(TAG, "Could not restore the render target: %s", SDL_GetError());
+      this->mark_failed();
+      return false;
+    }
   }
   if (!ok)
     ESP_LOGE(TAG, "Could not capture the screen: %s", SDL_GetError());

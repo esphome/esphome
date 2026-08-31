@@ -36,10 +36,8 @@ bool has_bmp_suffix(const std::string &name) {
 
 /// Reduce a user supplied name to a single safe path component. Everything outside the allowed set
 /// is replaced, so "..", "/" and absolute paths cannot escape the snapshot directory.
-/// Sets *rewritten to true if the result is not simply "name" with a ".bmp" suffix appended, so the
-/// caller can warn rather than silently write somewhere the user did not ask for.
 /// Returns an empty string if nothing usable is left.
-std::string sanitize_name(const char *name, bool *rewritten) {
+std::string sanitise_filename(const char *const name, bool *name_changed) {
   std::string result;
   bool all_dots = true;
   bool changed = false;
@@ -58,12 +56,12 @@ std::string sanitize_name(const char *name, bool *rewritten) {
     result.push_back(c);
   }
   if (all_dots) {
-    *rewritten = true;
+    *name_changed = true;
     return "";
   }
   if (!has_bmp_suffix(result))
     result += ".bmp";
-  *rewritten = changed;
+  *name_changed = changed;
   return result;
 }
 
@@ -175,11 +173,15 @@ bool write_snapshot_file(const uint8_t *pixels, int width, int height, size_t ro
     return false;
   }
   bool ok = write_bmp(file, pixels, width, height, row_stride);
+  int saved_errno = ok ? 0 : errno;
   // Closing can fail in its own right - the last of the data is still on its way out.
-  if (fclose(file) != 0)
+  if (fclose(file) != 0) {
+    if (ok)
+      saved_errno = errno;
     ok = false;
+  }
   if (!ok) {
-    ESP_LOGE(TAG, "Could not write %s: %s", path.c_str(), strerror(errno));
+    ESP_LOGE(TAG, "Could not write %s: %s", path.c_str(), strerror(saved_errno));
     // Leave no truncated file behind - it would block a retry under the same name.
     ::unlink(path.c_str());
     return false;
@@ -190,9 +192,12 @@ bool write_snapshot_file(const uint8_t *pixels, int width, int height, size_t ro
 
 }  // namespace
 
+// helper function since ESP_LOGW is disallowed in a header file
+void Snapshot::log_action_failed() { ESP_LOGW(TAG, "snapshot.take did not write a file"); }
+
 bool Snapshot::take_snapshot(const char *filename) {
-  const int width = this->snapshot_width_();
-  const int height = this->snapshot_height_();
+  const int width = this->snapshot_width();
+  const int height = this->snapshot_height();
   if (width <= 0 || height <= 0) {
     ESP_LOGE(TAG, "Snapshot requested but the display is %dx%d", width, height);
     return false;
@@ -201,24 +206,32 @@ bool Snapshot::take_snapshot(const char *filename) {
   std::string name;
   bool exact = false;
   if (filename != nullptr) {
-    bool rewritten = false;
-    name = sanitize_name(filename, &rewritten);
+    bool name_changed = false;
+    name = sanitise_filename(filename, &name_changed);
     exact = !name.empty();
-    if (rewritten) {
-      ESP_LOGW(TAG, "Requested snapshot name '%s' is not a valid file name, using '%s' instead", filename,
+    if (name_changed) {
+      ESP_LOGW(TAG, "Requested snapshot name '%s' is not an acceptable file name, using '%s' instead", filename,
                name.empty() ? "a name made from the time" : name.c_str());
     }
   }
   if (name.empty()) {
     struct timespec now {};
-    clock_gettime(CLOCK_REALTIME, &now);
+    if (clock_gettime(CLOCK_REALTIME, &now) != 0)
+      now = {};
     struct tm tm_buf {};
-    localtime_r(&now.tv_sec, &tm_buf);
-    char stamp[32];
+    if (localtime_r(&now.tv_sec, &tm_buf) == nullptr)
+      tm_buf = {};
+    char stamp[32]{};
     // ::strftime to be sure of the one from <ctime>; display has an unrelated member of that name
-    ::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &tm_buf);
+    if (::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &tm_buf) == 0)
+      snprintf(stamp, sizeof(stamp), "unknown-time");
     char buffer[MAX_NAME_LENGTH];
-    snprintf(buffer, sizeof(buffer), "%s-%s-%03ld.bmp", this->snapshot_prefix_, stamp, now.tv_nsec / 1000000);
+    int written =
+        snprintf(buffer, sizeof(buffer), "%s-%s-%03ld.bmp", this->snapshot_prefix_, stamp, now.tv_nsec / 1000000);
+    if (written < 0 || static_cast<size_t>(written) >= sizeof(buffer)) {
+      ESP_LOGW(TAG, "Could not build a timestamped snapshot name, using a fallback");
+      snprintf(buffer, sizeof(buffer), "snapshot.bmp");
+    }
     name = buffer;
   }
 
@@ -226,7 +239,7 @@ bool Snapshot::take_snapshot(const char *filename) {
   // written straight from the buffer. Zeroed on allocation, which is what the padding must be.
   const size_t row_stride = bmp_row_size(width);
   auto pixels = std::make_unique<uint8_t[]>(row_stride * height);
-  if (!this->capture_bgr_(pixels.get(), row_stride))
+  if (!this->capture_bgr(pixels.get(), row_stride))
     return false;
   return write_snapshot_file(pixels.get(), width, height, row_stride, name, exact);
 }
