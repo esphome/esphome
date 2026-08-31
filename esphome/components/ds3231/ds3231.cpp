@@ -480,6 +480,18 @@ bool DS3231Component::get_alarm_2(DS3231Alarm2Mode &mode, DS3231AlarmSpec &spec)
   return true;
 }
 
+// Abbreviated weekday name (locale-aware, via strftime %a) for an ESPTime day-of-week
+// (1=Sunday..7=Saturday); falls back to "day N" if the value is out of range.
+static void format_alarm_weekday(char *buf, size_t len, uint8_t day_of_week) {
+  if (day_of_week >= 1 && day_of_week <= 7) {
+    ESPTime t{};
+    t.day_of_week = day_of_week;
+    if (t.strftime(buf, len, "%a") != 0)
+      return;
+  }
+  snprintf(buf, len, "day %u", day_of_week);
+}
+
 bool DS3231Component::describe_alarm_1(char *buf, size_t len) {
   DS3231Alarm1Mode mode;
   DS3231AlarmSpec s;
@@ -501,9 +513,12 @@ bool DS3231Component::describe_alarm_1(char *buf, size_t len) {
     case DS3231Alarm1Mode::DS3231_ALARM_1_MODE_MATCH_DAY_OF_MONTH:
       snprintf(buf, len, "day %d at %02d:%02d:%02d", s.day, s.hour, s.minute, s.second);
       break;
-    case DS3231Alarm1Mode::DS3231_ALARM_1_MODE_MATCH_DAY_OF_WEEK:
-      snprintf(buf, len, "weekday %d at %02d:%02d:%02d", s.day, s.hour, s.minute, s.second);
+    case DS3231Alarm1Mode::DS3231_ALARM_1_MODE_MATCH_DAY_OF_WEEK: {
+      char day[16];
+      format_alarm_weekday(day, sizeof(day), s.day);
+      snprintf(buf, len, "every %s at %02d:%02d:%02d", day, s.hour, s.minute, s.second);
       break;
+    }
   }
   return true;
 }
@@ -526,9 +541,12 @@ bool DS3231Component::describe_alarm_2(char *buf, size_t len) {
     case DS3231Alarm2Mode::DS3231_ALARM_2_MODE_MATCH_DAY_OF_MONTH:
       snprintf(buf, len, "day %d at %02d:%02d", s.day, s.hour, s.minute);
       break;
-    case DS3231Alarm2Mode::DS3231_ALARM_2_MODE_MATCH_DAY_OF_WEEK:
-      snprintf(buf, len, "weekday %d at %02d:%02d", s.day, s.hour, s.minute);
+    case DS3231Alarm2Mode::DS3231_ALARM_2_MODE_MATCH_DAY_OF_WEEK: {
+      char day[16];
+      format_alarm_weekday(day, sizeof(day), s.day);
+      snprintf(buf, len, "every %s at %02d:%02d", day, s.hour, s.minute);
       break;
+    }
   }
   return true;
 }
