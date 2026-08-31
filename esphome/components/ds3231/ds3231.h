@@ -168,6 +168,9 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_DS3231_32KHZ_OUTPUT
   bool set_32khz_output(bool enabled);
   bool get_32khz_output() const { return (this->status_reg_ & STATUS_EN32KHZ) != 0; }
+#ifdef USE_DS3231_SWITCH
+  void set_enable_32khz_switch(switch_::Switch *sw) { this->enable_32khz_switch_ = sw; }
+#endif
 #endif
 
 #ifdef USE_DS3231_AGING_OFFSET
@@ -213,6 +216,10 @@ class DS3231Component final : public PollingComponent, public i2c::I2CDevice {
 
   uint8_t control_reg_{0};
   uint8_t status_reg_{0};
+
+#if defined(USE_DS3231_32KHZ_OUTPUT) && defined(USE_DS3231_SWITCH)
+  switch_::Switch *enable_32khz_switch_{nullptr};
+#endif
 
 #ifdef USE_DS3231_BINARY_SENSOR
   binary_sensor::BinarySensor *oscillator_stopped_binary_sensor_{nullptr};

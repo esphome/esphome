@@ -75,6 +75,13 @@ void DS3231Component::setup() {
   if (this->get_oscillator_stopped()) {
     ESP_LOGW(TAG, "Oscillator stop flag set - the clock lost power and the time is not reliable.");
   }
+
+#if defined(USE_DS3231_32KHZ_OUTPUT) && defined(USE_DS3231_SWITCH)
+  // Publish the real chip state now; polling (if enabled) keeps it in step afterwards.
+  if (this->enable_32khz_switch_ != nullptr) {
+    this->enable_32khz_switch_->publish_state(this->get_32khz_output());
+  }
+#endif
 }
 
 void DS3231Component::update() {
@@ -99,6 +106,12 @@ void DS3231Component::update() {
 #ifdef USE_DS3231_BINARY_SENSOR
   if (this->oscillator_stopped_binary_sensor_ != nullptr) {
     this->oscillator_stopped_binary_sensor_->publish_state(this->get_oscillator_stopped());
+  }
+#endif
+
+#if defined(USE_DS3231_32KHZ_OUTPUT) && defined(USE_DS3231_SWITCH)
+  if (this->enable_32khz_switch_ != nullptr) {
+    this->enable_32khz_switch_->publish_state(this->get_32khz_output());
   }
 #endif
 
@@ -152,6 +165,9 @@ void DS3231Component::dump_config() {
 #if defined(USE_DS3231_ALARM) && defined(USE_DS3231_SWITCH)
   LOG_SWITCH("  ", "Alarm 1 enabled", this->alarm_1_switch_);
   LOG_SWITCH("  ", "Alarm 2 enabled", this->alarm_2_switch_);
+#endif
+#if defined(USE_DS3231_32KHZ_OUTPUT) && defined(USE_DS3231_SWITCH)
+  LOG_SWITCH("  ", "32 kHz output", this->enable_32khz_switch_);
 #endif
 #if defined(USE_DS3231_SQUARE_WAVE) && defined(USE_DS3231_SELECT)
   LOG_SELECT("  ", "INT/SQW output mode", this->output_mode_select_);

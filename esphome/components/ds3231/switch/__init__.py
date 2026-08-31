@@ -56,8 +56,10 @@ async def to_code(config: ConfigType) -> None:
 
     if (conf := config.get(CONF_ENABLE_32KHZ_OUTPUT)) is not None:
         cg.add_define(USE_DS3231_32KHZ_OUTPUT)
+        cg.add_define(USE_DS3231_SWITCH)
         var = await switch.new_switch(conf)
         await cg.register_parented(var, config[CONF_DS3231_ID])
+        cg.add(parent.set_enable_32khz_switch(var))
 
     for key, alarm, setter in (
         (CONF_ALARM_1, 1, "set_alarm_1_switch"),
