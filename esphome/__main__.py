@@ -1670,18 +1670,24 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import toolchain
-
-            program_path = str(toolchain.get_elf_path())
-        else:
-            from esphome.platformio.toolchain import get_idedata
-
-            program_path = str(get_idedata(config).firmware_elf_path)
-        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+        _LOGGER.info(
+            "Successfully compiled program to path '%s'", _host_program_path(config)
+        )
     else:
         _LOGGER.info("Successfully compiled program.")
     return 0
+
+
+def _host_program_path(config: ConfigType) -> str:
+    """Return the compiled host ELF path."""
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import toolchain
+
+        return str(toolchain.get_elf_path())
+    from esphome.platformio.toolchain import get_idedata
+
+    # Memoized by compile_program's own call; this is a dict lookup
+    return str(get_idedata(config).firmware_elf_path)
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1728,14 +1734,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import toolchain
-
-            program_path = str(toolchain.get_elf_path())
-        else:
-            from esphome.platformio.toolchain import get_idedata
-
-            program_path = str(get_idedata(config).firmware_elf_path)
+        program_path = _host_program_path(config)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
