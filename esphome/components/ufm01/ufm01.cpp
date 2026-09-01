@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <array>
 #include <cinttypes>
 #include <cstring>
@@ -84,31 +85,25 @@ static constexpr size_t SOFTWARE_VERSION_STOP_INDEX = 6;
 
 static float to_float(uint8_t data) { return (data >> 4) * 10 + (data & 0x0F); }
 
-static bool decode_decimal_nibbles(const uint8_t *data, size_t len, uint64_t *result) {
-  uint64_t value = 0;
-  uint64_t multiplier = 1;
-
+static bool bcd_to_digits(const uint8_t *data, size_t len, char *out) {
+  bool all_zero = true;
   for (size_t i = 0; i < len; ++i) {
-    const uint8_t low_nibble = data[i] & 0x0F;
-    const uint8_t high_nibble = (data[i] >> 4) & 0x0F;
-    if (low_nibble > 9 || high_nibble > 9)
+    const uint8_t lo = data[i] & 0x0F;
+    const uint8_t hi = data[i] >> 4;
+    if (lo > 9 || hi > 9)
       return false;
-    value += low_nibble * multiplier;
-    multiplier *= 10;
-    value += high_nibble * multiplier;
-    multiplier *= 10;
+    const size_t pos = (len - 1 - i) * 2;
+    if (hi != 0)
+      all_zero = false;
+    out[pos] = static_cast<char>('0' + hi);
+    if (lo != 0)
+      all_zero = false;
+    out[pos + 1] = static_cast<char>('0' + lo);
   }
-
-  *result = value;
+  out[len * 2] = '\0';
+  if (all_zero)
+    return false;
   return true;
-}
-
-static void format_decimal_digits(uint64_t value, size_t width, char *buffer) {
-  for (size_t i = width; i > 0; --i) {
-    buffer[i - 1] = static_cast<char>('0' + (value % 10));
-    value /= 10;
-  }
-  buffer[width] = '\0';
 }
 
 static bool validate_software_version_response(const uint8_t data[SOFTWARE_VERSION_RESPONSE_SIZE]) {
@@ -149,7 +144,7 @@ static bool validate_passive_frame(const uint8_t data[PASSIVE_FRAME_SIZE]) {
   return data[21] == (sum & 0xFF);
 }
 
-#ifdef USE_UFM01_DEVICE_ID
+#ifdef USE_UFM01_METER_ID
 static bool validate_passive_with_id_frame(const uint8_t data[PASSIVE_FRAME_WITH_ID_SIZE]) {
   if (data[0] != FRAME_START_BYTE_1 || data[1] != PASSIVE_START_BYTE_2_WITH_ID ||
       data[PASSIVE_WITH_ID_STOP_INDEX] != FRAME_STOP_BYTE)
@@ -182,7 +177,7 @@ static void passive_no_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_SI
   active[31] = FRAME_STOP_BYTE;
 }
 
-#ifdef USE_UFM01_DEVICE_ID
+#ifdef USE_UFM01_METER_ID
 static void passive_with_id_to_active_frame(const uint8_t passive[PASSIVE_FRAME_WITH_ID_SIZE],
                                             uint8_t active[FRAME_SIZE]) {
   std::memset(active, 0, FRAME_SIZE);
@@ -221,8 +216,10 @@ static float read_flow(const uint8_t data[FRAME_SIZE]) {
          M3_PER_L;
 }
 
+static constexpr size_t LOG_HEX_MAX_SIZE = std::max(FRAME_SIZE, PASSIVE_FRAME_MAX_SIZE);
+
 static void log_hex(const uint8_t *data, size_t len) {
-  char hex_buf[format_hex_pretty_size(PASSIVE_FRAME_MAX_SIZE)];
+  char hex_buf[format_hex_pretty_size(LOG_HEX_MAX_SIZE)];
   ESP_LOGD(TAG, "%s", format_hex_pretty_to(hex_buf, data, len, ' '));
 }
 
@@ -279,7 +276,7 @@ bool UFM01Component::can_start_clear_action_() const {
     case OperatingMode::ACTIVE_STREAM:
       return true;
     case OperatingMode::PASSIVE_POLL:
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
       return !this->passive_read_pending_ && !this->software_version_read_pending_;
 #else
       return !this->passive_read_pending_;
@@ -294,7 +291,6 @@ bool UFM01Component::can_start_clear_action_() const {
 void UFM01Component::request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action) {
   if (this->pending_clear_action_ != nullptr) {
     ESP_LOGW(TAG, "Clear accumulated flow already in progress, ignoring request");
-    action->complete();
     return;
   }
   this->pending_clear_action_ = action;
@@ -366,8 +362,10 @@ void UFM01Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "Empty Tube", this->empty_tube_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flow Rate Out Of Range", this->flow_rate_out_of_range_binary_sensor_);
 #endif
-#ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("  ", "Device ID", this->device_id_text_sensor_);
+#ifdef USE_UFM01_METER_ID
+  LOG_TEXT_SENSOR("  ", "Meter ID", this->meter_id_text_sensor_);
+#endif
+#ifdef USE_UFM01_SOFTWARE_VERSION
   LOG_TEXT_SENSOR("  ", "Software Version", this->software_version_text_sensor_);
 #endif
   this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
@@ -382,26 +380,22 @@ void UFM01Component::publish_stale_flow_and_temperature_() {
 #endif
 }
 
-#if defined(USE_UFM01_DEVICE_ID) && defined(USE_TEXT_SENSOR)
-void UFM01Component::publish_device_id_from_frame_(const uint8_t data[FRAME_SIZE]) {
-  if (this->device_id_text_sensor_ == nullptr || this->device_id_published_)
+#if defined(USE_UFM01_METER_ID)
+void UFM01Component::publish_meter_id_from_frame_(const uint8_t data[FRAME_SIZE]) {
+  if (this->meter_id_text_sensor_ == nullptr || this->meter_id_published_)
     return;
 
-  uint64_t device_id = 0;
-  if (!decode_decimal_nibbles(&data[FRAME_DEVICE_ID_INDEX], DEVICE_ID_LENGTH, &device_id))
-    return;
-  if (device_id == 0)
+  char meter_id_str[DEVICE_ID_STRING_LENGTH + 1];
+  if (!bcd_to_digits(&data[FRAME_DEVICE_ID_INDEX], DEVICE_ID_LENGTH, meter_id_str))
     return;
 
-  char device_id_str[DEVICE_ID_STRING_LENGTH + 1];
-  format_decimal_digits(device_id, DEVICE_ID_STRING_LENGTH, device_id_str);
-  this->device_id_text_sensor_->publish_state(device_id_str);
-  this->device_id_published_ = true;
-  ESP_LOGI(TAG, "UFM-01 device ID: %s", device_id_str);
+  this->meter_id_text_sensor_->publish_state(meter_id_str);
+  this->meter_id_published_ = true;
+  ESP_LOGI(TAG, "UFM-01 meter ID: %s", meter_id_str);
 }
 #endif
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
 void UFM01Component::start_software_version_read_() {
   this->send_command_no_wait_(GET_SOFTWARE_VERSION);
   this->software_version_index_ = 0;
@@ -432,13 +426,11 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
   }
 
   if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
-    uint64_t version = 0;
-    if (!decode_decimal_nibbles(&this->software_version_frame_[1], SOFTWARE_VERSION_LENGTH, &version)) {
+    char version_str[SOFTWARE_VERSION_STRING_LENGTH + 1];
+    if (!bcd_to_digits(&this->software_version_frame_[1], SOFTWARE_VERSION_LENGTH, version_str)) {
       ESP_LOGW(TAG, "invalid BCD data in software version response");
       return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE;
     }
-    char version_str[SOFTWARE_VERSION_STRING_LENGTH + 1];
-    format_decimal_digits(version, SOFTWARE_VERSION_STRING_LENGTH, version_str);
     this->software_version_text_sensor_->publish_state(version_str);
     this->software_version_published_ = true;
     ESP_LOGI(TAG, "UFM-01 software version: %s", version_str);
@@ -446,11 +438,11 @@ SoftwareVersionReadResult UFM01Component::continue_software_version_read_() {
 
   return SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS;
 }
-#endif  // USE_TEXT_SENSOR
+#endif  // USE_UFM01_SOFTWARE_VERSION
 
 void UFM01Component::on_active_frame_(uint8_t data[FRAME_SIZE]) {
-#if defined(USE_UFM01_DEVICE_ID) && defined(USE_TEXT_SENSOR)
-  this->publish_device_id_from_frame_(data);
+#if defined(USE_UFM01_METER_ID)
+  this->publish_meter_id_from_frame_(data);
 #endif
   bool empty_tube = read_empty_tube(data);
 #ifdef USE_BINARY_SENSOR
@@ -537,7 +529,7 @@ void UFM01Component::enter_active_stream_(const char *reason) {
   ESP_LOGI(TAG, "UFM-01 active stream %s", reason);
   this->operating_mode_ = OperatingMode::ACTIVE_STREAM;
   this->passive_read_pending_ = false;
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
   this->software_version_read_pending_ = false;
 #endif
   this->consecutive_passive_failures_ = 0;
@@ -561,7 +553,7 @@ void UFM01Component::restart_startup_(const char *reason) {
   this->publish_stale_flow_and_temperature_();
   this->operating_mode_ = OperatingMode::STARTUP;
   this->passive_read_pending_ = false;
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
   this->software_version_read_pending_ = false;
 #endif
   this->consecutive_passive_failures_ = 0;
@@ -585,7 +577,7 @@ void UFM01Component::note_passive_poll_result_(PassiveReadResult result) {
   this->restart_startup_("Passive poll failed repeatedly");
 }
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
 void UFM01Component::try_pending_software_version_read_() {
   if (this->software_version_text_sensor_ == nullptr || this->software_version_published_ ||
       this->software_version_read_pending_ || this->passive_read_pending_)
@@ -599,7 +591,7 @@ void UFM01Component::try_pending_software_version_read_() {
 #endif
 
 size_t UFM01Component::passive_expected_frame_size_() const {
-#ifdef USE_UFM01_DEVICE_ID
+#ifdef USE_UFM01_METER_ID
   return this->passive_expects_id_ ? PASSIVE_FRAME_WITH_ID_SIZE : PASSIVE_FRAME_SIZE;
 #else
   return PASSIVE_FRAME_SIZE;
@@ -607,8 +599,8 @@ size_t UFM01Component::passive_expected_frame_size_() const {
 }
 
 void UFM01Component::start_passive_read_() {
-#if defined(USE_UFM01_DEVICE_ID) && defined(USE_TEXT_SENSOR)
-  if (this->device_id_text_sensor_ != nullptr && !this->device_id_published_) {
+#if defined(USE_UFM01_METER_ID)
+  if (this->meter_id_text_sensor_ != nullptr && !this->meter_id_published_) {
     this->passive_expects_id_ = true;
     this->send_command_no_wait_(READ_SENSOR_DATA_WITH_ID);
   } else {
@@ -625,7 +617,7 @@ void UFM01Component::start_passive_read_() {
 // Accumulates the reply to a passive read request across loop iterations.
 PassiveReadResult UFM01Component::continue_passive_read_() {
   const size_t expected_size = this->passive_expected_frame_size_();
-#ifdef USE_UFM01_DEVICE_ID
+#ifdef USE_UFM01_METER_ID
   const uint8_t expected_start_byte_2 = this->passive_expects_id_ ? PASSIVE_START_BYTE_2_WITH_ID : PASSIVE_START_BYTE_2;
 #else
   const uint8_t expected_start_byte_2 = PASSIVE_START_BYTE_2;
@@ -654,7 +646,7 @@ PassiveReadResult UFM01Component::continue_passive_read_() {
   }
 
   uint8_t active_frame[FRAME_SIZE];
-#ifdef USE_UFM01_DEVICE_ID
+#ifdef USE_UFM01_METER_ID
   if (this->passive_expects_id_) {
     if (!validate_passive_with_id_frame(this->passive_frame_)) {
       log_hex(this->passive_frame_, PASSIVE_FRAME_WITH_ID_SIZE);
@@ -683,7 +675,7 @@ void UFM01Component::loop_startup_() {
     case StartupPhase::WAIT:
       // Pick up an already-streaming device without resetting it
       if (this->process_active_stream_()) {
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
         if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
           this->start_software_version_read_();
           this->set_startup_phase_(StartupPhase::SOFTWARE_VERSION_WAIT_REPLY);
@@ -729,7 +721,7 @@ void UFM01Component::loop_startup_() {
     case StartupPhase::POST_RESET_WAIT:
       if (elapsed < POST_RESET_DELAY_MS)
         return;
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
       if (this->software_version_text_sensor_ != nullptr && !this->software_version_published_) {
         this->start_software_version_read_();
         this->set_startup_phase_(StartupPhase::SOFTWARE_VERSION_WAIT_REPLY);
@@ -740,7 +732,7 @@ void UFM01Component::loop_startup_() {
       this->set_startup_phase_(StartupPhase::ACTIVE_WAIT_FRAME);
       return;
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
     case StartupPhase::SOFTWARE_VERSION_WAIT_REPLY:
       switch (this->continue_software_version_read_()) {
         case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
@@ -803,7 +795,29 @@ void UFM01Component::loop_startup_() {
 }
 
 void UFM01Component::loop_active_stream_() {
+#ifdef USE_UFM01_SOFTWARE_VERSION
+  if (this->software_version_read_pending_) {
+    switch (this->continue_software_version_read_()) {
+      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
+        return;
+      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_SUCCESS:
+      case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_FAILURE:
+        this->software_version_read_pending_ = false;
+        this->last_software_version_attempt_ms_ = millis();
+        break;
+    }
+    return;
+  }
+#endif
+
   this->process_active_stream_();
+
+#ifdef USE_UFM01_SOFTWARE_VERSION
+  this->try_pending_software_version_read_();
+  if (this->software_version_read_pending_)
+    return;
+#endif
+
   if (this->last_valid_frame_ms_ != 0 && millis() - this->last_valid_frame_ms_ > ACTIVE_STALE_MS) {
     this->enter_passive_from_stale_();
   }
@@ -822,7 +836,7 @@ void UFM01Component::loop_entering_passive_() {
 }
 
 void UFM01Component::loop_passive_poll_() {
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
   if (this->software_version_read_pending_) {
     switch (this->continue_software_version_read_()) {
       case SoftwareVersionReadResult::SOFTWARE_VERSION_READ_RESULT_PENDING:
@@ -853,7 +867,7 @@ void UFM01Component::loop_passive_poll_() {
 
   if (millis() - this->last_poll_ms_ >= PASSIVE_POLL_INTERVAL_MS) {
     this->last_poll_ms_ = millis();
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
     this->try_pending_software_version_read_();
     if (this->software_version_read_pending_)
       return;
