@@ -21,7 +21,7 @@ GPI_KEY_MIN = 97
 GPI_KEY_MAX = 114
 
 TCA8418BinarySensor = tca8418_ns.class_(
-    "TCA8418BinarySensor", binary_sensor.BinarySensor
+    "TCA8418BinarySensor", binary_sensor.BinarySensorInitiallyOff
 )
 
 
