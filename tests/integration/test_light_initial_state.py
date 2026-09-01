@@ -10,13 +10,8 @@ import pytest
 from .state_utils import InitialStateHelper, require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-
-@pytest.fixture(autouse=True)
-def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Keep host preferences per-test so RESTORE_AND_ON never loads a stale value left
-    behind by a previous run (host preferences otherwise persist to ~/.esphome/prefs,
-    keyed only by device name)."""
-    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))
+# RESTORE_AND_ON must never load a stale value left behind by a previous run
+pytestmark = pytest.mark.usefixtures("isolated_preferences")
 
 
 @pytest.mark.asyncio

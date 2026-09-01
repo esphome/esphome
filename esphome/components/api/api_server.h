@@ -85,9 +85,6 @@ class APIServer final : public Component,
 #ifdef USE_API_OUTGOING_CONNECTION
   // Called by APIConnection when a client declares itself a dial-back target in its hello
   void on_outgoing_target_client(APIConnection *conn);
-  // Called by APIConnection on authentication so dialed sessions feed the
-  // reboot watchdog only once they are real
-  void on_client_authenticated();
 #endif
 
   void handle_disconnect(APIConnection *conn);

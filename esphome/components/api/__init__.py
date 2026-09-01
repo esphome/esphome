@@ -294,17 +294,16 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_outgoing_connection_platform(value: ConfigType) -> ConfigType:
+def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
+    if CONF_OUTGOING_CONNECTION not in config:
+        return config
     if CORE.is_esp8266 or CORE.is_rp2:
         raise cv.Invalid(
             "outgoing_connection is not supported on this platform because its "
-            "socket layer cannot make outgoing connections"
+            "socket layer cannot make outgoing connections",
+            path=[CONF_OUTGOING_CONNECTION],
         )
-    return value
-
-
-def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
-    if CONF_OUTGOING_CONNECTION in config and CONF_ENCRYPTION not in config:
+    if CONF_ENCRYPTION not in config:
         raise cv.Invalid(
             "outgoing_connection requires 'encryption' so the peer is verified by key",
             path=[CONF_OUTGOING_CONNECTION],
@@ -312,17 +311,12 @@ def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
     return config
 
 
-OUTGOING_CONNECTION_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_HOST): cv.ipaddress,
-            cv.Optional(CONF_PORT, default=6054): cv.port,
-            cv.Optional(
-                CONF_DELAY, default="60s"
-            ): cv.positive_time_period_milliseconds,
-        }
-    ),
-    _validate_outgoing_connection_platform,
+OUTGOING_CONNECTION_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_HOST): cv.ipaddress,
+        cv.Optional(CONF_PORT, default=6054): cv.port,
+        cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
+    }
 )
 
 

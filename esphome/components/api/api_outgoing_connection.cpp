@@ -21,12 +21,20 @@ static const char *const TAG = "api.outgoing";
 void OutgoingConnectionManager::setup() {
 #ifndef API_OUTGOING_CONNECTION_HOST
   this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
-  if (this->target_pref_.load(&this->saved_)) {
-    // Defend against a corrupt or truncated preference blob
-    this->saved_.host[socket::SOCKADDR_STR_LEN - 1] = '\0';
-  } else {
-    this->saved_.host[0] = '\0';
+  if (!this->target_pref_.load(&this->saved_)) {
+    this->saved_ = {};
   }
+  // Defend against a corrupt or truncated preference blob
+  this->saved_.host[socket::SOCKADDR_STR_LEN - 1] = '\0';
+#ifndef USE_NETWORK_IPV6
+  if (strchr(this->saved_.host, ':') != nullptr) {
+    // Remembered by an earlier IPv6 build; set_sockaddr() would silently
+    // turn it into 255.255.255.255
+    ESP_LOGW(TAG, "Clearing unusable IPv6 target %s", this->saved_.host);
+    this->saved_ = {};
+    this->target_pref_.save(&this->saved_);
+  }
+#endif
 #endif
 }
 
@@ -43,9 +51,7 @@ void OutgoingConnectionManager::loop(APIServer *server) {
   switch (this->state_) {
     case DialState::DIAL_STATE_IDLE:
       // Target went away; give it the configured delay to reconnect first
-      this->state_ = DialState::DIAL_STATE_WAITING;
-      this->state_ts_ = now;
-      this->wait_ = API_OUTGOING_CONNECTION_DELAY;
+      this->schedule_wait_(now, API_OUTGOING_CONNECTION_DELAY);
       break;
     case DialState::DIAL_STATE_WAITING:
       if (now - this->state_ts_ >= this->wait_) {
@@ -66,26 +72,19 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     return;
   }
   const char *host = this->target_host_();
-  if (host == nullptr || server->at_client_limit_() || !server->noise_ctx_.has_psk()) {
-    ESP_LOGD(TAG, "Not dialing: %s",
-             host == nullptr              ? "no target"
-             : server->at_client_limit_() ? "max connections"
-                                          : "no key");
+  if (host == nullptr) {
+    // The steady state until a dial-back client has ever connected
+    ESP_LOGV(TAG, "Not dialing: no target");
+    this->schedule_wait_(now, PRECONDITION_RETRY_MS);
+    return;
+  }
+  const bool at_limit = server->at_client_limit_();
+  if (at_limit || !server->noise_ctx_.has_psk()) {
+    ESP_LOGD(TAG, "Not dialing: %s", at_limit ? "max connections" : "no key");
     // Not a dial failure; retry without escalating the backoff
     this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     return;
   }
-#if !defined(USE_NETWORK_IPV6) && !defined(API_OUTGOING_CONNECTION_HOST)
-  if (strchr(host, ':') != nullptr) {
-    // Remembered by an earlier IPv6 build; set_sockaddr() would silently
-    // turn it into 255.255.255.255 here
-    ESP_LOGW(TAG, "Clearing unusable IPv6 target %s", host);
-    this->saved_.host[0] = '\0';
-    this->target_pref_.save(&this->saved_);
-    this->schedule_wait_(now, PRECONDITION_RETRY_MS);
-    return;
-  }
-#endif
   struct sockaddr_storage addr;
   socklen_t addr_len =
       socket::set_sockaddr((struct sockaddr *) &addr, sizeof(addr), host, API_OUTGOING_CONNECTION_PORT);
@@ -104,13 +103,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   int err = this->dial_socket_->connect((struct sockaddr *) &addr, addr_len);
   if (err == 0) {
     // Immediate success (possible for localhost)
-    this->dialed_conn_ = server->add_outgoing_client_(std::move(this->dial_socket_));
-    if (this->dialed_conn_ == nullptr) {
-      this->schedule_retry_(now);
-    } else {
-      this->dial_handoff_ts_ = now;
-      this->schedule_wait_(now, PRECONDITION_RETRY_MS);
-    }
+    this->handoff_(server, now);
     return;
   }
   if (errno != EINPROGRESS) {
@@ -134,8 +127,8 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   }
   this->last_poll_ = now;
   int fd = this->dial_socket_->get_fd();
-  if (fd < 0 || fd >= FD_SETSIZE) {
-    ESP_LOGW(TAG, "Bad fd for connect poll: %d", fd);
+  if (fd >= FD_SETSIZE) {
+    ESP_LOGW(TAG, "fd %d out of select range", fd);
     this->schedule_retry_(now);
     return;
   }
@@ -171,35 +164,42 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     this->schedule_retry_(now);
     return;
   }
+  this->handoff_(server, now);
+}
+
+void OutgoingConnectionManager::handoff_(APIServer *server, uint32_t now) {
   this->dialed_conn_ = server->add_outgoing_client_(std::move(this->dial_socket_));
   if (this->dialed_conn_ == nullptr) {
     this->schedule_retry_(now);
     return;
   }
-  this->dial_handoff_ts_ = now;
-  // Hold unescalated until the peer proves itself or dies unproven
-  this->schedule_wait_(now, PRECONDITION_RETRY_MS);
+  // Connected; dialed_conn_ gates further dialing until the session settles
+  this->state_ = DialState::DIAL_STATE_IDLE;
 }
 
-void OutgoingConnectionManager::schedule_retry_(uint32_t now) {
+void OutgoingConnectionManager::schedule_wait_(uint32_t now, uint32_t wait) {
   this->dial_socket_.reset();  // no-op when the socket was handed off
   this->state_ = DialState::DIAL_STATE_WAITING;
   this->state_ts_ = now;
+  this->wait_ = wait;
+}
+
+void OutgoingConnectionManager::schedule_retry_(uint32_t now) {
   // +/-20% jitter so a fleet of devices does not retry one server in lockstep
   const uint32_t jitter_span = this->backoff_ / 5;
-  this->wait_ = this->backoff_ - jitter_span + (random_uint32() % (2 * jitter_span + 1));
+  this->schedule_wait_(now, this->backoff_ - jitter_span + (random_uint32() % (2 * jitter_span + 1)));
   this->backoff_ = std::min(this->backoff_ * 2, BACKOFF_MAX_MS);
 }
 
-void OutgoingConnectionManager::on_client_removed(APIConnection *conn) {
+void OutgoingConnectionManager::on_client_removed(APIConnection *conn, bool was_authenticated) {
   if (conn != this->dialed_conn_) {
     return;
   }
   this->dialed_conn_ = nullptr;
   const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->dial_handoff_ts_ >= DIAL_PROVEN_MS) {
-    // Outlived the handshake timeout, so it authenticated: a working peer
-    // (e.g. a host: target that never sends the flag) disconnected normally
+  if (was_authenticated) {
+    // A working peer (e.g. a host: target that never sends the flag)
+    // disconnected normally
     this->backoff_ = BACKOFF_MIN_MS;
     this->schedule_wait_(now, API_OUTGOING_CONNECTION_DELAY);
   } else {
@@ -238,16 +238,15 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
 }
 
 void OutgoingConnectionManager::dump_config() const {
-  ESP_LOGCONFIG(TAG, "  Outgoing connection port: %u", API_OUTGOING_CONNECTION_PORT);
 #ifdef API_OUTGOING_CONNECTION_HOST
-  ESP_LOGCONFIG(TAG, "  Outgoing connection host: %s", API_OUTGOING_CONNECTION_HOST);
+  const char *host = API_OUTGOING_CONNECTION_HOST;
 #else
-  if (this->saved_.host[0] != '\0') {
-    ESP_LOGCONFIG(TAG, "  Outgoing connection host: %s (remembered)", this->saved_.host);
-  } else {
-    ESP_LOGCONFIG(TAG, "  Outgoing connection host: none remembered yet");
-  }
+  const char *host = this->saved_.host[0] != '\0' ? this->saved_.host : "none remembered yet";
 #endif
+  ESP_LOGCONFIG(TAG,
+                "  Outgoing connection port: %u\n"
+                "  Outgoing connection host: %s",
+                API_OUTGOING_CONNECTION_PORT, host);
 }
 
 }  // namespace esphome::api

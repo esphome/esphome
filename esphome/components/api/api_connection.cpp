@@ -1784,9 +1784,6 @@ void APIConnection::complete_authentication_() {
     zwave_proxy::global_zwave_proxy->api_connection_authenticated(this);
   }
 #endif
-#ifdef USE_API_OUTGOING_CONNECTION
-  this->parent_->on_client_authenticated();
-#endif
 }
 
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {

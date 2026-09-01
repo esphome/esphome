@@ -702,3 +702,11 @@ async def run_compiled(
         )
 
     yield _run_compiled
+
+
+@pytest.fixture
+def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Point host preferences at a per-test dir so every run starts clean
+    (host preferences otherwise persist to ~/.esphome/prefs, keyed only by
+    device name)."""
+    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))

@@ -376,11 +376,18 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
 #ifdef USE_API_OUTGOING_CONNECTION
-  /// Outgoing connection: the noise helper sends its server hello
-  /// first so the peer can pick the matching key. Outgoing connections are only
-  /// dialed when a PSK is set, so the helper is always the noise helper.
-  /// Must be called before start().
-  void mark_outgoing() { static_cast<APINoiseFrameHelper *>(this->helper_.get())->set_server_hello_first(); }
+  /// Outgoing connection: send our server hello immediately so the peer can
+  /// pick the matching key. Outgoing connections are only dialed when a PSK
+  /// is set, so the helper is always the noise helper. Call after start().
+  void mark_outgoing() {
+    if (this->flags_.remove) {
+      return;  // start() failed; the connection is already being torn down
+    }
+    APIError err = static_cast<APINoiseFrameHelper *>(this->helper_.get())->send_server_hello_first();
+    if (err != APIError::OK) {
+      this->fatal_error_with_log_(LOG_STR("Server hello failed"), err);
+    }
+  }
 #endif
 
  protected:

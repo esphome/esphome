@@ -35,12 +35,9 @@ class OutgoingConnectionManager {
   void loop(APIServer *server);
   /// A key-verified client declared itself a dial-back target; last one wins
   void on_target_client(APIConnection *conn);
-  /// Clears the dialed-connection gate; dying unproven escalates the backoff
-  void on_client_removed(APIConnection *conn);
-  void on_shutdown() {
-    this->dial_socket_.reset();
-    this->state_ = DialState::DIAL_STATE_IDLE;
-  }
+  /// Clears the dialed-connection gate; dying unauthenticated escalates the backoff
+  void on_client_removed(APIConnection *conn, bool was_authenticated);
+  void on_shutdown() { this->dial_socket_.reset(); }
   void dump_config() const;
 
  protected:
@@ -55,21 +52,23 @@ class OutgoingConnectionManager {
   static constexpr uint32_t CONNECT_TIMEOUT_MS = 10000;
   static constexpr uint32_t CONNECT_POLL_INTERVAL_MS = 250;
   static constexpr uint32_t NETWORK_RETRY_MS = 500;
-  // Longer than the 60s handshake timeout: a dialed session still alive past
-  // this authenticated, so its death is a normal disconnect, not a bad dial
-  static constexpr uint32_t DIAL_PROVEN_MS = 65000;
+  static constexpr uint32_t PRECONDITION_RETRY_MS = 5000;
+  // Boot waits for the client to connect in first; a deep sleep wake window
+  // is short, so connecting out immediately is the wake state
+#ifdef USE_DEEP_SLEEP
+  static constexpr uint32_t BOOT_WAIT_MS = 0;
+#else
+  static constexpr uint32_t BOOT_WAIT_MS = API_OUTGOING_CONNECTION_DELAY;
+#endif
 
   void try_dial_(APIServer *server, uint32_t now);
   void poll_connect_(APIServer *server, uint32_t now);
+  // Hand the connected socket to the server and gate on the new connection
+  void handoff_(APIServer *server, uint32_t now);
   // Close any half-open dial and wait a jittered backoff before retrying
   void schedule_retry_(uint32_t now);
   // Wait without escalating the backoff (used for unmet preconditions)
-  void schedule_wait_(uint32_t now, uint32_t wait) {
-    this->dial_socket_.reset();
-    this->state_ = DialState::DIAL_STATE_WAITING;
-    this->state_ts_ = now;
-    this->wait_ = wait;
-  }
+  void schedule_wait_(uint32_t now, uint32_t wait);
   const char *target_host_() const {
 #ifdef API_OUTGOING_CONNECTION_HOST
     return API_OUTGOING_CONNECTION_HOST;
@@ -77,7 +76,6 @@ class OutgoingConnectionManager {
     return this->saved_.host[0] != '\0' ? this->saved_.host : nullptr;
 #endif
   }
-  static constexpr uint32_t PRECONDITION_RETRY_MS = 5000;
 
   // Pointers first (4 bytes each on 32-bit)
   std::unique_ptr<socket::Socket> dial_socket_;
@@ -89,16 +87,9 @@ class OutgoingConnectionManager {
 
   // 4-byte types
   uint32_t backoff_{BACKOFF_MIN_MS};
-  // Boot waits for the client to connect in first; a deep sleep wake window
-  // is short, so connecting out immediately is the wake state
-#ifdef USE_DEEP_SLEEP
-  uint32_t wait_{0};
-#else
-  uint32_t wait_{API_OUTGOING_CONNECTION_DELAY};
-#endif
+  uint32_t wait_{BOOT_WAIT_MS};
   uint32_t state_ts_{0};
   uint32_t last_poll_{0};
-  uint32_t dial_handoff_ts_{0};
 
   // Byte-aligned types last
 #ifndef API_OUTGOING_CONNECTION_HOST

@@ -30,10 +30,8 @@ HA_CLIENT_INFO = "Home Assistant 2026.8.0"
 HELLO_TARGET_FLAG = b"\x20\x01"
 
 
-@pytest.fixture(autouse=True)
-def isolated_preferences(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
-    """Keep host preferences per-test so every run starts with no saved peer."""
-    monkeypatch.setenv("ESPHOME_PREFDIR", str(tmp_path / "prefs"))
+# Every run must start with no saved peer
+pytestmark = pytest.mark.usefixtures("isolated_preferences")
 
 
 def _frame(payload: bytes) -> bytes:

@@ -61,13 +61,6 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 /// Initialize the frame helper, returns OK if successful.
 APIError APINoiseFrameHelper::init() {
-#ifdef USE_API_OUTGOING_CONNECTION
-  // Outgoing mode is marked in state_; restore what init_common_() expects
-  const bool outgoing = this->state_ == State::CLIENT_HELLO_OUTGOING;
-  if (outgoing) {
-    this->state_ = State::INITIALIZE;
-  }
-#endif
   APIError err = init_common_();
   if (err != APIError::OK) {
     return err;
@@ -86,15 +79,15 @@ APIError APINoiseFrameHelper::init() {
 #endif
 
   state_ = State::CLIENT_HELLO;
-#ifdef USE_API_OUTGOING_CONNECTION
-  if (outgoing) {
-    // The peer needs our name and MAC to pick the key before its first message
-    state_ = State::CLIENT_HELLO_OUTGOING;
-    return this->send_server_hello_frame_();
-  }
-#endif
   return APIError::OK;
 }
+#ifdef USE_API_OUTGOING_CONNECTION
+APIError APINoiseFrameHelper::send_server_hello_first() {
+  // The peer needs our name and MAC to pick the key before its first message
+  this->state_ = State::CLIENT_HELLO_OUTGOING;
+  return this->send_server_hello_frame_();
+}
+#endif
 #ifdef USE_API_PLAINTEXT
 APIError APINoiseFrameHelper::init_from_handoff(const uint8_t *header, uint8_t header_len) {
   APIError err = this->init();
@@ -304,12 +297,8 @@ APIError APINoiseFrameHelper::state_action_client_hello_() {
 
 #ifdef USE_API_OUTGOING_CONNECTION
   if (this->state_ == State::CLIENT_HELLO_OUTGOING) {
-    // Server hello already went out in init()
-    aerr = init_handshake_();
-    if (aerr != APIError::OK)
-      return aerr;
-    state_ = State::HANDSHAKE;
-    return APIError::OK;
+    // Server hello already went out at handoff
+    return this->start_handshake_();
   }
 #endif
   state_ = State::SERVER_HELLO;
@@ -345,12 +334,12 @@ APIError APINoiseFrameHelper::state_action_server_hello_() {
   APIError aerr = this->send_server_hello_frame_();
   if (aerr != APIError::OK)
     return aerr;
-
-  // start handshake
-  aerr = init_handshake_();
+  return this->start_handshake_();
+}
+APIError APINoiseFrameHelper::start_handshake_() {
+  APIError aerr = init_handshake_();
   if (aerr != APIError::OK)
     return aerr;
-
   state_ = State::HANDSHAKE;
   return APIError::OK;
 }
