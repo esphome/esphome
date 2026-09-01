@@ -132,7 +132,13 @@ struct IPAddress {
 
   operator struct in6_addr() const { return ip_addr_; }
 
-  bool is_set() const { return !net_ipv6_is_addr_unspecified(&ip_addr_); }
+  bool is_set() const {
+#if defined(CONFIG_NET_IPV4)
+    if (net_ipv6_addr_is_v4_mapped(&ip_addr_))
+      return ip_addr_.s6_addr32[3] != 0;
+#endif /* CONFIG_NET_IPV4 */
+    return !net_ipv6_is_addr_unspecified(&ip_addr_);
+  }
 #if defined(CONFIG_NET_IPV4)
   // V4-mapped (::ffff:a.b.c.d) addresses represent IPv4 traffic carried over the AF_INET6 socket
   // Zephyr always uses when CONFIG_NET_IPV6 is on; anything else is real IPv6.
