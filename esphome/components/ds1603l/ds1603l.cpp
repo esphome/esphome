@@ -1,5 +1,7 @@
 #include "ds1603l.h"
-#include <algorithm>
+
+#include <cstring>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -25,52 +27,59 @@ void DS1603L::loop() {
   }
   this->initialized_ = true;
 
-  // Process incoming data
-  while (this->available() >= 4) {
-    // Read 4 bytes of data
-    this->read_array(this->rx_buffer_, 4);
-
-    ESP_LOGV(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
-             this->rx_buffer_[3]);
-
-    // Verify the header byte
-    if (this->rx_buffer_[0] != 0xFF) {
-      ESP_LOGW(TAG, "Invalid header received");
+  // Assemble frames one byte at a time so a stream that starts mid-frame can realign
+  uint8_t byte;
+  while (this->available() > 0 && this->read_byte(&byte)) {
+    if (this->rx_count_ == 0 && byte != HEADER_BYTE) {
+      ESP_LOGV(TAG, "Skipping byte 0x%02X while looking for header", byte);
       continue;
     }
-    // Parse the received data
-    this->parse_data_();
+
+    this->rx_buffer_[this->rx_count_++] = byte;
+    if (this->rx_count_ < FRAME_SIZE) {
+      continue;
+    }
+
+    if (this->parse_data_()) {
+      this->rx_count_ = 0;
+    } else {
+      // The header byte was part of the payload of a misaligned frame, so realign instead of dropping everything
+      this->resync_();
+    }
   }
 }
 
 void DS1603L::dump_config() { LOG_SENSOR("  ", "DS1603L:", this); }
 
-void DS1603L::parse_data_() {
+bool DS1603L::parse_data_() {
   uint8_t header = this->rx_buffer_[0];
   uint8_t data_h = this->rx_buffer_[1];
   uint8_t data_l = this->rx_buffer_[2];
   uint8_t checksum = this->rx_buffer_[3];
 
-  // Validate header
-  if (header != 0xFF) {
-    ESP_LOGW(TAG, "Invalid header: Received 0x%02X, expected 0xFF", header);
-    return;
-  }
-
-  // Compute checksum
   uint8_t computed_checksum = (header + data_h + data_l) & 0xFF;
 
   ESP_LOGV(TAG, "Data: Header=0x%02X, Data_H=0x%02X, Data_L=0x%02X, Checksum=0x%02X", header, data_h, data_l, checksum);
-  ESP_LOGV(TAG, "Checksum: Computed=0x%02X, Received=0x%02X", computed_checksum, checksum);
 
   if (checksum != computed_checksum) {
-    ESP_LOGW(TAG, "Checksum mismatch: Received 0x%02X, expected 0x%02X", checksum, computed_checksum);
-    return;
+    ESP_LOGW(TAG, "Checksum mismatch: received 0x%02X, expected 0x%02X", checksum, computed_checksum);
+    return false;
   }
 
-  // Calculate liquid level directly and clamp
-  uint16_t level = encode_uint16(data_h, data_l);
-  this->publish_state(level);
+  this->publish_state(encode_uint16(data_h, data_l));
+  return true;
+}
+
+void DS1603L::resync_() {
+  // Drop the byte that was treated as the header, then look for the next candidate header in what is left
+  size_t start = 1;
+  while (start < this->rx_count_ && this->rx_buffer_[start] != HEADER_BYTE) {
+    start++;
+  }
+  this->rx_count_ -= start;
+  if (this->rx_count_ > 0) {
+    memmove(this->rx_buffer_, this->rx_buffer_ + start, this->rx_count_);
+  }
 }
 
 }  // namespace esphome::ds1603l
