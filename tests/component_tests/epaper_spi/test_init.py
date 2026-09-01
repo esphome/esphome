@@ -500,3 +500,33 @@ def test_model_with_no_default_init_sequence_generates(
     # init_sequence_length, ...); a length of 0 confirms the empty init
     # sequence array was generated instead of raising during code generation.
     assert re.search(r"epaper_spi::EPaperT133A01\([^;]*,\s*\w+,\s*0\);", main_cpp)
+
+
+def test_sticky_grayscale_code_generation(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that grayscale: true selects the EPaperSSD1677 driver and enables it."""
+    main_cpp = generate_main(component_config_path("sticky_grayscale_test.yaml"))
+
+    # The model must instantiate the grayscale-capable SSD1677 driver class.
+    assert "epaper_spi::EPaperSSD1677" in main_cpp
+    assert re.search(r'"SEEED-RETERMINAL-STICKY",\s*800,\s*480', main_cpp)
+
+    # grayscale: true must be threaded through to the driver.
+    assert re.search(r"->set_grayscale\(true\);", main_cpp)
+
+
+def test_sticky_default_is_monochrome(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Test that omitting grayscale: keeps seeed-reterminal-sticky in its original 1bpp mode.
+
+    seeed-reterminal-sticky predates the grayscale option; existing configs that don't set it
+    must keep rendering exactly as before. Regression test for that backward-compatibility
+    requirement.
+    """
+    main_cpp = generate_main(component_config_path("sticky_default_test.yaml"))
+
+    assert re.search(r"->set_grayscale\(false\);", main_cpp)
