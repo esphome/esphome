@@ -117,8 +117,9 @@ void Sdl::setup() {
     this->disable_loop();
   } else if (this->snapshot_key_ != 0) {
     this->add_key_listener(this->snapshot_key_, [this](bool down) {
-      if (down && !this->take_snapshot(nullptr))
+      if (down && !this->take_snapshot(nullptr)) {
         ESP_LOGW(TAG, "snapshot key did not write a file");
+      }
     });
   }
 }
@@ -336,8 +337,9 @@ bool Sdl::capture_bgr(uint8_t *dest, size_t row_stride) {
       return false;
     }
   }
-  if (!ok)
+  if (!ok) {
     ESP_LOGE(TAG, "Could not capture the screen: %s", SDL_GetError());
+  }
   return ok;
 }
 
