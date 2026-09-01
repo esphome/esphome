@@ -2,7 +2,6 @@
 
 #include <cstring>
 
-#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -10,23 +9,7 @@ namespace esphome::ds1603l {
 
 static const char *const TAG = "ds1603l.sensor";
 
-void DS1603L::setup() {
-  // Flush any residual data in the UART buffer
-  while (this->available() > 0) {
-    this->read();
-  }
-}
-
 void DS1603L::loop() {
-  // Ignore invalid data during the first 2 seconds after startup
-  if (!this->initialized_ && (App.get_loop_component_start_time() < 2000)) {
-    while (this->available() > 0) {
-      this->read();  // Clear any initial invalid data
-    }
-    return;
-  }
-  this->initialized_ = true;
-
   // Assemble frames one byte at a time so a stream that starts mid-frame can realign
   uint8_t byte;
   while (this->available() > 0 && this->read_byte(&byte)) {

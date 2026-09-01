@@ -11,7 +11,6 @@ namespace esphome::ds1603l {
 
 class DS1603L : public sensor::Sensor, public Component, public uart::UARTDevice {
  public:
-  void setup() override;
   void loop() override;
   void dump_config() override;
 
@@ -26,8 +25,6 @@ class DS1603L : public sensor::Sensor, public Component, public uart::UARTDevice
 
   uint8_t rx_buffer_[FRAME_SIZE];  // Buffer for the frame being assembled
   size_t rx_count_{0};             // Number of bytes currently in rx_buffer_
-
-  bool initialized_{false};
 };
 
 }  // namespace esphome::ds1603l
