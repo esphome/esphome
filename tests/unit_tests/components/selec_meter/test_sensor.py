@@ -11,7 +11,7 @@ import esphome.config_validation as cv
 def test_validate_model_sensors_rejects_em4m_only_sensor_on_em2m() -> None:
     config = {
         selec_meter.CONF_MODEL: selec_meter.MODEL_EM2M,
-        selec_meter.CONF_VOLTAGE_L1: {},
+        selec_meter.CONF_PHASE_A: {},
     }
     with pytest.raises(cv.Invalid, match="requires 'model: em4m'"):
         selec_meter._validate_model_sensors(config)
@@ -38,7 +38,7 @@ def test_validate_model_sensors_rejects_em2m_only_sensor_on_em4m() -> None:
 def test_validate_model_sensors_allows_em4m_sensors_on_em4m() -> None:
     config = {
         selec_meter.CONF_MODEL: selec_meter.MODEL_EM4M,
-        selec_meter.CONF_VOLTAGE_L1: {},
+        selec_meter.CONF_PHASE_A: {},
         selec_meter.CONF_SERIAL_NUMBER: {},
     }
     assert selec_meter._validate_model_sensors(config) == config

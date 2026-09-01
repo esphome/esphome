@@ -260,10 +260,14 @@ bool SelecMeter::decode_em2m_(std::span<const uint16_t> registers) {
       {this->maximum_demand_apparent_power_sensor_, SELEC_MAXIMUM_DEMAND_APPARENT_POWER, MULTIPLY_THOUSAND_UNIT},
   };
 
-  // A wrong byte_order corrupts every value the same way (and a too-short response leaves a field
-  // out of range), so check all of them before publishing any -- an all-or-nothing block, same as
-  // decode_em4m_().
+  // A wrong byte_order corrupts every configured field the same way (and a too-short response
+  // leaves a field out of range), so check all configured fields before publishing any --
+  // an all-or-nothing block, same as decode_em4m_(). Fields with no configured sensor are
+  // skipped: an unrelated register reading NaN/Inf (e.g. an unpopulated 0xFFFF) shouldn't
+  // suppress sensors that decoded fine.
   for (const auto &f : fields) {
+    if (f.sensor == nullptr)
+      continue;
     auto value = read_float(registers, 0, f.reg, this->word_swap_);
     if (!value || !std::isfinite(*value)) {
       ESP_LOGW(TAG, "Invalid or non-finite value(s) decoded, check byte_order setting");
@@ -296,43 +300,11 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
       {this->export_active_energy_sensor_, EM4M_EXPORT_ACTIVE_ENERGY, NO_DEC_UNIT},
       {this->import_reactive_energy_sensor_, EM4M_IMPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
       {this->export_reactive_energy_sensor_, EM4M_EXPORT_REACTIVE_ENERGY, NO_DEC_UNIT},
-      // Per-phase quantities
-      {this->voltage_l1_sensor_, EM4M_VOLTAGE_L1, NO_DEC_UNIT},
-      {this->voltage_l2_sensor_, EM4M_VOLTAGE_L2, NO_DEC_UNIT},
-      {this->voltage_l3_sensor_, EM4M_VOLTAGE_L3, NO_DEC_UNIT},
+      // Line-to-line and net (mains/DG) quantities -- no single-phase equivalent, so these stay
+      // flat rather than living in the per-phase loop below.
       {this->voltage_l12_sensor_, EM4M_VOLTAGE_L12, NO_DEC_UNIT},
       {this->voltage_l23_sensor_, EM4M_VOLTAGE_L23, NO_DEC_UNIT},
       {this->voltage_l31_sensor_, EM4M_VOLTAGE_L31, NO_DEC_UNIT},
-      {this->current_l1_sensor_, EM4M_CURRENT_L1, NO_DEC_UNIT},
-      {this->current_l2_sensor_, EM4M_CURRENT_L2, NO_DEC_UNIT},
-      {this->current_l3_sensor_, EM4M_CURRENT_L3, NO_DEC_UNIT},
-      {this->active_power_l1_sensor_, EM4M_ACTIVE_POWER_L1, MULTIPLY_THOUSAND_UNIT},
-      {this->active_power_l2_sensor_, EM4M_ACTIVE_POWER_L2, MULTIPLY_THOUSAND_UNIT},
-      {this->active_power_l3_sensor_, EM4M_ACTIVE_POWER_L3, MULTIPLY_THOUSAND_UNIT},
-      {this->reactive_power_l1_sensor_, EM4M_REACTIVE_POWER_L1, MULTIPLY_THOUSAND_UNIT},
-      {this->reactive_power_l2_sensor_, EM4M_REACTIVE_POWER_L2, MULTIPLY_THOUSAND_UNIT},
-      {this->reactive_power_l3_sensor_, EM4M_REACTIVE_POWER_L3, MULTIPLY_THOUSAND_UNIT},
-      {this->apparent_power_l1_sensor_, EM4M_APPARENT_POWER_L1, MULTIPLY_THOUSAND_UNIT},
-      {this->apparent_power_l2_sensor_, EM4M_APPARENT_POWER_L2, MULTIPLY_THOUSAND_UNIT},
-      {this->apparent_power_l3_sensor_, EM4M_APPARENT_POWER_L3, MULTIPLY_THOUSAND_UNIT},
-      {this->power_factor_l1_sensor_, EM4M_POWER_FACTOR_L1, NO_DEC_UNIT},
-      {this->power_factor_l2_sensor_, EM4M_POWER_FACTOR_L2, NO_DEC_UNIT},
-      {this->power_factor_l3_sensor_, EM4M_POWER_FACTOR_L3, NO_DEC_UNIT},
-      {this->import_active_energy_l1_sensor_, EM4M_IMPORT_ACTIVE_ENERGY_L1, NO_DEC_UNIT},
-      {this->import_active_energy_l2_sensor_, EM4M_IMPORT_ACTIVE_ENERGY_L2, NO_DEC_UNIT},
-      {this->import_active_energy_l3_sensor_, EM4M_IMPORT_ACTIVE_ENERGY_L3, NO_DEC_UNIT},
-      {this->export_active_energy_l1_sensor_, EM4M_EXPORT_ACTIVE_ENERGY_L1, NO_DEC_UNIT},
-      {this->export_active_energy_l2_sensor_, EM4M_EXPORT_ACTIVE_ENERGY_L2, NO_DEC_UNIT},
-      {this->export_active_energy_l3_sensor_, EM4M_EXPORT_ACTIVE_ENERGY_L3, NO_DEC_UNIT},
-      {this->import_reactive_energy_l1_sensor_, EM4M_IMPORT_REACTIVE_ENERGY_L1, NO_DEC_UNIT},
-      {this->import_reactive_energy_l2_sensor_, EM4M_IMPORT_REACTIVE_ENERGY_L2, NO_DEC_UNIT},
-      {this->import_reactive_energy_l3_sensor_, EM4M_IMPORT_REACTIVE_ENERGY_L3, NO_DEC_UNIT},
-      {this->export_reactive_energy_l1_sensor_, EM4M_EXPORT_REACTIVE_ENERGY_L1, NO_DEC_UNIT},
-      {this->export_reactive_energy_l2_sensor_, EM4M_EXPORT_REACTIVE_ENERGY_L2, NO_DEC_UNIT},
-      {this->export_reactive_energy_l3_sensor_, EM4M_EXPORT_REACTIVE_ENERGY_L3, NO_DEC_UNIT},
-      {this->apparent_energy_l1_sensor_, EM4M_APPARENT_ENERGY_L1, NO_DEC_UNIT},
-      {this->apparent_energy_l2_sensor_, EM4M_APPARENT_ENERGY_L2, NO_DEC_UNIT},
-      {this->apparent_energy_l3_sensor_, EM4M_APPARENT_ENERGY_L3, NO_DEC_UNIT},
       {this->average_voltage_ll_sensor_, EM4M_AVERAGE_VOLTAGE_LL, NO_DEC_UNIT},
       {this->net_active_energy_mains_sensor_, EM4M_NET_ACTIVE_ENERGY_MAINS, NO_DEC_UNIT},
       {this->net_reactive_energy_mains_sensor_, EM4M_NET_REACTIVE_ENERGY_MAINS, NO_DEC_UNIT},
@@ -342,13 +314,51 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
       {this->net_apparent_energy_dg_sensor_, EM4M_NET_APPARENT_ENERGY_DG, NO_DEC_UNIT},
   };
 
-  // A wrong byte_order corrupts every value the same way (and a too-short response leaves a field
-  // out of range), so check all of them before publishing any.
+  // Per-phase quantities, indexed by phases_[0..2] (L1/L2/L3, i.e. A/B/C). reg_l1 is the L1
+  // register; L2/L3 sit 2 words (one register step) further, matching EM4M_*_L1/L2/L3 in
+  // selec_meter_registers.h.
+  struct PhaseField {
+    sensor::Sensor *Phase::*sensor_member;
+    uint16_t reg_l1;
+    float unit;
+  };
+  const PhaseField phase_fields[] = {
+      {&Phase::voltage_sensor_, EM4M_VOLTAGE_L1, NO_DEC_UNIT},
+      {&Phase::current_sensor_, EM4M_CURRENT_L1, NO_DEC_UNIT},
+      {&Phase::active_power_sensor_, EM4M_ACTIVE_POWER_L1, MULTIPLY_THOUSAND_UNIT},
+      {&Phase::reactive_power_sensor_, EM4M_REACTIVE_POWER_L1, MULTIPLY_THOUSAND_UNIT},
+      {&Phase::apparent_power_sensor_, EM4M_APPARENT_POWER_L1, MULTIPLY_THOUSAND_UNIT},
+      {&Phase::power_factor_sensor_, EM4M_POWER_FACTOR_L1, NO_DEC_UNIT},
+      {&Phase::import_active_energy_sensor_, EM4M_IMPORT_ACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {&Phase::export_active_energy_sensor_, EM4M_EXPORT_ACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {&Phase::import_reactive_energy_sensor_, EM4M_IMPORT_REACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {&Phase::export_reactive_energy_sensor_, EM4M_EXPORT_REACTIVE_ENERGY_L1, NO_DEC_UNIT},
+      {&Phase::apparent_energy_sensor_, EM4M_APPARENT_ENERGY_L1, NO_DEC_UNIT},
+  };
+
+  // A wrong byte_order corrupts every configured field the same way (and a too-short response
+  // leaves a field out of range), so check all configured fields before publishing any. Fields
+  // with no configured sensor are skipped: an unrelated register reading NaN/Inf (e.g. an
+  // unpopulated 0xFFFF, or an unloaded phase's power factor) shouldn't suppress sensors that
+  // decoded fine.
   for (const auto &f : fields) {
+    if (f.sensor == nullptr)
+      continue;
     auto value = read_float(registers, 0, f.reg, this->word_swap_);
     if (!value || !std::isfinite(*value)) {
       ESP_LOGW(TAG, "Invalid or non-finite value(s) decoded, check byte_order setting");
       return false;
+    }
+  }
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    for (const auto &f : phase_fields) {
+      if (this->phases_[phase].*f.sensor_member == nullptr)
+        continue;
+      auto value = read_float(registers, 0, f.reg_l1 + phase * 2, this->word_swap_);
+      if (!value || !std::isfinite(*value)) {
+        ESP_LOGW(TAG, "Invalid or non-finite value(s) decoded, check byte_order setting");
+        return false;
+      }
     }
   }
   for (const auto &f : fields) {
@@ -356,6 +366,15 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
       continue;
     if (auto value = read_float(registers, 0, f.reg, this->word_swap_))
       f.sensor->publish_state(*value * f.unit);
+  }
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    for (const auto &f : phase_fields) {
+      sensor::Sensor *sens = this->phases_[phase].*f.sensor_member;
+      if (sens == nullptr)
+        continue;
+      if (auto value = read_float(registers, 0, f.reg_l1 + phase * 2, this->word_swap_))
+        sens->publish_state(*value * f.unit);
+    }
   }
   return true;
 }
@@ -423,43 +442,25 @@ void SelecMeter::dump_config() {
   LOG_SENSOR("  ", "Maximum Demand Active Power", this->maximum_demand_active_power_sensor_);
   LOG_SENSOR("  ", "Maximum Demand Reactive Power", this->maximum_demand_reactive_power_sensor_);
   LOG_SENSOR("  ", "Maximum Demand Apparent Power", this->maximum_demand_apparent_power_sensor_);
-  LOG_SENSOR("  ", "Voltage L1", this->voltage_l1_sensor_);
-  LOG_SENSOR("  ", "Voltage L2", this->voltage_l2_sensor_);
-  LOG_SENSOR("  ", "Voltage L3", this->voltage_l3_sensor_);
   LOG_SENSOR("  ", "Voltage L1-L2", this->voltage_l12_sensor_);
   LOG_SENSOR("  ", "Voltage L2-L3", this->voltage_l23_sensor_);
   LOG_SENSOR("  ", "Voltage L3-L1", this->voltage_l31_sensor_);
-  LOG_SENSOR("  ", "Current L1", this->current_l1_sensor_);
-  LOG_SENSOR("  ", "Current L2", this->current_l2_sensor_);
-  LOG_SENSOR("  ", "Current L3", this->current_l3_sensor_);
-  LOG_SENSOR("  ", "Active Power L1", this->active_power_l1_sensor_);
-  LOG_SENSOR("  ", "Active Power L2", this->active_power_l2_sensor_);
-  LOG_SENSOR("  ", "Active Power L3", this->active_power_l3_sensor_);
-  LOG_SENSOR("  ", "Reactive Power L1", this->reactive_power_l1_sensor_);
-  LOG_SENSOR("  ", "Reactive Power L2", this->reactive_power_l2_sensor_);
-  LOG_SENSOR("  ", "Reactive Power L3", this->reactive_power_l3_sensor_);
-  LOG_SENSOR("  ", "Apparent Power L1", this->apparent_power_l1_sensor_);
-  LOG_SENSOR("  ", "Apparent Power L2", this->apparent_power_l2_sensor_);
-  LOG_SENSOR("  ", "Apparent Power L3", this->apparent_power_l3_sensor_);
-  LOG_SENSOR("  ", "Power Factor L1", this->power_factor_l1_sensor_);
-  LOG_SENSOR("  ", "Power Factor L2", this->power_factor_l2_sensor_);
-  LOG_SENSOR("  ", "Power Factor L3", this->power_factor_l3_sensor_);
-  LOG_SENSOR("  ", "Import Active Energy L1", this->import_active_energy_l1_sensor_);
-  LOG_SENSOR("  ", "Import Active Energy L2", this->import_active_energy_l2_sensor_);
-  LOG_SENSOR("  ", "Import Active Energy L3", this->import_active_energy_l3_sensor_);
-  LOG_SENSOR("  ", "Export Active Energy L1", this->export_active_energy_l1_sensor_);
-  LOG_SENSOR("  ", "Export Active Energy L2", this->export_active_energy_l2_sensor_);
-  LOG_SENSOR("  ", "Export Active Energy L3", this->export_active_energy_l3_sensor_);
-  LOG_SENSOR("  ", "Import Reactive Energy L1", this->import_reactive_energy_l1_sensor_);
-  LOG_SENSOR("  ", "Import Reactive Energy L2", this->import_reactive_energy_l2_sensor_);
-  LOG_SENSOR("  ", "Import Reactive Energy L3", this->import_reactive_energy_l3_sensor_);
-  LOG_SENSOR("  ", "Export Reactive Energy L1", this->export_reactive_energy_l1_sensor_);
-  LOG_SENSOR("  ", "Export Reactive Energy L2", this->export_reactive_energy_l2_sensor_);
-  LOG_SENSOR("  ", "Export Reactive Energy L3", this->export_reactive_energy_l3_sensor_);
-  LOG_SENSOR("  ", "Apparent Energy L1", this->apparent_energy_l1_sensor_);
-  LOG_SENSOR("  ", "Apparent Energy L2", this->apparent_energy_l2_sensor_);
-  LOG_SENSOR("  ", "Apparent Energy L3", this->apparent_energy_l3_sensor_);
   LOG_SENSOR("  ", "Average Voltage LL", this->average_voltage_ll_sensor_);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    const auto &p = this->phases_[phase];
+    ESP_LOGCONFIG(TAG, "  Phase %c", 'A' + phase);
+    LOG_SENSOR("    ", "Voltage", p.voltage_sensor_);
+    LOG_SENSOR("    ", "Current", p.current_sensor_);
+    LOG_SENSOR("    ", "Active Power", p.active_power_sensor_);
+    LOG_SENSOR("    ", "Reactive Power", p.reactive_power_sensor_);
+    LOG_SENSOR("    ", "Apparent Power", p.apparent_power_sensor_);
+    LOG_SENSOR("    ", "Power Factor", p.power_factor_sensor_);
+    LOG_SENSOR("    ", "Import Active Energy", p.import_active_energy_sensor_);
+    LOG_SENSOR("    ", "Export Active Energy", p.export_active_energy_sensor_);
+    LOG_SENSOR("    ", "Import Reactive Energy", p.import_reactive_energy_sensor_);
+    LOG_SENSOR("    ", "Export Reactive Energy", p.export_reactive_energy_sensor_);
+    LOG_SENSOR("    ", "Apparent Energy", p.apparent_energy_sensor_);
+  }
   LOG_SENSOR("  ", "Net Active Energy (Mains)", this->net_active_energy_mains_sensor_);
   LOG_SENSOR("  ", "Net Reactive Energy (Mains)", this->net_reactive_energy_mains_sensor_);
   LOG_SENSOR("  ", "Net Apparent Energy (Mains)", this->net_apparent_energy_mains_sensor_);

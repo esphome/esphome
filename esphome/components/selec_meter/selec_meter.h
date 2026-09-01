@@ -21,6 +21,12 @@ namespace esphome::selec_meter {
  public: \
   void set_##name##_sensor(sensor::Sensor *(name)) { this->name##_sensor_ = name; }
 
+// Same as SELEC_METER_SENSOR, but the sensor lives in the per-phase Phase struct below and the
+// setter is indexed by phase (0 = L1/A, 1 = L2/B, 2 = L3/C), matching how sdm_meter exposes its
+// three-phase sensors.
+#define SELEC_METER_PHASE_SENSOR(name) \
+  void set_##name##_sensor(uint8_t phase, sensor::Sensor *(name)) { this->phases_[phase].name##_sensor_ = name; }
+
 enum Model : uint8_t {
   EM2M,
   EM4M,
@@ -55,43 +61,24 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   SELEC_METER_SENSOR(maximum_demand_reactive_power)
   SELEC_METER_SENSOR(maximum_demand_apparent_power)
 
-  // EM4M per-phase sensors
-  SELEC_METER_SENSOR(voltage_l1)
-  SELEC_METER_SENSOR(voltage_l2)
-  SELEC_METER_SENSOR(voltage_l3)
+  // EM4M per-phase sensors, indexed by phase (see Phase below)
+  SELEC_METER_PHASE_SENSOR(voltage)
+  SELEC_METER_PHASE_SENSOR(current)
+  SELEC_METER_PHASE_SENSOR(active_power)
+  SELEC_METER_PHASE_SENSOR(reactive_power)
+  SELEC_METER_PHASE_SENSOR(apparent_power)
+  SELEC_METER_PHASE_SENSOR(power_factor)
+  SELEC_METER_PHASE_SENSOR(import_active_energy)
+  SELEC_METER_PHASE_SENSOR(export_active_energy)
+  SELEC_METER_PHASE_SENSOR(import_reactive_energy)
+  SELEC_METER_PHASE_SENSOR(export_reactive_energy)
+  SELEC_METER_PHASE_SENSOR(apparent_energy)
+
+  // EM4M line-to-line and aggregate sensors -- these don't map to a single phase, so they stay
+  // top-level rather than living in the per-phase Phase struct.
   SELEC_METER_SENSOR(voltage_l12)
   SELEC_METER_SENSOR(voltage_l23)
   SELEC_METER_SENSOR(voltage_l31)
-  SELEC_METER_SENSOR(current_l1)
-  SELEC_METER_SENSOR(current_l2)
-  SELEC_METER_SENSOR(current_l3)
-  SELEC_METER_SENSOR(active_power_l1)
-  SELEC_METER_SENSOR(active_power_l2)
-  SELEC_METER_SENSOR(active_power_l3)
-  SELEC_METER_SENSOR(reactive_power_l1)
-  SELEC_METER_SENSOR(reactive_power_l2)
-  SELEC_METER_SENSOR(reactive_power_l3)
-  SELEC_METER_SENSOR(apparent_power_l1)
-  SELEC_METER_SENSOR(apparent_power_l2)
-  SELEC_METER_SENSOR(apparent_power_l3)
-  SELEC_METER_SENSOR(power_factor_l1)
-  SELEC_METER_SENSOR(power_factor_l2)
-  SELEC_METER_SENSOR(power_factor_l3)
-  SELEC_METER_SENSOR(import_active_energy_l1)
-  SELEC_METER_SENSOR(import_active_energy_l2)
-  SELEC_METER_SENSOR(import_active_energy_l3)
-  SELEC_METER_SENSOR(export_active_energy_l1)
-  SELEC_METER_SENSOR(export_active_energy_l2)
-  SELEC_METER_SENSOR(export_active_energy_l3)
-  SELEC_METER_SENSOR(import_reactive_energy_l1)
-  SELEC_METER_SENSOR(import_reactive_energy_l2)
-  SELEC_METER_SENSOR(import_reactive_energy_l3)
-  SELEC_METER_SENSOR(export_reactive_energy_l1)
-  SELEC_METER_SENSOR(export_reactive_energy_l2)
-  SELEC_METER_SENSOR(export_reactive_energy_l3)
-  SELEC_METER_SENSOR(apparent_energy_l1)
-  SELEC_METER_SENSOR(apparent_energy_l2)
-  SELEC_METER_SENSOR(apparent_energy_l3)
   SELEC_METER_SENSOR(average_voltage_ll)
   SELEC_METER_SENSOR(net_active_energy_mains)
   SELEC_METER_SENSOR(net_reactive_energy_mains)
@@ -155,6 +142,23 @@ class SelecMeter final : public PollingComponent, public modbus::ModbusClientDev
   // MAX_OPTIONAL_READ_FAILURES -- a transient failure retries forever instead of eventually latching
   // an optional read disabled for a reason that was never actually "unsupported register".
   void fail_current_read_(const char *reason, bool durable = false);
+
+  // EM4M per-phase sensors -- phases_[0]/[1]/[2] are L1/L2/L3 (A/B/C), each register 2 words
+  // (one register step) apart from the next phase's, per EM4M_*_L1 in selec_meter_registers.h.
+  struct Phase {
+    sensor::Sensor *voltage_sensor_{nullptr};
+    sensor::Sensor *current_sensor_{nullptr};
+    sensor::Sensor *active_power_sensor_{nullptr};
+    sensor::Sensor *reactive_power_sensor_{nullptr};
+    sensor::Sensor *apparent_power_sensor_{nullptr};
+    sensor::Sensor *power_factor_sensor_{nullptr};
+    sensor::Sensor *import_active_energy_sensor_{nullptr};
+    sensor::Sensor *export_active_energy_sensor_{nullptr};
+    sensor::Sensor *import_reactive_energy_sensor_{nullptr};
+    sensor::Sensor *export_reactive_energy_sensor_{nullptr};
+    sensor::Sensor *apparent_energy_sensor_{nullptr};
+  };
+  Phase phases_[3];
 
   Model model_{Model::EM2M};
   bool word_swap_{false};
