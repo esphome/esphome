@@ -136,7 +136,7 @@ size_t RingBuffer::pop(uint8_t *data, size_t len) {
   }
   return len;
 }
-void USBUartChannel::write_array(const uint8_t *data, size_t len) {
+void USBUartChannelBase::write_array(const uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
     ESP_LOGD(TAG, "Channel not initialised - write ignored");
     return;
@@ -170,7 +170,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   this->parent_->start_output(this);
 }
 
-uart::UARTFlushResult USBUartChannel::flush() {
+uart::UARTFlushResult USBUartChannelBase::flush() {
   // Spin until the output queue is drained and the last USB transfer completes.
   // Safe to call from the main loop only.
   // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
@@ -186,14 +186,14 @@ uart::UARTFlushResult USBUartChannel::flush() {
   return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
-bool USBUartChannel::peek_byte(uint8_t *data) {
+bool USBUartChannelBase::peek_byte(uint8_t *data) {
   if (this->input_buffer_.is_empty()) {
     return false;
   }
   *data = this->input_buffer_.peek();
   return true;
 }
-bool USBUartChannel::read_array(uint8_t *data, size_t len) {
+bool USBUartChannelBase::read_array(uint8_t *data, size_t len) {
   if (!this->initialised_.load()) {
     ESP_LOGV(TAG, "Channel not initialised - read ignored");
     return false;
@@ -277,7 +277,7 @@ void USBUartComponent::dump_config() {
                   YESNO(channel->dummy_receiver_));
   }
 }
-void USBUartComponent::start_input(USBUartChannel *channel) {
+void USBUartComponent::start_input(USBUartChannelBase *channel) {
   if (!channel->initialised_.load())
     return;
   // THREAD CONTEXT: Called from both USB task and main loop threads
@@ -346,7 +346,7 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
   }
 }
 
-void USBUartComponent::start_output(USBUartChannel *channel) {
+void USBUartComponent::start_output(USBUartChannelBase *channel) {
   // THREAD CONTEXT: Called from both main loop and USB task threads.
   // The output_queue_ is a lock-free SPSC queue, so pop() is safe from either thread.
   // The output_started_ atomic flag is claimed via compare_exchange to guarantee that
@@ -491,7 +491,7 @@ void USBUartTypeCdcAcm::on_disconnected() {
   USBClient::on_disconnected();
 }
 
-bool USBUartTypeCdcAcm::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+bool USBUartTypeCdcAcm::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
                                     const uint8_t *response) {
   static constexpr uint8_t CDC_REQUEST_TYPE = usb_host::USB_TYPE_CLASS | usb_host::USB_RECIP_INTERFACE;
   static constexpr uint8_t CDC_SET_LINE_CODING = 0x20;
@@ -537,7 +537,7 @@ void USBUartComponent::enable_channels() {
   this->start_config_(false);
 }
 
-void USBUartComponent::apply_channel_settings(USBUartChannel *channel) {
+void USBUartComponent::apply_channel_settings(USBUartChannelBase *channel) {
   if (this->cfg_active_) {
     // A config sequence is already running. Defer this reload until it finishes to preserve
     // the one-control-transfer-at-a-time guarantee (restarting mid-flight would let an
@@ -620,7 +620,7 @@ bool USBUartComponent::run_config_machine_() {
     this->cfg_ok_ = true;
   }
 
-  USBUartChannel *channel =
+  USBUartChannelBase *channel =
       this->cfg_single_ != nullptr
           ? this->cfg_single_
           : (this->cfg_channel_idx_ < this->channels_.size() ? this->channels_[this->cfg_channel_idx_] : nullptr);
@@ -664,7 +664,7 @@ bool USBUartComponent::run_config_machine_() {
   return true;
 }
 
-void USBUartChannel::load_settings(bool /*dump_config*/) {
+void USBUartChannelBase::load_settings(bool /*dump_config*/) {
   // The per-channel control transfers already log their values at debug level.
   this->parent_->apply_channel_settings(this);
 }

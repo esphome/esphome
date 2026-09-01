@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import base64
 import gzip
 import logging
 import re
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import web_server_base
@@ -25,6 +27,7 @@ from esphome.const import (
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
+    CONF_TYPE,
     CONF_USERNAME,
     CONF_VERSION,
     CONF_WEB_SERVER,
@@ -37,12 +40,16 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json", "web_server_base"]
+
+AUTH_TYPE_BASIC = "basic"
+AUTH_TYPE_DIGEST = "digest"
 
 CONF_SORTING_GROUP_ID = "sorting_group_id"
 CONF_SORTING_GROUPS = "sorting_groups"
@@ -85,6 +92,19 @@ def validate_version_deprecated(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_auth_type_deprecated(auth: ConfigType) -> ConfigType:
+    # Remove before 2027.1.0: the default auth scheme changes from basic to digest.
+    if CONF_TYPE not in auth:
+        _LOGGER.warning(
+            "The 'web_server' 'auth' scheme currently defaults to 'basic', which sends the "
+            "password over the network in an easily reversible form. The default will change "
+            "to 'digest' in ESPHome 2027.1.0. To keep using basic authentication, set "
+            "'type: basic' under 'auth:' explicitly; otherwise set 'type: digest' now to "
+            "adopt the more secure scheme."
+        )
+    return auth
+
+
 def validate_local(config: ConfigType) -> ConfigType:
     if CONF_LOCAL in config and config[CONF_VERSION] == 1:
         raise cv.Invalid("'local' is not supported in version 1")
@@ -110,7 +130,7 @@ def validate_ota(config: ConfigType) -> ConfigType:
 _ORIGIN_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s]+$")
 
 
-def validate_origin(value: str) -> str:
+def validate_origin(value: Any) -> str:
     # "*" is the wildcard that allows any origin.
     if value == "*":
         return value
@@ -175,7 +195,7 @@ def _validate_no_sorting_component(
                     )
 
 
-def _final_validate_sorting(config: ConfigType) -> ConfigType:
+def _final_validate_sorting(config: ConfigType) -> None:
     if (webserver_version := config.get(CONF_VERSION)) != 3:
         _validate_no_sorting_component(
             CONF_SORTING_WEIGHT, webserver_version, fv.full_config.get()
@@ -183,7 +203,6 @@ def _final_validate_sorting(config: ConfigType) -> ConfigType:
         _validate_no_sorting_component(
             CONF_SORTING_GROUP_ID, webserver_version, fv.full_config.get()
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate_sorting
@@ -242,15 +261,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ALLOWED_ORIGINS): cv.All(
                 cv.ensure_list(validate_origin), cv.Length(min=1)
             ),
-            cv.Optional(CONF_AUTH): cv.Schema(
-                {
-                    cv.Required(CONF_USERNAME): cv.All(
-                        cv.string_strict, cv.Length(min=1)
-                    ),
-                    cv.Required(CONF_PASSWORD): cv.sensitive(
-                        cv.All(cv.string_strict, cv.Length(min=1))
-                    ),
-                }
+            cv.Optional(CONF_AUTH): cv.All(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_USERNAME): cv.All(
+                            cv.string_strict, cv.Length(min=1)
+                        ),
+                        cv.Required(CONF_PASSWORD): cv.sensitive(
+                            cv.All(cv.string_strict, cv.Length(min=1))
+                        ),
+                        cv.Optional(CONF_TYPE): cv.one_of(
+                            AUTH_TYPE_BASIC, AUTH_TYPE_DIGEST, lower=True
+                        ),
+                    }
+                ),
+                validate_auth_type_deprecated,
             ),
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
@@ -283,7 +308,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def add_sorting_groups(web_server_var, config):
+def add_sorting_groups(web_server_var: MockObj, config: list[ConfigType]) -> None:
     for group in config:
         sorting_groups[group[CONF_ID]] = group[CONF_NAME]
         group_sorting_weight = group.get(CONF_SORTING_WEIGHT, 50)
@@ -294,7 +319,7 @@ def add_sorting_groups(web_server_var, config):
         )
 
 
-async def add_entity_config(entity, config):
+async def add_entity_config(entity: MockObj, config: ConfigType) -> None:
     web_server = await cg.get_variable(config[CONF_WEB_SERVER_ID])
     sorting_weight = config.get(CONF_SORTING_WEIGHT, 50)
     sorting_group_hash = hash(config.get(CONF_SORTING_GROUP_ID))
@@ -309,7 +334,7 @@ async def add_entity_config(entity, config):
     )
 
 
-def build_index_html(config) -> str:
+def build_index_html(config: ConfigType) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
@@ -343,7 +368,7 @@ def add_resource_as_progmem(
 
 
 @coroutine_with_priority(CoroPriority.WEB)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
 
     var = cg.new_Pvariable(config[CONF_ID], paren)
@@ -378,10 +403,26 @@ async def to_code(config):
     if (allowed_origins := config.get(CONF_ALLOWED_ORIGINS)) is not None:
         cg.add_define("USE_WEBSERVER_ALLOWED_ORIGINS")
         cg.add(var.set_allowed_origins(allowed_origins))
-    if CONF_AUTH in config:
+    if (auth := config.get(CONF_AUTH)) is not None:
         cg.add_define("USE_WEBSERVER_AUTH")
-        cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
-        cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
+        # The scheme is fixed at build time so the unused Basic/Digest code path is compiled
+        # out. Basic is the current default (the absence of this define); an explicit
+        # 'type: digest' opts in early. Default changes to digest in 2027.1.0.
+        is_digest = auth.get(CONF_TYPE) == AUTH_TYPE_DIGEST
+        if is_digest:
+            cg.add_define("USE_WEBSERVER_AUTH_DIGEST")
+        if is_digest or CORE.is_esp32:
+            cg.add(paren.set_auth_username(auth[CONF_USERNAME]))
+            cg.add(paren.set_auth_password(auth[CONF_PASSWORD]))
+        else:
+            # Every non-ESP32 basic auth build takes this path. The ESP8266 and RP2040
+            # core base64 encoders wrap output every 72 chars, which breaks
+            # ESPAsyncWebServer's basic auth compare for long credentials.
+            # Precompute the hash here and let C++ compare the raw header payload.
+            basic_hash = base64.b64encode(
+                f"{auth[CONF_USERNAME]}:{auth[CONF_PASSWORD]}".encode()
+            ).decode()
+            cg.add(paren.set_auth_basic_hash(basic_hash))
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])

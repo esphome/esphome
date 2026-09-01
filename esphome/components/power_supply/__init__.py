@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_KEEP_ON_TIME,
     CONF_PIN,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 power_supply_ns = cg.esphome_ns.namespace("power_supply")
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

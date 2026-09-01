@@ -1,6 +1,6 @@
 #include "api_connection.h"
 #ifdef USE_API
-#include "api_connection_buffer.h"  // for encode_to_buffer / get_batch_delay_ms_ inlines
+#include "api_connection_buffer.h"  // for the APIServer-dependent APIConnection inlines
 #ifdef USE_API_NOISE
 #include "api_frame_helper_noise.h"
 #endif
@@ -23,6 +23,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/version.h"
 #ifdef USE_PROVISIONING
@@ -88,6 +89,13 @@ static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for nam
 static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
 static const char *const TAG = "api.connection";
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
+void log_dropped_message(const char *tag, int line, const LogString *what) {
+  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, line, ESPHOME_LOG_FORMAT("%s dropped, TCP buffer full"),
+                  LOG_STR_ARG(what));
+}
+#endif
 #ifdef USE_CAMERA
 static const int CAMERA_STOP_STREAM = 5000;
 #endif
@@ -151,11 +159,6 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
       std::unique_ptr<APINoiseFrameHelper>{new APINoiseFrameHelper(std::move(sock), parent->get_noise_ctx())};
 #else
 #error "No frame helper defined"
-#endif
-#ifdef USE_CAMERA
-  if (camera::Camera::instance() != nullptr) {
-    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
-  }
 #endif
 }
 
@@ -409,15 +412,15 @@ void APIConnection::finalize_iterator_sync_() {
 }
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
-  size_t initial_size = this->deferred_batch_.size();
-  size_t max_batch = MAX_INITIAL_PER_BATCH;
-  while (!iterator.completed() && (this->deferred_batch_.size() - initial_size) < max_batch) {
-    iterator.advance();
-  }
+  // Budget by remaining batch capacity so a pass cannot overfill the batch;
+  // stops early on a refused send and resumes next loop pass
+  size_t batch_size = this->deferred_batch_.size();
+  if (batch_size < MAX_INITIAL_BATCH_SIZE)
+    iterator.try_advance(MAX_INITIAL_BATCH_SIZE - batch_size);
 
-  // If the batch is full, process it immediately
-  // Note: iterator.advance() already calls schedule_batch_() via schedule_message_()
-  if (this->deferred_batch_.size() >= max_batch) {
+  // Flush immediately once enough is queued (not guaranteed every pass);
+  // partial batches go out via the batch timer or finalize_iterator_sync_()
+  if (this->deferred_batch_.size() >= MAX_INITIAL_BATCH_SIZE) {
     this->process_batch_();
   }
 }
@@ -794,6 +797,7 @@ uint16_t APIConnection::try_send_climate_info(EntityBase *entity, APIConnection 
   msg.supports_action = traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
   // Current feature flags and other supported parameters
   msg.feature_flags = traits.get_feature_flags();
+  msg.temperature_unit = static_cast<enums::TemperatureUnit>(traits.get_temperature_unit());
   msg.supported_modes = &traits.get_supported_modes();
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
@@ -1095,7 +1099,6 @@ uint16_t APIConnection::try_send_media_player_info(EntityBase *entity, APIConnec
   auto *media_player = static_cast<media_player::MediaPlayer *>(entity);
   ListEntitiesMediaPlayerResponse msg;
   auto traits = media_player->get_traits();
-  msg.supports_pause = traits.get_supports_pause();
   msg.feature_flags = traits.get_feature_flags();
   for (auto &supported_format : traits.get_supported_formats()) {
     msg.supported_formats.emplace_back();
@@ -1131,6 +1134,7 @@ void APIConnection::try_send_camera_image_() {
   if (!this->image_reader_)
     return;
 
+  const auto *cam = camera::Camera::instance();
   // Send as many chunks as possible without blocking
   while (this->image_reader_->available()) {
     if (!this->helper_->can_write_without_blocking())
@@ -1140,11 +1144,11 @@ void APIConnection::try_send_camera_image_() {
     bool done = this->image_reader_->available() == to_send;
 
     CameraImageResponse msg;
-    msg.key = camera::Camera::instance()->get_object_id_hash();
+    msg.key = cam->get_object_id_hash();
     msg.set_data(this->image_reader_->peek_data_buffer(), to_send);
     msg.done = done;
 #ifdef USE_DEVICES
-    msg.device_id = camera::Camera::instance()->get_device_id();
+    msg.device_id = cam->get_device_id();
 #endif
 
     if (!this->send_message(msg)) {
@@ -1160,15 +1164,19 @@ void APIConnection::try_send_camera_image_() {
 void APIConnection::set_camera_state(std::shared_ptr<camera::CameraImage> image) {
   if (!this->flags_.state_subscription)
     return;
-  if (!this->image_reader_)
+  if (this->image_reader_ && this->image_reader_->available())
     return;
-  if (this->image_reader_->available())
+  if (!image->was_requested_by(esphome::camera::API_REQUESTER) && !image->was_requested_by(esphome::camera::IDLE))
     return;
-  if (image->was_requested_by(esphome::camera::API_REQUESTER) || image->was_requested_by(esphome::camera::IDLE)) {
-    this->image_reader_->set_image(std::move(image));
-    // Try to send immediately to reduce latency
-    this->try_send_camera_image_();
+  if (!this->image_reader_) {
+    // Created on the first image this connection will send, so connections
+    // that never receive one never pay for a reader. Only a registered
+    // camera's listener can reach this, so instance() is non-null here.
+    this->image_reader_ = std::unique_ptr<camera::CameraImageReader>{camera::Camera::instance()->create_image_reader()};
   }
+  this->image_reader_->set_image(std::move(image));
+  // Try to send immediately to reduce latency
+  this->try_send_camera_image_();
 }
 uint16_t APIConnection::try_send_camera_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *camera = static_cast<camera::Camera *>(entity);
@@ -1195,31 +1203,28 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr) {
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
 #if defined(USE_HOMEASSISTANT_TIMEZONE) && defined(USE_TIME_TIMEZONE)
-    if (!value.timezone.empty()) {
-      // Check if the sender provided pre-parsed timezone data.
-      // If std_offset is non-zero or DST rules are present, the parsed data was populated.
-      // For UTC (all zeros), string parsing produces the same result, so the fallback is equivalent.
+    // Apply only if the sender provided pre-parsed timezone data (Home Assistant 2026.3.0
+    // and newer); field presence distinguishes a genuine all-zero UTC timezone from an
+    // absent field. Older clients send only the deprecated timezone string, which is no
+    // longer decoded; for them the device keeps its codegen-configured timezone.
+    if (value.has_parsed_timezone) {
       const auto &pt = value.parsed_timezone;
-      if (pt.std_offset_seconds != 0 || pt.dst_start.type != enums::DST_RULE_TYPE_NONE) {
-        time::ParsedTimezone tz{};
-        tz.std_offset_seconds = pt.std_offset_seconds;
-        tz.dst_offset_seconds = pt.dst_offset_seconds;
-        tz.dst_start.time_seconds = pt.dst_start.time_seconds;
-        tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
-        tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
-        tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
-        tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
-        tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
-        tz.dst_end.time_seconds = pt.dst_end.time_seconds;
-        tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
-        tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
-        tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
-        tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
-        tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
-        time::set_global_tz(tz);
-      } else {
-        homeassistant::global_homeassistant_time->set_timezone(value.timezone.c_str(), value.timezone.size());
-      }
+      time::ParsedTimezone tz{};
+      tz.std_offset_seconds = pt.std_offset_seconds;
+      tz.dst_offset_seconds = pt.dst_offset_seconds;
+      tz.dst_start.time_seconds = pt.dst_start.time_seconds;
+      tz.dst_start.day = static_cast<uint16_t>(pt.dst_start.day);
+      tz.dst_start.type = static_cast<time::DSTRuleType>(pt.dst_start.type);
+      tz.dst_start.month = static_cast<uint8_t>(pt.dst_start.month);
+      tz.dst_start.week = static_cast<uint8_t>(pt.dst_start.week);
+      tz.dst_start.day_of_week = static_cast<uint8_t>(pt.dst_start.day_of_week);
+      tz.dst_end.time_seconds = pt.dst_end.time_seconds;
+      tz.dst_end.day = static_cast<uint16_t>(pt.dst_end.day);
+      tz.dst_end.type = static_cast<time::DSTRuleType>(pt.dst_end.type);
+      tz.dst_end.month = static_cast<uint8_t>(pt.dst_end.month);
+      tz.dst_end.week = static_cast<uint8_t>(pt.dst_end.week);
+      tz.dst_end.day_of_week = static_cast<uint8_t>(pt.dst_end.day_of_week);
+      time::set_global_tz(tz);
     }
 #endif
   }
@@ -1234,6 +1239,7 @@ void APIConnection::on_subscribe_bluetooth_le_advertisements_request(
 void APIConnection::on_unsubscribe_bluetooth_le_advertisements_request() {
   bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
 }
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 void APIConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
 }
@@ -1267,12 +1273,14 @@ void APIConnection::on_subscribe_bluetooth_connections_free_request() {
   }
 }
 
+void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
+}
+#endif
+
 void APIConnection::on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_scanner_set_mode(
       msg.mode == enums::BluetoothScannerMode::BLUETOOTH_SCANNER_MODE_ACTIVE);
-}
-void APIConnection::on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) {
-  bluetooth_proxy::global_bluetooth_proxy->bluetooth_set_connection_params(msg);
 }
 #endif
 
@@ -1328,7 +1336,8 @@ void APIConnection::on_voice_assistant_announce_request(const VoiceAssistantAnno
   }
 }
 
-bool APIConnection::send_voice_assistant_get_configuration_response_(const VoiceAssistantConfigurationRequest &msg) {
+bool APIConnection::send_voice_assistant_get_configuration_response_(
+    const VoiceAssistantConfigurationRequest & /*msg*/) {
   VoiceAssistantConfigurationResponse resp;
   if (!this->check_voice_assistant_api_connection_()) {
     // send_message encodes synchronously, so this stack local outlives the encode
@@ -1339,22 +1348,6 @@ bool APIConnection::send_voice_assistant_get_configuration_response_(const Voice
 
   auto &config = voice_assistant::global_voice_assistant->get_configuration();
   for (auto &wake_word : config.available_wake_words) {
-    resp.available_wake_words.emplace_back();
-    auto &resp_wake_word = resp.available_wake_words.back();
-    resp_wake_word.id = StringRef(wake_word.id);
-    resp_wake_word.wake_word = StringRef(wake_word.wake_word);
-    for (const auto &lang : wake_word.trained_languages) {
-      resp_wake_word.trained_languages.push_back(lang);
-    }
-  }
-
-  // Filter external wake words
-  for (auto &wake_word : msg.external_wake_words) {
-    if (wake_word.model_type != "micro") {
-      // microWakeWord only
-      continue;
-    }
-
     resp.available_wake_words.emplace_back();
     auto &resp_wake_word = resp.available_wake_words.back();
     resp_wake_word.id = StringRef(wake_word.id);
@@ -1387,7 +1380,12 @@ void APIConnection::on_z_wave_proxy_frame(const ZWaveProxyFrame &msg) {
 }
 
 void APIConnection::on_z_wave_proxy_request(const ZWaveProxyRequest &msg) {
-  zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+  ZWaveProxyRequestResponse resp{};
+  resp.type = msg.type;
+  resp.status = zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, msg.type);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Z-Wave proxy response");
+  }
 }
 #endif
 
@@ -1468,6 +1466,7 @@ uint16_t APIConnection::try_send_water_heater_info(EntityBase *entity, APIConnec
   msg.target_temperature_step = traits.get_target_temperature_step();
   msg.supported_modes = &traits.get_supported_modes();
   msg.supported_features = traits.get_feature_flags();
+  msg.temperature_unit = static_cast<enums::TemperatureUnit>(traits.get_temperature_unit());
   return fill_and_encode_entity_info(wh, msg, conn, remaining_size);
 }
 
@@ -1545,19 +1544,60 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 #endif
 
 #if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) { this->send_message(msg); }
+void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) {
+  if (!this->send_message(msg)) {
+    // V: fires per decoded frame with no subscription gate, so a warning
+    // would flood the congested link it reports on.
+    ESP_LOGV(TAG, "IR/RF event dropped, TCP buffer full");
+  }
+}
 #endif
 
 #ifdef USE_SERIAL_PROXY
+static enums::SerialProxyStatus serial_proxy_result_to_status(serial_proxy::SerialProxyResult result) {
+  switch (result) {
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_OK:
+      return enums::SERIAL_PROXY_STATUS_OK;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_ASSUMED_SUCCESS:
+      return enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE:
+      return enums::SERIAL_PROXY_STATUS_PORT_IN_USE;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT:
+      return enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_TIMEOUT:
+      return enums::SERIAL_PROXY_STATUS_TIMEOUT;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED:
+      return enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
+    case serial_proxy::SerialProxyResult::SERIAL_PROXY_RESULT_ERROR:
+      return enums::SERIAL_PROXY_STATUS_ERROR;
+  }
+  return enums::SERIAL_PROXY_STATUS_ERROR;  // Unreachable; all enum values handled above
+}
+
+static void send_serial_proxy_ack(APIConnection *conn, uint32_t instance, enums::SerialProxyRequestType type,
+                                  enums::SerialProxyStatus status) {
+  SerialProxyRequestResponse resp{};
+  resp.instance = instance;
+  resp.type = type;
+  resp.status = status;
+  if (!conn->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
+}
+
 void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range (max %" PRIu32 ")", msg.instance,
              static_cast<uint32_t>(proxies.size()));
+    send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE,
+                          enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
-  proxies[msg.instance]->configure(msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits,
-                                   msg.data_size);
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->configure(
+      this, msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits, msg.data_size);
+  send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE,
+                        serial_proxy_result_to_status(result));
 }
 
 void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
@@ -1566,69 +1606,78 @@ void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest 
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
-  proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
+  proxies[msg.instance]->write_from_client(this, msg.data, msg.data_len);
 }
 
 void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS,
+                          enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
-  proxies[msg.instance]->set_modem_pins(msg.line_states);
+  serial_proxy::SerialProxyResult result = proxies[msg.instance]->set_modem_pins(this, msg.line_states);
+  send_serial_proxy_ack(this, msg.instance, enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS,
+                        serial_proxy_result_to_status(result));
 }
 
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
-  if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
-    return;
-  }
   SerialProxyGetModemPinsResponse resp{};
   resp.instance = msg.instance;
-  resp.line_states = proxies[msg.instance]->get_modem_pins();
-  this->send_message(resp);
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    // Pre-1.16 clients do not read the status field and would take this error
+    // for a successful "both pins deasserted" answer; let them time out as before
+    if (!this->client_supports_api_version(1, 16)) {
+      return;
+    }
+    resp.status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+  } else {
+    resp.line_states = proxies[msg.instance]->get_modem_pins();
+  }
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Serial proxy response");
+  }
 }
 
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
     ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    send_serial_proxy_ack(this, msg.instance, msg.type, enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT);
     return;
   }
+  auto *proxy = proxies[msg.instance];
+  enums::SerialProxyStatus status;
   switch (msg.type) {
     case enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
     case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
-      proxies[msg.instance]->serial_proxy_request(this, msg.type);
+      status = serial_proxy_result_to_status(proxy->serial_proxy_request(this, msg.type));
       break;
-    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH: {
-      SerialProxyRequestResponse resp{};
-      resp.instance = msg.instance;
-      resp.type = enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH;
-      switch (proxies[msg.instance]->flush_port()) {
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS:
-          resp.status = enums::SERIAL_PROXY_STATUS_OK;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS:
-          resp.status = enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT:
-          resp.status = enums::SERIAL_PROXY_STATUS_TIMEOUT;
-          break;
-        case uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED:
-          resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
-          break;
-      }
-      this->send_message(resp);
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
+      status = serial_proxy_result_to_status(proxy->flush_port(this));
       break;
-    }
+    case enums::SERIAL_PROXY_REQUEST_TYPE_CONFIGURE:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SET_MODEM_PINS:
+      // Response-only discriminators; never valid in a request
+      ESP_LOGW(TAG, "Response-only serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
+      status = enums::SERIAL_PROXY_STATUS_INVALID_ARGUMENT;
+      break;
     default:
       ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
+      status = enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED;
       break;
   }
+  send_serial_proxy_ack(this, msg.instance, msg.type, status);
 }
 
-void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) { this->send_message(msg); }
+void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
+  if (!this->send_message(msg)) {
+    ESP_LOGV(TAG, "Serial proxy data dropped, TCP buffer full");
+  }
+}
 #endif
 
 #ifdef USE_INFRARED
@@ -1740,21 +1789,17 @@ void APIConnection::complete_authentication_() {
 bool APIConnection::send_hello_response_(const HelloRequest &msg) {
   // Copy client name with truncation if needed (set_client_name handles truncation)
   this->helper_->set_client_name(msg.client_info.c_str(), msg.client_info.size());
-  this->client_api_version_major_ = msg.api_version_major;
-  this->client_api_version_minor_ = msg.api_version_minor;
+  this->client_api_version_major_ =
+      static_cast<uint8_t>(std::min<uint32_t>(msg.api_version_major, std::numeric_limits<uint8_t>::max()));
+  this->client_api_version_minor_ =
+      static_cast<uint8_t>(std::min<uint32_t>(msg.api_version_minor, std::numeric_limits<uint8_t>::max()));
   char peername[socket::SOCKADDR_STR_LEN];
-  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %" PRIu16 ".%" PRIu16, this->helper_->get_client_name(),
+  ESP_LOGV(TAG, "Hello from client: '%s' | %s | API Version %u.%u", this->helper_->get_client_name(),
            this->helper_->get_peername_to(peername), this->client_api_version_major_, this->client_api_version_minor_);
-
-  // TODO: Remove before 2026.8.0 (one version after get_object_id backward compat removal)
-  if (!this->client_supports_api_version(1, 14)) {
-    ESP_LOGW(TAG, "'%s' using outdated API %" PRIu16 ".%" PRIu16 ", update to 1.14+", this->helper_->get_client_name(),
-             this->client_api_version_major_, this->client_api_version_minor_);
-  }
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 14;
+  resp.api_version_minor = 16;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
@@ -1765,7 +1810,9 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
     // Acknowledge the hello so the client can read the server name, then request
     // disconnect with the reason. Authentication is intentionally not completed.
     this->log_client_(ESPHOME_LOG_LEVEL_WARN, LOG_STR("Provisioning closed; rejecting connection"));
-    this->send_message(resp);
+    if (!this->send_message(resp)) {
+      API_LOG_MSG_DROPPED(TAG, "Hello response");
+    }
     DisconnectRequest req;
     req.reason = enums::DISCONNECT_REASON_PROVISIONING_CLOSED;
     return this->send_message(req);
@@ -1790,9 +1837,8 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_AREAS
   resp.suggested_area = StringRef(App.get_area());
 #endif
-  // Stack buffer for MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char mac_address[18];
-  uint8_t mac[6];
+  char mac_address[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  uint8_t mac[MAC_ADDRESS_SIZE];
   get_mac_address_raw(mac);
   format_mac_addr_upper(mac, mac_address);
   resp.mac_address = StringRef(mac_address);
@@ -1868,8 +1914,7 @@ bool APIConnection::send_device_info_response_() {
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
-  // Stack buffer for Bluetooth MAC address (XX:XX:XX:XX:XX:XX\0 = 18 bytes)
-  char bluetooth_mac[18];
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
   resp.bluetooth_mac_address = StringRef(bluetooth_mac);
 #endif
@@ -1888,6 +1933,7 @@ bool APIConnection::send_device_info_response_() {
     auto &info = resp.serial_proxies[serial_proxy_index++];
     info.name = StringRef(proxy->get_name());
     info.port_type = proxy->get_port_type();
+    info.configured_line_states = proxy->get_configured_modem_pins();
   }
 #endif
 #ifdef USE_API_NOISE
@@ -1923,6 +1969,36 @@ bool APIConnection::send_device_info_response_() {
 
   return this->send_message(resp);
 }
+bool APIConnection::send_device_capabilities_response_() {
+  // These are the same values DeviceInfoResponse still reports for older clients. Keep the blocks
+  // below in sync with send_device_info_response_() until those copies are removed.
+  DeviceCapabilitiesResponse resp;
+#ifdef USE_BLUETOOTH_PROXY
+  resp.bluetooth_proxy.feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
+  char bluetooth_mac[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_mac_address_pretty(bluetooth_mac);
+  resp.bluetooth_proxy.mac_address = StringRef(bluetooth_mac);
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  resp.voice_assistant.feature_flags = voice_assistant::global_voice_assistant->get_feature_flags();
+#endif
+#ifdef USE_ZWAVE_PROXY
+  resp.zwave_proxy.feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
+  resp.zwave_proxy.home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
+#ifdef USE_SERIAL_PROXY
+  size_t serial_proxy_index = 0;
+  for (auto const &proxy : App.get_serial_proxies()) {
+    if (serial_proxy_index >= SERIAL_PROXY_COUNT)
+      break;
+    auto &info = resp.serial_proxies[serial_proxy_index++];
+    info.name = StringRef(proxy->get_name());
+    info.port_type = proxy->get_port_type();
+    info.configured_line_states = proxy->get_configured_modem_pins();
+  }
+#endif
+  return this->send_message(resp);
+}
 void APIConnection::on_hello_request(const HelloRequest &msg) {
   if (!this->send_hello_response_(msg)) {
     this->on_fatal_error();
@@ -1941,6 +2017,11 @@ void APIConnection::on_ping_request() {
 }
 void APIConnection::on_device_info_request() {
   if (!this->send_device_info_response_()) {
+    this->on_fatal_error();
+  }
+}
+void APIConnection::on_device_capabilities_request() {
+  if (!this->send_device_capabilities_response_()) {
     this->on_fatal_error();
   }
 }
@@ -2022,7 +2103,9 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.call_id = call_id;
   resp.success = success;
   resp.error_message = error_message;
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Action response");
+  }
 }
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 void APIConnection::send_execute_service_response(uint32_t call_id, bool success, StringRef error_message,
@@ -2033,11 +2116,33 @@ void APIConnection::send_execute_service_response(uint32_t call_id, bool success
   resp.error_message = error_message;
   resp.response_data = response_data;
   resp.response_data_len = response_data_len;
-  this->send_message(resp);
+  if (!this->send_message(resp)) {
+    API_LOG_MSG_DROPPED(TAG, "Action response");
+  }
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
+
+#ifdef USE_API_HOMEASSISTANT_SERVICES
+bool APIConnection::send_homeassistant_action(const HomeassistantActionRequest &call) {
+  if (!this->flags_.service_call_subscription)
+    return false;
+  if (!this->send_message(call)) {
+    API_LOG_MSG_DROPPED(TAG, "Action request");
+  }
+  return true;
+}
+#endif  // USE_API_HOMEASSISTANT_SERVICES
+
+#ifdef USE_HOMEASSISTANT_TIME
+void APIConnection::send_time_request() {
+  GetTimeRequest req;
+  if (!this->send_message(req)) {
+    API_LOG_MSG_DROPPED(TAG, "Time request");
+  }
+}
+#endif  // USE_HOMEASSISTANT_TIME
 
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
 void APIConnection::on_homeassistant_action_response(const HomeassistantActionResponse &msg) {
@@ -2066,7 +2171,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
   }
 #endif
 
-  psk_t psk{};
+  noise::psk_t psk{};
   if (msg.key_len == 0) {
     if (this->parent_->clear_noise_psk(true)) {
       resp.success = true;
@@ -2075,7 +2180,7 @@ bool APIConnection::send_noise_encryption_set_key_response_(const NoiseEncryptio
     }
   } else if (base64_decode(msg.key, msg.key_len, psk.data(), psk.size()) != psk.size()) {
     ESP_LOGW(TAG, "Invalid encryption key length");
-  } else if (APINoiseContext::is_all_zeros(psk)) {
+  } else if (noise::NoiseContext::is_all_zeros(psk)) {
     // Accepting the reserved provisioning PSK would report success without
     // enabling encryption (or silently clear an existing key)
     ESP_LOGW(TAG, "Rejecting all-zero encryption key");
@@ -2113,11 +2218,14 @@ bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   if (this->helper_->can_write_without_blocking())
     return true;
   if (log_out_of_space) {
-    ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
+    // VV: refusals are either reported by the sending call site (naming what
+    // was lost) or retried without loss (the deferred batch), so this generic
+    // line only duplicates them.
+    ESP_LOGVV(TAG, "Cannot send message because of TCP buffer space");
   }
   return false;
 }
-bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn,
+bool APIConnection::send_message_(uint32_t payload_size, uint16_t message_type, MessageEncodeFn encode_fn,
                                   const void *msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   // Skip dump for log messages (recursive logging risk) and camera frames (high-frequency noise)
@@ -2131,10 +2239,17 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
     this->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
   }
 #endif
+  if (!this->prepare_first_message_buffer(payload_size)) [[unlikely]] {
+    this->fatal_out_of_memory_();
+    return false;
+  }
   auto &shared_buf = this->parent_->get_shared_buffer_ref();
-  this->prepare_first_message_buffer(shared_buf, payload_size);
   size_t write_start = shared_buf.size();
-  shared_buf.resize(write_start + payload_size);
+#ifdef ESPHOME_DEBUG_API
+  assert(shared_buf.capacity() >= write_start + payload_size);
+#endif
+  // Capacity reserved above, cannot fail
+  (void) shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
   encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
@@ -2146,7 +2261,7 @@ uint16_t APIConnection::encode_to_buffer_slow(uint32_t calculated_size, MessageE
                                               APIConnection *conn, uint32_t remaining_size) {
   return encode_to_buffer(calculated_size, encode_fn, msg, conn, remaining_size);
 }
-bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
+bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint16_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
 
   if (!this->try_to_clear_buffer(!is_log_message)) {
@@ -2170,30 +2285,42 @@ void APIConnection::on_no_setup_connection() {
   this->on_fatal_error();
   this->log_client_(ESPHOME_LOG_LEVEL_DEBUG, LOG_STR("no connection setup"));
 }
+void APIConnection::fatal_out_of_memory_() {
+  this->fatal_error_with_log_(LOG_STR("Out of memory"), APIError::OUT_OF_MEMORY);
+}
 void APIConnection::on_fatal_error() {
   // Don't close socket here - keep it open so getpeername() works for logging
   // Socket will be closed when client is removed from the list in APIServer::loop()
   this->flags_.remove = true;
 }
 
-bool APIConnection::schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+bool APIConnection::schedule_message_front_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size) {
   this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
   return this->schedule_batch_();
 }
 
-bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
+bool APIConnection::send_message_smart_(EntityBase *entity, uint16_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
-    auto &shared_buf = this->parent_->get_shared_buffer_ref();
-    this->prepare_first_message_buffer(shared_buf, estimated_size);
+    // No local for the shared buffer here: keeping it live across
+    // dispatch_message_ costs a register and spills message_type into the
+    // batching path's dedup loop (measured on x86 GCC -Os)
+    if (!this->prepare_first_message_buffer(estimated_size)) [[unlikely]] {
+      this->fatal_out_of_memory_();
+      return false;
+    }
     DeferredBatch::BatchItem item{entity, message_type, estimated_size, aux_data_index};
     if (this->dispatch_message_(item, MAX_BATCH_PACKET_SIZE, true) &&
-        this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type)) {
+        this->send_buffer(ProtoWriteBuffer{&this->parent_->get_shared_buffer_ref()}, message_type)) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
       this->log_batch_item_(item);
 #endif
       return true;
     }
+    // An OOM during the immediate attempt marks the connection for removal;
+    // don't queue more work (schedule_message_'s push_back may allocate again)
+    if (this->flags_.remove) [[unlikely]]
+      return false;
   }
   return this->schedule_message_(entity, message_type, estimated_size, aux_data_index);
 }
@@ -2243,7 +2370,11 @@ void APIConnection::process_batch_() {
     total_estimated_size = MAX_BATCH_PACKET_SIZE;
   }
 
-  this->prepare_first_message_buffer(shared_buf, header_padding, total_estimated_size);
+  if (!this->prepare_first_message_buffer(header_padding, total_estimated_size)) [[unlikely]] {
+    this->fatal_out_of_memory_();
+    this->clear_batch_();
+    return;
+  }
 
   // Fast path for single message - buffer already allocated above
   if (num_items == 1) {
@@ -2258,8 +2389,11 @@ void APIConnection::process_batch_() {
 #endif
       this->clear_batch_();
     } else if (payload_size == 0) {
-      // Message too large to fit in available space
-      ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
+      // payload_size == 0 with remove set means encoding hit OOM and the
+      // connection is being dropped; warn only for a genuinely oversized message
+      if (!this->flags_.remove) {
+        ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
+      }
       this->clear_batch_();
     }
     return;
@@ -2322,8 +2456,10 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
 
   if (items_processed > 0) {
     // Add footer space for the last message (for Noise protocol MAC)
-    if (footer_size > 0) {
-      shared_buf.resize(shared_buf.size() + footer_size);
+    if (footer_size > 0 && !shared_buf.resize(shared_buf.size() + footer_size)) [[unlikely]] {
+      this->fatal_out_of_memory_();
+      this->clear_batch_();
+      return;
     }
 
     // Send all collected messages
