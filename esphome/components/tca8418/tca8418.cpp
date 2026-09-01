@@ -86,16 +86,10 @@ bool TCA8418Component::configure_pins_() {
 }
 
 void TCA8418Component::loop() {
-  if (this->interrupt_pin_ != nullptr) {
-    this->process_events_();
-    //  Events can arrive while the queue is being read, and the interrupt output
-    //  stays asserted for them without producing another edge to wake the loop,
-    //  so only stop once the device has nothing left.
-    if (this->interrupt_pin_->digital_read())
-      this->disable_loop();
-    return;
-  }
-
+  //  One path for both ways of noticing events. Asking the device how many it
+  //  has queued is a single read, and rate limiting it means a pin left
+  //  floating, or a device that has stopped answering, cannot turn into a
+  //  stream of I2C traffic on every pass of the main loop.
   const uint32_t now = millis();
   if (now - this->last_poll_ < POLL_INTERVAL_MS)
     return;
@@ -106,10 +100,17 @@ void TCA8418Component::loop() {
     this->status_set_warning();
     return;
   }
-  if ((count & TCA8418_EVENT_COUNT_MASK) == 0)
-    return;
+  this->status_clear_warning();
 
-  this->process_events_();
+  if ((count & TCA8418_EVENT_COUNT_MASK) != 0)
+    this->process_events_();
+
+  //  With an interrupt pin, wait for the next interrupt once the device has
+  //  nothing left. Events that arrive while the queue is being read keep the
+  //  interrupt output asserted without producing another edge, so the level has
+  //  to be clear before the loop stops.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())
+    this->disable_loop();
 }
 
 void TCA8418Component::process_events_() {

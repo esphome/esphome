@@ -6,7 +6,11 @@ tca8418:
     rows: 4
     columns: 3
     keys: "123456789*0#"
-    interrupt_pin: ${interrupt_pin}
+    # The interrupt output is open drain, so it needs a pull-up. Use the
+    # internal one unless the board already has its own.
+    interrupt_pin:
+      number: ${interrupt_pin}
+      mode: INPUT_PULLUP
     on_key:
       - logger.log:
           format: "Key: %c"
