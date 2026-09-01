@@ -47,7 +47,11 @@ void TCA8418Component::setup() {
     if (!this->read_byte(TCA8418_REG_KEY_EVENT_A, &key) || key == 0)
       break;
   }
-  this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL);
+  if (!this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL)) {
+    ESP_LOGE(TAG, "Failed to clear the interrupt flags");
+    this->mark_failed();
+    return;
+  }
 
   //  With an interrupt pin there is nothing to do until it fires. Stay running
   //  if the device still has something queued, since that produces no new edge.

@@ -6,19 +6,20 @@ from esphome.const import CONF_COL, CONF_KEY, CONF_ROW
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_GPI_EVENTS, CONF_KEYPAD_ID, TCA8418Component, tca8418_ns
+from .. import (
+    CONF_GPI_EVENTS,
+    CONF_KEYPAD_ID,
+    GPI_KEY_MAX,
+    GPI_KEY_MIN,
+    MATRIX_COLUMNS,
+    MATRIX_KEY_MAX,
+    TCA8418Component,
+    tca8418_ns,
+)
 
 DEPENDENCIES = ["tca8418"]
 
 CONF_KEY_CODE = "key_code"
-
-# Matrix keys are numbered row-major with ten columns per row, starting at 1.
-# Pins outside the matrix report as individual inputs from 97 up; 81 to 96 are
-# not used by the device.
-MATRIX_COLUMNS = 10
-MATRIX_KEY_MAX = 80
-GPI_KEY_MIN = 97
-GPI_KEY_MAX = 114
 
 TCA8418BinarySensor = tca8418_ns.class_(
     "TCA8418BinarySensor", binary_sensor.BinarySensorInitiallyOff
