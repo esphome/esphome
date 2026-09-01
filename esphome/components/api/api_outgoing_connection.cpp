@@ -22,17 +22,21 @@ void OutgoingConnectionManager::setup() {
 #ifndef API_OUTGOING_CONNECTION_HOST
   this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
   if (!this->target_pref_.load(&this->saved_)) {
+    ESP_LOGD(TAG, "No saved target");
     this->saved_ = {};
   }
   // Defend against a corrupt or truncated preference blob
   this->saved_.host[socket::SOCKADDR_STR_LEN - 1] = '\0';
-#ifndef USE_NETWORK_IPV6
+  // The macro is defined with a true/false value, not conditionally
+#if !USE_NETWORK_IPV6
   if (strchr(this->saved_.host, ':') != nullptr) {
     // Remembered by an earlier IPv6 build; set_sockaddr() would silently
     // turn it into 255.255.255.255
     ESP_LOGW(TAG, "Clearing unusable IPv6 target %s", this->saved_.host);
     this->saved_ = {};
-    this->target_pref_.save(&this->saved_);
+    if (!this->target_pref_.save(&this->saved_) || !global_preferences->sync()) {
+      ESP_LOGW(TAG, "Failed to clear target");
+    }
   }
 #endif
 #endif
