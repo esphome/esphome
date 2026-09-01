@@ -6,7 +6,7 @@ from esphome.const import CONF_COL, CONF_KEY, CONF_ROW
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_KEYPAD_ID, TCA8418Component, tca8418_ns
+from .. import CONF_GPI_EVENTS, CONF_KEYPAD_ID, TCA8418Component, tca8418_ns
 
 DEPENDENCIES = ["tca8418"]
 
@@ -65,7 +65,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_KEYPAD_ID): cv.use_id(TCA8418Component),
             cv.Optional(CONF_ROW): cv.int_range(min=0, max=7),
             cv.Optional(CONF_COL): cv.int_range(min=0, max=9),
-            cv.Optional(CONF_KEY): cv.string_strict,
+            cv.Optional(CONF_KEY): cv.string,
             cv.Optional(CONF_KEY_CODE): _key_code,
         }
     ),
@@ -97,6 +97,38 @@ def _final_validate(config: ConfigType) -> None:
         config[CONF_KEY_CODE] = row * MATRIX_COLUMNS + col + 1
         return
 
+    if (key_code := config.get(CONF_KEY_CODE)) is not None:
+        if key_code <= MATRIX_KEY_MAX:
+            row, col = divmod(key_code - 1, MATRIX_COLUMNS)
+            if row >= rows or col >= columns:
+                raise cv.Invalid(
+                    f"Key number {key_code} is position {row}/{col}, which is "
+                    f"outside the {rows} x {columns} key matrix of the keypad it "
+                    "belongs to",
+                    path=[CONF_KEY_CODE],
+                )
+            return
+        if not keypad[CONF_GPI_EVENTS]:
+            raise cv.Invalid(
+                f"Key number {key_code} is an individual input, but the keypad has "
+                f"'{CONF_GPI_EVENTS}' turned off",
+                path=[CONF_KEY_CODE],
+            )
+        # 97..104 are ROW0..ROW7 and 105..114 are COL0..COL9. A pin used by the
+        # matrix cannot also report on its own.
+        offset = key_code - GPI_KEY_MIN
+        if offset < 8:
+            in_matrix, pin = offset < rows, f"ROW{offset}"
+        else:
+            in_matrix, pin = offset - 8 < columns, f"COL{offset - 8}"
+        if in_matrix:
+            raise cv.Invalid(
+                f"Key number {key_code} is {pin}, which the key matrix is using, so "
+                "it cannot report as an individual input",
+                path=[CONF_KEY_CODE],
+            )
+        return
+
     if (key := config.get(CONF_KEY)) is not None:
         keys = keypad.get(CONF_KEYS)
         if keys is None:
@@ -107,6 +139,12 @@ def _final_validate(config: ConfigType) -> None:
         if (index := keys.find(key)) < 0:
             raise cv.Invalid(
                 f"'{key}' is not one of the keypad's keys", path=[CONF_KEY]
+            )
+        if keys.count(key) > 1:
+            raise cv.Invalid(
+                f"'{key}' appears more than once in the keypad's keys, so it does "
+                f"not name one key. Use '{CONF_ROW}' and '{CONF_COL}' instead",
+                path=[CONF_KEY],
             )
         config[CONF_KEY_CODE] = (
             (index // columns) * MATRIX_COLUMNS + (index % columns) + 1

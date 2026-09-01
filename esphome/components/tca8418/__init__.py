@@ -1,18 +1,27 @@
-from esphome import automation, pins
+import logging
+
+from esphome import automation
 import esphome.codegen as cg
-from esphome.components import i2c, key_provider
+from esphome.components import gpio_expander, i2c, key_provider
 from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_ON_KEY
 from esphome.types import ConfigType
 
+_LOGGER = logging.getLogger(__name__)
+
 CODEOWNERS = ["@zebble"]
 DEPENDENCIES = ["i2c"]
-AUTO_LOAD = ["key_provider"]
+AUTO_LOAD = ["key_provider", "gpio_expander"]
 MULTI_CONF = True
 
 CONF_GPI_EVENTS = "gpi_events"
 CONF_KEYPAD_ID = "keypad_id"
+
+# Individual inputs are numbered from 97 up: ROW0..ROW7 are 97..104 and
+# COL0..COL9 are 105..114.
+GPI_KEY_MIN = 97
+GPI_KEY_MAX = 114
 
 tca8418_ns = cg.esphome_ns.namespace("tca8418")
 TCA8418Component = tca8418_ns.class_(
@@ -50,6 +59,27 @@ def _validate(config: ConfigType) -> ConfigType:
                 f"({rows} rows x {columns} columns), got {len(keys)}",
                 path=[CONF_KEYS],
             )
+    # Individual inputs report as 97..114, which are also the codes for the
+    # letters 'a' to 'r'. Both reach on_key and key collectors as a number.
+    if (
+        keys is not None
+        and config[CONF_GPI_EVENTS]
+        and (
+            clashing := sorted(
+                {k for k in keys if GPI_KEY_MIN <= ord(k) <= GPI_KEY_MAX}
+            )
+        )
+    ):
+        _LOGGER.warning(
+            "In '%s', the key(s) %s cannot be told apart from an individual input "
+            "on the '%s' and key collector paths, because both are reported as the "
+            "same number. Binary sensors are unaffected. Use other characters, or "
+            "set '%s: false', if this matters.",
+            CONF_KEYS,
+            ", ".join(f"'{k}'" for k in clashing),
+            CONF_ON_KEY,
+            CONF_GPI_EVENTS,
+        )
     if rows == 0 and not config[CONF_GPI_EVENTS]:
         raise cv.Invalid(
             "Nothing to report: set 'rows' and 'columns' for a key matrix, "
@@ -69,7 +99,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_KEYS): _ascii_string,
             # Report pins that are not part of the matrix as individual inputs.
             cv.Optional(CONF_GPI_EVENTS, default=True): cv.boolean,
-            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_INTERRUPT_PIN): gpio_expander.validate_interrupt_pin,
             cv.Optional(CONF_ON_KEY): automation.validate_automation({}),
         }
     )
