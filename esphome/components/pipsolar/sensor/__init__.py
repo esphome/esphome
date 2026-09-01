@@ -8,15 +8,18 @@ from esphome.const import (
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     ICON_BATTERY,
+    ICON_COUNTER,
     ICON_CURRENT_AC,
     ICON_FLASH,
     ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_HERTZ,
@@ -24,6 +27,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_VOLT_AMPS,
     UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 from esphome.types import ConfigType
 
@@ -79,6 +83,10 @@ CONF_SCC_FIRMWARE_VERSION = "scc_firmware_version"
 CONF_BATTERY_VOLTAGE_OFFSET_FOR_FANS_ON = "battery_voltage_offset_for_fans_on"
 CONF_EEPROM_VERSION = "eeprom_version"
 CONF_PV_CHARGING_POWER = "pv_charging_power"
+
+# QET / QLT sensors
+CONF_TOTAL_PV_GENERATED_ENERGY = "total_pv_generated_energy"
+CONF_TOTAL_OUTPUT_LOAD_ENERGY = "total_output_load_energy"
 
 TYPES = {
     CONF_GRID_RATING_VOLTAGE: sensor.sensor_schema(
@@ -318,6 +326,20 @@ TYPES = {
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
+    ),
+    CONF_TOTAL_PV_GENERATED_ENERGY: sensor.sensor_schema(
+        unit_of_measurement=UNIT_WATT_HOURS,
+        icon=ICON_SOLAR_POWER,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_ENERGY,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+    ),
+    CONF_TOTAL_OUTPUT_LOAD_ENERGY: sensor.sensor_schema(
+        unit_of_measurement=UNIT_WATT_HOURS,
+        icon=ICON_COUNTER,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_ENERGY,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
     ),
 }
 
