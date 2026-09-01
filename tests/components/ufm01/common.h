@@ -111,11 +111,11 @@ class TestableUFM01 : public UFM01Component {
   void set_pending_clear_start_ms(uint32_t ms) { this->pending_clear_start_ms_ = ms; }
 #endif
 
-#ifdef USE_UFM01_DEVICE_ID
-  bool device_id_published() const { return this->device_id_published_; }
+#ifdef USE_UFM01_METER_ID
+  bool meter_id_published() const { return this->meter_id_published_; }
 #endif
 
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
   void start_software_version_read() { this->start_software_version_read_(); }
 
   SoftwareVersionReadResult continue_software_version_read() { return this->continue_software_version_read_(); }
@@ -123,6 +123,8 @@ class TestableUFM01 : public UFM01Component {
   bool software_version_published() const { return this->software_version_published_; }
 
   void set_software_version_start_ms(uint32_t ms) { this->software_version_start_ms_ = ms; }
+
+  void set_last_software_version_attempt_ms(uint32_t ms) { this->last_software_version_attempt_ms_ = ms; }
 #endif
 
   OperatingMode operating_mode() const { return this->operating_mode_; }
@@ -180,7 +182,7 @@ class TestableUFM01 : public UFM01Component {
     this->operating_mode_ = OperatingMode::STARTUP;
     this->startup_phase_ = StartupPhase::POST_RESET_WAIT;
     this->phase_start_ms_ = millis() - 3000;
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
     this->software_version_published_ = false;
 #endif
   }
@@ -192,10 +194,10 @@ class TestableUFM01 : public UFM01Component {
     this->passive_read_pending_ = false;
     this->operating_mode_ = OperatingMode::STARTUP;
     this->consecutive_passive_failures_ = 0;
-#ifdef USE_UFM01_DEVICE_ID
-    this->device_id_published_ = false;
+#ifdef USE_UFM01_METER_ID
+    this->meter_id_published_ = false;
 #endif
-#ifdef USE_TEXT_SENSOR
+#ifdef USE_UFM01_SOFTWARE_VERSION
     this->software_version_published_ = false;
     this->software_version_index_ = 0;
     this->software_version_read_pending_ = false;
@@ -310,13 +312,13 @@ class UFM01Test : public ::testing::Test {
   sensor::Sensor temperature_sensor_;
 #endif
 
-#ifdef USE_TEXT_SENSOR
+#if defined(USE_UFM01_METER_ID) && defined(USE_UFM01_SOFTWARE_VERSION)
   void attach_diagnostic_text_sensors() {
-    this->ufm01_.set_device_id_text_sensor(&this->device_id_text_sensor_);
+    this->ufm01_.set_meter_id_text_sensor(&this->meter_id_text_sensor_);
     this->ufm01_.set_software_version_text_sensor(&this->software_version_text_sensor_);
   }
 
-  text_sensor::TextSensor device_id_text_sensor_;
+  text_sensor::TextSensor meter_id_text_sensor_;
   text_sensor::TextSensor software_version_text_sensor_;
 #endif
 

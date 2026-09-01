@@ -10,7 +10,7 @@ sensor:
 # Enables USE_TEXT_SENSOR for host unit tests; tests attach their own text sensor instances.
 text_sensor:
   - platform: template
-    id: bench_device_id
+    id: bench_meter_id
     name: "Device ID"
   - platform: template
     id: bench_software_version

@@ -31,9 +31,9 @@ binary_sensor:
 
 text_sensor:
   - platform: ufm01
-    device_id:
-      id: ufm01_device_id
-      name: "Device ID"
+    meter_id:
+      id: ufm01_meter_id
+      name: "Meter ID"
     software_version:
       id: ufm01_software_version
       name: "Software version"
