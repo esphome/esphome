@@ -259,7 +259,7 @@ ErrorCode VEML7700Component::configure_() {
 
 ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Gain gain, bool shutdown) {
   ESP_LOGV(TAG, "Reconfigure time and gain (%d ms, %s) %s", get_itime_ms(time), get_gain_str(gain),
-           shutdown ? "Shutting down" : "Turning back on");
+           shutdown ? LOG_STR_LITERAL("Shutting down") : LOG_STR_LITERAL("Turning back on"));
 
   ConfigurationRegister als_conf{0};
   als_conf.raw = 0;
@@ -272,7 +272,7 @@ ErrorCode VEML7700Component::reconfigure_time_and_gain_(IntegrationTime time, Ga
   als_conf.ALS_GAIN = gain;
   auto err = this->write_register((uint8_t) CommandRegisters::ALS_CONF_0, als_conf.raw_bytes, VEML_REG_SIZE);
   if (err != i2c::ERROR_OK) {
-    ESP_LOGW(TAG, "%s failed", shutdown ? "Shutdown" : "Turn on");
+    ESP_LOGW(TAG, "%s failed", shutdown ? LOG_STR_LITERAL("Shutdown") : LOG_STR_LITERAL("Turn on"));
   }
 
   return err;
@@ -363,8 +363,8 @@ void VEML7700Component::apply_lux_calculation_(Readings &data) {
   data.fake_infrared_lux = reduce_to_zero(data.white_lux, data.als_lux);
 
   ESP_LOGV(TAG, "%s mode - ALS = %.1f lx, WHITE = %.1f lx, FAKE_IR = %.1f lx",
-           this->automatic_mode_enabled_ ? "Automatic" : "Manual", data.als_lux, data.white_lux,
-           data.fake_infrared_lux);
+           this->automatic_mode_enabled_ ? LOG_STR_LITERAL("Automatic") : LOG_STR_LITERAL("Manual"), data.als_lux,
+           data.white_lux, data.fake_infrared_lux);
 }
 
 void VEML7700Component::apply_lux_compensation_(Readings &data) {
