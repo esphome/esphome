@@ -40,8 +40,7 @@ void HOT EPaperSSD1677::draw_pixel_at(int x, int y, Color color) {
   const auto bw_byte = this->buffer_[byte_position];
   this->buffer_[byte_position] = gray_to_bw_bit(gray) ? (bw_byte | pixel_bit) : (bw_byte & ~pixel_bit);
   const auto red_byte = this->buffer_[plane_bytes + byte_position];
-  this->buffer_[plane_bytes + byte_position] =
-      gray_to_red_bit(gray) ? (red_byte | pixel_bit) : (red_byte & ~pixel_bit);
+  this->buffer_[plane_bytes + byte_position] = gray_to_red_bit(gray) ? (red_byte | pixel_bit) : (red_byte & ~pixel_bit);
 }
 
 void EPaperSSD1677::fill(Color color) {
@@ -80,9 +79,9 @@ void EPaperSSD1677::refresh_screen(bool partial) {
     return;
   }
   ESP_LOGV(TAG, "Refresh screen (gray4, OTP waveform)");
-  this->cmd_data(0x3C, {0x00});         // border waveform: follow LUT0 (Seeed's gray4 value)
-  this->cmd_data(0x1A, {0x67, 0x00});   // force the panel's stored gray4 waveform via its OTP temperature trick
-  this->cmd_data(0x22, {0xD7});         // Seeed/stock gray4 update sequence (not a named row in the datasheet excerpt)
+  this->cmd_data(0x3C, {0x00});        // border waveform: follow LUT0 (Seeed's gray4 value)
+  this->cmd_data(0x1A, {0x67, 0x00});  // force the panel's stored gray4 waveform via its OTP temperature trick
+  this->cmd_data(0x22, {0xD7});        // Seeed/stock gray4 update sequence (not a named row in the datasheet excerpt)
   this->command(0x20);
 }
 

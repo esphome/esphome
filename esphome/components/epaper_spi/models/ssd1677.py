@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-from esphome.const import CONF_DATA_RATE
 import esphome.config_validation as cv
+from esphome.const import CONF_DATA_RATE
 
 from . import EpaperModel
 

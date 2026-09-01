@@ -35,9 +35,7 @@ class EPaperSSD1677 : public EPaperMono {
 
   void fill(Color color) override;
 
-  DisplayType get_display_type() override {
-    return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY;
-  }
+  DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
 
  protected:
   void draw_pixel_at(int x, int y, Color color) override;
