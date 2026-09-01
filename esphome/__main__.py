@@ -762,9 +762,11 @@ def _wrap_to_code(name, comp, yaml_util):
     async def wrapped(conf):
         cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
-            conf_str = yaml_util.dump(conf)
+            # sort_keys: voluptuous fills defaults in set order, so an
+            # unsorted dump would churn main.cpp and relink every run
+            conf_str = yaml_util.dump(conf, sort_keys=True)
             conf_str = conf_str.replace("//", "")
-            # remove tailing \ to avoid multi-line comment warning
+            # remove trailing \ to avoid multi-line comment warning
             conf_str = conf_str.replace("\\\n", "\n")
             cg.add(cg.LineComment(indent(conf_str)))
         await coro(conf)
@@ -855,7 +857,20 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
         toolchain.create_factory_bin()
         toolchain.create_ota_bin()
         toolchain.create_elf_copy()
-        toolchain.get_idedata()
+        from esphome.build_helpers.idedata import IDEDATA_BEST_EFFORT_ERRORS
+
+        try:
+            if toolchain.get_idedata() is None:
+                _LOGGER.warning("No idedata was generated for this build")
+        except IDEDATA_BEST_EFFORT_ERRORS as err:
+            # The firmware already built; an idedata failure must not fail
+            # a successful build.
+            _LOGGER.warning(
+                "Could not generate idedata: %s (IDE, clang-tidy, and "
+                "memory-analysis data will be unavailable for this build)",
+                err,
+            )
+            _LOGGER.debug("Idedata failure detail", exc_info=True)
     else:
         from esphome.platformio import toolchain
 
@@ -1655,18 +1670,24 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     if exit_code != 0:
         return exit_code
     if CORE.is_host:
-        if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import toolchain
-
-            program_path = str(toolchain.get_elf_path())
-        else:
-            from esphome.platformio.toolchain import get_idedata
-
-            program_path = str(get_idedata(config).firmware_elf_path)
-        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+        _LOGGER.info(
+            "Successfully compiled program to path '%s'", _host_program_path(config)
+        )
     else:
         _LOGGER.info("Successfully compiled program.")
     return 0
+
+
+def _host_program_path(config: ConfigType) -> str:
+    """Return the compiled host ELF path."""
+    if CORE.using_toolchain_esp_idf:
+        from esphome.espidf import toolchain
+
+        return str(toolchain.get_elf_path())
+    from esphome.platformio.toolchain import get_idedata
+
+    # Memoized by compile_program's own call; this is a dict lookup
+    return str(get_idedata(config).firmware_elf_path)
 
 
 def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -1713,14 +1734,7 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         return exit_code
     _LOGGER.info("Successfully compiled program.")
     if CORE.is_host:
-        if CORE.using_toolchain_esp_idf:
-            from esphome.espidf import toolchain
-
-            program_path = str(toolchain.get_elf_path())
-        else:
-            from esphome.platformio.toolchain import get_idedata
-
-            program_path = str(get_idedata(config).firmware_elf_path)
+        program_path = _host_program_path(config)
         _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
@@ -2719,10 +2733,14 @@ def run_esphome(argv):
     # Skipped when -s overrides are passed, since the cache was written
     # against the previous substitution set.
     config: ConfigType | None = None
-    cache_eligible = (
+    cache_write_eligible = (
         args.command in ("upload", "logs") and not command_line_substitutions
     )
-    if cache_eligible:
+    # An explicit --toolchain must re-run the per-platform validators, so
+    # gate only the cache read; the refresh below saves the result unless
+    # the sidecar records a different toolchain.
+    cache_read_eligible = cache_write_eligible and args.toolchain is None
+    if cache_read_eligible:
         from esphome.compiled_config import load_compiled_config
 
         config = load_compiled_config(conf_path)
@@ -2732,7 +2750,8 @@ def run_esphome(argv):
                 conf_path.name,
             )
 
-    if config is None:
+    cache_missed = config is None
+    if cache_missed:
         from esphome.config import read_config
 
         config = read_config(
@@ -2741,25 +2760,21 @@ def run_esphome(argv):
             # Snapshot only needed by `esphome config --no-defaults`.
             snapshot_user_config=getattr(args, "no_defaults", False),
         )
-        # Refresh the cache so the next upload/logs hits the fast path
-        # instead of re-running read_config. Skip when the storage
-        # sidecar is absent (no compile has run): the cache would
-        # never be loaded back, so writing secrets to disk is wasted.
-        if cache_eligible and config is not None:
-            from esphome.compiled_config import save_compiled_config
-            from esphome.storage_json import ext_storage_path
-
-            if ext_storage_path(conf_path.name).exists():
-                save_compiled_config(config)
-    if config is None:
-        return 2
+        if config is None:
+            return 2
     CORE.config = config
 
-    # Fallback for platforms whose validators didn't set the toolchain
-    # (only the esp32 component reads esp32.framework.toolchain). All
-    # other platforms only support PlatformIO today.
+    # The cache fast path skips validation, and legacy sidecars lack the
+    # toolchain field. Must run before the cache refresh below.
     if CORE.toolchain is None:
         CORE.toolchain = Toolchain.PLATFORMIO
+
+    # Refresh the cache so the next upload/logs hits the fast path
+    # instead of re-running read_config.
+    if cache_write_eligible and cache_missed:
+        from esphome.compiled_config import save_compiled_config_and_sidecar
+
+        save_compiled_config_and_sidecar(config)
 
     if args.command not in POST_CONFIG_ACTIONS:
         safe_print(f"Unknown command {args.command}")
