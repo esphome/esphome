@@ -30,7 +30,8 @@ display:
   - platform: epaper_spi
     id: gray4_display
     spi_id: epaper_spi_bus
-    model: seeed-reterminal-sticky-gray4
+    model: seeed-reterminal-sticky
+    grayscale: true
     # Cycles through a few very different frames so ghosting between refreshes is easy to spot,
     # and so refresh timing can be observed across several repeats without needing a serial console.
     update_interval: 15s

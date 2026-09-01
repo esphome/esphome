@@ -1,11 +1,24 @@
+import esphome.codegen as cg
 from esphome.const import CONF_DATA_RATE
+import esphome.config_validation as cv
 
 from . import EpaperModel
 
+# A component-local constant (esphome/const.py is frozen); it8951/display.py also defines this.
+CONF_GRAYSCALE = "grayscale"
+
 
 class SSD1677(EpaperModel):
-    def __init__(self, name, class_name="EPaperMono", data_rate="20MHz", **defaults):
+    def __init__(
+        self,
+        name,
+        class_name="EPaperMono",
+        data_rate="20MHz",
+        supports_grayscale=False,
+        **defaults,
+    ):
         defaults[CONF_DATA_RATE] = data_rate
+        self.supports_grayscale = supports_grayscale
         super().__init__(name, class_name, **defaults)
 
     # fmt: off
@@ -18,6 +31,18 @@ class SSD1677(EpaperModel):
             (0x3C, 0x01),    # Set border waveform
             (0x11, 3),      # Set transform
         )
+
+    def get_config_options(self) -> dict:
+        if not self.supports_grayscale:
+            return {}
+        # Default false: this option is additive, existing 1bpp configs must keep rendering
+        # exactly as before if they don't opt in.
+        return {cv.Optional(CONF_GRAYSCALE, default=False): cv.boolean}
+
+    async def to_code(self, var, config: dict) -> dict:
+        if self.supports_grayscale:
+            cg.add(var.set_grayscale(config[CONF_GRAYSCALE]))
+        return config
 
 
 ssd1677 = SSD1677("ssd1677")
@@ -52,25 +77,13 @@ ssd1677.extend(
     mirror_x=True,
 )
 
+# Grayscale (4-level, factory OTP waveform) is only offered here: the register values it relies on
+# are confirmed against Seeed's own driver and the stock reTerminal Sticky firmware specifically,
+# and are not verified for any other SSD1677 board's glass.
 ssd1677.extend(
     "seeed-reterminal-sticky",
-    width=800,
-    height=480,
-    mirror_x=True,
-    enable_pin=47,
-    cs_pin=15,
-    dc_pin=16,
-    reset_pin=17,
-    busy_pin=18,
-    data_rate="10MHz",
-)
-
-# Same panel/pins as seeed-reterminal-sticky, but drives the controller's built-in four-level
-# grayscale (factory OTP waveform, no microcontroller-uploaded LUT) instead of 1bpp black/white.
-# Partial refresh is not supported in this mode; see EPaperSSD1677Gray4.
-ssd1677.extend(
-    "seeed-reterminal-sticky-gray4",
-    class_name="EPaperSSD1677Gray4",
+    class_name="EPaperSSD1677",
+    supports_grayscale=True,
     width=800,
     height=480,
     mirror_x=True,

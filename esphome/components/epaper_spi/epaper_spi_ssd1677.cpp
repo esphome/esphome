@@ -1,11 +1,11 @@
-#include "epaper_spi_ssd1677_gray4.h"
+#include "epaper_spi_ssd1677.h"
 
 #include <algorithm>
 
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.ssd1677_gray4";
+static constexpr const char *const TAG = "epaper_spi.ssd1677";
 
 // Which RAM bits (bw = command 0x24, red = command 0x26) select each gray level's waveform slot,
 // for the panel's factory OTP gray4 path. Sourced from Seeed's own `seeed_epaper` SSD1677 driver and
@@ -13,7 +13,7 @@ static constexpr const char *const TAG = "epaper_spi.ssd1677_gray4";
 static uint8_t gray_to_bw_bit(uint8_t gray) { return gray <= 1; }
 static uint8_t gray_to_red_bit(uint8_t gray) { return gray == 0 || gray == 2; }
 
-uint8_t EPaperSSD1677Gray4::color_to_gray_(Color color) {
+uint8_t EPaperSSD1677::color_to_gray_(Color color) {
   // Extends EPaperBase::color_to_bit()'s half-way luminance split into four even bands.
   const uint16_t sum = color.r + color.g + color.b;
   if (sum >= 573)
@@ -25,7 +25,11 @@ uint8_t EPaperSSD1677Gray4::color_to_gray_(Color color) {
   return 0;    // black
 }
 
-void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {
+void HOT EPaperSSD1677::draw_pixel_at(int x, int y, Color color) {
+  if (!this->grayscale_) {
+    EPaperBase::draw_pixel_at(x, y, color);
+    return;
+  }
   if (!rotate_coordinates_(x, y))
     return;
   const uint8_t gray = color_to_gray_(color);
@@ -40,7 +44,11 @@ void HOT EPaperSSD1677Gray4::draw_pixel_at(int x, int y, Color color) {
       gray_to_red_bit(gray) ? (red_byte | pixel_bit) : (red_byte & ~pixel_bit);
 }
 
-void EPaperSSD1677Gray4::fill(Color color) {
+void EPaperSSD1677::fill(Color color) {
+  if (!this->grayscale_) {
+    EPaperBase::fill(color);
+    return;
+  }
   if (this->get_clipping().is_set()) {
     Display::fill(color);
     return;
@@ -66,7 +74,11 @@ void EPaperSSD1677Gray4::fill(Color color) {
   this->y_low_ = 0;
 }
 
-void EPaperSSD1677Gray4::refresh_screen(bool partial) {
+void EPaperSSD1677::refresh_screen(bool partial) {
+  if (!this->grayscale_) {
+    EPaperMono::refresh_screen(partial);
+    return;
+  }
   ESP_LOGV(TAG, "Refresh screen (gray4, OTP waveform)");
   this->cmd_data(0x3C, {0x00});         // border waveform: follow LUT0 (Seeed's gray4 value)
   this->cmd_data(0x1A, {0x67, 0x00});   // force the panel's stored gray4 waveform via its OTP temperature trick
@@ -74,7 +86,11 @@ void EPaperSSD1677Gray4::refresh_screen(bool partial) {
   this->command(0x20);
 }
 
-void EPaperSSD1677Gray4::set_window() {
+void EPaperSSD1677::set_window() {
+  if (!this->grayscale_) {
+    EPaperMono::set_window();
+    return;
+  }
   // Grayscale always redraws the full frame; there is no partial-refresh path here (see class comment).
   this->x_low_ = 0;
   this->x_high_ = this->width_;
@@ -88,7 +104,10 @@ void EPaperSSD1677Gray4::set_window() {
   this->cmd_data(0x4F, {(uint8_t) this->y_low_, (uint8_t) (this->y_low_ / 256)});
 }
 
-bool HOT EPaperSSD1677Gray4::transfer_data() {
+bool HOT EPaperSSD1677::transfer_data() {
+  if (!this->grayscale_) {
+    return EPaperMono::transfer_data();
+  }
   auto start_time = millis();
   const size_t plane_bytes = this->row_width_ * this->height_;
   if (this->current_data_index_ == 0) {
@@ -128,7 +147,11 @@ bool HOT EPaperSSD1677Gray4::transfer_data() {
   return true;
 }
 
-void EPaperSSD1677Gray4::deep_sleep() {
+void EPaperSSD1677::deep_sleep() {
+  if (!this->grayscale_) {
+    EPaperMono::deep_sleep();
+    return;
+  }
   // Every gray4 refresh redraws from this->buffer_ rather than relying on retained panel RAM, so
   // there is no reason to skip sleep the way the partial-update-aware base class does.
   ESP_LOGV(TAG, "Deep sleep");
