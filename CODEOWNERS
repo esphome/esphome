@@ -347,6 +347,7 @@ esphome/components/midea_ir/* @dudanov
 esphome/components/mipi_dsi/* @clydebarrow
 esphome/components/mipi_rgb/* @clydebarrow
 esphome/components/mipi_spi/* @clydebarrow
+esphome/components/mistral_ir/* @lerhum
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mitsubishi_cn105/* @crnjan
 esphome/components/mixer/speaker/* @kahrendt
