@@ -27,10 +27,8 @@ void TCA8418Component::setup() {
     return;
   }
 
-  //  Report key events and a full event queue, and keep the interrupt asserted
-  //  while events remain queued. The overflow interrupt has to be enabled for
-  //  the matching status bit to be set, which is what the warning below reads.
-  if (!this->write_byte(TCA8418_REG_CFG, TCA8418_CFG_KEY_INT_EN | TCA8418_CFG_OVR_FLOW_IEN | TCA8418_CFG_INT_CFG)) {
+  //  Report key events, and keep the interrupt asserted while events remain queued.
+  if (!this->write_byte(TCA8418_REG_CFG, TCA8418_CFG_KEY_INT_EN | TCA8418_CFG_INT_CFG)) {
     ESP_LOGE(TAG, "Failed to write the configuration register");
     this->mark_failed();
     return;
@@ -109,7 +107,15 @@ void TCA8418Component::loop() {
   }
   this->status_clear_warning();
 
-  if ((count & TCA8418_EVENT_COUNT_MASK) != 0)
+  const uint8_t queued = count & TCA8418_EVENT_COUNT_MASK;
+  //  A full queue means any further key event was dropped before it could be
+  //  read. The device's own overflow flag is not used for this: it stays clear
+  //  even with a queue that has been sitting full, so it would never report.
+  if (queued >= TCA8418_FIFO_DEPTH) {
+    ESP_LOGW(TAG, "Event queue is full - some key presses may have been lost");
+  }
+
+  if (queued != 0)
     this->process_events_();
 
   //  With an interrupt pin, wait for the next interrupt once the device has
@@ -132,12 +138,6 @@ void TCA8418Component::process_events_() {
     if (event == 0)
       break;
     this->dispatch_(event & TCA8418_KEY_CODE_MASK, (event & TCA8418_KEY_PRESSED) != 0);
-  }
-
-  //  Report a full queue, since that means presses were lost.
-  uint8_t status;
-  if (this->read_byte(TCA8418_REG_INT_STAT, &status) && (status & TCA8418_INT_STAT_OVERFLOW) != 0) {
-    ESP_LOGW(TAG, "Event queue overflowed - some key presses were lost");
   }
 
   if (!this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL)) {

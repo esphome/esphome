@@ -20,11 +20,9 @@ static constexpr uint8_t TCA8418_REG_GPI_EM1 = 0x20;
 static constexpr uint8_t TCA8418_REG_GPIO_PULL1 = 0x2C;
 
 //  CFG
-static constexpr uint8_t TCA8418_CFG_KEY_INT_EN = 0x01;    // interrupt on key events
-static constexpr uint8_t TCA8418_CFG_OVR_FLOW_IEN = 0x08;  // and on a full event queue
-static constexpr uint8_t TCA8418_CFG_INT_CFG = 0x10;       // re-assert INT while events remain
+static constexpr uint8_t TCA8418_CFG_KEY_INT_EN = 0x01;  // interrupt on key events
+static constexpr uint8_t TCA8418_CFG_INT_CFG = 0x10;     // re-assert INT while events remain
 //  INT_STAT
-static constexpr uint8_t TCA8418_INT_STAT_OVERFLOW = 0x08;
 static constexpr uint8_t TCA8418_INT_STAT_ALL = 0x1F;  // every interrupt flag
 //  KEY_LCK_EC: the low nibble is the number of queued events
 static constexpr uint8_t TCA8418_EVENT_COUNT_MASK = 0x0F;
