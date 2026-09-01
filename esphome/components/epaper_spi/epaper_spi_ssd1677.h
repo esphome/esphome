@@ -51,7 +51,7 @@ class EPaperSSD1677 : public EPaperMono {
   void deep_sleep() override;
 
   /// Quantizes an RGB color to one of four gray levels: 0 = black .. 3 = white.
-  static uint8_t color_to_gray_(Color color);
+  static uint8_t color_to_gray(Color color);
 
   bool grayscale_{false};
 };

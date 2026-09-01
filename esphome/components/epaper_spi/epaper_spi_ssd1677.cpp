@@ -13,7 +13,7 @@ static constexpr const char *const TAG = "epaper_spi.ssd1677";
 static uint8_t gray_to_bw_bit(uint8_t gray) { return gray <= 1; }
 static uint8_t gray_to_red_bit(uint8_t gray) { return gray == 0 || gray == 2; }
 
-uint8_t EPaperSSD1677::color_to_gray_(Color color) {
+uint8_t EPaperSSD1677::color_to_gray(Color color) {
   // Extends EPaperBase::color_to_bit()'s half-way luminance split into four even bands.
   const uint16_t sum = color.r + color.g + color.b;
   if (sum >= 573)
@@ -32,7 +32,7 @@ void HOT EPaperSSD1677::draw_pixel_at(int x, int y, Color color) {
   }
   if (!rotate_coordinates_(x, y))
     return;
-  const uint8_t gray = color_to_gray_(color);
+  const uint8_t gray = color_to_gray(color);
   const size_t byte_position = y * this->row_width_ + x / 8;
   const uint8_t pixel_bit = 0x80 >> (x % 8);
   const size_t plane_bytes = this->row_width_ * this->height_;
@@ -49,10 +49,10 @@ void EPaperSSD1677::fill(Color color) {
     return;
   }
   if (this->get_clipping().is_set()) {
-    Display::fill(color);
+    EPaperBase::fill(color);
     return;
   }
-  const uint8_t gray = color_to_gray_(color);
+  const uint8_t gray = color_to_gray(color);
   const bool bw_bit = gray_to_bw_bit(gray);
   const bool red_bit = gray_to_red_bit(gray);
   const size_t plane_bytes = this->row_width_ * this->height_;
