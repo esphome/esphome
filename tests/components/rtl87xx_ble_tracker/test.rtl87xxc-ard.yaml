@@ -1,0 +1,32 @@
+# Compiled on the STOCK released framework: LibreTiny links the AmebaZ2 BT
+# stack (btgap.a) in its releases, so this is the arm where CI actually
+# compiles the rtl87xx_ble C++. AmebaD stays validate-only until a release
+# carries realtek-ambd.
+esphome:
+  on_boot:  # instantiates automation.h's action templates in a real build
+    then:
+      - rtl87xx_ble_tracker.start_scan:
+          continuous: true
+      - rtl87xx_ble_tracker.stop_scan:
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+api:  # bluetooth_proxy requires the native API
+
+ota:  # pulls in USE_OTA_STATE_LISTENER so the OTA scan-pause path compiles
+  - platform: esphome
+
+rtl87xx_ble_tracker:
+  id: ble_tracker
+  scan_parameters:
+    interval: 100ms
+    window: 30ms
+    active: true
+    continuous: true
+  on_ble_advertise:
+    - then:
+        - lambda: 'ESP_LOGV("t", "%s", x.address_str().c_str());'
+
+bluetooth_proxy:
