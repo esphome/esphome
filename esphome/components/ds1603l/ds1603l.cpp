@@ -49,7 +49,7 @@ void DS1603L::loop() {
   }
 }
 
-void DS1603L::dump_config() { LOG_SENSOR("  ", "DS1603L:", this); }
+void DS1603L::dump_config() { LOG_SENSOR("", "DS1603L", this); }
 
 bool DS1603L::parse_data_() {
   uint8_t header = this->rx_buffer_[0];
