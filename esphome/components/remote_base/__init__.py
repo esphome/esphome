@@ -1914,6 +1914,44 @@ async def nexa_action(var, config, args):
     cg.add(var.set_level(await cg.templatable(config[CONF_LEVEL], args, cg.uint8)))
 
 
+# PD Pioneer
+(
+    PDPioneerData,
+    PDPioneerBinarySensor,
+    PDPioneerTrigger,
+    PDPioneerAction,
+    PDPioneerDumper,
+) = declare_protocol("PDPioneer")
+PDPioneerAction = ns.class_("PDPioneerAction", RemoteTransmitterActionBase)
+PDPIONEER_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=13, max=14)),
+    }
+)
+
+
+@register_binary_sensor("pd_pioneer", PDPioneerBinarySensor, PDPIONEER_SCHEMA)
+def pd_pioneer_binary_sensor(var, config):
+    cg.add(var.set_data(config[CONF_CODE]))
+
+
+@register_trigger("pd_pioneer", PDPioneerTrigger, PDPioneerData)
+def pd_pioneer_trigger(var, config):
+    pass
+
+
+@register_dumper("pd_pioneer", PDPioneerDumper)
+def pd_pioneer_dumper(var, config):
+    pass
+
+
+@register_action("pd_pioneer", PDPioneerAction, PDPIONEER_SCHEMA)
+async def pd_pioneer_action(var, config, args):
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    cg.add(var.set_code(template_))
+
+
 # Midea
 MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_protocol(
     "Midea"
