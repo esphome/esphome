@@ -6,6 +6,7 @@ import argparse
 import importlib.machinery
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import sys
@@ -424,6 +425,48 @@ def test_run_codechecker_zephyr_fails_when_any_file_failed(
     # analyzer crash in CI is undiagnosable from the log.
     assert str(Path("file.cpp").resolve()) in capsys.readouterr().err
     assert result == 1
+
+
+def test_run_codechecker_zephyr_fails_when_failed_count_disagrees_with_sources(
+    tmp_path: Path,
+    explicit_compile_commands: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A count/list mismatch must not let a crashed file read as covered
+    just because the scalar failed count was 0."""
+    output_dir = tmp_path / "codechecker-nrf52-adafruit"
+
+    def fake_run(cmd: list[str], **kwargs: object) -> MagicMock:
+        if cmd[1] == "analyze":
+            output_dir.mkdir(parents=True, exist_ok=True)
+            metadata = {
+                "tools": [
+                    {
+                        "analyzers": {
+                            "clang-tidy": {
+                                "analyzer_statistics": {
+                                    "successful": 1,
+                                    "failed": 0,
+                                    "successful_sources": [
+                                        str(Path("file.cpp").resolve())
+                                    ],
+                                    # Inconsistent with failed=0.
+                                    "failed_sources": [str(Path("file.cpp").resolve())],
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+            (output_dir / "metadata.json").write_text(json.dumps(metadata))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(clang_tidy_script.subprocess, "run", fake_run)
+    result = clang_tidy_script.run_codechecker_zephyr(["file.cpp"], _args())
+
+    assert result == 1
+    assert "inconsistent" in capsys.readouterr().err
 
 
 def test_run_codechecker_zephyr_fails_on_file_count_mismatch(
@@ -926,6 +969,12 @@ def test_codechecker_matcher_parses_report_line() -> None:
         from codechecker_report_converter.report import File, Report
         from codechecker_report_converter.report.output.plaintext import format_report
     except ImportError:
+        if os.environ.get("ESPHOME_REQUIRE_CODECHECKER"):
+            pytest.fail(
+                "codechecker_report_converter is not importable even though "
+                "ESPHOME_REQUIRE_CODECHECKER is set -- this must not skip in "
+                "the CI leg that installs requirements_codechecker.txt"
+            )
         pytest.skip("codechecker_report_converter is not installed")
 
     report = Report(

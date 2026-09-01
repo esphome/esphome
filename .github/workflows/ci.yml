@@ -673,9 +673,12 @@ jobs:
           pip install -c requirements.txt -c requirements_dev.txt -c requirements_test.txt -r requirements_codechecker.txt
 
       - name: Verify problem matcher matches CodeChecker's report format
-        # Only this leg's venv has codechecker_report_converter installed,
-        # so only here do these tests run instead of vacuously skipping.
+        # ESPHOME_REQUIRE_CODECHECKER makes the matcher test fail loudly
+        # instead of skipping if codechecker_report_converter isn't
+        # importable here -- this leg's venv always has it installed above.
         if: matrix.cache_sdk_nrf
+        env:
+          ESPHOME_REQUIRE_CODECHECKER: "1"
         run: |
           . venv/bin/activate
           pytest tests/script/test_clang_tidy_codechecker.py -k matcher -q

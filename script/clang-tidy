@@ -630,15 +630,24 @@ def run_codechecker_zephyr(files: list[str], args: argparse.Namespace) -> int:
     extra = analyzed_sources - requested_sources
     covered = not missing and not extra
 
-    if failed:
-        # Analyzer crashes/errors must not read as a clean run just because
-        # they're counted alongside successes.
-        print(
-            f"ERROR: CodeChecker failed to analyze {failed} file(s):",
-            file=sys.stderr,
-        )
-        for path in sorted(failed_sources):
-            print(f"    {path}", file=sys.stderr)
+    if failed or failed_sources:
+        # failed_sources is folded into analyzed_sources unconditionally, so a
+        # count/list mismatch (undocumented schema) must not let a crashed
+        # file slip through the coverage check as analyzed.
+        if failed != len(failed_sources):
+            print(
+                f"metadata.json's analyzer_statistics is inconsistent: "
+                f"failed={failed} but failed_sources has {len(failed_sources)} "
+                "entries -- CodeChecker's internal metadata format may have changed",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"ERROR: CodeChecker failed to analyze {failed} file(s):",
+                file=sys.stderr,
+            )
+            for path in sorted(failed_sources):
+                print(f"    {path}", file=sys.stderr)
         invalidate_stale_cache()
         return 1
     if not covered:
