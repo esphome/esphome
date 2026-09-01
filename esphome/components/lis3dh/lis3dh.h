@@ -122,6 +122,7 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
 
   LIS3DHRange range_{LIS3DH_RANGE_2G};
   LIS3DHDataRate data_rate_{LIS3DH_DATA_RATE_100HZ};
+  uint8_t interrupt_threshold_raw_{0};  // what the g threshold became, for dump_config
   LIS3DHOperatingMode operating_mode_{LIS3DH_MODE_HIGH_RESOLUTION};
 
   // Motion (activity) interrupt configuration.
