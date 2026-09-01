@@ -1,7 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import i2c, key_provider
-from esphome.components.const import CONF_KEYS, CONF_ROWS
+from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_ON_KEY
 from esphome.types import ConfigType
@@ -11,7 +11,6 @@ DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["key_provider"]
 MULTI_CONF = True
 
-CONF_COLUMNS = "columns"
 CONF_GPI_EVENTS = "gpi_events"
 CONF_KEYPAD_ID = "keypad_id"
 

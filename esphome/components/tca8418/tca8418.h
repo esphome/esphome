@@ -23,7 +23,6 @@ static constexpr uint8_t TCA8418_REG_GPIO_PULL1 = 0x2C;
 static constexpr uint8_t TCA8418_CFG_KEY_INT_EN = 0x01;  // interrupt on key events
 static constexpr uint8_t TCA8418_CFG_INT_CFG = 0x10;     // re-assert INT while events remain
 //  INT_STAT
-static constexpr uint8_t TCA8418_INT_STAT_KEY = 0x01;
 static constexpr uint8_t TCA8418_INT_STAT_OVERFLOW = 0x08;
 static constexpr uint8_t TCA8418_INT_STAT_ALL = 0x1F;  // every interrupt flag
 //  KEY_LCK_EC: the low nibble is the number of queued events
@@ -41,8 +40,6 @@ static constexpr uint8_t TCA8418_FIFO_DEPTH = 10;
 static constexpr uint8_t TCA8418_MATRIX_KEY_MIN = 1;
 static constexpr uint8_t TCA8418_MATRIX_KEY_MAX = 80;
 static constexpr uint8_t TCA8418_MATRIX_COLUMNS = 10;
-static constexpr uint8_t TCA8418_GPI_KEY_MIN = 97;
-static constexpr uint8_t TCA8418_GPI_KEY_MAX = 114;
 
 class TCA8418Listener {
  public:

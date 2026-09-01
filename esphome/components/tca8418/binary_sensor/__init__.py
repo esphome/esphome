@@ -1,12 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.components.const import CONF_KEYS, CONF_ROWS
+from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_COL, CONF_KEY, CONF_ROW
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from .. import CONF_COLUMNS, CONF_KEYPAD_ID, TCA8418Component, tca8418_ns
+from .. import CONF_KEYPAD_ID, TCA8418Component, tca8418_ns
 
 DEPENDENCIES = ["tca8418"]
 

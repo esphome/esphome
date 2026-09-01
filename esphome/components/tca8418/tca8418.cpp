@@ -128,8 +128,9 @@ void TCA8418Component::process_events_() {
 
   //  Report a full queue, since that means presses were lost.
   uint8_t status;
-  if (this->read_byte(TCA8418_REG_INT_STAT, &status) && (status & TCA8418_INT_STAT_OVERFLOW) != 0)
+  if (this->read_byte(TCA8418_REG_INT_STAT, &status) && (status & TCA8418_INT_STAT_OVERFLOW) != 0) {
     ESP_LOGW(TAG, "Event queue overflowed - some key presses were lost");
+  }
 
   if (!this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL)) {
     this->status_set_warning();
