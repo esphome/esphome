@@ -1,5 +1,0 @@
-<<: !include common.yaml
-
-power_management:
-  enable_light_sleep: true
-  power_down_peripherals: true

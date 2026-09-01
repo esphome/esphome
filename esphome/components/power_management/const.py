@@ -1,11 +1,3 @@
-"""Constants used by power_manager."""
+"""Constants shared across power_management platforms."""
 
 CONF_ENABLE_LIGHT_SLEEP = "enable_light_sleep"
-CONF_IDLE_TIME_BEFORE_SLEEP = "idle_time_before_sleep"
-CONF_MAX_FREQUENCY = "max_frequency"
-CONF_MIN_FREQUENCY = "min_frequency"
-CONF_POWER_DOWN_FLASH = "power_down_flash"
-CONF_POWER_DOWN_PERIPHERALS = "power_down_peripherals"
-CONF_POWER_MANAGEMENT = "power_management"
-CONF_PROFILING = "profiling"
-CONF_TRACE = "trace"

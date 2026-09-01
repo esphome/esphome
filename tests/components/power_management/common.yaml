@@ -1,9 +1,0 @@
-power_management:
-  id: pm_id
-  max_frequency: 96MHZ
-  min_frequency: 32MHZ
-  enable_light_sleep: true
-  idle_time_before_sleep: 3
-  power_down_flash: true
-  profiling: true
-  trace: true

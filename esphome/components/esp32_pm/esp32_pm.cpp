@@ -1,15 +1,14 @@
-#include "power_management.h"
-#ifdef USE_ESP32
 #include "esphome/core/log.h"
+#include "esp32_pm.h"
 #ifdef CONFIG_OPENTHREAD_MTD
 #include "esphome/components/openthread/openthread.h"
 #endif
 
-namespace esphome::power_management {
+namespace esphome::esp32_pm {
 
-static const char *const TAG = "power_management";
+static const char *const TAG = "esp32_pm";
 
-void PowerManagement::setup() {
+void ESP32PowerManagement::setup() {
   esp_err_t rc = ESP_OK;
   // Configure PM
   int max_freq_mhz = this->max_freq_mhz_ > 0 ? this->max_freq_mhz_ : CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
@@ -41,7 +40,7 @@ void PowerManagement::setup() {
   }
 }
 
-void PowerManagement::dump_config() {
+void ESP32PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Management:");
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   ESP_LOGCONFIG(TAG, "  Light Sleep Enabled");
@@ -63,5 +62,4 @@ void PowerManagement::dump_config() {
 #endif
 }
 
-}  // namespace esphome::power_management
-#endif
+}  // namespace esphome::esp32_pm

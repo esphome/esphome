@@ -1,0 +1,4 @@
+power_management:
+  - platform: esp32_pm
+    enable_light_sleep: true
+    power_down_peripherals: true
