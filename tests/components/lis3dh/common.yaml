@@ -1,5 +1,6 @@
 motion:
   - platform: lis3dh
+    id: lis3dh_main
     i2c_id: i2c_bus
     address: 0x18
     # Full-scale range: 2G | 4G | 8G | 16G
@@ -23,23 +24,48 @@ motion:
       active_high: true
       high_pass_filter: false
 
+  # A second device covering the other side of each option: low power mode with
+  # the rate that only exists there, routed to INT2, active low, unlatched, and
+  # with the high-pass filter on.
+  - platform: lis3dh
+    id: lis3dh_low_power
+    i2c_id: i2c_bus
+    address: 0x19
+    accelerometer_range: 16G
+    accelerometer_odr: 1620HZ
+    operating_mode: LOW_POWER
+    interrupt:
+      pin: INT2
+      threshold: 0.05g
+      duration: 2
+      axes: [z]
+      latched: false
+      active_high: false
+      high_pass_filter: true
+
 sensor:
   - platform: lis3dh
+    lis3dh_id: lis3dh_main
     type: temperature
     name: "LIS3DH Temperature"
 
   - platform: motion
+    motion_id: lis3dh_main
     type: acceleration_x
     name: "Accel X"
   - platform: motion
+    motion_id: lis3dh_main
     type: acceleration_y
     name: "Accel Y"
   - platform: motion
+    motion_id: lis3dh_main
     type: acceleration_z
     name: "Accel Z"
   - platform: motion
+    motion_id: lis3dh_main
     type: pitch
     name: "Pitch"
   - platform: motion
+    motion_id: lis3dh_main
     type: roll
     name: "Roll"

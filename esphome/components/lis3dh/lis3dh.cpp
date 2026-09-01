@@ -1,4 +1,5 @@
 #include "lis3dh.h"
+#include <algorithm>
 #include "esphome/core/log.h"
 #include <cmath>
 
@@ -80,8 +81,11 @@ bool LIS3DHComponent::setup_interrupt_() {
     return false;
 
   // Convert the threshold from g to the 7-bit INT1_THS value for the active range.
+  // A threshold of zero is treated as always exceeded, which would hold the pad
+  // asserted, so keep the smallest step the range can express.
   int32_t raw = lroundf(this->interrupt_threshold_g_ * 1000.0f / THRESHOLD_LSB_MG[this->range_]);
-  uint8_t threshold = raw > 0x7F ? 0x7F : (uint8_t) raw;
+  uint8_t threshold = (uint8_t) std::clamp<int32_t>(raw, 1, 0x7F);
+  this->interrupt_threshold_raw_ = threshold;
 
   if (!this->write_byte(LIS3DH_REG_INT1_CFG, this->interrupt_axes_cfg_) ||
       !this->write_byte(LIS3DH_REG_INT1_THS, threshold) ||
@@ -129,14 +133,24 @@ void LIS3DHComponent::dump_config() {
 
   static constexpr const char *const RANGE_STRS[] = {"±2g", "±4g", "±8g", "±16g"};
   static constexpr const char *const MODE_STRS[] = {"low power (8-bit)", "normal (10-bit)", "high resolution (12-bit)"};
+  static constexpr const char *const RATE_STRS[] = {"powered down", "1Hz",   "10Hz",  "25Hz",   "50Hz",
+                                                    "100Hz",        "200Hz", "400Hz", "1620Hz", "1344Hz"};
   ESP_LOGCONFIG(TAG,
                 "  Range: %s\n"
-                "  Operating mode: %s",
-                RANGE_STRS[this->range_], MODE_STRS[this->operating_mode_]);
+                "  Operating mode: %s\n"
+                "  Data rate: %s",
+                RANGE_STRS[this->range_], MODE_STRS[this->operating_mode_], RATE_STRS[this->data_rate_]);
   if (this->interrupt_enabled_) {
-    ESP_LOGCONFIG(TAG, "  Motion interrupt: %s (%s%s)", this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? "INT1" : "INT2",
+    // The threshold is reported as written, since converting it from g depends
+    // on the range and rounds.
+    ESP_LOGCONFIG(TAG,
+                  "  Motion interrupt: %s (%s%s%s)\n"
+                  "    Threshold: %.3fg (%u)\n"
+                  "    Duration: %u samples",
+                  this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? "INT1" : "INT2",
                   this->interrupt_active_high_ ? "active high" : "active low",
-                  this->interrupt_high_pass_ ? ", high-pass" : "");
+                  this->interrupt_high_pass_ ? ", high-pass" : "", this->interrupt_latched_ ? ", latched" : "",
+                  this->interrupt_threshold_g_, this->interrupt_threshold_raw_, this->interrupt_duration_);
   }
   MotionComponent::dump_config();
 }

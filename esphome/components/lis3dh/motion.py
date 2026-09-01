@@ -4,6 +4,7 @@ from esphome.components.const import CONF_ACCELEROMETER_ODR, CONF_ACCELEROMETER_
 from esphome.components.motion import motion_schema, new_motion_component
 import esphome.config_validation as cv
 from esphome.const import CONF_DURATION, CONF_INTERRUPT, CONF_PIN, CONF_THRESHOLD
+from esphome.types import ConfigType
 
 from . import LIS3DHComponent, lis3dh_ns
 
@@ -88,18 +89,20 @@ INTERRUPT_SCHEMA = cv.Schema(
 )
 
 
-def _validate_odr_mode(config):
+def _validate_odr_mode(config: ConfigType) -> ConfigType:
     # Two output data rates are tied to the operating mode (they share a register
     # code whose meaning depends on the mode): 1620Hz exists only in low-power
     # mode, and code 1344Hz becomes 5376Hz in low-power mode.
+    # A validated enum is the option's name, not the value it maps to, so these
+    # are compared as the names.
     odr = config[CONF_ACCELEROMETER_ODR]
-    low_power = config[CONF_OPERATING_MODE] is OPERATING_MODE_OPTIONS["LOW_POWER"]
-    if odr is DATA_RATE_OPTIONS["1620HZ"] and not low_power:
+    low_power = config[CONF_OPERATING_MODE] == "LOW_POWER"
+    if odr == "1620HZ" and not low_power:
         raise cv.Invalid(
             "'1620HZ' is only available with 'operating_mode: LOW_POWER'",
             path=[CONF_ACCELEROMETER_ODR],
         )
-    if odr is DATA_RATE_OPTIONS["1344HZ"] and low_power:
+    if odr == "1344HZ" and low_power:
         raise cv.Invalid(
             "'1344HZ' is not available with 'operating_mode: LOW_POWER' "
             "(that combination runs at 5376Hz)",
