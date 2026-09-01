@@ -89,8 +89,9 @@ void SenseAirComponent::background_calibration_result() {
   }
 
   // Check if 5th bit (register CI6) is set
-  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)", (response[4] & 0b100000) != 0 ? "OK" : "NOT_OK",
-           response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
+  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)",
+           (response[4] & 0b100000) != 0 ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("NOT_OK"), response[0], response[1],
+           response[2], response[3], response[4], response[5], response[6]);
 }
 
 void SenseAirComponent::abc_enable() {
