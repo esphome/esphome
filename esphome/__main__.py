@@ -1348,6 +1348,9 @@ def _upload_via_native_api(
                 "OTA encryption is configured but no key was resolved; "
                 "set the key under 'ota: encryption:' or 'api: encryption:'"
             )
+        # Ensure the key is a string, as required by the underlying OTA implementation.
+        # It arrives here as a SensitiveStr which aioesphomeapi rejects.
+        noise_psk = str(noise_psk)
 
     def check_partition_access(option_string: str) -> None:
         if not ota_conf.get("allow_partition_access"):
