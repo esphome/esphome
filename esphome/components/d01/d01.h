@@ -5,16 +5,10 @@
 
 namespace esphome::d01 {
 
-class D01Component final : public PollingComponent, public uart::UARTDevice {
+class D01SensorComponent final : public sensor::Sensor, public Component, public uart::UARTDevice {
  public:
-  void set_pm25_sensor(sensor::Sensor *s) { this->pm25_sensor_ = s; }
   void dump_config() override;
   void loop() override;
-  void update() override;
-
- protected:
-  sensor::Sensor *pm25_sensor_{nullptr};
-  optional<int> latest_concentration_{};
 };
 
 }  // namespace esphome::d01

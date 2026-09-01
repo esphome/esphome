@@ -18,15 +18,12 @@
 namespace esphome::d01 {
 
 static const char *const TAG = "d01";
+
 static const uint8_t D01_FRAME_HEADER = 0xA5;
 
-void D01Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "D01 PM2.5 Sensor:");
-  LOG_SENSOR("  ", "PM2.5", this->pm25_sensor_);
-  this->check_uart_settings(9600);
-}
+void D01SensorComponent::dump_config() { LOG_SENSOR("  ", "D01 PM2.5", this); }
 
-void D01Component::loop() {
+void D01SensorComponent::loop() {
   uint8_t buf[4];
   while (this->available() >= 4) {
     if (this->peek() != D01_FRAME_HEADER) {
@@ -36,19 +33,13 @@ void D01Component::loop() {
     this->read_array(buf, 4);
     uint8_t sum = (buf[0] + buf[1] + buf[2]) & 0x7F;
     if (sum != buf[3]) {
-      ESP_LOGW(TAG, "D01 checksum mismatch");
+      ESP_LOGW(TAG, "checksum mismatch");
       continue;
     }
-    this->latest_concentration_ = (buf[1] & 0x7F) * 128 + (buf[2] & 0x7F);
+    uint16_t latest_concentration = (buf[1] & 0x7F) * 128 + (buf[2] & 0x7F);
+    ESP_LOGV(TAG, "Unadjusted PM2.5 Concentration: %d µg/m³", latest_concentration);
+    this->publish_state(latest_concentration);
   }
-}
-
-void D01Component::update() {
-  if (!this->latest_concentration_.has_value())
-    return;
-  ESP_LOGD(TAG, "Unadjusted PM2.5 Concentration: %d µg/m³", *this->latest_concentration_);
-  if (this->pm25_sensor_ != nullptr)
-    this->pm25_sensor_->publish_state(*this->latest_concentration_);
 }
 
 }  // namespace esphome::d01

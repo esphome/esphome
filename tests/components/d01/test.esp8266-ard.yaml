@@ -4,4 +4,4 @@ substitutions:
 
 packages:
   uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
-  common: !include common.yaml
+  d01: !include common.yaml
