@@ -16,26 +16,33 @@ void KeyCollector::loop() {
 void KeyCollector::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
   ESP_LOGCONFIG(TAG, "Key Collector:");
-  if (this->min_length_ > 0)
+  if (this->min_length_ > 0) {
     ESP_LOGCONFIG(TAG, "  min length: %d", this->min_length_);
-  if (this->max_length_ > 0)
+  }
+  if (this->max_length_ > 0) {
     ESP_LOGCONFIG(TAG, "  max length: %d", this->max_length_);
-  if (!this->back_keys_.empty())
+  }
+  if (!this->back_keys_.empty()) {
     ESP_LOGCONFIG(TAG, "  erase keys '%s'", this->back_keys_.c_str());
-  if (!this->clear_keys_.empty())
+  }
+  if (!this->clear_keys_.empty()) {
     ESP_LOGCONFIG(TAG, "  clear keys '%s'", this->clear_keys_.c_str());
-  if (!this->start_keys_.empty())
+  }
+  if (!this->start_keys_.empty()) {
     ESP_LOGCONFIG(TAG, "  start keys '%s'", this->start_keys_.c_str());
+  }
   if (!this->end_keys_.empty()) {
     ESP_LOGCONFIG(TAG,
                   "  end keys '%s'\n"
                   "  end key is required: %s",
                   this->end_keys_.c_str(), ONOFF(this->end_key_required_));
   }
-  if (!this->allowed_keys_.empty())
+  if (!this->allowed_keys_.empty()) {
     ESP_LOGCONFIG(TAG, "  allowed keys '%s'", this->allowed_keys_.c_str());
-  if (this->timeout_ > 0)
+  }
+  if (this->timeout_ > 0) {
     ESP_LOGCONFIG(TAG, "  entry timeout: %0.1f", this->timeout_ / 1000.0);
+  }
 #endif
 }
 
