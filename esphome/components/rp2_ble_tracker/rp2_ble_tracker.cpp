@@ -11,10 +11,8 @@ namespace esphome::rp2_ble_tracker {
 
 static const char *const TAG = "rp2_ble_tracker";
 
-// Minimum interval between scan start attempts on an active stack. The
-// controller start has no failure mode once HCI is WORKING, so this fires at
-// most once per enable cycle today; the floor is insurance against a future
-// scan_start() failure being retried every main-loop iteration.
+// Floor between controller start attempts; insurance against a failing
+// scan_start() being retried every loop.
 static constexpr uint32_t SCAN_START_RETRY_MS = 1000;
 
 // One BLE scan unit in milliseconds; the controller programs interval/window in these units.
@@ -32,7 +30,8 @@ void RP2BLETracker::setup() {
   // the OTA download on the shared CYW43 radio. Mirrors esp32_ble_tracker.
   ota::get_global_ota_callback()->add_global_state_listener(this);
 #endif
-  if (!this->scan_continuous_) {
+  // An on_boot start_scan runs before setup(); parking here would strand it.
+  if (!this->scan_continuous_ && !this->scan_running_ && !this->pending_start_) {
     // Nothing to do until an external start_scan(); the loop is re-enabled there.
     this->disable_loop();
   }
@@ -41,12 +40,21 @@ void RP2BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    // Set before stop_scan(): its on_scan_end automations run synchronously and
+    // may call start_scan(), which must defer instead of resuming the radio.
+    this->ota_in_progress_ = true;
     this->scan_continuous_before_ota_ = this->scan_continuous_;
-    // A one-shot scan counts as pending when it is running or still retrying
-    // its start (loop enabled); captured before stop_scan() disables the loop.
-    this->scan_pending_before_ota_ = !this->scan_continuous_ && (this->scan_running_ || this->is_in_loop_state());
+    // A one-shot scan counts as pending when it is running, latched, or still
+    // retrying its start (loop enabled); captured before stop_scan() parks it.
+    this->scan_pending_before_ota_ =
+        !this->scan_continuous_ && (this->scan_running_ || this->pending_start_ || this->is_in_loop_state());
+    // The pause's own stop is not a user stop, so it must not clear the latches
+    // captured just above.
+    this->ota_pausing_ = true;
     this->stop_scan();
+    this->ota_pausing_ = false;
   } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
+    this->ota_in_progress_ = false;
     // On success the device reboots, so restore only on a failed/aborted update;
     // loop()'s retry branch restarts the scan on its next iteration.
     if (this->scan_continuous_before_ota_) {
@@ -54,9 +62,7 @@ void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uin
       this->scan_continuous_ = true;
       this->enable_loop();
     }
-    // A one-shot scan interrupted by the OTA resumes for a fresh duration
-    // rather than silently staying idle — an OTA failure does not reboot, so
-    // nothing external would restart it.
+    // A failed OTA does not reboot, so nothing else would restart a one-shot.
     if (this->scan_pending_before_ota_) {
       this->scan_pending_before_ota_ = false;
       this->enable_loop();
@@ -66,27 +72,34 @@ void RP2BLETracker::on_ota_global_state(ota::OTAState state, float progress, uin
 #endif  // USE_OTA_STATE_LISTENER
 
 void RP2BLETracker::loop() {
+#ifdef USE_OTA_STATE_LISTENER
+  // Keeps "no radio during an OTA" local instead of emergent from the
+  // parking sites.
+  if (this->ota_in_progress_)
+    return;
+#endif
   const uint32_t now = App.get_loop_component_start_time();
+  if (this->pending_start_ && this->parent_->is_active()) {
+    // Latched start, applied once the stack is ACTIVE; earlier attempts would
+    // fail and arm the retry floor for nothing.
+    this->pending_start_ = false;
+    if (!this->scan_running_)
+      this->start_scan_();
+  }
   // Deliver held scannable advertisements whose scan response never arrived —
   // unmerged after the merger's timeout.
   if (!this->merger_.empty())
     this->merger_.sweep(now);
   if (this->scan_running_ && !this->parent_->is_active()) {
-    // The controller was disabled underneath us (e.g. a lambda calling
-    // rp2040_ble's disable()); the scan died with the stack. Reconcile so the
-    // retry branch below takes over once the user re-enables the stack.
+    // Stack disabled underneath us; reconcile so the retry branch takes over.
     this->scan_running_ = false;
     this->fire_scan_end_();
   }
   if (!this->scan_running_) {
-    // A scan should be running but is not: continuous mode is always in this
-    // state until the start succeeds, and non-continuous mode only reaches
-    // here between start_scan() and a successful controller start, because
-    // stop_scan_() disables the loop otherwise.
+    // Should be scanning but is not: continuous until the start succeeds,
+    // one-shot only between start_scan() and a successful controller start.
     if (!this->parent_->is_active()) {
-      // Stack not up (still booting, or the user called disable()) —
-      // scan_start() cannot succeed, so there is nothing to attempt; scanning
-      // starts on the first iteration after HCI reaches WORKING.
+      // Stack not up: scan_start() cannot succeed yet.
       return;
     }
     if (now - this->last_scan_start_attempt_ >= SCAN_START_RETRY_MS) {
@@ -107,7 +120,7 @@ void RP2BLETracker::loop() {
 
   // Non-continuous mode: run for scan_duration_ ms, then stop and fire on_scan_end.
   // Restart is driven externally (e.g. api: on_client_connected:).
-  if (now - this->scan_period_start_ >= this->scan_duration_) {
+  if (now - this->scan_start_time_ >= this->scan_duration_) {
     this->stop_scan_();
   }
 }
@@ -126,24 +139,20 @@ void RP2BLETracker::dump_config() {
                 YESNO(this->scan_continuous_));
 }
 
-// GAP advertising event types as BTstack reports them (Core spec advertising
-// report event types; the tracker deliberately does not include BTstack
-// headers). ADV_IND and ADV_SCAN_IND are the scannable types.
+// Core spec advertising report event types (BTstack headers stay out of this
+// TU). ADV_IND and ADV_SCAN_IND are the scannable ones.
 static constexpr uint8_t ADV_EVENT_TYPE_ADV_IND = 0;
 static constexpr uint8_t ADV_EVENT_TYPE_ADV_SCAN_IND = 2;
 static constexpr uint8_t ADV_EVENT_TYPE_SCAN_RSP = 4;
 
-// Demux advertisements vs scan responses into the shared merger: BTstack
-// delivers the pair as separate reports; a scannable advertisement is held
-// until its scan response arrives and delivered as one merged frame.
+// BTstack delivers the pair as separate reports; the merger holds a scannable
+// advertisement until its response arrives.
 void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
   if (report.adv_event_type == ADV_EVENT_TYPE_SCAN_RSP) {
     this->merger_.submit_scan_rsp(report.mac, report.rssi, report.addr_type, report.data, report.data_len);
     return;
   }
-  // Stash only while an active scan runs: a passive scan never gets a
-  // response, and after a stop nothing would sweep the merger, so a late
-  // report would surface minutes later as a fresh advertisement.
+  // Only while an active scan runs: nothing sweeps the merger after a stop.
   if (this->scan_running_ && this->scan_active_ &&
       (report.adv_event_type == ADV_EVENT_TYPE_ADV_IND || report.adv_event_type == ADV_EVENT_TYPE_ADV_SCAN_IND)) {
     this->merger_.stash_adv(report.mac, report.rssi, report.addr_type, report.data, report.data_len,
@@ -157,8 +166,39 @@ void RP2BLETracker::on_scan_report(const rp2040_ble::BLEScanReport &report) {
 void RP2BLETracker::start_scan() {
   // Mirrors esp32_ble_tracker::start_scan(): caller sets scan_continuous_ via
   // set_scan_continuous() first, then calls start_scan() to begin scanning.
+#ifdef USE_OTA_STATE_LISTENER
+  if (this->ota_in_progress_) {
+    // Defer to the post-OTA resume path, carrying the requested mode. Not
+    // while ota_pausing_: scan_continuous_ is an artefact of the pause's own
+    // stop there, not intent.
+    if (!this->ota_pausing_) {
+      this->scan_continuous_before_ota_ = this->scan_continuous_;
+      this->scan_pending_before_ota_ = !this->scan_continuous_;
+    }
+    return;
+  }
+#endif
   this->enable_loop();
+  if (!this->is_ready() || !this->parent_->is_active()) {
+    // Pre-setup or stack not ACTIVE: latch, loop() applies it.
+    this->pending_start_ = true;
+    return;
+  }
+  // bk72xx force semantics: a user start jumps the floor only while the
+  // controller is healthy. loop()'s retry branch picks the request up.
+  if (this->last_start_failed_ &&
+      App.get_loop_component_start_time() - this->last_scan_start_attempt_ < SCAN_START_RETRY_MS) {
+    return;
+  }
   this->start_scan_();
+}
+
+void RP2BLETracker::restart_scan_duration() {
+  if (!this->scan_running_)
+    return;  // start_scan_() anchors the clock itself on the next real start
+  // One-shot clock only (bk72xx parity); re-anchoring the period would let
+  // repeated actions starve on_scan_end. Same clock as loop()'s now.
+  this->scan_start_time_ = App.get_loop_component_start_time();
 }
 
 bool RP2BLETracker::request_scan_mode(bool active) {
@@ -167,10 +207,8 @@ bool RP2BLETracker::request_scan_mode(bool active) {
   this->scan_active_ = active;
   // V: the proxy's "Setting scanner mode" line already narrates this at D.
   ESP_LOGV(TAG, "Scan mode %s", active ? "active" : "passive");
-  // Apply to a running scan by restarting the CONTROLLER scan with the new
-  // mode, bypassing the tracker's stop/start bookkeeping: no on_scan_end (the
-  // scan logically continues, only the request mode changes), no period reset.
-  // An idle scanner picks the mode up on its next start.
+  // Restart the controller scan only: the scan logically continues, so no
+  // on_scan_end and no period reset. An idle scanner applies it on next start.
   if (this->scan_running_) {
     this->parent_->scan_stop();
     if (!this->controller_scan_start_()) {
@@ -184,20 +222,34 @@ bool RP2BLETracker::request_scan_mode(bool active) {
 }
 
 void RP2BLETracker::stop_scan() {
+  // Cancel a start latched before setup(); without this an on_boot
+  // start_scan/stop_scan pair would still start at the first loop().
+  this->pending_start_ = false;
   this->scan_continuous_ = false;
+#ifdef USE_OTA_STATE_LISTENER
+  // A user stop during the OTA is the latest intent; the pause's own stop
+  // (ota_pausing_) is exempt - it armed that state.
+  if (this->ota_in_progress_ && !this->ota_pausing_) {
+    this->scan_pending_before_ota_ = false;
+    this->scan_continuous_before_ota_ = false;
+  }
+#endif
   this->stop_scan_();
-  // stop_scan_() early-returns when no scan is running, so disable the loop
-  // here too: a scan that never came up (stack still powering on at OTA start)
-  // must not keep attempting scan_start() from the loop's retry branch.
-  this->disable_loop();
+  // stop_scan_() early-returns when idle, so park here too - once set up, and
+  // re-checked: its synchronous on_scan_end may have restarted the scan.
+  if (this->is_ready() && !this->scan_running_ && !this->pending_start_) {
+    this->disable_loop();
+  }
 }
 
 // Stamp-and-start for every controller scan attempt: the stamp keeps the
 // SCAN_START_RETRY_MS floor covering all callers, not only loop()'s retry.
 bool RP2BLETracker::controller_scan_start_() {
   this->last_scan_start_attempt_ = App.get_loop_component_start_time();
-  return this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
-                                   static_cast<uint16_t>(this->scan_window_), this->scan_active_);
+  const bool ok = this->parent_->scan_start(static_cast<uint16_t>(this->scan_interval_),
+                                            static_cast<uint16_t>(this->scan_window_), this->scan_active_);
+  this->last_start_failed_ = !ok;
+  return ok;
 }
 
 void RP2BLETracker::start_scan_() {
@@ -208,19 +260,15 @@ void RP2BLETracker::start_scan_() {
     return;
 
   this->scan_running_ = true;
-  // Log every explicit start at DEBUG — stop_scan_() logs every stop at DEBUG, and
-  // in non-continuous mode each period is an explicit start, so asymmetric logging
-  // would read as the scanner failing to come back up.
+  // Symmetric with stop_scan_()'s stop log; asymmetry would read as the
+  // scanner failing to come back.
   ESP_LOGD(TAG, "Scan started (%s, window=%.0fms, interval=%.0fms)",
            this->scan_active_ ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("passive"),
            this->scan_window_ * BLE_SCAN_UNIT_MS, this->scan_interval_ * BLE_SCAN_UNIT_MS);
-  // Re-anchor the scan period to every successful start — first start (so the
-  // period counts from the scan, not from boot) and every restart after a stop (so
-  // resuming after longer than scan_duration, e.g. a failed OTA restoring continuous
-  // mode 10 minutes later, does not fire on_scan_end before an advertisement can
-  // arrive). Same clock as loop()'s `now`: a fresh millis() here would be ahead of
-  // the cached loop time and make the same-iteration period check underflow.
+  // Anchor the period to the scan, not to boot, so a restart after a long gap
+  // does not fire on_scan_end immediately. Same clock as loop()'s now.
   this->scan_period_start_ = App.get_loop_component_start_time();
+  this->scan_start_time_ = this->scan_period_start_;
 }
 
 void RP2BLETracker::stop_scan_() {
@@ -232,7 +280,9 @@ void RP2BLETracker::stop_scan_() {
   this->fire_scan_end_();
   // Reset the period clock so on_scan_end does not double-fire; same clock as loop().
   this->scan_period_start_ = App.get_loop_component_start_time();
-  if (!this->scan_continuous_) {
+  // on_scan_end runs synchronously and may restart the scan; re-check before
+  // parking or that scan runs untimed.
+  if (!this->scan_continuous_ && !this->scan_running_ && !this->pending_start_) {
     // Nothing left to time; start_scan() re-enables the loop.
     this->disable_loop();
   }

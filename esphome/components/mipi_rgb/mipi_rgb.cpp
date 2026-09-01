@@ -1,4 +1,4 @@
-#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "mipi_rgb.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
@@ -243,8 +243,9 @@ void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const ui
       ptr += stride;  // next line
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 bool MipiRgb::check_buffer_() {
@@ -345,7 +346,7 @@ int MipiRgb::get_height() {
   }
 }
 
-static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
+[[maybe_unused]] static const char *get_pin_name(GPIOPin *pin, std::span<char, GPIO_SUMMARY_MAX_LEN> buffer) {
   if (pin == nullptr)
     return "None";
   pin->dump_summary(buffer.data(), buffer.size());
@@ -400,4 +401,5 @@ void MipiRgb::dump_config() {
 }
 
 }  // namespace esphome::mipi_rgb
-#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#endif  // defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) ||
+        // defined(USE_ESP32_VARIANT_ESP32S31)

@@ -24,7 +24,7 @@ dependencies:
   espressif/esp32-camera:
     version: 2.1.7
   espressif/mdns:
-    version: 1.11.3
+    version: 1.12.0
   espressif/esp_wifi_remote:
     version: 1.6.3
     rules:
@@ -110,12 +110,12 @@ dependencies:
   # refuses to build two managed components whose names differ only by
   # namespace. The Arduino envs get noise-c as a PlatformIO library instead.
   esphome/noise-c:
-    version: 0.1.19
+    version: 0.1.21
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
   # Declared even though noise-c depends on it, so that the PlatformIO-library
   # converter knows to skip the copy esp_wireguard would otherwise pull in.
   esphome/libsodium:
-    version: 1.10021.3
+    version: 1.10021.4
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"

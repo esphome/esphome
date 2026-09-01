@@ -11,6 +11,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_DECIBEL_MILLIWATT,
 )
+from esphome.types import ConfigType
 
 CONF_IRK = "irk"
 
@@ -22,7 +23,7 @@ BLERSSISensor = ble_rssi_ns.class_(
 )
 
 
-def _validate(config):
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_IBEACON_MAJOR in config and CONF_IBEACON_UUID not in config:
         raise cv.Invalid("iBeacon major identifier requires iBeacon UUID")
     if CONF_IBEACON_MINOR in config and CONF_IBEACON_UUID not in config:
@@ -58,7 +59,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)

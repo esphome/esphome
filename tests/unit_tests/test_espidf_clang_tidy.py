@@ -1,8 +1,10 @@
 """Tests for esphome.espidf.clang_tidy tidy-project generation."""
 
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -177,3 +179,35 @@ def test_arduino_excluded_stubs_skips_components_esphome_manifest_provides(
     assert stub_info["version"] == "*"
     stub_path = Path(stub_info["override_path"])
     assert (stub_path / "CMakeLists.txt").is_file()
+
+
+def test_idedata_from_tidy_project(tmp_path) -> None:
+    """The tidy TU's compile entry is assembled into consumer-shaped idedata."""
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(
+        json.dumps(
+            [
+                {
+                    "directory": str(tmp_path),
+                    "file": str(tmp_path / "main" / "tidy.cpp"),
+                    "command": "/tc/xtensa-esp32-elf-g++ -DUSE_ESP32 "
+                    f"-I{tmp_path}/inc -c main/tidy.cpp -o tidy.o",
+                }
+            ]
+        )
+    )
+    with patch(
+        "esphome.espidf.clang_tidy.get_toolchain_includes", return_value=["/tc/inc"]
+    ):
+        data = clang_tidy._idedata_from_tidy_project(compile_commands)
+    assert data["cxx_path"] == "/tc/xtensa-esp32-elf-g++"
+    assert data["defines"] == ["USE_ESP32"]
+    assert data["includes"]["toolchain"] == ["/tc/inc"]
+    assert any(inc.endswith("/inc") for inc in data["includes"]["build"])
+
+
+def test_idedata_from_tidy_project_missing_tu_raises(tmp_path) -> None:
+    compile_commands = tmp_path / "compile_commands.json"
+    compile_commands.write_text(json.dumps([]))
+    with pytest.raises(RuntimeError, match="tidy.cpp not found"):
+        clang_tidy._idedata_from_tidy_project(compile_commands)

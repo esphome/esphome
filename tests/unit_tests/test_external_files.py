@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import time
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import requests
@@ -78,6 +78,15 @@ def mock_download_content_many() -> MagicMock:
     the URL-collection helper without dispatching to the thread pool.
     """
     with patch("esphome.external_files.download_content_many") as m:
+        yield m
+
+
+@pytest.fixture
+def mock_retry_sleep() -> MagicMock:
+    """Patch the retry backoff sleep (process-wide; net_retry.time is the
+    global module) so transient-error tests don't really wait 2s/4s.
+    """
+    with patch("esphome.net_retry.time.sleep") as m:
         yield m
 
 
@@ -495,6 +504,7 @@ class _BodyReadErrorResponse:
 def test_download_content_with_body_read_error_uses_cache(
     mock_has_remote_file_changed: MagicMock,
     mock_requests_get: MagicMock,
+    mock_retry_sleep: MagicMock,
     setup_core: Path,
 ) -> None:
     """Body-read errors (chunked-decode/gzip-decode/mid-stream connection
@@ -519,6 +529,7 @@ def test_download_content_with_body_read_error_uses_cache(
 def test_download_content_with_body_read_error_no_cache_fails(
     mock_has_remote_file_changed: MagicMock,
     mock_requests_get: MagicMock,
+    mock_retry_sleep: MagicMock,
     setup_core: Path,
 ) -> None:
     """A body-read failure with no cache available must surface as a
@@ -533,6 +544,131 @@ def test_download_content_with_body_read_error_no_cache_fails(
 
     with pytest.raises(Invalid, match="Could not download from.*body truncated"):
         external_files.download_content("https://example.com/file.txt", test_file)
+
+
+def test_download_content_retries_transient_error_then_succeeds(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    mock_retry_sleep: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Transient failures (connection reset, timeout) are retried with 2s/4s
+    backoff before giving up; a late success downloads normally."""
+    test_file = setup_core / "downloads" / "file.txt"
+    mock_has_remote_file_changed.return_value = True
+
+    ok = MagicMock()
+    ok.content = b"downloaded"
+    ok.headers = {}
+    mock_requests_get.side_effect = [
+        requests.exceptions.ConnectionError("reset by peer"),
+        requests.exceptions.Timeout("timed out"),
+        ok,
+    ]
+
+    result = external_files.download_content("https://example.com/file.txt", test_file)
+
+    assert result == b"downloaded"
+    assert test_file.read_bytes() == b"downloaded"
+    assert mock_retry_sleep.call_args_list == [call(2), call(4)]
+
+
+def test_download_content_transient_error_exhausts_attempts(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    mock_retry_sleep: MagicMock,
+    setup_core: Path,
+) -> None:
+    """A persistent transient failure gives up after three attempts and then
+    follows the normal no-cache error path."""
+    test_file = setup_core / "nonexistent.txt"
+    mock_has_remote_file_changed.return_value = True
+    mock_requests_get.side_effect = requests.exceptions.ConnectionError("reset by peer")
+
+    with pytest.raises(Invalid, match="Could not download from.*reset by peer"):
+        external_files.download_content("https://example.com/file.txt", test_file)
+
+    assert mock_retry_sleep.call_args_list == [call(2), call(4)]
+
+
+def test_download_content_non_transient_error_not_retried(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    mock_retry_sleep: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Permanent failures like a 404 fail on the first attempt."""
+    test_file = setup_core / "nonexistent.txt"
+    mock_has_remote_file_changed.return_value = True
+
+    response = MagicMock()
+    response.status_code = 404
+    mock_requests_get.side_effect = requests.exceptions.HTTPError(
+        "404 Client Error", response=response
+    )
+
+    with pytest.raises(Invalid, match="Could not download from.*404"):
+        external_files.download_content("https://example.com/file.txt", test_file)
+
+    assert mock_requests_get.call_count == 1
+    mock_retry_sleep.assert_not_called()
+
+
+def test_download_content_retries_body_read_error(
+    mock_has_remote_file_changed: MagicMock,
+    mock_requests_get: MagicMock,
+    mock_retry_sleep: MagicMock,
+    setup_core: Path,
+) -> None:
+    """Mid-stream failures surfacing from `.content` are retried too."""
+    test_file = setup_core / "downloads" / "file.txt"
+    mock_has_remote_file_changed.return_value = True
+
+    ok = MagicMock()
+    ok.content = b"downloaded"
+    ok.headers = {}
+    mock_requests_get.side_effect = [
+        _BodyReadErrorResponse(
+            requests.exceptions.ChunkedEncodingError("body truncated")
+        ),
+        ok,
+    ]
+
+    result = external_files.download_content("https://example.com/file.txt", test_file)
+
+    assert result == b"downloaded"
+    assert mock_requests_get.call_count == 2
+    assert mock_retry_sleep.call_args_list == [call(2)]
+
+
+def test_has_remote_file_changed_retries_transient_error(
+    mock_requests_head: MagicMock,
+    mock_retry_sleep: MagicMock,
+    setup_core: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A HEAD revalidation that fails transiently then returns 304 does not
+    mark the cached copy stale, and the retry warning names the operation."""
+    test_file = setup_core / "cached.txt"
+    test_file.write_bytes(b"cached content")
+
+    ok = MagicMock()
+    ok.status_code = 304
+    ok.headers = {}
+    mock_requests_head.side_effect = [
+        requests.exceptions.ConnectionError("reset by peer"),
+        ok,
+    ]
+
+    changed = external_files.has_remote_file_changed(
+        "https://example.com/file.txt", test_file
+    )
+
+    assert changed is False
+    assert test_file not in external_files._run_data().stale_paths
+    assert mock_requests_head.call_count == 2
+    assert mock_retry_sleep.call_args_list == [call(2)]
+    assert "Revalidation of" in caplog.text
 
 
 def test_download_content_skip_external_update_uses_cache(
