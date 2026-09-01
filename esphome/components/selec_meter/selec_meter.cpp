@@ -112,15 +112,16 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
     this->fail_current_read_("Response does not match pending read", /*durable=*/false);
     return;
   }
-  if (!modbus::succeeded(status)) {
+  if (status.has_value()) {
+    const auto code = *status;
     char reason[32];
-    snprintf(reason, sizeof(reason), "Modbus error 0x%02X", static_cast<uint8_t>(*status));
+    snprintf(reason, sizeof(reason), "Modbus error 0x%02X", static_cast<uint8_t>(code));
     // ILLEGAL_FUNCTION/ILLEGAL_DATA_ADDRESS are a durable "this register isn't supported" signal.
     // ACKNOWLEDGE/SERVER_DEVICE_BUSY (and any other exception) mean the meter is busy right now --
     // treat those like a transient timeout so a temporarily busy meter can't permanently latch an
     // optional read disabled.
     const bool durable =
-        *status == modbus::ExceptionCode::ILLEGAL_FUNCTION || *status == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
+        code == modbus::ExceptionCode::ILLEGAL_FUNCTION || code == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
     this->fail_current_read_(reason, durable);
     return;
   }
@@ -270,8 +271,10 @@ bool SelecMeter::decode_em2m_(std::span<const uint16_t> registers) {
     }
   }
   for (const auto &f : fields) {
-    if (f.sensor != nullptr)
-      f.sensor->publish_state(*read_float(registers, 0, f.reg, this->word_swap_) * f.unit);
+    if (f.sensor == nullptr)
+      continue;
+    if (auto value = read_float(registers, 0, f.reg, this->word_swap_))
+      f.sensor->publish_state(*value * f.unit);
   }
   return true;
 }
@@ -349,8 +352,10 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
     }
   }
   for (const auto &f : fields) {
-    if (f.sensor != nullptr)
-      f.sensor->publish_state(*read_float(registers, 0, f.reg, this->word_swap_) * f.unit);
+    if (f.sensor == nullptr)
+      continue;
+    if (auto value = read_float(registers, 0, f.reg, this->word_swap_))
+      f.sensor->publish_state(*value * f.unit);
   }
   return true;
 }
