@@ -1,3 +1,4 @@
+import importlib
 import json
 import logging
 from pathlib import Path
@@ -48,6 +49,7 @@ from esphome.const import (
     TYPE_GIT,
     TYPE_LOCAL,
     Framework,
+    Toolchain,
 )
 from esphome.core import (
     CORE,
@@ -2563,6 +2565,52 @@ def test_returning_lambda_no_return() -> None:
         cv.returning_lambda(Lambda("int x = 5;"))
 
 
+def test_returning_lambda_return_only_in_comment() -> None:
+    with pytest.raises(Invalid, match="return statement"):
+        cv.returning_lambda(Lambda("// return 5;\nint x = 5;"))
+
+
+def test_returning_lambda_missing_semicolon_is_accepted() -> None:
+    """A forgotten semicolon is left for the C++ compiler to report."""
+    assert isinstance(cv.returning_lambda(Lambda("return x")), Lambda)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("return 5;", True),
+        ("if (x) { return x; } return 0;", True),
+        ("if (x) return 1; else return 0;", True),
+        ("switch (x) { case 0: return 1; }", True),
+        # a semicolon means code: any return keyword counts
+        ("return not x;", True),
+        ("return a and b;", True),
+        ("please return the sensor; then wait", True),
+        # a forgotten semicolon is still lambda source; the compiler reports it
+        ("return id(x).state", True),
+        ("return x", True),
+        ("return 5", True),
+        ("return not x", True),
+        # accepted: a one-word tail is indistinguishable from 'return x'
+        ("return soon", True),
+        ("Alert: return home", True),
+        ("static value", False),
+        ("no returns here", False),
+        ("the_return_value", False),
+        # without a semicolon, prose is not lambda source
+        ("please return the item", False),
+        ("return to sender", False),
+        ("return a and b", False),
+        # return only inside a comment is not a return statement
+        ("// return 5;\nint x = 5;", False),
+        ("/* return 5; */ int x = 5;", False),
+        ("return 5; // done", True),
+    ],
+)
+def test_looks_like_returning_lambda(value: str, expected: bool) -> None:
+    assert cv.looks_like_returning_lambda(value) is expected
+
+
 # ---------------------------------------------------------------------------
 # dimensions
 # ---------------------------------------------------------------------------
@@ -3165,3 +3213,46 @@ def test_file__remapped_path_is_directory_raises(setup_core: Path) -> None:
 
     with pytest.raises(Invalid, match="is not a file"):
         cv.file_("/original/config/headers")
+
+
+def test_require_platformio_toolchain() -> None:
+    """Platforms with only the PlatformIO backend reject other toolchains."""
+    validator = cv.require_platformio_toolchain("RP2")
+    CORE.toolchain = None
+    config: dict = {}
+    assert validator(config) is config
+    assert CORE.toolchain == Toolchain.PLATFORMIO
+
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino' for RP2"):
+        validator(config)
+
+
+def test_check_supported_toolchain_unresolved_is_an_ordering_bug() -> None:
+    """Calling the check before resolution fails naming the ordering bug,
+    not a user-facing unsupported-toolchain error."""
+    CORE.toolchain = None
+    with pytest.raises(Invalid, match="not resolved before RP2 validation"):
+        cv._check_supported_toolchain("RP2", (Toolchain.PLATFORMIO,))
+
+
+@pytest.mark.parametrize(
+    ("platform", "minimal_config"),
+    [
+        ("host", {}),
+        ("rp2", {"board": "rpipicow"}),
+        ("bk72xx", {"board": "generic-bk7231n-qfn32-tuya"}),
+        ("rtl87xx", {"board": "generic-rtl8710bn-2mb-788k"}),
+        ("ln882x", {"board": "generic-ln882h"}),
+        # The legacy stub platform must reject too, not just the chip families
+        ("libretiny", {}),
+    ],
+)
+def test_every_platformio_only_platform_rejects_arduino_toolchain(
+    platform: str, minimal_config: dict
+) -> None:
+    """A platform that cannot serve a CLI toolchain rejects it at validation."""
+    module = importlib.import_module(f"esphome.components.{platform}")
+    CORE.toolchain = Toolchain.ARDUINO
+    with pytest.raises(Invalid, match="Unsupported toolchain 'arduino'"):
+        module.CONFIG_SCHEMA(dict(minimal_config))
