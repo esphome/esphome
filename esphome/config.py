@@ -1127,23 +1127,56 @@ class IDPassValidationStep(ConfigValidationStep):
                         continue
                     inherits = v[0].type.inherits_from(id.type)
                     if inherits:
-                        matches.append(v[0])
+                        matches.append(v)
 
-                if len(matches) == 0:
+                if id.match_config:
+                    # Disambiguate among same-type candidates by comparing their own
+                    # declared config against the requested key/value pairs, e.g. an
+                    # I2C address, instead of requiring a single unambiguous candidate.
+                    criteria = ", ".join(f"{k}={v}" for k, v in id.match_config.items())
+                    filtered = [
+                        m
+                        for m in matches
+                        if isinstance(
+                            candidate_conf := result.get_config_for_path(m[1][:-1]),
+                            dict,
+                        )
+                        and all(
+                            candidate_conf.get(k) == v
+                            for k, v in id.match_config.items()
+                        )
+                    ]
+                    if len(filtered) == 1:
+                        id.id = filtered[0][0].id
+                    elif len(filtered) == 0:
+                        result.add_str_error(
+                            f"Couldn't find a '{id.type}' matching {criteria}.",
+                            path,
+                        )
+                    else:
+                        ids = ", ".join(f"'{m[0].id}'" for m in filtered)
+                        result.add_str_error(
+                            f"Multiple '{id.type}' instances match {criteria}: {ids}. "
+                            "Each match must have a unique address.",
+                            path,
+                        )
+                elif len(matches) == 0:
                     result.add_str_error(
                         f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
                         path,
                     )
                 elif len(matches) == 1:
-                    id.id = matches[0].id
+                    id.id = matches[0][0].id
                 elif len(matches) > 1:
                     if str(id.type) == "time::RealTimeClock":
-                        id.id = matches[0].id
+                        id.id = matches[0][0].id
                     else:
-                        manual_declared_count = sum(1 for m in matches if m.is_manual)
+                        manual_declared_count = sum(
+                            1 for m in matches if m[0].is_manual
+                        )
                         if manual_declared_count > 0:
                             ids = ", ".join(
-                                [f"'{m.id}'" for m in matches if m.is_manual]
+                                [f"'{m[0].id}'" for m in matches if m[0].is_manual]
                             )
                             result.add_str_error(
                                 f"Too many candidates found for '{path[-1]}' type '{id.type}' {'Some are' if manual_declared_count > 1 else 'One is'} {ids}",

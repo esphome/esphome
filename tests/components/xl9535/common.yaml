@@ -2,6 +2,9 @@ xl9535:
   - id: xl9535_hub
     i2c_id: i2c_bus
     address: 0x20
+  - id: xl9535_hub_2
+    i2c_id: i2c_bus
+    address: 0x21
 
 binary_sensor:
   - platform: gpio
@@ -17,6 +20,15 @@ binary_sensor:
     pin:
       xl9535: xl9535_hub
       number: 17
+      mode:
+        input: true
+      inverted: false
+  - platform: gpio
+    name: XL9535 Pin 1 By Address
+    pin:
+      xl9535:
+        address: 0x21
+      number: 1
       mode:
         input: true
       inverted: false

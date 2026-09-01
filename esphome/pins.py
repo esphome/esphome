@@ -6,6 +6,7 @@ from typing import Any
 
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
     CONF_ALLOW_OTHER_USES,
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INPUT,
@@ -17,7 +18,7 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObjClass
 
 
@@ -71,7 +72,16 @@ class PinRegistry(dict):
         if CONF_NUMBER in result:
             # key maps to the pin schema
             if key != CORE.target_platform:
-                pin_key = (key, conf[key], result[CONF_NUMBER])
+                # The hub reference isn't resolved to a concrete ID yet at this point
+                # (that happens later, in IDPassValidationStep), so a hub selected by
+                # match_config (e.g. address) can't be told apart from another by its
+                # (still unresolved) ID alone -- use the match criteria instead.
+                ref = result[key]
+                if isinstance(ref, ID) and ref.match_config:
+                    ref_key = tuple(sorted(ref.match_config.items()))
+                else:
+                    ref_key = conf[key]
+                pin_key = (key, ref_key, result[CONF_NUMBER])
             else:
                 pin_key = (key, key, result[CONF_NUMBER])
             if pin_key not in self.pins_used:
@@ -129,6 +139,34 @@ class PinRegistry(dict):
 
 
 PIN_SCHEMA_REGISTRY = PinRegistry()
+
+
+def use_id_or_address(type, address_key=CONF_ADDRESS):
+    """Build a validator for a pin-provider hub reference.
+
+    Accepts everything `cv.use_id(type)` accepts (an explicit id, or omitted to
+    auto-select the sole instance of `type`), plus a mapping like
+    `{address: 0x21}` to instead select the instance of `type` whose own
+    declared config has a matching `address_key`. Use this for pin schemas of
+    I2C-addressed hubs (I/O expanders) so a board with two instances of the
+    same hub type can pick one without assigning it an explicit id.
+    """
+    id_validator = cv.use_id(type)
+
+    def validator(value):
+        if isinstance(value, dict):
+            address = cv.Schema({cv.Required(address_key): cv.i2c_address})(value)[
+                address_key
+            ]
+            return ID(
+                None,
+                is_declaration=False,
+                type=type,
+                match_config={address_key: address},
+            )
+        return id_validator(value)
+
+    return validator
 
 
 def _set_mode(value, default_mode):

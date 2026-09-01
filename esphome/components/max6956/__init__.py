@@ -84,7 +84,7 @@ MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
     mode_validator=validate_mode,
 ).extend(
     {
-        cv.Required(CONF_MAX6956): cv.use_id(MAX6956),
+        cv.Required(CONF_MAX6956): pins.use_id_or_address(MAX6956),
     }
 )
 
