@@ -18,11 +18,9 @@ class ClearAccumulatedFlowAction final : public Action<Ts...>, public ClearAccum
   explicit ClearAccumulatedFlowAction(UFM01Component *parent) : parent_(parent) {}
 
   void play_complex(const Ts &...x) override {
-    this->num_running_++;
-    if (this->waiting_) {
-      this->play_next_(x...);
+    if (this->waiting_)
       return;
-    }
+    this->num_running_++;
     this->waiting_ = true;
     this->args_ = std::make_tuple(x...);
     this->parent_->request_clear_accumulated_flow_(this);
@@ -32,7 +30,7 @@ class ClearAccumulatedFlowAction final : public Action<Ts...>, public ClearAccum
     if (!this->waiting_)
       return;
     this->waiting_ = false;
-    std::apply([this](const Ts &...x) { this->play_next_(x...); }, this->args_);
+    this->play_next_tuple_(this->args_);
   }
 
  protected:

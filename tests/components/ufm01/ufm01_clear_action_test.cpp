@@ -49,7 +49,7 @@ TEST_F(UFM01Test, ClearAccumulatedFlowCompletesOnTimeout) {
   EXPECT_TRUE(action.completed);
 }
 
-TEST_F(UFM01Test, DuplicateClearRequestCompletesImmediately) {
+TEST_F(UFM01Test, DuplicateClearRequestIsIgnored) {
   MockClearAction first;
   MockClearAction second;
   this->ufm01_.set_operating_mode(OperatingMode::ACTIVE_STREAM);
@@ -58,7 +58,7 @@ TEST_F(UFM01Test, DuplicateClearRequestCompletesImmediately) {
   this->ufm01_.request_clear_accumulated_flow(&second);
 
   EXPECT_FALSE(first.completed);
-  EXPECT_TRUE(second.completed);
+  EXPECT_FALSE(second.completed);
 }
 
 TEST_F(UFM01Test, ClearWaitsForPendingPassiveRead) {
