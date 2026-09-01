@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from esphome.components.api import CONFIG_SCHEMA, _validate_outgoing_host_ipv6
+from esphome.components.api import (
+    CONFIG_SCHEMA,
+    _validate_outgoing_host_ipv6,
+    _validate_outgoing_socket_implementation,
+)
 from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
@@ -66,6 +70,20 @@ def test_outgoing_connection_rejected_on_raw_lwip_platforms(
     set_core_config(platform_framework)
     with pytest.raises(cv.Invalid, match="not supported on this platform"):
         CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
+
+
+def test_outgoing_connection_rejects_lwip_tcp_socket(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """An explicit lwip_tcp socket selection is rejected at final validate."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data=ESP32_PLATFORM_DATA,
+        full_config={"socket": {"implementation": "lwip_tcp"}},
+    )
+    config = CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
+    with pytest.raises(cv.Invalid, match="lwip_tcp"):
+        _validate_outgoing_socket_implementation(config)
 
 
 def test_outgoing_connection_rejects_hostnames(

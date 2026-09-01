@@ -458,6 +458,22 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_outgoing_socket_implementation(config: ConfigType) -> ConfigType:
+    """A raw lwip_tcp socket can be selected explicitly on any platform."""
+    if CONF_OUTGOING_CONNECTION not in config:
+        return config
+    from esphome.components import socket
+
+    socket_conf = fv.full_config.get().get("socket") or {}
+    if socket_conf.get(socket.CONF_IMPLEMENTATION) == socket.IMPLEMENTATION_LWIP_TCP:
+        raise cv.Invalid(
+            "outgoing_connection is not supported with the lwip_tcp socket "
+            "implementation because it cannot make outgoing connections",
+            path=[CONF_OUTGOING_CONNECTION],
+        )
+    return config
+
+
 def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
     """An IPv6 host silently dials 255.255.255.255 on a build without IPv6."""
     if (
@@ -477,7 +493,9 @@ def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
-    _validate_esp8266_action_strings, _validate_outgoing_host_ipv6
+    _validate_esp8266_action_strings,
+    _validate_outgoing_socket_implementation,
+    _validate_outgoing_host_ipv6,
 )
 
 

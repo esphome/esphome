@@ -239,14 +239,15 @@ void APIServer::remove_client_(uint8_t client_index) {
 
   // Last client disconnected - set warning and start tracking for reboot timeout
   // (suppressed while provisioning is pending - see loop()).
+  // Refresh on every authenticated removal, not just the last one, so an
+  // unauthenticated straggler removed later (e.g. a port scan, or a dial to
+  // a host that accepts TCP but never speaks the API) cannot discard a
+  // healthy session's timestamp and trigger a spurious reboot
+  if (was_authenticated) {
+    this->last_connected_ = App.get_loop_component_start_time();
+  }
   if (this->api_connection_count_ == 0 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_set_warning(LOG_STR("waiting for client connection"));
-    // A session that never authenticated (e.g. a port scan, or a dial to a
-    // host that accepts TCP but never speaks the API) must not reset the
-    // reboot watchdog
-    if (was_authenticated) {
-      this->last_connected_ = App.get_loop_component_start_time();
-    }
   }
 
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER

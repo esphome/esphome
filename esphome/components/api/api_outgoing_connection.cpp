@@ -174,7 +174,9 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
 void OutgoingConnectionManager::handoff_(APIServer *server, uint32_t now) {
   this->dialed_conn_ = server->add_outgoing_client_(std::move(this->dial_socket_));
   if (this->dialed_conn_ == nullptr) {
-    this->schedule_retry_(now);
+    // Only preconditions (slot limit, key cleared) refuse the handoff; the
+    // peer is reachable, so do not escalate the backoff
+    this->schedule_wait_(now, PRECONDITION_RETRY_MS);
     return;
   }
   // Connected; dialed_conn_ gates further dialing until the session settles
