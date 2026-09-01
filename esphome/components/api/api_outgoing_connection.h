@@ -20,10 +20,15 @@ namespace esphome::api {
 class APIServer;
 class APIConnection;
 
+// Follows the build's address family (ifdef'd in socket/headers.h): toggling
+// enable_ipv6 changes the blob size, load() rejects the old blob, and the
+// target is simply relearned
+static constexpr size_t SAVED_TARGET_HOST_LEN = socket::SOCKADDR_STR_LEN;
+
 struct SavedOutgoingTarget {
   // IP as text so the socket component's v4-mapped-IPv6 normalization is
   // reused on both ends; empty = none remembered
-  char host[socket::SOCKADDR_STR_LEN];
+  char host[SAVED_TARGET_HOST_LEN];
 } PACKED;  // NOLINT
 
 /// Dials out when no dial-back target client is connected. Only the TCP

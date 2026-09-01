@@ -22,11 +22,10 @@ void OutgoingConnectionManager::setup() {
 #ifndef API_OUTGOING_CONNECTION_HOST
   this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
   if (!this->target_pref_.load(&this->saved_)) {
-    ESP_LOGD(TAG, "No saved target");
-    this->saved_ = {};
+    this->saved_ = {};  // dump_config() reports the empty state
   }
   // Defend against a corrupt or truncated preference blob
-  this->saved_.host[socket::SOCKADDR_STR_LEN - 1] = '\0';
+  this->saved_.host[sizeof(this->saved_.host) - 1] = '\0';
   // The macro is defined with a true/false value, not conditionally
 #if !USE_NETWORK_IPV6
   if (strchr(this->saved_.host, ':') != nullptr) {
@@ -92,7 +91,10 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   struct sockaddr_storage addr;
   socklen_t addr_len =
       socket::set_sockaddr((struct sockaddr *) &addr, sizeof(addr), host, API_OUTGOING_CONNECTION_PORT);
-  if (addr_len == 0) {
+  // inet_addr() cannot signal failure: unparsable IPv4 text yields the
+  // broadcast address, which is never a valid target either
+  if (addr_len == 0 || (((struct sockaddr *) &addr)->sa_family == AF_INET &&
+                        ((struct sockaddr_in *) &addr)->sin_addr.s_addr == INADDR_NONE)) {
     ESP_LOGW(TAG, "Invalid target %s", host);
     this->schedule_retry_(now);
     return;
@@ -131,8 +133,9 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   }
   this->last_poll_ = now;
   int fd = this->dial_socket_->get_fd();
-  if (fd >= FD_SETSIZE) {
-    ESP_LOGW(TAG, "fd %d out of select range", fd);
+  if (fd < 0 || fd >= FD_SETSIZE) {
+    // FD_SET on either is undefined behavior
+    ESP_LOGW(TAG, "fd %d unusable for select", fd);
     this->schedule_retry_(now);
     return;
   }
@@ -233,12 +236,12 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
   if (strcmp(target.host, this->saved_.host) == 0) {
     return;  // unchanged; avoid flash wear
   }
+  // Use the fresh address this boot even if the flash write fails
+  this->saved_ = target;
   if (!this->target_pref_.save(&target) || !global_preferences->sync()) {
-    // Keep the old value so the save is retried on the next flagged hello
     ESP_LOGW(TAG, "Failed to save target");
     return;
   }
-  this->saved_ = target;
   ESP_LOGD(TAG, "Saved %s as outgoing connection target", this->saved_.host);
 #endif
 }
