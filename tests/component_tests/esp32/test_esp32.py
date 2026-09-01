@@ -458,7 +458,7 @@ def test_execute_from_psram_s31_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """Test that execute_from_psram on ESP32-S31 sets the correct sdkconfig options."""
+    """Test that execute_from_psram on ESP32-S31 sets the correct sdkconfig option."""
     generate_main(component_config_path("execute_from_psram_s31.yaml"))
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert sdkconfig.get("CONFIG_SPIRAM_XIP_FROM_PSRAM") is True
