@@ -5,8 +5,9 @@ namespace esphome::tca8418 {
 
 static const char *const TAG = "tca8418";
 
-//  How often to ask the device whether it has events, when no interrupt pin is
-//  configured.
+//  How often the device is asked whether it has events. This applies whether or
+//  not an interrupt pin is configured, so a pin stuck asserted cannot turn into
+//  I2C traffic on every pass of the main loop.
 static constexpr uint32_t POLL_INTERVAL_MS = 10;
 
 void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg->enable_loop_soon_any_context(); }
@@ -26,8 +27,10 @@ void TCA8418Component::setup() {
     return;
   }
 
-  //  Report key events, and keep the interrupt asserted while events remain queued.
-  if (!this->write_byte(TCA8418_REG_CFG, TCA8418_CFG_KEY_INT_EN | TCA8418_CFG_INT_CFG)) {
+  //  Report key events and a full event queue, and keep the interrupt asserted
+  //  while events remain queued. The overflow interrupt has to be enabled for
+  //  the matching status bit to be set, which is what the warning below reads.
+  if (!this->write_byte(TCA8418_REG_CFG, TCA8418_CFG_KEY_INT_EN | TCA8418_CFG_OVR_FLOW_IEN | TCA8418_CFG_INT_CFG)) {
     ESP_LOGE(TAG, "Failed to write the configuration register");
     this->mark_failed();
     return;
