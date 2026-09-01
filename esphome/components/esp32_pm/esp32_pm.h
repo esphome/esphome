@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/components/power_management/power_management.h"
 
@@ -24,3 +26,5 @@ class ESP32PowerManagement : public power_management::PowerManagementComponent {
 };
 
 }  // namespace esphome::esp32_pm
+
+#endif

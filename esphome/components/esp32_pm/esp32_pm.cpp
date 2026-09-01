@@ -1,5 +1,6 @@
-#include "esphome/core/log.h"
 #include "esp32_pm.h"
+#ifdef USE_ESP32
+#include "esphome/core/log.h"
 #ifdef CONFIG_OPENTHREAD_MTD
 #include "esphome/components/openthread/openthread.h"
 #endif
@@ -63,3 +64,4 @@ void ESP32PowerManagement::dump_config() {
 }
 
 }  // namespace esphome::esp32_pm
+#endif
