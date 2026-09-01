@@ -154,8 +154,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     }
   }
   if (error_code != 0) {
-    if (report_errors)
+    if (report_errors) {
       ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+    }
     return false;
   }
 
