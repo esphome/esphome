@@ -11,23 +11,28 @@ from pathlib import Path
 import re
 import sys
 import time
+from types import SimpleNamespace
 from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from pytest import CaptureFixture
+import serial
 from zeroconf import ServiceStateChange
 
-from esphome import __main__ as main
+from esphome import __main__ as main, yaml_util
 from esphome.__main__ import (
     Purpose,
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _redact_with_legacy_fallback,
     _resolve_network_devices,
+    _should_subscribe_states,
+    _split_network_devices,
     _unresolved_default_error,
     _validate_bootloader_binary,
     _validate_partition_table_binary,
+    _wrap_to_code,
     check_permissions,
     choose_upload_log_host,
     command_analyze_memory,
@@ -52,6 +57,7 @@ from esphome.__main__ import (
     has_non_ip_address,
     has_ota,
     has_resolvable_address,
+    has_web_server_logging,
     has_web_server_ota,
     mqtt_get_ip,
     parse_args,
@@ -65,21 +71,26 @@ from esphome.__main__ import (
 )
 from esphome.address_cache import AddressCache
 from esphome.bundle import BUNDLE_EXTENSION, BundleFile, BundleResult
-from esphome.components import esp32, esp8266
+from esphome.components import esp32, esp8266, mqtt
 from esphome.components.esp32 import (
     KEY_ESP32,
     KEY_VARIANT,
     VARIANT_ESP32,
     get_esp32_variant,
 )
+from esphome.config import Config
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DISABLED,
+    CONF_DISCOVER_IP,
+    CONF_ENCRYPTION,
     CONF_ESPHOME,
+    CONF_KEY,
     CONF_LEVEL,
+    CONF_LOG,
     CONF_LOG_TOPIC,
     CONF_LOGGER,
     CONF_MDNS,
@@ -94,13 +105,16 @@ from esphome.const import (
     CONF_TOPIC,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    CONF_VERSION,
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_HOST,
     PLATFORM_NRF52,
     PLATFORM_RP2,
     Toolchain,
@@ -112,6 +126,7 @@ from esphome.espota2 import (
     OTA_TYPE_UPDATE_PARTITION_TABLE,
 )
 from esphome.platformio import toolchain
+from esphome.types import ConfigType
 from esphome.util import BootselResult, FlashImage
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
@@ -560,8 +575,6 @@ def test_command_config__no_defaults_dumps_user_snapshot(
 ) -> None:
     """``--no-defaults`` dumps ``config.user_config`` instead of the
     validated config, so schema defaults don't leak into the output."""
-    from esphome.config import Config
-
     setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
     args = MockArgs()
     args.show_secrets = True
@@ -614,8 +627,6 @@ def test_command_config__no_defaults_skips_strip_default_ids(
 ) -> None:
     """When ``--no-defaults`` is set, ``strip_default_ids`` isn't run --
     the user snapshot is already free of schema-injected IDs."""
-    from esphome.config import Config
-
     setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
     args = MockArgs()
     args.show_secrets = True
@@ -816,6 +827,30 @@ def test_choose_upload_log_host_with_ota_device_with_api_config_logging() -> Non
     assert result == ["192.168.1.100"]
 
 
+def test_choose_upload_log_host_logging_web_server_only_ip() -> None:
+    """A web_server-only device with a static IP resolves to that IP for logs."""
+    setup_core(config={CONF_WEB_SERVER: {}}, address="192.168.1.100")
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.LOGGING,
+    )
+    assert result == ["192.168.1.100"]
+
+
+def test_choose_upload_log_host_logging_web_server_only_mdns() -> None:
+    """A web_server-only device with a .local name resolves to that hostname."""
+    setup_core(config={CONF_WEB_SERVER: {}}, address="test.local")
+
+    result = choose_upload_log_host(
+        default="OTA",
+        check_default=None,
+        purpose=Purpose.LOGGING,
+    )
+    assert result == ["test.local"]
+
+
 def test_choose_upload_log_host_logging_without_api_reports_missing_api() -> None:
     """A resolvable device with only ota: fails logs with a missing-api message."""
     setup_core(
@@ -853,6 +888,17 @@ def test_unresolved_default_error_unresolvable_keeps_dashboard_hint() -> None:
     msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
     assert "could not be resolved" in msg
     assert "set 'use_address'" in msg
+
+
+def test_unresolved_default_error_logging_suggests_web_server() -> None:
+    """The missing-api log message lists web_server among the remediations."""
+    setup_core(
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]}, address="192.168.1.100"
+    )
+
+    msg = _unresolved_default_error(Purpose.LOGGING, ["OTA"])
+    assert "no 'api:' component is configured" in msg
+    assert "'web_server:'" in msg
 
 
 def test_unresolved_default_error_upload_with_ota_is_generic() -> None:
@@ -2062,8 +2108,63 @@ def test_upload_program_ota_success(
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"], 3232, "secret", expected_firmware, OTA_TYPE_UPDATE_APP, None
     )
+
+
+def test_upload_program_ota_encryption_key(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """The resolved encryption key is passed through to run_ota."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_ota.return_value = (0, "192.168.1.100")
+
+    key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_ENCRYPTION: {CONF_KEY: key},
+            }
+        ]
+    }
+    exit_code, host = upload_program(config, MockArgs(), ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert host == "192.168.1.100"
+    expected_firmware = (
+        tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
+    )
+    mock_run_ota.assert_called_once_with(
+        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, key
+    )
+
+
+def test_upload_program_ota_encryption_without_key_fails_closed(
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+) -> None:
+    """An encryption block with no resolved key must never upload plaintext."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_ENCRYPTION: {},
+            }
+        ]
+    }
+    with pytest.raises(EsphomeError, match="no key was resolved"):
+        upload_program(config, MockArgs(), ["192.168.1.100"])
+    mock_run_ota.assert_not_called()
 
 
 def test_upload_program_ota_with_file_arg(
@@ -2093,7 +2194,7 @@ def test_upload_program_ota_with_file_arg(
     assert exit_code == 0
     assert host == "192.168.1.100"
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"], 3232, None, Path("custom.bin"), OTA_TYPE_UPDATE_APP, None
     )
 
 
@@ -2148,6 +2249,7 @@ def test_upload_program_ota_partition_table_with_file_arg(
         None,
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
+        None,
     )
 
 
@@ -2209,6 +2311,7 @@ def test_upload_program_ota_partition_table_mqttip(
         None,
         partition_file,
         OTA_TYPE_UPDATE_PARTITION_TABLE,
+        None,
     )
 
 
@@ -2396,6 +2499,7 @@ def test_upload_program_ota_bootloader_with_file_arg(
         None,
         bootloader_file,
         OTA_TYPE_UPDATE_BOOTLOADER,
+        None,
     )
 
 
@@ -2532,6 +2636,66 @@ def test_has_web_server_ota_returns_false_without_config() -> None:
     )
     assert has_web_server_ota() is False
     assert has_ota() is True
+
+
+def test_has_web_server_logging_default() -> None:
+    """has_web_server_logging is True for a default web_server (v2, log on)."""
+    setup_core(config={CONF_WEB_SERVER: {}})
+    assert has_web_server_logging() is True
+
+
+def test_has_web_server_logging_without_config() -> None:
+    """has_web_server_logging is False when web_server is not configured."""
+    setup_core(config={CONF_API: {}})
+    assert has_web_server_logging() is False
+
+
+def test_has_web_server_logging_v1_has_no_events_stream() -> None:
+    """has_web_server_logging is False for v1, which has no /events endpoint."""
+    setup_core(config={CONF_WEB_SERVER: {CONF_VERSION: 1}})
+    assert has_web_server_logging() is False
+
+
+def test_has_web_server_logging_respects_log_disabled() -> None:
+    """has_web_server_logging is False when the web_server log option is off."""
+    setup_core(config={CONF_WEB_SERVER: {CONF_LOG: False}})
+    assert has_web_server_logging() is False
+
+
+def test_upload_program_web_server_warns_when_encryption_configured(
+    mock_run_web_server_ota: Mock,
+    mock_run_ota: Mock,
+    mock_get_port_type: Mock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Explicitly picking web_server OTA on an encrypted config warns about
+    the plaintext upload path."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+    mock_get_port_type.return_value = "NETWORK"
+    mock_run_web_server_ota.return_value = (0, "192.168.1.100")
+
+    config = {
+        CONF_OTA: [
+            {
+                CONF_PLATFORM: CONF_ESPHOME,
+                CONF_PORT: 3232,
+                CONF_ENCRYPTION: {CONF_KEY: "test_key"},
+            },
+            {CONF_PLATFORM: CONF_WEB_SERVER},
+        ],
+        CONF_WEB_SERVER: {
+            CONF_PORT: 80,
+            CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "pw"},
+        },
+    }
+    args = MockArgs(ota_platform=CONF_WEB_SERVER)
+    with caplog.at_level(logging.WARNING):
+        exit_code, _ = upload_program(config, args, ["192.168.1.100"])
+
+    assert exit_code == 0
+    assert any("plaintext HTTP" in record.message for record in caplog.records)
+    mock_run_ota.assert_not_called()
 
 
 def test_upload_program_web_server_only_auto_dispatches(
@@ -2817,12 +2981,14 @@ def test_upload_program_ota_with_mqtt_resolution(
 
     assert exit_code == 0
     assert host == "192.168.1.100"
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
     )
 
 
@@ -2864,13 +3030,15 @@ def test_upload_program_ota_with_mqtt_empty_broker(
     assert exit_code == 0
     assert host == "192.168.1.50"
     # Verify MQTT was attempted but failed gracefully
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
     # Verify we fell back to the IP address
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.50"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
     )
     # Verify warning was logged
     assert "MQTT IP discovery failed" in caplog.text
@@ -2953,7 +3121,10 @@ def test_show_logs_api(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.1.101"], subscribe_states=True
+        CORE.config,
+        ["192.168.1.100", "192.168.1.101"],
+        subscribe_states=True,
+        mqtt_resolver=None,
     )
 
 
@@ -2980,7 +3151,7 @@ def test_show_logs_api_no_states(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=False
+        CORE.config, ["192.168.1.100"], subscribe_states=False, mqtt_resolver=None
     )
 
 
@@ -3007,7 +3178,7 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
     assert result == 0
     # Should use the FQDN directly, not try MQTT lookup
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["device.example.com"], subscribe_states=True
+        CORE.config, ["device.example.com"], subscribe_states=True, mqtt_resolver=None
     )
 
 
@@ -3035,9 +3206,44 @@ def test_show_logs_api_with_mqtt_fallback(
     result = show_logs(CORE.config, args, devices)
 
     assert result == 0
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
+    )
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.200"], subscribe_states=True
+        CORE.config, ["192.168.1.200"], subscribe_states=True, mqtt_resolver=None
+    )
+
+
+@patch("esphome.mqtt.show_logs")
+def test_show_logs_api_mqtt_only_resolve_failure_falls_back_to_mqtt_logs(
+    mock_mqtt_show_logs: Mock,
+    mock_mqtt_get_ip: Mock,
+) -> None:
+    """With no addresses at all after a failed MQTT lookup, MQTT logging is used."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MQTT: {CONF_BROKER: "mqtt.local"},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_mqtt_show_logs.return_value = 0
+    mock_mqtt_get_ip.side_effect = EsphomeError("Failed to find IP via MQTT")
+
+    args = MockArgs(
+        topic="esphome/logs", username="user", password="pass", client_id="client"
+    )
+    devices = ["MQTT", "MQTTIP"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
+    )
+    mock_mqtt_show_logs.assert_called_once_with(
+        CORE.config, "esphome/logs", "user", "pass", "client"
     )
 
 
@@ -3100,6 +3306,77 @@ def test_show_logs_network_with_mqtt_only(
     mock_mqtt_show_logs.assert_called_once_with(
         CORE.config, "esphome/logs", "user", "pass", "client"
     )
+
+
+@patch("esphome.web_server_logs.run_logs")
+def test_show_logs_web_server(
+    mock_run_logs: Mock,
+) -> None:
+    """A web_server-only device streams logs over the HTTP SSE endpoint."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_WEB_SERVER: {CONF_PORT: 80},
+            # No API or MQTT configured
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    result = show_logs(CORE.config, MockArgs(), ["192.168.1.100"])
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(["192.168.1.100"], 80, None, None)
+
+
+@patch("esphome.web_server_logs.run_logs")
+def test_show_logs_web_server_with_auth_and_port(
+    mock_run_logs: Mock,
+) -> None:
+    """web_server port and basic-auth credentials are forwarded to the streamer."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_WEB_SERVER: {
+                CONF_PORT: 8080,
+                CONF_AUTH: {CONF_USERNAME: "admin", CONF_PASSWORD: "secret"},
+            },
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    result = show_logs(CORE.config, MockArgs(), ["192.168.1.100"])
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(["192.168.1.100"], 8080, "admin", "secret")
+
+
+@patch("esphome.web_server_logs.run_logs")
+@patch("esphome.mqtt.show_logs")
+def test_show_logs_mqtt_preferred_over_web_server(
+    mock_mqtt_show_logs: Mock,
+    mock_run_logs: Mock,
+) -> None:
+    """With both MQTT logging and web_server, MQTT wins (API > MQTT > web_server)."""
+    setup_core(
+        config={
+            "logger": {},
+            "mqtt": {CONF_BROKER: "mqtt.local"},
+            CONF_WEB_SERVER: {CONF_PORT: 80},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_mqtt_show_logs.return_value = 0
+
+    args = MockArgs(
+        topic="esphome/logs", username="user", password="pass", client_id="client"
+    )
+    result = show_logs(CORE.config, args, ["192.168.1.100"])
+
+    assert result == 0
+    mock_mqtt_show_logs.assert_called_once()
+    mock_run_logs.assert_not_called()
 
 
 def test_show_logs_no_method_configured() -> None:
@@ -3261,9 +3538,6 @@ def test_get_port_type() -> None:
 
 def test_mqtt_reexports_discover_ip() -> None:
     """The old import path must keep working for external code."""
-    from esphome.components import mqtt
-    from esphome.const import CONF_DISCOVER_IP
-
     assert mqtt.CONF_DISCOVER_IP is CONF_DISCOVER_IP
 
 
@@ -3333,7 +3607,9 @@ def test_mqtt_get_ip() -> None:
         result = mqtt_get_ip(config, "user", "pass", "client-id")
 
         assert result == ["192.168.1.100", "192.168.1.101"]
-        mock_get_ip.assert_called_once_with(config, "user", "pass", "client-id")
+        mock_get_ip.assert_called_once_with(
+            config, "user", "pass", "client-id", stop_event=None
+        )
 
 
 def test_has_resolvable_address() -> None:
@@ -3712,6 +3988,37 @@ def test_resolve_network_devices_keeps_uncached_hosts(tmp_path: Path) -> None:
     )
 
     assert result == ["unknown.local", "192.168.1.50"]
+
+
+def test_split_network_devices_direct_only(tmp_path: Path) -> None:
+    """Direct addresses pass through deduped, with no MQTT flag."""
+    setup_core(tmp_path=tmp_path)
+
+    assert _split_network_devices(["192.168.1.50", "device.local", "192.168.1.50"]) == (
+        ["192.168.1.50", "device.local"],
+        False,
+    )
+
+
+def test_split_network_devices_mqtt_only(tmp_path: Path) -> None:
+    """MQTT magic strings produce no direct addresses, only the flag."""
+    setup_core(tmp_path=tmp_path)
+
+    assert _split_network_devices(["MQTTIP", "MQTT"]) == ([], True)
+
+
+def test_split_network_devices_expands_cached_mdns_hosts(tmp_path: Path) -> None:
+    """Hostnames in ``CORE.address_cache`` are expanded like _resolve_network_devices."""
+    setup_core(tmp_path=tmp_path)
+    CORE.address_cache = AddressCache(
+        mdns_cache={
+            "device-abc123.local": ["10.0.0.1", "10.0.0.2"],
+        }
+    )
+
+    assert _split_network_devices(
+        ["device-abc123.local", "MQTTIP", "192.168.1.50", "device-abc123.local"]
+    ) == (["10.0.0.1", "10.0.0.2", "192.168.1.50"], True)
 
 
 def test_await_discovery_timeout_returns_empty(
@@ -4889,7 +5196,9 @@ def test_upload_program_ota_static_ip_with_mqttip(
     assert host == "192.168.1.100"
 
     # Verify MQTT was resolved
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with both IPs
     expected_firmware = (
@@ -4901,6 +5210,7 @@ def test_upload_program_ota_static_ip_with_mqttip(
         None,
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
+        None,
     )
 
 
@@ -4936,7 +5246,9 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
     assert host == "192.168.2.50"
 
     # Verify MQTT was only resolved once despite multiple MQTT magic strings
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with all unique IPs
     expected_firmware = (
@@ -4948,6 +5260,7 @@ def test_upload_program_ota_multiple_mqttip_resolves_once(
         None,
         expected_firmware,
         OTA_TYPE_UPDATE_APP,
+        None,
     )
 
 
@@ -4983,7 +5296,9 @@ def test_upload_program_ota_mqttip_deduplication(
     assert host == "192.168.1.100"
 
     # Verify MQTT was resolved
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with deduplicated IPs (only one instance of 192.168.1.100)
     # Note: Current implementation doesn't dedupe, so we'll get the IP twice
@@ -5003,7 +5318,9 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     This tests the scenario where a device has manual_ip (static IP) configured
     and MQTT is also configured. The devices list contains both the static IP
-    and "MQTTIP" magic string.
+    and "MQTTIP" magic string. The MQTT lookup must not block startup; it is
+    handed to run_logs as a deferred resolver instead (issue #18311), while
+    still being reachable as a fallback for a stale static IP.
     """
     setup_core(
         config={
@@ -5024,12 +5341,19 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     assert result == 0
 
-    # Verify MQTT was resolved
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+    # The broker must not be contacted before run_logs starts
+    mock_mqtt_get_ip.assert_not_called()
 
-    # Verify run_logs was called with both IPs
-    mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.2.50"], subscribe_states=True
+    # run_logs gets the static IP immediately plus a deferred MQTT resolver
+    mock_run_logs.assert_called_once()
+    assert mock_run_logs.call_args.args == (CORE.config, ["192.168.1.100"])
+    assert mock_run_logs.call_args.kwargs["subscribe_states"] is True
+    resolver = mock_run_logs.call_args.kwargs["mqtt_resolver"]
+
+    # Invoking the resolver performs the MQTT lookup (the #11260 fallback)
+    assert resolver(None) == ["192.168.2.50"]
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
     )
 
 
@@ -5038,7 +5362,7 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
 ) -> None:
-    """Test that MQTT resolution only happens once for show_logs with multiple MQTT magic strings."""
+    """Test that multiple MQTT magic strings collapse into one deferred resolver."""
     setup_core(
         config={
             "logger": {},
@@ -5058,16 +5382,16 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
 
     assert result == 0
 
-    # Verify MQTT was only resolved once despite multiple MQTT magic strings
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
+    # Note: "MQTT" is a different magic string from "MQTTIP", but both defer
+    # to the same single resolver; the broker is not contacted eagerly
+    mock_mqtt_get_ip.assert_not_called()
+    mock_run_logs.assert_called_once()
+    assert mock_run_logs.call_args.args == (CORE.config, ["192.168.1.100"])
 
-    # Verify run_logs was called with all unique IPs (MQTT strings replaced with IPs)
-    # Note: "MQTT" is a different magic string from "MQTTIP", but both trigger MQTT resolution
-    # The _resolve_network_devices helper filters out both after first resolution
-    mock_run_logs.assert_called_once_with(
-        CORE.config,
-        ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
-        subscribe_states=True,
+    resolver = mock_run_logs.call_args.kwargs["mqtt_resolver"]
+    assert resolver(None) == ["192.168.2.50", "192.168.2.51"]
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
     )
 
 
@@ -5105,14 +5429,16 @@ def test_upload_program_ota_mqtt_timeout_fallback(
     assert host == "192.168.1.100"
 
     # Verify MQTT was attempted
-    mock_mqtt_get_ip.assert_called_once_with(config, "user", "pass", "client")
+    mock_mqtt_get_ip.assert_called_once_with(
+        config, "user", "pass", "client", stop_event=None
+    )
 
     # Verify espota2.run_ota was called with only the static IP (MQTT failed)
     expected_firmware = (
         tmp_path / ".esphome" / "build" / "test" / ".pioenvs" / "test" / "firmware.bin"
     )
     mock_run_ota.assert_called_once_with(
-        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP
+        ["192.168.1.100"], 3232, None, expected_firmware, OTA_TYPE_UPDATE_APP, None
     )
 
 
@@ -5121,7 +5447,7 @@ def test_show_logs_api_mqtt_timeout_fallback(
     mock_run_logs: Mock,
     mock_mqtt_get_ip: Mock,
 ) -> None:
-    """Test show_logs falls back to other devices when MQTT times out."""
+    """Test show_logs proceeds with the static IP when MQTT times out."""
     setup_core(
         config={
             "logger": {},
@@ -5140,15 +5466,17 @@ def test_show_logs_api_mqtt_timeout_fallback(
 
     result = show_logs(CORE.config, args, devices)
 
-    # Should succeed using the static IP even though MQTT failed
+    # Logs start on the static IP without waiting for the broker
     assert result == 0
+    mock_run_logs.assert_called_once()
+    assert mock_run_logs.call_args.args == (CORE.config, ["192.168.1.100"])
 
-    # Verify MQTT was attempted
-    mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
-
-    # Verify run_logs was called with only the static IP (MQTT failed)
-    mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=True
+    # The deferred resolver owns the failure policy: it logs a warning and
+    # returns no addresses so the session keeps running on the known ones
+    resolver = mock_run_logs.call_args.kwargs["mqtt_resolver"]
+    assert resolver(None) == []
+    mock_mqtt_get_ip.assert_called_once_with(
+        CORE.config, "user", "pass", "client", stop_event=None
     )
 
 
@@ -5678,8 +6006,6 @@ class MockSerial:
             chunk = self.chunks[self.chunk_index]
             if chunk is MOCK_SERIAL_END:
                 # Sentinel means we're done - simulate port closed
-                import serial
-
                 raise serial.SerialException("Port closed")
             # Respect the requested size and keep any remaining bytes
             if size <= 0:
@@ -5693,8 +6019,6 @@ class MockSerial:
                 # Entire chunk consumed; advance to the next one
                 self.chunk_index += 1
             return data  # type: ignore[return-value]
-        import serial
-
         raise serial.SerialException("Port closed")
 
 
@@ -6553,8 +6877,6 @@ def test_parse_args_argcomplete_only_runs_when_completing() -> None:
 
 def test_should_subscribe_states_default() -> None:
     """Test that states are shown by default when nothing is set."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "device.yaml"])
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("ESPHOME_LOG_STATES", None)
@@ -6563,8 +6885,6 @@ def test_should_subscribe_states_default() -> None:
 
 def test_should_subscribe_states_env_suppresses() -> None:
     """Test that ESPHOME_LOG_STATES=false suppresses states by default."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
         assert _should_subscribe_states(args) is False
@@ -6572,8 +6892,6 @@ def test_should_subscribe_states_env_suppresses() -> None:
 
 def test_should_subscribe_states_env_enables() -> None:
     """Test that ESPHOME_LOG_STATES=true enables states by default."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
         assert _should_subscribe_states(args) is True
@@ -6581,8 +6899,6 @@ def test_should_subscribe_states_env_enables() -> None:
 
 def test_should_subscribe_states_flag_overrides_env() -> None:
     """Test that --states overrides ESPHOME_LOG_STATES=false."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "--states", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "false"}):
         assert _should_subscribe_states(args) is True
@@ -6590,8 +6906,6 @@ def test_should_subscribe_states_flag_overrides_env() -> None:
 
 def test_should_subscribe_states_no_flag_overrides_env() -> None:
     """Test that --no-states overrides ESPHOME_LOG_STATES=true."""
-    from esphome.__main__ import _should_subscribe_states
-
     args = parse_args(["esphome", "logs", "--no-states", "device.yaml"])
     with patch.dict(os.environ, {"ESPHOME_LOG_STATES": "true"}):
         assert _should_subscribe_states(args) is False
@@ -6631,7 +6945,7 @@ def test_command_run_passes_no_states_to_show_logs(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=False
+        CORE.config, ["192.168.1.100"], subscribe_states=False, mqtt_resolver=None
     )
 
 
@@ -6672,7 +6986,7 @@ def test_command_run_defaults_subscribe_states_true(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100"], subscribe_states=True
+        CORE.config, ["192.168.1.100"], subscribe_states=True, mqtt_resolver=None
     )
 
 
@@ -6902,3 +7216,191 @@ def test_warn_source_tree_mismatch_falls_back_when_stat_fails(
 
     # Same tree, so the path comparison still finds them equal and stays silent
     assert not caplog.text
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        FileNotFoundError("no such compiler"),
+        RuntimeError("Could not query builtin include dirs"),
+        ValueError("no C++ translation unit found"),
+        KeyError("command"),
+        None,  # replaced with EsphomeError inside
+    ],
+)
+def test_compile_program_espidf_idedata_failure_does_not_fail_build(
+    error: Exception,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A post-compile idedata error is a warning: the firmware already built."""
+    if error is None:
+        error = EsphomeError("compile database is unusable")
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch("esphome.espidf.toolchain.get_idedata", side_effect=error),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "Could not generate idedata" in caplog.text
+
+
+def test_compile_program_espidf_idedata_success_is_silent(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The healthy path: idedata generated, nothing to warn about."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch("esphome.espidf.toolchain.get_idedata", return_value={"cc_path": "x"}),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "idedata" not in caplog.text
+
+
+def test_compile_program_espidf_idedata_none_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A silent None from the post-compile idedata refresh is made visible."""
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+    with (
+        patch("esphome.espidf.toolchain.run_compile", return_value=0),
+        patch("esphome.espidf.toolchain.create_factory_bin"),
+        patch("esphome.espidf.toolchain.create_ota_bin"),
+        patch("esphome.espidf.toolchain.create_elf_copy"),
+        patch("esphome.espidf.toolchain.get_idedata", return_value=None),
+        patch("esphome.__main__._check_and_emit_build_info"),
+    ):
+        assert compile_program(MagicMock(), {}) == 0
+    assert "No idedata was generated" in caplog.text
+
+
+def test_cli_toolchain_skips_the_validated_config_cache(tmp_path: Path) -> None:
+    """An explicit --toolchain must run the per-platform validators, so the
+    upload/logs fast path becomes a cache miss."""
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "arduino", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_cache,
+        patch("esphome.config.read_config", return_value=None) as mock_read,
+    ):
+        assert run_esphome(argv) == 2
+    mock_cache.assert_not_called()
+    mock_read.assert_called_once()
+
+
+def test_cli_toolchain_still_refreshes_the_validated_config_cache(
+    tmp_path: Path,
+) -> None:
+    """An explicit --toolchain gates only the cache read; with a matching
+    sidecar the freshly validated config is still saved."""
+    conf = tmp_path / "device.yaml"
+    conf.write_text("esphome:\n  name: t\n")
+    argv = ["esphome", "--toolchain", "platformio", "logs", str(conf)]
+    with (
+        patch("esphome.compiled_config.load_compiled_config") as mock_load,
+        patch("esphome.config.read_config", return_value={CONF_ESPHOME: {}}),
+        patch("esphome.compiled_config.save_compiled_config_and_sidecar") as mock_save,
+        patch.dict(
+            "esphome.__main__.POST_CONFIG_ACTIONS", {"logs": Mock(return_value=0)}
+        ),
+    ):
+        assert run_esphome(argv) == 0
+    mock_load.assert_not_called()
+    mock_save.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_wrap_to_code_comment_is_insertion_order_independent() -> None:
+    """The config comment dumps with sorted keys: voluptuous fills schema
+    defaults in set-iteration order, so an unsorted dump would churn
+    main.cpp and relink the firmware on every run."""
+    comments: list[str] = []
+
+    async def to_code(conf: ConfigType) -> None:
+        """Accept any config; only the wrapper's comment output matters."""
+
+    comp = SimpleNamespace(to_code=to_code, config_schema=object())
+    wrapped = _wrap_to_code("demo", comp, yaml_util)
+    with patch("esphome.codegen.add", side_effect=lambda st: comments.append(str(st))):
+        # Nested on purpose: the real churn lives in nested action configs,
+        # so sorting must apply at every mapping level
+        await wrapped({"beta": 1, "alpha": {"z": 1, "a": 2}})
+        first = "\n".join(comments)
+        comments.clear()
+        await wrapped({"alpha": {"a": 2, "z": 1}, "beta": 1})
+    second = "\n".join(comments)
+    assert first == second
+    assert second.index("alpha") < second.index("beta")
+    assert second.index("a: 2") < second.index("z: 1")
+
+
+def test_host_program_path_platformio_toolchain() -> None:
+    """Host + PlatformIO toolchain reads the memoized idedata path."""
+    setup_core(platform=PLATFORM_HOST)
+    idedata = SimpleNamespace(firmware_elf_path="/build/x/.pioenvs/x/program")
+    with patch(
+        "esphome.platformio.toolchain.get_idedata", return_value=idedata
+    ) as mock_get:
+        assert main._host_program_path({}) == "/build/x/.pioenvs/x/program"
+    mock_get.assert_called_once_with({})
+
+
+def test_host_program_path_esp_idf_toolchain() -> None:
+    """Host + native ESP-IDF toolchain asks the espidf toolchain for the ELF."""
+    setup_core(platform=PLATFORM_HOST)
+    CORE.toolchain = Toolchain.ESP_IDF
+    with patch(
+        "esphome.espidf.toolchain.get_elf_path", return_value=Path("/b/app.elf")
+    ):
+        assert main._host_program_path({}) == str(Path("/b/app.elf"))
+
+
+def test_command_compile_host_logs_program_path(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """command_compile on host logs the compiled program path."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch.object(main, "write_cpp", return_value=0),
+        patch.object(main, "compile_program", return_value=0),
+        patch.object(main, "_host_program_path", return_value="/b/program"),
+        caplog.at_level(logging.INFO),
+    ):
+        assert main.command_compile(SimpleNamespace(only_generate=False), {}) == 0
+    assert "Successfully compiled program to path '/b/program'" in caplog.text
+
+
+def test_command_run_host_executes_program(caplog: pytest.LogCaptureFixture) -> None:
+    """command_run on host logs and executes the compiled program directly."""
+    setup_core(platform=PLATFORM_HOST)
+    with (
+        patch.object(main, "write_cpp", return_value=0),
+        patch.object(main, "compile_program", return_value=0),
+        patch.object(main, "_host_program_path", return_value="/b/program"),
+        patch.object(main, "run_external_process", return_value=0) as mock_run,
+        caplog.at_level(logging.INFO),
+    ):
+        assert main.command_run(SimpleNamespace(), {}) == 0
+    mock_run.assert_called_with("/b/program")
+    assert "Running program from path '/b/program'" in caplog.text

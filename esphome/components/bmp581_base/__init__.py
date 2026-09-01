@@ -15,6 +15,8 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PASCAL,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kahrendt", "@danielkent-net"]
 
@@ -47,7 +49,7 @@ IIR_FILTER_OPTIONS = {
 BMP581Component = bmp581_ns.class_("BMP581Component", cg.PollingComponent)
 
 
-def compute_measurement_conversion_time(config):
+def compute_measurement_conversion_time(config: ConfigType) -> int:
     # - adds up sensor conversion time based on temperature and pressure oversampling rates given in datasheet
     # - returns a rounded up time in ms
 
@@ -132,7 +134,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 ).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     if temperature_config := config.get(CONF_TEMPERATURE):

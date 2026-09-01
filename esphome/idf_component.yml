@@ -24,7 +24,7 @@ dependencies:
   espressif/esp32-camera:
     version: 2.1.7
   espressif/mdns:
-    version: 1.11.3
+    version: 1.12.0
   espressif/esp_wifi_remote:
     version: 1.6.3
     rules:
@@ -48,7 +48,7 @@ dependencies:
     rules:
       - if: "target in [esp32, esp32p4]"
   espressif/esp-zigbee-lib:
-    version: 2.0.3
+    version: 2.0.4
     rules:
       - if: "target in [esp32h2, esp32c5, esp32c6]"
   espressif/lan87xx:
@@ -98,7 +98,7 @@ dependencies:
   esp32async/asynctcp:
     version: 3.4.91
   sendspin/sendspin-cpp:
-    version: 0.7.1
+    version: 0.7.2
   lvgl/lvgl:
     version: 9.5.0
   fastled/FastLED:

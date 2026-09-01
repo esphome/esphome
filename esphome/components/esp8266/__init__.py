@@ -3,6 +3,7 @@ from pathlib import Path
 import platform
 import re
 import subprocess
+from typing import Any
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -31,9 +32,10 @@ from esphome.core import (
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import IS_MACOS, copy_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
-from .boards import BOARDS, ESP8266_LD_SCRIPTS
+from .boards import BOARDS, ESP8266_LD_SCRIPTS, board_ld_script
 from .const import (
     CONF_EARLY_PIN_INIT,
     CONF_ENABLE_SERIAL,
@@ -42,6 +44,7 @@ from .const import (
     KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
+    KEY_LDSCRIPT,
     KEY_PIN_INITIAL_STATES,
     KEY_SERIAL1_REQUIRED,
     KEY_SERIAL_REQUIRED,
@@ -88,7 +91,7 @@ def lambdas_use_scanf_float(config: ConfigType) -> bool:
     return False
 
 
-def set_core_data(config):
+def set_core_data(config: ConfigType) -> ConfigType:
     CORE.data[KEY_ESP8266] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP8266
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
@@ -102,7 +105,7 @@ def set_core_data(config):
     return config
 
 
-def get_download_types(storage_json):
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Binary-download entries for a built ESP8266 firmware.
 
     Used by device-builder (esphome/device-builder), via
@@ -113,6 +116,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "Standard format",
@@ -131,7 +137,16 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
         return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
     if ver <= cv.Version(2, 6, 2):
         return f"~2.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
-    return f"~3.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+    # Same encoding the native toolchain uses for its package download, so a
+    # version bump cannot drift between the two paths.
+    from esphome.arduino8266.framework import framework_package_version
+
+    try:
+        return f"~{framework_package_version(ver)}"
+    except EsphomeError as err:
+        # Anchor the 4.x rejection to the framework version line instead of
+        # aborting with a bare traceback-level error
+        raise cv.Invalid(str(err), path=[CONF_VERSION]) from err
 
 
 # NOTE: Keep this in mind when updating the recommended version:
@@ -154,7 +169,7 @@ ARDUINO_3_PLATFORM_VERSION = cv.Version(3, 2, 0)
 ARDUINO_4_PLATFORM_VERSION = cv.Version(4, 2, 1)
 
 
-def _arduino_check_versions(value):
+def _arduino_check_versions(value: ConfigType) -> ConfigType:
     value = value.copy()
     lookups = {
         "dev": (cv.Version(3, 1, 2), "https://github.com/esp8266/Arduino.git"),
@@ -197,7 +212,7 @@ def _arduino_check_versions(value):
     return value
 
 
-def _parse_platform_version(value):
+def _parse_platform_version(value: Any) -> str:
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
@@ -241,6 +256,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_SCANF_FLOAT): cv.boolean,
         }
     ),
+    # Until the native toolchain lands, PlatformIO is the only backend;
+    # reject a --toolchain this platform cannot serve yet.
+    cv.require_platformio_toolchain("ESP8266"),
     set_core_data,
 )
 
@@ -271,8 +289,33 @@ def check_rosetta() -> None:
         )
 
 
+def _choose_ld_script(board: str, ver: cv.Version) -> str | None:
+    """The flash ld to pin for this board and core, or None for cores
+    without ld-script support."""
+    board_data = BOARDS[board]
+    ld_scripts = ESP8266_LD_SCRIPTS[board_data[KEY_FLASH_SIZE]]
+    if ver <= cv.Version(2, 3, 0):
+        # No ld script support
+        return None
+    if ver <= cv.Version(2, 4, 2):
+        # Old ld script path; the modern per-board override names do not
+        # exist in this core's SDK, so the override cannot be honored.
+        # Substituting the size default would move _FS_end and the
+        # preferences sector, wiping flash-backed state on flash.
+        if KEY_LDSCRIPT in board_data:
+            raise EsphomeError(
+                f"Board {board} requires its {board_data[KEY_LDSCRIPT]} "
+                f"flash layout, which Arduino core {ver} cannot honor; "
+                "use a core newer than 2.4.2"
+            )
+        return ld_scripts[0]
+    # A per-board override preserves a layout the board shipped with
+    # (see d1_wroom_02 in boards.py)
+    return board_ld_script(board_data)
+
+
 @coroutine_with_priority(CoroPriority.PLATFORM)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add(esp8266_ns.setup_preferences())
 
     cg.add_platformio_option("lib_ldf_mode", "off")
@@ -392,17 +435,7 @@ async def to_code(config):
     )
 
     if config[CONF_BOARD] in BOARDS:
-        flash_size = BOARDS[config[CONF_BOARD]][KEY_FLASH_SIZE]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-
-        if ver <= cv.Version(2, 3, 0):
-            # No ld script support
-            ld_script = None
-        elif ver <= cv.Version(2, 4, 2):
-            # Old ld script path
-            ld_script = ld_scripts[0]
-        else:
-            ld_script = ld_scripts[1]
+        ld_script = _choose_ld_script(config[CONF_BOARD], ver)
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
@@ -501,7 +534,7 @@ ESP8266_EXCEPTION_CODES = {
 }
 
 
-def _decode_pc(config, addr):
+def _decode_pc(config: ConfigType, addr: str) -> None:
     from esphome.platformio import toolchain
 
     idedata = toolchain.get_idedata(config)
@@ -522,7 +555,7 @@ def _decode_pc(config, addr):
     _LOGGER.warning("Decoded %s", translation)
 
 
-def _parse_register(config, regex, line):
+def _parse_register(config: ConfigType, regex: re.Pattern[str], line: str) -> None:
     match = regex.match(line)
     if match is not None:
         _decode_pc(config, match.group(1))
@@ -546,7 +579,7 @@ STACKTRACE_BAD_ALLOC_RE = re.compile(
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
-def process_stacktrace(config, line, backtrace_state):
+def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
     line = line.strip()
     # ESP8266 Exception type
     match = re.match(STACKTRACE_ESP8266_EXCEPTION_TYPE_RE, line)
