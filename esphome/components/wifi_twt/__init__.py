@@ -1,12 +1,13 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import ota
 from esphome.components.wifi import (
     request_wifi_connect_state_listener,
     request_wifi_ip_state_listener,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, Framework
-from esphome.core import CORE
+import esphome.final_validate as fv
 
 from .const import (
     CONF_AUTO_SETUP,
@@ -25,9 +26,9 @@ CONFLICTS_WITH = ["deep_sleep", "espnow"]
 
 # Ordinals match wifi_twt_setup_cmds_t in esp_wifi_he_types.h
 SETUP_CMDS = {
-    "request": 0,  # TWT_REQUEST
-    "suggest": 1,  # TWT_SUGGEST
-    "demand": 2,  # TWT_DEMAND
+    "request": 0,
+    "suggest": 1,
+    "demand": 2,
 }
 
 wifi_twt_ns = cg.esphome_ns.namespace("wifi_twt")
@@ -47,25 +48,28 @@ def _validate(config):
             f" {CONF_WAKE_INTERVAL} ({interval_ms} ms)"
         )
 
-    # 802.11ax on-air TWT wake duration is always in 256µs units, max dura=255 → 65280µs ≈ 65ms.
-    # The wake_duration_unit=1 field in the ESP-IDF config struct is silently ignored by the
-    # firmware when building the on-air frame, so requesting > 65ms silently delivers less.
-    max_duration_ms = (255 * 256) // 1000  # = 65 ms
+    # wake_duration_unit=1 in the ESP-IDF config struct is silently ignored by the firmware;
+    # wake duration is always sent on-air in 256µs units, capping it at 255*256µs ≈ 65ms.
+    max_duration_ms = (255 * 256) // 1000
     if duration_ms > max_duration_ms:
         raise cv.Invalid(
             f"{CONF_WAKE_DURATION} ({duration_ms} ms) exceeds the 802.11ax maximum of "
             f"{max_duration_ms} ms (255 × 256 µs). Reduce {CONF_WAKE_DURATION}."
         )
 
-    # ESP-IDF requires SP (interval) >= WD (wake duration) + 10ms guard band.
-    # Wire format: mant×2^expn µs (IEEE 802.11ax); SP in µs = interval_ms * 1000.
+    # ESP-IDF requires SP >= WD + 10ms, checked against on-wire quantized values (see
+    # compute_interval_params()/compute_duration_params() in wifi_twt_esp_idf.cpp), not the raw
+    # ms below. Pad by the worst-case quantization error so this still catches a bad config here
+    # rather than at runtime, without duplicating the wire-format math itself in Python.
+    guard_band_us = 10000 + 1024 + 128
     sp_us = interval_ms * 1000
     wd_us = duration_ms * 1000
-    if sp_us < wd_us + 10000:
-        max_wd_ms = max(0, sp_us - 10000) // 1000
+    if sp_us < wd_us + guard_band_us:
+        max_wd_ms = max(0, sp_us - guard_band_us) // 1000
         raise cv.Invalid(
             f"ESP-IDF rejects these parameters: wake_interval={sp_us} µs "
-            f"must exceed wake_duration={wd_us} µs by at least 10 ms. "
+            f"must exceed wake_duration={wd_us} µs by at least {guard_band_us / 1000} ms "
+            "(10 ms guard band plus quantization margin). "
             f"Reduce {CONF_WAKE_DURATION} to ≤ {max_wd_ms} ms or increase {CONF_WAKE_INTERVAL}."
         )
     return config
@@ -89,13 +93,10 @@ def _validate_platform(config):
 
 
 def _validate_native_api_conflict(config):
-    if (
-        CORE.config is not None
-        and "native_api" in CORE.config
-        and config[CONF_WAKE_INTERVAL].total_milliseconds > 60000
-    ):
+    full_config = fv.full_config.get()
+    if "api" in full_config and config[CONF_WAKE_INTERVAL].total_milliseconds > 60000:
         raise cv.Invalid(
-            "native_api is configured alongside wifi_twt with wake_interval > 60 s. "
+            "api is configured alongside wifi_twt with wake_interval > 60 s. "
             "The native API sends a keepalive ping every 60 s and disconnects at 150 s; "
             "the device must wake within each 60 s window to respond. "
             "Use MQTT or coap_server instead, or reduce wake_interval to ≤ 60 s."
@@ -123,6 +124,9 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,
+)
+
+FINAL_VALIDATE_SCHEMA = cv.All(
     _validate_native_api_conflict,
 )
 
@@ -134,6 +138,7 @@ async def to_code(config):
     cg.add_define("USE_WIFI_TWT")
     request_wifi_ip_state_listener()
     request_wifi_connect_state_listener()
+    ota.request_ota_state_listeners()  # pause TWT while an update is running
 
     cg.add(var.set_wake_interval_ms(config[CONF_WAKE_INTERVAL].total_milliseconds))
     cg.add(var.set_wake_duration_ms(config[CONF_WAKE_DURATION].total_milliseconds))
@@ -156,7 +161,7 @@ async def to_code(config):
 
 
 def _validate_start_action(config):
-    # Re-run interval/duration validation only when both are static (not templates)
+    # Templated values aren't known until runtime, so only static ones can be checked here.
     if (
         CONF_WAKE_INTERVAL in config
         and CONF_WAKE_DURATION in config
@@ -229,7 +234,9 @@ async def wifi_twt_start_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-_SIMPLE_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(WiFiTWT)})
+_SIMPLE_ACTION_SCHEMA = automation.maybe_simple_id(
+    {cv.GenerateID(): cv.use_id(WiFiTWT)}
+)
 
 
 async def _simple_action_to_code(config, action_id, template_arg, args):

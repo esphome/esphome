@@ -12,6 +12,11 @@ namespace esphome::wifi_twt {
 
 static const char *const TAG = "wifi_twt";
 
+// Retry backoff after a rejected/timed-out TWT setup: doubles from 5s, capped at 60s, and
+// never gives up — a request costs nothing while the device just runs at full power.
+static constexpr uint32_t SETUP_RETRY_BASE_MS = 5000;
+static constexpr uint32_t SETUP_RETRY_MAX_MS = 60000;
+
 void WiFiTWT::dump_config() {
   ESP_LOGCONFIG(TAG, "WiFi TWT:");
   ESP_LOGCONFIG(TAG, "  Wake Interval: %" PRIu32 " ms", this->wake_interval_ms_);
@@ -30,6 +35,8 @@ void WiFiTWT::dump_config() {
 void WiFiTWT::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) {
   if (ssid.empty()) {
     this->setup_pending_ = false;
+    this->setup_retry_count_ = 0;
+    this->cancel_timeout("twt_retry");
     if (this->active_flow_id_ != UINT8_MAX) {
       ESP_LOGD(TAG, "WiFi disconnected — resetting active TWT flow_id");
       this->active_flow_id_ = UINT8_MAX;
@@ -40,10 +47,28 @@ void WiFiTWT::on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> 
   }
 }
 
-void WiFiTWT::twt_setup_failed() { this->setup_pending_ = false; }
+void WiFiTWT::twt_setup_failed() {
+  this->setup_pending_ = false;
+  this->defer([this]() {
+    // Guard: skip if disabled, or a session was established some other way, before this
+    // defer ran.
+    if (this->disabled_ || this->active_flow_id_ != UINT8_MAX)
+      return;
+    // Stops growing once the delay hits its ceiling; avoids unbounded growth for no benefit.
+    if (this->setup_retry_count_ < 5)
+      this->setup_retry_count_++;
+    uint32_t delay_ms = SETUP_RETRY_BASE_MS << (this->setup_retry_count_ - 1);
+    if (delay_ms > SETUP_RETRY_MAX_MS)
+      delay_ms = SETUP_RETRY_MAX_MS;
+    ESP_LOGW(TAG, "iTWT setup rejected (attempt %u); retrying in %" PRIu32 " ms", this->setup_retry_count_, delay_ms);
+    this->set_timeout("twt_retry", delay_ms, [this]() { this->start_twt(); });
+  });
+  wake_loop_threadsafe();
+}
 
 void WiFiTWT::twt_setup_success(uint8_t flow_id) {
   this->setup_pending_ = false;
+  this->setup_retry_count_ = 0;
   bool was_active = (this->active_flow_id_ != UINT8_MAX);
   this->active_flow_id_ = flow_id;
   if (was_active) {
@@ -73,6 +98,8 @@ void WiFiTWT::twt_teardown_received(uint8_t flow_id) {
 }
 
 void WiFiTWT::twt_wakeup_received() {
+  if (this->wakeup_callback_.empty())
+    return;
   this->defer([this]() { this->wakeup_callback_.call(); });
   wake_loop_threadsafe();
 }
@@ -110,10 +137,16 @@ void WiFiTWT::on_ota_global_state(ota::OTAState state, float progress, uint8_t e
     this->twt_active_before_ota_ = (this->active_flow_id_ != UINT8_MAX);
     if (this->twt_active_before_ota_)
       this->stop_twt();
-  } else if (state == ota::OTA_COMPLETED || state == ota::OTA_ABORT) {
+  } else if (state == ota::OTA_COMPLETED) {
+    // A completed OTA reboots into the new firmware momentarily (see esphome/ota), which
+    // applies its own wifi_twt config from a clean boot — nothing to resume here.
+    this->twt_active_before_ota_ = false;
+  } else if (state == ota::OTA_ABORT) {
+    // Execution continues on the current firmware, so resume regardless of auto_setup_ —
+    // twt_active_before_ota_ already proves a session was active before the failed OTA.
     if (this->twt_active_before_ota_) {
       this->twt_active_before_ota_ = false;
-      if (!this->disabled_ && this->auto_setup_)
+      if (!this->disabled_)
         this->start_twt();
     }
   }

@@ -47,7 +47,6 @@ class WiFiTWT : public Component,
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *component) override;
 #endif
 
-  // Configuration setters
   void set_wake_interval_ms(uint32_t ms) { this->wake_interval_ms_ = ms; }
   void set_wake_duration_ms(uint32_t ms) { this->wake_duration_ms_ = ms; }
   void set_setup_cmd(uint8_t cmd) { this->setup_cmd_ = cmd; }
@@ -69,14 +68,17 @@ class WiFiTWT : public Component,
   uint8_t flow_type_{0};  // 0=announced, 1=unannounced
   bool auto_setup_{true};
 
-  // Set on disconnect when TWT was active; tells on_ip_state to renegotiate on reconnect
-  // even if auto_setup_ is false. Left clear when TWT was never negotiated (or was stopped
-  // manually before the drop), so a stopped/never-started agreement is not revived.
+  // Set on disconnect only if TWT was active, so on_ip_state renegotiates on reconnect even
+  // when auto_setup_ is false, without reviving a session that was stopped manually.
   bool reconfigure_pending_{false};
 
   // Set when esp_wifi_sta_itwt_setup() is called, cleared on success or failure.
   // Guards against duplicate calls before the async event fires.
   bool setup_pending_{false};
+
+  // Consecutive setup-rejection count; drives retry backoff in twt_setup_failed(), capped at
+  // 5 (where the delay itself hits its ceiling) so retries keep going without growing forever.
+  uint8_t setup_retry_count_{0};
 
   // When true, blocks auto-setup and reconnect restart; explicit start_twt() logs a warning and overrides.
   bool disabled_{false};
@@ -91,8 +93,8 @@ class WiFiTWT : public Component,
   // Written by event task (twt_setup_success / twt_teardown_received), read by main task.
   std::atomic<uint8_t> active_flow_id_{UINT8_MAX};
 
-  // esp_event_handler_instance_t handles (void * per ESP-IDF typedef); stored to allow
-  // unregistering on partial setup failure.
+  // esp_event_handler_instance_t (void * per ESP-IDF typedef); stored to unregister on
+  // partial setup failure.
   void *itwt_setup_handle_{nullptr};
   void *itwt_teardown_handle_{nullptr};
   void *twt_wakeup_handle_{nullptr};

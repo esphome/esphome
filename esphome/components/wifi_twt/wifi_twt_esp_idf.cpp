@@ -16,10 +16,8 @@ namespace esphome::wifi_twt {
 
 static const char *const TAG = "wifi_twt";
 
-// Convert interval_ms to TWT wake_invl_mant / wake_invl_expn.
-// Wire format (IEEE 802.11ax): interval_µs = mant × 2^expn.
-// Start at expn=10 (2^10=1024µs=1TU, the minimum useful granularity), then shift up
-// until mantissa fits in uint16_t.
+// Wire format (IEEE 802.11ax): interval_µs = mant × 2^expn. Start at expn=10 (1TU, the
+// minimum useful granularity) and shift up until the mantissa fits in uint16_t.
 static void compute_interval_params(uint32_t interval_ms, uint16_t &mant, uint8_t &expn) {
   expn = 10;
   uint32_t m = (uint32_t) (((uint64_t) interval_ms * 1000 + 512) >> 10);
@@ -32,11 +30,10 @@ static void compute_interval_params(uint32_t interval_ms, uint16_t &mant, uint8_
   mant = static_cast<uint16_t>(m);
 }
 
-// Convert duration_ms to TWT min_wake_dura.
 // The 802.11ax on-air format uses 256 µs/unit always (unit=0); wake_duration_unit in the
 // config struct is ignored by the ESP-IDF firmware when building the frame. Max = 255×256µs = 65ms.
 static void compute_duration_params(uint32_t duration_ms, uint8_t &dura) {
-  uint32_t d = (duration_ms * 1000 + 128) / 256;
+  uint64_t d = ((uint64_t) duration_ms * 1000 + 128) / 256;
   if (d < 1)
     d = 1;
   if (d > 255) {
@@ -93,7 +90,7 @@ void WiFiTWT::setup() {
 #endif
 
   wifi_twt_config_t twt_cfg = {};
-  twt_cfg.post_wakeup_event = true;
+  twt_cfg.post_wakeup_event = !this->wakeup_callback_.empty();
   if (esp_wifi_sta_twt_config(&twt_cfg) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to configure TWT post-wakeup event");
     this->mark_failed();
@@ -140,6 +137,10 @@ void WiFiTWT::on_ip_state(const network::IPAddresses &ips, const network::IPAddr
 }
 
 void WiFiTWT::start_twt() {
+  if (this->is_failed()) {
+    ESP_LOGD(TAG, "component failed during setup, skipping start_twt");
+    return;
+  }
   if (this->disabled_) {
     ESP_LOGW(TAG, "wifi_twt.start called while TWT is disabled — call wifi_twt.enable first");
     return;
