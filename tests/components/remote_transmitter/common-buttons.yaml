@@ -275,3 +275,12 @@ button:
       - remote_transmitter.digital_write: true
       - remote_transmitter.digital_write:
           value: false
+  - platform: template
+    name: SomfyRTS
+    on_press:
+      - remote_transmitter.transmit_somfy_rts:
+          address: 0x630139
+          control: 0x08
+          key: 0xA0
+          rolling_code: 1234
+          control_in_key: false
