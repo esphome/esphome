@@ -18,6 +18,10 @@ class SSD1677(EpaperModel):
         **defaults,
     ):
         defaults[CONF_DATA_RATE] = data_rate
+        # Persisted through defaults (like data_rate above) rather than kept only as an instance
+        # attribute, so a future .extend() off a grayscale-capable instance carries the flag
+        # forward instead of silently reverting to the constructor default of False.
+        defaults["supports_grayscale"] = supports_grayscale
         self.supports_grayscale = supports_grayscale
         super().__init__(name, class_name, **defaults)
 

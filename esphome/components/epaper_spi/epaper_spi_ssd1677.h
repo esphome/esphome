@@ -24,14 +24,20 @@ class EPaperSSD1677 : public EPaperMono {
  public:
   EPaperSSD1677(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
                 size_t init_sequence_length)
-      : EPaperMono(name, width, height, init_sequence, init_sequence_length) {
-    // Always reserve room for both grayscale planes ([0, plane_bytes) -> command 0x24,
-    // [plane_bytes, 2*plane_bytes) -> command 0x26). The extra memory is trivial on this
-    // hardware and avoids making buffer sizing depend on set_grayscale() running before setup().
-    this->buffer_length_ = this->row_width_ * height * 2;
-  }
+      : EPaperMono(name, width, height, init_sequence, init_sequence_length) {}
 
   void set_grayscale(bool grayscale) { this->grayscale_ = grayscale; }
+
+  void setup() override {
+    // set_grayscale() (from code generation) always runs before setup(), so grayscale_ already
+    // holds its final configured value here. Only grow the buffer to two planes ([0, plane_bytes)
+    // -> command 0x24, [plane_bytes, 2*plane_bytes) -> command 0x26) when actually needed, so
+    // existing 1bpp configs don't pay for RAM they don't use.
+    if (this->grayscale_) {
+      this->buffer_length_ = this->row_width_ * this->height_ * 2;
+    }
+    EPaperBase::setup();
+  }
 
   void fill(Color color) override;
 
