@@ -1,8 +1,7 @@
 sensor:
   - platform: ds1603l
     id: ds1603l_sensor
-    update_interval: 60s
-    ds1603l_liquid_level:
+    liquid_level:
       name: ds1603l Distance
-    ds1603l_liquid_volume:
+    liquid_volume:
       name: ds1603l Volume

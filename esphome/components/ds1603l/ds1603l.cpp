@@ -1,43 +1,36 @@
-#include "esphome/core/log.h"
 #include "ds1603l.h"
 #include <algorithm>
+#include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome::ds1603l {
 
 static const char *const TAG = "ds1603l.sensor";
 
-void Ds1603l::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ds1603l sensor...");
-
+void DS1603L::setup() {
   // Flush any residual data in the UART buffer
   while (this->available() > 0) {
     this->read();
   }
 }
 
-void Ds1603l::update() {
-  // Loop does it all
-}
-
-void Ds1603l::loop() {
-  static bool initialized = false;
-  static uint32_t start_time = millis();
-
+void DS1603L::loop() {
   // Ignore invalid data during the first 2 seconds after startup
-  if (!initialized && (millis() - start_time < 2000)) {
+  if (!this->initialized_ && (App.get_loop_component_start_time() < 2000)) {
     while (this->available() > 0) {
       this->read();  // Clear any initial invalid data
     }
     return;
   }
-  initialized = true;
+  this->initialized_ = true;
 
   // Process incoming data
   while (this->available() >= 4) {
     // Read 4 bytes of data
     this->read_array(this->rx_buffer_, 4);
 
-    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
+    ESP_LOGV(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
              this->rx_buffer_[3]);
 
     // Verify the header byte
@@ -50,19 +43,20 @@ void Ds1603l::loop() {
   }
 }
 
-void Ds1603l::dump_config() {
+void DS1603L::dump_config() {
   ESP_LOGCONFIG(TAG, "ds1603l Sensor:");
-  LOG_SENSOR("", "Liquid Level", this);
-  LOG_SENSOR("", "Liquid Volume", this);
-  if (ds1603l_liquid_level_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Level id: %s", ds1603l_liquid_level_sensor_->get_name().c_str());
-  }
-  if (ds1603l_liquid_volume_sensor_) {
-    ESP_LOGCONFIG(TAG, " Liquid Volume id: %s", ds1603l_liquid_volume_sensor_->get_name().c_str());
-  }
+  LOG_SENSOR("", "Liquid Level", this->liquid_level_sensor_);
+  LOG_SENSOR("", "Liquid Volume", this->liquid_volume_sensor_);
+  LOG_SENSOR("", "Percentage", this->percentage_sensor_);
+  ESP_LOGCONFIG(TAG,
+                "  Min Volume: %f\n"
+                "  Max Volume: %f\n"
+                "  Min Level: %f\n"
+                "  Max Level: %f",
+                this->min_volume_, this->max_volume_, this->min_level_, this->max_level_);
 }
 
-void Ds1603l::parse_data_() {
+void DS1603L::parse_data_() {
   uint8_t header = this->rx_buffer_[0];
   uint8_t data_h = this->rx_buffer_[1];
   uint8_t data_l = this->rx_buffer_[2];
@@ -86,32 +80,31 @@ void Ds1603l::parse_data_() {
   }
 
   // Calculate liquid level directly and clamp
-  float raw_level = (data_h << 8) | data_l;
-  float ds1603l_liquid_level = std::clamp((raw_level + ds1603l_min_level_), ds1603l_min_level_, ds1603l_max_level_);
+  float raw_level = encode_uint16(data_h, data_l);
+  float liquid_level = std::clamp((raw_level + this->min_level_), this->min_level_, this->max_level_);
 
   // Calculate liquid volume directly and clamp
-  float ds1603l_liquid_volume = ds1603l_liquid_level * (ds1603l_max_volume_ / ds1603l_max_level_);
-  ds1603l_liquid_volume = std::clamp(ds1603l_liquid_volume, ds1603l_min_volume_, ds1603l_max_volume_);
+  float liquid_volume = liquid_level * (this->max_volume_ / this->max_level_);
+  liquid_volume = std::clamp(liquid_volume, this->min_volume_, this->max_volume_);
 
   // Added for percentage
-  float ds1603l_percentage =
-      ((float) (ds1603l_liquid_volume - ds1603l_min_volume_) / (ds1603l_max_volume_ - ds1603l_min_volume_)) * 100.0f;
+  float percentage = ((float) (liquid_volume - this->min_volume_) / (this->max_volume_ - this->min_volume_)) * 100.0f;
 
-  ESP_LOGI(TAG, "Liquid Level: %f mm", ds1603l_liquid_level);
+  ESP_LOGI(TAG, "Liquid Level: %f mm", liquid_level);
 
-  ESP_LOGI(TAG, "Liquid Volume: %f", ds1603l_liquid_volume);
+  ESP_LOGI(TAG, "Liquid Volume: %f", liquid_volume);
 
-  ESP_LOGI(TAG, "Liquid Percentage: %f", ds1603l_percentage);
+  ESP_LOGI(TAG, "Liquid Percentage: %f", percentage);
   // Publish values
 
-  if (ds1603l_liquid_level_sensor_) {
-    ds1603l_liquid_level_sensor_->publish_state(ds1603l_liquid_level);
+  if (this->liquid_level_sensor_ != nullptr) {
+    this->liquid_level_sensor_->publish_state(liquid_level);
   }
-  if (ds1603l_liquid_volume_sensor_) {
-    ds1603l_liquid_volume_sensor_->publish_state(ds1603l_liquid_volume);
+  if (this->liquid_volume_sensor_ != nullptr) {
+    this->liquid_volume_sensor_->publish_state(liquid_volume);
   }
-  if (ds1603l_percentage_sensor_) {
-    ds1603l_percentage_sensor_->publish_state(ds1603l_percentage);
+  if (this->percentage_sensor_ != nullptr) {
+    this->percentage_sensor_->publish_state(percentage);
   }
 }
 
