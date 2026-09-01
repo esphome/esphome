@@ -2,7 +2,6 @@
 
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include <string>
@@ -25,12 +24,15 @@ static constexpr uint8_t TCA8418_CFG_KEY_INT_EN = 0x01;  // interrupt on key eve
 static constexpr uint8_t TCA8418_CFG_INT_CFG = 0x10;     // re-assert INT while events remain
 //  INT_STAT
 static constexpr uint8_t TCA8418_INT_STAT_KEY = 0x01;
+static constexpr uint8_t TCA8418_INT_STAT_OVERFLOW = 0x08;
 static constexpr uint8_t TCA8418_INT_STAT_ALL = 0x1F;  // every interrupt flag
 //  KEY_LCK_EC: the low nibble is the number of queued events
 static constexpr uint8_t TCA8418_EVENT_COUNT_MASK = 0x0F;
 //  Key events: bit 7 set = pressed, clear = released; bits 6-0 are the key number
 static constexpr uint8_t TCA8418_KEY_PRESSED = 0x80;
 static constexpr uint8_t TCA8418_KEY_CODE_MASK = 0x7F;
+//  The event queue holds ten entries, which bounds how many can be read at once.
+static constexpr uint8_t TCA8418_FIFO_DEPTH = 10;
 
 //  Key numbering. Matrix keys are numbered row-major with 10 columns per row,
 //  starting at 1, so ROW0/COL0 is 1 and ROW7/COL9 is 80. Pins that are not part
@@ -40,21 +42,15 @@ static constexpr uint8_t TCA8418_MATRIX_KEY_MIN = 1;
 static constexpr uint8_t TCA8418_MATRIX_KEY_MAX = 80;
 static constexpr uint8_t TCA8418_MATRIX_COLUMNS = 10;
 static constexpr uint8_t TCA8418_GPI_KEY_MIN = 97;
+static constexpr uint8_t TCA8418_GPI_KEY_MAX = 114;
 
 class TCA8418Listener {
  public:
-  /// Called with the key number reported by the device.
+  /// Called with the key number reported by the device. Positions in the matrix
+  /// and mapped characters are turned into key numbers during code generation.
   virtual void key_pressed(uint8_t key) {}
   virtual void key_released(uint8_t key) {}
-  /// Called for matrix keys with their position in the matrix.
-  virtual void button_pressed(uint8_t row, uint8_t col) {}
-  virtual void button_released(uint8_t row, uint8_t col) {}
-  /// Called for matrix keys with their character, when a key map is configured.
-  virtual void key_char_pressed(uint8_t key_char) {}
-  virtual void key_char_released(uint8_t key_char) {}
 };
-
-class TCA8418KeyTrigger final : public Trigger<uint8_t> {};
 
 class TCA8418Component : public key_provider::KeyProvider, public Component, public i2c::I2CDevice {
  public:
@@ -70,7 +66,9 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
   void register_listener(TCA8418Listener *listener) { this->listeners_.push_back(listener); }
-  void register_key_trigger(TCA8418KeyTrigger *trigger) { this->key_triggers_.push_back(trigger); }
+
+  /// Wakes the loop so queued events are read. Runs in interrupt context.
+  static void IRAM_ATTR interrupt_handler(TCA8418Component *arg);
 
  protected:
   /// Write the matrix / individual-input pin configuration. Returns false on I2C failure.
@@ -89,7 +87,6 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   uint32_t last_poll_{0};
 
   std::vector<TCA8418Listener *> listeners_;
-  std::vector<TCA8418KeyTrigger *> key_triggers_;
 };
 
 }  // namespace esphome::tca8418

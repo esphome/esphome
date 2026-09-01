@@ -6,9 +6,10 @@ namespace esphome::tca8418 {
 static const char *const TAG = "tca8418";
 
 //  How often to ask the device whether it has events, when no interrupt pin is
-//  configured. Reading the interrupt pin is nearly free, so it is checked every
-//  loop instead.
+//  configured.
 static constexpr uint32_t POLL_INTERVAL_MS = 10;
+
+void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg->enable_loop_soon_any_context(); }
 
 void TCA8418Component::setup() {
   //  The configuration register reads back, so use it to check the device is there.
@@ -34,14 +35,24 @@ void TCA8418Component::setup() {
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
+    //  The interrupt output is active low, so a falling edge means an event was
+    //  queued. The handler only wakes the loop; the queue is read from there.
+    this->interrupt_pin_->attach_interrupt(&TCA8418Component::interrupt_handler, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 
   //  Discard anything the device queued before it was configured, and clear
   //  every interrupt flag: leaving one set holds the interrupt output asserted.
   uint8_t key;
-  while (this->read_byte(TCA8418_REG_KEY_EVENT_A, &key) && key != 0) {
+  for (uint8_t i = 0; i < TCA8418_FIFO_DEPTH; i++) {
+    if (!this->read_byte(TCA8418_REG_KEY_EVENT_A, &key) || key == 0)
+      break;
   }
   this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL);
+
+  //  With an interrupt pin there is nothing to do until it fires. Stay running
+  //  if the device still has something queued, since that produces no new edge.
+  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read())
+    this->disable_loop();
 }
 
 bool TCA8418Component::configure_pins_() {
@@ -76,37 +87,51 @@ bool TCA8418Component::configure_pins_() {
 
 void TCA8418Component::loop() {
   if (this->interrupt_pin_ != nullptr) {
-    //  The interrupt output is active low, and stays asserted while events are
-    //  queued. Reading the level, rather than waiting for an edge, means a
-    //  missed edge cannot leave events stranded in the queue.
+    this->process_events_();
+    //  Events can arrive while the queue is being read, and the interrupt output
+    //  stays asserted for them without producing another edge to wake the loop,
+    //  so only stop once the device has nothing left.
     if (this->interrupt_pin_->digital_read())
-      return;
-  } else {
-    const uint32_t now = millis();
-    if (now - this->last_poll_ < POLL_INTERVAL_MS)
-      return;
-    this->last_poll_ = now;
-
-    uint8_t count;
-    if (!this->read_byte(TCA8418_REG_KEY_LCK_EC, &count)) {
-      this->status_set_warning();
-      return;
-    }
-    if ((count & TCA8418_EVENT_COUNT_MASK) == 0)
-      return;
+      this->disable_loop();
+    return;
   }
+
+  const uint32_t now = millis();
+  if (now - this->last_poll_ < POLL_INTERVAL_MS)
+    return;
+  this->last_poll_ = now;
+
+  uint8_t count;
+  if (!this->read_byte(TCA8418_REG_KEY_LCK_EC, &count)) {
+    this->status_set_warning();
+    return;
+  }
+  if ((count & TCA8418_EVENT_COUNT_MASK) == 0)
+    return;
 
   this->process_events_();
 }
 
 void TCA8418Component::process_events_() {
-  //  Reading the top of the FIFO pops an event and returns 0 once it is empty.
+  //  Reading the top of the queue removes an event and returns 0 once it is
+  //  empty. The queue holds ten entries, so that bounds the number of reads.
   uint8_t event;
-  while (this->read_byte(TCA8418_REG_KEY_EVENT_A, &event) && event != 0) {
+  for (uint8_t i = 0; i < TCA8418_FIFO_DEPTH; i++) {
+    if (!this->read_byte(TCA8418_REG_KEY_EVENT_A, &event)) {
+      this->status_set_warning();
+      return;
+    }
+    if (event == 0)
+      break;
     this->dispatch_(event & TCA8418_KEY_CODE_MASK, (event & TCA8418_KEY_PRESSED) != 0);
   }
 
-  if (!this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_KEY)) {
+  //  Report a full queue, since that means presses were lost.
+  uint8_t status;
+  if (this->read_byte(TCA8418_REG_INT_STAT, &status) && (status & TCA8418_INT_STAT_OVERFLOW) != 0)
+    ESP_LOGW(TAG, "Event queue overflowed - some key presses were lost");
+
+  if (!this->write_byte(TCA8418_REG_INT_STAT, TCA8418_INT_STAT_ALL)) {
     this->status_set_warning();
     return;
   }
@@ -137,39 +162,13 @@ void TCA8418Component::dispatch_(uint8_t key, bool pressed) {
     }
   }
 
-  //  Matrix keys also report their position.
-  if (key >= TCA8418_MATRIX_KEY_MIN && key <= TCA8418_MATRIX_KEY_MAX) {
-    const uint8_t row = (key - 1) / TCA8418_MATRIX_COLUMNS;
-    const uint8_t col = (key - 1) % TCA8418_MATRIX_COLUMNS;
-    for (auto *listener : this->listeners_) {
-      if (pressed) {
-        listener->button_pressed(row, col);
-      } else {
-        listener->button_released(row, col);
-      }
-    }
-  }
-
-  const uint8_t key_char = this->key_char_(key);
-  if (key_char != 0) {
-    for (auto *listener : this->listeners_) {
-      if (pressed) {
-        listener->key_char_pressed(key_char);
-      } else {
-        listener->key_char_released(key_char);
-      }
-    }
-  }
-
   if (!pressed)
     return;
 
-  //  Triggers and key collectors receive the mapped character when a key map is
-  //  configured, and the key number otherwise.
-  const uint8_t value = key_char != 0 ? key_char : key;
-  this->send_key_(value);
-  for (auto *trigger : this->key_triggers_)
-    trigger->trigger(value);
+  //  Key collectors and automations receive the mapped character when a key map
+  //  is configured, and the key number otherwise.
+  const uint8_t key_char = this->key_char_(key);
+  this->send_key_(key_char != 0 ? key_char : key);
 }
 
 void TCA8418Component::dump_config() {
