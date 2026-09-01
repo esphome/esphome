@@ -27,6 +27,15 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "ds1603l",
+    baud_rate=9600,
+    require_tx=False,
+    require_rx=True,
+    data_bits=8,
+    stop_bits=1,
+)
+
 
 async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
