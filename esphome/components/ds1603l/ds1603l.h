@@ -9,7 +9,7 @@
 
 namespace esphome::ds1603l {
 
-class DS1603L : public sensor::Sensor, public Component, public uart::UARTDevice {
+class DS1603L final : public sensor::Sensor, public Component, public uart::UARTDevice {
  public:
   void loop() override;
   void dump_config() override;
