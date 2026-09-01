@@ -43,18 +43,7 @@ void DS1603L::loop() {
   }
 }
 
-void DS1603L::dump_config() {
-  ESP_LOGCONFIG(TAG, "ds1603l Sensor:");
-  LOG_SENSOR("", "Liquid Level", this->liquid_level_sensor_);
-  LOG_SENSOR("", "Liquid Volume", this->liquid_volume_sensor_);
-  LOG_SENSOR("", "Percentage", this->percentage_sensor_);
-  ESP_LOGCONFIG(TAG,
-                "  Min Volume: %f\n"
-                "  Max Volume: %f\n"
-                "  Min Level: %f\n"
-                "  Max Level: %f",
-                this->min_volume_, this->max_volume_, this->min_level_, this->max_level_);
-}
+void DS1603L::dump_config() { LOG_SENSOR("  ", "DS1603L:", this); }
 
 void DS1603L::parse_data_() {
   uint8_t header = this->rx_buffer_[0];
@@ -71,8 +60,8 @@ void DS1603L::parse_data_() {
   // Compute checksum
   uint8_t computed_checksum = (header + data_h + data_l) & 0xFF;
 
-  ESP_LOGD(TAG, "Data: Header=0x%02X, Data_H=0x%02X, Data_L=0x%02X, Checksum=0x%02X", header, data_h, data_l, checksum);
-  ESP_LOGD(TAG, "Checksum: Computed=0x%02X, Received=0x%02X", computed_checksum, checksum);
+  ESP_LOGV(TAG, "Data: Header=0x%02X, Data_H=0x%02X, Data_L=0x%02X, Checksum=0x%02X", header, data_h, data_l, checksum);
+  ESP_LOGV(TAG, "Checksum: Computed=0x%02X, Received=0x%02X", computed_checksum, checksum);
 
   if (checksum != computed_checksum) {
     ESP_LOGW(TAG, "Checksum mismatch: Received 0x%02X, expected 0x%02X", checksum, computed_checksum);
@@ -80,32 +69,8 @@ void DS1603L::parse_data_() {
   }
 
   // Calculate liquid level directly and clamp
-  float raw_level = encode_uint16(data_h, data_l);
-  float liquid_level = std::clamp((raw_level + this->min_level_), this->min_level_, this->max_level_);
-
-  // Calculate liquid volume directly and clamp
-  float liquid_volume = liquid_level * (this->max_volume_ / this->max_level_);
-  liquid_volume = std::clamp(liquid_volume, this->min_volume_, this->max_volume_);
-
-  // Added for percentage
-  float percentage = ((float) (liquid_volume - this->min_volume_) / (this->max_volume_ - this->min_volume_)) * 100.0f;
-
-  ESP_LOGI(TAG, "Liquid Level: %f mm", liquid_level);
-
-  ESP_LOGI(TAG, "Liquid Volume: %f", liquid_volume);
-
-  ESP_LOGI(TAG, "Liquid Percentage: %f", percentage);
-  // Publish values
-
-  if (this->liquid_level_sensor_ != nullptr) {
-    this->liquid_level_sensor_->publish_state(liquid_level);
-  }
-  if (this->liquid_volume_sensor_ != nullptr) {
-    this->liquid_volume_sensor_->publish_state(liquid_volume);
-  }
-  if (this->percentage_sensor_ != nullptr) {
-    this->percentage_sensor_->publish_state(percentage);
-  }
+  uint16_t level = encode_uint16(data_h, data_l);
+  this->publish_state(level);
 }
 
 }  // namespace esphome::ds1603l

@@ -1,7 +1,3 @@
 sensor:
   - platform: ds1603l
-    id: ds1603l_sensor
-    liquid_level:
-      name: ds1603l Distance
-    liquid_volume:
-      name: ds1603l Volume
+    name: ds1603l Distance
