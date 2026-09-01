@@ -120,7 +120,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
 
  private:
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
-  void request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
+  bool request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action);
   void cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action);
   bool can_start_clear_action_() const;
 #endif

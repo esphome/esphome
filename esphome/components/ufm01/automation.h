@@ -23,7 +23,10 @@ class ClearAccumulatedFlowAction final : public Action<Ts...>, public ClearAccum
     this->num_running_++;
     this->waiting_ = true;
     this->args_ = std::make_tuple(x...);
-    this->parent_->request_clear_accumulated_flow_(this);
+    if (!this->parent_->request_clear_accumulated_flow_(this)) {
+      this->waiting_ = false;
+      this->num_running_--;
+    }
   }
 
   void complete() override {

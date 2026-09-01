@@ -288,14 +288,15 @@ bool UFM01Component::can_start_clear_action_() const {
   return false;
 }
 
-void UFM01Component::request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action) {
+bool UFM01Component::request_clear_accumulated_flow_(ClearAccumulatedFlowActionInterface *action) {
   if (this->pending_clear_action_ != nullptr) {
     ESP_LOGW(TAG, "Clear accumulated flow already in progress, ignoring request");
-    return;
+    return false;
   }
   this->pending_clear_action_ = action;
   this->pending_clear_sent_ = false;
   this->pending_clear_start_ms_ = millis();
+  return true;
 }
 
 void UFM01Component::cancel_pending_clear_action_(ClearAccumulatedFlowActionInterface *action) {
