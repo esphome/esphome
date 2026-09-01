@@ -1,4 +1,3 @@
-from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.esp32 import (
@@ -19,9 +18,7 @@ import esphome.final_validate as fv
 
 from .const import (
     CONF_ENABLE_LIGHT_SLEEP,
-    CONF_ESPHOME_LOCKS,
     CONF_IDLE_TIME_BEFORE_SLEEP,
-    CONF_LOCK_TYPE,
     CONF_MAX_FREQUENCY,
     CONF_MIN_FREQUENCY,
     CONF_POWER_DOWN_FLASH,
@@ -34,50 +31,6 @@ from .const import (
 CODEOWNERS = ["@rwrozelle"]
 power_management_ns = cg.esphome_ns.namespace(CONF_POWER_MANAGEMENT)
 PowerManagement = power_management_ns.class_("PowerManagement", cg.Component)
-
-AcquireLockAction = power_management_ns.class_("AcquireLockAction", automation.Action)
-ReleaseLockAction = power_management_ns.class_("ReleaseLockAction", automation.Action)
-
-PowerManagementLockType = power_management_ns.enum("PowerManagementLockType")
-LOCK_TYPES = {
-    "CPU": PowerManagementLockType.CPU,
-    "APB": PowerManagementLockType.APB,
-    "SLP": PowerManagementLockType.SLP,
-}
-
-PM_ACTION_SCHEMA = automation.maybe_conf(
-    CONF_LOCK_TYPE,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(PowerManagement),
-            cv.Optional(CONF_LOCK_TYPE, default="SLP"): cv.one_of(
-                "CPU", "APB", "SLP", upper=True
-            ),
-        }
-    ),
-)
-
-
-@automation.register_action(
-    "power_management.acquire_lock",
-    AcquireLockAction,
-    PM_ACTION_SCHEMA,
-    synchronous=True,
-)
-@automation.register_action(
-    "power_management.release_lock",
-    ReleaseLockAction,
-    PM_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def power_management_lock_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    lock_type = await cg.templatable(
-        config[CONF_LOCK_TYPE], args, PowerManagementLockType, LOCK_TYPES
-    )
-    cg.add(var.set_lock_type(lock_type))
-    return var
 
 
 def _validate_power_down(config):
@@ -118,7 +71,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_POWER_DOWN_PERIPHERALS): cv.boolean,
             cv.Optional(CONF_POWER_DOWN_FLASH): cv.boolean,
-            cv.Optional(CONF_ESPHOME_LOCKS): cv.boolean,
             cv.Optional(CONF_PROFILING): cv.boolean,
             cv.Optional(CONF_TRACE): cv.boolean,
         }
@@ -132,9 +84,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
-
-    if config.get(CONF_ESPHOME_LOCKS):
-        cg.add_define("USE_POWER_MANAGEMENT")
 
     if (max_freq := config.get(CONF_MAX_FREQUENCY)) is not None:
         cg.add(var.set_max_freq_mhz(max_freq // 1000000))
@@ -160,22 +109,6 @@ async def to_code(config):
             "CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP",
             config.get(CONF_IDLE_TIME_BEFORE_SLEEP, 3),
         )
-
-
-def _pm_recursive_validator(value):
-    if isinstance(value, dict):
-        for key, item in value.items():
-            if key in (
-                "power_management.acquire_lock",
-                "power_management.release_lock",
-            ):
-                raise cv.Invalid(
-                    f"Action: {key} not allowed when {CONF_POWER_MANAGEMENT} {CONF_ESPHOME_LOCKS} is not true"
-                )
-            _pm_recursive_validator(item)
-    elif isinstance(value, list):
-        for item in value:
-            _pm_recursive_validator(item)
 
 
 def _pm_final_validate(config):
@@ -225,13 +158,6 @@ def _pm_final_validate(config):
             ],
             msg_prefix="Power Down Peripherals",
         )(pdp)
-
-    if not (
-        (pm_conf := full_config.get(CONF_POWER_MANAGEMENT))
-        and pm_conf.get(CONF_ESPHOME_LOCKS)
-    ):
-        # find all actions
-        _pm_recursive_validator(full_config)
 
     if config.get(CONF_ENABLE_LIGHT_SLEEP) and (
         full_config.get("openthread") or full_config.get("zigbee")

@@ -39,60 +39,10 @@ void PowerManagement::setup() {
   } else {
     ESP_LOGI(TAG, "32k XTAL in use");
   }
-
-#ifdef USE_POWER_MANAGEMENT
-  // Create Locks
-  for (uint8_t i = 0; i < PowerManagement::PM_LOCK_ARRAY_SIZE; i++) {
-    rc = esp_pm_lock_create(this->pm_lock_types_[i], 0, power_manager_type_to_string((PowerManagementLockType) i),
-                            &(this->pm_lock_handles_[i]));
-    if (rc != ESP_OK) {
-      esp_pm_lock_delete(this->pm_lock_handles_[i]);
-      this->pm_lock_handles_[i] = NULL;
-      for (uint8_t j = 0; j < i; j++) {
-        esp_pm_lock_delete(this->pm_lock_handles_[j]);
-        this->pm_lock_handles_[j] = NULL;
-      }
-      ESP_LOGE(TAG, "Failed esp_pm_lock_create %s %d", power_manager_type_to_string((PowerManagementLockType) i), rc);
-      this->mark_failed();
-      return;
-    }
-  }
-#endif
 }
-
-#ifdef USE_POWER_MANAGEMENT
-// Thread Safe
-void PowerManagement::acquire_lock(PowerManagementLockType lt) {
-  if (this->is_ready()) {
-    std::scoped_lock<std::mutex> lock(this->pm_lock_mutex_);
-    esp_err_t rc = esp_pm_lock_acquire(this->pm_lock_handles_[lt]);
-    if (rc != ESP_OK) {
-      ESP_LOGE(TAG, "Failed esp_pm_lock_acquire %s %d", power_manager_type_to_string(lt), rc);
-      return;
-    }
-    ESP_LOGD(TAG, "Acquired pm lock: %s", power_manager_type_to_string(lt));
-  }
-}
-
-// Thread Safe
-void PowerManagement::release_lock(PowerManagementLockType lt) {
-  if (this->is_ready()) {
-    std::scoped_lock<std::mutex> lock(this->pm_lock_mutex_);
-    esp_err_t rc = esp_pm_lock_release(this->pm_lock_handles_[lt]);
-    if (rc != ESP_OK) {
-      ESP_LOGE(TAG, "Failed esp_pm_lock_release %s %d", power_manager_type_to_string(lt), rc);
-      return;
-    }
-    ESP_LOGD(TAG, "Released pm lock: %s", power_manager_type_to_string(lt));
-  }
-}
-#endif
 
 void PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Management:");
-#ifdef USE_POWER_MANAGEMENT
-  ESP_LOGCONFIG(TAG, "  EspHome Locks available");
-#endif
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   ESP_LOGCONFIG(TAG, "  Light Sleep Enabled");
 #if CONFIG_ESP_SLEEP_POWER_DOWN_FLASH

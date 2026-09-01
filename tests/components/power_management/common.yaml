@@ -4,7 +4,6 @@ power_management:
   min_frequency: 32MHZ
   enable_light_sleep: true
   idle_time_before_sleep: 3
-  esphome_locks: true
   power_down_flash: true
   profiling: true
   trace: true

@@ -8,20 +8,9 @@
 #include "esp_pm.h"
 #include "soc/rtc.h"
 #include "esp_sleep.h"
-#include <mutex>
 #endif
 
 namespace esphome::power_management {
-
-enum PowerManagementLockType {
-  CPU = 0,
-  APB = 1,
-  SLP = 2,
-};
-
-#ifdef USE_POWER_MANAGEMENT
-const char *power_manager_type_to_string(PowerManagementLockType type);
-#endif
 
 class PowerManagement : public Component {
  public:
@@ -30,20 +19,8 @@ class PowerManagement : public Component {
   void dump_config() override;
   void set_max_freq_mhz(uint32_t max_freq_mhz) { this->max_freq_mhz_ = max_freq_mhz; }
   void set_min_freq_mhz(uint32_t min_freq_mhz) { this->min_freq_mhz_ = min_freq_mhz; }
-#ifdef USE_POWER_MANAGEMENT
-  void acquire_lock(PowerManagementLockType lt);
-  void release_lock(PowerManagementLockType lt);
-#endif
+
  protected:
-#ifdef USE_ESP32
-#ifdef USE_POWER_MANAGEMENT
-  static constexpr uint8_t PM_LOCK_ARRAY_SIZE = static_cast<uint8_t>(SLP) + 1;
-  std::mutex pm_lock_mutex_;
-  esp_pm_lock_handle_t pm_lock_handles_[PM_LOCK_ARRAY_SIZE] = {};
-  esp_pm_lock_type_t pm_lock_types_[PM_LOCK_ARRAY_SIZE] = {ESP_PM_CPU_FREQ_MAX, ESP_PM_APB_FREQ_MAX,
-                                                           ESP_PM_NO_LIGHT_SLEEP};
-#endif
-#endif
   uint32_t max_freq_mhz_{0};
   uint32_t min_freq_mhz_{0};
 };

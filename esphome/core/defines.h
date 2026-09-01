@@ -156,7 +156,6 @@
 #define USE_OTA_STATE_LISTENER
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
-#define USE_POWER_MANAGEMENT
 #define USE_POWER_SUPPLY
 #define USE_PREFERENCES_SYNC_EVERY_LOOP
 // Only defined by key-lookup preference backends; the slot-based platforms
