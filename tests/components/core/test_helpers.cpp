@@ -328,10 +328,10 @@ TEST(StepToAccuracyDecimals, RoundsUpToWholeNumber) {
 }
 
 TEST(StepToAccuracyDecimals, OutsideFixedNotationRange) {
-  // %.5g prints these in exponent form, so the count comes from parsing "1e-05" or "1.2346e+05".
-  EXPECT_EQ(step_to_accuracy_decimals(0.00001f), 0);
+  // %.5g would print these in exponent form; the count is now the real one rather than a parse of "1e-05".
+  EXPECT_EQ(step_to_accuracy_decimals(0.00001f), 5);
   EXPECT_EQ(step_to_accuracy_decimals(0.000125f), 6);
-  EXPECT_EQ(step_to_accuracy_decimals(123456.0f), 8);
+  EXPECT_EQ(step_to_accuracy_decimals(123456.0f), 0);
   EXPECT_EQ(step_to_accuracy_decimals(1000000.0f), 0);
 }
 
