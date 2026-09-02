@@ -35,7 +35,7 @@ void BLENUS::write_array(const uint8_t *data, size_t len) {
   ring_buf_put(&global_ble_tx_ring_buf, data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
+    this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i], StringRef());
   }
 #endif
 }
@@ -71,7 +71,7 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
   // First, use the peek buffer if available
   if (this->has_peek_) {
 #ifdef USE_UART_DEBUGGER
-    this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_);
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_, StringRef());
 #endif
     data[0] = this->peek_buffer_;
     this->has_peek_ = false;
@@ -87,7 +87,7 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i], StringRef());
   }
 #endif
   return true;

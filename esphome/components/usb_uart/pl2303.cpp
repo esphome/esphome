@@ -293,8 +293,13 @@ bool USBUartTypePL2303::config_step(USBUartChannelBase *channel, uint8_t step, b
       // Data bits
       line_coding[6] = channel->get_data_bits();
 
+<<<<<<< HEAD
+      ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%u stop=%u parity=%u data=%u", baud, line_coding[4], line_coding[5],
+               line_coding[6]);
+=======
       ESP_LOGD(TAG, "PL2303: SET_LINE_REQUEST baud=%" PRIu32 " stop=%u parity=%u data=%u", baud, line_coding[4],
                line_coding[5], line_coding[6]);
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
 
       std::vector<uint8_t> lc_vec(line_coding, line_coding + 7);
       this->config_transfer_(SET_LINE_REQUEST_TYPE, SET_LINE_REQUEST, 0, iface, lc_vec);

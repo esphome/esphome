@@ -51,8 +51,11 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    */
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+<<<<<<< HEAD
+=======
 
   void on_shutdown() override;
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
 
  protected:
   void check_logger_conflict() override;

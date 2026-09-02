@@ -95,7 +95,11 @@ void USBUartTypeCH34X::dump_config() {
   ESP_LOGCONFIG(TAG, "  CH34x chip: %s", this->chip_name_);
 }
 
+<<<<<<< HEAD
+bool USBUartTypeCH34X::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+=======
 bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
                                    const uint8_t *response) {
   uint8_t cmd = 0xA1 + channel->index_;
   if (channel->index_ >= 2)
@@ -120,6 +124,30 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
           divisor = 0;
           clk = 11719;
         }
+<<<<<<< HEAD
+      }
+      ESP_LOGV(TAG, "baud_rate: %" PRIu32 ", divisor: %d, clk: %" PRIu32, baud_rate, divisor, clk);
+      auto factor = static_cast<uint8_t>(clk / baud_rate);
+      if (factor == 0 || factor == 0xFF) {
+        ESP_LOGE(TAG, "Invalid baud rate %" PRIu32, baud_rate);
+        channel->initialised_.store(false);
+        return false;
+      }
+      if ((clk / factor - baud_rate) > (baud_rate - clk / (factor + 1)))
+        factor++;
+      factor = 256 - factor;
+
+      uint16_t value = 0xC0;
+      if (channel->stop_bits_ == UART_CONFIG_STOP_BITS_2)
+        value |= 4;
+      switch (channel->parity_) {
+        case UART_CONFIG_PARITY_NONE:
+          break;
+        default:
+          value |= 8 | ((channel->parity_ - 1) << 4);
+          break;
+      }
+=======
       }
       ESP_LOGV(TAG, "baud_rate: %" PRIu32 ", divisor: %d, clk: %" PRIu32, baud_rate, divisor, clk);
       auto factor = static_cast<uint8_t>(clk / baud_rate);
@@ -141,6 +169,7 @@ bool USBUartTypeCH34X::config_step(USBUartChannelBase *channel, uint8_t step, bo
           value |= 8 | ((channel->parity_ - 1) << 4);
           break;
       }
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
       value |= channel->data_bits_ - 5;
       value <<= 8;
       value |= 0x8C;

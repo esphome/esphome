@@ -1,6 +1,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_UART_DEBUGGER
 
+#include <cinttypes>
+#include <cstdio>
 #include <vector>
 #include "uart_debugger.h"
 #include "esphome/core/helpers.h"
@@ -11,7 +13,8 @@ namespace esphome::uart {
 static const char *const TAG = "uart_debug";
 
 UARTDebugger::UARTDebugger(UARTComponent *parent) {
-  parent->add_debug_callback([this](UARTDirection direction, uint8_t byte) {
+  this->parent_ = parent;
+  parent->add_debug_callback([this](UARTDirection direction, uint8_t byte, StringRef debug_prefix) {
     if (!this->is_my_direction_(direction) || this->is_recursive_()) {
       return;
     }
@@ -74,7 +77,21 @@ bool UARTDebugger::has_buffered_bytes_() { return !this->bytes_.empty(); }
 
 void UARTDebugger::fire_trigger_() {
   this->is_triggering_ = true;
-  trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+  if (this->debug_add_settings_) {
+    static const char *const PARITY_NAMES[] = {"NONE", "EVEN", "ODD"};
+    char settings[32];
+    snprintf(settings, sizeof(settings), "|%" PRIu32 ":%u:%s:%u|", this->parent_->get_baud_rate(),
+             this->parent_->get_data_bits(), PARITY_NAMES[this->parent_->get_parity()], this->parent_->get_stop_bits());
+    char prefix[48];
+    snprintf(prefix, sizeof(prefix), "%s%s", settings, this->debug_prefix_.c_str());
+    trigger(this->last_direction_, this->bytes_, StringRef(prefix));
+  } else {
+#endif
+    trigger(this->last_direction_, this->bytes_, this->debug_prefix_);
+#ifdef UART_DEBUGGER_ADD_SETTINGS
+  }
+#endif
   this->bytes_.clear();
   this->is_triggering_ = false;
 }

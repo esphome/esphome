@@ -308,7 +308,7 @@ void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i], StringRef());
   }
 #endif
 }
@@ -347,7 +347,7 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
     read_len = uart_read_bytes(this->uart_num_, data + (len - length_to_read), length_to_read, 20 / portTICK_PERIOD_MS);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i], StringRef());
   }
 #endif
   return read_len == (int32_t) length_to_read;
@@ -405,4 +405,5 @@ void IDFUARTComponent::on_shutdown() {
 }
 
 }  // namespace esphome::uart
+
 #endif  // USE_ESP32

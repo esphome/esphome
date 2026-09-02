@@ -191,7 +191,7 @@ static optional<CdcEps> get_uart(const usb_config_desc_t *config_desc, uint8_t i
   for (const auto *ep : endpoints) {
     if (ep1 == nullptr) {
       ep1 = ep;
-    } else if (ep2 == nullptr) {
+    } else {
       ep2 = ep;
       break;
     }
@@ -336,12 +336,16 @@ void USBUartTypeFT23XX::start_input(USBUartChannelBase *channel) {
   }
 }
 
+<<<<<<< HEAD
+bool USBUartTypeFT23XX::config_step(USBUartChannel *channel, uint8_t step, bool reload, bool ok,
+=======
 void USBUartTypeFT23XX::on_rx_overflow(USBUartChannelBase *channel) {
   ESP_LOGW(TAG, "RX buffer overflow on channel %d, clearing to resync", channel->index_);
   channel->input_buffer_.clear();
 }
 
 bool USBUartTypeFT23XX::config_step(USBUartChannelBase *channel, uint8_t step, bool reload, bool ok,
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25
                                     const uint8_t *response) {
   // On reload (settings change on an open channel) skip the SIO reset; the FTDI set_termios
   // path only re-applies baud + line properties and does not re-assert DTR/RTS.

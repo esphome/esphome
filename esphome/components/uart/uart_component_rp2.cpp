@@ -186,7 +186,7 @@ void RP2UartComponent::write_array(const uint8_t *data, size_t len) {
   this->serial_->write(data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_TX, data[i]);
+    this->debug_callback_.call(UART_DIRECTION_TX, data[i], StringRef());
   }
 #endif
 }
@@ -202,7 +202,7 @@ bool RP2UartComponent::read_array(uint8_t *data, size_t len) {
   this->serial_->readBytes(data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
-    this->debug_callback_.call(UART_DIRECTION_RX, data[i]);
+    this->debug_callback_.call(UART_DIRECTION_RX, data[i], StringRef());
   }
 #endif
   return true;
@@ -215,4 +215,9 @@ UARTFlushResult RP2UartComponent::flush() {
 }
 
 }  // namespace esphome::uart
+<<<<<<< HEAD:esphome/components/uart/uart_component_rp2040.cpp
+
+#endif  // USE_RP2040
+=======
 #endif  // USE_RP2
+>>>>>>> 5df1c7f1d3e2df2c5d4355c1cde8f9882c6b8b25:esphome/components/uart/uart_component_rp2.cpp
