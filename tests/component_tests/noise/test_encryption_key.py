@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.noise import decode_encryption_key, validate_encryption_key
+from esphome.components.noise import (
+    decode_encryption_key,
+    is_reserved_key,
+    validate_encryption_key,
+)
 
 KEY = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 
@@ -35,3 +39,8 @@ def test_decode_encryption_key_rejects_short_decode() -> None:
     a zero padded PSK on the device."""
     with pytest.raises(cv.Invalid, match="32 bytes"):
         decode_encryption_key("AAECAw==")
+
+
+def test_is_reserved_key() -> None:
+    assert is_reserved_key("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+    assert not is_reserved_key(KEY)
