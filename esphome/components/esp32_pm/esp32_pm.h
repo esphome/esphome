@@ -11,7 +11,7 @@ namespace esphome::esp32_pm {
 
 class ESP32PowerManagement : public power_management::PowerManagementComponent {
  public:
-  float get_setup_priority() const override { return setup_priority::BUS; }
+  float get_setup_priority() const override { return setup_priority::POWER; }
   void setup() override;
   void dump_config() override;
   void set_max_freq_mhz(uint32_t max_freq_mhz) { this->max_freq_mhz_ = max_freq_mhz; }

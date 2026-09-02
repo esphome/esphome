@@ -31,19 +31,16 @@ void ESP32PowerManagement::setup() {
     this->mark_failed();
     return;
   }
-
-  soc_rtc_slow_clk_src_t slow_clk_src = rtc_clk_slow_src_get();
-  if (slow_clk_src != SOC_RTC_SLOW_CLK_SRC_XTAL32K) {
-    ESP_LOGI(TAG, "32k XTAL not in use");
-  } else {
-    ESP_LOGI(TAG, "32k XTAL in use");
-  }
 }
 
 void ESP32PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Management:");
   ESP_LOGCONFIG(TAG, "  Max Frequency: %dMHZ", this->applied_max_freq_mhz_);
   ESP_LOGCONFIG(TAG, "  Min Frequency: %dMHZ", this->applied_min_freq_mhz_);
+#if SOC_CLK_XTAL32K_SUPPORTED
+  ESP_LOGCONFIG(TAG, "  32k XTAL: %s",
+                rtc_clk_slow_src_get() == SOC_RTC_SLOW_CLK_SRC_XTAL32K ? "in use" : "not in use");
+#endif
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   ESP_LOGCONFIG(TAG, "  Light Sleep Enabled");
 #if CONFIG_ESP_SLEEP_POWER_DOWN_FLASH

@@ -14,7 +14,6 @@ from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     get_esp32_variant,
 )
-from esphome.components.openthread.const import CONF_DEVICE_TYPE, CONF_POLL_PERIOD
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OPENTHREAD, CONF_PLATFORM
 from esphome.core import CORE, TimePeriodMilliseconds
@@ -29,6 +28,7 @@ from .const import (
     CONF_POWER_DOWN_PERIPHERALS,
     CONF_PROFILING,
     CONF_TRACE,
+    CONF_ZIGBEE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def _validate_frequencies(config):
     if (max_freq := config.get(CONF_MAX_FREQUENCY)) is not None:
         variant = get_esp32_variant()
         valid_freqs = esp32.CPU_FREQUENCIES[variant]
-        freq_str = f"{int(max_freq // 1000000)}MHZ"
+        freq_str = f"{max_freq // 1000000}MHZ"
         if freq_str not in valid_freqs:
             raise cv.Invalid(
                 f"{CONF_MAX_FREQUENCY}: {freq_str} is not a valid CPU frequency for "
@@ -91,7 +91,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PowerManagement),
-            cv.Optional(CONF_MAX_FREQUENCY): cv.frequency,
+            cv.Optional(CONF_MAX_FREQUENCY): cv.All(cv.frequency, cv.int_),
             cv.Optional(CONF_MIN_FREQUENCY): cv.All(
                 cv.frequency, cv.int_range(min=10000000)
             ),
@@ -107,6 +107,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TRACE, visibility=cv.Visibility.ADVANCED): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
+    cv.require_framework_version(esp_idf=cv.Version(0, 0, 0)),
     _validate_frequencies,
     _validate_power_down,
 )
@@ -141,14 +142,21 @@ async def to_code(config):
             "CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP",
             config.get(CONF_IDLE_TIME_BEFORE_SLEEP, 3),
         )
-        if (
-            (ot_conf := CORE.config.get(CONF_OPENTHREAD)) is not None
-            and ot_conf.get(CONF_DEVICE_TYPE) == "MTD"
-            and (poll_period := ot_conf.get(CONF_POLL_PERIOD)) is not None
-            and poll_period > TimePeriodMilliseconds(milliseconds=0)
-        ):
-            add_idf_sdkconfig_option("CONFIG_LWIP_ND6", False)
-        if CORE.config.get(CONF_OPENTHREAD) or CORE.config.get("zigbee"):
+
+        if (ot_conf := CORE.config.get(CONF_OPENTHREAD)) is not None:
+            from esphome.components.openthread.const import (
+                CONF_DEVICE_TYPE,
+                CONF_POLL_PERIOD,
+            )
+
+            if (
+                ot_conf.get(CONF_DEVICE_TYPE) == "MTD"
+                and (poll_period := ot_conf.get(CONF_POLL_PERIOD)) is not None
+                and poll_period > TimePeriodMilliseconds(milliseconds=0)
+            ):
+                add_idf_sdkconfig_option("CONFIG_LWIP_ND6", False)
+
+        if CORE.config.get(CONF_OPENTHREAD) or CORE.config.get(CONF_ZIGBEE):
             add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
 
 
@@ -161,17 +169,28 @@ def _pm_final_validate(config):
         (max_freq := config.get(CONF_MAX_FREQUENCY)) is not None
         and (esp32_conf := full_config.get("esp32")) is not None
         and (boot_freq := esp32_conf.get(esp32.CONF_CPU_FREQUENCY)) is not None
-        and int(boot_freq[:-3]) > int(max_freq // 1000000)
+        and (boot_mhz := int(boot_freq[:-3])) != (max_mhz := max_freq // 1000000)
     ):
-        _LOGGER.warning(
-            "esp32.%s (%s) is higher than %s (%dMHZ); the CPU will be "
-            "downclocked to %dMHZ as soon as power management is set up",
-            esp32.CONF_CPU_FREQUENCY,
-            boot_freq,
-            CONF_MAX_FREQUENCY,
-            int(max_freq // 1000000),
-            int(max_freq // 1000000),
-        )
+        if boot_mhz > max_mhz:
+            _LOGGER.warning(
+                "esp32.%s (%s) is higher than %s (%dMHZ); the CPU will be "
+                "downclocked to %dMHZ as soon as power management is set up",
+                esp32.CONF_CPU_FREQUENCY,
+                boot_freq,
+                CONF_MAX_FREQUENCY,
+                max_mhz,
+                max_mhz,
+            )
+        else:
+            _LOGGER.warning(
+                "esp32.%s (%s) is lower than %s (%dMHZ); the CPU may run as "
+                "high as %dMHZ under load once power management is set up",
+                esp32.CONF_CPU_FREQUENCY,
+                boot_freq,
+                CONF_MAX_FREQUENCY,
+                max_mhz,
+                max_mhz,
+            )
     if (
         config.get(CONF_ENABLE_LIGHT_SLEEP)
         and config.get(CONF_POWER_DOWN_FLASH)
