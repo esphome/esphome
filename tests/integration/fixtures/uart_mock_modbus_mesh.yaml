@@ -1,5 +1,5 @@
 esphome:
-  name: uart-mock-modbus-server-contro
+  name: uart-mock-modbus-mesh
 
 host:
 api:
@@ -17,6 +17,10 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
+# Shared 3-bus mesh for the server_controller, server_controller_multiple
+# and client_read_write tests: two server hubs and one client hub, every bus
+# forwarding to both others. Servers: addr 1 = typed read-only registers,
+# addr 5 = client_read_write's server, addr 2/3 on the second server hub.
 uart_mock:
   - id: virtual_uart_server
     baud_rate: 9600
@@ -31,6 +35,21 @@ uart_mock:
           - uart_mock.inject_rx:
               id: virtual_uart_controller
               data: !lambda return data;
+          - uart_mock.inject_rx:
+              id: virtual_uart_server_2
+              data: !lambda return data;
+  - id: virtual_uart_server_2
+    baud_rate: 9600
+    auto_start: true # See comment on virtual_uart_server above
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
   - id: virtual_uart_controller
     baud_rate: 9600
     auto_start: true # See comment on virtual_uart_server above
@@ -40,20 +59,39 @@ uart_mock:
           - uart_mock.inject_rx:
               id: virtual_uart_server
               data: !lambda return data;
+          - uart_mock.inject_rx:
+              id: virtual_uart_server_2
+              data: !lambda return data;
+
+globals:
+  - id: stored_1
+    type: uint16_t
+    initial_value: "0"
 
 modbus:
   - uart_id: virtual_uart_server
     id: virtual_modbus_server
     role: server
+  - uart_id: virtual_uart_server_2
+    id: virtual_modbus_server_2
+    role: server
   - uart_id: virtual_uart_controller
-    id: virtual_modbus_controller
+    id: virtual_modbus_client
     role: client
     turnaround_time: 10ms
 
 modbus_controller:
   - address: 1
-    modbus_id: virtual_modbus_controller
+    modbus_id: virtual_modbus_client
     id: modbus_controller_1
+    update_interval: 1s
+  - address: 2
+    modbus_id: virtual_modbus_client
+    id: modbus_controller_2
+    update_interval: 1s
+  - address: 3
+    modbus_id: virtual_modbus_client
+    id: modbus_controller_3
     update_interval: 1s
 
 modbus_server:
@@ -103,6 +141,37 @@ modbus_server:
       - address: 0x28
         value_type: FP32_R
         read_lambda: return 3.14;
+  - address: 5
+    modbus_id: virtual_modbus_server
+    id: modbus_server_5
+    registers:
+      # Writable + readable register: the read publishes what it returns, so the test can confirm the
+      # write half of the 0x17 ran before the read half (Modbus 6.17).
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: |-
+          id(srv_read_1).publish_state(id(stored_1));
+          return id(stored_1);
+        write_lambda: |-
+          id(stored_1) = x;
+          id(srv_write_1).publish_state(x);
+          return true;
+      # Read-only register, returned together with 0x01 by the 2-register read half.
+      - address: 0x02
+        value_type: U_WORD
+        read_lambda: return 0x00AA;
+  - address: 2
+    modbus_id: virtual_modbus_server_2
+    registers:
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: return 919;
+  - address: 3
+    modbus_id: virtual_modbus_server_2
+    registers:
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: return 929;
 
 sensor:
   - platform: modbus_controller
@@ -195,9 +264,49 @@ sensor:
     address: 0x28
     register_type: holding
     value_type: FP32_R
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_2
+    name: "multi_reg_a"
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_3
+    name: "multi_reg_b"
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+  # client_read_write observations, server- and client-side.
+  - platform: template
+    name: "srv_write_1"
+    id: srv_write_1
+  - platform: template
+    name: "srv_read_1"
+    id: srv_read_1
+  - platform: template
+    name: "client_read_0"
+    id: client_read_0
+  - platform: template
+    name: "client_read_1"
+    id: client_read_1
 
 button:
   - platform: template
     name: "Start Scenario"
     id: start_scenario_btn
-    # This test does not have anything to start (mock is autostart)
+    on_press:
+      # FC 0x17: write reg 0x0001 = 0x1234, then read regs 0x0001..0x0002 back in the same transaction.
+      - modbus_client.read_write_multiple_registers:
+          address: 5
+          read_address: 0x0001
+          read_count: 2
+          write_address: 0x0001
+          values: [0x1234]
+          on_response:
+            then:
+              - lambda: |-
+                  // values is the read-back block: reg 0x0001 (must be the just-written 0x1234) and reg 0x0002.
+                  if (values.size() >= 2) {
+                    id(client_read_0).publish_state(values[0]);
+                    id(client_read_1).publish_state(values[1]);
+                  }
