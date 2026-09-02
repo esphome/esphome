@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+rp2:
+  board: rpipicow
+
+wifi:
+  ssid: test
+  password: testtest
+
+http_request:
+  timeout: 10s
+  verify_ssl: false

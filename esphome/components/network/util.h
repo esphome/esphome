@@ -52,7 +52,8 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
   return false;
 }
 
-/// Return whether the network is disabled (only wifi for now)
+/// Return whether the network is disabled: every configured interface with a
+/// disable() lifecycle (modem, wifi, ethernet) is disabled.
 bool is_disabled();
 /// Buffer size for get_use_address_to(): 63-char DNS label + ".local" + null terminator
 static constexpr size_t USE_ADDRESS_BUFFER_SIZE = 70;

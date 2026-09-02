@@ -35,18 +35,20 @@ void GraphicalDisplayMenu::setup() {
 }
 
 void GraphicalDisplayMenu::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "Graphical Display Menu\n"
-                "  Has Display: %s\n"
-                "  Popup Mode: %s\n"
-                "  Advanced Drawing Mode: %s\n"
-                "  Has Font: %s\n"
-                "  Mode: %s\n"
-                "  Active: %s\n"
-                "  Menu items:",
-                YESNO(this->display_ != nullptr), YESNO(this->display_ != nullptr), YESNO(this->display_ == nullptr),
-                YESNO(this->font_ != nullptr),
-                this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick", YESNO(this->active_));
+  ESP_LOGCONFIG(
+      TAG,
+      "Graphical Display Menu\n"
+      "  Has Display: %s\n"
+      "  Popup Mode: %s\n"
+      "  Advanced Drawing Mode: %s\n"
+      "  Has Font: %s\n"
+      "  Mode: %s\n"
+      "  Active: %s\n"
+      "  Menu items:",
+      YESNO(this->display_ != nullptr), YESNO(this->display_ != nullptr), YESNO(this->display_ == nullptr),
+      YESNO(this->font_ != nullptr),
+      this->mode_ == display_menu_base::MENU_MODE_ROTARY ? LOG_STR_LITERAL("Rotary") : LOG_STR_LITERAL("Joystick"),
+      YESNO(this->active_));
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
     ESP_LOGCONFIG(TAG, "  %i: %s (Type: %s, Immediate Edit: %s)", i, item->get_text().c_str(),

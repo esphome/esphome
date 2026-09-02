@@ -44,6 +44,16 @@ This document provides essential context for AI models interacting with this pro
 
 ## 4. Coding Conventions & Style Guide
 
+**Read the developer documentation before writing a component.** https://developers.esphome.io covers the
+component lifecycle, the main loop, and the reasoning behind the rules below in far more depth than this
+file does, and it is the authority when they disagree. The most useful starting points:
+
+*   https://developers.esphome.io/architecture/components/ - component lifecycle, `setup()`, `loop()`,
+    setup priorities, and how a component is registered.
+*   https://developers.esphome.io/architecture/components/advanced/ - choosing between `loop()`,
+    `set_interval`, `set_timeout` and `defer`; waking the loop from another thread; the RAM cost of each.
+*   https://developers.esphome.io/contributing/code/ - contribution rules, public API and breaking changes.
+
 *   **Formatting:**
     *   **Python:** Uses `ruff` and `flake8` for linting and formatting. Configuration is in `pyproject.toml`.
     *   **C++:** Uses `clang-format` for formatting. Configuration is in `.clang-format`.
@@ -57,6 +67,12 @@ This document provides essential context for AI models interacting with this pro
         - Function-local constants: `lower_snake_case`
         - Protected/private fields: `lower_snake_case_with_trailing_underscore_`
         - Favor descriptive names over abbreviations
+        - Enumerator names: prefix every value of an `enum class` with the enum name converted to
+          `UPPER_SNAKE_CASE` (e.g. `UARTFlushResult::UART_FLUSH_RESULT_SUCCESS`). Never use bare
+          names like `SUCCESS`, `FAILURE`, `OK`, or `FAIL`: platform SDK headers define macros with
+          these common names (for example the Realtek SDKs used by LibreTiny define
+          `#define SUCCESS 0` in `basic_types.h`), and the preprocessor replaces the enumerator
+          before the compiler sees it, breaking the build and clang-tidy on those platforms.
 
 *   **Python Idioms:**
     *   **Assignment expressions (PEP 572):** Prefer the walrus operator (`:=`) wherever it removes a redundant lookup or a throwaway temporary. The most common case in component code is presence-checking a config key and then indexing it separately — fetch once with `.get()` and bind in the condition instead:
@@ -136,6 +152,47 @@ This document provides essential context for AI models interacting with this pro
     *   **Indentation:** Use spaces (two per indentation level), not tabs
     *   **Type aliases:** Prefer `using type_t = int;` over `typedef int type_t;`
     *   **Line length:** Wrap lines at no more than 120 characters
+    *   **Timing in `loop()`:** Never call `millis()` in a `loop()` body. The current tick's timestamp is
+        already cached - use `App.get_loop_component_start_time()` (from `esphome/core/application.h`).
+        Only reach for `millis()` when you genuinely need sub-tick resolution inside a long operation.
+    *   **The main loop runs every 16 ms.** A rate-limit gate shorter than that does nothing: the check
+        passes on essentially every pass of the loop, so it costs a comparison and buys nothing. Pick an
+        interval comfortably coarser than 16 ms, or drop the gate entirely and accept running every loop.
+        ```cpp
+        // Bad - a 10ms gate against a 16ms loop never holds anything back
+        static constexpr uint32_t POLL_INTERVAL_MS = 10;
+        const uint32_t now = millis();
+        if (now - this->last_poll_ < POLL_INTERVAL_MS)
+          return;
+        this->last_poll_ = now;
+        ```
+        ```cpp
+        // Good - an interval that actually rate limits, off the cached timestamp
+        static constexpr uint32_t POLL_INTERVAL_MS = 100;
+        const uint32_t now = App.get_loop_component_start_time();
+        if (now - this->last_poll_ < POLL_INTERVAL_MS)
+          return;
+        this->last_poll_ = now;
+        ```
+        Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
+        `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
+        https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Don't override a default with the same value:** if a base class method already returns what you
+        want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
+        component that wants `DATA` should simply leave it alone.
+        ```cpp
+        // Bad - this is exactly what the base class already does
+        float get_setup_priority() const override { return setup_priority::DATA; }
+        ```
+    *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
+        can be stored in flash rather than RAM.
+        ```cpp
+        // Bad
+        ESP_LOGV(TAG, "Key %u %s", key, pressed ? "pressed" : "released");
+
+        // Good
+        ESP_LOGV(TAG, "Key %u %s", key, pressed ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL("released"));
+        ```
     *   **Constructor parameters vs setters:** Component properties that are both **required** and **invariant**
         (never change after construction) should be constructor parameters rather than set via setter methods.
         This makes the dependency explicit and prevents use of the object in an incompletely-initialized state.
@@ -412,7 +469,7 @@ This document provides essential context for AI models interacting with this pro
 *   **Configuration:**
     *   `pyproject.toml`: Defines the Python project metadata and dependencies.
     *   `platformio.ini`: Configures the PlatformIO build environments for different microcontrollers.
-    *   `.pre-commit-config.yaml`: Configures the pre-commit hooks for linting and formatting.
+    *   `.pre-commit-config.yaml`: Configures the lint and format hooks, run by `prek`.
 *   **CI/CD Pipeline:** Defined in `.github/workflows`.
 *   **Static Analysis & Development:**
     *   `esphome/core/defines.h`: A comprehensive header file containing all `#define` directives that can be added by components using `cg.add_define()` in Python. This file is used exclusively for development, static analysis tools, and CI testing - it is not used during runtime compilation. When developing components that add new defines, they must be added to this file to ensure proper IDE support and static analysis coverage. The file includes feature flags, build configurations, and platform-specific defines that help static analyzers understand the complete codebase without needing to compile for specific platforms.
@@ -420,7 +477,7 @@ This document provides essential context for AI models interacting with this pro
 ## 6. Development & Testing Workflow
 
 *   **Local Development Environment:** Use the provided Docker container or create a Python virtual environment and install dependencies from `requirements_dev.txt`.
-*   **Running Commands:** Use the `script/run-in-env.py` script to execute commands within the project's virtual environment. For example, to run the linter: `python3 script/run-in-env.py pre-commit run`.
+*   **Running Commands:** Use the `script/run-in-env.py` script to execute commands within the project's virtual environment. For example, to run the linter: `python3 script/run-in-env.py prek run`.
 *   **Testing:**
     *   **Python:** Run unit tests with `pytest`.
     *   **C++:** Use `clang-tidy` for static analysis.
@@ -493,7 +550,7 @@ This document provides essential context for AI models interacting with this pro
     1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
     3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
-    4.  **Lint:** Run `pre-commit` to ensure code is compliant.
+    4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
 
@@ -556,6 +613,33 @@ This document provides essential context for AI models interacting with this pro
            Use `cg.add_define("MAX_SERVICES", count)` to set the size from Python configuration.
            Like `std::array` but with vector-like API (`push_back()`, `size()`) and no STL reallocation code.
 
+           **Listener and child-entity registration lists are the most common case, and the most commonly
+           missed.** A `register_*()` method called once per child at code generation time has a count that
+           is known at compile time, so it should never be a `std::vector`. Use `cg.slot_counter()`: it
+           returns a function that each consumer calls once per slot it will occupy, and after every
+           `to_code` has run it emits the define with the final count. When nothing registers, no define is
+           emitted and the storage plus its registration method compile out entirely.
+           ```python
+           # hub component's __init__.py
+           _request_listener_slot = cg.slot_counter("MY_COMPONENT_LISTENER_COUNT")
+
+
+           async def register_listener(hub: MockObj, var: MockObj) -> None:
+               _request_listener_slot()
+               cg.add(hub.register_listener(var))
+           ```
+           ```cpp
+           #ifdef MY_COMPONENT_LISTENER_COUNT
+             void register_listener(MyComponentListener *listener);
+           #endif
+            protected:
+           #ifdef MY_COMPONENT_LISTENER_COUNT
+             StaticVector<MyComponentListener *, MY_COMPONENT_LISTENER_COUNT> listeners_;
+           #endif
+           ```
+           Request slots from `to_code`, not from a job that runs after `CoroPriority.FINAL` - a late
+           request raises rather than silently undercounting.
+
         3. **Runtime-known sizes:** Use `FixedVector` from `esphome/core/helpers.h` when the size is only known at runtime initialization.
            ```cpp
            // Bad - generates STL realloc code (_M_realloc_insert)
@@ -593,9 +677,25 @@ This document provides essential context for AI models interacting with this pro
            ```
            Linear search on small datasets (1-16 elements) is often faster than hashing/tree overhead, but this depends on lookup frequency and access patterns. For frequent lookups in hot code paths, the O(1) vs O(n) complexity difference may still matter even for small datasets. `std::vector` with simple structs is usually fine—it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets unless profiling shows otherwise.
 
-        5. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
+        5. **Strings set once from configuration:** Use `StringRef` (`esphome/core/string_ref.h`) rather than
+           `std::string`. Code generation passes a string literal that lives in flash for the life of the
+           program, so storing a `std::string` copies it onto the heap for nothing. `StringRef` is a
+           non-owning pointer plus length; it does not copy, and it must only ever refer to storage that
+           outlives it (a string literal, or a buffer owned elsewhere).
+           ```cpp
+           // Bad - heap copy of a literal that is already in flash
+           void set_keys(std::string keys) { this->keys_ = std::move(keys); }
+           std::string keys_;
+           ```
+           ```cpp
+           // Good - no allocation
+           void set_keys(const char *keys) { this->keys_ = StringRef(keys); }
+           StringRef keys_;
+           ```
 
-        6. **Detection:** Look for these patterns in compiler output:
+        6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
+
+        7. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
@@ -757,3 +857,13 @@ The project uses English for non-code content. When drafting documentation, code
 PR descriptions, and similar text, avoid technical jargon. Instead, express concepts in plain English,
 using standard technical terms only when required. Ensure the text is readily comprehensible to a wide
 audience, including non-native English speakers.
+
+## 10. Code Comments
+
+Code comments on individual lines should be used only where necessary to flag issues that may not be obvious
+on a simple reading of the code. Keep them short (e.g. 1 or 2 lines).
+
+Function and method comment blocks may include more detail as required to make
+calling contracts clear and document parameter usage, but should still be kept concise.
+
+Avoid redundancy and repetition; comments should never simply restate what the code already says.
