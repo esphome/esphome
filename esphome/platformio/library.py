@@ -13,7 +13,7 @@ regardless of which toolchain consumes the result.
 """
 
 from collections import deque
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Hashable, Iterable
 from dataclasses import dataclass, field
 from functools import partial
 import glob
@@ -99,6 +99,17 @@ class Source:
     ) -> Path:
         raise NotImplementedError
 
+    def prefetch_key(self, dir_suffix: str) -> Hashable | None:
+        """Prefetch dedup identity; None = not prefetchable. Sources that
+        could write one cache dir must return equal keys (workers must never
+        share a dir); a coarser key only skips a prefetch."""
+        return None
+
+    def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
+        """Whether a completed fetch exists; only consulted when
+        ``prefetch_key()`` is not None, True is the safe default."""
+        return True
+
     def source_root(self, build_path: Path) -> Path:
         """Directory holding the library's own files (manifest + sources).
 
@@ -126,6 +137,9 @@ class URLSource(Source):
         if salt:
             h.update(salt.encode())
         return base_dir / h.hexdigest()[:8] / dir_suffix
+
+    def prefetch_key(self, dir_suffix: str) -> Hashable | None:
+        return self.url if self.size else None
 
     def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
         """Whether a completed extraction already exists for this source."""
@@ -177,14 +191,29 @@ class GitSource(Source):
         self.url = url
         self.ref = ref
 
-    def download(
-        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
-    ) -> Path:
+    @staticmethod
+    def _domain(salt: str, namespace: str) -> str:
         domain = DOMAIN
         if namespace:
             domain = f"{domain}/{namespace}"
         if salt:
             domain = f"{domain}/{salt}"
+        return domain
+
+    def prefetch_key(self, dir_suffix: str) -> Hashable | None:
+        # The clone target dir is hash(url@ref)/<dir_suffix>
+        return (self.url, self.ref, dir_suffix)
+
+    def is_cached(self, dir_suffix: str, salt: str = "", namespace: str = "") -> bool:
+        """Whether a completed clone already exists for this source."""
+        return git.has_complete_clone(
+            self.url, self.ref, self._domain(salt, namespace), Path(dir_suffix)
+        )
+
+    def download(
+        self, dir_suffix: str, force: bool = False, salt: str = "", namespace: str = ""
+    ) -> Path:
+        domain = self._domain(salt, namespace)
         path, _ = git.clone_or_update(
             url=self.url,
             ref=self.ref,
@@ -988,56 +1017,78 @@ def _fetch_source(
     )
 
 
+def _clone_source(
+    component: ConvertedLibrary,
+    salt: str,
+    namespace: str,
+    tracker: Callable[[int], None],
+) -> None:
+    # No byte progress from git; one tick so a cancelled batch stops here
+    tracker(0)
+    component.source.download(
+        component.get_sanitized_name(), salt=salt, namespace=namespace
+    )
+
+
 def _prefetch_wave(
     wave: list[tuple[str, ConvertedLibrary]], salt: str, namespace: str
 ) -> None:
-    """Best-effort parallel download of a wave's registry archives.
+    """Best-effort parallel fetch of a wave's registry archives and git clones.
 
-    The walk's own ``download()`` stays authoritative; duplicate URLs
+    The walk's own ``download()`` stays authoritative; duplicate sources
     prefetch once so two threads never share a cache directory. Archives
     whose size the registry did not report are left to the sequential
     loop, whose per-file bars don't interleave. A node a sibling in the
-    same wave supersedes has its archive fetched in vain (knowing better
+    same wave supersedes has its source fetched in vain (knowing better
     would need the manifests being downloaded).
     """
     try:
-        components: list[ConvertedLibrary] = []
-        seen: set[str] = set()
+        archives: list[ConvertedLibrary] = []
+        clones: list[ConvertedLibrary] = []
+        seen: set[Hashable] = set()
         for _key, component in wave:
             source = component.source
-            if not isinstance(source, URLSource) or not source.size:
+            name = component.get_sanitized_name()
+            dedup_key = source.prefetch_key(name)
+            if dedup_key is None or dedup_key in seen:
                 continue
-            if source.url in seen:
-                continue
-            seen.add(source.url)
+            seen.add(dedup_key)
             try:
-                cached = source.is_cached(
-                    component.get_sanitized_name(), salt=salt, namespace=namespace
-                )
+                cached = source.is_cached(name, salt=salt, namespace=namespace)
             except OSError as err:
                 # Best-effort, but visibly: a systematic probe failure makes
-                # every warm build re-download every archive
+                # every warm build re-fetch every source
                 _LOGGER.warning("Cache probe for %s failed: %s", component.name, err)
                 cached = False
             if cached:
                 # A warm build must stay silent
                 continue
-            components.append(component)
-        if not components:
+            (archives if isinstance(source, URLSource) else clones).append(component)
+        if not archives and not clones:
             return
         # Single-item waves (a dependency chain discovers one archive per
         # wave) go through the same runner: one download method, one bar
-        _LOGGER.info(
-            "Downloading %d library archive(s): %s",
-            len(components),
-            ", ".join(c.name for c in components),
-        )
+        if archives:
+            _LOGGER.info(
+                "Downloading %d library archive(s): %s",
+                len(archives),
+                ", ".join(c.name for c in archives),
+            )
+        if clones:
+            _LOGGER.info(
+                "Cloning %d library repo(s): %s",
+                len(clones),
+                ", ".join(c.name for c in clones),
+            )
         failures = run_batch_downloads(
             "Downloading libraries",
             [
                 (c.name, c.source.size, partial(_fetch_source, c, salt, namespace))
-                for c in components
-            ],
+                for c in archives
+            ]
+            # Size 0: clones share the worker pool without skewing the
+            # byte bar, whose total stays the archive sum
+            + [(c.name, 0, partial(_clone_source, c, salt, namespace)) for c in clones],
         )
         # The sequential call below retries and raises the real error
         warn_prefetch_failures(

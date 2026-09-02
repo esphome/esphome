@@ -76,8 +76,8 @@ Wl134Component::Rfid134Error Wl134Component::read_packet_() {
            "  isAnimal:  %s\n"
            "  Reserved0: %d\n"
            "  Reserved1: %" PRId32,
-           reading.id, reading.country, reading.isData ? "true" : "false", reading.isAnimal ? "true" : "false",
-           reading.reserved0, reading.reserved1);
+           reading.id, reading.country, reading.isData ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"),
+           reading.isAnimal ? LOG_STR_LITERAL("true") : LOG_STR_LITERAL("false"), reading.reserved0, reading.reserved1);
 
   char buf[20];  // "%03d" (3) + "%012" PRId64 (12) + null = 16 max
   buf_append_printf(buf, sizeof(buf), 0, "%03d%012" PRId64, reading.country, reading.id);
