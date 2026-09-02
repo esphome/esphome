@@ -592,6 +592,10 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     }
 
     this->state_ = BLE_COMPONENT_STATE_ACTIVE;
+#ifdef USE_ESP32_BLE_ADVERTISING
+    // Requests made before the stack was up (or before it was re-enabled) take effect now
+    this->advertising_refresh();
+#endif
   }
 }
 
