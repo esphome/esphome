@@ -1,0 +1,32 @@
+ble_client:
+  - mac_address: 14:9C:EF:01:02:03
+    id: inverter_client
+
+renogy_inverter_ble:
+  - id: inv0
+    ble_client_id: inverter_client
+    update_interval: 30s
+
+sensor:
+  - platform: renogy_inverter_ble
+    renogy_inverter_ble_id: inv0
+    ac_input_voltage:
+      name: AC input voltage
+    ac_output_voltage:
+      name: AC output voltage
+    ac_output_current:
+      name: AC output current
+    ac_output_frequency:
+      name: AC output frequency
+    input_frequency:
+      name: Input frequency
+    battery_voltage:
+      name: Battery voltage
+    temperature:
+      name: Temperature
+    load_current:
+      name: Load current
+    load_active_power:
+      name: Load active power
+    load_apparent_power:
+      name: Load apparent power
