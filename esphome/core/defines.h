@@ -427,6 +427,7 @@
 #ifdef USE_ESP32
 #define USE_MICRO_WAKE_WORD
 #define USE_MICRO_WAKE_WORD_VAD
+// #define USE_RUNTIME_IMAGE_JPEG_TURBO  // Requires libjpeg-turbo headers generated at build time
 #if defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32H2)
 #define USE_OPENTHREAD
 #define USE_ZIGBEE

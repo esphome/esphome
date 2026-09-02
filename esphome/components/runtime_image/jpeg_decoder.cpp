@@ -1,5 +1,5 @@
 #include "jpeg_decoder.h"
-#ifdef USE_RUNTIME_IMAGE_JPEG
+#if defined(USE_RUNTIME_IMAGE_JPEG) && !defined(USE_RUNTIME_IMAGE_JPEG_TURBO)
 
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/application.h"
@@ -106,4 +106,4 @@ int HOT JpegDecoder::decode(uint8_t *buffer, size_t size) {
 
 }  // namespace esphome::runtime_image
 
-#endif  // USE_RUNTIME_IMAGE_JPEG
+#endif  // USE_RUNTIME_IMAGE_JPEG && !USE_RUNTIME_IMAGE_JPEG_TURBO
