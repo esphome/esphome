@@ -27,8 +27,10 @@ void ES7210::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "ES7210 audio ADC:\n"
                 "  Bits Per Sample: %" PRIu8 "\n"
-                "  Sample Rate: %" PRIu32,
-                this->bits_per_sample_, this->sample_rate_);
+                "  Sample Rate: %" PRIu32 "\n"
+                "  Channel Gains: %.1f dB, %.1f dB, %.1f dB, %.1f dB",
+                this->bits_per_sample_, this->sample_rate_, this->channel_gains_[0], this->channel_gains_[1],
+                this->channel_gains_[2], this->channel_gains_[3]);
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "  Failed to initialize");
@@ -88,11 +90,16 @@ void ES7210::setup() {
 }
 
 bool ES7210::set_mic_gain(float mic_gain) {
-  this->mic_gain_ = clamp<float>(mic_gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX);
+  this->channel_gains_.fill(clamp<float>(mic_gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX));
   if (this->setup_complete_) {
     return this->configure_mic_gain_();
   }
   return true;
+}
+
+void ES7210::set_channel_gain(uint8_t channel, float gain) {
+  if (channel < this->channel_gains_.size())
+    this->channel_gains_[channel] = clamp<float>(gain, ES7210_MIC_GAIN_MIN, ES7210_MIC_GAIN_MAX);
 }
 
 bool ES7210::configure_sample_rate_() {
@@ -133,7 +140,6 @@ bool ES7210::configure_sample_rate_() {
 }
 
 bool ES7210::configure_mic_gain_() {
-  auto regv = this->es7210_gain_reg_value_(this->mic_gain_);
   for (uint8_t i = 0; i < 4; ++i) {
     ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43 + i, 0x10, 0x00));
   }
@@ -144,25 +150,30 @@ bool ES7210::configure_mic_gain_() {
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC1_GAIN_REG43, 0x0f,
+                                                  this->es7210_gain_reg_value_(this->channel_gains_[0])));
 
   // Configure mic 2
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC12_POWER_REG4B, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC2_GAIN_REG44, 0x0f,
+                                                  this->es7210_gain_reg_value_(this->channel_gains_[1])));
 
   // Configure mic 3
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  // MIC3 uses the ADC3/4 and MIC3/4 clock domains (bits 2 and 4), not the MIC1/2 domains.
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x15, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC3_GAIN_REG45, 0x0f,
+                                                  this->es7210_gain_reg_value_(this->channel_gains_[2])));
 
   // Configure mic 4
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x0b, 0x00));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_CLOCK_OFF_REG01, 0x15, 0x00));
   ES7210_ERROR_CHECK(this->write_byte(ES7210_MIC34_POWER_REG4C, 0x00));
   ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x10, 0x10));
-  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x0f, regv));
+  ES7210_ERROR_CHECK(this->es7210_update_reg_bit_(ES7210_MIC4_GAIN_REG46, 0x0f,
+                                                  this->es7210_gain_reg_value_(this->channel_gains_[3])));
 
   return true;
 }

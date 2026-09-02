@@ -9,5 +9,6 @@ audio_adc:
     i2c_id: i2c_bus
     id: es7210_adc
     bits_per_sample: 16bit
+    channel_gains: [33db, 33db, 0db, 0db]
     sample_rate: 16000
     tdm: true
