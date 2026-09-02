@@ -670,13 +670,14 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
         return True  # Handled: PYOCD upload
 
     # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
-    from .ble_logger import is_mac_address
     from .ota import smpmgr_scan, smpmgr_upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
-
-    if is_mac_address(host):
+    # get_port_type() is a catch-all that already returns NETWORK for a MAC string, so
+    # this single branch covers both a direct MAC (BLE) target and an IP/hostname/mDNS
+    # (UDP) target; the transport is chosen later in _smpmgr_upload via is_mac_address.
+    elif get_port_type(host) == PortType.NETWORK:
         mcumgr_device = host
 
     if mcumgr_device:
