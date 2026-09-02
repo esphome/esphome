@@ -29,6 +29,8 @@ void WiFiComponent::set_sta(const WiFiAP &ap) { ESP_LOGI(TAG, "set_sta ssid=%s",
 
 void WiFiComponent::start_connecting(const WiFiAP &ap) {
   ESP_LOGI(TAG, "start_connecting ssid=%s", ap.get_ssid().c_str());
+  // Connecting succeeds immediately, so the requested network is the connected one
+  this->connected_ssid_ = ap.get_ssid().c_str();
 }
 
 void WiFiComponent::clear_sta() { ESP_LOGI(TAG, "clear_sta"); }
