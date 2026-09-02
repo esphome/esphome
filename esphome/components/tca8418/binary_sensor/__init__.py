@@ -93,7 +93,8 @@ def _final_validate(config: ConfigType) -> None:
         if row >= rows or col >= columns:
             raise cv.Invalid(
                 f"Position {row}/{col} is outside the {rows} x {columns} key "
-                "matrix of the keypad it belongs to"
+                "matrix of the keypad it belongs to",
+                path=[CONF_ROW],
             )
         config[CONF_KEY_CODE] = row * MATRIX_COLUMNS + col + 1
         return
