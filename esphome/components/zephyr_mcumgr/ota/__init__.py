@@ -131,13 +131,14 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("MCUMGR_MGMT_NOTIFICATION_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_STATUS_HOOKS", True)
     zephyr_add_prj_conf("MCUMGR_GRP_IMG_UPLOAD_CHECK_HOOK", True)
+    # OS management group (reset, MCUMGR_PARAMETERS query, etc.) isn't transport-specific --
+    # every mcumgr transport needs it, not just BLE.
+    zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
+    zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
     transport = config[CONF_TRANSPORT]
     if transport[CONF_BLE]:
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT", True)
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_BT_REASSEMBLY", True)
-
-        zephyr_add_prj_conf("MCUMGR_GRP_OS", True)
-        zephyr_add_prj_conf("MCUMGR_GRP_OS_MCUMGR_PARAMS", True)
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
     if CONF_HARDWARE_UART in transport:
