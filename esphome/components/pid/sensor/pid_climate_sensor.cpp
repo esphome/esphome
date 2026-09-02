@@ -29,10 +29,10 @@ void PIDClimateSensor::update_from_parent_() {
       value = this->parent_->get_derivative_term();
       break;
     case PID_SENSOR_TYPE_HEAT:
-      value = clamp(this->parent_->get_output_value(), 0.0f, 1.0f);
+      value = clamp(this->parent_->get_active_output_value(), 0.0f, 1.0f);
       break;
     case PID_SENSOR_TYPE_COOL:
-      value = clamp(-this->parent_->get_output_value(), 0.0f, 1.0f);
+      value = clamp(-this->parent_->get_active_output_value(), 0.0f, 1.0f);
       break;
     case PID_SENSOR_TYPE_KP:
       value = this->parent_->get_kp();
