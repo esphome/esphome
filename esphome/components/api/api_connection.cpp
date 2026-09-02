@@ -2391,8 +2391,9 @@ void APIConnection::process_batch_() {
     } else if (payload_size == 0) {
       // payload_size == 0 with remove set means encoding hit OOM and the
       // connection is being dropped; warn only for a genuinely oversized message
-      if (!this->flags_.remove)
+      if (!this->flags_.remove) {
         ESP_LOGW(TAG, "Message too large to send: type=%u", item.message_type);
+      }
       this->clear_batch_();
     }
     return;

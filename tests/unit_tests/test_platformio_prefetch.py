@@ -13,6 +13,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from filelock import Timeout
+from platformio.dependencies import get_core_dependencies
 from platformio.package.manager._install import PackageManagerInstallMixin
 from platformio.package.manager.base import BasePackageManager
 from platformio.package.manager.library import LibraryPackageManager
@@ -1417,6 +1418,76 @@ def test_prefetch_installs_cached_archives_without_downloads(
     assert not (tmp_path / pf._SENTINEL_NAME).exists()
 
 
+@pytest.mark.parametrize(
+    ("platform_group", "lib_group", "expected"),
+    [
+        (
+            [("toolchain-x@1", _FakeSpec(name="toolchain-x"))],
+            [],
+            ["configure", "install", "configure"],
+        ),
+        ([], [("noise-c@1.0", _FakeSpec(name="noise-c"))], ["configure", "install"]),
+    ],
+)
+def test_prefetch_reconfigures_only_after_platform_installs(
+    tmp_path: Path, platform_group: list, lib_group: list, expected: list[str]
+) -> None:
+    """Installed platform packages get a second configure pass; libraries do not."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    order: list[str] = []
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    fake_platform.configure_project_packages.side_effect = lambda env, targets: (
+        order.append("configure")
+    )
+    config = _fake_config(
+        tmp_path, {"platform": "fake/p@1", "lib_deps": ["esphome/noise-c@1.0"]}
+    )
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf,
+            "_registry_jobs",
+            side_effect=[([], 0, platform_group), ([], 0, lib_group)],
+        ),
+        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
+        patch.object(pf, "_preinstall", side_effect=lambda *_: order.append("install")),
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    assert order == expected
+
+
+@pytest.mark.parametrize(
+    "err", [RuntimeError("idf_tools.py failed"), SystemExit("postinstall exited")]
+)
+def test_prefetch_settle_failure_warns_and_continues(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture, err: BaseException
+) -> None:
+    """A failing second configure pass only costs the speedup."""
+    _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
+    fake_platform = MagicMock()
+    fake_platform.packages = {}
+    fake_platform.configure_project_packages.side_effect = [None, err]
+    config = _fake_config(tmp_path, {"platform": "fake/p@1"})
+    modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
+    with (
+        patch.dict("sys.modules", modules),
+        patch.object(
+            pf,
+            "_registry_jobs",
+            side_effect=[
+                ([], 0, [("toolchain-x@1", _FakeSpec(name="toolchain-x"))]),
+                ([], 0, []),
+            ],
+        ),
+        patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
+        patch.object(pf, "_preinstall"),
+    ):
+        pf._prefetch(tmp_path, "testenv")
+    assert f"Could not settle platform packages: {err}" in caplog.text
+
+
 def test_preinstall_extracts_in_parallel_under_one_lock(tmp_path: Path) -> None:
     """The manager lock wraps the whole batch; per-thread managers share
     its package dir; one failing install leaves the rest alone."""
@@ -1658,30 +1729,31 @@ def test_preinstall_unlocks_even_when_pool_fails(tmp_path: Path) -> None:
     m.unlock.assert_called_once_with()
 
 
-def test_prefetch_skips_duplicate_tool_scons(tmp_path: Path) -> None:
-    """A platform that lists tool-scons itself does not get it appended."""
+def test_prefetch_replaces_platform_tool_scons_with_core_spec(tmp_path: Path) -> None:
+    """A platform's own tool-scons spec gives way to the core's registry spec."""
     _write_ini(tmp_path, "[env:testenv]\nplatform = fake/p@1\n")
     fake_platform = MagicMock()
     fake_platform.packages = {"tool-scons": {"optional": False}}
     fake_platform.get_package_spec.side_effect = lambda name: _FakeSpec(
-        uri=None, name=name
+        uri="https://x/scons.zip", name=name, owner=None
     )
     config = _fake_config(tmp_path, {"platform": "fake/p@1"})
     modules = _pio_modules(tmp_path, fake_platform, MagicMock(), config)
-    batches: list[list[str]] = []
+    batches: list[list] = []
     with (
         patch.dict("sys.modules", modules),
         patch.object(
             pf,
             "_registry_jobs",
             side_effect=lambda mgr, specs, seen: (
-                batches.append([s.name for s in specs]) or ([], 0, [])
+                batches.append(list(specs)) or ([], 0, [])
             ),
         ),
         patch.object(pf, "_uri_jobs", return_value=([], 0, [])),
     ):
         pf._prefetch(tmp_path, "testenv")
-    assert batches[0] == ["tool-scons"]
+    (spec,) = batches[0]
+    assert (spec.name, spec.owner, spec.uri) == ("tool-scons", "platformio", None)
 
 
 def test_platformio_private_api_contract() -> None:
@@ -1714,6 +1786,8 @@ def test_platformio_private_api_contract() -> None:
         assert callable(getattr(BasePackageManager, name))
     # The dependency wave mirrors install_dependency's builtin skip
     assert callable(LibraryPackageManager.is_builtin_lib)
+    # The prefetch keys tool-scons on this core dependency
+    assert "tool-scons" in get_core_dependencies()
     # The pre-install passes these positionally / by keyword
     assert "compatibility" in inspect.signature(BasePackageManager.__init__).parameters
     lib_params = inspect.signature(LibraryPackageManager.__init__).parameters
