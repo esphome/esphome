@@ -1152,14 +1152,15 @@ class IDPassValidationStep(ConfigValidationStep):
                         id.id = filtered[0].id
                     elif len(filtered) == 0:
                         result.add_str_error(
-                            f"Couldn't find a '{id.type}' matching {criteria}.",
+                            f"Couldn't find a '{id.type}' matching {criteria}. "
+                            "Are you missing a hub declaration, or is the address wrong?",
                             path,
                         )
                     else:
                         ids = ", ".join(f"'{m.id}'" for m in filtered)
                         result.add_str_error(
                             f"Multiple '{id.type}' instances match {criteria}: {ids}. "
-                            "Each candidate must have a unique value for the given criteria.",
+                            "You must assign an explicit ID to the one you want to use.",
                             path,
                         )
                     continue

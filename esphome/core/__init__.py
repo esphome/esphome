@@ -437,6 +437,7 @@ class ID:
             is_declaration=self.is_declaration,
             type=self.type,
             is_manual=self.is_manual,
+            match_config=self.match_config,
         )
 
 
