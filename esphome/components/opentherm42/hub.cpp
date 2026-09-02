@@ -1,4 +1,5 @@
 #include "hub.h"
+#include <algorithm>
 #include "esphome/core/helpers.h"
 
 namespace esphome::opentherm42 {
@@ -80,18 +81,37 @@ void OpenTherm42Hub::build_schedule_() {
   if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION);
   }
+
+  if (this->ventilation_configuration_read_.any_configured() || this->member_id_code_ventilation_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::VENTILATION_CONFIGURATION);
+  }
+  if (this->solar_storage_configuration_system_type_binary_sensor_ != nullptr ||
+      this->solar_storage_member_id_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::SOLAR_STORAGE_CONFIGURATION);
+  }
+  if (this->opentherm_version_boiler_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::OPENTHERM_VERSION_BOILER);
+  }
+  if (this->boiler_product_type_sensor_ != nullptr || this->boiler_product_version_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::PRODUCT_VERSION_BOILER);
+  }
+  if (this->opentherm_version_ventilation_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::OPENTHERM_VERSION_VENTILATION);
+  }
+  if (this->ventilation_product_type_sensor_ != nullptr || this->ventilation_product_version_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::PRODUCT_VERSION_VENTILATION);
+  }
+  if (this->solar_storage_product_type_sensor_ != nullptr || this->solar_storage_product_version_sensor_ != nullptr) {
+    this->informational_requests_.push_back(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
+  }
 }
 
 Frame OpenTherm42Hub::build_next_request_() {
-  Frame frame{};
-
-  if (!this->boiler_config_read_) {
-    this->pending_request_kind_ = RequestKind::BOILER_CONFIG;
-    frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
-    frame.id = 3;
-    return frame;
+  if (this->startup_phase_ != StartupPhase::DONE) {
+    return this->build_startup_request_();
   }
 
+  Frame frame{};
   RequestKind kind;
   if (this->next_is_informational_ && !this->informational_requests_.empty()) {
     kind = this->informational_requests_[this->informational_index_];
@@ -159,10 +179,105 @@ Frame OpenTherm42Hub::build_next_request_() {
       frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
       frame.id = 73;
       break;
-    case RequestKind::BOILER_CONFIG:
-      break;  // handled above, unreachable here
+    default:
+      break;  // every startup-only kind is handled by build_startup_request_(), unreachable here
   }
   return frame;
+}
+
+Frame OpenTherm42Hub::build_startup_request_() {
+  Frame frame{};
+  switch (this->startup_phase_) {
+    case StartupPhase::BOILER_CONFIG:
+      this->pending_request_kind_ = RequestKind::BOILER_CONFIG;
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 3;
+      return frame;
+    case StartupPhase::MASTER_CONFIG:
+      this->pending_request_kind_ = RequestKind::MASTER_CONFIG;
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 2;
+      frame.value_hb = 0;  // bit 0 Smart Power: not implemented -- see §3.4, out of scope for this component
+      frame.value_lb = this->controller_member_id_code_;
+      return frame;
+    case StartupPhase::MASTER_OPENTHERM_VERSION:
+      this->pending_request_kind_ = RequestKind::MASTER_OPENTHERM_VERSION;
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 124;
+      frame.set_value_f88(this->controller_opentherm_version_);
+      return frame;
+    case StartupPhase::MASTER_PRODUCT_VERSION:
+      this->pending_request_kind_ = RequestKind::MASTER_PRODUCT_VERSION;
+      frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+      frame.id = 126;
+      frame.value_hb = this->controller_product_type_;
+      frame.value_lb = this->controller_product_version_;
+      return frame;
+    case StartupPhase::BRAND:
+      this->pending_request_kind_ = RequestKind::BRAND;
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 93;
+      frame.value_hb = this->brand_.next_index;
+      return frame;
+    case StartupPhase::BRAND_VERSION:
+      this->pending_request_kind_ = RequestKind::BRAND_VERSION;
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 94;
+      frame.value_hb = this->brand_version_.next_index;
+      return frame;
+    case StartupPhase::BRAND_SERIAL_NUMBER:
+      this->pending_request_kind_ = RequestKind::BRAND_SERIAL_NUMBER;
+      frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      frame.id = 95;
+      frame.value_hb = this->brand_serial_number_.next_index;
+      return frame;
+    case StartupPhase::DONE:
+      break;  // guarded by the caller, unreachable here
+  }
+  return frame;
+}
+
+bool OpenTherm42Hub::startup_phase_actionable_(StartupPhase phase) const {
+  switch (phase) {
+    case StartupPhase::BRAND:
+      return this->brand_.sensor != nullptr;
+    case StartupPhase::BRAND_VERSION:
+      return this->brand_version_.sensor != nullptr;
+    case StartupPhase::BRAND_SERIAL_NUMBER:
+      return this->brand_serial_number_.sensor != nullptr;
+    default:
+      return true;
+  }
+}
+
+void OpenTherm42Hub::advance_startup_phase_() {
+  do {
+    switch (this->startup_phase_) {
+      case StartupPhase::BOILER_CONFIG:
+        this->startup_phase_ = StartupPhase::MASTER_CONFIG;
+        break;
+      case StartupPhase::MASTER_CONFIG:
+        this->startup_phase_ = StartupPhase::MASTER_OPENTHERM_VERSION;
+        break;
+      case StartupPhase::MASTER_OPENTHERM_VERSION:
+        this->startup_phase_ = StartupPhase::MASTER_PRODUCT_VERSION;
+        break;
+      case StartupPhase::MASTER_PRODUCT_VERSION:
+        this->startup_phase_ = StartupPhase::BRAND;
+        break;
+      case StartupPhase::BRAND:
+        this->startup_phase_ = StartupPhase::BRAND_VERSION;
+        break;
+      case StartupPhase::BRAND_VERSION:
+        this->startup_phase_ = StartupPhase::BRAND_SERIAL_NUMBER;
+        break;
+      case StartupPhase::BRAND_SERIAL_NUMBER:
+        this->startup_phase_ = StartupPhase::DONE;
+        break;
+      case StartupPhase::DONE:
+        return;
+    }
+  } while (!this->startup_phase_actionable_(this->startup_phase_));
 }
 
 void OpenTherm42Hub::handle_response_(const Frame &frame) {
@@ -171,11 +286,15 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::BOILER_CONFIG:
       if (type != MessageType::READ_ACK) {
         ESP_LOGW(TAG, "Boiler configuration flags (id=3) read was rejected (message type %u)", frame.type);
-        return;
+        return;  // keep retrying -- see build_startup_request_()/StartupPhase
       }
       this->boiler_config_flags_ = frame.value_hb;
       this->boiler_member_id_code_ = frame.value_lb;
-      this->boiler_config_read_ = true;
+      this->boiler_configuration_read_.publish(frame.value_hb);
+      if (this->boiler_member_id_code_sensor_ != nullptr) {
+        this->boiler_member_id_code_sensor_->publish_state(frame.value_lb);
+      }
+      this->advance_startup_phase_();
       return;
 
     case RequestKind::STATUS:
@@ -298,16 +417,203 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
         this->oem_diagnostic_code_ventilation_sensor_->publish_state(frame.value_u16());
       }
       return;
+
+    case RequestKind::MASTER_CONFIG:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Master configuration (id=2) write was rejected (message type %u)", frame.type);
+      }
+      this->advance_startup_phase_();
+      return;
+
+    case RequestKind::MASTER_OPENTHERM_VERSION:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "OpenTherm version Master (id=124) write was rejected (message type %u)", frame.type);
+      }
+      this->advance_startup_phase_();
+      return;
+
+    case RequestKind::MASTER_PRODUCT_VERSION:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Master product version number and type (id=126) write was rejected (message type %u)",
+                 frame.type);
+      }
+      this->advance_startup_phase_();
+      return;
+
+    case RequestKind::VENTILATION_CONFIGURATION:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Configuration ventilation/heat-recovery (id=74) read was rejected (message type %u)",
+                 frame.type);
+        this->invalidate_response_(RequestKind::VENTILATION_CONFIGURATION);
+        return;
+      }
+      this->ventilation_configuration_read_.publish(frame.value_hb);
+      if (this->member_id_code_ventilation_sensor_ != nullptr) {
+        this->member_id_code_ventilation_sensor_->publish_state(frame.value_lb);
+      }
+      return;
+
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Solar Storage configuration (id=103) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::SOLAR_STORAGE_CONFIGURATION);
+        return;
+      }
+      if (this->solar_storage_configuration_system_type_binary_sensor_ != nullptr) {
+        this->solar_storage_configuration_system_type_binary_sensor_->publish_state(frame.value_hb & 0x1);
+      }
+      if (this->solar_storage_member_id_sensor_ != nullptr) {
+        this->solar_storage_member_id_sensor_->publish_state(frame.value_lb);
+      }
+      return;
+
+    case RequestKind::OPENTHERM_VERSION_BOILER:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "OpenTherm version Boiler (id=125) read was rejected (message type %u)", frame.type);
+        this->invalidate_response_(RequestKind::OPENTHERM_VERSION_BOILER);
+        return;
+      }
+      if (this->opentherm_version_boiler_sensor_ != nullptr) {
+        this->opentherm_version_boiler_sensor_->publish_state(frame.value_f88());
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Boiler product version number and type (id=127) read was rejected (message type %u)",
+                 frame.type);
+        this->invalidate_response_(RequestKind::PRODUCT_VERSION_BOILER);
+        return;
+      }
+      if (this->boiler_product_type_sensor_ != nullptr) {
+        this->boiler_product_type_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->boiler_product_version_sensor_ != nullptr) {
+        this->boiler_product_version_sensor_->publish_state(frame.value_lb);
+      }
+      return;
+
+    case RequestKind::OPENTHERM_VERSION_VENTILATION:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "OpenTherm version ventilation/heat-recovery (id=75) read was rejected (message type %u)",
+                 frame.type);
+        this->invalidate_response_(RequestKind::OPENTHERM_VERSION_VENTILATION);
+        return;
+      }
+      if (this->opentherm_version_ventilation_sensor_ != nullptr) {
+        this->opentherm_version_ventilation_sensor_->publish_state(frame.value_f88());
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG,
+                 "Ventilation/heat-recovery product version number and type (id=76) read was rejected "
+                 "(message type %u)",
+                 frame.type);
+        this->invalidate_response_(RequestKind::PRODUCT_VERSION_VENTILATION);
+        return;
+      }
+      if (this->ventilation_product_type_sensor_ != nullptr) {
+        this->ventilation_product_type_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->ventilation_product_version_sensor_ != nullptr) {
+        this->ventilation_product_version_sensor_->publish_state(frame.value_lb);
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "Solar Storage product version number and type (id=104) read was rejected (message type %u)",
+                 frame.type);
+        this->invalidate_response_(RequestKind::PRODUCT_VERSION_SOLAR_STORAGE);
+        return;
+      }
+      if (this->solar_storage_product_type_sensor_ != nullptr) {
+        this->solar_storage_product_type_sensor_->publish_state(frame.value_hb);
+      }
+      if (this->solar_storage_product_version_sensor_ != nullptr) {
+        this->solar_storage_product_version_sensor_->publish_state(frame.value_lb);
+      }
+      return;
+
+    case RequestKind::BRAND:
+      this->handle_brand_response_(frame, this->brand_, "Brand (id=93)");
+      return;
+
+    case RequestKind::BRAND_VERSION:
+      this->handle_brand_response_(frame, this->brand_version_, "Brand version (id=94)");
+      return;
+
+    case RequestKind::BRAND_SERIAL_NUMBER:
+      this->handle_brand_response_(frame, this->brand_serial_number_, "Brand serial number (id=95)");
+      return;
+  }
+}
+
+void OpenTherm42Hub::handle_brand_response_(const Frame &frame, BrandRead &brand, const char *log_name) {
+  if (brand.sensor == nullptr) {
+    return;  // only scheduled when configured; defensive in case that invariant is ever broken
+  }
+  auto const type = static_cast<MessageType>(frame.type);
+  if (type != MessageType::READ_ACK) {
+    ESP_LOGW(TAG, "%s read was rejected (message type %u)", log_name, frame.type);
+    brand.sensor->set_has_state(false);
+    this->advance_startup_phase_();
+    return;
+  }
+  // §5.3.2: the response's HB is the total character count (not an index) -- e.g. HB=0x06 means "6
+  // characters can be read" -- and LB is the character at the index this request's HB asked for.
+  uint8_t const total_len = std::min<uint8_t>(frame.value_hb, brand.buffer.size() - 1);
+  if (brand.next_index < total_len) {
+    brand.buffer[brand.next_index] = static_cast<char>(frame.value_lb);
+    brand.next_index++;
+  }
+  if (brand.next_index >= total_len) {
+    brand.buffer[brand.next_index] = '\0';
+    brand.sensor->publish_state(brand.buffer.data(), brand.next_index);
+    this->advance_startup_phase_();
   }
 }
 
 void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
   switch (kind) {
     case RequestKind::BOILER_CONFIG:
+      return;  // retried indefinitely on failure -- see StartupPhase, do not advance past it here
+
     case RequestKind::CONTROL_SETPOINT:
     case RequestKind::CONTROL_SETPOINT_2:
     case RequestKind::CONTROL_SETPOINT_VENTILATION:
-      return;  // write-only or startup-retry kinds have no read-only entity to invalidate
+      return;  // write-only kinds have no read-only entity to invalidate
+
+    case RequestKind::MASTER_CONFIG:
+    case RequestKind::MASTER_OPENTHERM_VERSION:
+    case RequestKind::MASTER_PRODUCT_VERSION:
+      // Write-only startup kinds, attempted once -- a raw datalink error (as opposed to a rejected
+      // ack, handled in handle_response_()) must still advance past them so startup can finish.
+      this->advance_startup_phase_();
+      return;
+
+    case RequestKind::BRAND:
+      if (this->brand_.sensor != nullptr) {
+        this->brand_.sensor->set_has_state(false);
+      }
+      this->advance_startup_phase_();
+      return;
+
+    case RequestKind::BRAND_VERSION:
+      if (this->brand_version_.sensor != nullptr) {
+        this->brand_version_.sensor->set_has_state(false);
+      }
+      this->advance_startup_phase_();
+      return;
+
+    case RequestKind::BRAND_SERIAL_NUMBER:
+      if (this->brand_serial_number_.sensor != nullptr) {
+        this->brand_serial_number_.sensor->set_has_state(false);
+      }
+      this->advance_startup_phase_();
+      return;
 
     case RequestKind::STATUS:
       this->boiler_status_read_.invalidate();
@@ -361,6 +667,61 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
     case RequestKind::OEM_DIAGNOSTIC_CODE_VENTILATION:
       if (this->oem_diagnostic_code_ventilation_sensor_ != nullptr) {
         this->oem_diagnostic_code_ventilation_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::VENTILATION_CONFIGURATION:
+      this->ventilation_configuration_read_.invalidate();
+      if (this->member_id_code_ventilation_sensor_ != nullptr) {
+        this->member_id_code_ventilation_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::SOLAR_STORAGE_CONFIGURATION:
+      if (this->solar_storage_configuration_system_type_binary_sensor_ != nullptr) {
+        this->solar_storage_configuration_system_type_binary_sensor_->set_has_state(false);
+      }
+      if (this->solar_storage_member_id_sensor_ != nullptr) {
+        this->solar_storage_member_id_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::OPENTHERM_VERSION_BOILER:
+      if (this->opentherm_version_boiler_sensor_ != nullptr) {
+        this->opentherm_version_boiler_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_BOILER:
+      if (this->boiler_product_type_sensor_ != nullptr) {
+        this->boiler_product_type_sensor_->set_has_state(false);
+      }
+      if (this->boiler_product_version_sensor_ != nullptr) {
+        this->boiler_product_version_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::OPENTHERM_VERSION_VENTILATION:
+      if (this->opentherm_version_ventilation_sensor_ != nullptr) {
+        this->opentherm_version_ventilation_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_VENTILATION:
+      if (this->ventilation_product_type_sensor_ != nullptr) {
+        this->ventilation_product_type_sensor_->set_has_state(false);
+      }
+      if (this->ventilation_product_version_sensor_ != nullptr) {
+        this->ventilation_product_version_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::PRODUCT_VERSION_SOLAR_STORAGE:
+      if (this->solar_storage_product_type_sensor_ != nullptr) {
+        this->solar_storage_product_type_sensor_->set_has_state(false);
+      }
+      if (this->solar_storage_product_version_sensor_ != nullptr) {
+        this->solar_storage_product_version_sensor_->set_has_state(false);
       }
       return;
   }

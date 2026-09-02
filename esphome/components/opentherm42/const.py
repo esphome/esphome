@@ -137,3 +137,78 @@ CONF_CONTROL_AND_STATUS_INFORMATION_OEM_DIAGNOSTIC_CODE = (
 CONF_CONTROL_AND_STATUS_INFORMATION_OEM_DIAGNOSTIC_CODE_VENTILATION_HEAT_RECOVERY = (
     "control_and_status_information_oem_diagnostic_code_ventilation_heat_recovery"
 )
+
+# §5.3.2 Class 2, ID 3 HB: Boiler configuration -- what the boiler reports it supports.
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_DHW_PRESENT = (
+    "configuration_information_boiler_configuration_dhw_present"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CONTROL_TYPE = (
+    "configuration_information_boiler_configuration_control_type"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_COOLING_CONFIG = (
+    "configuration_information_boiler_configuration_cooling_config"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_DHW_CONFIG = (
+    "configuration_information_boiler_configuration_dhw_config"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_MASTER_LOW_OFF_AND_PUMP_CONTROL_FUNCTION = "configuration_information_boiler_configuration_master_low_off_and_pump_control_function"
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_CH2_PRESENT = (
+    "configuration_information_boiler_configuration_ch2_present"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_REMOTE_WATER_FILLING_FUNCTION = (
+    "configuration_information_boiler_configuration_remote_water_filling_function"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_CONFIGURATION_HEAT_COOL_MODE_CONTROL = (
+    "configuration_information_boiler_configuration_heat_cool_mode_control"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_MEMBER_ID_CODE = (
+    "configuration_information_boiler_member_id_code"
+)
+
+# §5.3.2 Class 2, ID 74: Configuration ventilation/heat-recovery.
+CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SYSTEM_TYPE = (
+    "configuration_information_configuration_ventilation_heat_recovery_system_type"
+)
+CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_BYPASS = (
+    "configuration_information_configuration_ventilation_heat_recovery_bypass"
+)
+CONF_CONFIGURATION_INFORMATION_CONFIGURATION_VENTILATION_HEAT_RECOVERY_SPEED_CONTROL = (
+    "configuration_information_configuration_ventilation_heat_recovery_speed_control"
+)
+CONF_CONFIGURATION_INFORMATION_MEMBER_ID_CODE_VENTILATION_HEAT_RECOVERY = (
+    "configuration_information_member_id_code_ventilation_heat_recovery"
+)
+
+# §5.3.2 Class 2, ID 103 HB bit 0: Solar Storage configuration: system type.
+CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_CONFIGURATION_SYSTEM_TYPE = (
+    "configuration_information_solar_storage_configuration_system_type"
+)
+CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_MEMBER_ID = (
+    "configuration_information_solar_storage_member_id"
+)
+
+# §5.3.2 Class 2, IDs 125/75: OpenTherm protocol version implemented by the boiler / ventilation unit.
+CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_BOILER = (
+    "configuration_information_opentherm_version_boiler"
+)
+CONF_CONFIGURATION_INFORMATION_OPENTHERM_VERSION_VENTILATION_HEAT_RECOVERY = (
+    "configuration_information_opentherm_version_ventilation_heat_recovery"
+)
+
+# §5.3.2 Class 2, IDs 127/76/104: product type/version reported by the boiler / ventilation unit /
+# solar storage unit.
+CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE = (
+    "configuration_information_boiler_product_version_number_and_type_product_type"
+)
+CONF_CONFIGURATION_INFORMATION_BOILER_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION = "configuration_information_boiler_product_version_number_and_type_product_version"
+CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE = "configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_type"
+CONF_CONFIGURATION_INFORMATION_VENTILATION_HEAT_RECOVERY_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION = "configuration_information_ventilation_heat_recovery_product_version_number_and_type_product_version"
+CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_TYPE = "configuration_information_solar_storage_product_version_number_and_type_product_type"
+CONF_CONFIGURATION_INFORMATION_SOLAR_STORAGE_PRODUCT_VERSION_NUMBER_AND_TYPE_PRODUCT_VERSION = "configuration_information_solar_storage_product_version_number_and_type_product_version"
+
+# §5.3.2 Class 2, IDs 93/94/95: brand identification strings, read one character at a time.
+CONF_CONFIGURATION_INFORMATION_BRAND = "configuration_information_brand"
+CONF_CONFIGURATION_INFORMATION_BRAND_VERSION = "configuration_information_brand_version"
+CONF_CONFIGURATION_INFORMATION_BRAND_SERIAL_NUMBER = (
+    "configuration_information_brand_serial_number"
+)
