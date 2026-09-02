@@ -285,6 +285,7 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
 bool APIServer::add_client_(APIConnection *conn) {
   if (this->at_client_limit_()) {
     // Callers check first; enforce the array bound where the write happens
+    ESP_LOGW(TAG, "Max connections (%d), dropping client", MAX_API_CONNECTIONS);
     delete conn;
     return false;
   }

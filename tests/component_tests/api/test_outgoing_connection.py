@@ -51,6 +51,18 @@ def test_outgoing_connection_defaults(
     assert outgoing["delay"].total_milliseconds == 60000
 
 
+def test_outgoing_connection_bare_block(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A bare outgoing_connection: block is valid; the device dials the
+    remembered last dial-back client."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    config = CONFIG_SCHEMA(_api_config(None))
+    outgoing = config["outgoing_connection"]
+    assert "host" not in outgoing
+    assert outgoing["port"] == 6054
+
+
 def test_outgoing_connection_requires_encryption(
     set_core_config: SetCoreConfigCallable,
 ) -> None:

@@ -314,13 +314,21 @@ def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
     return config
 
 
-OUTGOING_CONNECTION_SCHEMA = cv.Schema(
+_OUTGOING_CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_HOST): cv.ipaddress,
         cv.Optional(CONF_PORT, default=6054): cv.port,
         cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
     }
 )
+
+
+def _outgoing_connection_schema(config: ConfigType | None) -> ConfigType:
+    # A bare `outgoing_connection:` block is valid; without a host the device
+    # dials the remembered last dial-back client
+    if config is None:
+        config = {}
+    return _OUTGOING_CONNECTION_SCHEMA(config)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -347,7 +355,7 @@ CONFIG_SCHEMA = cv.All(
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
             cv.Optional(CONF_ENCRYPTION): encryption_schema,
-            cv.Optional(CONF_OUTGOING_CONNECTION): OUTGOING_CONNECTION_SCHEMA,
+            cv.Optional(CONF_OUTGOING_CONNECTION): _outgoing_connection_schema,
             cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
