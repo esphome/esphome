@@ -161,3 +161,61 @@ def test_repeated_character_is_rejected(
 def test_key_given_as_a_number_is_accepted(keypad: None) -> None:
     """'key: 5' is a reasonable way to name the key labelled 5."""
     assert _validated(_sensor(key=5))[CONF_KEY_CODE] == 12
+
+
+#  The schema checks that come before the keypad is consulted: a key is named
+#  one way, and a character names one key.
+def _schema(**selector: object) -> ConfigType:
+    return CONFIG_SCHEMA(_sensor(**selector))
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        {CONF_ROW: 0, CONF_COL: 0},
+        {CONF_KEY: "5"},
+        {CONF_KEY: 5},
+        {CONF_KEY_CODE: 12},
+    ],
+)
+def test_one_way_of_naming_a_key_is_accepted(selector: ConfigType) -> None:
+    _schema(**selector)
+
+
+@pytest.mark.parametrize(
+    "selector",
+    [
+        {CONF_ROW: 0, CONF_COL: 0, CONF_KEY: "5"},
+        {CONF_ROW: 0, CONF_COL: 0, CONF_KEY_CODE: 12},
+        {CONF_KEY: "5", CONF_KEY_CODE: 12},
+    ],
+)
+def test_naming_a_key_two_ways_is_rejected(selector: ConfigType) -> None:
+    with pytest.raises(cv.Invalid, match="Use only one of"):
+        _schema(**selector)
+
+
+def test_a_key_must_be_named_somehow() -> None:
+    with pytest.raises(cv.Invalid, match="Identify the key"):
+        _schema()
+
+
+@pytest.mark.parametrize(
+    ("missing", "given"), [(CONF_COL, CONF_ROW), (CONF_ROW, CONF_COL)]
+)
+def test_half_a_position_is_rejected(missing: str, given: str) -> None:
+    with pytest.raises(cv.Invalid, match=f"Missing '{missing}'"):
+        _schema(**{given: 0})
+
+
+@pytest.mark.parametrize("key", ["ab", "", "é"])
+def test_a_key_names_one_ascii_character(key: str) -> None:
+    with pytest.raises(cv.Invalid, match="single ASCII character"):
+        _schema(key=key)
+
+
+@pytest.mark.parametrize("key_code", [0, 81, 96, 115])
+def test_key_numbers_the_device_does_not_use_are_rejected(key_code: int) -> None:
+    """81 to 96 are not used, and the numbering stops at 114."""
+    with pytest.raises(cv.Invalid, match="Key numbers run from"):
+        _schema(key_code=key_code)

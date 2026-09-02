@@ -14,7 +14,7 @@ from .. import (
     MATRIX_COLUMNS,
     MATRIX_KEY_MAX,
     TCA8418Component,
-    request_listener_slot,
+    register_listener,
     tca8418_ns,
 )
 
@@ -158,7 +158,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    request_listener_slot()
     var = await binary_sensor.new_binary_sensor(config, config[CONF_KEY_CODE])
     keypad = await cg.get_variable(config[CONF_KEYPAD_ID])
-    cg.add(keypad.register_listener(var))
+    await register_listener(keypad, var)

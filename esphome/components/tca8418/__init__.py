@@ -17,7 +17,19 @@ MULTI_CONF = True
 
 #  The firmware keeps its listeners in a fixed size list, so the number of them
 #  is counted here and emitted as a define once every platform has run.
-request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
+_request_listener_slot = cg.slot_counter("TCA8418_LISTENER_COUNT")
+
+
+async def register_listener(keypad: cg.MockObj, var: cg.MockObj) -> None:
+    """Register a listener with its keypad, and count it for the list's size.
+
+    Both together, so a platform cannot do one and forget the other: counting
+    without registering sizes the list too large, and registering without
+    counting sizes it too small, which silently drops the listener.
+    """
+    _request_listener_slot()
+    cg.add(keypad.register_listener(var))
+
 
 CONF_GPI_EVENTS = "gpi_events"
 CONF_KEYPAD_ID = "keypad_id"

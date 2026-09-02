@@ -6,12 +6,12 @@ namespace esphome::tca8418 {
 
 static const char *const TAG = "tca8418";
 
-//  The shortest gap between asking the device whether it has events. The main
-//  loop runs more often than this, so it does bound how much of the bus a keypad
-//  without an interrupt pin takes up. Nothing is missed by waiting: the device
-//  queues ten events, and no one can press ten keys inside the interval. With an
-//  interrupt pin the loop is stopped while the device has nothing to say, so a
-//  first press is still picked up on the next pass.
+//  The shortest gap between asking the device whether it has events, which bounds
+//  how much of the bus a keypad without an interrupt pin takes up. It applies to
+//  a pass woken by the interrupt too, so a press arriving within the interval of
+//  the last one waits for it; nothing is lost by that, since the device queues
+//  ten events and no one presses ten keys this quickly. A press after any idle
+//  period is read straight away, because the gap has long since passed.
 static constexpr uint32_t POLL_INTERVAL_MS = 50;
 
 void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg->enable_loop_soon_any_context(); }
