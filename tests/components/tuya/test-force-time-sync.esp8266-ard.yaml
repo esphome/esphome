@@ -1,0 +1,16 @@
+substitutions:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
+  status_pin: GPIO15
+
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+  common: !include common.yaml
+
+time:
+  - platform: sntp
+    id: tuya_time
+
+tuya:
+  time_id: tuya_time
+  force_time_sync: true

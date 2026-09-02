@@ -19,11 +19,18 @@ static const char *const TAG = "tuya";
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
+static constexpr uint32_t FORCE_TIME_SYNC_CHECK_INTERVAL = 1000;
 // Max bytes to log for datapoint values (larger values are truncated)
 static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
 
 void Tuya::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
+#ifdef USE_TIME
+  if (this->time_id_ != nullptr && this->force_time_sync_) {
+    this->register_local_time_sync_callback_();
+    this->set_interval("force_time_sync", FORCE_TIME_SYNC_CHECK_INTERVAL, [this] { this->check_force_time_sync_(); });
+  }
+#endif
   if (this->status_pin_ != nullptr) {
     this->status_pin_->digital_write(false);
   }
@@ -84,6 +91,9 @@ void Tuya::dump_config() {
   }
   LOG_PIN("  Status Pin: ", this->status_pin_);
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
+#ifdef USE_TIME
+  ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
+#endif
 }
 
 bool Tuya::validate_message_() {
@@ -291,12 +301,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #ifdef USE_TIME
       if (this->time_id_ != nullptr) {
         this->send_local_time_();
-
-        if (!this->time_sync_callback_registered_) {
-          // tuya mcu supports time, so we let them know when our time changed
-          this->time_id_->add_on_time_sync_callback([this] { this->send_local_time_(); });
-          this->time_sync_callback_registered_ = true;
-        }
+        this->register_local_time_sync_callback_();
       } else
 #endif
       {
@@ -601,6 +606,32 @@ void Tuya::send_wifi_status_() {
 }
 
 #ifdef USE_TIME
+void Tuya::register_local_time_sync_callback_() {
+  if (this->time_sync_callback_registered_) {
+    return;
+  }
+  this->time_id_->add_on_time_sync_callback([this] { this->send_local_time_(); });
+  this->time_sync_callback_registered_ = true;
+}
+
+void Tuya::check_force_time_sync_() {
+  ESPTime now = this->time_id_->now();
+  if (!now.is_valid()) {
+    return;
+  }
+
+  if (this->last_force_time_sync_minute_ == 0xFF) {
+    this->last_force_time_sync_minute_ = now.minute;
+    return;
+  }
+  if (now.minute == this->last_force_time_sync_minute_) {
+    return;
+  }
+
+  this->last_force_time_sync_minute_ = now.minute;
+  this->send_local_time_();
+}
+
 void Tuya::send_local_time_() {
   std::vector<uint8_t> payload;
   ESPTime now = this->time_id_->now();
