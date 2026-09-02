@@ -14,7 +14,7 @@ esptool==5.3.1
 click==8.3.3
 aioesphomeapi==46.3.0
 aiohappyeyeballs==2.7.1  # Happy Eyeballs for requests downloads; already pulled in by aioesphomeapi
-zeroconf==0.150.4
+zeroconf==0.151.2
 puremagic==2.2.0
 ruamel.yaml==0.19.1 # dashboard_import
 ruamel.yaml.clib==0.2.15 # dashboard_import
