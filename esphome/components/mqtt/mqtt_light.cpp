@@ -67,6 +67,9 @@ void MQTTJSONLightComponent::send_discovery(JsonObject root, mqtt::SendDiscovery
   if (traits.supports_color_mode(ColorMode::RGB_COLD_WARM_WHITE))
     color_modes.add(ESPHOME_F("rgbww"));
 
+  if (traits.supports_color_capability(ColorCapability::BRIGHTNESS))
+    root[ESPHOME_F("brightness")] = true;
+
   if (traits.supports_color_mode(ColorMode::COLOR_TEMPERATURE) ||
       traits.supports_color_mode(ColorMode::COLD_WARM_WHITE)) {
     root[MQTT_MIN_MIREDS] = traits.get_min_mireds();
