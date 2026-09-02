@@ -880,16 +880,16 @@ def _prefetch(build_dir: Path, env: str) -> None:
         for name, opts in p.packages.items()
         if not opts.get("optional")
     ]
-    # PIO's build engine installs outside the platform package list;
-    # skipped when the platform lists it itself
-    if not any(s.name == "tool-scons" for s in specs):
-        specs.append(
-            PackageSpec(
-                owner="platformio",
-                name="tool-scons",
-                requirements=get_core_dependencies()["tool-scons"],
-            )
+    # PIO's build engine installs tool-scons by its own registry spec at build
+    # start; a platform URL copy has no owner to match it, so prefetch that spec
+    specs = [s for s in specs if s.name != "tool-scons"]
+    specs.append(
+        PackageSpec(
+            owner="platformio",
+            name="tool-scons",
+            requirements=get_core_dependencies()["tool-scons"],
         )
+    )
     lib_deps = config.get(f"env:{env}", "lib_deps", [])
     # pio run's storage dir for this env, with its compatibility
     # qualifiers: an unqualified library install could land a different
