@@ -81,6 +81,7 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   bool gpi_events_{true};
   StringRef keys_;
   InternalGPIOPin *interrupt_pin_{nullptr};
+  uint32_t last_poll_{0};
 
 #ifdef TCA8418_LISTENER_COUNT
   StaticVector<TCA8418Listener *, TCA8418_LISTENER_COUNT> listeners_;

@@ -1,9 +1,18 @@
 #include "tca8418.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::tca8418 {
 
 static const char *const TAG = "tca8418";
+
+//  The shortest gap between asking the device whether it has events. The main
+//  loop runs more often than this, so it does bound how much of the bus a keypad
+//  without an interrupt pin takes up. Nothing is missed by waiting: the device
+//  queues ten events, and no one can press ten keys inside the interval. With an
+//  interrupt pin the loop is stopped while the device has nothing to say, so a
+//  first press is still picked up on the next pass.
+static constexpr uint32_t POLL_INTERVAL_MS = 50;
 
 void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg->enable_loop_soon_any_context(); }
 
@@ -87,9 +96,12 @@ bool TCA8418Component::configure_pins_() {
 
 void TCA8418Component::loop() {
   //  One path for both ways of noticing events: ask the device how many it has
-  //  queued, which is a single read. How often that happens is left to the main
-  //  loop, and with an interrupt pin the loop is stopped while the device has
-  //  nothing to say, so nothing is asked at all.
+  //  queued, which is a single read.
+  const uint32_t now = App.get_loop_component_start_time();
+  if (now - this->last_poll_ < POLL_INTERVAL_MS)
+    return;
+  this->last_poll_ = now;
+
   uint8_t count;
   if (!this->read_byte(TCA8418_REG_KEY_LCK_EC, &count)) {
     this->status_set_warning();
