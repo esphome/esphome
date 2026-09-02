@@ -295,11 +295,17 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 
 
 def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
-    # The socket-layer constraint (raw lwip_tcp cannot dial out, the default
-    # on esp8266/rp2040) is checked against the resolved implementation in
-    # _validate_outgoing_socket_implementation at final validate
     if CONF_OUTGOING_CONNECTION not in config:
         return config
+    # Platform default check here for a friendly early error; an explicit
+    # lwip_tcp selection on other platforms is caught against the resolved
+    # implementation in _validate_outgoing_socket_implementation
+    if CORE.is_esp8266 or CORE.is_rp2:
+        raise cv.Invalid(
+            "outgoing_connection is not supported on this platform because its "
+            "socket layer cannot make outgoing connections",
+            path=[CONF_OUTGOING_CONNECTION],
+        )
     if CONF_ENCRYPTION not in config:
         raise cv.Invalid(
             "outgoing_connection requires 'encryption' so the peer is verified by key",
@@ -472,7 +478,7 @@ def _validate_outgoing_socket_implementation(config: ConfigType) -> ConfigType:
 
 
 def _validate_outgoing_host_ipv6(config: ConfigType) -> ConfigType:
-    """An IPv6 host silently dials 255.255.255.255 on a build without IPv6."""
+    """An IPv6 host can never be parsed, so never dialed, without IPv6."""
     if (
         (outgoing := config.get(CONF_OUTGOING_CONNECTION)) is None
         or (host := outgoing.get(CONF_HOST)) is None

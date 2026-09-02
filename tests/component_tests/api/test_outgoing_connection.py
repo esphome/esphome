@@ -67,20 +67,15 @@ def test_outgoing_connection_rejected_on_raw_lwip_platforms(
     set_core_config: SetCoreConfigCallable,
     platform_framework: PlatformFramework,
 ) -> None:
-    """esp8266 and rp2040 default to lwip_tcp and are rejected at final validate."""
-    set_core_config(
-        platform_framework,
-        full_config={"socket": {"implementation": "lwip_tcp"}},
-    )
-    config = CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
-    with pytest.raises(cv.Invalid, match="lwip_tcp"):
-        _validate_outgoing_socket_implementation(config)
+    set_core_config(platform_framework)
+    with pytest.raises(cv.Invalid, match="not supported on this platform"):
+        CONFIG_SCHEMA(_api_config({"host": "192.168.1.2"}))
 
 
-def test_outgoing_connection_rejects_lwip_tcp_socket(
+def test_outgoing_connection_rejects_lwip_tcp_selected_on_esp32(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    """An explicit lwip_tcp socket selection is rejected at final validate."""
+    """An explicit lwip_tcp selection is caught at final validate."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data=ESP32_PLATFORM_DATA,
