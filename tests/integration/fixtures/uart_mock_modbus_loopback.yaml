@@ -17,9 +17,8 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Shared loopback fixture for the custom_pdu, register_offset, lambda_write,
-# lambda_invert and deprecated_write_buffer tests; register spaces are disjoint
-# so each test only observes its own entities.
+# Shared loopback fixture (see the shared_yaml markers in the test file);
+# register spaces are disjoint so each test only observes its own entities.
 uart_mock:
   - id: virtual_uart_server
     baud_rate: 9600
@@ -101,7 +100,6 @@ modbus_server:
       - address: 0x13
         value_type: U_WORD
         read_lambda: return id(reg13);
-        write_lambda: id(reg13) = x; return true;
       - address: 0x30
         value_type: U_WORD
         read_lambda: return id(reg30);
