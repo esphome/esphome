@@ -107,19 +107,19 @@ void ESP32BLE::advertising_start() {
 void ESP32BLE::advertising_stop() {
   if (this->advertising_ref_count_ == 0)
     return;
-  // Keep advertising while another component still needs it
-  if (--this->advertising_ref_count_ > 0)
-    return;
-  if (this->advertising_ == nullptr || !this->is_active())
-    return;
-  this->advertising_->stop();
+  this->advertising_ref_count_--;
+  this->advertising_refresh();
 }
 
 void ESP32BLE::advertising_refresh() {
-  if (this->advertising_ref_count_ == 0 || !this->is_active())
+  if (this->advertising_ == nullptr || !this->is_active())
     return;
-  this->advertising_init_();
-  this->advertising_->start();
+  // Advertise while any component still needs it, otherwise stop
+  if (this->advertising_ref_count_ == 0) {
+    this->advertising_->stop();
+  } else {
+    this->advertising_->start();
+  }
 }
 
 void ESP32BLE::advertising_set_service_data(const std::vector<uint8_t> &data) {

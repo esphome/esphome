@@ -123,7 +123,7 @@ class ESP32BLE final : public Component {
   void advertising_start();
   /// Release a request made with advertising_start(); advertising stops at the last release.
   void advertising_stop();
-  /// Re-apply the advertising payload, restarting advertising only if it is still requested.
+  /// Apply the current payload and request count: advertise while requested, otherwise stop.
   void advertising_refresh();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
