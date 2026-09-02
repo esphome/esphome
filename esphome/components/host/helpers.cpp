@@ -31,6 +31,8 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 
+InterruptLock::InterruptLock() {}
+InterruptLock::~InterruptLock() {}
 // Host platform uses std::mutex for proper thread synchronization
 Mutex::Mutex() { handle_ = new std::mutex(); }
 Mutex::~Mutex() { delete static_cast<std::mutex *>(handle_); }

@@ -21,3 +21,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_SDL_ID])
     await touchscreen.register_touchscreen(var, config)
+
+    # Notify SDL parent that touchscreen is configured
+    parent = await cg.get_variable(config[CONF_SDL_ID])
+    cg.add(parent.set_has_touchscreen(True))

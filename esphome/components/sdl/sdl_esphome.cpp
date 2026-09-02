@@ -1,5 +1,6 @@
 #ifdef USE_HOST
 #include "sdl_esphome.h"
+#include "sdl_encoder.h"
 #include "esphome/components/display/display_color_utils.h"
 
 namespace esphome::sdl {
@@ -37,6 +38,11 @@ void Sdl::setup() {
   this->texture_ =
       SDL_CreateTexture(this->renderer_, SDL_PIXELFORMAT_RGB565, SDL_TEXTUREACCESS_STATIC, this->width_, this->height_);
   SDL_SetTextureBlendMode(this->texture_, SDL_BLENDMODE_BLEND);
+
+  // Hide cursor if no touchscreen is configured (set during code generation)
+  if (!this->has_touchscreen_) {
+    SDL_ShowCursor(SDL_DISABLE);
+  }
 }
 void Sdl::update() {
   this->do_update_();
@@ -104,6 +110,12 @@ void Sdl::process_key(uint32_t keycode, bool down) {
     callback->second(down);
 }
 
+void Sdl::process_mouse_button(uint8_t button, bool down) {
+  auto callback = this->mouse_button_callbacks_.find(button);
+  if (callback != this->mouse_button_callbacks_.end())
+    callback->second(down);
+}
+
 void Sdl::loop() {
   SDL_Event e;
   if (SDL_PollEvent(&e)) {
@@ -118,6 +130,8 @@ void Sdl::loop() {
           this->mouse_y = e.button.y;
           this->mouse_down = e.button.state != 0;
         }
+        // Process mouse button for binary sensors and encoders
+        this->process_mouse_button(e.button.button, e.button.state != 0);
         break;
 
       case SDL_MOUSEMOTION:
@@ -127,6 +141,14 @@ void Sdl::loop() {
           this->mouse_down = true;
         } else {
           this->mouse_down = false;
+        }
+        break;
+
+      case SDL_MOUSEWHEEL:
+        // Handle mouse wheel events and notify encoders
+        ESP_LOGV(TAG, "Mouse wheel: x=%d, y=%d", e.wheel.x, e.wheel.y);
+        for (auto *encoder : this->encoders_) {
+          encoder->handle_wheel_event(e.wheel.y);
         }
         break;
 

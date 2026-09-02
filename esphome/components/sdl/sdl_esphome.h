@@ -8,8 +8,11 @@
 #define SDL_MAIN_HANDLED
 #include "SDL.h"
 #include <map>
+#include <vector>
 
 namespace esphome::sdl {
+
+class SdlEncoder;  // forward declaration
 
 constexpr static const char *const TAG = "sdl";
 
@@ -23,6 +26,7 @@ class Sdl final : public display::Display {
                       display::ColorBitness bitness, bool big_endian, int x_offset, int y_offset, int x_pad) override;
   void draw_pixel_at(int x, int y, Color color) override;
   void process_key(uint32_t keycode, bool down);
+  void process_mouse_button(uint8_t button, bool down);
   void set_dimensions(uint16_t width, uint16_t height) {
     this->width_ = width;
     this->height_ = height;
@@ -37,11 +41,15 @@ class Sdl final : public display::Display {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
   template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
-    if (!this->key_callbacks_.count(keycode)) {
-      this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
-    }
     this->key_callbacks_[keycode].add(std::forward<F>(callback));
   }
+
+  template<typename F> void add_mouse_button_listener(uint8_t button, F &&callback) {
+    this->mouse_button_callbacks_[button].add(std::forward<F>(callback));
+  }
+
+  void register_encoder(SdlEncoder *encoder) { this->encoders_.push_back(encoder); }
+  void set_has_touchscreen(bool has_touchscreen) { this->has_touchscreen_ = has_touchscreen; }
 
   int mouse_x{};
   int mouse_y{};
@@ -64,6 +72,9 @@ class Sdl final : public display::Display {
   uint16_t x_high_{0};
   uint16_t y_high_{0};
   std::map<int32_t, CallbackManager<void(bool)>> key_callbacks_{};
+  std::map<uint8_t, CallbackManager<void(bool)>> mouse_button_callbacks_{};
+  std::vector<SdlEncoder *> encoders_{};
+  bool has_touchscreen_{false};
 };
 }  // namespace esphome::sdl
 

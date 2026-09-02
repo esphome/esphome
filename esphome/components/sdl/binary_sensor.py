@@ -11,6 +11,8 @@ from .display import CONF_SDL_ID, Sdl
 
 CODEOWNERS = ["@bdm310"]
 
+CONF_MOUSE_BUTTON = "mouse_button"
+
 STATE_ARG = "state"
 
 SDL_KeyCode = cg.global_ns.enum("SDL_KeyCode")
@@ -264,15 +266,18 @@ SDL_KEYS = (
 
 SDL_KEYMAP = {key: getattr(SDL_KeyCode, key) for key in SDL_KEYS}
 
-CONFIG_SCHEMA = (
+
+CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(BinarySensor)
     .extend(
         {
-            cv.Required(CONF_KEY): cv.enum(SDL_KEYMAP),
+            cv.Exclusive(CONF_KEY, CONF_KEY): cv.enum(SDL_KEYMAP),
+            cv.Exclusive(CONF_MOUSE_BUTTON, CONF_KEY): cv.int_range(min=1, max=3),
             cv.GenerateID(CONF_SDL_ID): cv.use_id(Sdl),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    cv.has_at_least_one_key(CONF_KEY, CONF_MOUSE_BUTTON),
 )
 
 
@@ -283,4 +288,8 @@ async def to_code(config: ConfigType) -> None:
         str(ExpressionStatement(var.publish_state(RawExpression(STATE_ARG))))
     )
     listener = await cg.process_lambda(listener, [(cg.bool_, STATE_ARG)])
-    cg.add(parent.add_key_listener(config[CONF_KEY], listener))
+
+    if CONF_KEY in config:
+        cg.add(parent.add_key_listener(config[CONF_KEY], listener))
+    elif CONF_MOUSE_BUTTON in config:
+        cg.add(parent.add_mouse_button_listener(config[CONF_MOUSE_BUTTON], listener))
