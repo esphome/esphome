@@ -1,9 +1,9 @@
 #include "esp32_pm.h"
 #ifdef USE_ESP32
 #include "esphome/core/log.h"
-#ifdef CONFIG_OPENTHREAD_MTD
-#include "esphome/components/openthread/openthread.h"
-#endif
+
+#include "esp_private/esp_clk.h"
+#include "soc/rtc.h"
 
 namespace esphome::esp32_pm {
 
@@ -22,13 +22,12 @@ void ESP32PowerManagement::setup() {
     .light_sleep_enable = true
 #endif
   };
-  ESP_LOGI(TAG, "PM Max Freq: %dMHZ", pm_config.max_freq_mhz);
-  ESP_LOGI(TAG, "PM Min Freq: %dMHZ", pm_config.min_freq_mhz);
-  ESP_LOGI(TAG, "PM Light Sleep Enable: %s", pm_config.light_sleep_enable ? "true" : "false");
+  this->applied_max_freq_mhz_ = max_freq_mhz;
+  this->applied_min_freq_mhz_ = min_freq_mhz;
 
   rc = esp_pm_configure(&pm_config);
   if (rc != ESP_OK) {
-    ESP_LOGE(TAG, "Failed esp_pm_configure %d", rc);
+    ESP_LOGE(TAG, "Failed esp_pm_configure %s", esp_err_to_name(rc));
     this->mark_failed();
     return;
   }
@@ -43,6 +42,8 @@ void ESP32PowerManagement::setup() {
 
 void ESP32PowerManagement::dump_config() {
   ESP_LOGCONFIG(TAG, "Power Management:");
+  ESP_LOGCONFIG(TAG, "  Max Frequency: %dMHZ", this->applied_max_freq_mhz_);
+  ESP_LOGCONFIG(TAG, "  Min Frequency: %dMHZ", this->applied_min_freq_mhz_);
 #if CONFIG_FREERTOS_USE_TICKLESS_IDLE
   ESP_LOGCONFIG(TAG, "  Light Sleep Enabled");
 #if CONFIG_ESP_SLEEP_POWER_DOWN_FLASH
@@ -59,6 +60,9 @@ void ESP32PowerManagement::dump_config() {
 #endif
 #if CONFIG_PM_TRACE
   ESP_LOGCONFIG(TAG, "  PM Trace Enabled");
+#endif
+#if !CONFIG_LWIP_ND6
+  ESP_LOGCONFIG(TAG, "  IPv6 Neighbor Discovery Disabled (CONFIG_LWIP_ND6)");
 #endif
 #endif
 }

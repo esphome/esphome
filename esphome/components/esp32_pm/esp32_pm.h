@@ -4,11 +4,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/power_management/power_management.h"
-
-#include "esp_private/esp_clk.h"
+// need this header to be able to run esp_pm_dump_locks from yaml lambda
 #include "esp_pm.h"
-#include "soc/rtc.h"
-#include "esp_sleep.h"
 
 namespace esphome::esp32_pm {
 
@@ -23,6 +20,8 @@ class ESP32PowerManagement : public power_management::PowerManagementComponent {
  protected:
   uint32_t max_freq_mhz_{0};
   uint32_t min_freq_mhz_{0};
+  int applied_max_freq_mhz_{0};
+  int applied_min_freq_mhz_{0};
 };
 
 }  // namespace esphome::esp32_pm

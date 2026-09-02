@@ -1,10 +1,11 @@
 power_management:
   - platform: esp32_pm
     id: pm_id
-    max_frequency: 96MHZ
-    min_frequency: 32MHZ
+    max_frequency: ${max_frequency}
+    min_frequency: ${min_frequency}
     enable_light_sleep: true
     idle_time_before_sleep: 3
     power_down_flash: true
+    power_down_peripherals: ${power_down_peripherals}
     profiling: true
     trace: true

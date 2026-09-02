@@ -1,1 +1,6 @@
+substitutions:
+  max_frequency: 160MHZ
+  min_frequency: 40MHZ
+  power_down_peripherals: false
+
 <<: !include common.yaml

@@ -1,4 +1,6 @@
-power_management:
-  - platform: esp32_pm
-    enable_light_sleep: true
-    power_down_peripherals: true
+substitutions:
+  max_frequency: 96MHZ
+  min_frequency: 32MHZ
+  power_down_peripherals: true
+
+<<: !include common.yaml
