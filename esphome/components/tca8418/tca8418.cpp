@@ -1,17 +1,9 @@
 #include "tca8418.h"
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::tca8418 {
 
 static const char *const TAG = "tca8418";
-
-//  The shortest gap between asking the device whether it has events. It applies
-//  whether or not an interrupt pin is configured. A typical main loop is slower
-//  than this, so in normal use it does not hold anything up; it is a floor that
-//  keeps a fast loop, or a pin stuck asserted, from turning into I2C traffic on
-//  every pass.
-static constexpr uint32_t POLL_INTERVAL_MS = 10;
 
 void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg->enable_loop_soon_any_context(); }
 
@@ -94,15 +86,10 @@ bool TCA8418Component::configure_pins_() {
 }
 
 void TCA8418Component::loop() {
-  //  One path for both ways of noticing events. Asking the device how many it
-  //  has queued is a single read, and rate limiting it means a pin left
-  //  floating, or a device that has stopped answering, cannot turn into a
-  //  stream of I2C traffic on every pass of the main loop.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->last_poll_ < POLL_INTERVAL_MS)
-    return;
-  this->last_poll_ = now;
-
+  //  One path for both ways of noticing events: ask the device how many it has
+  //  queued, which is a single read. How often that happens is left to the main
+  //  loop, and with an interrupt pin the loop is stopped while the device has
+  //  nothing to say, so nothing is asked at all.
   uint8_t count;
   if (!this->read_byte(TCA8418_REG_KEY_LCK_EC, &count)) {
     this->status_set_warning();
