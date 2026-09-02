@@ -475,9 +475,8 @@ number:
     max_value: 16777215
     step: 0.01
 
-# The same four bits are read both as coils (FC 0x01) and as discrete inputs
-# (FC 0x02): the server serves both from one shared bit table, so the two
-# views must always agree.
+# The four bits are read both as coils (FC 0x01) and discrete inputs (FC 0x02);
+# the server serves both from one shared table, so the two views must agree.
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_6
