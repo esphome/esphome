@@ -177,14 +177,18 @@ water_heater::WaterHeaterMode TuyaWaterHeater::default_on_mode_() const {
 
 void TuyaWaterHeater::dump_config() {
   LOG_WATER_HEATER("", "Tuya Water Heater", this);
-  if (this->switch_id_.has_value())
+  if (this->switch_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
-  if (this->mode_id_.has_value())
+  }
+  if (this->mode_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Mode has datapoint ID %u", *this->mode_id_);
-  if (this->target_temperature_id_.has_value())
+  }
+  if (this->target_temperature_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *this->target_temperature_id_);
-  if (this->current_temperature_id_.has_value())
+  }
+  if (this->current_temperature_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *this->current_temperature_id_);
+  }
 }
 
 }  // namespace esphome::tuya
