@@ -4,7 +4,7 @@
 
 // The in-place streamer serves the proxy's service-discovery API; backend-only
 // builds compile without the proxy headers or the streamer.
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 #include "bluetooth_connection.h"
 #include "bluetooth_connection_hub.h"
 
@@ -20,7 +20,7 @@
 
 namespace esphome::bluetooth_connection {
 
-static const char *const TAG = "bluetooth_connection.bluedroid";
+static const char *const TAG = "bluetooth_connection";
 
 using ble_device_base::FAST_CONN_TIMEOUT;
 using ble_device_base::FAST_MAX_CONN_INTERVAL;
@@ -391,12 +391,14 @@ void BluedroidGattClient::deliver_pending_search_() {
   this->listener_->on_service_discovery_done(this->search_status_);
 }
 
-#ifdef USE_BLUETOOTH_PROXY
+#ifdef USE_BLUETOOTH_PROXY_CONNECTIONS
 // The wrapper's compile-time streamer detection must keep finding this
 // method; a signature drift would silently fall back to the table streamer,
 // which proxy builds compile without a materializer.
 static_assert(requires(BluedroidGattClient c, BluetoothConnection &conn) { c.stream_service_batch(conn); });
 
+// Bound by the SERVICE STREAMING HAZARD note at the top of
+// bluetooth_connection_hub.cpp: never skip a batch, never send done early.
 void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   if (this->services_released_) {
     // Released under the stream: park without services-done so a partial
@@ -527,11 +529,13 @@ void BluedroidGattClient::stream_service_batch(BluetoothConnection &conn) {
   // On a failed send, rewind the cursor so the batch is retried instead of
   // silently skipped.
   if (!api_conn->send_message(resp)) {
-    ESP_LOGW(TAG, "[%d] [%s] Failed to send service batch, retrying", conn.connection_index_, conn.address_str_);
+    conn.note_batch_stalled_();
     conn.send_service_ = batch_start;
+    return;
   }
+  conn.batch_stalled_ = false;
 }
-#endif  // USE_BLUETOOTH_PROXY
+#endif  // USE_BLUETOOTH_PROXY_CONNECTIONS
 
 // ---- events ----
 
