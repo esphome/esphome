@@ -1,9 +1,12 @@
 #include "tuya.h"
-#include "esphome/components/network/util.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+
+#ifdef USE_NETWORK
+#include "esphome/components/network/util.h"
+#endif
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
@@ -21,6 +24,14 @@ static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
 // Max bytes to log for datapoint values (larger values are truncated)
 static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
+
+static bool network_is_connected() {
+#ifdef USE_NETWORK
+  return network::is_connected();
+#else
+  return false;
+#endif
+}
 
 void Tuya::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
@@ -554,14 +565,14 @@ void Tuya::send_empty_command_(TuyaCommandType command) {
 }
 
 void Tuya::set_status_pin_() {
-  bool is_network_ready = network::is_connected() && remote_is_connected();
+  bool is_network_ready = network_is_connected() && remote_is_connected();
   this->status_pin_->digital_write(is_network_ready);
 }
 
 uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = 0x02;
 
-  if (network::is_connected()) {
+  if (network_is_connected()) {
     status = 0x03;
 
     // Protocol version 3 also supports specifying when connected to "the cloud"
