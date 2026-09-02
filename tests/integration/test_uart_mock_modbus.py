@@ -342,6 +342,7 @@ async def test_uart_mock_modbus_server_controller(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_mesh")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller_write(
     yaml_config: str,
@@ -357,30 +358,44 @@ async def test_uart_mock_modbus_server_controller_write(
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
+    # Initial column mirrors the shared mesh fixture's global initial values,
+    # which the server_controller test also reads.
     register_test_cases: dict[str, RegisterTestCase] = {
-        "reg_u_word": RegisterTestCase(11, "write_u_word", 42, 42),
+        "reg_u_word": RegisterTestCase(99, "write_u_word", 42, 42),
         "reg_u_word_s": RegisterTestCase(4660, "write_u_word_s", 17185, 17185),
-        "reg_s_word": RegisterTestCase(-11, "write_s_word", -42, -42),
+        "reg_s_word": RegisterTestCase(-99, "write_s_word", -42, -42),
         "reg_s_word_s": RegisterTestCase(-2, "write_s_word_s", -257, -257),
-        "reg_u_dword": RegisterTestCase(1001, "write_u_dword", 2002, 2002),
-        "reg_s_dword": RegisterTestCase(-1001, "write_s_dword", -2002, -2002),
-        "reg_u_dword_r": RegisterTestCase(3003, "write_u_dword_r", 4004, 4004),
-        "reg_s_dword_r": RegisterTestCase(-3003, "write_s_dword_r", -4004, -4004),
-        "reg_u_qword": RegisterTestCase(5005, "write_u_qword", 6006, 6006),
-        "reg_s_qword": RegisterTestCase(-5005, "write_s_qword", -6006, -6006),
-        "reg_u_qword_r": RegisterTestCase(7007, "write_u_qword_r", 8008, 8008),
-        "reg_s_qword_r": RegisterTestCase(-7007, "write_s_qword_r", -8008, -8008),
-        "reg_fp32": RegisterTestCase(
-            pytest.approx(1.5, abs=0.01),
-            "write_fp32",
-            3.14,
-            pytest.approx(3.14, abs=0.01),
+        "reg_u_dword": RegisterTestCase(16909060, "write_u_dword", 2002, 2002),
+        "reg_s_dword": RegisterTestCase(-16909060, "write_s_dword", -2002, -2002),
+        "reg_u_dword_r": RegisterTestCase(
+            pytest.approx(67305985), "write_u_dword_r", 4004, 4004
         ),
-        "reg_fp32_r": RegisterTestCase(
-            pytest.approx(2.5, abs=0.01),
-            "write_fp32_r",
+        "reg_s_dword_r": RegisterTestCase(
+            pytest.approx(-67305985), "write_s_dword_r", -4004, -4004
+        ),
+        "reg_u_qword": RegisterTestCase(
+            pytest.approx(72623859790382856), "write_u_qword", 6006, 6006
+        ),
+        "reg_s_qword": RegisterTestCase(
+            pytest.approx(-72623859790382856), "write_s_qword", -6006, -6006
+        ),
+        "reg_u_qword_r": RegisterTestCase(
+            pytest.approx(578437695752307201), "write_u_qword_r", 8008, 8008
+        ),
+        "reg_s_qword_r": RegisterTestCase(
+            pytest.approx(-578437695752307201), "write_s_qword_r", -8008, -8008
+        ),
+        "reg_fp32": RegisterTestCase(
+            pytest.approx(3.14, abs=0.01),
+            "write_fp32",
             6.28,
             pytest.approx(6.28, abs=0.01),
+        ),
+        "reg_fp32_r": RegisterTestCase(
+            pytest.approx(3.14, abs=0.01),
+            "write_fp32_r",
+            9.42,
+            pytest.approx(9.42, abs=0.01),
         ),
     }
 
@@ -423,6 +438,7 @@ async def test_uart_mock_modbus_server_controller_write(
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 
+@pytest.mark.shared_yaml("uart_mock_modbus_mesh")
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller_bits(
     yaml_config: str,
