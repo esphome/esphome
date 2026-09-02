@@ -100,13 +100,15 @@ void MultiClickTriggerBase::schedule_is_valid_(uint32_t min_length) {
   }
   this->is_valid_ = false;
   this->set_timeout(MULTICLICK_IS_VALID_ID, min_length, [this]() {
-    ESP_LOGV(TAG, "Multi Click: You can now %s the button.", this->parent_->state ? "RELEASE" : "PRESS");
+    ESP_LOGV(TAG, "Multi Click: You can now %s the button.",
+             this->parent_->state ? LOG_STR_LITERAL("RELEASE") : LOG_STR_LITERAL("PRESS"));
     this->is_valid_ = true;
   });
 }
 void MultiClickTriggerBase::schedule_is_not_valid_(uint32_t max_length) {
   this->set_timeout(MULTICLICK_IS_NOT_VALID_ID, max_length, [this]() {
-    ESP_LOGV(TAG, "Multi Click: You waited too long to %s.", this->parent_->state ? "RELEASE" : "PRESS");
+    ESP_LOGV(TAG, "Multi Click: You waited too long to %s.",
+             this->parent_->state ? LOG_STR_LITERAL("RELEASE") : LOG_STR_LITERAL("PRESS"));
     this->is_valid_ = false;
     this->schedule_cooldown_();
   });
