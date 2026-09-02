@@ -32,10 +32,29 @@ from .types import APIClientConnectedFactory, RunCompiledFunction
 class RegisterTestCase:
     """Test parameters for a single modbus register write/read round-trip."""
 
-    initial_value: object
     write_number_name: str
     write_value: float
     post_write_value: object
+
+
+# Initial values of the mesh fixture's address 1 registers; the
+# server_controller test reads them and the write test uses them as baseline.
+MESH_INITIAL_VALUES: dict[str, object] = {
+    "reg_u_word": 99,
+    "reg_u_word_s": 4660,
+    "reg_s_word": -99,
+    "reg_s_word_s": -2,
+    "reg_u_dword": 16909060,
+    "reg_s_dword": -16909060,
+    "reg_u_dword_r": pytest.approx(67305985),
+    "reg_s_dword_r": pytest.approx(-67305985),
+    "reg_u_qword": pytest.approx(72623859790382856),
+    "reg_s_qword": pytest.approx(-72623859790382856),
+    "reg_u_qword_r": pytest.approx(578437695752307201),
+    "reg_s_qword_r": pytest.approx(-578437695752307201),
+    "reg_fp32": pytest.approx(3.14),
+    "reg_fp32_r": pytest.approx(3.14),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -310,23 +329,7 @@ async def test_uart_mock_modbus_server_controller(
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    expected_values = {
-        "reg_u_word": 99,
-        "reg_u_word_s": 4660,
-        "reg_u_word_s_raw": 13330,
-        "reg_s_word": -99,
-        "reg_s_word_s": -2,
-        "reg_u_dword": 16909060,
-        "reg_s_dword": -16909060,
-        "reg_u_dword_r": pytest.approx(67305985),
-        "reg_s_dword_r": pytest.approx(-67305985),
-        "reg_u_qword": pytest.approx(72623859790382856),
-        "reg_s_qword": pytest.approx(-72623859790382856),
-        "reg_u_qword_r": pytest.approx(578437695752307201),
-        "reg_s_qword_r": pytest.approx(-578437695752307201),
-        "reg_fp32": pytest.approx(3.14),
-        "reg_fp32_r": pytest.approx(3.14),
-    }
+    expected_values = {**MESH_INITIAL_VALUES, "reg_u_word_s_raw": 13330}
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)
 
@@ -358,44 +361,22 @@ async def test_uart_mock_modbus_server_controller_write(
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    # Initial column mirrors the shared mesh fixture's global initial values,
-    # which the server_controller test also reads.
     register_test_cases: dict[str, RegisterTestCase] = {
-        "reg_u_word": RegisterTestCase(99, "write_u_word", 42, 42),
-        "reg_u_word_s": RegisterTestCase(4660, "write_u_word_s", 17185, 17185),
-        "reg_s_word": RegisterTestCase(-99, "write_s_word", -42, -42),
-        "reg_s_word_s": RegisterTestCase(-2, "write_s_word_s", -257, -257),
-        "reg_u_dword": RegisterTestCase(16909060, "write_u_dword", 2002, 2002),
-        "reg_s_dword": RegisterTestCase(-16909060, "write_s_dword", -2002, -2002),
-        "reg_u_dword_r": RegisterTestCase(
-            pytest.approx(67305985), "write_u_dword_r", 4004, 4004
-        ),
-        "reg_s_dword_r": RegisterTestCase(
-            pytest.approx(-67305985), "write_s_dword_r", -4004, -4004
-        ),
-        "reg_u_qword": RegisterTestCase(
-            pytest.approx(72623859790382856), "write_u_qword", 6006, 6006
-        ),
-        "reg_s_qword": RegisterTestCase(
-            pytest.approx(-72623859790382856), "write_s_qword", -6006, -6006
-        ),
-        "reg_u_qword_r": RegisterTestCase(
-            pytest.approx(578437695752307201), "write_u_qword_r", 8008, 8008
-        ),
-        "reg_s_qword_r": RegisterTestCase(
-            pytest.approx(-578437695752307201), "write_s_qword_r", -8008, -8008
-        ),
-        "reg_fp32": RegisterTestCase(
-            pytest.approx(3.14, abs=0.01),
-            "write_fp32",
-            6.28,
-            pytest.approx(6.28, abs=0.01),
-        ),
+        "reg_u_word": RegisterTestCase("write_u_word", 42, 42),
+        "reg_u_word_s": RegisterTestCase("write_u_word_s", 17185, 17185),
+        "reg_s_word": RegisterTestCase("write_s_word", -42, -42),
+        "reg_s_word_s": RegisterTestCase("write_s_word_s", -257, -257),
+        "reg_u_dword": RegisterTestCase("write_u_dword", 2002, 2002),
+        "reg_s_dword": RegisterTestCase("write_s_dword", -2002, -2002),
+        "reg_u_dword_r": RegisterTestCase("write_u_dword_r", 4004, 4004),
+        "reg_s_dword_r": RegisterTestCase("write_s_dword_r", -4004, -4004),
+        "reg_u_qword": RegisterTestCase("write_u_qword", 6006, 6006),
+        "reg_s_qword": RegisterTestCase("write_s_qword", -6006, -6006),
+        "reg_u_qword_r": RegisterTestCase("write_u_qword_r", 8008, 8008),
+        "reg_s_qword_r": RegisterTestCase("write_s_qword_r", -8008, -8008),
+        "reg_fp32": RegisterTestCase("write_fp32", 6.28, pytest.approx(6.28, abs=0.01)),
         "reg_fp32_r": RegisterTestCase(
-            pytest.approx(3.14, abs=0.01),
-            "write_fp32_r",
-            9.42,
-            pytest.approx(9.42, abs=0.01),
+            "write_fp32_r", 9.42, pytest.approx(9.42, abs=0.01)
         ),
     }
 
@@ -403,7 +384,7 @@ async def test_uart_mock_modbus_server_controller_write(
 
     # Phase 1: expect initial baseline values
     initial_futures = tracker.expect_all(
-        {name: case.initial_value for name, case in register_test_cases.items()}
+        {name: MESH_INITIAL_VALUES[name] for name in register_test_cases}
     )
     # Phase 2: expect post-write values (registered now so on_state can match them)
     written_futures = tracker.expect_all(

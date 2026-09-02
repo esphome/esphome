@@ -231,7 +231,6 @@ modbus_server:
       - address: 0x01
         value_type: U_WORD
         read_lambda: return 929;
-
   - address: 6
     modbus_id: virtual_modbus_server_2
     bits:
