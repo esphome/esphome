@@ -141,17 +141,17 @@ class PinRegistry(dict):
 PIN_SCHEMA_REGISTRY = PinRegistry()
 
 
-def use_id_or_address(type, address_key=CONF_ADDRESS):
+def use_id_or_address(hub_type, address_key=CONF_ADDRESS):
     """Build a validator for a pin-provider hub reference.
 
-    Accepts everything `cv.use_id(type)` accepts (an explicit id, or omitted to
-    auto-select the sole instance of `type`), plus a mapping like
-    `{address: 0x21}` to instead select the instance of `type` whose own
+    Accepts everything `cv.use_id(hub_type)` accepts (an explicit id, or omitted to
+    auto-select the sole instance of `hub_type`), plus a mapping like
+    `{address: 0x21}` to instead select the instance of `hub_type` whose own
     declared config has a matching `address_key`. Use this for pin schemas of
     I2C-addressed hubs (I/O expanders) so a board with two instances of the
     same hub type can pick one without assigning it an explicit id.
     """
-    id_validator = cv.use_id(type)
+    id_validator = cv.use_id(hub_type)
 
     def validator(value):
         if isinstance(value, dict):
@@ -161,7 +161,7 @@ def use_id_or_address(type, address_key=CONF_ADDRESS):
             return ID(
                 None,
                 is_declaration=False,
-                type=type,
+                type=hub_type,
                 match_config={address_key: address},
             )
         return id_validator(value)

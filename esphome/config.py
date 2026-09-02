@@ -1157,7 +1157,7 @@ class IDPassValidationStep(ConfigValidationStep):
                         ids = ", ".join(f"'{m[0].id}'" for m in filtered)
                         result.add_str_error(
                             f"Multiple '{id.type}' instances match {criteria}: {ids}. "
-                            "Each match must have a unique address.",
+                            "Each candidate must have a unique value for the given criteria.",
                             path,
                         )
                 elif len(matches) == 0:

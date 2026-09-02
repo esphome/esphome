@@ -375,6 +375,23 @@ def test_expander_pin_selected_by_address_ambiguous(
     )
 
 
+def test_expander_pin_ambiguous_without_match_config(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Omitting both id and address with multiple hubs of the same type still
+    falls back to the original "too many candidates" error."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_ambiguous_no_address.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Too many candidates found for 'xl9535' type 'xl9535::XL9535Component' "
+        "Some are 'xl9535_a', 'xl9535_b'" in captured.out
+    )
+
+
 def test_substitution_with_id(
     yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
 ) -> None:
