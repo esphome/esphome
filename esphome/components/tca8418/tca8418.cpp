@@ -1,13 +1,16 @@
 #include "tca8418.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::tca8418 {
 
 static const char *const TAG = "tca8418";
 
-//  How often the device is asked whether it has events. This applies whether or
-//  not an interrupt pin is configured, so a pin stuck asserted cannot turn into
-//  I2C traffic on every pass of the main loop.
+//  The shortest gap between asking the device whether it has events. It applies
+//  whether or not an interrupt pin is configured. A typical main loop is slower
+//  than this, so in normal use it does not hold anything up; it is a floor that
+//  keeps a fast loop, or a pin stuck asserted, from turning into I2C traffic on
+//  every pass.
 static constexpr uint32_t POLL_INTERVAL_MS = 10;
 
 void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg->enable_loop_soon_any_context(); }
@@ -95,7 +98,7 @@ void TCA8418Component::loop() {
   //  has queued is a single read, and rate limiting it means a pin left
   //  floating, or a device that has stopped answering, cannot turn into a
   //  stream of I2C traffic on every pass of the main loop.
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   if (now - this->last_poll_ < POLL_INTERVAL_MS)
     return;
   this->last_poll_ = now;
@@ -161,8 +164,9 @@ uint8_t TCA8418Component::key_char_(uint8_t key) const {
 }
 
 void TCA8418Component::dispatch_(uint8_t key, bool pressed) {
-  ESP_LOGV(TAG, "Key %u %s", key, pressed ? "pressed" : "released");
+  ESP_LOGV(TAG, "Key %u %s", key, pressed ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL("released"));
 
+#ifdef TCA8418_LISTENER_COUNT
   for (auto *listener : this->listeners_) {
     if (pressed) {
       listener->key_pressed(key);
@@ -170,6 +174,7 @@ void TCA8418Component::dispatch_(uint8_t key, bool pressed) {
       listener->key_released(key);
     }
   }
+#endif
 
   if (!pressed)
     return;

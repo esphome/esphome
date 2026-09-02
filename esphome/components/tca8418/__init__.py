@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 from esphome import automation
@@ -6,9 +7,40 @@ from esphome.components import gpio_expander, i2c, key_provider
 from esphome.components.const import CONF_COLUMNS, CONF_KEYS, CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_ON_KEY
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
+
+DOMAIN = "tca8418"
+
+
+@dataclass
+class TCA8418Data:
+    #  How many things are listening for key events, across every keypad. The
+    #  firmware sizes its list from this, so it needs the total.
+    listener_count: int = 0
+    #  More than one keypad can be configured, but the count is only added once.
+    final_step_queued: bool = False
+
+
+def _get_data() -> TCA8418Data:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = TCA8418Data()
+    return CORE.data[DOMAIN]
+
+
+def register_listener() -> None:
+    """Count a listener, for the size of the list the firmware keeps."""
+    _get_data().listener_count += 1
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _final_step() -> None:
+    if (count := _get_data().listener_count) > 0:
+        cg.add_define("TCA8418_LISTENER_COUNT", count)
+
 
 CODEOWNERS = ["@zebble"]
 DEPENDENCIES = ["i2c"]
@@ -117,6 +149,10 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    data = _get_data()
+    if not data.final_step_queued:
+        data.final_step_queued = True
+        CORE.add_job(_final_step)
 
     cg.add(var.set_rows(config[CONF_ROWS]))
     cg.add(var.set_columns(config[CONF_COLUMNS]))

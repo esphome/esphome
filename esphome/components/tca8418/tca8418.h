@@ -4,8 +4,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <string>
-#include <vector>
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::tca8418 {
 
@@ -53,15 +53,16 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_rows(uint8_t rows) { this->rows_ = rows; }
   void set_columns(uint8_t columns) { this->columns_ = columns; }
   void set_gpi_events(bool gpi_events) { this->gpi_events_ = gpi_events; }
-  void set_keys(std::string keys) { this->keys_ = std::move(keys); }
+  void set_keys(const char *keys) { this->keys_ = StringRef(keys); }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
+#ifdef TCA8418_LISTENER_COUNT
   void register_listener(TCA8418Listener *listener) { this->listeners_.push_back(listener); }
+#endif
 
   /// Wakes the loop so queued events are read. Runs in interrupt context.
   static void IRAM_ATTR interrupt_handler(TCA8418Component *arg);
@@ -78,11 +79,13 @@ class TCA8418Component : public key_provider::KeyProvider, public Component, pub
   uint8_t rows_{0};
   uint8_t columns_{0};
   bool gpi_events_{true};
-  std::string keys_;
+  StringRef keys_;
   InternalGPIOPin *interrupt_pin_{nullptr};
   uint32_t last_poll_{0};
 
-  std::vector<TCA8418Listener *> listeners_;
+#ifdef TCA8418_LISTENER_COUNT
+  StaticVector<TCA8418Listener *, TCA8418_LISTENER_COUNT> listeners_;
+#endif
 };
 
 }  // namespace esphome::tca8418
