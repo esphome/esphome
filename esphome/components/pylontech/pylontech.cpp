@@ -137,7 +137,8 @@ void PylontechComponent::process_line_(std::string &buffer) {
     } else if (strcmp(token_buf, "Power") == 0) {
       // header line i.e. "Power Volt   Curr" and so on
       this->has_tlow_id_ = buffer.find("Tlow.Id") != std::string::npos;
-      ESP_LOGD(TAG, "header line %s Tlow.Id: %s", this->has_tlow_id_ ? "with" : "without",
+      ESP_LOGD(TAG, "header line %s Tlow.Id: %s",
+               this->has_tlow_id_ ? LOG_STR_LITERAL("with") : LOG_STR_LITERAL("without"),
                buffer.substr(0, buffer.size() - 2).c_str());
       return;
     } else {
