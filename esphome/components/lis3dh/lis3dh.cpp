@@ -147,9 +147,10 @@ void LIS3DHComponent::dump_config() {
                   "  Motion interrupt: %s (%s%s%s)\n"
                   "    Threshold: %.3fg (%u)\n"
                   "    Duration: %u samples",
-                  this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? "INT1" : "INT2",
-                  this->interrupt_active_high_ ? "active high" : "active low",
-                  this->interrupt_high_pass_ ? ", high-pass" : "", this->interrupt_latched_ ? ", latched" : "",
+                  this->interrupt_pin_ == LIS3DH_INT_PIN_INT1 ? LOG_STR_LITERAL("INT1") : LOG_STR_LITERAL("INT2"),
+                  this->interrupt_active_high_ ? LOG_STR_LITERAL("active high") : LOG_STR_LITERAL("active low"),
+                  this->interrupt_high_pass_ ? LOG_STR_LITERAL(", high-pass") : LOG_STR_LITERAL(""),
+                  this->interrupt_latched_ ? LOG_STR_LITERAL(", latched") : LOG_STR_LITERAL(""),
                   this->interrupt_threshold_g_, this->interrupt_threshold_raw_, this->interrupt_duration_);
   }
   MotionComponent::dump_config();
