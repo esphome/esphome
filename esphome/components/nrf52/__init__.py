@@ -36,9 +36,17 @@ from esphome.const import (
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_NUMBER,
+    CONF_OPEN_DRAIN,
     CONF_OTA,
+    CONF_PIN,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
     CONF_RESET_PIN,
     CONF_SAFE_MODE,
+    CONF_STARTUP_DELAY,
     CONF_TOOLCHAIN,
     CONF_VERSION,
     CONF_VOLTAGE,
@@ -201,6 +209,7 @@ DeviceFirmwareUpdate = nrf52_ns.class_("DeviceFirmwareUpdate", cg.Component)
 CONF_DFU = "dfu"
 CONF_DCDC = "dcdc"
 CONF_LIBC_NANO = "libc_nano"
+CONF_POWER_ENABLE = "power_enable"
 CONF_REG0 = "reg0"
 CONF_UICR_ERASE = "uicr_erase"
 
@@ -223,6 +232,44 @@ def _dfu_schema(value: bool | ConfigType) -> ConfigType:
     return _DFU_SCHEMA(value)
 
 
+# Some nRF52 boards (mostly cheap hobby clones, e.g. "SuperMini nRF52840"/nRFMicro)
+# have no pull-up on their external-peripheral-rail enable pin, so it floats at an
+# indeterminate level instead of the rail reliably being on by default (confirmed on
+# real hardware with a multimeter: 1.9V floating vs. 3.3V driven). Modelling the pin
+# as a Zephyr `regulator-fixed` devicetree node (rather than app-level C++) means the
+# rail is driven deterministically during Zephyr's own device init, before any
+# ESPHome component's setup() runs.
+def _validate_power_enable_pin(value: ConfigType) -> ConfigType:
+    # nRF52's EXTRA_ADC pin names (e.g. "VDD", "VDDHDIV5") validate as non-numeric
+    # strings under an output pin schema -- reject them here with a clear config
+    # error instead of crashing later on `pin_no // 32` in to_code().
+    if not isinstance(value[CONF_NUMBER], int):
+        raise cv.Invalid(
+            f"power_enable pin must be a numeric GPIO pin (e.g. P0.13), not '{value[CONF_NUMBER]}'"
+        )
+    return value
+
+
+_POWER_ENABLE_SCHEMA = cv.Schema(
+    {
+        # internal_gpio_output_pin_schema (not gpio_output_pin_schema) scopes pin
+        # validation to CORE.target_platform, so a GPIO-expander pin (e.g. a
+        # pcf8574 pin) is rejected outright instead of silently validating and
+        # then getting rendered as an on-chip nRF52 pin number in the overlay.
+        cv.Required(CONF_PIN): cv.All(
+            pins.internal_gpio_output_pin_schema, _validate_power_enable_pin
+        ),
+        cv.Optional(CONF_STARTUP_DELAY, default="0us"): cv.All(
+            cv.positive_time_period_microseconds,
+            # startup-delay-us is a single 32-bit devicetree cell; catch an
+            # overflow here with a clear config error instead of a dtc failure
+            # ("value out of range") that doesn't point back at this key.
+            cv.Range(max=cv.TimePeriod(microseconds=(1 << 32) - 1)),
+        ),
+    }
+)
+
+
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -234,6 +281,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(KEY_BOOTLOADER): cv.one_of(*BOOTLOADERS, lower=True),
             cv.Optional(CONF_DFU): _dfu_schema,
             cv.Optional(CONF_DCDC): cv.boolean,
+            cv.Optional(CONF_POWER_ENABLE): _POWER_ENABLE_SCHEMA,
             cv.Optional(CONF_REG0): cv.Schema(
                 {
                     cv.Required(CONF_VOLTAGE): cv.All(
@@ -393,6 +441,34 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_NRF52_REG0_VOUT", value)
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
+
+    if power_enable_config := config.get(CONF_POWER_ENABLE):
+        pin = power_enable_config[CONF_PIN]
+        pin_no = pin[CONF_NUMBER]
+        flags = ["GPIO_ACTIVE_LOW" if pin[CONF_INVERTED] else "GPIO_ACTIVE_HIGH"]
+        mode = pin[CONF_MODE]
+        if mode.get(CONF_OPEN_DRAIN):
+            flags.append("GPIO_OPEN_DRAIN")
+        if mode.get(CONF_PULLUP):
+            flags.append("GPIO_PULL_UP")
+        if mode.get(CONF_PULLDOWN):
+            flags.append("GPIO_PULL_DOWN")
+        flags_expr = flags[0] if len(flags) == 1 else "(" + " | ".join(flags) + ")"
+        startup_delay_us = power_enable_config[CONF_STARTUP_DELAY].total_microseconds
+        zephyr_add_prj_conf("REGULATOR", True)
+        zephyr_add_overlay(
+            f"""
+                / {{
+                    esphome_power_enable: esphome_power_enable {{
+                        compatible = "regulator-fixed";
+                        regulator-name = "esphome_power_enable";
+                        enable-gpios = <&gpio{pin_no // 32} {pin_no % 32} {flags_expr}>;
+                        regulator-boot-on;
+                        startup-delay-us = <{startup_delay_us}>;
+                    }};
+                }};
+            """
+        )
 
     conf = config[CONF_FRAMEWORK]
     advanced = conf[CONF_ADVANCED]
