@@ -21,7 +21,7 @@ class JpegTurboDecoder : public ImageDecoder {
    *
    * @param image The RuntimeImage to decode the stream into.
    */
-  JpegTurboDecoder(RuntimeImage *image) : ImageDecoder(image) {}
+  JpegTurboDecoder(RuntimeImage *image) : ImageDecoder(image, JPEG) {}
 
   int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
