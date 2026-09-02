@@ -61,6 +61,9 @@ void ESP32PowerManagement::dump_config() {
 #if !CONFIG_LWIP_ND6
   ESP_LOGCONFIG(TAG, "  IPv6 Neighbor Discovery Disabled (CONFIG_LWIP_ND6)");
 #endif
+#if CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION
+  ESP_LOGCONFIG(TAG, "  USB Serial/JTAG Light Sleep Prevention Enabled");
+#endif
 #endif
 }
 

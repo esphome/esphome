@@ -130,6 +130,8 @@ async def to_code(config):
         # this causes automatic light sleep if no tasks are pending
         add_idf_sdkconfig_option("CONFIG_FREERTOS_USE_TICKLESS_IDLE", True)
         add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAC_BB_PD", True)
+        # Kconfig's own "depends on" no-ops this where it doesn't apply.
+        add_idf_sdkconfig_option("CONFIG_USJ_NO_AUTO_LS_ON_CONNECTION", True)
         if config.get(CONF_POWER_DOWN_PERIPHERALS):
             # There is a defined set of peripheral's that work with PM
             add_idf_sdkconfig_option(
