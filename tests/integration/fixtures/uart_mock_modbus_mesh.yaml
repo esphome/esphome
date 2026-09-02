@@ -17,10 +17,10 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Shared 3-bus mesh (see the shared_yaml markers): addr 1 = typed read-only
-# registers, addr 5 = the read/write 0x17 target, addr 2/3 on the second
-# server hub. auto_start everywhere: the controller polls at boot, so the
-# forwarding must already be live or early requests generate warnings.
+# Shared 3-bus mesh (see the shared_yaml markers): addr 1 = typed registers
+# backed by writable globals, addr 5 = the read/write 0x17 target, addr 2/3/6
+# on the second server hub. auto_start everywhere: the controller polls at
+# boot, so the forwarding must already be live or early requests generate warnings.
 # Every test presses Start Scenario, so all merged actions fire in every test.
 uart_mock:
   - id: virtual_uart_server
@@ -64,6 +64,54 @@ globals:
   - id: stored_1
     type: uint16_t
     initial_value: "0"
+  - id: stored_u_word
+    type: uint16_t
+    initial_value: "99"
+  - id: stored_u_word_s
+    type: uint16_t
+    initial_value: "4660"
+  - id: stored_s_word
+    type: int16_t
+    initial_value: "-99"
+  - id: stored_s_word_s
+    type: int16_t
+    initial_value: "-2"
+  - id: stored_u_dword
+    type: uint32_t
+    initial_value: "16909060"
+  - id: stored_s_dword
+    type: int32_t
+    initial_value: "-16909060"
+  - id: stored_u_dword_r
+    type: uint32_t
+    initial_value: "67305985"
+  - id: stored_s_dword_r
+    type: int32_t
+    initial_value: "-67305985"
+  - id: stored_u_qword
+    type: uint64_t
+    initial_value: "72623859790382856"
+  - id: stored_s_qword
+    type: int64_t
+    initial_value: "-72623859790382856"
+  - id: stored_u_qword_r
+    type: uint64_t
+    initial_value: "578437695752307201"
+  - id: stored_s_qword_r
+    type: int64_t
+    initial_value: "-578437695752307201"
+  - id: stored_fp32
+    type: float
+    initial_value: "3.14"
+  - id: stored_fp32_r
+    type: float
+    initial_value: "3.14"
+  - id: stored_bit_2
+    type: bool
+    initial_value: "false"
+  - id: stored_bit_3
+    type: bool
+    initial_value: "true"
 
 modbus:
   - uart_id: virtual_uart_server
@@ -90,6 +138,10 @@ modbus_controller:
     modbus_id: virtual_modbus_client
     id: modbus_controller_3
     update_interval: 1s
+  - address: 6
+    modbus_id: virtual_modbus_client
+    id: modbus_controller_6
+    update_interval: 1s
 
 modbus_server:
   - address: 1
@@ -97,46 +149,60 @@ modbus_server:
     registers:
       - address: 0x01
         value_type: U_WORD
-        read_lambda: return 99;
+        read_lambda: return id(stored_u_word);
+        write_lambda: id(stored_u_word) = x; return true;
       - address: 0x02
         value_type: U_WORD_S
-        read_lambda: return 4660;
+        read_lambda: return id(stored_u_word_s);
+        write_lambda: id(stored_u_word_s) = x; return true;
       - address: 0x03
         value_type: S_WORD
-        read_lambda: return -99;
+        read_lambda: return id(stored_s_word);
+        write_lambda: id(stored_s_word) = x; return true;
       - address: 0x04
         value_type: S_WORD_S
-        read_lambda: return -2;
+        read_lambda: return id(stored_s_word_s);
+        write_lambda: id(stored_s_word_s) = x; return true;
       - address: 0x05
         value_type: U_DWORD
-        read_lambda: return 16909060;
+        read_lambda: return id(stored_u_dword);
+        write_lambda: id(stored_u_dword) = x; return true;
       - address: 0x08
         value_type: S_DWORD
-        read_lambda: return -16909060;
+        read_lambda: return id(stored_s_dword);
+        write_lambda: id(stored_s_dword) = x; return true;
       - address: 0x0B
         value_type: U_DWORD_R
-        read_lambda: return 67305985;
+        read_lambda: return id(stored_u_dword_r);
+        write_lambda: id(stored_u_dword_r) = x; return true;
       - address: 0x0E
         value_type: S_DWORD_R
-        read_lambda: return -67305985;
+        read_lambda: return id(stored_s_dword_r);
+        write_lambda: id(stored_s_dword_r) = x; return true;
       - address: 0x11
         value_type: U_QWORD
-        read_lambda: return 72623859790382856;
+        read_lambda: return id(stored_u_qword);
+        write_lambda: id(stored_u_qword) = x; return true;
       - address: 0x16
         value_type: S_QWORD
-        read_lambda: return -72623859790382856;
+        read_lambda: return id(stored_s_qword);
+        write_lambda: id(stored_s_qword) = x; return true;
       - address: 0x1B
         value_type: U_QWORD_R
-        read_lambda: return 578437695752307201;
+        read_lambda: return id(stored_u_qword_r);
+        write_lambda: id(stored_u_qword_r) = x; return true;
       - address: 0x20
         value_type: S_QWORD_R
-        read_lambda: return -578437695752307201;
+        read_lambda: return id(stored_s_qword_r);
+        write_lambda: id(stored_s_qword_r) = x; return true;
       - address: 0x25
         value_type: FP32
-        read_lambda: return 3.14;
+        read_lambda: return id(stored_fp32);
+        write_lambda: id(stored_fp32) = x; return true;
       - address: 0x28
         value_type: FP32_R
-        read_lambda: return 3.14;
+        read_lambda: return id(stored_fp32_r);
+        write_lambda: id(stored_fp32_r) = x; return true;
   - address: 5
     modbus_id: virtual_modbus_server
     registers:
@@ -165,6 +231,20 @@ modbus_server:
       - address: 0x01
         value_type: U_WORD
         read_lambda: return 929;
+
+  - address: 6
+    modbus_id: virtual_modbus_server_2
+    bits:
+      - address: 0x00
+        read_lambda: return true;
+      - address: 0x01
+        read_lambda: return false;
+      - address: 0x02
+        read_lambda: return id(stored_bit_2);
+        write_lambda: id(stored_bit_2) = x; return true;
+      - address: 0x03
+        read_lambda: return id(stored_bit_3);
+        write_lambda: id(stored_bit_3) = x; return true;
 
 sensor:
   - platform: modbus_controller
@@ -279,6 +359,182 @@ sensor:
   - platform: template
     name: "client_read_1"
     id: client_read_1
+
+number:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_u_word"
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+    min_value: 0
+    max_value: 65535
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_u_word_s"
+    address: 0x02
+    register_type: holding
+    value_type: U_WORD_S
+    min_value: 0
+    max_value: 65535
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_s_word"
+    address: 0x03
+    register_type: holding
+    value_type: S_WORD
+    min_value: -16777215
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_s_word_s"
+    address: 0x04
+    register_type: holding
+    value_type: S_WORD_S
+    min_value: -16777215
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_u_dword"
+    address: 0x05
+    register_type: holding
+    value_type: U_DWORD
+    min_value: 0
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_s_dword"
+    address: 0x08
+    register_type: holding
+    value_type: S_DWORD
+    min_value: -16777215
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_u_dword_r"
+    address: 0x0B
+    register_type: holding
+    value_type: U_DWORD_R
+    min_value: 0
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_s_dword_r"
+    address: 0x0E
+    register_type: holding
+    value_type: S_DWORD_R
+    min_value: -16777215
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_u_qword"
+    address: 0x11
+    register_type: holding
+    value_type: U_QWORD
+    min_value: 0
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_s_qword"
+    address: 0x16
+    register_type: holding
+    value_type: S_QWORD
+    min_value: -16777215
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_u_qword_r"
+    address: 0x1B
+    register_type: holding
+    value_type: U_QWORD_R
+    min_value: 0
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_s_qword_r"
+    address: 0x20
+    register_type: holding
+    value_type: S_QWORD_R
+    min_value: -16777215
+    max_value: 16777215
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_fp32"
+    address: 0x25
+    register_type: holding
+    value_type: FP32
+    min_value: -16777215
+    max_value: 16777215
+    step: 0.01
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "write_fp32_r"
+    address: 0x28
+    register_type: holding
+    value_type: FP32_R
+    min_value: -16777215
+    max_value: 16777215
+    step: 0.01
+
+# The same four bits are read both as coils (FC 0x01) and as discrete inputs
+# (FC 0x02): the server serves both from one shared bit table, so the two
+# views must always agree.
+binary_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_coil_0"
+    address: 0x00
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_coil_1"
+    address: 0x01
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_coil_2"
+    address: 0x02
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_coil_3"
+    address: 0x03
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_di_0"
+    address: 0x00
+    register_type: discrete_input
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_di_1"
+    address: 0x01
+    register_type: discrete_input
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_di_2"
+    address: 0x02
+    register_type: discrete_input
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "bit_di_3"
+    address: 0x03
+    register_type: discrete_input
+
+# write_bit_2 uses the single-coil write (FC 0x05); write_bit_3 opts into the
+# multiple-coils write (FC 0x0F) so both server write paths are exercised.
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "write_bit_2"
+    address: 0x02
+    register_type: coil
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_6
+    name: "write_bit_3"
+    address: 0x03
+    register_type: coil
+    use_write_multiple: true
 
 button:
   - platform: template
