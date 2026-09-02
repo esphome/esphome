@@ -7,6 +7,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_component,
     add_idf_sdkconfig_option,
+    get_esp32_variant,
     idf_version,
     only_on_variant,
 )
@@ -51,6 +52,12 @@ def usb_device_schema(
 
 
 def _set_max_packet_size(config: dict) -> dict:
+    # Resolve the variant-dependent default here rather than as a schema-level default: the
+    # language-schema builder evaluates every Optional's default() with no esp32 config context,
+    # so get_esp32_variant() would raise. This validator only runs for a real config, where the
+    # variant is known.
+    if CONF_MAX_PACKET_SIZE not in config:
+        config[CONF_MAX_PACKET_SIZE] = _default_max_packet_size()
     CORE.data.setdefault(DOMAIN, {})[CONF_MAX_PACKET_SIZE] = config[
         CONF_MAX_PACKET_SIZE
     ]
@@ -61,6 +68,17 @@ def get_max_packet_size() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
 
+def _default_max_packet_size() -> int:
+    """Largest bulk/interrupt packet the controller in this variant moves at once.
+
+    USB_HOST_MAX_PACKET_SIZE sizes every allocated transfer and rounds transfer lengths up to a
+    multiple of itself (see usb_host_client.cpp). A high-speed controller -- the ESP32-P4's --
+    uses 512 byte bulk packets, so a flat 64 leaves mass storage transfers too small and
+    misaligned. Full-speed variants stay at 64.
+    """
+    return 512 if get_esp32_variant() == VARIANT_ESP32P4 else 64
+
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -69,7 +87,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_TRANSFER_REQUESTS, default=16): cv.int_range(
                 min=1, max=32
             ),
-            cv.Optional(CONF_MAX_PACKET_SIZE, default=64): cv.one_of(
+            cv.Optional(CONF_MAX_PACKET_SIZE): cv.one_of(
                 64, 128, 256, 512, 1024, int=True
             ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
@@ -107,5 +125,6 @@ async def to_code(config: ConfigType) -> None:
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
     for device in config.get(CONF_DEVICES) or ():
         await register_usb_client(device)

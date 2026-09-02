@@ -1,0 +1,221 @@
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components.esp32 import (
+    VARIANT_ESP32H4,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    include_builtin_idf_component,
+    only_on_variant,
+    require_fatfs,
+    require_vfs_dir,
+    require_vfs_select,
+)
+from esphome.components.storage import (
+    CONF_MOUNT_PATH,
+    FILE_SYSTEM_SCHEMA_ENTRY,
+    MountableStorage,
+    file_system_to_code,
+    final_validate_file_system,
+    register_mount_path,
+    request_fatfs_path_length,
+    request_storage_device,
+    request_storage_worker,
+    validate_file_system_value,
+    validate_mount_path,
+)
+from esphome.components.usb_host import usb_host_ns
+import esphome.config_validation as cv
+from esphome.const import CONF_DEVICES, CONF_ID, CONF_TRIGGER_ID
+
+CODEOWNERS = ["@p1ngb4ck"]
+DEPENDENCIES = ["usb_host", "esp32"]
+AUTO_LOAD = ["storage"]
+
+CONF_VID = "vid"
+CONF_PID = "pid"
+CONF_ON_MOUNTED = "on_mounted"
+CONF_FORMAT_ON_MISMATCH = "format_on_mismatch"
+
+usb_storage_ns = cg.esphome_ns.namespace("usb_storage")
+
+USBStorageClient = usb_storage_ns.class_(
+    "USBStorageClient",
+    usb_host_ns.class_("USBClient"),
+    cg.Component,
+)
+USBStorageDevice = usb_storage_ns.class_(
+    "USBStorageDevice",
+    cg.Component,
+    MountableStorage,
+)
+
+# Automation classes
+DeviceMountedTrigger = usb_storage_ns.class_(
+    "DeviceMountedTrigger", automation.Trigger.template(cg.const_char_ptr)
+)
+RemountDeviceAction = usb_storage_ns.class_("RemountDeviceAction", automation.Action)
+UnmountDeviceAction = usb_storage_ns.class_("UnmountDeviceAction", automation.Action)
+ListFilesAction = usb_storage_ns.class_("ListFilesAction", automation.Action)
+DeviceMountedCondition = usb_storage_ns.class_(
+    "DeviceMountedCondition", automation.Condition
+)
+
+
+async def register_usb_storage_device(device_config, storage_client):
+    var = cg.new_Pvariable(device_config[CONF_ID])
+    await cg.register_component(var, device_config)
+    cg.add(var.set_client(storage_client))
+    cg.add(var.set_mount_path(device_config[CONF_MOUNT_PATH]))
+    # Full VFS paths carry the mount point; the storage component sizes its buffers from the
+    # paths registered here.
+    register_mount_path(device_config[CONF_MOUNT_PATH])
+    cg.add(var.set_storage_id(str(device_config[CONF_ID])))
+    cg.add(var.set_vid(device_config[CONF_VID]))
+    cg.add(var.set_pid(device_config[CONF_PID]))
+    cg.add(storage_client.add_device(var))
+
+    request_storage_device()
+    # Bounded by FATFS long filenames, i.e. by CONFIG_FATFS_MAX_LFN -- resolved at codegen
+    # time rather than baked in, so a user who lowers it gets a matching API bound.
+    request_fatfs_path_length()
+    # USB MSC transfers are self-contained (own endpoint transfers via a FreeRTOS semaphore, no
+    # shared bus with other main-loop-driven components) -- task-safe, unlike e.g. SdSpi.
+    request_storage_worker(task_safe=True)
+
+    for conf in device_config.get(CONF_ON_MOUNTED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(
+            trigger, [(cg.const_char_ptr, "mount_path")], conf
+        )
+
+    return var
+
+
+DEVICE_SCHEMA = cv.COMPONENT_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(USBStorageDevice),
+        cv.Required(CONF_MOUNT_PATH): validate_mount_path,
+        cv.Optional(CONF_VID, default=0x0000): cv.hex_uint16_t,
+        cv.Optional(CONF_PID, default=0x0000): cv.hex_uint16_t,
+        cv.Optional(CONF_FORMAT_ON_MISMATCH, default=False): cv.boolean,
+        cv.Optional(CONF_ON_MOUNTED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DeviceMountedTrigger),
+            }
+        ),
+    }
+)
+
+CONFIG_SCHEMA = cv.All(
+    cv.COMPONENT_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(USBStorageClient),
+            # Only exists together with esp32 enable_exfat -- see storage/__init__.py.
+            FILE_SYSTEM_SCHEMA_ENTRY: validate_file_system_value,
+            cv.Optional(CONF_DEVICES): cv.ensure_list(DEVICE_SCHEMA),
+        }
+    ),
+    only_on_variant(
+        supported=[
+            VARIANT_ESP32H4,
+            VARIANT_ESP32P4,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+            VARIANT_ESP32S31,
+        ]
+    ),
+)
+
+
+def _final_validate(config):
+    final_validate_file_system(config)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config):
+    require_vfs_dir()
+    require_vfs_select()
+    # LFN mode/length and volume count are set as user-overridable defaults by the esp32
+    # platform once any component calls require_fatfs() -- see
+    # _reconcile_vfs_fatfs_sdkconfig(). Override via esp32 framework sdkconfig_options.
+    require_fatfs()
+    include_builtin_idf_component("fatfs")
+    include_builtin_idf_component("esp_vfs_fat")
+
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await file_system_to_code(var, config)
+
+    for device in config.get(CONF_DEVICES) or ():
+        await register_usb_storage_device(device, var)
+        cg.add(var.set_format_on_mismatch(device[CONF_FORMAT_ON_MISMATCH]))
+
+    cg.add_define("USE_USB_BULK_TRANSFERS")
+    cg.add_define("USE_USB_CONTROL_TRANSFERS")
+
+
+# Actions
+USB_STORAGE_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(USBStorageDevice),
+    }
+)
+
+
+@automation.register_action(
+    "usb_storage.remount",
+    RemountDeviceAction,
+    USB_STORAGE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def usb_storage_remount_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "usb_storage.unmount",
+    UnmountDeviceAction,
+    USB_STORAGE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def usb_storage_unmount_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+LIST_FILES_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(USBStorageDevice),
+        cv.Optional("path", default=""): cv.templatable(cv.string),
+    }
+)
+
+
+@automation.register_action(
+    "usb_storage.list_files",
+    ListFilesAction,
+    LIST_FILES_SCHEMA,
+    synchronous=True,
+)
+async def usb_storage_list_files_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    if "path" in config:
+        template_ = await cg.templatable(config["path"], args, cg.const_char_ptr)
+        cg.add(var.set_path(template_))
+    return var
+
+
+# Conditions
+@automation.register_condition(
+    "usb_storage.is_mounted", DeviceMountedCondition, USB_STORAGE_ACTION_SCHEMA
+)
+async def usb_storage_is_mounted_to_code(config, condition_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(condition_id, template_arg, paren)

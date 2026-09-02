@@ -1,0 +1,75 @@
+packages:
+  storage: !include common.yaml
+
+# Validates the flattened worker knobs (config-only here): USE_STORAGE_WORKER itself is only
+# ever compiled in when a path-based driver calls request_storage_worker() in its own
+# to_code() (e.g. sd_storage) -- see that driver's own test suite for actual worker C++
+# coverage.
+storage:
+  task_stack_size: 8192
+  task_priority: 1
+  max_pending: 4
+
+# On top of common.yaml's platform-neutral script: the action shapes that only matter where a
+# real driver can exist -- lambda paths, the async copy/move pair, the multi-step and key=value
+# extractions, on_value, and a recursive delete.
+globals:
+  - id: g_setpoint
+    type: float
+    restore_value: true
+    initial_value: "0"
+  - id: g_label
+    type: std::string
+    restore_value: true
+
+script:
+  - id: exercise_file_ops
+    then:
+      - storage.file_append:
+          path: /sdcard/logs/test.log
+          format: "value=%.1f"
+          args: ["21.5f"]
+      - storage.file_write:
+          path: !lambda 'return "/sdcard/state.txt";'
+          content: !lambda 'return "hello";'
+      - storage.file_read:
+          path: /sdcard/config/setpoint.txt
+          extract:
+            - line: 2
+            - split: ","
+              index: 1
+            - trim: true
+          to_global: g_setpoint
+          on_error:
+            - logger.log:
+                format: "read failed: %s"
+                args: ["x.c_str()"]
+      - storage.file_read:
+          path: /sdcard/config/device.conf
+          extract:
+            - key: name
+              separator: "="
+          to_global: g_label
+          on_value:
+            - logger.log:
+                format: "read: %s"
+                args: ["x.c_str()"]
+      - storage.file_copy:
+          from: /sdcard/a.txt
+          to: /usb/a.txt
+          on_complete:
+            - logger.log: "copy done"
+      - storage.file_move:
+          from: !lambda 'return "/sdcard/old.log";'
+          to: /sdcard/archive/old.log
+          on_complete:
+            - logger.log:
+                format: "move done: %s"
+                args: ["x.c_str()"]
+      - if:
+          condition:
+            storage.file_exists: /sdcard/config.txt
+          then:
+            - storage.file_delete:
+                path: /sdcard/tmp
+                recursive: true
