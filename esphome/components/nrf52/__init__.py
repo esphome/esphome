@@ -696,9 +696,11 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     if devices[0] == "BLE":
         ble_device = asyncio.run(logger_scan(CORE.name))
         if ble_device:
-            address = ble_device.address
-        else:
-            return True
+            # ble_device.address is a BLE handle (a MAC on Linux/BlueZ, a
+            # CoreBluetooth UUID on macOS); connect to it directly rather than
+            # gating on is_mac_address(), which is False for macOS UUIDs.
+            asyncio.run(logger_connect(ble_device.address))
+        return True
 
     if is_mac_address(address):
         asyncio.run(logger_connect(address))
