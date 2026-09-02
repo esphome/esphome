@@ -17,17 +17,15 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Shared 3-bus mesh for the server_controller, server_controller_multiple
-# and client_read_write tests: two server hubs and one client hub, every bus
-# forwarding to both others. Servers: addr 1 = typed read-only registers,
-# addr 5 = client_read_write's server, addr 2/3 on the second server hub.
+# Shared 3-bus mesh (see the shared_yaml markers in the test file): two
+# server hubs and one client hub, every bus forwarding to both others.
+# Servers: addr 1 = typed read-only registers, addr 5 = the read/write 0x17
+# target, addr 2/3 on the second server hub.
+# auto_start on every bus: the controller polls at boot, so the forwarding
+# must already be live or early requests are lost and generate warnings.
 uart_mock:
   - id: virtual_uart_server
     baud_rate: 9600
-    # auto_start must be true for loopback fixtures: the modbus controller
-    # polls on its update_interval immediately at boot, so the uart_mock
-    # forwarding must already be active or early requests are lost and
-    # generate modbus warnings.
     auto_start: true
     debug:
     on_tx:
@@ -40,7 +38,7 @@ uart_mock:
               data: !lambda return data;
   - id: virtual_uart_server_2
     baud_rate: 9600
-    auto_start: true # See comment on virtual_uart_server above
+    auto_start: true
     debug:
     on_tx:
       - then:
@@ -52,7 +50,7 @@ uart_mock:
               data: !lambda return data;
   - id: virtual_uart_controller
     baud_rate: 9600
-    auto_start: true # See comment on virtual_uart_server above
+    auto_start: true
     debug:
     on_tx:
       - then:
@@ -145,13 +143,11 @@ modbus_server:
     modbus_id: virtual_modbus_server
     id: modbus_server_5
     registers:
-      # Writable + readable register: the read publishes what it returns, so the test can confirm the
-      # write half of the 0x17 ran before the read half (Modbus 6.17).
+      # Writable + readable register: srv_write_1 plus the client's read-back
+      # confirm the write half of the 0x17 ran before the read half (Modbus 6.17).
       - address: 0x01
         value_type: U_WORD
-        read_lambda: |-
-          id(srv_read_1).publish_state(id(stored_1));
-          return id(stored_1);
+        read_lambda: return id(stored_1);
         write_lambda: |-
           id(stored_1) = x;
           id(srv_write_1).publish_state(x);
@@ -280,9 +276,6 @@ sensor:
   - platform: template
     name: "srv_write_1"
     id: srv_write_1
-  - platform: template
-    name: "srv_read_1"
-    id: srv_read_1
   - platform: template
     name: "client_read_0"
     id: client_read_0

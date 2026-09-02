@@ -17,8 +17,8 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Shared server-role fixture for the server and server_read_write tests; the
-# injections concatenate and each test waits only on its own sensors.
+# Shared server-role fixture (see the shared_yaml markers in the test file);
+# the injections concatenate and each test waits only on its own sensors.
 uart_mock:
   - id: virtual_uart_dev
     baud_rate: 9600

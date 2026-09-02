@@ -233,8 +233,8 @@ async def test_uart_mock_modbus_server_read_write(
             "rw_write_1": 4660,  # 0x1234 written to reg 0x0001
             "rw_read_1": 4660,  # reg 0x0001 reads back the just-written value
             "rw_read_2": 170,  # 0x00AA read from reg 0x0002 in the same request
-            "rw_write_3": 22136,  # 0x5678 written to reg 0x0003
-            "rw_read_3": 22136,  # reg 0x0003 reads back the just-written value
+            "rw_write_3": 22136,  # 0x5678 written to reg 0x0006
+            "rw_read_3": 22136,  # reg 0x0006 reads back the just-written value
         }
     )
 
@@ -953,9 +953,7 @@ async def test_uart_mock_modbus_client_read_write(
     """
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
-    tracker = SensorTracker(
-        ["srv_write_1", "srv_read_1", "client_read_0", "client_read_1"]
-    )
+    tracker = SensorTracker(["srv_write_1", "client_read_0", "client_read_1"])
     futures = tracker.expect_all(
         {
             "srv_write_1": 4660,  # server wrote 0x1234 to reg 0x0001
