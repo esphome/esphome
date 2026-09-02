@@ -5,6 +5,7 @@
 #include <esp_log.h>
 
 #include <driver/uart.h>
+#include <soc/soc_caps.h>
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
 #include <driver/usb_serial_jtag.h>
@@ -76,7 +77,11 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config.parity = UART_PARITY_DISABLE;
   uart_config.stop_bits = UART_STOP_BITS_1;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+#if SOC_UART_SUPPORT_XTAL_CLK
+  uart_config.source_clk = UART_SCLK_XTAL;
+#else
   uart_config.source_clk = UART_SCLK_DEFAULT;
+#endif
   uart_param_config(uart_num, &uart_config);
   // The logger only writes to UART, never reads, so use the minimum RX buffer.
   // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
