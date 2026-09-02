@@ -72,10 +72,10 @@ class AUTOFormat(Format):
     def __init__(self) -> None:
         super().__init__("AUTO", None)
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         # dict.fromkeys dedupes the JPG/JPEG alias so each format runs once
         for image_format in dict.fromkeys(IMAGE_FORMATS.values()):
-            image_format.actions()
+            image_format.actions(config)
 
 
 class BMPFormat(Format):
@@ -148,7 +148,7 @@ class QOIFormat(Format):
     def __init__(self):
         super().__init__("QOI", QoiDecoder)
 
-    def actions(self) -> None:
+    def actions(self, config: dict) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_QOI")
 
 
