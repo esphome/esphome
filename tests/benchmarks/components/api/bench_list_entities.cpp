@@ -49,7 +49,7 @@ static void Encode_ListEntitiesSensorResponse(benchmark::State &state) {
   auto msg = make_sensor_response();
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -69,7 +69,7 @@ static void CalcAndEncode_ListEntitiesSensorResponse(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -117,7 +117,7 @@ static void Encode_ListEntitiesBinarySensorResponse(benchmark::State &state) {
   auto msg = make_binary_sensor_response();
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -137,7 +137,7 @@ static void CalcAndEncode_ListEntitiesBinarySensorResponse(benchmark::State &sta
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -202,7 +202,7 @@ static void Encode_ListEntitiesLightResponse(benchmark::State &state) {
   auto msg = make_light_response();
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -222,7 +222,7 @@ static void CalcAndEncode_ListEntitiesLightResponse(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }

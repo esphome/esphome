@@ -231,18 +231,22 @@ class IncludeFile:
     def __init__(
         self,
         parent_file: Path,
-        file: Path | str,
+        file: str,
         vars: dict[str, Any] | None,
         yaml_loader: Callable[[Path], Any],
     ) -> None:
         self.parent_file = parent_file
-        self.file = Path(file)
+        # The raw include text may be a substitution/Jinja expression, so it
+        # must never round-trip through Path(): on Windows, WindowsPath str()
+        # rewrites "/" to "\", which Jinja then decodes as escapes like
+        # "\b" -> backspace (issue #18545).
+        self.file = file
         self.vars = vars
         self.yaml_loader = yaml_loader
         self._content: Any = _UNSET
 
     def __repr__(self) -> str:
-        return f"IncludeFile({self.file.as_posix()})"
+        return f"IncludeFile({self.file})"
 
     def load(self) -> Any:
         """Load and cache the included file content.
@@ -258,15 +262,15 @@ class IncludeFile:
             raise Invalid(
                 f"Cannot load include with unresolved substitutions: {self.file}"
             )
-        self._content = self.yaml_loader(Path(self.parent_file.parent / self.file))
+        self._content = self.yaml_loader(self.parent_file.parent / self.file)
         self._content = add_context(self._content, self.vars)
         return self._content
 
     def has_unresolved_expressions(self) -> bool:
         """Check if the filename contains substitution variables or Jinja expressions."""
-        return has_substitution_or_expression(str(self.file))
+        return has_substitution_or_expression(self.file)
 
-    def with_file(self, file: Path | str) -> IncludeFile:
+    def with_file(self, file: str) -> IncludeFile:
         """Clone this include with *file* as the filename."""
         return IncludeFile(self.parent_file, file, self.vars, self.yaml_loader)
 
@@ -313,7 +317,7 @@ def _candidate_include_paths(include: IncludeFile) -> list[Path]:
     parent_dir = include.parent_file.parent
     parent_resolved = include.parent_file.resolve()
     candidates: list[Path] = []
-    for pattern in include_candidate_patterns(str(include.file)):
+    for pattern in include_candidate_patterns(include.file):
         if "*" in pattern:
             matches = sorted(_glob_include_candidates(parent_dir, pattern))
         else:
@@ -362,7 +366,7 @@ def _load_include_candidates(
             continue
         expanded_paths.add(candidate)
         try:
-            loaded = include.with_file(candidate).load()
+            loaded = include.with_file(candidate.as_posix()).load()
         except (EsphomeError, Invalid) as err:
             # Unlike an unresolved pattern (expected during the discovery
             # re-parse), a matched on-disk candidate that fails to load is a
@@ -794,6 +798,10 @@ class ESPHomeLoaderMixin:
             file = fields.get("file")
             if file is None:
                 raise yaml.MarkedYAMLError("Must include 'file'", node.start_mark)
+            if not isinstance(file, str):
+                raise yaml.MarkedYAMLError(
+                    "Include 'file' must be a string", node.start_mark
+                )
             vars = fields.get(CONF_VARS)
             return file, vars
 
@@ -1049,11 +1057,19 @@ def _load_yaml_internal_with_type(
         loader.dispose()
 
 
-def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = None):
+def dump(
+    dict_,
+    show_secrets=False,
+    sort_keys=False,
+    relative_to: Path | None = None,
+    data_dir: Path | None = None,
+):
     """Dump YAML to a string and remove null.
 
     When ``relative_to`` is given, Path values are dumped relative to that
-    directory (POSIX form) so the output is machine independent.
+    directory (POSIX form) so the output is machine independent; Path values
+    under ``data_dir`` are then dumped as ``.esphome/<rest>``. ``data_dir``
+    has no effect unless ``relative_to`` is also given.
     """
     if show_secrets:
         _SECRET_VALUES.clear()
@@ -1065,6 +1081,7 @@ def dump(dict_, show_secrets=False, sort_keys=False, relative_to: Path | None = 
     class _Dumper(ESPHomeDumper):
         _redact_sensitive = not show_secrets
         _relative_to = relative_to
+        _data_dir = data_dir
 
     return yaml.dump(
         dict_,
@@ -1223,6 +1240,9 @@ class ESPHomeDumper(yaml.SafeDumper):
     # directory (in POSIX form) so the output does not depend on where the
     # config lives on the machine that produced it.
     _relative_to: Path | None = None
+    # Paths under this directory are dumped as ``.esphome/<rest>`` so the
+    # add-on's ``/data`` mount matches the CLI layout.
+    _data_dir: Path | None = None
 
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
@@ -1266,6 +1286,12 @@ class ESPHomeDumper(yaml.SafeDumper):
             # path that still cannot be relativized (e.g. a different drive)
             # keeps its POSIX form so separators stay stable across OSes.
             path = Path(os.path.normpath(value))
+            # Checked first: the default data dir sits inside the config dir.
+            if self._data_dir is not None and path.is_relative_to(
+                data_dir := os.path.normpath(self._data_dir)
+            ):
+                rel = Path(".esphome") / path.relative_to(data_dir)
+                return self.represent_stringify(rel.as_posix())
             with suppress(ValueError):
                 path = path.relative_to(
                     os.path.normpath(self._relative_to), walk_up=True
@@ -1333,11 +1359,11 @@ class ESPHomeDumper(yaml.SafeDumper):
 
     def represent_include_file(self, value):
         if value.vars:
-            mapping = {"file": value.file.as_posix(), "vars": value.vars}
+            mapping = {"file": value.file, "vars": value.vars}
             return self.represent_mapping(
                 tag="!include", mapping=mapping, flow_style=False
             )
-        return self.represent_scalar(tag="!include", value=value.file.as_posix())
+        return self.represent_scalar(tag="!include", value=value.file)
 
     def represent_id(self, value):
         if is_secret(value.id):
@@ -1349,6 +1375,8 @@ class ESPHomeDumper(yaml.SafeDumper):
         return super().increase_indent(flow, False)
 
 
+# Mirrored by compiled_config._json_default: a new representer that keeps a
+# type round-trippable (like Lambda's) needs a sentinel there too.
 ESPHomeDumper.add_multi_representer(
     dict, lambda dumper, value: dumper.represent_mapping("tag:yaml.org,2002:map", value)
 )
