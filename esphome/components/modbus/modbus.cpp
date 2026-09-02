@@ -777,9 +777,10 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 bool Modbus::send_frame_(const ModbusFrame &frame) {
   int32_t tx_delay_remaining = this->tx_delay_remaining();
   if (tx_delay_remaining > 0) {
-    // delay() only lands on tick boundaries, so yield with it to get close, then busy-wait the rest.
-    if (tx_delay_remaining > (int32_t) (2 * US_PER_MS)) {
-      delay((tx_delay_remaining - US_PER_MS) / US_PER_MS);
+    // Yield the whole-ms part: delay() never blocks past the request on FreeRTOS, and only slightly
+    // over elsewhere, which just lengthens the gap. The recompute below makes the remainder exact.
+    if (tx_delay_remaining >= (int32_t) US_PER_MS) {
+      delay(tx_delay_remaining / US_PER_MS);
       tx_delay_remaining = this->tx_delay_remaining();
     }
     if (tx_delay_remaining > 0)
@@ -814,6 +815,9 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
 }
 
 void ModbusClientHub::send_next_frame_() {
+  if (this->tx_buffer_.empty())
+    return;
+
   if (this->tx_blocked())
     return;
 
@@ -1195,15 +1199,17 @@ void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
     this->set_timeout("deferred_send", (this->tx_delay_remaining() + US_PER_MS - 1) / US_PER_MS, [this]() {
       ModbusFrame frame(this->deferred_payload_[0], this->deferred_payload_.data() + 1,
                         this->deferred_payload_len_ - 1);
-      if (!this->send_frame_(frame))
+      if (!this->send_frame_(frame)) {
         ESP_LOGE(TAG, "Deferred server reply dropped: transmission still blocked");
+      }
     });
     return;
   }
 
   ModbusFrame frame(payload[0], payload + 1, len - 1);
-  if (!this->send_frame_(frame))
+  if (!this->send_frame_(frame)) {
     ESP_LOGE(TAG, "Server reply dropped: a frame arrived during the send delay");
+  }
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
