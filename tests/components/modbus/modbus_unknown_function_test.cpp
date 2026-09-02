@@ -54,7 +54,8 @@ class TestServerHub : public ModbusServerHub {
 
 // The frame-length parsers have explicit cases for exactly these 13 codes; every other value - the
 // assigned-but-unimplemented management codes, both user-defined ranges, and all unassigned codes -
-// must classify as unknown length. The exception flag masks off first.
+// must classify as unknown length. Exception replies are always the 2-byte spec shape, so every
+// 0x80-set code is known length.
 TEST(ModbusUnknownFunction, HelperMatchesParserCoverage) {
   for (uint8_t fc : {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x0F, 0x10, 0x14, 0x15, 0x16, 0x17, 0x18}) {
     EXPECT_FALSE(helpers::is_function_code_unknown_length(fc)) << "fc 0x" << std::hex << int(fc);
@@ -62,11 +63,13 @@ TEST(ModbusUnknownFunction, HelperMatchesParserCoverage) {
   for (uint8_t fc : {0x07, 0x08, 0x0B, 0x0C, 0x11, 0x2A, 0x41, 0x48, 0x49, 0x64, 0x6E, 0x00, 0x7F}) {
     EXPECT_TRUE(helpers::is_function_code_unknown_length(fc)) << "fc 0x" << std::hex << int(fc);
   }
-  // Exception replies classify by their base code.
+  // Every exception-flagged code is known length (the 2-byte spec exception shape), whatever its base.
   EXPECT_FALSE(helpers::is_function_code_unknown_length(0x83));
-  EXPECT_TRUE(helpers::is_function_code_unknown_length(0x87));
-  // Strictly wider than the user-defined ranges: every custom code is unknown-length, but not vice versa.
-  for (int fc = 0; fc <= 0xFF; fc++) {
+  EXPECT_FALSE(helpers::is_function_code_unknown_length(0x87));
+  EXPECT_FALSE(helpers::is_function_code_unknown_length(0xC9));
+  // Strictly wider than the user-defined ranges below 0x80: every non-exception custom code is
+  // unknown-length, but not vice versa.
+  for (int fc = 0; fc <= 0x7F; fc++) {
     if (helpers::is_function_code_custom(fc))
       EXPECT_TRUE(helpers::is_function_code_unknown_length(fc)) << "fc 0x" << std::hex << fc;
   }
@@ -75,10 +78,10 @@ TEST(ModbusUnknownFunction, HelperMatchesParserCoverage) {
   // Derived contract check: the helper must say "unknown" exactly when both length parsers fall
   // through to default. With a zero-filled max-size PDU every explicit case returns at least 2
   // (file records bottom out at 2, FIFO at 3) and only default returns MIN_PDU_SIZE, so comparing
-  // against MIN_PDU_SIZE detects a case added to either switch without updating the helper. The
-  // loop stops at 0x7F: above it the helper masks the exception flag off while client_pdu_length()
-  // switches on the unmasked byte and server_pdu_length() early-returns the exception length.
-  for (int fc = 0; fc <= 0x7F; fc++) {
+  // against MIN_PDU_SIZE detects a case added to either switch without updating the helper. Both
+  // parsers early-return the 2-byte exception shape above 0x7F, which the helper's own exception
+  // early-return mirrors, so the whole byte range is covered.
+  for (int fc = 0; fc <= 0xFF; fc++) {
     const uint8_t pdu[MAX_PDU_SIZE] = {static_cast<uint8_t>(fc)};  // zero header fields
     EXPECT_EQ(helpers::is_function_code_unknown_length(fc),
               helpers::client_pdu_length(pdu, sizeof(pdu)) == MIN_PDU_SIZE)
@@ -86,6 +89,17 @@ TEST(ModbusUnknownFunction, HelperMatchesParserCoverage) {
     EXPECT_EQ(helpers::is_function_code_unknown_length(fc),
               helpers::server_pdu_length(pdu, sizeof(pdu)) == MIN_PDU_SIZE)
         << "server_pdu_length disagrees for fc 0x" << std::hex << fc;
+  }
+}
+
+// Broadcastable = writes plus unknown codes (possible vendor writes); everything known to expect a
+// reply is not. Classifies the underlying code: the exception bit masks off first (0x85 as 0x05).
+TEST(ModbusUnknownFunction, BroadcastableClassification) {
+  for (uint8_t fc : {0x05, 0x06, 0x0F, 0x10, 0x16, 0x49, 0x63, 0x6E, 0x85, 0xC9}) {
+    EXPECT_TRUE(helpers::is_function_code_broadcastable(fc)) << "fc 0x" << std::hex << int(fc);
+  }
+  for (uint8_t fc : {0x01, 0x02, 0x03, 0x04, 0x14, 0x15, 0x17, 0x18, 0x83, 0x97}) {
+    EXPECT_FALSE(helpers::is_function_code_broadcastable(fc)) << "fc 0x" << std::hex << int(fc);
   }
 }
 
