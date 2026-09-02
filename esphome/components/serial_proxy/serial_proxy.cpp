@@ -130,7 +130,7 @@ bool SerialProxy::tap_observing_() const {
   // Otherwise the mode decides. RAW must be inert: a client that flips to RAW before
   // flashing firmware is entitled to a byte pipe with nothing injecting protocol bytes
   // into it, and "the tap turned out not to recognise the stream" is not good enough.
-  return this->mode_ == api::enums::SERIAL_PROXY_MODE_EZSP_ASH;
+  return this->mode_ == api::enums::SERIAL_PROXY_MODE_PROTOCOL;
 }
 
 void SerialProxy::tap_pump() {
@@ -156,7 +156,7 @@ void SerialProxy::dump_config() {
       this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS485   ? LOG_STR_LITERAL("RS485")
       : this->port_type_ == api::enums::SERIAL_PROXY_PORT_TYPE_RS232 ? LOG_STR_LITERAL("RS232")
                                                                      : LOG_STR_LITERAL("TTL"),
-      this->mode_ == api::enums::SERIAL_PROXY_MODE_EZSP_ASH ? LOG_STR_LITERAL("EZSP_ASH") : LOG_STR_LITERAL("RAW"),
+      this->mode_ == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"),
       this->rts_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"),
       this->dtr_pin_ != nullptr ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("not configured"));
 }
@@ -239,7 +239,7 @@ void SerialProxy::set_mode(api::APIConnection *api_connection, api::enums::Seria
   }
 #endif
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
-           mode == api::enums::SERIAL_PROXY_MODE_EZSP_ASH ? "EZSP_ASH" : "RAW");
+           mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? "PROTOCOL" : "RAW");
   const bool leaving_protocol_mode =
       this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
   this->mode_ = mode;

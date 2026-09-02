@@ -41,12 +41,13 @@ SERIAL_PROXY_PORT_TYPES = {
 }
 
 SerialProxyMode = api_enums_ns.enum("SerialProxyMode")
-# The mode a port starts in. `raw` is a plain byte pipe; `ezsp_ash` lets a tap
-# acknowledge NCP frames and read network metadata off the wire. Clients may change
-# it at runtime, so this only decides what the device boots into.
+# The mode a port starts in. `raw` is a plain byte pipe; `protocol` activates the
+# port's tap (if one is configured), letting it observe traffic and inject protocol
+# bytes such as acknowledgements. Clients may change it at runtime, so this only
+# decides what the device boots into.
 SERIAL_PROXY_MODES = {
     "RAW": SerialProxyMode.SERIAL_PROXY_MODE_RAW,
-    "EZSP_ASH": SerialProxyMode.SERIAL_PROXY_MODE_EZSP_ASH,
+    "PROTOCOL": SerialProxyMode.SERIAL_PROXY_MODE_PROTOCOL,
 }
 
 CONF_DTR_PIN = "dtr_pin"

@@ -22,7 +22,7 @@ serial_proxy:
     uart_id: zigbee_usb_channel
     name: Zigbee
     port_type: TTL
-    mode: ezsp_ash
+    mode: protocol
 
 zigbee_proxy:
   serial_proxy_id: zigbee_usb_serial

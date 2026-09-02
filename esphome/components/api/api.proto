@@ -2845,12 +2845,15 @@ message SerialProxyRequestResponse {
   string error_message = 4;            // Additional detail on failure (optional)
 }
 
-// How a port treats the bytes passing through it. RAW is a plain byte pipe; EZSP_ASH lets
-// a protocol-aware tap acknowledge NCP frames and read network metadata. A client that is
-// about to flash firmware selects RAW first, which definitively disables that injection.
+// How a port treats the bytes passing through it. RAW is a plain byte pipe; PROTOCOL
+// activates the port's protocol-aware tap (if one is configured), letting it observe
+// traffic and inject protocol bytes such as acknowledgements. Which protocol the tap
+// speaks is a property of the device configuration, discoverable from the tap
+// component's own API surface. A client that is about to flash firmware selects RAW
+// first, which definitively disables that injection.
 enum SerialProxyMode {
   SERIAL_PROXY_MODE_RAW = 0;
-  SERIAL_PROXY_MODE_EZSP_ASH = 1;
+  SERIAL_PROXY_MODE_PROTOCOL = 1;
 }
 
 message SerialProxySetModeRequest {

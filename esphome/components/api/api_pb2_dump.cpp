@@ -882,8 +882,8 @@ template<> const char *proto_enum_to_string<enums::SerialProxyMode>(enums::Seria
   switch (value) {
     case enums::SERIAL_PROXY_MODE_RAW:
       return ESPHOME_PSTR("SERIAL_PROXY_MODE_RAW");
-    case enums::SERIAL_PROXY_MODE_EZSP_ASH:
-      return ESPHOME_PSTR("SERIAL_PROXY_MODE_EZSP_ASH");
+    case enums::SERIAL_PROXY_MODE_PROTOCOL:
+      return ESPHOME_PSTR("SERIAL_PROXY_MODE_PROTOCOL");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }

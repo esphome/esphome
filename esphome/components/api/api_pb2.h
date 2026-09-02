@@ -368,7 +368,7 @@ enum SerialProxyStatus : uint32_t {
 };
 enum SerialProxyMode : uint32_t {
   SERIAL_PROXY_MODE_RAW = 0,
-  SERIAL_PROXY_MODE_EZSP_ASH = 1,
+  SERIAL_PROXY_MODE_PROTOCOL = 1,
 };
 #endif
 #ifdef USE_ZIGBEE_PROXY
