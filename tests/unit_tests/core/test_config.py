@@ -333,6 +333,48 @@ def test_device_duplicate_id(
     assert "ID duplicate_device redefined!" in captured.out
 
 
+def test_expander_pin_selected_by_address(yaml_file: Callable[[str], str]) -> None:
+    """A pin provider hub with an omitted id can be selected by its address."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address.yaml", FIXTURES_DIR
+    )
+    assert result is not None
+
+    resolved = result["binary_sensor"][0]["pin"]["xl9535"]
+    assert resolved.id == "xl9535_b"
+
+
+def test_expander_pin_selected_by_address_no_match(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Selecting an address that matches no hub of that type fails clearly."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address_no_match.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert "Couldn't find a 'xl9535::XL9535Component' matching address=0x21." in (
+        captured.out
+    )
+
+
+def test_expander_pin_selected_by_address_ambiguous(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Two hubs sharing the same address (e.g. on different buses) still need an id."""
+    result = load_config_from_fixture(
+        yaml_file, "expander_pin_by_address_ambiguous.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Multiple 'xl9535::XL9535Component' instances match address=0x20: "
+        "'xl9535_a', 'xl9535_b'." in captured.out
+    )
+
+
 def test_substitution_with_id(
     yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
 ) -> None:
