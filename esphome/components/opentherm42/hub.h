@@ -1,7 +1,9 @@
 #pragma once
 
+#include <memory>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "datalink.h"
 
 namespace esphome::opentherm42 {
 
@@ -22,6 +24,8 @@ class OpenTherm42Hub : public Component {
  protected:
   InternalGPIOPin *in_pin_{nullptr};
   InternalGPIOPin *out_pin_{nullptr};
+
+  std::unique_ptr<OpenThermDataLink> datalink_;
 };
 
 }  // namespace esphome::opentherm42
