@@ -58,7 +58,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     for conf in config.get(CONF_ON_EXPOSURE_NOTIFICATION, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         await automation.build_automation(trigger, [(ExposureNotification, "x")], conf)

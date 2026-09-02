@@ -1,11 +1,22 @@
-import base64
 import logging
+import re
+from typing import Any
 
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.const import CONF_DESCRIPTION
 from esphome.components.logger import request_log_listener
-from esphome.config_helpers import get_logger_level
+
+# ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
+# components and downstream consumers that import them from api
+from esphome.components.noise import (  # noqa: F401
+    ENCRYPTION_SCHEMA,
+    decode_encryption_key,
+    encryption_schema,
+    validate_encryption_key,
+)
+from esphome.config_helpers import filter_source_files_from_defines, get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
@@ -31,11 +42,17 @@ from esphome.const import (
     CONF_TAG,
     CONF_THEN,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_VARIABLES,
 )
 from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.helpers import fnv1_hash
 from esphome.types import ConfigFragmentType, ConfigType
+
+# Compat alias: downstream consumers (e.g. device-builder) referenced the
+# schema by its old private name before it moved to the noise component
+_encryption_schema = encryption_schema
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,8 +62,14 @@ CODEOWNERS = ["@esphome/core"]
 
 
 def AUTO_LOAD(config: ConfigType) -> list[str]:
-    """Conditionally auto-load json only when capture_response is used."""
+    """Conditionally auto-load noise (encryption) and json (capture_response)."""
     base = ["socket"]
+
+    # A falsy config is a tooling probe for the maximal set (None from
+    # dependency resolution, {} from the components-graph platform probe);
+    # a validated config always carries defaults, never empty
+    if not config or CONF_ENCRYPTION in config:
+        base = base + ["noise"]
 
     # Check if any homeassistant.action/homeassistant.service has capture_response: true
     # This flag is set during config validation in _validate_response_config
@@ -105,6 +128,7 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
 }
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
+CONF_EXAMPLE = "example"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
@@ -127,20 +151,6 @@ def _register_provisioning_source(config: ConfigType) -> ConfigType:
         if CONF_KEY in encryption:
             provisioning.report_hardcoded_credentials("api")
     return config
-
-
-def validate_encryption_key(value):
-    value = cv.string_strict(value)
-    try:
-        decoded = base64.b64decode(value, validate=True)
-    except ValueError as err:
-        raise cv.Invalid("Invalid key format, please check it's using base64") from err
-
-    if len(decoded) != 32:
-        raise cv.Invalid("Encryption key must be base64 and 32 bytes long")
-
-    # Return original data for roundtrip conversion
-    return value
 
 
 CONF_SUPPORTS_RESPONSE = "supports_response"
@@ -217,9 +227,24 @@ def _auto_detect_supports_response(config: ConfigType) -> ConfigType:
     return config
 
 
-def _validate_supports_response(value):
+def _validate_supports_response(value: Any) -> str:
     """Validate supports_response after auto-detection has set the value."""
     return cv.enum(SUPPORTS_RESPONSE_OPTIONS, lower=True)(value)
+
+
+# ESP8266 copies every string of an action into a stack buffer sized by codegen; keep it small
+ESP8266_ACTION_STRINGS_MAX_TOTAL = 384
+
+VARIABLE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
+        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
+        cv.Optional(CONF_EXAMPLE): cv.string_strict,
+    }
+)
+
+# Accepts the plain `name: type` shorthand or the full mapping form
+validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
 
 
 ACTIONS_SCHEMA = automation.validate_automation(
@@ -227,9 +252,10 @@ ACTIONS_SCHEMA = automation.validate_automation(
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
         cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.valid_name,
         cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.valid_name,
+        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
         cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
             {
-                cv.validate_id_name: cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
+                cv.validate_id_name: validate_variable,
             }
         ),
         # No default - auto-detected by _auto_detect_supports_response
@@ -248,18 +274,6 @@ ACTIONS_SCHEMA = automation.validate_automation(
         ),
     ),
 )
-
-ENCRYPTION_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_KEY): cv.sensitive(validate_encryption_key),
-    }
-)
-
-
-def _encryption_schema(config):
-    if config is None:
-        config = {}
-    return ENCRYPTION_SCHEMA(config)
 
 
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
@@ -296,7 +310,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_SERVICES, group_of_exclusion=CONF_ACTIONS
             ): ACTIONS_SCHEMA,
             cv.Exclusive(CONF_ACTIONS, group_of_exclusion=CONF_ACTIONS): ACTIONS_SCHEMA,
-            cv.Optional(CONF_ENCRYPTION): _encryption_schema,
+            cv.Optional(CONF_ENCRYPTION): encryption_schema,
             cv.Optional(CONF_BATCH_DELAY, default="100ms"): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=65535)),
@@ -358,6 +372,85 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _has_action_metadata(actions: list[ConfigType]) -> bool:
+    # Empty strings count as unset, matching _action_strings
+    return any(
+        conf.get(CONF_DESCRIPTION)
+        or any(
+            var_.get(CONF_DESCRIPTION) or var_.get(CONF_EXAMPLE)
+            for var_ in conf[CONF_VARIABLES].values()
+        )
+        for conf in actions
+    )
+
+
+def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
+    """Strings of one action in the table order UserServiceStatic (user_services.h) expects."""
+    # An empty description or example is treated as unset
+    strings: list[str | None] = [conf[CONF_ACTION]]
+    if has_metadata:
+        strings.append(conf.get(CONF_DESCRIPTION) or None)
+    for name, var_ in conf[CONF_VARIABLES].items():
+        strings.append(name)
+        if has_metadata:
+            strings += [
+                var_.get(CONF_DESCRIPTION) or None,
+                var_.get(CONF_EXAMPLE) or None,
+            ]
+    return strings
+
+
+def _action_strings_size(strings: list[str | None]) -> int:
+    """Bytes needed to copy every string out of flash, each with its terminator."""
+    return sum(
+        len(string.encode("utf-8")) + 1 for string in strings if string is not None
+    )
+
+
+def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
+    if not CORE.is_esp8266:
+        return config
+    actions = config.get(CONF_ACTIONS, [])
+    has_metadata = _has_action_metadata(actions)
+    for conf in actions:
+        size = _action_strings_size(_action_strings(conf, has_metadata))
+        if size > ESP8266_ACTION_STRINGS_MAX_TOTAL:
+            raise cv.Invalid(
+                f"Action '{conf[CONF_ACTION]}' has {size} bytes of name, variable name, "
+                f"description and example text; ESP8266 allows at most "
+                f"{ESP8266_ACTION_STRINGS_MAX_TOTAL} bytes per action"
+            )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
+
+
+def _add_action_strings(
+    index: int, strings: list[str | None], interned: dict[str, MockObj]
+) -> MockObj:
+    """Emit the PROGMEM string table for one action.
+
+    Each string is its own PROGMEM array because on ESP8266 .rodata is RAM, and identical
+    strings are shared between actions through `interned`.
+    """
+    entries: list[MockObj] = []
+    for string in strings:
+        if string is None:
+            entries.append(cg.nullptr)
+            continue
+        if (var := interned.get(string)) is None:
+            var = interned[string] = cg.progmem_array(
+                ID(f"api_action_str{len(interned)}", is_declaration=True, type=cg.char),
+                string,
+            )
+        entries.append(var)
+    return cg.progmem_array(
+        ID(f"api_action{index}_strings", is_declaration=True, type=cg.const_char_ptr),
+        entries,
+    )
+
+
 @coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -377,8 +470,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("MAX_API_CONNECTIONS", config[CONF_MAX_CONNECTIONS])
     cg.add_define("API_MAX_SEND_QUEUE", config[CONF_MAX_SEND_QUEUE])
 
+    actions = config.get(CONF_ACTIONS, [])
+    has_user_actions = bool(actions) or config[CONF_CUSTOM_SERVICES]
     # Set USE_API_USER_DEFINED_ACTIONS if any services are enabled
-    if config.get(CONF_ACTIONS) or config[CONF_CUSTOM_SERVICES]:
+    if has_user_actions:
         cg.add_define("USE_API_USER_DEFINED_ACTIONS")
 
     # Set USE_API_CUSTOM_SERVICES if external components need dynamic service registration
@@ -391,10 +486,17 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_HOMEASSISTANT_STATES]:
         cg.add_define("USE_API_HOMEASSISTANT_STATES")
 
-    if actions := config.get(CONF_ACTIONS, []):
+    scratch_size = 0
+    if actions:
+        # Metadata is compiled in for every action once any action declares it, because the
+        # string table layout is fixed by the define rather than per action
+        has_metadata = _has_action_metadata(actions)
+        if has_metadata:
+            cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
+        interned_strings: dict[str, MockObj] = {}
         # Collect all triggers first, then register all at once with initializer_list
-        triggers: list[cg.Pvariable] = []
-        for conf in actions:
+        triggers: list[cg.MockObj] = []
+        for index, conf in enumerate(actions):
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
 
@@ -427,22 +529,23 @@ async def to_code(config: ConfigType) -> None:
                 conf.get(CONF_THEN, [])
             )
 
-            service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
-                if has_non_synchronous and var_ in SERVICE_ARG_FALLBACK_TYPES:
-                    native = SERVICE_ARG_FALLBACK_TYPES[var_]
+                var_type = var_[CONF_TYPE]
+                if has_non_synchronous and var_type in SERVICE_ARG_FALLBACK_TYPES:
+                    native = SERVICE_ARG_FALLBACK_TYPES[var_type]
                 else:
-                    native = SERVICE_ARG_NATIVE_TYPES[var_]
+                    native = SERVICE_ARG_NATIVE_TYPES[var_type]
                 service_template_args.append(native)
                 func_args.append((native, name))
-                service_arg_names.append(name)
+            strings = _action_strings(conf, has_metadata)
+            table = _add_action_strings(index, strings, interned_strings)
+            if CORE.is_esp8266:
+                scratch_size = max(scratch_size, _action_strings_size(strings))
             # Template args: supports_response mode, then user service arg types
             templ = cg.TemplateArguments(supports_response, *service_template_args)
+            # Key is hashed here because the name is not readable at runtime on ESP8266
             trigger = cg.new_Pvariable(
-                conf[CONF_TRIGGER_ID],
-                templ,
-                conf[CONF_ACTION],
-                service_arg_names,
+                conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
             )
             triggers.append(trigger)
             auto = await automation.build_automation(trigger, func_args, conf)
@@ -464,6 +567,9 @@ async def to_code(config: ConfigType) -> None:
                 cg.add(auto.add_actions([unregister_action]))
         # Register all services at once - single allocation, no reallocations
         cg.add(var.initialize_user_services(triggers))
+    if CORE.is_esp8266 and has_user_actions:
+        # Stack buffer that list-entities copies PROGMEM strings into, sized for the largest action
+        cg.add_define("API_USER_ACTION_STRINGS_SCRATCH_SIZE", max(scratch_size, 1))
 
     if CONF_ON_CLIENT_CONNECTED in config:
         cg.add_define("USE_API_CLIENT_CONNECTED_TRIGGER")
@@ -483,7 +589,7 @@ async def to_code(config: ConfigType) -> None:
 
     if (encryption_config := config.get(CONF_ENCRYPTION, None)) is not None:
         if key := encryption_config.get(CONF_KEY):
-            decoded = base64.b64decode(key)
+            decoded = decode_encryption_key(key)
             cg.add(var.set_noise_psk(list(decoded)))
             cg.add_define("USE_API_NOISE_PSK_FROM_YAML")
         else:
@@ -497,10 +603,6 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.21")
-        # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
-        cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
-        cg.add_build_flag("-DHAVE_INLINE_ASM=1")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
@@ -509,6 +611,40 @@ async def to_code(config: ConfigType) -> None:
 
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
+
+_ID_CALL_PROG = re.compile(r"\bid\s*\(")
+
+
+# Remove before 2027.3.0: untagged strings that look like lambda source keep
+# being compiled as lambdas during the deprecation window
+def _coerce_implicit_lambda(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    if cv.looks_like_returning_lambda(value):
+        _LOGGER.warning(
+            "[api] The 'variables' value '%s' looks like a lambda but is "
+            "missing the !lambda tag. It is compiled as a lambda for now but "
+            "will be sent as literal text from 2027.3.0. Add !lambda to keep "
+            "it evaluated; literal text belongs under 'data:'.",
+            value,
+        )
+        # cv.templatable runs returning_lambda on the coerced Lambda
+        return cv.lambda_(value)
+    if _ID_CALL_PROG.search(value):
+        # lambda source without a return: issue 5394's mistake class
+        _LOGGER.warning(
+            "[api] The 'variables' value '%s' is sent as literal text; wrap "
+            "it in !lambda 'return ...;' to evaluate it instead.",
+            value,
+        )
+    return value
+
+
+# Static strings or !lambda values. cv.templatable stays introspectable for
+# schema tooling; removing the shim leaves KEY_VALUE_SCHEMA.
+VARIABLES_SCHEMA = cv.Schema(
+    {cv.string: cv.All(_coerce_implicit_lambda, cv.templatable(cv.string_strict))}
+)
 
 
 def _validate_response_config(config: ConfigType) -> ConfigType:
@@ -546,9 +682,7 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
             cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-            cv.Optional(CONF_VARIABLES, default={}): cv.Schema(
-                {cv.string: cv.returning_lambda}
-            ),
+            cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
             cv.Optional(CONF_RESPONSE_TEMPLATE): cv.templatable(cv.string),
             cv.Optional(CONF_CAPTURE_RESPONSE, default=False): cv.boolean,
             cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
@@ -581,7 +715,7 @@ async def homeassistant_service_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-):
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
@@ -609,6 +743,8 @@ async def homeassistant_service_to_code(
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
@@ -647,7 +783,7 @@ async def homeassistant_service_to_code(
     return var
 
 
-def validate_homeassistant_event(value):
+def validate_homeassistant_event(value: Any) -> str:
     value = cv.string(value)
     if not value.startswith("esphome."):
         raise cv.Invalid(
@@ -663,7 +799,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_EVENT): validate_homeassistant_event,
         cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
         cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-        cv.Optional(CONF_VARIABLES, default={}): KEY_VALUE_SCHEMA,
+        cv.Optional(CONF_VARIABLES, default={}): VARIABLES_SCHEMA,
     }
 )
 
@@ -676,7 +812,12 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
     synchronous=True,
 )
-async def homeassistant_event_to_code(config, action_id, template_arg, args):
+async def homeassistant_event_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
@@ -704,6 +845,8 @@ async def homeassistant_event_to_code(config, action_id, template_arg, args):
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
         cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     return var
@@ -724,7 +867,12 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
     synchronous=True,
 )
-async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
+async def homeassistant_tag_scanned_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
@@ -740,7 +888,7 @@ CONF_SUCCESS = "success"
 CONF_ERROR_MESSAGE = "error_message"
 
 
-def _validate_api_respond_data(config):
+def _validate_api_respond_data(config: ConfigType) -> ConfigType:
     """Set flag during validation so AUTO_LOAD can include json component."""
     if CONF_DATA in config:
         CORE.data.setdefault(DOMAIN, {})[CONF_CAPTURE_RESPONSE] = True
@@ -824,18 +972,32 @@ API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
 @automation.register_condition(
     "api.connected", APIConnectedCondition, API_CONNECTED_CONDITION_SCHEMA
 )
-async def api_connected_to_code(config, condition_id, template_arg, args):
+async def api_connected_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
     var = cg.new_Pvariable(condition_id, template_arg)
     templ = await cg.templatable(config[CONF_STATE_SUBSCRIPTION_ONLY], args, cg.bool_)
     cg.add(var.set_state_subscription_only(templ))
     return var
 
 
+# user_services.cpp is only needed when user defined actions exist; the
+# frame helpers are fully #ifdef'd on the protocol defines set in to_code
+# (both are set when encryption is configured without a key).
+_define_filter = filter_source_files_from_defines(
+    {
+        "user_services.cpp": "USE_API_USER_DEFINED_ACTIONS",
+        "api_frame_helper_noise.cpp": "USE_API_NOISE",
+        "api_frame_helper_plaintext.cpp": "USE_API_PLAINTEXT",
+    }
+)
+
+
 def FILTER_SOURCE_FILES() -> list[str]:
-    """Filter out api_pb2_dump.cpp when proto message dumping is not enabled,
-    user_services.cpp when no services are defined, and protocol-specific
-    implementations based on encryption configuration."""
-    files_to_filter: list[str] = []
+    files_to_filter = _define_filter()
 
     # api_pb2_dump.cpp is only needed when HAS_PROTO_MESSAGE_DUMP is defined
     # This is a particularly large file that still needs to be opened and read
@@ -845,22 +1007,5 @@ def FILTER_SOURCE_FILES() -> list[str]:
     # which happens when the logger level is VERY_VERBOSE
     if get_logger_level() != "VERY_VERBOSE":
         files_to_filter.append("api_pb2_dump.cpp")
-
-    # user_services.cpp is only needed when services are defined
-    config = CORE.config.get(DOMAIN, {})
-    if config and not config.get(CONF_ACTIONS) and not config[CONF_CUSTOM_SERVICES]:
-        files_to_filter.append("user_services.cpp")
-
-    # Filter protocol-specific implementations based on encryption configuration
-    encryption_config = config.get(CONF_ENCRYPTION) if config else None
-
-    # If encryption is not configured at all, we only need plaintext
-    if encryption_config is None:
-        files_to_filter.append("api_frame_helper_noise.cpp")
-    # If encryption is configured with a key, we only need noise
-    elif encryption_config.get(CONF_KEY):
-        files_to_filter.append("api_frame_helper_plaintext.cpp")
-    # If encryption is configured but no key is provided, we need both
-    # (this allows a plaintext client to provide a noise key)
 
     return files_to_filter
