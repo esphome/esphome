@@ -46,7 +46,7 @@ This document provides essential context for AI models interacting with this pro
 
 **Read the developer documentation before writing a component.** https://developers.esphome.io covers the
 component lifecycle, the main loop, and the reasoning behind the rules below in far more depth than this
-file does, and it is the authority when the two disagree. The most useful starting points:
+file does, and it is the authority when they disagree. The most useful starting points:
 
 *   https://developers.esphome.io/architecture/components/ - component lifecycle, `setup()`, `loop()`,
     setup priorities, and how a component is registered.
@@ -165,7 +165,8 @@ file does, and it is the authority when the two disagree. The most useful starti
         if (now - this->last_poll_ < POLL_INTERVAL_MS)
           return;
         this->last_poll_ = now;
-
+        ```
+        ```cpp
         // Good - an interval that actually rate limits, off the cached timestamp
         static constexpr uint32_t POLL_INTERVAL_MS = 100;
         const uint32_t now = App.get_loop_component_start_time();
@@ -685,7 +686,8 @@ file does, and it is the authority when the two disagree. The most useful starti
            // Bad - heap copy of a literal that is already in flash
            void set_keys(std::string keys) { this->keys_ = std::move(keys); }
            std::string keys_;
-
+           ```
+           ```cpp
            // Good - no allocation
            void set_keys(const char *keys) { this->keys_ = StringRef(keys); }
            StringRef keys_;
