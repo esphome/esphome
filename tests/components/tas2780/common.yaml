@@ -1,0 +1,29 @@
+audio_dac:
+  - platform: tas2780
+    id: tas2780_amp
+    address: 0x38
+    i2c_id: i2c_bus
+    amp_level: 8
+    power_mode: 2
+    vol_range_min: 0.3
+    vol_range_max: 1.0
+    channel: mono
+
+esphome:
+  on_boot:
+    - tas2780.activate:
+        id: tas2780_amp
+        power_mode: 2
+    - tas2780.activate:
+        id: tas2780_amp
+        power_mode: 2
+    - tas2780.update_config:
+        id: tas2780_amp
+        amp_level: 10
+        vol_range_min: 0.2
+        vol_range_max: 0.9
+        channel: left
+    - tas2780.deactivate:
+        id: tas2780_amp
+    - tas2780.reset:
+        id: tas2780_amp
