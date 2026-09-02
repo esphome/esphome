@@ -932,8 +932,13 @@ def test_run_compile(setup_core: Path, mock_run_platformio_cli_run: Mock) -> Non
     config = {CONF_ESPHOME: {CONF_COMPILE_PROCESS_LIMIT: 4}}
     mock_run_platformio_cli_run.return_value = 0
 
-    toolchain.run_compile(config, verbose=True)
+    with patch(
+        "esphome.platformio.prefetch.prefetch_platformio_packages"
+    ) as mock_prefetch:
+        toolchain.run_compile(config, verbose=True)
 
+    # The only wiring of the prefetch into a build lives here
+    mock_prefetch.assert_called_once_with()
     mock_run_platformio_cli_run.assert_called_once_with(config, True, "-j4")
 
 
@@ -947,7 +952,8 @@ def test_run_compile_without_process_limit(
     config = {CONF_ESPHOME: {}}
     mock_run_platformio_cli_run.return_value = 0
 
-    toolchain.run_compile(config, verbose=False)
+    with patch("esphome.platformio.prefetch.prefetch_platformio_packages"):
+        toolchain.run_compile(config, verbose=False)
 
     mock_run_platformio_cli_run.assert_called_once_with(config, False)
 
@@ -1677,8 +1683,8 @@ def pio_core_dir(tmp_path: Path) -> Path:
 
 
 def test_current_python_minor_matches_running_interpreter() -> None:
-    """_current_python_minor returns major.minor of the running interpreter."""
-    assert toolchain._current_python_minor() == _CURRENT_MINOR
+    """current_python_minor returns major.minor of the running interpreter."""
+    assert toolchain.current_python_minor() == _CURRENT_MINOR
 
 
 def test_pio_stamp_round_trip(tmp_path: Path) -> None:
