@@ -81,10 +81,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   struct sockaddr_storage addr;
   socklen_t addr_len =
       socket::set_sockaddr((struct sockaddr *) &addr, sizeof(addr), host, API_OUTGOING_CONNECTION_PORT);
-  // inet_addr() cannot signal failure: unparsable IPv4 text yields the
-  // broadcast address, which is never a valid target either
-  if (addr_len == 0 || (((struct sockaddr *) &addr)->sa_family == AF_INET &&
-                        ((struct sockaddr_in *) &addr)->sin_addr.s_addr == ESPHOME_INADDR_NONE)) {
+  if (addr_len == 0) {
     ESP_LOGW(TAG, "Invalid target %s", host);
 #ifndef API_OUTGOING_CONNECTION_HOST
     // A corrupt remembered value can never become dialable; forget it
@@ -204,9 +201,8 @@ void OutgoingConnectionManager::on_client_removed(APIConnection *conn, bool was_
   const uint32_t now = App.get_loop_component_start_time();
   if (was_authenticated) {
     // A working peer (e.g. a host: target that never sends the flag)
-    // disconnected normally
+    // disconnected normally; state is IDLE, so loop() applies the delay
     this->backoff_ = BACKOFF_MIN_MS;
-    this->schedule_wait_(now, API_OUTGOING_CONNECTION_DELAY);
   } else {
     this->schedule_retry_(now);
   }
@@ -245,11 +241,10 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
 }
 
 void OutgoingConnectionManager::dump_config() const {
-#ifdef API_OUTGOING_CONNECTION_HOST
-  const char *host = API_OUTGOING_CONNECTION_HOST;
-#else
-  const char *host = this->saved_.host[0] != '\0' ? this->saved_.host : "none remembered yet";
-#endif
+  const char *host = this->target_host_();
+  if (host == nullptr) {
+    host = "none remembered yet";
+  }
   ESP_LOGCONFIG(TAG,
                 "  Outgoing connection port: %u\n"
                 "  Outgoing connection host: %s",

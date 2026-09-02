@@ -295,14 +295,11 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 
 
 def _validate_outgoing_connection(config: ConfigType) -> ConfigType:
+    # The socket-layer constraint (raw lwip_tcp cannot dial out, the default
+    # on esp8266/rp2040) is checked against the resolved implementation in
+    # _validate_outgoing_socket_implementation at final validate
     if CONF_OUTGOING_CONNECTION not in config:
         return config
-    if CORE.is_esp8266 or CORE.is_rp2:
-        raise cv.Invalid(
-            "outgoing_connection is not supported on this platform because its "
-            "socket layer cannot make outgoing connections",
-            path=[CONF_OUTGOING_CONNECTION],
-        )
     if CONF_ENCRYPTION not in config:
         raise cv.Invalid(
             "outgoing_connection requires 'encryption' so the peer is verified by key",

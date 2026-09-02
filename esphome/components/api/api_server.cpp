@@ -298,8 +298,9 @@ void APIServer::add_client_(APIConnection *conn) {
 APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> sock) {
   // Re-check at the handoff: inbound clients may have filled the slots and
   // the PSK may have been cleared (mark_outgoing() needs the noise helper)
-  if (this->at_client_limit_() || !this->noise_ctx_.has_psk()) {
-    ESP_LOGW(TAG, "Dropping outgoing connection (%s)", this->at_client_limit_() ? "max connections" : "no key active");
+  const bool at_limit = this->at_client_limit_();
+  if (at_limit || !this->noise_ctx_.has_psk()) {
+    ESP_LOGW(TAG, "Dropping outgoing connection (%s)", at_limit ? "max connections" : "no key");
     return nullptr;
   }
   auto *conn = new APIConnection(std::move(sock), this);

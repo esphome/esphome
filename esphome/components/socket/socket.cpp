@@ -165,7 +165,10 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
 #else
     // Use LWIP-specific functions
     ip6_addr_t ip6;
-    inet6_aton(ip_address, &ip6);
+    if (inet6_aton(ip_address, &ip6) == 0) {
+      errno = EINVAL;
+      return 0;
+    }
     memcpy(server->sin6_addr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
 #endif
     return sizeof(sockaddr_in6);
@@ -185,7 +188,12 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
     return 0;
   }
 #else
-  server->sin_addr.s_addr = inet_addr(ip_address);
+  // Unlike inet_addr(), inet_aton() can signal failure while still
+  // accepting the broadcast address 255.255.255.255
+  if (inet_aton(ip_address, &server->sin_addr) == 0) {
+    errno = EINVAL;
+    return 0;
+  }
 #endif
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
