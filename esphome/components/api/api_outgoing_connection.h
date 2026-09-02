@@ -25,6 +25,18 @@ class APIConnection;
 // target is simply relearned
 static constexpr size_t SAVED_TARGET_HOST_LEN = socket::SOCKADDR_STR_LEN;
 
+enum class ConnectPollResult : uint8_t {
+  CONNECT_POLL_PENDING,
+  CONNECT_POLL_CONNECTED,
+  CONNECT_POLL_ERROR,
+};
+
+/// Check a non-blocking connect() for completion without blocking. On
+/// CONNECT_POLL_ERROR, err_out holds the socket's SO_ERROR, or errno when the
+/// poll itself failed. Lives here for now; a candidate for the socket
+/// component (async_tcp has a near-duplicate poll).
+ConnectPollResult poll_connect(socket::Socket &sock, int &err_out);
+
 struct SavedOutgoingTarget {
   // IP as text so the socket component's v4-mapped-IPv6 normalization is
   // reused on both ends; empty = none remembered

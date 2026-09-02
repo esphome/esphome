@@ -282,7 +282,12 @@ void __attribute__((flatten)) APIServer::accept_new_connections_() {
   }
 }
 
-void APIServer::add_client_(APIConnection *conn) {
+bool APIServer::add_client_(APIConnection *conn) {
+  if (this->at_client_limit_()) {
+    // Callers check first; enforce the array bound where the write happens
+    delete conn;
+    return false;
+  }
   this->clients_[this->api_connection_count_++].reset(conn);
   conn->start();
 
@@ -292,6 +297,7 @@ void APIServer::add_client_(APIConnection *conn) {
   if (this->api_connection_count_ == 1 && this->reboot_timeout_ != 0 && !this->provisioning_pending_()) {
     this->status_clear_warning();
   }
+  return true;
 }
 
 #ifdef USE_API_OUTGOING_CONNECTION
@@ -304,7 +310,9 @@ APIConnection *APIServer::add_outgoing_client_(std::unique_ptr<socket::Socket> s
     return nullptr;
   }
   auto *conn = new APIConnection(std::move(sock), this);
-  this->add_client_(conn);
+  if (!this->add_client_(conn)) {
+    return nullptr;
+  }
   // After start(): sends our server hello first so the peer can pick the key
   conn->mark_outgoing();
   return conn;

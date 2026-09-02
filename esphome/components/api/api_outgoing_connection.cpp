@@ -88,6 +88,9 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     // (covers an IPv6 literal left by an earlier enable_ipv6 build too)
     this->saved_ = {};
     this->host_persisted_ = this->target_pref_.save(&this->saved_) && global_preferences->sync();
+    if (!this->host_persisted_) {
+      ESP_LOGW(TAG, "Failed to clear target");
+    }
 #endif
     this->schedule_retry_(now);
     return;
@@ -125,12 +128,26 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
     return;
   }
   this->last_poll_ = now;
-  int fd = this->dial_socket_->get_fd();
+  int err = 0;
+  switch (poll_connect(*this->dial_socket_, err)) {
+    case ConnectPollResult::CONNECT_POLL_PENDING:
+      break;
+    case ConnectPollResult::CONNECT_POLL_CONNECTED:
+      this->handoff_(server, now);
+      break;
+    case ConnectPollResult::CONNECT_POLL_ERROR:
+      ESP_LOGW(TAG, "Connect failed: %d", err);
+      this->schedule_retry_(now);
+      break;
+  }
+}
+
+ConnectPollResult poll_connect(socket::Socket &sock, int &err_out) {
+  int fd = sock.get_fd();
   if (fd < 0 || fd >= FD_SETSIZE) {
     // FD_SET on either is undefined behavior
-    ESP_LOGW(TAG, "fd %d unusable for select", fd);
-    this->schedule_retry_(now);
-    return;
+    err_out = EBADF;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
   }
   // Connect completion is a write event; the main loop only selects on reads
   fd_set writefds;
@@ -145,26 +162,23 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   int ret = ::select(fd + 1, nullptr, &writefds, nullptr, &tv);
 #endif
   if (ret < 0) {
-    ESP_LOGW(TAG, "Connect poll failed: errno %d", errno);
-    this->schedule_retry_(now);
-    return;
+    err_out = errno;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
   }
   if (ret == 0 || !FD_ISSET(fd, &writefds)) {
-    return;  // still in progress
+    return ConnectPollResult::CONNECT_POLL_PENDING;
   }
   int error = 0;
   socklen_t len = sizeof(error);
-  if (this->dial_socket_->getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
-    ESP_LOGW(TAG, "Connect status check failed: errno %d", errno);
-    this->schedule_retry_(now);
-    return;
+  if (sock.getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
+    err_out = errno;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
   }
   if (error != 0) {
-    ESP_LOGW(TAG, "Connect failed: %d", error);
-    this->schedule_retry_(now);
-    return;
+    err_out = error;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
   }
-  this->handoff_(server, now);
+  return ConnectPollResult::CONNECT_POLL_CONNECTED;
 }
 
 void OutgoingConnectionManager::handoff_(APIServer *server, uint32_t now) {

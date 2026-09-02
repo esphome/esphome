@@ -264,7 +264,8 @@ class APIServer final : public Component,
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
   // Insert a constructed connection into the client slots and start it.
-  void add_client_(APIConnection *conn);
+  // Takes ownership; deletes the connection and returns false at the limit
+  bool add_client_(APIConnection *conn);
   bool at_client_limit_() const { return this->api_connection_count_ >= MAX_API_CONNECTIONS; }
 #ifdef USE_API_OUTGOING_CONNECTION
   // Returns the new connection, or nullptr (socket dropped) when at the limit
