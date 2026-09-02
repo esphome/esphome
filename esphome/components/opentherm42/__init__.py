@@ -1,7 +1,9 @@
 from esphome import pins
 import esphome.codegen as cg
+from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.core import CORE
 
 CODEOWNERS = ["@fornellas"]
 MULTI_CONF = True
@@ -29,3 +31,7 @@ async def to_code(config: dict) -> None:
     cg.add(var.set_in_pin(in_pin))
     out_pin = await cg.gpio_pin_expression(config[CONF_OUT_PIN])
     cg.add(var.set_out_pin(out_pin))
+
+    if CORE.is_esp32:
+        # §4.3/§3.3.2 bit-timing (datalink.h) needs a hardware timer for microsecond-accurate sampling.
+        include_builtin_idf_component("esp_driver_gptimer")
