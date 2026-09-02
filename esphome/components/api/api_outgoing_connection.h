@@ -99,6 +99,9 @@ class OutgoingConnectionManager {
   // Byte-aligned types last
 #ifndef API_OUTGOING_CONNECTION_HOST
   SavedOutgoingTarget saved_{};
+  // False while saved_ holds a value the flash write failed for; retried on
+  // the next flagged hello
+  bool host_persisted_{false};
 #endif
   DialState state_{DialState::DIAL_STATE_WAITING};
 };

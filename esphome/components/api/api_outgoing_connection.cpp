@@ -21,23 +21,13 @@ static const char *const TAG = "api.outgoing";
 void OutgoingConnectionManager::setup() {
 #ifndef API_OUTGOING_CONNECTION_HOST
   this->target_pref_ = global_preferences->make_preference<SavedOutgoingTarget>(629847102UL, true);
-  if (!this->target_pref_.load(&this->saved_)) {
+  if (this->target_pref_.load(&this->saved_)) {
+    this->host_persisted_ = true;
+  } else {
     this->saved_ = {};  // dump_config() reports the empty state
   }
   // Defend against a corrupt or truncated preference blob
   this->saved_.host[sizeof(this->saved_.host) - 1] = '\0';
-  // The macro is defined with a true/false value, not conditionally
-#if !USE_NETWORK_IPV6
-  if (strchr(this->saved_.host, ':') != nullptr) {
-    // Remembered by an earlier IPv6 build; set_sockaddr() would silently
-    // turn it into 255.255.255.255
-    ESP_LOGW(TAG, "Clearing unusable IPv6 target %s", this->saved_.host);
-    this->saved_ = {};
-    if (!this->target_pref_.save(&this->saved_) || !global_preferences->sync()) {
-      ESP_LOGW(TAG, "Failed to clear target");
-    }
-  }
-#endif
 #endif
 }
 
@@ -94,8 +84,14 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
   // inet_addr() cannot signal failure: unparsable IPv4 text yields the
   // broadcast address, which is never a valid target either
   if (addr_len == 0 || (((struct sockaddr *) &addr)->sa_family == AF_INET &&
-                        ((struct sockaddr_in *) &addr)->sin_addr.s_addr == INADDR_NONE)) {
+                        ((struct sockaddr_in *) &addr)->sin_addr.s_addr == ESPHOME_INADDR_NONE)) {
     ESP_LOGW(TAG, "Invalid target %s", host);
+#ifndef API_OUTGOING_CONNECTION_HOST
+    // A corrupt remembered value can never become dialable; forget it
+    // (covers an IPv6 literal left by an earlier enable_ipv6 build too)
+    this->saved_ = {};
+    this->host_persisted_ = this->target_pref_.save(&this->saved_) && global_preferences->sync();
+#endif
     this->schedule_retry_(now);
     return;
   }
@@ -233,12 +229,14 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
     ESP_LOGW(TAG, "Could not read peer address; not remembering target");
     return;
   }
-  if (strcmp(target.host, this->saved_.host) == 0) {
-    return;  // unchanged; avoid flash wear
+  if (this->host_persisted_ && strcmp(target.host, this->saved_.host) == 0) {
+    return;  // unchanged and already on flash; avoid flash wear
   }
-  // Use the fresh address this boot even if the flash write fails
+  // Use the fresh address this boot even if the flash write fails; a failed
+  // write is retried on the next flagged hello via host_persisted_
   this->saved_ = target;
-  if (!this->target_pref_.save(&target) || !global_preferences->sync()) {
+  this->host_persisted_ = this->target_pref_.save(&target) && global_preferences->sync();
+  if (!this->host_persisted_) {
     ESP_LOGW(TAG, "Failed to save target");
     return;
   }
