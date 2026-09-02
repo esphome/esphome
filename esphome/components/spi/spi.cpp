@@ -2,6 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_ZEPHYR
+#include "spi_zephyr.h"
+#endif
+
 namespace esphome::spi {
 
 const char *const TAG = "spi";
@@ -118,8 +122,19 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
-#if !defined(USE_ESP32) && !defined(USE_ARDUINO)
-// Stub for unsupported platforms (host, Zephyr, etc.) - hardware SPI is unavailable
+#if defined(USE_ZEPHYR)
+
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
+  if (interface == nullptr || !device_is_ready(interface)) {
+    ESP_LOGE(TAG, "SPI device is not ready");
+    return nullptr;
+  }
+  return new ZephyrSPIBus(interface);  // NOLINT
+}
+
+#elif !defined(USE_ESP32) && !defined(USE_ARDUINO)
+// Stub for unsupported platforms (host, etc.) - hardware SPI is unavailable
 SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
                               const std::vector<uint8_t> &data_pins) {
   return nullptr;
