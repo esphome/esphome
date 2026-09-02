@@ -17,12 +17,10 @@ uart:
   baud_rate: 115200
   port: /dev/null
 
-# Shared 3-bus mesh (see the shared_yaml markers in the test file): two
-# server hubs and one client hub, every bus forwarding to both others.
-# Servers: addr 1 = typed read-only registers, addr 5 = the read/write 0x17
-# target, addr 2/3 on the second server hub.
-# auto_start on every bus: the controller polls at boot, so the forwarding
-# must already be live or early requests are lost and generate warnings.
+# Shared 3-bus mesh (see the shared_yaml markers): addr 1 = typed read-only
+# registers, addr 5 = the read/write 0x17 target, addr 2/3 on the second
+# server hub. auto_start everywhere: the controller polls at boot, so the
+# forwarding must already be live or early requests generate warnings.
 uart_mock:
   - id: virtual_uart_server
     baud_rate: 9600

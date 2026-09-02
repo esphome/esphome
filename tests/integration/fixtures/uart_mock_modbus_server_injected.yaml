@@ -83,10 +83,8 @@ uart_mock:
             0xA4,
             0x08,
           ]
-      # FC 0x17 Read/Write Multiple Registers on device 1:
-      #   write reg 0x0001 = 0x1234 (qty 1), then read regs 0x0001..0x0002 (qty 2).
-      # Per Modbus 6.17 the write is performed before the read, so reg 0x0001 must
-      # read back the just-written 0x1234 in the same request.
+      # FC 0x17 on device 1: write reg 0x0001 = 0x1234 then read 0x0001..0x0002;
+      # per Modbus 6.17 the write runs first, so 0x0001 must read back 0x1234.
       - delay: 100ms
         inject_rx:
           [0x01, 0x17, 0x00, 0x01, 0x00, 0x02, 0x00, 0x01, 0x00, 0x01, 0x02, 0x12, 0x34, 0x49, 0xD8]
