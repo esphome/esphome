@@ -11,6 +11,14 @@ MULTI_CONF = True
 CONF_IN_PIN = "in_pin"
 CONF_OUT_PIN = "out_pin"
 
+# §5.3.2 Class 2: this master's own identity, written to the boiler once at startup (IDs 2 LB/124/126).
+# Kept as static hub-level config rather than entities -- unlike the boiler's status/measurements,
+# this doesn't change at runtime, so there's nothing for Home Assistant to show or control.
+CONF_CONTROLLER_MEMBER_ID_CODE = "controller_member_id_code"
+CONF_CONTROLLER_OPENTHERM_VERSION = "controller_opentherm_version"
+CONF_CONTROLLER_PRODUCT_TYPE = "controller_product_type"
+CONF_CONTROLLER_PRODUCT_VERSION = "controller_product_version"
+
 opentherm42_ns = cg.esphome_ns.namespace("opentherm42")
 OpenTherm42Hub = opentherm42_ns.class_("OpenTherm42Hub", cg.Component)
 
@@ -19,6 +27,20 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(OpenTherm42Hub),
         cv.Required(CONF_IN_PIN): pins.internal_gpio_input_pin_schema,
         cv.Required(CONF_OUT_PIN): pins.internal_gpio_output_pin_schema,
+        # §5.2.1 Note 2: a MemberID code of 0 signifies a customer non-specific device.
+        cv.Optional(CONF_CONTROLLER_MEMBER_ID_CODE, default=0): cv.int_range(
+            min=0, max=255
+        ),
+        # Defaults to the protocol version this component implements.
+        cv.Optional(CONF_CONTROLLER_OPENTHERM_VERSION, default=4.2): cv.float_range(
+            min=0, max=127
+        ),
+        cv.Optional(CONF_CONTROLLER_PRODUCT_TYPE, default=0): cv.int_range(
+            min=0, max=255
+        ),
+        cv.Optional(CONF_CONTROLLER_PRODUCT_VERSION, default=0): cv.int_range(
+            min=0, max=255
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -31,6 +53,13 @@ async def to_code(config: dict) -> None:
     cg.add(var.set_in_pin(in_pin))
     out_pin = await cg.gpio_pin_expression(config[CONF_OUT_PIN])
     cg.add(var.set_out_pin(out_pin))
+
+    cg.add(var.set_controller_member_id_code(config[CONF_CONTROLLER_MEMBER_ID_CODE]))
+    cg.add(
+        var.set_controller_opentherm_version(config[CONF_CONTROLLER_OPENTHERM_VERSION])
+    )
+    cg.add(var.set_controller_product_type(config[CONF_CONTROLLER_PRODUCT_TYPE]))
+    cg.add(var.set_controller_product_version(config[CONF_CONTROLLER_PRODUCT_VERSION]))
 
     if CORE.is_esp32:
         # §4.3/§3.3.2 bit-timing (datalink.h) needs a hardware timer for microsecond-accurate sampling.
