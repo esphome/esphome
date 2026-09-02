@@ -115,9 +115,8 @@ modbus_server:
           id(reg50) = x;
           return true;
 
-# A holding-register switch at 0x10 with a 2-BYTE offset. offset is byte-based, so the write must target
-# register 0x10 + 2/2 = 0x11. The old (pre-fix) behavior folded offset into the address as a register
-# count, hitting 0x12 instead. assumed_state keeps the switch write-only so it does not read any register.
+# Byte-based offset: 2 bytes -> register 0x11 (the old code folded it in as a
+# register count, hitting 0x12). assumed_state keeps the switch write-only.
 switch:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
@@ -126,10 +125,8 @@ switch:
     address: 0x10
     offset: 2
     assumed_state: true
-  # A holding-register switch that READS its state. Byte offset 6 -> register 0x10 + 6/2 = 0x13. Post-fix
-  # the switch itself resolves to 0x13 (the even byte offset folds into the address as whole registers) and
-  # joins the 0x10..0x13 range, so no separate 0x13 sensor is needed. Pre-fix the whole byte offset folds
-  # into the address (0x16), where the server answers ILLEGAL_DATA_ADDRESS and the switch never publishes.
+  # Reading switch, byte offset 6 -> register 0x13; the pre-fix resolution (0x16)
+  # would draw ILLEGAL_DATA_ADDRESS and never publish.
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "read_offset_switch"
@@ -137,10 +134,8 @@ switch:
     address: 0x10
     offset: 6
     bitmask: 0x1
-  # A COIL-type switch (assumed_state, write-only) whose write_lambda ignores its own coil type and instead
-  # drives a HOLDING-REGISTER write on the mock server through the entity itself: `item` IS the command, so
-  # item->write_single_register() sends a register write from a coil entity (cross-type). Returning nothing
-  # (an empty optional) tells the write path the lambda already dispatched the frame - no default coil write.
+  # Coil switch whose write_lambda dispatches a holding-register write via `item`;
+  # returning an empty optional suppresses the default coil write.
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "cross_switch"
@@ -150,9 +145,8 @@ switch:
     write_lambda: |-
       item->write_single_register(0x30, x ? 1234 : 0);
       return {};
-  # An active-low holding switch: the write_lambda inverts the wire value, but the entity must still
-  # report the REQUESTED state. assumed_state keeps the register unpolled, so the published state comes
-  # only from write_state() - turning ON writes 0x0000 yet the switch shows ON.
+  # Active-low: the write_lambda inverts the wire value but the entity must still
+  # report the requested state (assumed_state keeps the register unpolled).
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "invert_switch"
@@ -162,10 +156,8 @@ switch:
     write_lambda: |-
       return !x;
 
-# A number whose write_lambda uses the DEPRECATED buffer parameter (fills `payload` with a legacy raw
-# frame as words: device address + function code + data) instead of the new item->write_* API. The write
-# must still land with its legacy semantics, and the one-time deprecation warning must fire only once per
-# entity no matter how many writes happen.
+# Uses the deprecated buffer parameter (legacy raw frame as words); the write
+# must land and the deprecation warning must fire only once per entity.
 number:
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
@@ -191,10 +183,8 @@ sensor:
     address: 0x01
     register_type: holding
     value_type: U_WORD
-  # Custom PDU: read holding register 0x0001, count 1. The PDU is
-  # {function code, address hi, address lo, count hi, count lo}; the device
-  # address and CRC are added by the hub. The lambda parses the response payload
-  # (the register value, big-endian).
+  # Custom PDU: read holding register 0x0001; device address and CRC are added
+  # by the hub. The lambda parses the big-endian register value.
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_1
     name: "custom_read"
