@@ -1127,7 +1127,7 @@ class IDPassValidationStep(ConfigValidationStep):
                         continue
                     inherits = v[0].type.inherits_from(id.type)
                     if inherits:
-                        matches.append(v)
+                        matches.append(v[0])
 
                 if id.match_config:
                     # Disambiguate among same-type candidates by comparing their own
@@ -1138,7 +1138,9 @@ class IDPassValidationStep(ConfigValidationStep):
                         m
                         for m in matches
                         if isinstance(
-                            candidate_conf := result.get_config_for_path(m[1][:-1]),
+                            candidate_conf := result.get_config_for_path(
+                                result.get_path_for_id(m)[:-1]
+                            ),
                             dict,
                         )
                         and all(
@@ -1147,14 +1149,14 @@ class IDPassValidationStep(ConfigValidationStep):
                         )
                     ]
                     if len(filtered) == 1:
-                        id.id = filtered[0][0].id
+                        id.id = filtered[0].id
                     elif len(filtered) == 0:
                         result.add_str_error(
                             f"Couldn't find a '{id.type}' matching {criteria}.",
                             path,
                         )
                     else:
-                        ids = ", ".join(f"'{m[0].id}'" for m in filtered)
+                        ids = ", ".join(f"'{m.id}'" for m in filtered)
                         result.add_str_error(
                             f"Multiple '{id.type}' instances match {criteria}: {ids}. "
                             "Each candidate must have a unique value for the given criteria.",
@@ -1166,17 +1168,15 @@ class IDPassValidationStep(ConfigValidationStep):
                         path,
                     )
                 elif len(matches) == 1:
-                    id.id = matches[0][0].id
+                    id.id = matches[0].id
                 elif len(matches) > 1:
                     if str(id.type) == "time::RealTimeClock":
-                        id.id = matches[0][0].id
+                        id.id = matches[0].id
                     else:
-                        manual_declared_count = sum(
-                            1 for m in matches if m[0].is_manual
-                        )
+                        manual_declared_count = sum(1 for m in matches if m.is_manual)
                         if manual_declared_count > 0:
                             ids = ", ".join(
-                                [f"'{m[0].id}'" for m in matches if m[0].is_manual]
+                                [f"'{m.id}'" for m in matches if m.is_manual]
                             )
                             result.add_str_error(
                                 f"Too many candidates found for '{path[-1]}' type '{id.type}' {'Some are' if manual_declared_count > 1 else 'One is'} {ids}",
