@@ -18,7 +18,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME
+from esphome.const import CONF_ID, CONF_MODE, CONF_NAME
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
 from esphome.types import ConfigType
@@ -30,6 +30,7 @@ MULTI_CONF = True
 
 serial_proxy_ns = cg.esphome_ns.namespace("serial_proxy")
 SerialProxy = serial_proxy_ns.class_("SerialProxy", cg.Component, uart.UARTDevice)
+SerialProxyTap = serial_proxy_ns.class_("SerialProxyTap")
 
 api_enums_ns = cg.esphome_ns.namespace("api").namespace("enums")
 SerialProxyPortType = api_enums_ns.enum("SerialProxyPortType")
@@ -37,6 +38,16 @@ SERIAL_PROXY_PORT_TYPES = {
     "TTL": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_TTL,
     "RS232": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS232,
     "RS485": SerialProxyPortType.SERIAL_PROXY_PORT_TYPE_RS485,
+}
+
+SerialProxyMode = api_enums_ns.enum("SerialProxyMode")
+# The mode a port starts in. `raw` is a plain byte pipe; `protocol` activates the
+# port's tap (if one is configured), letting it observe traffic and inject protocol
+# bytes such as acknowledgements. Clients may change it at runtime, so this only
+# decides what the device boots into.
+SERIAL_PROXY_MODES = {
+    "RAW": SerialProxyMode.SERIAL_PROXY_MODE_RAW,
+    "PROTOCOL": SerialProxyMode.SERIAL_PROXY_MODE_PROTOCOL,
 }
 
 CONF_DTR_PIN = "dtr_pin"
@@ -63,6 +74,9 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(SerialProxy),
             cv.Required(CONF_NAME): cv.string_strict,
             cv.Required(CONF_PORT_TYPE): cv.enum(SERIAL_PROXY_PORT_TYPES, upper=True),
+            cv.Optional(CONF_MODE, default="RAW"): cv.enum(
+                SERIAL_PROXY_MODES, upper=True
+            ),
             cv.Optional(CONF_RTS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DTR_PIN): pins.gpio_output_pin_schema,
         }
@@ -87,6 +101,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(cg.App.register_serial_proxy(var))
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_port_type(config[CONF_PORT_TYPE]))
+    cg.add(var.set_mode(config[CONF_MODE]))
     cg.add_define("USE_SERIAL_PROXY")
 
     # Track instance count for the FINAL priority define

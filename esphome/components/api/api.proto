@@ -77,6 +77,7 @@ service APIConnection {
   rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
   rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
   rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
+  rpc serial_proxy_set_mode(SerialProxySetModeRequest) returns (void) {}
 }
 
 
@@ -2836,6 +2837,26 @@ message SerialProxyRequestResponse {
   SerialProxyRequestType type = 2;      // Which request type this responds to
   SerialProxyStatus status = 3;         // Result status
   string error_message = 4;            // Additional detail on failure (optional)
+}
+
+// How a port treats the bytes passing through it. RAW is a plain byte pipe; PROTOCOL
+// activates the port's protocol-aware tap (if one is configured), letting it observe
+// traffic and inject protocol bytes such as acknowledgements. Which protocol the tap
+// speaks is a property of the device configuration, discoverable from the tap
+// component's own API surface. A client that is about to flash firmware selects RAW
+// first, which definitively disables that injection.
+enum SerialProxyMode {
+  SERIAL_PROXY_MODE_RAW = 0;
+  SERIAL_PROXY_MODE_PROTOCOL = 1;
+}
+
+message SerialProxySetModeRequest {
+  option (id) = 151;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;
+  SerialProxyMode mode = 2;
 }
 
 // ==================== BLUETOOTH CONNECTION PARAMS ====================

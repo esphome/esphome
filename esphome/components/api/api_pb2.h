@@ -366,6 +366,10 @@ enum SerialProxyStatus : uint32_t {
   SERIAL_PROXY_STATUS_PORT_IN_USE = 5,
   SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6,
 };
+enum SerialProxyMode : uint32_t {
+  SERIAL_PROXY_MODE_RAW = 0,
+  SERIAL_PROXY_MODE_PROTOCOL = 1,
+};
 #endif
 
 }  // namespace enums
@@ -3402,6 +3406,22 @@ class SerialProxyRequestResponse final : public ProtoMessage {
 #endif
 
  protected:
+};
+class SerialProxySetModeRequest final : public ProtoDecodableMessage {
+ public:
+  static constexpr uint16_t MESSAGE_TYPE = 151;
+  static constexpr uint8_t ESTIMATED_SIZE = 6;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const LogString *message_name() const override { return LOG_STR("serial_proxy_set_mode_request"); }
+#endif
+  uint32_t instance{0};
+  enums::SerialProxyMode mode{};
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  const char *dump_to(DumpBuffer &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY_CONNECTIONS

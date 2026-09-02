@@ -26,6 +26,7 @@ class APIConnection;
 namespace enums {
 enum SerialProxyPortType : uint32_t;
 enum SerialProxyRequestType : uint32_t;
+enum SerialProxyMode : uint32_t;
 }  // namespace enums
 }  // namespace esphome::api
 
@@ -52,6 +53,35 @@ enum class SerialProxyResult : uint8_t {
 /// Maximum bytes to read from UART in a single loop iteration
 inline constexpr size_t SERIAL_PROXY_MAX_READ_SIZE = 256;
 
+#ifdef USE_SERIAL_PROXY_TAP
+/// Observes a port's traffic without owning it, and may inject bytes of its own.
+///
+/// This exists so protocol-aware behaviour can be layered onto a plain byte pipe without
+/// the pipe knowing anything about the protocol: the tap is compiled in only when some
+/// component asks for one, so a proxy carrying an RS485 meter pays nothing for it.
+///
+/// A tap is an observer, never a gatekeeper -- it cannot suppress or alter the bytes
+/// flowing in either direction, so a misbehaving tap cannot corrupt the stream.
+class SerialProxyTap {
+ public:
+  /// Bytes read from the device, before they are forwarded to any subscriber.
+  virtual void on_device_rx(const uint8_t *data, size_t len) = 0;
+
+  /// Bytes a subscriber sent towards the device, after they have been written.
+  virtual void on_client_tx(const uint8_t *data, size_t len) = 0;
+
+  /// True when the port must keep reading even with no subscriber attached, so a tap can
+  /// do its own protocol work while nobody is listening.
+  virtual bool tap_needs_port() const = 0;
+
+  /// A client explicitly turned protocol handling off for this port. Distinct from the
+  /// automatic reset when a session ends: this one means a client intends to do something
+  /// else with the device -- reflash it, most likely -- so anything the tap believes about
+  /// it should be treated as suspect.
+  virtual void on_protocol_disabled() = 0;
+};
+#endif
+
 class SerialProxy final : public uart::UARTDevice, public Component {
  public:
   void setup() override;
@@ -76,6 +106,15 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Get the port type
   api::enums::SerialProxyPortType get_port_type() const { return this->port_type_; }
+
+  /// Set the initial mode (from YAML configuration)
+  void set_mode(api::enums::SerialProxyMode mode) { this->mode_ = mode; }
+
+  /// Get the current mode
+  api::enums::SerialProxyMode get_mode() const { return this->mode_; }
+
+  /// Handle a mode change requested by an API client
+  void set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
 
   /// Configure UART parameters and apply them
   /// @param api_connection The API connection requesting the change
@@ -121,13 +160,46 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Set the DTR GPIO pin (from YAML configuration)
   void set_dtr_pin(GPIOPin *pin) { this->dtr_pin_ = pin; }
 
+#ifdef USE_SERIAL_PROXY_TAP
+  /// Attach a traffic observer. At most one, set once at setup time.
+  void set_tap(SerialProxyTap *tap) { this->tap_ = tap; }
+
+  /// Write bytes originating from the tap rather than from a client. Bypasses the
+  /// subscriber ownership check, since the tap is part of the device, not a client of it.
+  void write_from_tap(const uint8_t *data, size_t len) { this->write_array(data, len); }
+
+  /// Resume reading after a tap's needs change. loop() disables itself when there is
+  /// neither a subscriber nor a tap that wants the port, so a tap starting fresh work
+  /// must ask for it back.
+  void tap_request_port() { this->enable_loop(); }
+
+  /// Whether the underlying device is present. On a USB UART this tracks enumeration, so
+  /// a tap can notice the device being unplugged and plugged back in.
+  bool is_device_connected() const { return this->parent_->is_connected(); }
+
+  /// Run one read-and-dispatch cycle immediately. Lets a tap make progress before the
+  /// main loop is running -- during setup, for instance, while a component is still
+  /// blocking on can_proceed().
+  void tap_pump();
+#endif
+
  protected:
 #ifdef USE_API
-  /// Read from UART and send to API client (slow path with 256-byte stack buffer)
+  /// Read from UART, hand the bytes to any tap, and forward them to a subscriber
+  /// (slow path with a 256-byte stack buffer)
   void read_and_send_(size_t available);
 
   /// True when a live subscriber other than the given connection holds the port
   bool port_claimed_by_other_(api::APIConnection *api_connection) const;
+#endif
+
+  /// Return the port to RAW when a subscriber goes away, so the mode never outlives it.
+  /// Not tap-gated: the mode is a client-visible property whether or not a tap acts on it.
+  void reset_mode_();
+
+#ifdef USE_SERIAL_PROXY_TAP
+  /// True when the tap should be shown the traffic passing through this port
+  bool tap_observing_() const;
 #endif
 
   /// Instance index for identifying this proxy in API messages
@@ -147,6 +219,9 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Port type
   api::enums::SerialProxyPortType port_type_{};
 
+  /// How the bytes passing through are treated; zero is SERIAL_PROXY_MODE_RAW
+  api::enums::SerialProxyMode mode_{};
+
   /// Optional GPIO pins for modem control
   GPIOPin *rts_pin_{nullptr};
   GPIOPin *dtr_pin_{nullptr};
@@ -154,6 +229,10 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Current modem pin states
   bool rts_state_{false};
   bool dtr_state_{false};
+
+#ifdef USE_SERIAL_PROXY_TAP
+  SerialProxyTap *tap_{nullptr};
+#endif
 };
 
 }  // namespace esphome::serial_proxy

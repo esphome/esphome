@@ -1673,6 +1673,15 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   send_serial_proxy_ack(this, msg.instance, msg.type, status);
 }
 
+void APIConnection::on_serial_proxy_set_mode_request(const SerialProxySetModeRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
+    return;
+  }
+  proxies[msg.instance]->set_mode(this, msg.mode);
+}
+
 void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) {
   if (!this->send_message(msg)) {
     ESP_LOGV(TAG, "Serial proxy data dropped, TCP buffer full");
@@ -1799,7 +1808,7 @@ bool APIConnection::send_hello_response_(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 16;
+  resp.api_version_minor = 17;
   // Send only the version string - the client only logs this for debugging and doesn't use it otherwise
   resp.server_info = ESPHOME_VERSION_REF;
   resp.name = StringRef(App.get_name());
