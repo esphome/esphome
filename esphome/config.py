@@ -1162,7 +1162,9 @@ class IDPassValidationStep(ConfigValidationStep):
                             "Each candidate must have a unique value for the given criteria.",
                             path,
                         )
-                elif len(matches) == 0:
+                    continue
+
+                if len(matches) == 0:
                     result.add_str_error(
                         f"Couldn't find any component that can be used for '{id.type}'. Are you missing a hub declaration?",
                         path,
