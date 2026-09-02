@@ -6,10 +6,13 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 import fcntl
+import hashlib
 import logging
 import os
 from pathlib import Path
 import platform
+import re
+import shutil
 import signal
 import socket
 import subprocess
@@ -54,6 +57,14 @@ import pty  # not available on Windows
 
 # Register assert rewrite for entity_utils so assertions have proper error messages
 pytest.register_assert_rewrite("tests.integration.entity_utils")
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "shared_yaml(name): load fixtures/<name>.yaml and compile it in a shared, "
+        "hash-keyed incremental build directory",
+    )
 
 
 def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
@@ -184,10 +195,12 @@ def unused_tcp_port(reserved_tcp_port: tuple[int, socket.socket]) -> int:
 @pytest_asyncio.fixture
 async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> str:
     """Load YAML configuration based on test name."""
-    # Get the test function name
-    test_name: str = request.node.name
-    # Extract the base test name (remove test_ prefix and any parametrization)
-    base_name = test_name.replace("test_", "").partition("[")[0]
+    marker = request.node.get_closest_marker("shared_yaml")
+    if marker is not None:
+        base_name = marker.args[0]
+    else:
+        # Base test name: test_ prefix and any parametrization stripped
+        base_name = request.node.name.replace("test_", "").partition("[")[0]
 
     # Load the fixture file
     fixture_path = Path(__file__).parent / "fixtures" / f"{base_name}.yaml"
@@ -247,10 +260,75 @@ async def write_yaml_config(
     yield _write_config
 
 
+SHARED_BUILDS_ROOT = Path.home() / ".esphome-integration-tests" / "builds"
+
+_API_PORT_LINE_RE = re.compile(r"^(\s*port:) \d+$", re.MULTILINE)
+
+
+def _shared_build_key(yaml_content: str) -> str:
+    """Key shared build dirs by the config with the injected api port normalized."""
+    return hashlib.sha256(
+        _API_PORT_LINE_RE.sub(r"\1 0", yaml_content).encode()
+    ).hexdigest()[:16]
+
+
+async def _run_esphome_compile(
+    config_path: Path, cwd: Path, env: dict[str, str]
+) -> None:
+    """Run `esphome compile`, retrying up to 3 times on a segfault."""
+    max_retries = 3
+    for attempt in range(max_retries):
+        # Compile using subprocess, inheriting stdout/stderr to show progress
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-m",
+            "esphome",
+            "compile",
+            str(config_path),
+            cwd=cwd,
+            stdout=None,  # Inherit stdout
+            stderr=None,  # Inherit stderr
+            stdin=asyncio.subprocess.DEVNULL,
+            # Start in a new process group to isolate signal handling
+            start_new_session=True,
+            env=env,
+            close_fds=False,
+        )
+        await proc.wait()
+
+        if proc.returncode == 0:
+            break
+        if proc.returncode == -11 and attempt < max_retries - 1:
+            # Segfault (-11 = SIGSEGV), retry
+            print(
+                f"Compilation segfaulted (attempt {attempt + 1}/{max_retries}), retrying..."
+            )
+            await asyncio.sleep(1)  # Brief pause before retry
+            continue
+        raise RuntimeError(
+            f"Failed to compile {config_path}, return code: {proc.returncode}. "
+            f"Run with 'pytest -s' to see compilation output."
+        )
+
+
+def _resolve_compiled_binary(config_path: Path) -> Path:
+    """Load the config to learn the compiled ELF path (blocking, run in executor)."""
+    CORE.reset()  # Reset CORE state between test runs
+    CORE.config_path = config_path
+    config = esphome.config.read_config(
+        {"command": "compile", "config": str(config_path)}
+    )
+    if config is None:
+        raise RuntimeError(f"Failed to read config from {config_path}")
+    idedata = get_idedata(config)
+    return Path(idedata.firmware_elf_path)
+
+
 @pytest_asyncio.fixture
 async def compile_esphome(
     integration_test_dir: Path,
     shared_platformio_cache: Path,
+    request: pytest.FixtureRequest,
 ) -> AsyncGenerator[CompileFunction]:
     """Compile an ESPHome configuration and return the binary path."""
 
@@ -258,66 +336,42 @@ async def compile_esphome(
         # Use the shared PlatformIO cache for faster compilation
         # This avoids re-downloading dependencies for each test
         env = _get_platformio_env(shared_platformio_cache)
-
-        # Retry compilation up to 3 times if we get a segfault
-        max_retries = 3
-        for attempt in range(max_retries):
-            # Compile using subprocess, inheriting stdout/stderr to show progress
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable,
-                "-m",
-                "esphome",
-                "compile",
-                str(config_path),
-                cwd=integration_test_dir,
-                stdout=None,  # Inherit stdout
-                stderr=None,  # Inherit stderr
-                stdin=asyncio.subprocess.DEVNULL,
-                # Start in a new process group to isolate signal handling
-                start_new_session=True,
-                env=env,
-                close_fds=False,
-            )
-            await proc.wait()
-
-            if proc.returncode == 0:
-                # Success!
-                break
-            if proc.returncode == -11 and attempt < max_retries - 1:
-                # Segfault (-11 = SIGSEGV), retry
-                print(
-                    f"Compilation segfaulted (attempt {attempt + 1}/{max_retries}), retrying..."
-                )
-                await asyncio.sleep(1)  # Brief pause before retry
-                continue
-            # Other error or final retry
-            raise RuntimeError(
-                f"Failed to compile {config_path}, return code: {proc.returncode}. "
-                f"Run with 'pytest -s' to see compilation output."
-            )
-
-        # Load the config to get idedata (blocking call, must use executor)
         loop = asyncio.get_running_loop()
 
-        def _read_config_and_get_binary():
-            CORE.reset()  # Reset CORE state between test runs
-            CORE.config_path = config_path
-            config = esphome.config.read_config(
-                {"command": "compile", "config": str(config_path)}
+        marker = request.node.get_closest_marker("shared_yaml")
+        if marker is None:
+            await _run_esphome_compile(config_path, integration_test_dir, env)
+            binary_path = await loop.run_in_executor(
+                None, _resolve_compiled_binary, config_path
             )
-            if config is None:
-                raise RuntimeError(f"Failed to read config from {config_path}")
+            if not binary_path.exists():
+                raise RuntimeError(f"Compiled binary not found at {binary_path}")
+            return binary_path
 
-            # Get the compiled binary path
-            idedata = get_idedata(config)
-            return Path(idedata.firmware_elf_path)
-
-        binary_path = await loop.run_in_executor(None, _read_config_and_get_binary)
-
-        if not binary_path.exists():
-            raise RuntimeError(f"Compiled binary not found at {binary_path}")
-
-        return binary_path
+        # Shared fixture: build in a hash-keyed dir so tests sharing a config
+        # pay one full compile and later only a main.cpp (port) rebuild + relink
+        name = marker.args[0]
+        content = await loop.run_in_executor(None, config_path.read_text)
+        shared_dir = SHARED_BUILDS_ROOT / f"{name}-{_shared_build_key(content)}"
+        shared_dir.mkdir(parents=True, exist_ok=True)
+        shared_config = shared_dir / f"{name}.yaml"
+        private_binary = integration_test_dir / f"{name}.elf"
+        # flock serializes concurrent xdist workers; closing the fd releases it
+        with (shared_dir / ".lock").open("w") as lock_file:
+            await loop.run_in_executor(
+                None, fcntl.flock, lock_file.fileno(), fcntl.LOCK_EX
+            )
+            await loop.run_in_executor(None, shared_config.write_text, content)
+            await _run_esphome_compile(shared_config, shared_dir, env)
+            built = await loop.run_in_executor(
+                None, _resolve_compiled_binary, shared_config
+            )
+            if not built.exists():
+                raise RuntimeError(f"Compiled binary not found at {built}")
+            # Copy out before unlocking: another worker may relink firmware.elf
+            # while this test is still running its private copy
+            await loop.run_in_executor(None, shutil.copy2, built, private_binary)
+        return private_binary
 
     yield _compile
 
