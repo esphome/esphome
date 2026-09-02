@@ -23,7 +23,7 @@ static void Encode_LogResponse_Typical(benchmark::State &state) {
   msg.level = enums::LOG_LEVEL_DEBUG;
   msg.set_message(reinterpret_cast<const uint8_t *>(kTypicalLogLine), strlen(kTypicalLogLine));
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -42,7 +42,7 @@ static void Encode_LogResponse_Short(benchmark::State &state) {
   msg.level = enums::LOG_LEVEL_INFO;
   msg.set_message(reinterpret_cast<const uint8_t *>(kShortLogLine), strlen(kShortLogLine));
   uint32_t size = msg.calculate_size();
-  buffer.resize(size);
+  (void) buffer.resize(size);
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
@@ -84,7 +84,7 @@ static void CalcAndEncode_LogResponse_Typical(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
     }
@@ -105,7 +105,7 @@ static void CalcAndEncode_LogResponse_Typical_Fresh(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
-      buffer.resize(size);
+      (void) buffer.resize(size);
       ProtoWriteBuffer writer(&buffer, 0);
       msg.encode(writer);
       benchmark::DoNotOptimize(buffer.data());

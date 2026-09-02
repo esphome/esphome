@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from esphome.helpers import fnv1_hash_name
+from esphome.helpers import fnv1_hash_object_id
 
 from .entity_utils import (
     compute_object_id,
@@ -62,7 +62,7 @@ async def test_object_id_friendly_name_no_mac_suffix(
         )
 
         # Hash should match friendly_name
-        expected_hash = fnv1_hash_name("My Friendly Device")
+        expected_hash = fnv1_hash_object_id("My Friendly Device")
         assert entity.key == expected_hash, (
             f"Expected hash {expected_hash:#x}, got {entity.key:#x}"
         )

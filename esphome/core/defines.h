@@ -43,7 +43,9 @@
 #define USE_ALARM_CONTROL_PANEL
 #define USE_AREAS
 #define USE_BINARY_SENSOR
+#define USE_BINARY_SENSOR_CLICK_TRIGGER
 #define USE_BINARY_SENSOR_FILTER
+#define USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
 #define USE_BLE_DEVICE_IRK
 #define USE_BUTTON
 #define USE_CAMERA
@@ -70,6 +72,7 @@
 #define USE_ESP32_IMPROV_STATE_CALLBACK
 #define USE_EVENT
 #define USE_FAN
+#define USE_GPIO_BINARY_SENSOR_INTERRUPT
 #define USE_GPIO_SWITCH_INTERLOCK
 #define USE_GRAPH
 #define USE_GRAPHICAL_DISPLAY_MENU
@@ -78,8 +81,6 @@
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_I2S_AUDIO_SPDIF_MODE
 #define USE_IMAGE
-#define USE_IMPROV_SERIAL
-#define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_INFRARED
 #define USE_IR_RF
 #define USE_JSON
@@ -133,11 +134,13 @@
 #define MDNS_DYNAMIC_TXT_COUNT 2
 #define MICRONOVA_LISTENER_COUNT 1
 #define USE_MICRONOVA_WRITER
+#define MK2PVROUTER_LISTENER_COUNT 1
 #define SERIAL_PROXY_COUNT 2
 #define SNTP_SERVER_COUNT 3
 #define USE_MEDIA_PLAYER
 #define USE_MEDIA_SOURCE
 #define USE_NETWORK
+#define USE_NETWORK_DEFAULT_ROUTE
 #define USE_NETWORK_PRIMARY_INTERFACE_WIFI
 #define USE_NEXTION_COMMAND_SPACING
 #define USE_NEXTION_CONF_START_UP_PAGE
@@ -156,7 +159,6 @@
 #define USE_OUTPUT
 #define USE_OUTPUT_FLOAT_POWER_SCALING
 #define USE_POWER_SUPPLY
-#define USE_PREFERENCES_SYNC_EVERY_LOOP
 // Only defined by key-lookup preference backends; the slot-based platforms
 // (esp8266, rp2040) never set it in generated builds, and their preferences
 // managers do not provide load_from_key(), so the PreferencesKeyLookupContract
@@ -185,10 +187,12 @@
 #define USE_TEXT_SENSOR
 #define USE_TEXT_SENSOR_FILTER
 #define USE_TIME
+#define USE_TIME_TRIGGERS
 #define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_UART_WAKE_LOOP_ON_RX
 #define USE_UPDATE
+#define USE_UPTIME_TIMESTAMP
 #define USE_VALVE
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
@@ -214,11 +218,17 @@
 #define USE_API_PLAINTEXT
 #define USE_API_USER_DEFINED_ACTIONS
 #define USE_API_CUSTOM_SERVICES
+#define USE_API_USER_DEFINED_ACTION_METADATA
 #define USE_API_USER_DEFINED_ACTION_RESPONSES
 #define USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #define API_MAX_SEND_QUEUE 8
+#define API_USER_ACTION_STRINGS_SCRATCH_SIZE 64
 #define MAX_API_CONNECTIONS 6
+// The Improv library is not in the Zephyr tidy environment
+#define USE_IMPROV_SERIAL
+#define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_MD5
+#define USE_NOISE
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
 #define USE_MQTT
@@ -227,10 +237,12 @@
 #endif
 #define USE_RTTTL_FINISHED_PLAYBACK_CALLBACK
 #define USE_RUNTIME_IMAGE_BMP
-#define USE_RUNTIME_IMAGE_PNG
 #define USE_RUNTIME_IMAGE_JPEG
+#define USE_RUNTIME_IMAGE_PNG
+#define USE_RUNTIME_IMAGE_QOI
 #define USE_RUNTIME_STATS
 #define USE_OTA
+#define USE_OTA_ENCRYPTION
 #define USE_OTA_PASSWORD
 #define USE_OTA_VERSION 2
 #define USE_TIME_TIMEZONE
@@ -262,13 +274,15 @@
 #define USE_BLUETOOTH_PROXY
 // Mirror the codegen values per platform: _to_code_esp32() emits the connection
 // count (default 3) and the scanner-state push slot, _to_code_ble_hub() emits
-// the slot count (1 on rp2, 0 on advertisement-only hubs) — so static analysis
+// the slot count (3 on rp2, 0 on advertisement-only hubs) — so static analysis
 // checks the same instantiations a real build produces.
 #ifdef USE_ESP32
 #define USE_BLE_SCANNER_STATE_CALLBACK
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#define USE_BLUETOOTH_PROXY_CONNECTIONS
 #elif defined(USE_RP2)
-#define BLUETOOTH_PROXY_MAX_CONNECTIONS 1
+#define BLUETOOTH_PROXY_MAX_CONNECTIONS 3
+#define USE_BLUETOOTH_PROXY_CONNECTIONS
 #else
 #define BLUETOOTH_PROXY_MAX_CONNECTIONS 0
 #endif
@@ -278,6 +292,7 @@
 // ESP32-specific feature flags
 #ifdef USE_ESP32
 #define USE_ESP32_CRASH_HANDLER
+#define USE_ESP32_INTERNAL_GPIO
 #define USE_MQTT_IDF_ENQUEUE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 768
@@ -346,6 +361,7 @@
 #define USE_SPEAKER
 #define USE_SPEAKER_MEDIA_PLAYER_ON_OFF
 #define USE_SPI
+#define USE_SPI_PSRAM_DMA
 #define USE_VOICE_ASSISTANT
 #define USE_WEBSERVER
 #define USE_WEBSERVER_AUTH
@@ -482,7 +498,7 @@
 #define ESPHOME_BLE_DEVICE_BASE_LISTENER_COUNT 1
 #define USE_BLE_SCAN_RESPONSE_MERGER
 #define USE_BLE_GATT_CLIENT
-#define ESPHOME_BLE_GATT_CLIENT_COUNT 1
+#define ESPHOME_BLE_GATT_CLIENT_COUNT 3
 #define USE_RP2040_VARIANT_RP2040
 #define USE_SPI
 #ifndef USE_ETHERNET
@@ -527,6 +543,8 @@
 
 #ifdef USE_HOST
 #define USE_HTTP_REQUEST_RESPONSE
+// Host only: the uart arm would shadow the native logger UART arms in other envs
+#define USE_IMPROV_SERIAL_UART
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define ESPHOME_TASK_LOG_BUFFER_SIZE 64
