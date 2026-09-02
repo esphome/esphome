@@ -1,7 +1,6 @@
 #include "runtime_image.h"
 #include "image_decoder.h"
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -15,6 +14,9 @@
 #endif
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"
+#endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+#include "qoi_decoder.h"
 #endif
 
 namespace esphome::runtime_image {
@@ -171,22 +173,27 @@ void RuntimeImage::draw(int x, int y, display::Display *display, Color color_on,
   // If no image is loaded and no placeholder, nothing to draw
 }
 
-bool RuntimeImage::begin_decode(size_t expected_size) {
+bool RuntimeImage::begin_decode(size_t expected_size, ImageFormat format) {
   if (this->is_decoding()) {
     ESP_LOGW(TAG, "Decoding already in progress");
     return false;
   }
 
+  if (format == AUTO && this->format_ != AUTO) {
+    // Fall back to the configured format before the reuse check below
+    format = this->format_;
+  }
+
   // An idle decoder for a different format cannot be reused
-  if (this->decoder_ != nullptr && this->decoder_->get_format() != this->format_) {
-    ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), this->format_);
+  if (this->decoder_ != nullptr && this->decoder_->get_format() != format) {
+    ESP_LOGD(TAG, "Decoder format mismatch: current: %d, new: %d", this->decoder_->get_format(), format);
     this->decoder_ = nullptr;
   }
 
   if (!this->decoder_) {
-    this->decoder_ = this->create_decoder_(this->format_);
+    this->decoder_ = this->create_decoder_(format);
     if (!this->decoder_) {
-      ESP_LOGE(TAG, "Failed to create decoder for format %d", this->format_);
+      ESP_LOGE(TAG, "Failed to create decoder for format %d", format);
       return false;
     }
   }
@@ -364,6 +371,13 @@ std::unique_ptr<ImageDecoder> RuntimeImage::create_decoder_(ImageFormat format) 
     case PNG:
       return make_unique<PngDecoder>(this);
 #endif
+#ifdef USE_RUNTIME_IMAGE_QOI
+    case QOI:
+      return make_unique<QoiDecoder>(this);
+#endif
+    case AUTO:
+      ESP_LOGE(TAG, "Image format could not be determined; set `format:` explicitly in the configuration");
+      return nullptr;
     default:
       ESP_LOGE(TAG, "Unsupported image format: %d", format);
       return nullptr;

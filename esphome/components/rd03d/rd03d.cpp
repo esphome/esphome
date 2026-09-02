@@ -55,8 +55,9 @@ void RD03DComponent::setup() {
 void RD03DComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "RD-03D:");
   if (this->tracking_mode_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Tracking Mode: %s",
-                  *this->tracking_mode_ == TrackingMode::SINGLE_TARGET ? "single" : "multi");
+    ESP_LOGCONFIG(
+        TAG, "  Tracking Mode: %s",
+        *this->tracking_mode_ == TrackingMode::SINGLE_TARGET ? LOG_STR_LITERAL("single") : LOG_STR_LITERAL("multi"));
   }
   if (this->throttle_ > 0) {
     ESP_LOGCONFIG(TAG, "  Throttle: %" PRIu32 "ms", this->throttle_);
