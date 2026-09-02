@@ -16,8 +16,9 @@ name and promote with an atomic rename.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 import hashlib
 import json
 import logging
@@ -42,6 +43,17 @@ from esphome.framework_helpers import (
 from esphome.helpers import get_bool_env, get_usable_cpu_count, rmtree
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@contextmanager
+def _preserved_sys_path() -> Iterator[None]:
+    """Platform setup may rewrite sys.path (pioarduino's penv does); undo it."""
+    saved = list(sys.path)
+    try:
+        yield
+    finally:
+        sys.path[:] = saved
+
 
 # Concurrent registry resolutions / HEAD probes (each is network-bound)
 _RESOLVE_WORKERS = 8
@@ -94,6 +106,14 @@ class _Resolved(NamedTuple):
     dl_path: Path
     checksum: str
     cached: bool
+
+
+class _Group(NamedTuple):
+    """The installable ``(name, spec)`` entries of one package manager."""
+
+    manager: Any
+    entries: list[tuple[str, Any]]
+    is_platform: bool
 
 
 # Child records a no-work run; the parent skips the next spawn while valid
@@ -772,13 +792,9 @@ def _preinstall(
         # poison the next wave; pio run installs the rest cleanly
         _LOGGER.warning("Skipping the dependency wave")
         return
-    # The builtin probe may construct platforms whose setup rewrites
-    # sys.path (see _prefetch); restore it for later imports
-    saved_sys_path = list(sys.path)
-    try:
+    # The builtin probe may construct platforms
+    with _preserved_sys_path():
         next_entries = _dependency_entries(manager, installed, seen)
-    finally:
-        sys.path[:] = saved_sys_path
     if next_entries:
         # Terminates without a cap: every wave admits only never-seen
         # names, so a cycle yields an empty next wave
@@ -803,31 +819,29 @@ def _prefetch(build_dir: Path, env: str) -> None:
         return
 
     # The platform (manifest plus build scripts) installs first and
-    # resolves the rest. Its setup may rewrite sys.path (pioarduino's penv
-    # setup does); restore it so later imports here still resolve.
-    saved_sys_path = list(sys.path)
-    pm = PlatformPackageManager()
-    _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
-    pkg = pm.install(platform_spec, skip_dependencies=True)
-    p = PlatformFactory.new(pkg)
-    p.configure_project_packages(env, ["run"])
-    sys.path[:] = saved_sys_path
+    # resolves the rest
+    with _preserved_sys_path():
+        pm = PlatformPackageManager()
+        _sweep_stale_sidecars(Path(pm.get_download_dir()), pm.DOWNLOAD_CACHE_EXPIRE)
+        pkg = pm.install(platform_spec, skip_dependencies=True)
+        p = PlatformFactory.new(pkg)
+        p.configure_project_packages(env, ["run"])
 
     specs = [
         p.get_package_spec(name)
         for name, opts in p.packages.items()
         if not opts.get("optional")
     ]
-    # PIO's build engine installs outside the platform package list;
-    # skipped when the platform lists it itself
-    if not any(s.name == "tool-scons" for s in specs):
-        specs.append(
-            PackageSpec(
-                owner="platformio",
-                name="tool-scons",
-                requirements=get_core_dependencies()["tool-scons"],
-            )
+    # PIO's build engine installs tool-scons by its own registry spec at build
+    # start; a platform URL copy has no owner to match it, so prefetch that spec
+    specs = [s for s in specs if s.name != "tool-scons"]
+    specs.append(
+        PackageSpec(
+            owner="platformio",
+            name="tool-scons",
+            requirements=get_core_dependencies()["tool-scons"],
         )
+    )
     lib_deps = config.get(f"env:{env}", "lib_deps", [])
     # pio run's storage dir for this env, with its compatibility
     # qualifiers: an unqualified library install could land a different
@@ -851,9 +865,9 @@ def _prefetch(build_dir: Path, env: str) -> None:
 
     seen: set[str] = set()
     jobs: list[tuple[str, int, Any]] = []
-    groups: list[tuple[Any, list[tuple[str, Any]]]] = []
+    groups: list[_Group] = []
     unresolved = 0
-    for mgr, batch in ((p.pm, specs), (lm, lib_specs)):
+    for mgr, batch, is_platform in ((p.pm, specs, True), (lm, lib_specs, False)):
         entries: list[tuple[str, Any]] = []
         for build_jobs in (_registry_jobs, _uri_jobs):
             batch_jobs, failed, installable = build_jobs(mgr, batch, seen)
@@ -861,7 +875,7 @@ def _prefetch(build_dir: Path, env: str) -> None:
             unresolved += failed
             entries += installable
         if entries:
-            groups.append((mgr, entries))
+            groups.append(_Group(mgr, entries, is_platform))
 
     sentinel = build_dir / _SENTINEL_NAME
     if jobs or groups:
@@ -890,7 +904,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
             encoding="utf-8",
         )
 
-    for mgr, entries in groups:
+    platform_packages_installed = False
+    for mgr, entries, is_platform in groups:
         # One install per destination: pio derives the directory from
         # the package name, so key on the name part
         to_install = {
@@ -901,6 +916,8 @@ def _prefetch(build_dir: Path, env: str) -> None:
         if to_install:
             try:
                 _preinstall(mgr, list(to_install.values()))
+                if is_platform:
+                    platform_packages_installed = True
             except Exception as err:  # noqa: BLE001  # pylint: disable=broad-exception-caught
                 # Each group degrades independently; pio run installs
                 # whatever this one did not
@@ -910,6 +927,17 @@ def _prefetch(build_dir: Path, env: str) -> None:
                     failure_reason(err),
                 )
                 _LOGGER.debug("Pre-install group failure detail", exc_info=True)
+    if platform_packages_installed:
+        # pioarduino installs its real toolchains from configure (the registry
+        # package is a stub); settle that here so pio run does not redo it
+        with _preserved_sys_path(), ThreadPoolExecutor(max_workers=1) as ex:
+            # A worker so SIGTERM joins it; exception() so a postinstall exit only warns
+            err = ex.submit(p.configure_project_packages, env, ["run"]).exception()
+        if err is not None:
+            _LOGGER.warning(
+                "Could not settle platform packages: %s", failure_reason(err)
+            )
+            _LOGGER.debug("Platform settle failure detail", exc_info=err)
 
 
 def _sigterm(_signum, _frame) -> None:

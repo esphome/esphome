@@ -259,7 +259,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       st.payload[0] = 0x04;
       this->send_command_(st);
       ESP_LOGI(TAG, "%s received (%s), replied with WIFI_STATE confirming connection established",
-               is_select ? "WIFI_SELECT" : "WIFI_RESET", mode_str);
+               is_select ? LOG_STR_LITERAL("WIFI_SELECT") : LOG_STR_LITERAL("WIFI_RESET"), mode_str);
       break;
     }
     case TuyaCommandType::DATAPOINT_DELIVER:

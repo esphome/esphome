@@ -78,8 +78,9 @@ void ST7701S::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8
         break;
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     esph_log_e(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 void ST7701S::draw_pixel_at(int x, int y, Color color) {
