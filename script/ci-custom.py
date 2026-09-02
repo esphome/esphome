@@ -319,6 +319,154 @@ def lint_no_long_delays(fname, match):
     )
 
 
+# An if/else/for/while whose only body is an unbraced ESP_LOG*() call. When the build's compile-time
+# log level drops that macro, the body expands to nothing and the compiler warns (-Wempty-body).
+# clang-tidy's brace check does not catch these (ShortStatementLines allows short unbraced bodies), so
+# this fills that gap. Matched against comment/string-masked content, so commented-out or quoted code
+# is ignored. Both spellings are covered: core/log.h defines the uppercase ESP_LOG*() macros and
+# the lowercase esph_log_*() ones, and both expand to nothing below their log level.
+# 'for' allows ';' inside its parentheses (the classic C-style header); 'if'/'while' do not, so their
+# condition cannot run past the statement it guards. The 'for' header permits one level of nested
+# parens so it stays bounded to its own statement: without that, it can run past the loop body and
+# latch onto a later ')', mis-reporting the line and skipping the '#' preprocessor check below.
+ESP_LOG_NEEDS_BRACES_RE = re.compile(
+    r"(?:\bif\s*\([^{};]*\)|\bwhile\s*\([^{};]*\)|\bfor\s*\((?:[^{}()]|\([^{}()]*\))*\)|\belse\b)"
+    r"[ \t]*\n?[ \t]*(?:ESP_LOG[A-Z]*|esph_log_[a-z]+)\s*\(",
+    re.MULTILINE,
+)
+
+
+def _mask_cpp_comments_strings(s):
+    """Return s with // and /* */ comments and string/char/raw-string literals blanked to spaces
+    (length and newlines preserved) so a regex only matches real code. Parentheses in real code are
+    kept, so callers can still balance them on the masked text."""
+    out = list(s)
+    i = 0
+    n = len(s)
+    while i < n:
+        c = s[i]
+        # Raw string literal: an optional encoding prefix, then R"delim( ... )delim". The body may
+        # contain quotes, //, /* and unbalanced parens, so it must be consumed as one unit.
+        if c == "R" and i + 1 < n and s[i + 1] == '"':
+            j = i + 2
+            delim = ""
+            while j < n and s[j] not in "( \t\r\n\\" and len(delim) < 16:
+                delim += s[j]
+                j += 1
+            if j < n and s[j] == "(":
+                closing = ")" + delim + '"'
+                end = s.find(closing, j + 1)
+                end = n if end == -1 else end + len(closing)
+                for k in range(i, end):
+                    if s[k] != "\n":
+                        out[k] = " "
+                i = end
+                continue
+            i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "/":
+            while i < n and s[i] != "\n":
+                out[i] = " "
+                i += 1
+        elif c == "/" and i + 1 < n and s[i + 1] == "*":
+            out[i] = out[i + 1] = " "
+            i += 2
+            while i < n and not (s[i] == "*" and i + 1 < n and s[i + 1] == "/"):
+                if s[i] != "\n":
+                    out[i] = " "
+                i += 1
+            if i < n:
+                out[i] = " "
+            if i + 1 < n:
+                out[i + 1] = " "
+            i += 2
+        # A "'" after an alphanumeric or '_' is a C++ digit separator (1'000), not a literal opener.
+        elif c == '"' or (
+            c == "'" and not (i and (s[i - 1].isalnum() or s[i - 1] == "_"))
+        ):
+            quote = c
+            out[i] = " "
+            i += 1
+            while i < n:
+                if s[i] == "\\":
+                    out[i] = " "
+                    if i + 1 < n:
+                        out[i + 1] = " "
+                    i += 2
+                    continue
+                if s[i] == quote:
+                    out[i] = " "
+                    i += 1
+                    break
+                if s[i] != "\n":
+                    out[i] = " "
+                i += 1
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _log_statement_end(masked, open_paren):
+    """Index of the ';' ending the ESP_LOG call whose '(' is at open_paren, or None. Balanced on the
+    masked text so quotes/comments inside the arguments do not confuse the paren count."""
+    depth = 0
+    i = open_paren
+    n = len(masked)
+    while i < n:
+        ch = masked[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                j = i + 1
+                while j < n and masked[j] != ";":
+                    if not masked[j].isspace():
+                        return None
+                    j += 1
+                return j if j < n else None
+        i += 1
+    return None
+
+
+@lint_content_check(include=cpp_include)
+def lint_esp_log_needs_braces(fname, content):
+    # Cheap bailout: no log call means nothing to flag, and skips masking the file entirely.
+    if "ESP_LOG" not in content and "esph_log_" not in content:
+        return []
+    masked = _mask_cpp_comments_strings(content)
+    errors = []
+    for match in ESP_LOG_NEEDS_BRACES_RE.finditer(masked):
+        pos = match.start()
+        line_start = content.rfind("\n", 0, pos) + 1
+        # Skip preprocessor conditionals (#if/#else/#elif): not C++ control statements.
+        if content[line_start:pos].lstrip().startswith("#"):
+            continue
+        # A '// NOLINT' may sit at the end of the log line (where the message says to put it) or on the
+        # control-statement line, so scan the whole statement rather than only up to the ESP_LOG token.
+        stmt_end = _log_statement_end(masked, match.end() - 1)
+        nolint_end = (
+            content.find("\n", stmt_end) if stmt_end is not None else match.end()
+        )
+        if nolint_end == -1:
+            nolint_end = len(content)
+        if "NOLINT" in content[pos:nolint_end]:
+            continue
+        snippet = content[pos : match.end()].replace("\n", " ").strip()
+        errors.append(
+            (
+                content.count("\n", 0, pos) + 1,
+                pos - line_start + 1,
+                (
+                    f"{highlight(snippet)} - an if/else/for/while body that is a single log "
+                    "call must be wrapped in braces. When the log level compiles the macro out, the "
+                    "body becomes empty and the compiler warns (-Wempty-body). Add { } around the "
+                    "log call (or a '// NOLINT' comment if this is genuinely intended)."
+                ),
+            )
+        )
+    return errors
+
+
 @lint_content_check(
     include=[
         "esphome/const.py",
