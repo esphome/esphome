@@ -760,8 +760,9 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
     return;
   }
 
-  if (writes_verified)
+  if (writes_verified) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save gain calibration to memory!", cs);
+  }
 
   for (uint8_t phase = 0; phase < 3; phase++)
     this->gain_phase_[phase] = previous[phase];
@@ -775,8 +776,9 @@ void ATM90E32Component::finish_gain_calibration_(const GainCalibration (&previou
     const bool rollback_saved = this->gain_calibration_pref_.save(&rollback);
     const bool rollback_synced = global_preferences->sync();
     rollback_persisted = rollback_saved && rollback_synced;
-    if (!rollback_persisted)
+    if (!rollback_persisted) {
       ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored gain calibration values!", cs);
+    }
   }
 
   this->restored_gain_calibration_ = previous_restored;
@@ -821,8 +823,9 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
     return;
   }
 
-  if (writes_verified)
+  if (writes_verified) {
     ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to save %s calibration to memory!", cs, LOG_STR_ARG(name));
+  }
 
   for (uint8_t phase = 0; phase < 3; phase++) {
     this->write_offsets_to_registers_(phase, previous[phase].first_offset, previous[phase].second_offset, type);
@@ -836,8 +839,9 @@ void ATM90E32Component::finish_offset_calibration_(const OffsetCalibration (&pre
     const bool rollback_saved = preference->save(&rollback);
     const bool rollback_synced = global_preferences->sync();
     rollback_persisted = rollback_saved && rollback_synced;
-    if (!rollback_saved || !rollback_synced)
+    if (!rollback_saved || !rollback_synced) {
       ESP_LOGE(TAG, "[CALIBRATION][%s] Failed to persist restored %s calibration values!", cs, LOG_STR_ARG(name));
+    }
   }
 
   *restored = previous_restored;
