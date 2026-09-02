@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
 )
 from esphome.components.network import (
     add_use_address,
+    get_network_priority,
     has_high_performance_networking,
     ip_address_literal,
 )
@@ -436,6 +437,26 @@ def _validate(config):
     return config
 
 
+def _report_provisioning_credentials(config):
+    """Report baked-in STA credentials to the provisioning component (if used).
+
+    `_validate` has already folded any ``ssid``/``password`` into ``networks``, so a
+    non-empty list means credentials are set in the config. `provisioning:` warns
+    about this, since a device that uses a provisioning window should get its
+    credentials on first connection instead.
+    """
+    from esphome.components import provisioning
+
+    if config.get(CONF_NETWORKS):
+        provisioning.report_hardcoded_credentials("wifi")
+    elif CONF_AP in config:
+        # An access point with no station credentials: the AP shuts down when the
+        # provisioning window closes, so `provisioning:` warns that the device may
+        # become unreachable until power-cycled.
+        provisioning.report_ap_without_sta()
+    return config
+
+
 CONF_PASSIVE_SCAN = "passive_scan"
 
 FAST_CONNECT_SCHEMA = cv.Schema(
@@ -517,6 +538,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     _apply_min_auth_mode_default,
     _validate,
+    _report_provisioning_credentials,
 )
 
 
@@ -586,6 +608,10 @@ def wifi_network(config, ap, static_ip):
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+
+    prio = get_network_priority("wifi")
+    if prio is not None:
+        cg.set_setup_priority(var, prio)
     add_use_address(var, config[CONF_USE_ADDRESS])
 
     # Track if any network uses Enterprise authentication
@@ -802,6 +828,7 @@ IP_STATE_LISTENERS_KEY = "wifi_ip_state_listeners"
 SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
 CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
 POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
+SCAN_RESULTS_LOCK_KEY = "wifi_scan_results_lock"
 
 
 def request_wifi_scan_results():
@@ -812,6 +839,19 @@ def request_wifi_scan_results():
     freeing scan result memory after successful connection.
     """
     CORE.data[KEEP_SCAN_RESULTS_KEY] = True
+
+
+def request_wifi_scan_results_lock() -> None:
+    """Request that scan results be guarded by a lock for cross-task readers.
+
+    Components that read WiFi scan results from a task other than the main loop
+    (for example a web server handler) must call this function during their code
+    generation, and their C++ code must hold a wifi::ScanResultsLock while
+    iterating get_scan_result(). On multi-threaded platforms this compiles in a
+    lock that scan result writers hold; on single-threaded platforms it compiles
+    to nothing.
+    """
+    CORE.data[SCAN_RESULTS_LOCK_KEY] = True
 
 
 def enable_runtime_power_save_control():
@@ -875,6 +915,8 @@ async def final_step():
         cg.add_define("USE_WIFI_RUNTIME_POWER_SAVE")
     if CORE.data.get(RUNTIME_ROAMING_SUPPRESSION_KEY, False):
         cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
+    if CORE.data.get(SCAN_RESULTS_LOCK_KEY):
+        cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)

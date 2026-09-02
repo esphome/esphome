@@ -121,7 +121,7 @@ class LD2410Component final : public Component, public uart::UARTDevice {
   uint8_t out_pin_level_ = 0;
   uint8_t buffer_pos_ = 0;  // where to resume processing/populating buffer
   uint8_t buffer_data_[MAX_LINE_LENGTH];
-  uint8_t mac_address_[6] = {0, 0, 0, 0, 0, 0};
+  uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
   bool bluetooth_on_{false};
 #ifdef USE_NUMBER

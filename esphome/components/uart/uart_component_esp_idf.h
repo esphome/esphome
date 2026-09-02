@@ -50,11 +50,13 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
   void load_settings(bool dump_config) override;
-  void load_settings() override { this->load_settings(true); }
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
+
+  void on_shutdown() override;
 
  protected:
   void check_logger_conflict() override;
-  uart_port_t uart_num_;
+  uart_port_t uart_num_{UART_NUM_MAX};
   uart_config_t get_config_();
 
   bool has_peek_{false};

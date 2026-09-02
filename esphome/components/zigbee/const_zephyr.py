@@ -1,4 +1,4 @@
-CONF_MAX_EP_NUMBER = 8
+CONF_MAX_EP_NUMBER_ZEPHYR = 8
 CONF_ZIGBEE_ID = "zigbee_id"
 CONF_ZIGBEE_BINARY_SENSOR = "zigbee_binary_sensor"
 CONF_ZIGBEE_SENSOR = "zigbee_sensor"
