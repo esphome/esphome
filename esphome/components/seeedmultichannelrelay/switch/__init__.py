@@ -4,27 +4,27 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL
 
 from .. import (
-    CONF_SEEEDMULTICHANNELRELAY_ID,
-    SeeedMultiChannelRelay,
-    seeedmultichannelrelay_ns,
+    CONF_SEEED_MULTI_CHANNEL_RELAY_ID,
+    Seeed_Multi_Channel_Relay,
+    seeed_multi_channel_relay_ns,
 )
 
-DEPENDENCIES = ["seeedmultichannelrelay"]
+DEPENDENCIES = ["seeed_multi_channel_relay"]
 
-SeeedMultiChannelRelaySwitch = seeedmultichannelrelay_ns.class_(
-    "SeeedMultiChannelRelaySwitch", cg.Component, i2c.I2CDevice, switch.Switch
+Seeed_Multi_Channel_Relay_Switch = seeed_multi_channel_relay_ns.class_(
+    "Seeed_Multi_Channel_Relay_Switch", cg.Component, switch.Switch
 )
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
-RelayBit_ = seeedmultichannelrelay_ns.enum("RelayBit", is_class=True)
+RelayBit_ = seeed_multi_channel_relay_ns.enum("RelayBit", is_class=True)
 
 CONFIG_SCHEMA = (
-    switch.switch_schema(SeeedMultiChannelRelaySwitch)
+    switch.switch_schema(Seeed_Multi_Channel_Relay_Switch)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(SeeedMultiChannelRelaySwitch),
-            cv.GenerateID(CONF_SEEEDMULTICHANNELRELAY_ID): cv.use_id(
+            cv.GenerateID(): cv.declare_id(Seeed_Multi_Channel_Relay_Switch),
+            cv.GenerateID(CONF_SEEED_MULTI_CHANNEL_RELAY_ID): cv.use_id(
                 SeeedMultiChannelRelay
             ),
             cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=8),
@@ -37,6 +37,6 @@ CONFIG_SCHEMA = (
 async def to_code(config):
     var = await switch.new_switch(config)
     await cg.register_component(var, config)
-    await cg.register_parented(var, config[CONF_SEEEDMULTICHANNELRELAY_ID])
+    await cg.register_parented(var, config[CONF_SEEED_MULTI_CHANNEL_RELAY_ID])
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))

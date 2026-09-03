@@ -10,18 +10,18 @@ MULTI_CONF = True
 
 CONF_I2C_ADDR = 0x11
 
-CONF_SEEEDMULTICHANNELRELAY_ID = "seeedmultichannelrelay_id"
+CONF_SEEED_MULTI_CHANNEL_RELAY_ID = "seeed_multi_channel_relay_id"
 CONF_CHANGE_ADDRESS_TO = "change_address_to"
 
-seeedmultichannelrelay_ns = cg.esphome_ns.namespace("seeedmultichannelrelay")
-SeeedMultiChannelRelay = seeedmultichannelrelay_ns.class_(
-    "SeeedMultiChannelRelay", cg.Component, i2c.I2CDevice
+seeed_multi_channel_relay_ns = cg.esphome_ns.namespace("seeed_multi_channel_relay")
+Seeed_Multi_Channel_Relay = seeed_multi_channel_relay_ns.class_(
+    "Seeed_Multi_Channel_Relay", cg.Component, i2c.I2CDevice
 )
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(SeeedMultiChannelRelay),
+            cv.GenerateID(): cv.declare_id(Seeed_Multi_Channel_Relay),
             cv.Optional(CONF_CHANGE_ADDRESS_TO): cv.hex_int_range(min=0x00, max=0x7F),
         }
     )

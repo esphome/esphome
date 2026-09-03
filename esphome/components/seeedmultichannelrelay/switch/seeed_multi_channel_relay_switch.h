@@ -3,12 +3,12 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-#include "esphome/components/seeedmultichannelrelay/seeedmultichannelrelay.h"
+#include "esphome/components/seeedmultichannelrelay/seeed_multi_channel_relay.h"
 
 namespace esphome {
 namespace seeedmultichannelrelay {
 
-class SeeedMultiChannelRelaySwitch : public Component, public switch_::Switch, public Parented<SeeedMultiChannelRelay> {
+class Seeed_Multi_Channel_Relay_Switch : public Component, public switch_::Switch, public Parented<seeed_multi_channel_relay> {
  public:
   float get_setup_priority() const override;
 
@@ -27,5 +27,5 @@ class SeeedMultiChannelRelaySwitch : public Component, public switch_::Switch, p
   uint32_t interlock_wait_time_{0};
 };
 
-}  // namespace seeedmultichannelrelay
+}  // namespace seeed_multi_channel_relay
 }  // namespace esphome

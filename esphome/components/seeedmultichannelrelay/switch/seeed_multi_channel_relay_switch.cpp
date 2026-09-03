@@ -1,15 +1,15 @@
-#include "seeedmultichannelrelay_switch.h"
+#include "seeed_multi_channel_relay_switch.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace seeedmultichannelrelay {
+namespace seeed_multi_channel_relay {
 
-static const char *const TAG = "switch.SeeedMultiChannelRelay";
+static const char *const TAG = "switch.seeed_multi_channel_relay";
 
-float SeeedMultiChannelRelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
+float seeed_multi_channel_relay_Switch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void SeeedMultiChannelRelaySwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SeeedMultiChannelRelay Switch '%s'...", this->name_.c_str());
+void seeed_multi_channel_relay_Switch::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up seeed_multi_channel_relay Switch '%s'...", this->name_.c_str());
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
@@ -21,8 +21,8 @@ void SeeedMultiChannelRelaySwitch::setup() {
   }
 }
 
-void SeeedMultiChannelRelaySwitch::dump_config() {
-  LOG_SWITCH("", "SeeedMultiChannelRelay Switch", this);
+void seeed_multi_channel_relay_Switch::dump_config() {
+  LOG_SWITCH("", "seeed_multi_channel_relay Switch", this);
   ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
@@ -34,7 +34,7 @@ void SeeedMultiChannelRelaySwitch::dump_config() {
   }
 }
 
-void SeeedMultiChannelRelaySwitch::write_state(bool state) {
+void seeed_multi_channel_relay_Switch::write_state(bool state) {
   if (state != this->inverted_) {
     // Turning ON, check interlocking
 
@@ -69,9 +69,9 @@ void SeeedMultiChannelRelaySwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-void SeeedMultiChannelRelaySwitch::set_interlock(const std::vector<Switch *> &interlock) {
+void seeed_multi_channel_relay_Switch::set_interlock(const std::vector<Switch *> &interlock) {
   this->interlock_ = interlock;
 }
 
-}  // namespace seeedmultichannelrelay
+}  // namespace seeed_multi_channel_relay
 }  // namespace esphome

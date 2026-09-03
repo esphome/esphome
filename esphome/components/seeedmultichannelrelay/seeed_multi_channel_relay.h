@@ -4,25 +4,14 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace seeedmultichannelrelay {
+namespace seeed_multi_channel_relay {
 
 static constexpr uint8_t CMD_CHANNEL_CTRL = 0x10;
 static constexpr uint8_t CMD_SAVE_I2C_ADDR = 0x11;
 static constexpr uint8_t CMD_READ_I2C_ADDR = 0x12;
 static constexpr uint8_t CMD_READ_FIRMWARE_VER = 0x13;
 
-enum class RelayBit : uint8_t {
-  RELAY1 = 1,
-  RELAY2 = 2,
-  RELAY3 = 3,
-  RELAY4 = 4,
-  RELAY5 = 5,
-  RELAY6 = 6,
-  RELAY7 = 7,
-  RELAY8 = 8
-};
-
-class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
+class seeed_multi_channel_relay : public Component, public i2c::I2CDevice {
  public:
   void relay_write(uint8_t number, bool state);
 
@@ -41,10 +30,14 @@ class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
 */
   uint8_t get_firmware_version();
 
+  void dump_config() override;
+
+  void setup() override;
+
  protected:
   void write1_byte_(uint8_t register_address, uint8_t data);
   uint8_t read1_byte_(uint8_t register_address);
-  uint8_t channel_state_;  // Value to save channel state
+  uint8_t channel_state_ = {0};  // Value to save channel state
   uint8_t new_addr_;
   bool address_changed_ = false;
 
@@ -57,22 +50,19 @@ class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
 
   /*
     @brief Turn on one of 8 channels
-    @param channel, channel to control with (range form 1 to 8)
+    @param channel, channel to control with (range from 1 to 8)
     @return None
 */
   void turn_on_channel_(uint8_t channel);
 
   /*
       @brief Turn off on of 8 channels
-      @param channel, channel to control with (range form 1 to 8)
+      @param channel, channel to control with (range from 1 to 8)
       @return None
   */
   void turn_off_channel_(uint8_t channel);
 
-  void dump_config() override;
-
-  void setup() override;
 };
 
-}  // namespace seeedmultichannelrelay
+}  // namespace seeed_multi_channel_relay
 }  // namespace esphome
