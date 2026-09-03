@@ -13,7 +13,6 @@ void ICNT86Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up icnt86 Touchscreen...");
 
   // Register interrupt pin
-  this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
   this->attach_interrupt_(this->interrupt_pin_, gpio::INTERRUPT_FALLING_EDGE);
 
