@@ -1104,8 +1104,8 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
 
 
 _TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
-_SHARED_YAML_RE = re.compile(r"mark\.shared_yaml\([\"'](\w+)[\"']\)")
-_SHARED_YAML_USE_RE = re.compile(r"^\s*@[\w.]*mark\.shared_yaml\b", re.MULTILINE)
+_SHARED_YAML_USE_RE = re.compile(r"^\s*@[\w.]*mark\.shared_yaml", re.MULTILINE)
+_SHARED_YAML_ARG_RE = re.compile(r"\(\s*[\"'](\w+)[\"']\s*\)")
 
 
 @cache
@@ -1125,17 +1125,19 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
         for func in _TEST_FUNC_RE.findall(content):
             base_name = func.replace("test_", "").partition("[")[0]
             result.setdefault(base_name, set()).add(rel_path)
-        # Shared fixtures are named by marker, not by a test function
-        names = _SHARED_YAML_RE.findall(content)
-        if len(names) != len(_SHARED_YAML_USE_RE.findall(content)):
-            # A wrapped or non-literal marker would silently drop the mapping
-            # and CI would select no tests for that fixture
-            raise ValueError(
-                f"{rel_path}: every shared_yaml marker must be a single-line "
-                "string literal so CI test selection can map its fixture"
-            )
-        for name in names:
-            result.setdefault(name, set()).add(rel_path)
+        # Shared fixtures are named by marker, not by a test function; each
+        # decorator must carry a string literal or its fixture would silently
+        # map to no tests
+        for use in _SHARED_YAML_USE_RE.finditer(content):
+            arg = _SHARED_YAML_ARG_RE.match(content, use.end())
+            if arg is None:
+                line = content.count("\n", 0, use.start()) + 1
+                raise ValueError(
+                    f"{rel_path}:{line}: shared_yaml marker must take a "
+                    "single-line string literal so CI test selection can map "
+                    "its fixture"
+                )
+            result.setdefault(arg.group(1), set()).add(rel_path)
 
     return {k: frozenset(v) for k, v in result.items()}
 
