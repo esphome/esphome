@@ -149,6 +149,15 @@ enum class RequestKind : uint8_t {
   DHW_SETPOINT,
   MAX_CH_WATER_SETPOINT,
   NOMINAL_VENTILATION_VALUE,
+
+  // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+  NUMBER_OF_TSPS,
+  NUMBER_OF_TSPS_VENTILATION,
+  NUMBER_OF_TSPS_SOLAR_STORAGE,
+  // §5.3.6 Class 6, IDs 11/89/106: a transparent-boiler-parameter read or write, at whichever
+  // configured slot (see TspSlot) is due next -- see build_next_request_()'s tsp_write_pending_ check
+  // for on-demand writes and the informational-rotation case for the periodic read cycle.
+  TSP,
 };
 
 class OpenTherm42Hub;
@@ -159,6 +168,7 @@ enum class SimpleValueKind : uint8_t {
   S16,    // frame.value_s16() -- a plain signed integer, not fixed-point, despite also being 16 bits
   U16,    // frame.value_u16()
   U8_LB,  // frame.value_lb -- only the low byte carries data
+  U8_HB,  // frame.value_hb -- only the high byte carries data
 };
 
 // Describes one single-value, non-bit-decomposed read-only data-id: which id to READ_DATA, how to
@@ -197,6 +207,15 @@ struct BrandRead {
   text_sensor::TextSensor *sensor{nullptr};
   uint8_t next_index{0};
   std::array<char, 51> buffer{};
+};
+
+// §5.3.6 Class 6: one user-configured transparent-boiler-parameter slot. TSP values are opaque and
+// manufacturer-specific (the protocol has no idea what they mean), so unlike every other class there's
+// no fixed set of ids to expose -- the user names and indexes whichever slots their boiler documents.
+struct TspSlot {
+  uint8_t data_id;  // 11 (main), 89 (ventilation/heat-recovery), or 106 (Solar Storage)
+  uint8_t index;    // TSP-index, 0..255
+  number::Number *number{nullptr};
 };
 
 // Declares set_<name>_switch()/set_<name>_binary_sensor(), storing the pointer at a fixed bit position
@@ -502,6 +521,27 @@ class OpenTherm42Hub : public Component {
   OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_nominal_ventilation_value_set, nominal_ventilation_value_number_)
   OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_nominal_ventilation_value, nominal_ventilation_value_sensor_)
 
+  // §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps, number_of_tsps_sensor_)
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery,
+                  number_of_tsps_ventilation_sensor_)
+  OT42_SET_SENSOR(transparent_boiler_parameters_number_of_tsps_solar_storage, number_of_tsps_solar_storage_sensor_)
+
+  // §5.3.6 Class 6, IDs 11/89/106: registers one user-configured TSP slot (data_id identifies which
+  // family), returning its index into tsp_slots_ so the owning OpenTherm42TspNumber can identify
+  // itself in write_tsp() calls.
+  size_t add_tsp_slot(uint8_t data_id, uint8_t index, number::Number *number) {
+    this->tsp_slots_.push_back(TspSlot{data_id, index, number});
+    return this->tsp_slots_.size() - 1;
+  }
+  // Called by OpenTherm42TspNumber::control(); queues an on-demand write, serviced ahead of the next
+  // essential/informational conversation (same priority tier as Class 3's remote requests).
+  void write_tsp(size_t slot_index, uint8_t value) {
+    this->tsp_write_pending_ = true;
+    this->tsp_write_slot_index_ = slot_index;
+    this->tsp_write_value_ = value;
+  }
+
  protected:
   // §4.3.1: minimum time between the end of one conversation and the start of the next.
   static constexpr uint32_t MASTER_WAIT_TIME_MS = 100;
@@ -689,6 +729,21 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *max_ch_water_setpoint_sensor_{nullptr};
   number::Number *nominal_ventilation_value_number_{nullptr};
   sensor::Sensor *nominal_ventilation_value_sensor_{nullptr};
+
+  // §5.3.6 Class 6 entities.
+  sensor::Sensor *number_of_tsps_sensor_{nullptr};
+  sensor::Sensor *number_of_tsps_ventilation_sensor_{nullptr};
+  sensor::Sensor *number_of_tsps_solar_storage_sensor_{nullptr};
+
+  std::vector<TspSlot> tsp_slots_;
+  size_t tsp_read_index_{0};
+  bool tsp_write_pending_{false};
+  size_t tsp_write_slot_index_{0};
+  uint8_t tsp_write_value_{0};
+  // Set immediately before build_next_request_() returns a TSP frame; tells handle_response_()/
+  // invalidate_response_() which slot and direction that conversation was for.
+  size_t pending_tsp_slot_index_{0};
+  bool pending_tsp_is_write_{false};
 };
 
 }  // namespace esphome::opentherm42

@@ -44,6 +44,9 @@ const SimpleSensorInfo OpenTherm42Hub::SIMPLE_SENSORS[] = {
     {RequestKind::CH_PUMP_OPERATION_HOURS, 121, SimpleValueKind::U16, &OpenTherm42Hub::ch_pump_operation_hours_sensor_, "CH pump operation hours (id=121)"},
     {RequestKind::DHW_PUMP_VALVE_OPERATION_HOURS, 122, SimpleValueKind::U16, &OpenTherm42Hub::dhw_pump_valve_operation_hours_sensor_, "DHW pump/valve operation hours (id=122)"},
     {RequestKind::DHW_BURNER_OPERATION_HOURS, 123, SimpleValueKind::U16, &OpenTherm42Hub::dhw_burner_operation_hours_sensor_, "DHW burner operation hours (id=123)"},
+    {RequestKind::NUMBER_OF_TSPS, 10, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_sensor_, "Number of TSP's (id=10)"},
+    {RequestKind::NUMBER_OF_TSPS_VENTILATION, 88, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_ventilation_sensor_, "Number of TSP's ventilation/heat-recovery (id=88)"},
+    {RequestKind::NUMBER_OF_TSPS_SOLAR_STORAGE, 105, SimpleValueKind::U8_HB, &OpenTherm42Hub::number_of_tsps_solar_storage_sensor_, "Number of TSP's Solar Storage (id=105)"},
 };
 // clang-format on
 
@@ -236,6 +239,12 @@ void OpenTherm42Hub::build_schedule_() {
   } else if (this->nominal_ventilation_value_sensor_ != nullptr) {
     this->informational_requests_.push_back(RequestKind::NOMINAL_VENTILATION_VALUE);
   }
+
+  // §5.3.6 Class 6: one informational slot round-robins through every configured TSP for periodic
+  // reads; on-demand writes (see write_tsp()) are serviced ahead of this rotation.
+  if (!this->tsp_slots_.empty()) {
+    this->informational_requests_.push_back(RequestKind::TSP);
+  }
 }
 
 Frame OpenTherm42Hub::build_next_request_() {
@@ -249,6 +258,19 @@ Frame OpenTherm42Hub::build_next_request_() {
     frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
     frame.id = 4;
     frame.value_hb = this->remote_request_code_;
+    return frame;
+  }
+  if (this->tsp_write_pending_) {
+    this->tsp_write_pending_ = false;
+    this->pending_request_kind_ = RequestKind::TSP;
+    this->pending_tsp_slot_index_ = this->tsp_write_slot_index_;
+    this->pending_tsp_is_write_ = true;
+    Frame frame{};
+    auto const &slot = this->tsp_slots_[this->tsp_write_slot_index_];
+    frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+    frame.id = slot.data_id;
+    frame.value_hb = slot.index;
+    frame.value_lb = this->tsp_write_value_;
     return frame;
   }
 
@@ -457,6 +479,20 @@ Frame OpenTherm42Hub::build_next_request_() {
         frame.value_hb = static_cast<uint8_t>(this->nominal_ventilation_value_number_->state);
       } else {
         frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+      }
+      break;
+
+    case RequestKind::TSP:
+      // Only reached for the periodic-read rotation -- on-demand writes are intercepted by the
+      // tsp_write_pending_ check above build_next_request_()'s switch.
+      if (!this->tsp_slots_.empty()) {
+        this->pending_tsp_slot_index_ = this->tsp_read_index_;
+        this->pending_tsp_is_write_ = false;
+        auto const &slot = this->tsp_slots_[this->tsp_read_index_];
+        frame.type = static_cast<uint8_t>(MessageType::READ_DATA);
+        frame.id = slot.data_id;
+        frame.value_hb = slot.index;
+        this->tsp_read_index_ = (this->tsp_read_index_ + 1) % this->tsp_slots_.size();
       }
       break;
 
@@ -1076,6 +1112,30 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
       }
       return;
 
+    case RequestKind::TSP: {
+      auto const &slot = this->tsp_slots_[this->pending_tsp_slot_index_];
+      if (this->pending_tsp_is_write_) {
+        if (type != MessageType::WRITE_ACK) {
+          ESP_LOGW(TAG, "TSP write (id=%u, index=%u) was rejected (message type %u)", slot.data_id, slot.index,
+                   frame.type);
+          return;
+        }
+      } else if (type != MessageType::READ_ACK) {
+        ESP_LOGW(TAG, "TSP read (id=%u, index=%u) was rejected (message type %u)", slot.data_id, slot.index,
+                 frame.type);
+        if (slot.number != nullptr) {
+          slot.number->set_has_state(false);
+        }
+        return;
+      }
+      // §5.3.6: both a READ-ACK and a WRITE-ACK echo the (possibly boiler-clamped) TSP-value in LB --
+      // always trust that over whatever was requested.
+      if (slot.number != nullptr) {
+        slot.number->publish_state(frame.value_lb);
+      }
+      return;
+    }
+
     default: {
       // Every plain read-only sensor (see the SIMPLE_SENSORS table) shares this one case.
       const SimpleSensorInfo *info = this->find_simple_sensor_(this->pending_request_kind_);
@@ -1105,6 +1165,9 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
           return;
         case SimpleValueKind::U8_LB:
           sensor_ptr->publish_state(frame.value_lb);
+          return;
+        case SimpleValueKind::U8_HB:
+          sensor_ptr->publish_state(frame.value_hb);
           return;
       }
     }
@@ -1377,6 +1440,15 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
     case RequestKind::NOMINAL_VENTILATION_VALUE:
       if (this->nominal_ventilation_value_number_ == nullptr && this->nominal_ventilation_value_sensor_ != nullptr) {
         this->nominal_ventilation_value_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::TSP:
+      if (this->pending_tsp_slot_index_ < this->tsp_slots_.size()) {
+        number::Number *tsp_number = this->tsp_slots_[this->pending_tsp_slot_index_].number;
+        if (tsp_number != nullptr) {
+          tsp_number->set_has_state(false);
+        }
       }
       return;
 

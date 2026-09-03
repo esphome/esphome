@@ -141,6 +141,18 @@ number:
       name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value (set)"
       initial_value: 50
       restore_value: true
+    # §5.3.6 Class 6, IDs 11/89/106: TSP values are opaque and manufacturer-specific, so unlike every
+    # other option here there's no spec-provided name/description -- name and index come from whatever
+    # the boiler's own documentation says slot N means.
+    transparent_boiler_parameters:
+      - index: 5
+        name: "Transparent Boiler Parameters: TSP 5"
+    transparent_boiler_parameters_ventilation_heat_recovery:
+      - index: 3
+        name: "Transparent Boiler Parameters: TSP 3 ventilation-heat-recovery"
+    transparent_boiler_parameters_solar_storage:
+      - index: 1
+        name: "Transparent Boiler Parameters: TSP 1 Solar Storage"
 
 binary_sensor:
   - platform: opentherm42
@@ -552,3 +564,12 @@ sensor:
     # the number platform's nominal_ventilation_value_set is NOT configured.
     pre_defined_remote_boiler_parameters_nominal_ventilation_value:
       name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value"
+    # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
+    transparent_boiler_parameters_number_of_tsps:
+      name: "Transparent Boiler Parameters: Number of TSP's"
+    # §5.3.6 Class 6, ID 88 HB: Number of TSPs supported by the ventilation/heat-recovery system.
+    transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery:
+      name: "Transparent Boiler Parameters: Number of TSP's ventilation-heat-recovery"
+    # §5.3.6 Class 6, ID 105 HB: Number of TSPs supported by the Solar Storage.
+    transparent_boiler_parameters_number_of_tsps_solar_storage:
+      name: "Transparent Boiler Parameters: Number of TSP's Solar Storage"
