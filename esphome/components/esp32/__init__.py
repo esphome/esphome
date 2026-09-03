@@ -182,6 +182,13 @@ SIGNED_OTA_V1_ECDSA_VARIANTS = {
     VARIANT_ESP32,
 }
 
+# Variants that support execution from PSRAM
+PSRAM_XIP_VARIANTS = {
+    VARIANT_ESP32S3,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S31,
+}
+
 # NVS encryption (HMAC peripheral scheme) is only available on variants that
 # expose the HMAC peripheral (SOC_HMAC_SUPPORTED in soc_caps.h). The original
 # ESP32 and ESP32-C2 do not have it. New variants with an HMAC peripheral
@@ -1535,7 +1542,7 @@ def final_validate(config) -> None:
             )
         )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
+        if config[CONF_VARIANT] not in PSRAM_XIP_VARIANTS:
             errs.append(
                 cv.Invalid(
                     f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
@@ -2740,13 +2747,7 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if variant == VARIANT_ESP32S3:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
-        elif variant == VARIANT_ESP32P4:
-            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
-        else:
-            raise ValueError("Unhandled ESP32 variant")
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
