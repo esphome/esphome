@@ -53,7 +53,7 @@ MESH_INITIAL_VALUES: dict[str, object] = {
     "reg_u_qword_r": pytest.approx(578437695752307201),
     "reg_s_qword_r": pytest.approx(-578437695752307201),
     "reg_fp32": pytest.approx(3.14),
-    "reg_fp32_r": pytest.approx(3.14),
+    "reg_fp32_r": pytest.approx(2.5),
 }
 
 
@@ -329,6 +329,7 @@ async def test_uart_mock_modbus_server_controller(
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
+    # 13330 is the byte-swapped view of reg_u_word_s (0x1234 -> 0x3412)
     expected_values = {**MESH_INITIAL_VALUES, "reg_u_word_s_raw": 13330}
     tracker = SensorTracker(list(expected_values.keys()))
     futures = tracker.expect_all(expected_values)

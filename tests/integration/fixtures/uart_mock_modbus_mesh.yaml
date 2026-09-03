@@ -105,7 +105,7 @@ globals:
     initial_value: "3.14"
   - id: stored_fp32_r
     type: float
-    initial_value: "3.14"
+    initial_value: "2.5"
   - id: stored_bit_2
     type: bool
     initial_value: "false"
