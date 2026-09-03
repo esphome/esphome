@@ -1104,6 +1104,7 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
 
 
 _TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
+_SHARED_YAML_RE = re.compile(r"@pytest\.mark\.shared_yaml\([\"'](\w+)[\"']\)")
 
 
 @cache
@@ -1123,6 +1124,9 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
         for func in _TEST_FUNC_RE.findall(content):
             base_name = func.replace("test_", "").partition("[")[0]
             result.setdefault(base_name, set()).add(rel_path)
+        # Shared fixtures are named by marker, not by a test function
+        for name in _SHARED_YAML_RE.findall(content):
+            result.setdefault(name, set()).add(rel_path)
 
     return {k: frozenset(v) for k, v in result.items()}
 

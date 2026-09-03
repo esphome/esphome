@@ -2122,6 +2122,20 @@ def test_get_cpp_changed_components_independent_of_cwd(
     ) == ["time"]
 
 
+def test_fixture_map_includes_shared_yaml_markers() -> None:
+    """Fixtures named only by shared_yaml markers must map to their test file."""
+    helpers.get_fixture_to_test_files.cache_clear()
+    mapping = helpers.get_fixture_to_test_files()
+    for fixture in (
+        "uart_mock_modbus_loopback",
+        "uart_mock_modbus_mesh",
+        "uart_mock_modbus_server_injected",
+    ):
+        assert mapping[fixture] == frozenset(
+            {"tests/integration/test_uart_mock_modbus.py"}
+        )
+
+
 def test_lpt_partition_balances_skewed_weights() -> None:
     """Heavy items spread across groups instead of clustering."""
     items = [f"i{n}" for n in range(6)]
