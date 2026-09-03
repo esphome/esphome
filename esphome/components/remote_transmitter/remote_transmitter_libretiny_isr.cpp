@@ -3,11 +3,11 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-// Envelope chain shared by the LibreTiny families that pace transmission from a hardware
-// timer interrupt: RTL8720C (gtimer) and the BK7231N-style PWM block (BKTIMER1). Everything
-// platform-specific sits behind five hooks implemented in the per-family files -- carrier
-// setup, duty writes, one-shot arming and timer stop. Families without a usable timer keep
-// the generic bit-bang implementation and compile none of this.
+// Envelope chain shared by the LibreTiny families that pace transmission from a hardware timer
+// interrupt: RTL8720C (gtimer) and BK7238 (BKTIMER1). Everything platform-specific sits behind
+// five hooks implemented in the per-family files -- carrier setup, duty writes, one-shot arming
+// and timer stop. Families without a usable timer keep the generic bit-bang implementation and
+// compile none of this.
 #if defined(USE_LIBRETINY_VARIANT_RTL8720C) || defined(REMOTE_TRANSMITTER_BK_PWM)
 
 namespace esphome::remote_transmitter {

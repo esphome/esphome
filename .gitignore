@@ -137,6 +137,8 @@ config/
 !tests/component_tests/**/config/
 tests/build/
 tests/.esphome/
+# Output kept by failing tests for inspection; uploaded by CI
+test_artifacts/
 /.temp-clang-tidy.cpp
 /.temp/
 .pio/
