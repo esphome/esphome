@@ -243,7 +243,8 @@ async def test_uart_mock_modbus_server_read_write(
         api_client_connected() as client,
     ):
         await tracker.setup_and_start_scenario(client)
-        await tracker.await_all(futures)
+        # The FC 0x17 injections fire last, behind four earlier 100ms delays
+        await tracker.await_all(futures, timeout=4.0)
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)
 
 

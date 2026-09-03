@@ -280,25 +280,35 @@ def _shared_yaml_name(request: pytest.FixtureRequest) -> str | None:
     return marker.args[0] if marker is not None else None
 
 
+# In the dir name (not just the hash) so pruning stays inside this checkout
+_REPO_KEY = hashlib.sha256(str(REPO_ROOT).encode()).hexdigest()[:8]
+
+# Give a contended shared build lock time for a full cold compile ahead of us
+_SHARED_LOCK_TIMEOUT_S = 900
+
+
 def _shared_build_key(name: str) -> str:
-    """Key shared build dirs by checkout and fixture source, before per-test
-    injections; the repo root keeps worktrees from sharing one build tree."""
-    return hashlib.sha256(
-        str(REPO_ROOT).encode() + (FIXTURES_DIR / f"{name}.yaml").read_bytes()
-    ).hexdigest()[:16]
+    """Key shared build dirs by the fixture source, before per-test injections."""
+    return hashlib.sha256((FIXTURES_DIR / f"{name}.yaml").read_bytes()).hexdigest()[:16]
 
 
 def _prune_stale_builds(name: str, keep: Path) -> None:
-    """Remove this fixture's outdated build dirs (blocking, run in executor)."""
-    for stale in SHARED_BUILDS_ROOT.glob(f"{name}-*"):
+    """Remove this checkout's outdated build dirs for a fixture (blocking, run
+    in executor). Tolerates other workers pruning the same dirs concurrently."""
+    for stale in SHARED_BUILDS_ROOT.glob(f"{name}-{_REPO_KEY}-*"):
         if stale == keep:
             continue
-        with (stale / ".lock").open("w") as lock_file:
+        try:
+            lock_file = (stale / ".lock").open("w")
+        except OSError:
+            continue  # pruned by another worker mid-glob
+        with lock_file:
             try:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
+            except BlockingIOError:
                 continue  # still in use by another run
-            shutil.rmtree(stale)
+            # ignore_errors: a concurrent pruner may delete pieces under us
+            shutil.rmtree(stale, ignore_errors=True)
 
 
 async def _run_esphome_compile(
@@ -379,7 +389,9 @@ async def compile_esphome(
 
         # Shared fixture: build in a hash-keyed dir so tests sharing a config
         # pay one full compile and later only a main.cpp (port) rebuild + relink
-        shared_dir = SHARED_BUILDS_ROOT / f"{name}-{_shared_build_key(name)}"
+        shared_dir = (
+            SHARED_BUILDS_ROOT / f"{name}-{_REPO_KEY}-{_shared_build_key(name)}"
+        )
         shared_dir.mkdir(parents=True, exist_ok=True)
         await loop.run_in_executor(None, _prune_stale_builds, name, shared_dir)
         shared_config = shared_dir / f"{name}.yaml"
@@ -391,11 +403,18 @@ async def compile_esphome(
             raise RuntimeError(
                 "shared_yaml tests must compile the yaml_config content unmodified"
             )
-        # flock serializes concurrent xdist workers; closing the fd releases it
+        # flock serializes concurrent xdist workers; closing the fd releases it.
+        # Non-blocking retries keep the wait cancellable; a blocking LOCK_EX in
+        # an executor thread would survive test cancellation holding the fd
         with (shared_dir / ".lock").open("w") as lock_file:
-            await loop.run_in_executor(
-                None, fcntl.flock, lock_file.fileno(), fcntl.LOCK_EX
-            )
+            for _ in range(_SHARED_LOCK_TIMEOUT_S * 10):
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    await asyncio.sleep(0.1)
+            else:
+                raise RuntimeError(f"Timed out waiting for the {shared_dir} lock")
             await loop.run_in_executor(None, shared_config.write_text, content)
             await _run_esphome_compile(shared_config, shared_dir, env)
             if (built := _shared_elf_paths.get(shared_dir)) is None:
