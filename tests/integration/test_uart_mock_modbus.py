@@ -399,10 +399,11 @@ async def test_uart_mock_modbus_server_controller_write(
         # connection is working before issuing writes
         await tracker.await_all(initial_futures, timeout=4.0)
 
-        # Issue write commands for all register types
+        # Issue write commands for all register types; exact object_id match,
+        # since several write_* names are prefixes of a sibling
+        numbers = {e.object_id: e for e in entities if isinstance(e, NumberInfo)}
         for number_name, value in register_writes.values():
-            entity = require_entity(entities, number_name, NumberInfo)
-            client.number_command(entity.key, value)
+            client.number_command(numbers[number_name].key, value)
 
         # Wait for sensors to reflect the written values (round-trip write+read)
         await tracker.await_all(written_futures, timeout=4.0)
