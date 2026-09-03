@@ -94,7 +94,6 @@ modbus_controller:
 modbus_server:
   - address: 1
     modbus_id: virtual_modbus_server
-    id: modbus_server_1
     registers:
       - address: 0x01
         value_type: U_WORD
@@ -140,7 +139,6 @@ modbus_server:
         read_lambda: return 3.14;
   - address: 5
     modbus_id: virtual_modbus_server
-    id: modbus_server_5
     registers:
       # Writable + readable register: srv_write_1 plus the client's read-back
       # confirm the write half of the 0x17 ran before the read half (Modbus 6.17).
