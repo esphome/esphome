@@ -2851,6 +2851,7 @@ enum SerialProxyMode {
   SERIAL_PROXY_MODE_PROTOCOL = 1;
 }
 
+// Only the subscribed client may change the mode; others are refused with PORT_IN_USE.
 message SerialProxySetModeRequest {
   option (id) = 152;
   option (source) = SOURCE_CLIENT;

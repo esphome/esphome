@@ -71,7 +71,8 @@ class SerialProxyTap {
   virtual void on_client_tx(const uint8_t *data, size_t len) = 0;
 
   /// True when the port must keep reading even with no subscriber attached, so a tap can
-  /// do its own protocol work while nobody is listening.
+  /// do its own protocol work while nobody is listening. Honoured only while no
+  /// subscriber holds the port; with one attached, the port mode alone decides.
   virtual bool tap_needs_port() const = 0;
 
   /// A client explicitly turned protocol handling off for this port. Distinct from the
@@ -165,8 +166,13 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   void set_tap(SerialProxyTap *tap) { this->tap_ = tap; }
 
   /// Write bytes originating from the tap rather than from a client. Bypasses the
-  /// subscriber ownership check, since the tap is part of the device, not a client of it.
-  void write_from_tap(const uint8_t *data, size_t len) { this->write_array(data, len); }
+  /// subscriber ownership check, but only while the tap is being served bytes -- so a
+  /// port in RAW mode with a subscriber attached stays inert.
+  void write_from_tap(const uint8_t *data, size_t len) {
+    if (this->tap_observing_()) {
+      this->write_array(data, len);
+    }
+  }
 
   /// Resume reading after a tap's needs change. loop() disables itself when there is
   /// neither a subscriber nor a tap that wants the port, so a tap starting fresh work

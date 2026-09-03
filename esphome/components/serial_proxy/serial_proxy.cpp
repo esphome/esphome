@@ -120,11 +120,10 @@ bool SerialProxy::tap_observing_() const {
   if (this->tap_ == nullptr) {
     return false;
   }
-  // A tap that needs the port is mid-protocol-work of its own -- the boot-time handshake
-  // with the device, which runs before any client has connected and so before anyone could
-  // have chosen a mode. Withholding bytes from it there would strand it, so it is served
-  // regardless of mode.
-  if (this->tap_->tap_needs_port()) {
+  // With no subscriber, a tap doing its own protocol work (the boot-time handshake with
+  // the device, say) is served regardless of mode -- nobody has chosen one yet. Once a
+  // subscriber holds the port, the mode alone decides, so RAW stays inert.
+  if (this->api_connection_ == nullptr && this->tap_->tap_needs_port()) {
     return true;
   }
   // Otherwise the mode decides. RAW must be inert: a client that flips to RAW before
@@ -233,13 +232,19 @@ SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uin
 
 SerialProxyResult SerialProxy::set_mode(api::APIConnection *api_connection, api::enums::SerialProxyMode mode) {
 #ifdef USE_API
-  if (this->port_claimed_by_other_(api_connection)) {
-    ESP_LOGW(TAG, "Ignoring mode request from client without port access [%" PRIu32 "]", this->instance_index_);
+  // Only the live subscriber may change the mode, so the mode cannot outlive a session
+  if (this->api_connection_ != api_connection) {
+    ESP_LOGW(TAG, "Ignoring mode request from client without port subscription [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
 #endif
+  // Values come from a remote client
+  if (mode != api::enums::SERIAL_PROXY_MODE_RAW && mode != api::enums::SERIAL_PROXY_MODE_PROTOCOL) {
+    ESP_LOGW(TAG, "Invalid mode: %" PRIu32, static_cast<uint32_t>(mode));
+    return SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT;
+  }
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
-           mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? "PROTOCOL" : "RAW");
+           mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"));
   const bool leaving_protocol_mode =
       this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
   this->mode_ = mode;
@@ -368,7 +373,14 @@ SerialProxyResult SerialProxy::serial_proxy_request(api::APIConnection *api_conn
       }
       this->api_connection_ = nullptr;
       this->reset_mode_();
+#ifdef USE_SERIAL_PROXY_TAP
+      // Keep the loop alive for a tap that still needs the port (mirrors loop())
+      if (this->tap_ == nullptr || !this->tap_->tap_needs_port()) {
+        this->disable_loop();
+      }
+#else
       this->disable_loop();
+#endif
       ESP_LOGV(TAG, "API connection unsubscribed from serial proxy [%" PRIu32 "]", this->instance_index_);
       return SerialProxyResult::SERIAL_PROXY_RESULT_OK;
     default:
