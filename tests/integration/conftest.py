@@ -67,6 +67,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # CI caches parts of this path; keep in sync with ci.yml integration-tests.
 INTEGRATION_TESTS_ROOT = Path.home() / ".esphome-integration-tests"
@@ -94,7 +95,7 @@ def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
         )
     # Compile with THIS tree's esphome sources, not wherever the venv's editable
     # install points (which may be a different git worktree or checkout).
-    repo_root = str(Path(__file__).resolve().parent.parent.parent)
+    repo_root = str(REPO_ROOT)
     existing = env.get("PYTHONPATH")
     env["PYTHONPATH"] = f"{repo_root}{os.pathsep}{existing}" if existing else repo_root
     return env
@@ -235,10 +236,12 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
 
     # Replace external component path placeholder if present
     if "EXTERNAL_COMPONENT_PATH" in content:
-        external_components_path = str(
-            Path(__file__).parent / "fixtures" / "external_components"
-        )
+        external_components_path = str(FIXTURES_DIR / "external_components")
         content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
+
+    if _shared_yaml_name(request) is not None:
+        # _compile verifies the marked test compiles this content unmodified
+        request.node._shared_yaml_content = content
 
     return content
 
@@ -263,6 +266,8 @@ async def write_yaml_config(
     yield _write_config
 
 
+# Deliberately not CI-cached (ci.yml caches only platformio/ subpaths); stale
+# dirs for a fixture are pruned when its content hash changes.
 SHARED_BUILDS_ROOT = INTEGRATION_TESTS_ROOT / "builds"
 
 # ELF path per shared build dir; constant once compiled, so resolve it only once
@@ -276,8 +281,24 @@ def _shared_yaml_name(request: pytest.FixtureRequest) -> str | None:
 
 
 def _shared_build_key(name: str) -> str:
-    """Key shared build dirs by the fixture source, before per-test injections."""
-    return hashlib.sha256((FIXTURES_DIR / f"{name}.yaml").read_bytes()).hexdigest()[:16]
+    """Key shared build dirs by checkout and fixture source, before per-test
+    injections; the repo root keeps worktrees from sharing one build tree."""
+    return hashlib.sha256(
+        str(REPO_ROOT).encode() + (FIXTURES_DIR / f"{name}.yaml").read_bytes()
+    ).hexdigest()[:16]
+
+
+def _prune_stale_builds(name: str, keep: Path) -> None:
+    """Remove this fixture's outdated build dirs (blocking, run in executor)."""
+    for stale in SHARED_BUILDS_ROOT.glob(f"{name}-*"):
+        if stale == keep:
+            continue
+        with (stale / ".lock").open("w") as lock_file:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                continue  # still in use by another run
+            shutil.rmtree(stale)
 
 
 async def _run_esphome_compile(
@@ -360,9 +381,16 @@ async def compile_esphome(
         # pay one full compile and later only a main.cpp (port) rebuild + relink
         shared_dir = SHARED_BUILDS_ROOT / f"{name}-{_shared_build_key(name)}"
         shared_dir.mkdir(parents=True, exist_ok=True)
+        await loop.run_in_executor(None, _prune_stale_builds, name, shared_dir)
         shared_config = shared_dir / f"{name}.yaml"
         private_binary = integration_test_dir / f"{name}.elf"
         content = await loop.run_in_executor(None, config_path.read_text)
+        if content != getattr(request.node, "_shared_yaml_content", None):
+            # The dir is keyed by the fixture source; a mutated config would be
+            # cached under a hash that does not describe it
+            raise RuntimeError(
+                "shared_yaml tests must compile the yaml_config content unmodified"
+            )
         # flock serializes concurrent xdist workers; closing the fd releases it
         with (shared_dir / ".lock").open("w") as lock_file:
             await loop.run_in_executor(
