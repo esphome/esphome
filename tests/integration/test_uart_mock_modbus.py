@@ -381,15 +381,20 @@ async def test_uart_mock_modbus_server_controller_write(
         ),
     }
 
-    tracker = SensorTracker(list(register_test_cases.keys()))
+    tracker = SensorTracker([*register_test_cases, "reg_u_word_s_raw"])
 
+    # The raw U_WORD view of 0x02 pins the byte swap on the write path: the
+    # round trip through write_u_word_s applies the swap an even number of
+    # times, so only the raw sensor can catch a symmetrically dropped swap.
     # Phase 1: expect initial baseline values
     initial_futures = tracker.expect_all(
         {name: MESH_INITIAL_VALUES[name] for name in register_test_cases}
+        | {"reg_u_word_s_raw": 13330}  # 0x1234 -> 0x3412
     )
     # Phase 2: expect post-write values (registered now so on_state can match them)
     written_futures = tracker.expect_all(
         {name: case.post_write_value for name, case in register_test_cases.items()}
+        | {"reg_u_word_s_raw": 8515}  # 0x4321 -> 0x2143
     )
 
     async with (
