@@ -21,7 +21,6 @@ extern "C" {
 #include "lwip/apps/sntp.h"
 #include "lwip/netif.h"  // struct netif
 #include <AddrList.h>
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
 #include <ESP8266WiFi.h>
@@ -29,7 +28,6 @@ extern "C" {
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
-#endif
 #endif
 }
 
@@ -293,7 +291,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     conf.bssid_set = 0;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   if (ap.password_.empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
@@ -310,7 +307,6 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     }
   }
   conf.threshold.rssi = -127;
-#endif
 
   ETS_UART_INTR_DISABLE();
   bool ret = wifi_station_set_config_current(&conf);
@@ -602,7 +598,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #endif
       break;
     }
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
       ESP_LOGV(TAG, "Changed Mode old=%s new=%s", LOG_STR_ARG(get_op_mode_str(it.old_opmode)),
@@ -620,7 +615,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 #endif
       break;
     }
-#endif
     default:
       break;
   }
@@ -705,7 +699,6 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = 1;
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
   // Use shorter dwell times for roaming scans - we only need to detect strong
   // nearby APs, not do a thorough survey. This also reduces off-channel time
@@ -724,7 +717,6 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
     config.scan_time.active.min = roaming ? SCAN_ACTIVE_MIN_ROAMING_MS : SCAN_ACTIVE_MIN_DEFAULT_MS;
     config.scan_time.active.max = roaming ? SCAN_ACTIVE_MAX_ROAMING_MS : SCAN_ACTIVE_MAX_DEFAULT_MS;
   }
-#endif
   bool ret = wifi_station_scan(&config, &WiFiComponent::s_wifi_scan_done_callback);
   if (!ret) {
     ESP_LOGV(TAG, "wifi_station_scan failed");
@@ -830,7 +822,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
+#if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
   dhcpSoftAP.begin(&info);
 #endif
 
