@@ -131,6 +131,7 @@ esphome/components/cst816/* @clydebarrow
 esphome/components/cst9220/* @clydebarrow
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
+esphome/components/d01/* @ch604
 esphome/components/dac7678/* @NickB1
 esphome/components/daikin_arc/* @MagicBear
 esphome/components/daikin_brc/* @hagak
@@ -148,6 +149,7 @@ esphome/components/display_menu_base/* @numo68
 esphome/components/dlms_meter/* @latonita @PolarGoose @SimonFischer04 @Tomer27cz
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
+esphome/components/ds1603l/* @JakeLC15
 esphome/components/ds2484/* @mrk-its
 esphome/components/ds248x/* @tomwellnitz
 esphome/components/dsmr/* @glmnet @PolarGoose
@@ -494,6 +496,7 @@ esphome/components/sm2335/* @Cossid
 esphome/components/sml/* @alengwenus
 esphome/components/smt100/* @piechade
 esphome/components/sn74hc165/* @jesserockz
+esphome/components/snapshot/* @clydebarrow
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/sound_level/* @kahrendt
