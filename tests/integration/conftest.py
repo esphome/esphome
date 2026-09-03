@@ -342,7 +342,10 @@ def _read_stamp(stamp: Path, shared_dir: Path) -> Path | None:
         return None
     built = Path(text)
     # Never trust a stamp pointing outside its own build dir as an unlink target
-    return built if shared_dir in built.parents else None
+    if shared_dir.resolve() in built.resolve().parents:
+        return built
+    warnings.warn(f"Ignoring stamp {stamp} pointing outside {shared_dir}", stacklevel=2)
+    return None
 
 
 def _unused_since(stale: Path, cutoff: float) -> bool:
@@ -376,6 +379,9 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
         same_fixture = stale.name.startswith(prefix)
         if not same_fixture and not _unused_since(stale, cutoff):
             continue
+        # Creating .lock bumps the dir mtime, so remember whether the re-probe
+        # under the lock can trust it
+        lock_preexisting = (stale / ".lock").exists()
         try:
             lock_file = (stale / ".lock").open("w")
         except FileNotFoundError:
@@ -392,8 +398,14 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
             except BlockingIOError:
                 continue  # still in use by another run
             # Re-probe under the lock: a worker freshens its dir before
-            # locking, so a just-claimed dir no longer looks unused
-            if not same_fixture and not _unused_since(stale, cutoff):
+            # locking, so a just-claimed dir no longer looks unused. A dir
+            # whose .lock we just created cannot be held by anyone, and our
+            # own open bumped its mtime, so its pre-open probe stands
+            if (
+                lock_preexisting
+                and not same_fixture
+                and not _unused_since(stale, cutoff)
+            ):
                 continue
             # rmtree tolerates races; a leftover partial tree only costs a
             # rebuild, since the ELF is deleted before every compile
