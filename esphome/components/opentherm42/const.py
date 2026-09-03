@@ -458,3 +458,25 @@ CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE = (
 CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET = (
     "pre_defined_remote_boiler_parameters_nominal_ventilation_value_set"
 )
+
+# §5.3.6 Class 6, IDs 10/88/105 HB: number of TSPs supported, one per family.
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS = (
+    "transparent_boiler_parameters_number_of_tsps"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY = (
+    "transparent_boiler_parameters_number_of_tsps_ventilation_heat_recovery"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE = (
+    "transparent_boiler_parameters_number_of_tsps_solar_storage"
+)
+
+# §5.3.6 Class 6, IDs 11/89/106: user-named, user-indexed TSP slots -- one list per family. TSP values
+# are opaque and manufacturer-specific, so unlike every other option there's no fixed name/description
+# the spec can supply; the user names and indexes whichever slots their boiler documents.
+CONF_TRANSPARENT_BOILER_PARAMETERS = "transparent_boiler_parameters"
+CONF_TRANSPARENT_BOILER_PARAMETERS_VENTILATION_HEAT_RECOVERY = (
+    "transparent_boiler_parameters_ventilation_heat_recovery"
+)
+CONF_TRANSPARENT_BOILER_PARAMETERS_SOLAR_STORAGE = (
+    "transparent_boiler_parameters_solar_storage"
+)

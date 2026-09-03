@@ -74,6 +74,9 @@ from ..const import (
     CONF_SENSOR_AND_INFORMATIONAL_DATA_SUCCESSFUL_BURNER_STARTS,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_INLET_TEMPERATURE,
     CONF_SENSOR_AND_INFORMATIONAL_DATA_SUPPLY_OUTLET_TEMPERATURE,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE,
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY,
 )
 
 # All of these sensors are boiler-reported values: on a failed conversation, every configured sensor
@@ -296,6 +299,12 @@ TYPES: dict[str, cv.Schema] = {
     # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Only used if
     # the number platform's nominal_ventilation_value_set is NOT configured.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE: _PERCENT_SCHEMA,
+    # §5.3.6 Class 6, ID 10 HB: Number of transparent-boiler-parameter's supported by the boiler.
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS: _CODE_SCHEMA,
+    # §5.3.6 Class 6, ID 88 HB: Number of TSPs supported by the ventilation/heat-recovery system.
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_VENTILATION_HEAT_RECOVERY: _CODE_SCHEMA,
+    # §5.3.6 Class 6, ID 105 HB: Number of TSPs supported by the Solar Storage.
+    CONF_TRANSPARENT_BOILER_PARAMETERS_NUMBER_OF_TSPS_SOLAR_STORAGE: _CODE_SCHEMA,
 }
 
 CONFIG_SCHEMA = cv.Schema(
