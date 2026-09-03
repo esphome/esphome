@@ -131,7 +131,7 @@ SCAN_WIRINGS = {
 }
 
 
-def _validate_scan_wiring(value):
+def _validate_scan_wiring(value: Any) -> str:
     """Validate scan_wiring against the allowed names."""
     value = cv.string(value).upper().replace(" ", "_")
 
@@ -315,7 +315,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     """Validate requirements when using HUB75 display."""
     # Local imports to avoid circular dependencies
     from esphome.components.esp32 import get_esp32_variant
@@ -380,8 +380,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     if errs:
         raise cv.MultipleInvalid(errs)
-
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(_final_validate)
@@ -479,7 +477,7 @@ def _build_pins_struct(
 ) -> cg.StructInitializer:
     """Build Hub75Pins struct from pin expressions."""
 
-    def pin_cast(pin):
+    def pin_cast(pin: Any) -> cg.RawExpression:
         return cg.RawExpression(f"static_cast<int8_t>({pin.get_pin()})")
 
     return cg.StructInitializer(
