@@ -262,10 +262,13 @@ void OutgoingConnectionManager::dump_config() const {
   if (host == nullptr) {
     host = "none remembered yet";
   }
+  // The boot delay differs from delay: on deep sleep builds, so print the
+  // value that actually applies
   ESP_LOGCONFIG(TAG,
                 "  Outgoing connection port: %u\n"
-                "  Outgoing connection host: %s",
-                API_OUTGOING_CONNECTION_PORT, host);
+                "  Outgoing connection host: %s\n"
+                "  Outgoing connection boot delay: %ums",
+                API_OUTGOING_CONNECTION_PORT, host, BOOT_WAIT_MS);
 }
 
 }  // namespace esphome::api

@@ -318,7 +318,11 @@ _OUTGOING_CONNECTION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_HOST): cv.ipaddress,
         cv.Optional(CONF_PORT, default=6054): cv.port,
-        cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
+        # Bounded so the value cannot wrap the device's uint32 milliseconds
+        cv.Optional(CONF_DELAY, default="60s"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(max=cv.TimePeriod(milliseconds=4294967295)),
+        ),
     }
 )
 

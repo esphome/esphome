@@ -63,6 +63,15 @@ def test_outgoing_connection_bare_block(
     assert outgoing["port"] == 6054
 
 
+def test_outgoing_connection_delay_bounded(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A delay past the device's uint32 milliseconds is rejected, not wrapped."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="value must be at most"):
+        CONFIG_SCHEMA(_api_config({"delay": "60d"}))
+
+
 def test_outgoing_connection_requires_encryption(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
