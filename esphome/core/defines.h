@@ -100,8 +100,6 @@
 #define USE_HTTP_REQUEST_OTA_WATCHDOG_TIMEOUT 8000  // NOLINT
 #define USE_I2S_AUDIO_SPDIF_MODE
 #define USE_IMAGE
-#define USE_IMPROV_SERIAL
-#define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_INFRARED
 #define USE_IR_RF
 #define USE_JSON
@@ -235,6 +233,9 @@
 #define USE_AUDIO_MP3_SUPPORT
 #define USE_AUDIO_OPUS_SUPPORT
 #define USE_AUDIO_WAV_SUPPORT
+// The Improv library is not in the Zephyr tidy environment
+#define USE_IMPROV_SERIAL
+#define USE_IMPROV_SERIAL_NEXT_URL
 #define USE_MD5
 #define USE_SHA256
 #ifndef USE_RP2  // no MQTT backend or esp_wireguard library on RP2
