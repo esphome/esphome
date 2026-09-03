@@ -82,7 +82,6 @@ void ICNT86Touchscreen::reset_() {
     this->reset_pin_->digital_write(false);
     delay(10);
     this->reset_pin_->digital_write(true);
-    delay(10);
   }
 }
 
