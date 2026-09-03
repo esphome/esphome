@@ -1,0 +1,5 @@
+test_list:
+  - !include
+    file: this_level1.yaml
+  - file: ${this.file.name}
+    dir: ${this.dir.name}
