@@ -1,7 +1,7 @@
 #include "gpio_switch.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
-#ifdef USE_GPIO_HOLD
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 
@@ -16,7 +16,7 @@ float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; 
 void GPIOSwitch::setup() {
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
-#ifdef USE_GPIO_HOLD
+#if defined(USE_DEEP_SLEEP) && defined(USE_GPIO_HOLD)
   if (!((this->pin_->get_flags() & gpio::FLAG_HOLD) && deep_sleep::woken_from_deepsleep()))
 #endif
   {
