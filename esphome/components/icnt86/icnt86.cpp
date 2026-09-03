@@ -49,34 +49,33 @@ void ICNT86Touchscreen::update_touches() {
 
   if (touch_count == 0x00 || (touch_count > MAX_TOUCHES || touch_count < 1)) {  // No new touch
     return;
-  } else {
-    if (this->read_register16(REG_POINT1, buf, touch_count * POINT_SIZE) != i2c::ERROR_OK) {
-      this->status_set_warning();
-      this->skip_update_ = true;
-      ESP_LOGW(TAG, "Failed to read touch points");
-      return;
-    }
-    this->write_register16(REG_TOUCH_NUM, mask, 1);
-    ESP_LOGD(TAG, "Touch count: %d", touch_count);
+  }
+  if (this->read_register16(REG_POINT1, buf, touch_count * POINT_SIZE) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    this->skip_update_ = true;
+    ESP_LOGW(TAG, "Failed to read touch points");
+    return;
+  }
+  this->write_register16(REG_TOUCH_NUM, mask, 1);
+  ESP_LOGD(TAG, "Touch count: %d", touch_count);
 
-    for (uint8_t i = 0; i < touch_count; i++) {
-      uint16_t x = ((uint16_t) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
-      uint16_t y = ((uint16_t) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
-      uint8_t p = buf[5 + 7 * i];
-      uint8_t touch_id = buf[6 + 7 * i];
+  for (uint8_t i = 0; i < touch_count; i++) {
+    uint16_t x = ((uint16_t) buf[2 + 7 * i] << 8) + buf[1 + 7 * i];
+    uint16_t y = ((uint16_t) buf[4 + 7 * i] << 8) + buf[3 + 7 * i];
+    uint8_t p = buf[5 + 7 * i];
+    uint8_t touch_id = buf[6 + 7 * i];
 
-      if (i == 0) {
-        if (touch_count == 1 && x == this->x_old_ && y == this->y_old_ && p == 0 && this->p_old_zero_) {
-          return;  // Skip this touch because previous was also zero
-        }
-        this->x_old_ = x;
-        this->y_old_ = y;
-        this->p_old_zero_ = (p == 0);
-      } else if (p > 0) {
-        this->p_old_zero_ = false;
+    if (i == 0) {
+      if (touch_count == 1 && x == this->x_old_ && y == this->y_old_ && p == 0 && this->p_old_zero_) {
+        return;  // Skip this touch because previous was also zero
       }
-      this->add_raw_touch_position_(touch_id, x, y, p);
+      this->x_old_ = x;
+      this->y_old_ = y;
+      this->p_old_zero_ = (p == 0);
+    } else if (p > 0) {
+      this->p_old_zero_ = false;
     }
+    this->add_raw_touch_position_(touch_id, x, y, p);
   }
 }
 
