@@ -2727,7 +2727,8 @@ enum SerialProxyParity {
   SERIAL_PROXY_PARITY_ODD = 2;
 }
 
-// Configure UART parameters for a serial proxy instance
+// Configure UART parameters for a serial proxy instance. Only the subscribed client may
+// configure the port; others are refused with PORT_IN_USE (since API 1.17).
 message SerialProxyConfigureRequest {
   option (id) = 138;
   option (source) = SOURCE_CLIENT;
@@ -2753,7 +2754,8 @@ message SerialProxyDataReceived {
   bytes data = 2;               // Raw data received from the serial device
 }
 
-// Write data to a serial device
+// Write data to a serial device. Only the subscribed client may write; writes from
+// others are ignored (since API 1.17).
 message SerialProxyWriteRequest {
   option (id) = 140;
   option (source) = SOURCE_CLIENT;
@@ -2764,7 +2766,8 @@ message SerialProxyWriteRequest {
   bytes data = 2;               // Raw data to write to the serial device
 }
 
-// Set modem control pin states (RTS and DTR)
+// Set modem control pin states (RTS and DTR). Only the subscribed client may set them;
+// others are refused with PORT_IN_USE (since API 1.17).
 message SerialProxySetModemPinsRequest {
   option (id) = 141;
   option (source) = SOURCE_CLIENT;
@@ -2816,7 +2819,8 @@ enum SerialProxyStatus {
   SERIAL_PROXY_STATUS_INVALID_ARGUMENT = 6; // Invalid instance index or parameter value
 }
 
-// Generic request message for simple serial proxy operations
+// Generic request message for simple serial proxy operations. FLUSH requires an active
+// subscription; it is refused with PORT_IN_USE otherwise (since API 1.17).
 message SerialProxyRequest {
   option (id) = 144;
   option (source) = SOURCE_CLIENT;

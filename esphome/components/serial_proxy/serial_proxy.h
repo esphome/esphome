@@ -198,8 +198,10 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// (slow path with a 256-byte stack buffer)
   void read_and_send_(size_t available);
 
-  /// True when a live subscriber other than the given connection holds the port
-  bool port_claimed_by_other_(api::APIConnection *api_connection) const;
+  /// True when the given connection is the live subscriber. Every port operation
+  /// (write, configure, modem pins, flush, mode) requires this, so an unsubscribed
+  /// client can never share the wire with the subscriber or an active tap.
+  bool is_subscriber_(api::APIConnection *api_connection) const { return this->api_connection_ == api_connection; }
 #endif
 
   /// Return the port to RAW when a subscriber goes away, so the mode never outlives it.

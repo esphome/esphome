@@ -164,8 +164,9 @@ void SerialProxy::dump_config() {
 SerialProxyResult SerialProxy::configure(api::APIConnection *api_connection, uint32_t baudrate, bool flow_control,
                                          uint8_t parity, uint8_t stop_bits, uint8_t data_size) {
 #ifdef USE_API
-  if (this->port_claimed_by_other_(api_connection)) {
-    ESP_LOGW(TAG, "Ignoring configure request from client without port access [%" PRIu32 "]", this->instance_index_);
+  if (!this->is_subscriber_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring configure request from client without port subscription [%" PRIu32 "]",
+             this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
 #endif
@@ -235,7 +236,7 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
                                                     api::enums::SerialProxyMode mode) {
 #ifdef USE_API
   // Only the live subscriber may change the mode, so the mode cannot outlive a session
-  if (this->api_connection_ != api_connection) {
+  if (!this->is_subscriber_(api_connection)) {
     ESP_LOGW(TAG, "Ignoring mode request from client without port subscription [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
@@ -246,14 +247,14 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
     return SerialProxyResult::SERIAL_PROXY_RESULT_INVALID_ARGUMENT;
   }
   // PROTOCOL on a port with no tap would be a silent no-op; refuse so the client knows
-  if (mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL) {
 #ifdef USE_SERIAL_PROXY_TAP
-    if (this->tap_ == nullptr)
+  const bool has_tap = this->tap_ != nullptr;
+#else
+  const bool has_tap = false;
 #endif
-    {
-      ESP_LOGW(TAG, "No tap on serial proxy [%" PRIu32 "]; PROTOCOL mode unavailable", this->instance_index_);
-      return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
-    }
+  if (mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL && !has_tap) {
+    ESP_LOGW(TAG, "No tap on serial proxy [%" PRIu32 "]; PROTOCOL mode unavailable", this->instance_index_);
+    return SerialProxyResult::SERIAL_PROXY_RESULT_NOT_SUPPORTED;
   }
   ESP_LOGD(TAG, "Serial proxy [%" PRIu32 "] mode set to %s", this->instance_index_,
            mode == api::enums::SERIAL_PROXY_MODE_PROTOCOL ? LOG_STR_LITERAL("PROTOCOL") : LOG_STR_LITERAL("RAW"));
@@ -274,10 +275,10 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
 
 void SerialProxy::write_from_client(api::APIConnection *api_connection, const uint8_t *data, size_t len) {
 #ifdef USE_API
-  // Bytes from a client other than the live subscriber would interleave with the
-  // subscriber's traffic on the wire
-  if (this->port_claimed_by_other_(api_connection)) {
-    ESP_LOGW(TAG, "Ignoring write from client without port access [%" PRIu32 "]", this->instance_index_);
+  // Bytes from anyone but the live subscriber would interleave with the subscriber's
+  // traffic -- or with an active tap's -- on the wire
+  if (!this->is_subscriber_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring write from client without port subscription [%" PRIu32 "]", this->instance_index_);
     return;
   }
 #endif
@@ -295,8 +296,9 @@ void SerialProxy::write_from_client(api::APIConnection *api_connection, const ui
 
 SerialProxyResult SerialProxy::set_modem_pins(api::APIConnection *api_connection, uint32_t line_states) {
 #ifdef USE_API
-  if (this->port_claimed_by_other_(api_connection)) {
-    ESP_LOGW(TAG, "Ignoring modem pin request from client without port access [%" PRIu32 "]", this->instance_index_);
+  if (!this->is_subscriber_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring modem pin request from client without port subscription [%" PRIu32 "]",
+             this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
 #endif
@@ -330,8 +332,8 @@ uint32_t SerialProxy::get_modem_pins() const {
 SerialProxyResult SerialProxy::flush_port(api::APIConnection *api_connection) {
 #ifdef USE_API
   // Flushing stalls the port, so it gets the same ownership check as writes
-  if (this->port_claimed_by_other_(api_connection)) {
-    ESP_LOGW(TAG, "Ignoring flush from client without port access [%" PRIu32 "]", this->instance_index_);
+  if (!this->is_subscriber_(api_connection)) {
+    ESP_LOGW(TAG, "Ignoring flush from client without port subscription [%" PRIu32 "]", this->instance_index_);
     return SerialProxyResult::SERIAL_PROXY_RESULT_PORT_IN_USE;
   }
 #endif
@@ -350,11 +352,6 @@ SerialProxyResult SerialProxy::flush_port(api::APIConnection *api_connection) {
 }
 
 #ifdef USE_API
-bool SerialProxy::port_claimed_by_other_(api::APIConnection *api_connection) const {
-  return this->api_connection_ != nullptr && this->api_connection_ != api_connection &&
-         this->api_connection_->is_connection_setup();
-}
-
 SerialProxyResult SerialProxy::serial_proxy_request(api::APIConnection *api_connection,
                                                     api::enums::SerialProxyRequestType type) {
   switch (type) {
