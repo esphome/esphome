@@ -369,7 +369,6 @@ void UFM01Component::dump_config() {
 #ifdef USE_UFM01_SOFTWARE_VERSION
   LOG_TEXT_SENSOR("  ", "Software Version", this->software_version_text_sensor_);
 #endif
-  this->check_uart_settings(2400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
 void UFM01Component::publish_stale_flow_and_temperature_() {
