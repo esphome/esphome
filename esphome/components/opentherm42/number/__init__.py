@@ -8,6 +8,14 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL_SET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE_SET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR_SET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_SET,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT_CH2,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE,
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2,
 )
 
 CONF_OPENTHERM42_ID = "opentherm42_id"
@@ -17,11 +25,15 @@ OpenTherm42Number = opentherm42_ns.class_(
 )
 
 
-def _degrees_c_schema() -> cv.Schema:
-    return number.number_schema(OpenTherm42Number, unit_of_measurement="°C").extend(
+def _number_schema(
+    unit_of_measurement: str, min_value: float, max_value: float, default: float
+) -> cv.Schema:
+    return number.number_schema(
+        OpenTherm42Number, unit_of_measurement=unit_of_measurement
+    ).extend(
         {
-            cv.Optional(CONF_INITIAL_VALUE, default=0.0): cv.float_range(
-                min=0, max=100
+            cv.Optional(CONF_INITIAL_VALUE, default=default): cv.float_range(
+                min=min_value, max=max_value
             ),
             cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
         }
@@ -29,33 +41,70 @@ def _degrees_c_schema() -> cv.Schema:
 
 
 # §5.1: the master decides the actual min/max/step of the value it sends -- the spec only defines
-# the wire range (0..100 for these three, see notes under the ID 1 table entry).
+# the wire range.
 TYPES: dict[str, tuple[cv.Schema, dict]] = {
     # §5.3.1 Class 1, ID 1: Control Setpoint, i.e. CH water temperature setpoint (degrees C, 0..100).
     # The CHenable bit (see switch platform) has priority: the boiler must ignore this value while
     # CH is disabled.
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT: (
-        _degrees_c_schema(),
+        _number_schema("°C", 0, 100, 40.0),
         {"min_value": 0, "max_value": 100, "step": 0.1},
     ),
     # §5.3.1 Class 1, ID 8: Control Setpoint 2 (TsetCH2), i.e. setpoint for the 2nd CH circuit
     # (degrees C, 0..100).
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2: (
-        _degrees_c_schema(),
+        _number_schema("°C", 0, 100, 40.0),
         {"min_value": 0, "max_value": 100, "step": 0.1},
     ),
     # §5.3.1 Class 1, ID 71 LB: Control Setpoint ventilation/heat-recovery. Relative ventilation
     # position (0-100%): 0% is the minimum set ventilation, 100% is the maximum set ventilation.
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY: (
-        number.number_schema(OpenTherm42Number, unit_of_measurement="%").extend(
-            {
-                cv.Optional(CONF_INITIAL_VALUE, default=0): cv.int_range(
-                    min=0, max=100
-                ),
-                cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
-            }
-        ),
+        _number_schema("%", 0, 100, 0),
         {"min_value": 0, "max_value": 100, "step": 1},
+    ),
+    # §5.3.4 Class 4, ID 16: Room Setpoint -- current room temperature setpoint (degrees C, -40..127).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT: (
+        _number_schema("°C", -40, 127, 20.0),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+    ),
+    # §5.3.4 Class 4, ID 23: Room Setpoint CH2 -- current room setpoint for the 2nd CH circuit
+    # (degrees C, -40..127).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_SETPOINT_CH2: (
+        _number_schema("°C", -40, 127, 20.0),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+    ),
+    # §5.3.4 Class 4, ID 24: Room temperature -- this master's own sensed room temperature
+    # (degrees C, -40..127), pushed to the boiler.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_ROOM_TEMPERATURE: (
+        _number_schema("°C", -40, 127, 20.0),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+    ),
+    # §5.3.4 Class 4, ID 37: TrCH2 -- room temperature for the 2nd CH circuit (degrees C, -40..127).
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_TRCH2: (
+        _number_schema("°C", -40, 127, 20.0),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+    ),
+    # §5.3.4 Class 4, ID 27: Outside temperature (degrees C, -40..127), provided by this master. Only
+    # written if configured -- see the sensor platform's plain outside_temperature for reading it from
+    # the boiler instead.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_OUTSIDE_TEMPERATURE_SET: (
+        _number_schema("°C", -40, 127, 20.0),
+        {"min_value": -40, "max_value": 127, "step": 0.1},
+    ),
+    # §5.3.4 Class 4, ID 38: Relative Humidity (0..100%), provided by this master.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_SET: (
+        _number_schema("%", 0, 100, 50.0),
+        {"min_value": 0, "max_value": 100, "step": 1},
+    ),
+    # §5.3.4 Class 4, ID 78 LB: Relative humidity exhaust air (0..100%), provided by this master.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_RELATIVE_HUMIDITY_EXHAUST_AIR_SET: (
+        _number_schema("%", 0, 100, 50.0),
+        {"min_value": 0, "max_value": 100, "step": 1},
+    ),
+    # §5.3.4 Class 4, ID 79: CO2 level exhaust air (0..2000 ppm), provided by this master.
+    CONF_SENSOR_AND_INFORMATIONAL_DATA_CO2_LEVEL_SET: (
+        _number_schema("ppm", 0, 2000, 0),
+        {"min_value": 0, "max_value": 2000, "step": 1},
     ),
 }
 
