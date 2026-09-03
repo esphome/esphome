@@ -101,9 +101,7 @@ static bool bcd_to_digits(const uint8_t *data, size_t len, char *out) {
     out[pos + 1] = static_cast<char>('0' + lo);
   }
   out[len * 2] = '\0';
-  if (all_zero)
-    return false;
-  return true;
+  return !all_zero;
 }
 
 static bool validate_software_version_response(const uint8_t data[SOFTWARE_VERSION_RESPONSE_SIZE]) {
