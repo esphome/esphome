@@ -61,22 +61,23 @@ void seeed_multi_channel_relay_Switch::write_state(bool state) {
           this->write_state(state);
         });
         return;
+      }
+    } else if (this->interlock_wait_time_ != 0) {
+      // If we are switched off during the interlock wait time, cancel any pending
+      // re-activations
+      this->cancel_timeout(INTERLOCK_TIMEOUT_ID);
     }
-  } else if (this->interlock_wait_time_ != 0) {
-    // If we are switched off during the interlock wait time, cancel any pending
-    // re-activations
-    this->cancel_timeout(INTERLOCK_TIMEOUT_ID);
-  }
 #endif
-  // This will be called every time the user requests a state change.
-  this->parent_->relay_write(this->channel_, state);
+    // This will be called every time the user requests a state change.
+    this->parent_->relay_write(this->channel_, state);
 
-  // Acknowledge new state by publishing it
-  this->publish_state(state);
-}
+    // Acknowledge new state by publishing it
+    this->publish_state(state);
+  }
 #ifdef USE_SWITCH_INTERLOCK
-  void seeed_multi_channel_relay_Switch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock;
-}
+  void seeed_multi_channel_relay_Switch::set_interlock(const std::vector<Switch *> &interlock) {
+    this->interlock_ = interlock;
+  }
 #endif
 
 }  // namespace seeed_multi_channel_relay
