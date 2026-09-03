@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 import fcntl
 from functools import cache
 import hashlib
@@ -21,7 +21,6 @@ import sys
 import tempfile
 import time
 from typing import TextIO
-import warnings
 
 from aioesphomeapi import APIClient, APIConnectionError, LogParser, ReconnectLogic
 import pytest
@@ -336,16 +335,16 @@ def _read_stamp(stamp: Path, shared_dir: Path) -> Path | None:
     except FileNotFoundError:
         return None
     except OSError as err:
-        warnings.warn(f"Cannot read {stamp}: {err}", stacklevel=2)
+        print(f"Cannot read {stamp}: {err}")
         return None
     if not text:
-        warnings.warn(f"Ignoring empty stamp {stamp}", stacklevel=2)
+        print(f"Ignoring empty stamp {stamp}")
         return None
     built = Path(text)
     # Never trust a stamp pointing outside its own build dir as an unlink target
     if shared_dir.resolve() in built.resolve().parents:
         return built
-    warnings.warn(f"Ignoring stamp {stamp} pointing outside {shared_dir}", stacklevel=2)
+    print(f"Ignoring stamp {stamp} pointing outside {shared_dir}")
     return None
 
 
@@ -362,9 +361,8 @@ def _unused_since(stale: Path, cutoff: float) -> bool:
         except NotADirectoryError:
             return True  # a stray file where a dir should be; reclaimable
         except OSError as err:
-            # Treat as reclaimable; the prune attempt will surface the error
-            warnings.warn(f"Cannot age-probe {stale}: {err}", stacklevel=2)
-            return True
+            print(f"Cannot age-probe {stale}: {err}")
+            return False  # unknown never authorizes deletion
         newest = mtime if newest is None else max(newest, mtime)
     return newest is not None and newest < cutoff
 
@@ -389,11 +387,11 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
         except FileNotFoundError:
             continue  # pruned by another worker meanwhile
         except NotADirectoryError:
-            warnings.warn(f"Removing stray file {stale}", stacklevel=2)
+            print(f"Removing stray file {stale}")
             stale.unlink(missing_ok=True)
             continue
         except OSError as err:
-            warnings.warn(f"Cannot prune {stale}: {err}", stacklevel=2)
+            print(f"Cannot prune {stale}: {err}")
             continue
         with lock_file:
             try:
@@ -415,7 +413,7 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
             try:
                 rmtree(stale)
             except OSError as err:
-                warnings.warn(f"Failed to prune {stale}: {err}", stacklevel=2)
+                print(f"Failed to prune {stale}: {err}")
 
 
 async def _run_esphome_compile(
@@ -499,8 +497,10 @@ async def compile_esphome(
         shared_dir = _shared_build_dir(name)
         shared_dir.mkdir(parents=True, exist_ok=True)
         # Freshen the dir before locking so a concurrent age sweep, which
-        # re-probes under the lock, never reaps a dir a worker just claimed
-        os.utime(shared_dir)
+        # re-probes under the lock, never reaps a dir a worker just claimed;
+        # if a peer reaped it already, the guarded lock open recreates it
+        with suppress(FileNotFoundError):
+            os.utime(shared_dir)
         if shared_dir not in _pruned_dirs:
             _pruned_dirs.add(shared_dir)
             await loop.run_in_executor(None, _prune_stale_builds, name, shared_dir)
@@ -550,9 +550,13 @@ async def compile_esphome(
             if (built := _shared_elf_paths.get(shared_dir)) is None:
                 built = await loop.run_in_executor(None, _read_stamp, stamp, shared_dir)
             # Delete the ELF before compiling: whatever exists afterwards is
-            # this compile's output, so no staleness check is ever needed
+            # this compile's output, so no staleness check is ever needed.
+            # With no usable stamp, sweep any leftover at the known layout
             if built is not None:
                 built.unlink(missing_ok=True)
+            else:
+                for leftover in shared_dir.glob(".esphome/build/*/.pioenvs/*/program"):
+                    leftover.unlink()
             await loop.run_in_executor(
                 None, write_file_if_changed, shared_config, content
             )
