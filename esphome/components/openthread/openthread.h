@@ -37,11 +37,10 @@ class OpenThreadComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
   bool is_connected() const { return this->connected_; }
-  /// Returns true once esp_openthread_init() has completed and the OT lock is usable.
+  /// Returns true once esp_openthread_start() has completed and the OT lock is usable.
   bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
-  void ot_main();
   void on_factory_reset(std::function<void()> callback);
   void defer_factory_reset_external_callback();
 
@@ -64,7 +63,6 @@ class OpenThreadComponent final : public Component {
 
   /** Apply Link Mode settings (incl poll period).
    * Callers running outside the OpenThread task must hold InstanceLock.
-   * ot_main() runs on the OpenThread task itself and must not acquire the lock.
    */
   void apply_linkmode_(otInstance *instance);
 
@@ -77,7 +75,8 @@ class OpenThreadComponent final : public Component {
 #endif
   std::optional<int8_t> output_power_{};
   std::atomic<bool> lock_initialized_{false};
-  std::atomic<TeardownStage> teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
+  // Only ever written from teardown(), on the main task -- no atomic needed.
+  TeardownStage teardown_stage_{TeardownStage::TEARDOWN_STAGE_NOT_STARTED};
   std::atomic<bool> connected_{false};
 
  private:
