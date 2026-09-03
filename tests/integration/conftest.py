@@ -310,10 +310,16 @@ def _shared_yaml_name(request: pytest.FixtureRequest) -> str | None:
     marker = request.node.get_closest_marker("shared_yaml")
     if marker is None:
         return None
-    # \w+ keeps the name safe as a build dir component and discoverable by CI
-    # test selection (script/helpers.py)
-    if not marker.args or not re.fullmatch(r"\w+", str(marker.args[0])):
-        raise ValueError("shared_yaml marker requires a \\w+ fixture name literal")
+    # Exactly one \w+ positional arg: the name doubles as a build dir
+    # component, and CI test selection (script/helpers.py) parses the same shape
+    if (
+        len(marker.args) != 1
+        or marker.kwargs
+        or not re.fullmatch(r"\w+", str(marker.args[0]))
+    ):
+        raise ValueError(
+            "shared_yaml marker requires exactly one \\w+ fixture name literal"
+        )
     return marker.args[0]
 
 
