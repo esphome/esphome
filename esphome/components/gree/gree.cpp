@@ -104,7 +104,7 @@ void GreeClimate::transmit_state() {
     remote_state[0] |= GREE_PRESET_SLEEP_BIT;
     // Sleep is encoded as bit 7 of byte 0.
   }
-  
+
   // Calculate the checksum
   if (this->model_ == GREE_YAN || this->model_ == GREE_YX1FF) {
     remote_state[7] = ((remote_state[0] << 4) + (remote_state[1] << 4) + 0xC0);
