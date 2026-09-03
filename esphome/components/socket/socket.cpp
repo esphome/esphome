@@ -2,6 +2,9 @@
 #if defined(USE_SOCKET_IMPL_LWIP_TCP) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || defined(USE_SOCKET_IMPL_BSD_SOCKETS)
 #include <cerrno>
 #include <cstring>
+#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
+#include <sys/select.h>
+#endif
 #include <string>
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -198,6 +201,47 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
 }
+
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
+ConnectPollResult poll_connect(Socket &sock, int &err_out) {
+  int fd = sock.get_fd();
+  if (fd < 0 || fd >= FD_SETSIZE) {
+    // FD_SET on either is undefined behavior
+    err_out = EBADF;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
+  }
+  // Connect completion is a write event; the main loop only selects on reads
+  fd_set writefds;
+  FD_ZERO(&writefds);
+  FD_SET(fd, &writefds);
+  struct timeval tv = {0, 0};
+#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
+  // LWIP_COMPAT_SOCKETS may be off (LibreTiny), so use the lwip symbol directly
+  int ret = lwip_select(fd + 1, nullptr, &writefds, nullptr, &tv);
+#else
+  // Global-scope select: the entity namespace esphome::select shadows it here
+  int ret = ::select(fd + 1, nullptr, &writefds, nullptr, &tv);
+#endif
+  if (ret < 0) {
+    err_out = errno;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
+  }
+  if (ret == 0 || !FD_ISSET(fd, &writefds)) {
+    return ConnectPollResult::CONNECT_POLL_PENDING;
+  }
+  int error = 0;
+  socklen_t len = sizeof(error);
+  if (sock.getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
+    err_out = errno;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
+  }
+  if (error != 0) {
+    err_out = error;
+    return ConnectPollResult::CONNECT_POLL_ERROR;
+  }
+  return ConnectPollResult::CONNECT_POLL_CONNECTED;
+}
+#endif
 
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port) {
 #if USE_NETWORK_IPV6

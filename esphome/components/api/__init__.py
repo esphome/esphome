@@ -5,7 +5,7 @@ from typing import Any
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.const import CONF_DESCRIPTION
+from esphome.components.const import CONF_DESCRIPTION, CONF_HOST
 from esphome.components.logger import request_log_listener
 
 # ENCRYPTION_SCHEMA and validate_encryption_key are re-exported for external
@@ -132,7 +132,6 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_EXAMPLE = "example"
-CONF_HOST = "host"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
@@ -480,7 +479,10 @@ def _validate_outgoing_socket_implementation(config: ConfigType) -> ConfigType:
     from esphome.components import socket
 
     socket_conf = fv.full_config.get().get("socket") or {}
-    if socket_conf.get(socket.CONF_IMPLEMENTATION) == socket.IMPLEMENTATION_LWIP_TCP:
+    if (
+        socket_conf.get(socket.CONF_IMPLEMENTATION)
+        in socket.IMPLEMENTATIONS_WITHOUT_CONNECT
+    ):
         raise cv.Invalid(
             "outgoing_connection is not supported with the lwip_tcp socket "
             "implementation because it cannot make outgoing connections",

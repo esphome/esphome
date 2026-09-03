@@ -10,9 +10,6 @@
 
 #include <cerrno>
 #include <cstring>
-#ifdef USE_SOCKET_IMPL_BSD_SOCKETS
-#include <sys/select.h>
-#endif
 
 namespace esphome::api {
 
@@ -90,8 +87,7 @@ void OutgoingConnectionManager::try_dial_(APIServer *server, uint32_t now) {
     // A corrupt remembered value can never become dialable; forget it
     // (covers an IPv6 literal left by an earlier enable_ipv6 build too)
     this->saved_ = {};
-    this->host_persisted_ = this->target_pref_.save(&this->saved_) && global_preferences->sync();
-    if (!this->host_persisted_) {
+    if (!this->persist_target_()) {
       ESP_LOGW(TAG, "Failed to clear target");
     }
 #endif
@@ -132,56 +128,17 @@ void OutgoingConnectionManager::poll_connect_(APIServer *server, uint32_t now) {
   }
   this->last_poll_ = now;
   int err = 0;
-  switch (poll_connect(*this->dial_socket_, err)) {
-    case ConnectPollResult::CONNECT_POLL_PENDING:
+  switch (socket::poll_connect(*this->dial_socket_, err)) {
+    case socket::ConnectPollResult::CONNECT_POLL_PENDING:
       break;
-    case ConnectPollResult::CONNECT_POLL_CONNECTED:
+    case socket::ConnectPollResult::CONNECT_POLL_CONNECTED:
       this->handoff_(server, now);
       break;
-    case ConnectPollResult::CONNECT_POLL_ERROR:
+    case socket::ConnectPollResult::CONNECT_POLL_ERROR:
       ESP_LOGW(TAG, "Connect failed: %d", err);
       this->schedule_retry_(now);
       break;
   }
-}
-
-ConnectPollResult poll_connect(socket::Socket &sock, int &err_out) {
-  int fd = sock.get_fd();
-  if (fd < 0 || fd >= FD_SETSIZE) {
-    // FD_SET on either is undefined behavior
-    err_out = EBADF;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
-  }
-  // Connect completion is a write event; the main loop only selects on reads
-  fd_set writefds;
-  FD_ZERO(&writefds);
-  FD_SET(fd, &writefds);
-  struct timeval tv = {0, 0};
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-  // LWIP_COMPAT_SOCKETS may be off (LibreTiny), so use the lwip symbol directly
-  int ret = lwip_select(fd + 1, nullptr, &writefds, nullptr, &tv);
-#else
-  // Global-scope select: the entity namespace esphome::select shadows it here
-  int ret = ::select(fd + 1, nullptr, &writefds, nullptr, &tv);
-#endif
-  if (ret < 0) {
-    err_out = errno;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
-  }
-  if (ret == 0 || !FD_ISSET(fd, &writefds)) {
-    return ConnectPollResult::CONNECT_POLL_PENDING;
-  }
-  int error = 0;
-  socklen_t len = sizeof(error);
-  if (sock.getsockopt(SOL_SOCKET, SO_ERROR, &error, &len) != 0) {
-    err_out = errno;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
-  }
-  if (error != 0) {
-    err_out = error;
-    return ConnectPollResult::CONNECT_POLL_ERROR;
-  }
-  return ConnectPollResult::CONNECT_POLL_CONNECTED;
 }
 
 void OutgoingConnectionManager::handoff_(APIServer *server, uint32_t now) {
@@ -248,8 +205,7 @@ void OutgoingConnectionManager::on_target_client(APIConnection *conn) {
   // Use the fresh address this boot even if the flash write fails; a failed
   // write is retried on the next flagged hello via host_persisted_
   this->saved_ = target;
-  this->host_persisted_ = this->target_pref_.save(&target) && global_preferences->sync();
-  if (!this->host_persisted_) {
+  if (!this->persist_target_()) {
     ESP_LOGW(TAG, "Failed to save target");
     return;
   }

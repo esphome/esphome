@@ -25,18 +25,6 @@ class APIConnection;
 // target is simply relearned
 static constexpr size_t SAVED_TARGET_HOST_LEN = socket::SOCKADDR_STR_LEN;
 
-enum class ConnectPollResult : uint8_t {
-  CONNECT_POLL_PENDING,
-  CONNECT_POLL_CONNECTED,
-  CONNECT_POLL_ERROR,
-};
-
-/// Check a non-blocking connect() for completion without blocking. On
-/// CONNECT_POLL_ERROR, err_out holds the socket's SO_ERROR, or errno when the
-/// poll itself failed. Lives here for now; a candidate for the socket
-/// component (async_tcp has a near-duplicate poll).
-ConnectPollResult poll_connect(socket::Socket &sock, int &err_out);
-
 struct SavedOutgoingTarget {
   // IP as text so the socket component's v4-mapped-IPv6 normalization is
   // reused on both ends; empty = none remembered
@@ -86,6 +74,13 @@ class OutgoingConnectionManager {
   void schedule_retry_(uint32_t now);
   // Wait without escalating the backoff (used for unmet preconditions)
   void schedule_wait_(uint32_t now, uint32_t wait);
+#ifndef API_OUTGOING_CONNECTION_HOST
+  // Write saved_ to flash, tracking success in host_persisted_
+  bool persist_target_() {
+    this->host_persisted_ = this->target_pref_.save(&this->saved_) && global_preferences->sync();
+    return this->host_persisted_;
+  }
+#endif
   const char *target_host_() const {
 #ifdef API_OUTGOING_CONNECTION_HOST
     return API_OUTGOING_CONNECTION_HOST;

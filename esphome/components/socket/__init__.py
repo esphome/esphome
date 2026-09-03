@@ -15,6 +15,8 @@ CODEOWNERS = ["@esphome/core"]
 
 CONF_IMPLEMENTATION = "implementation"
 IMPLEMENTATION_LWIP_TCP = "lwip_tcp"
+# Implementations whose sockets cannot make outgoing connections
+IMPLEMENTATIONS_WITHOUT_CONNECT = frozenset({IMPLEMENTATION_LWIP_TCP})
 IMPLEMENTATION_LWIP_SOCKETS = "lwip_sockets"
 IMPLEMENTATION_BSD_SOCKETS = "bsd_sockets"
 
