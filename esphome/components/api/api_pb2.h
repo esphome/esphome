@@ -1323,6 +1323,12 @@ class ListEntitiesServicesArgument final : public ProtoMessage {
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
   StringRef example{};
 #endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  bool optional{false};
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+  StringRef default_value{};
+#endif
   uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP

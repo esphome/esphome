@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_CAPTURE_RESPONSE,
     CONF_DATA,
     CONF_DATA_TEMPLATE,
+    CONF_DEFAULT,
     CONF_ENCRYPTION,
     CONF_EVENT,
     CONF_ID,
@@ -129,6 +130,7 @@ SERVICE_ARG_FALLBACK_TYPES: dict[str, MockObj] = {
 CONF_BATCH_DELAY = "batch_delay"
 CONF_CUSTOM_SERVICES = "custom_services"
 CONF_EXAMPLE = "example"
+CONF_REQUIRED = "required"
 CONF_HOMEASSISTANT_SERVICES = "homeassistant_services"
 CONF_HOMEASSISTANT_STATES = "homeassistant_states"
 CONF_LISTEN_BACKLOG = "listen_backlog"
@@ -235,12 +237,38 @@ def _validate_supports_response(value: Any) -> str:
 # ESP8266 copies every string of an action into a stack buffer sized by codegen; keep it small
 ESP8266_ACTION_STRINGS_MAX_TOTAL = 384
 
-VARIABLE_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
-        cv.Optional(CONF_DESCRIPTION): cv.string_strict,
-        cv.Optional(CONF_EXAMPLE): cv.string_strict,
-    }
+_DEFAULT_VALUE_VALIDATORS = {
+    "bool": cv.boolean,
+    "int": cv.int_,
+    "float": cv.float_,
+    "string": cv.string,
+}
+
+
+def _validate_variable_optionality(value: ConfigType) -> ConfigType:
+    """Cross-validate required/default against the variable type."""
+    var_type = value[CONF_TYPE]
+    is_optional = CONF_DEFAULT in value or value.get(CONF_REQUIRED) is False
+    if is_optional and var_type not in _DEFAULT_VALUE_VALIDATORS:
+        raise cv.Invalid("Array variables cannot be optional")
+    if CONF_DEFAULT in value:
+        if value.get(CONF_REQUIRED) is True:
+            raise cv.Invalid("A variable with a default cannot set required: true")
+        value[CONF_DEFAULT] = _DEFAULT_VALUE_VALIDATORS[var_type](value[CONF_DEFAULT])
+    return value
+
+
+VARIABLE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_TYPE): cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
+            cv.Optional(CONF_DESCRIPTION): cv.string_strict,
+            cv.Optional(CONF_EXAMPLE): cv.string_strict,
+            cv.Optional(CONF_REQUIRED): cv.boolean,
+            cv.Optional(CONF_DEFAULT): cv.valid,
+        }
+    ),
+    _validate_variable_optionality,
 )
 
 # Accepts the plain `name: type` shorthand or the full mapping form
@@ -384,7 +412,28 @@ def _has_action_metadata(actions: list[ConfigType]) -> bool:
     )
 
 
-def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
+def _is_optional_var(var_: ConfigType) -> bool:
+    return CONF_DEFAULT in var_ or var_.get(CONF_REQUIRED) is False
+
+
+def _has_optional_args(actions: list[ConfigType]) -> bool:
+    return any(
+        _is_optional_var(var_)
+        for conf in actions
+        for var_ in conf[CONF_VARIABLES].values()
+    )
+
+
+def _default_to_wire(value: Any) -> str:
+    """Serialize a validated default for the wire; clients coerce by arg type."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+def _action_strings(
+    conf: ConfigType, has_metadata: bool, has_optional: bool
+) -> list[str | None]:
     """Strings of one action in the table order UserServiceStatic (user_services.h) expects."""
     # An empty description or example is treated as unset
     strings: list[str | None] = [conf[CONF_ACTION]]
@@ -397,6 +446,12 @@ def _action_strings(conf: ConfigType, has_metadata: bool) -> list[str | None]:
                 var_.get(CONF_DESCRIPTION) or None,
                 var_.get(CONF_EXAMPLE) or None,
             ]
+        if has_optional:
+            default = var_.get(CONF_DEFAULT)
+            # An empty string default is the same as no default on the wire
+            strings.append(
+                None if default is None else (_default_to_wire(default) or None)
+            )
     return strings
 
 
@@ -412,18 +467,33 @@ def _validate_esp8266_action_strings(config: ConfigType) -> ConfigType:
         return config
     actions = config.get(CONF_ACTIONS, [])
     has_metadata = _has_action_metadata(actions)
+    has_optional = _has_optional_args(actions)
     for conf in actions:
-        size = _action_strings_size(_action_strings(conf, has_metadata))
+        size = _action_strings_size(_action_strings(conf, has_metadata, has_optional))
         if size > ESP8266_ACTION_STRINGS_MAX_TOTAL:
             raise cv.Invalid(
                 f"Action '{conf[CONF_ACTION]}' has {size} bytes of name, variable name, "
-                f"description and example text; ESP8266 allows at most "
+                f"description, example and default text; ESP8266 allows at most "
                 f"{ESP8266_ACTION_STRINGS_MAX_TOTAL} bytes per action"
             )
     return config
 
 
-FINAL_VALIDATE_SCHEMA = _validate_esp8266_action_strings
+def _validate_optional_arg_positions(config: ConfigType) -> ConfigType:
+    # The optional flags travel as a 32-bit mask (user_services.h)
+    for conf in config.get(CONF_ACTIONS, []):
+        for i, var_ in enumerate(conf[CONF_VARIABLES].values()):
+            if i >= 32 and _is_optional_var(var_):
+                raise cv.Invalid(
+                    f"Action '{conf[CONF_ACTION]}': only the first 32 variables "
+                    f"can be optional"
+                )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _validate_esp8266_action_strings, _validate_optional_arg_positions
+)
 
 
 def _add_action_strings(
@@ -493,6 +563,9 @@ async def to_code(config: ConfigType) -> None:
         has_metadata = _has_action_metadata(actions)
         if has_metadata:
             cg.add_define("USE_API_USER_DEFINED_ACTION_METADATA")
+        has_optional = _has_optional_args(actions)
+        if has_optional:
+            cg.add_define("USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS")
         interned_strings: dict[str, MockObj] = {}
         # Collect all triggers first, then register all at once with initializer_list
         triggers: list[cg.MockObj] = []
@@ -537,7 +610,7 @@ async def to_code(config: ConfigType) -> None:
                     native = SERVICE_ARG_NATIVE_TYPES[var_type]
                 service_template_args.append(native)
                 func_args.append((native, name))
-            strings = _action_strings(conf, has_metadata)
+            strings = _action_strings(conf, has_metadata, has_optional)
             table = _add_action_strings(index, strings, interned_strings)
             if CORE.is_esp8266:
                 scratch_size = max(scratch_size, _action_strings_size(strings))
@@ -547,6 +620,14 @@ async def to_code(config: ConfigType) -> None:
             trigger = cg.new_Pvariable(
                 conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
             )
+            if has_optional and (
+                optional_mask := sum(
+                    1 << i
+                    for i, var_ in enumerate(conf[CONF_VARIABLES].values())
+                    if _is_optional_var(var_)
+                )
+            ):
+                cg.add(trigger.set_optional_args_mask(optional_mask))
             triggers.append(trigger)
             auto = await automation.build_automation(trigger, func_args, conf)
 
