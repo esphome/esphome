@@ -341,14 +341,14 @@ async def test_light_calls(
         assert state.state is True
         assert state.brightness == pytest.approx(1.0)
 
-        # Test 31b: An explicit turn-on with brightness 0 still resets to full
-        # brightness - a turn-on must never leave the light on-but-invisible. This
-        # is the same path the restore logic exercises (set_state(true) +
-        # set_brightness(0) from a persisted brightness=0 turn-off).
+        # Test 31b: An explicit turn-on with brightness 0 respects the explicit value and
+        # stays dark. Only a turn-on with no brightness specified (Test 31) restores
+        # visibility -- an explicit brightness request (e.g. from a light effect's dark
+        # phase) is never overridden.
         client.light_command(key=rgbcw_light.key, state=True, brightness=0.0)
         state = await wait_for_state_change(rgbcw_light.key)
         assert state.state is True
-        assert state.brightness == pytest.approx(1.0)
+        assert state.brightness == pytest.approx(0.0)
 
         # Test 32: Turning a light on when it already has nonzero brightness leaves
         # the brightness unchanged (the reset only happens when brightness is 0).

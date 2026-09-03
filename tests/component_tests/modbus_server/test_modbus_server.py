@@ -7,8 +7,13 @@ from esphome.components.modbus_server import (
     SERVER_SENSOR_VALUE_TYPE,
     _validate_no_overlapping_registers,
     _validate_register_ranges,
+    _validate_unique_bit_addresses,
 )
-from esphome.components.modbus_server.const import CONF_REGISTERS, CONF_VALUE_TYPE
+from esphome.components.modbus_server.const import (
+    CONF_BITS,
+    CONF_REGISTERS,
+    CONF_VALUE_TYPE,
+)
 from esphome.const import CONF_ADDRESS
 
 
@@ -19,6 +24,10 @@ def _config(registers: list[tuple[int, str]]) -> dict:
             for address, value_type in registers
         ]
     }
+
+
+def _bits_config(addresses: list[int]) -> dict:
+    return {CONF_BITS: [{CONF_ADDRESS: address} for address in addresses]}
 
 
 def test_non_overlapping_registers_pass() -> None:
@@ -40,6 +49,18 @@ def test_duplicate_address_rejected() -> None:
     config = _config([(0x10, "U_WORD"), (0x10, "U_WORD")])
     with pytest.raises(cv.Invalid, match="overlaps"):
         _validate_no_overlapping_registers(config)
+
+
+def test_unique_bit_addresses_pass() -> None:
+    config = _bits_config([0x00, 0x01, 0x02])
+    assert _validate_unique_bit_addresses(config) is config
+
+
+def test_duplicate_bit_address_rejected() -> None:
+    # Coils and discrete inputs share one bit address space, so a repeated address is rejected.
+    config = _bits_config([0x05, 0x05])
+    with pytest.raises(cv.Invalid, match="more than once"):
+        _validate_unique_bit_addresses(config)
 
 
 def test_multi_register_value_overlapping_neighbour_rejected() -> None:
@@ -82,3 +103,5 @@ def test_raw_value_type_rejected() -> None:
     with pytest.raises(cv.Invalid):
         validator("RAW")
     assert validator("U_WORD") == "U_WORD"
+    assert validator("U_WORD_S") == "U_WORD_S"
+    assert validator("S_WORD_S") == "S_WORD_S"

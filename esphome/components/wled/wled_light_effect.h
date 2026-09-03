@@ -8,7 +8,7 @@
 #include <vector>
 #include <memory>
 
-#ifdef USE_RP2
+#if defined(USE_RP2) || defined(USE_LIBRETINY)
 namespace arduino {
 class UDP;
 }  // namespace arduino

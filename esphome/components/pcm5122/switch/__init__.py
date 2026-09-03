@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_POWER_MODE, ENTITY_CATEGORY_CONFIG
+from esphome.types import ConfigType
 
 from ..audio_dac import CONF_PCM5122, PCM5122, pcm5122_ns
 
@@ -26,7 +27,7 @@ CONFIG_SCHEMA = switch.switch_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await switch.new_switch(config)
     await cg.register_parented(var, config[CONF_PCM5122])
     cg.add(var.set_power_mode(config[CONF_POWER_MODE]))

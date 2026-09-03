@@ -307,7 +307,7 @@ def create_device_information_service(config):
     return config
 
 
-def final_validate_config(config):
+def final_validate_config(config) -> None:
     # Validate max_clients does not exceed esp32_ble max_connections
     max_clients = config[CONF_MAX_CLIENTS]
     if max_clients > 1:
@@ -355,7 +355,6 @@ def final_validate_config(config):
             raise cv.Invalid(
                 f"Characteristic {char_config[CONF_UUID]} has both a set_value action and a templated value"
             )
-    return config
 
 
 def validate_value_type(value_config):

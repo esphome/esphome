@@ -132,7 +132,7 @@ template<typename... Ts> class PreventDeepSleepAction;
 class DeepSleepComponent final : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
-  void set_sleep_duration(uint32_t time_ms);
+  void set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
 #if defined(USE_ESP32)
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
@@ -143,7 +143,7 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
-  void init_wakeup_pins_(size_t capacity) { this->wakeup_pins_.init(capacity); }
+  void init_wakeup_pins(size_t capacity) { this->wakeup_pins_.init(capacity); }
   void add_wakeup_pin(InternalGPIOPin *wakeup_pin, WakeupPinMode wakeup_pin_mode) {
     this->wakeup_pins_.emplace_back(WakeUpPinItem{wakeup_pin, wakeup_pin_mode, !wakeup_pin->is_inverted()});
   }
@@ -157,7 +157,7 @@ class DeepSleepComponent final : public Component {
 #if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
     !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
     !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
-  void set_touch_wakeup(bool touch_wakeup);
+  void set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
 
   // Set the duration in ms for how long the code should run before entering
@@ -166,7 +166,7 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_ESP32
 
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
-  void set_run_duration(uint32_t time_ms);
+  void set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
 
   void setup() override;
   void dump_config() override;
@@ -176,8 +176,8 @@ class DeepSleepComponent final : public Component {
   /// Helper to enter deep sleep mode
   void begin_sleep(bool manual = false);
 
-  void prevent_deep_sleep();
-  void allow_deep_sleep();
+  void prevent_deep_sleep() { this->prevent_ = true; }
+  void allow_deep_sleep() { this->prevent_ = false; }
 
  protected:
   // Returns nullopt if no run duration is set. Otherwise, returns the run
@@ -191,7 +191,7 @@ class DeepSleepComponent final : public Component {
   bool should_teardown_();
 
 #ifdef USE_BK72XX
-  bool pin_prevents_sleep_(WakeUpPinItem &pinItem) const;
+  bool pin_prevents_sleep_(WakeUpPinItem &pin_item) const;
   bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }
 #endif  // USE_BK72XX
 
