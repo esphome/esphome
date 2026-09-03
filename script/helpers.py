@@ -1125,7 +1125,15 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
             base_name = func.replace("test_", "").partition("[")[0]
             result.setdefault(base_name, set()).add(rel_path)
         # Shared fixtures are named by marker, not by a test function
-        for name in _SHARED_YAML_RE.findall(content):
+        names = _SHARED_YAML_RE.findall(content)
+        if len(names) != content.count("shared_yaml("):
+            # A wrapped or non-literal marker would silently drop the mapping
+            # and CI would select no tests for that fixture
+            raise ValueError(
+                f"{rel_path}: every shared_yaml marker must be a single-line "
+                "string literal so CI test selection can map its fixture"
+            )
+        for name in names:
             result.setdefault(name, set()).add(rel_path)
 
     return {k: frozenset(v) for k, v in result.items()}

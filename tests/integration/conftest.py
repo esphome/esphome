@@ -11,6 +11,7 @@ import logging
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import signal
 import socket
@@ -268,6 +269,8 @@ async def write_yaml_config(
     yield _write_config
 
 
+_LOGGER = logging.getLogger(__name__)
+
 # Deliberately not CI-cached (ci.yml caches only platformio/ subpaths); stale
 # dirs for a fixture are pruned when its content hash changes.
 SHARED_BUILDS_ROOT = INTEGRATION_TESTS_ROOT / "builds"
@@ -281,8 +284,9 @@ def _shared_yaml_name(request: pytest.FixtureRequest) -> str | None:
     marker = request.node.get_closest_marker("shared_yaml")
     if marker is None:
         return None
-    if not marker.args or not marker.args[0]:
-        raise ValueError("shared_yaml marker requires a non-empty fixture name")
+    # \w+ keeps the name discoverable by CI test selection (script/helpers.py)
+    if not marker.args or not re.fullmatch(r"\w+", str(marker.args[0])):
+        raise ValueError("shared_yaml marker requires a \\w+ fixture name literal")
     return marker.args[0]
 
 
@@ -298,25 +302,39 @@ def _shared_build_key(name: str) -> str:
     return hashlib.sha256((FIXTURES_DIR / f"{name}.yaml").read_bytes()).hexdigest()[:16]
 
 
+# Reclaims dirs orphaned by fixture renames or deleted checkouts
+_STALE_BUILD_MAX_AGE_S = 30 * 24 * 3600
+
+
 def _log_prune_error(_func: object, path: object, exc: BaseException) -> None:
     # A concurrent pruner deleting pieces under us is expected; anything else
     # would grow builds/ without bound, so make it visible
     if not isinstance(exc, FileNotFoundError):
-        print(f"Failed to prune {path}: {exc}")
+        _LOGGER.warning("Failed to prune %s: %s", path, exc)
 
 
 def _prune_stale_builds(name: str, keep: Path) -> None:
-    """Remove this checkout's outdated build dirs for a fixture (blocking, run
-    in executor). Tolerates other workers pruning the same dirs concurrently."""
-    for stale in SHARED_BUILDS_ROOT.glob(f"{name}-{_REPO_KEY}-*"):
+    """Remove outdated build dirs (blocking, run in executor): this checkout's
+    other dirs for the fixture, plus anything untouched for 30 days. Tolerates
+    other workers pruning the same dirs concurrently."""
+    cutoff = time.time() - _STALE_BUILD_MAX_AGE_S
+    for stale in SHARED_BUILDS_ROOT.iterdir():
         if stale == keep:
             continue
+        if not stale.name.startswith(f"{name}-{_REPO_KEY}-"):
+            # Every _compile rewrites the dir's .lock, so its mtime is the
+            # last-used time; stat before open, which would refresh it
+            try:
+                if (stale / ".lock").stat().st_mtime >= cutoff:
+                    continue
+            except OSError:
+                continue
         try:
             lock_file = (stale / ".lock").open("w")
         except (FileNotFoundError, NotADirectoryError):
             continue  # pruned by another worker mid-glob
         except OSError as err:
-            print(f"Cannot prune {stale}: {err}")
+            _LOGGER.warning("Cannot prune %s: %s", stale, err)
             continue
         with lock_file:
             try:
