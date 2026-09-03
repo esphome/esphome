@@ -1104,8 +1104,8 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
 
 
 _TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
-_SHARED_YAML_RE = re.compile(r"@pytest\.mark\.shared_yaml\([\"'](\w+)[\"']\)")
-_SHARED_YAML_DECORATOR_RE = re.compile(r"@pytest\.mark\.shared_yaml\(")
+_SHARED_YAML_RE = re.compile(r"pytest\.mark\.shared_yaml\([\"'](\w+)[\"']\)")
+_SHARED_YAML_USE_RE = re.compile(r"pytest\.mark\.shared_yaml\(")
 
 
 @cache
@@ -1127,7 +1127,7 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
             result.setdefault(base_name, set()).add(rel_path)
         # Shared fixtures are named by marker, not by a test function
         names = _SHARED_YAML_RE.findall(content)
-        if len(names) != len(_SHARED_YAML_DECORATOR_RE.findall(content)):
+        if len(names) != len(_SHARED_YAML_USE_RE.findall(content)):
             # A wrapped or non-literal marker would silently drop the mapping
             # and CI would select no tests for that fixture
             raise ValueError(
