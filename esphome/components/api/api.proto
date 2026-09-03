@@ -2851,7 +2851,7 @@ enum SerialProxyMode {
 }
 
 message SerialProxySetModeRequest {
-  option (id) = 151;
+  option (id) = 152;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SERIAL_PROXY";
 

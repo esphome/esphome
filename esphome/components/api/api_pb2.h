@@ -3409,7 +3409,7 @@ class SerialProxyRequestResponse final : public ProtoMessage {
 };
 class SerialProxySetModeRequest final : public ProtoDecodableMessage {
  public:
-  static constexpr uint16_t MESSAGE_TYPE = 151;
+  static constexpr uint16_t MESSAGE_TYPE = 152;
   static constexpr uint8_t ESTIMATED_SIZE = 6;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("serial_proxy_set_mode_request"); }
