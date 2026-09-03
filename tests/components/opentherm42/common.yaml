@@ -153,6 +153,14 @@ number:
     transparent_boiler_parameters_solar_storage:
       - index: 1
         name: "Transparent Boiler Parameters: TSP 1 Solar Storage"
+    # §5.3.8.1 Class 8, ID 7: Cooling control signal -- signal for the cooling plant (0..100%).
+    control_of_special_applications_cooling_control_signal:
+      name: "Control of Special Applications: Cooling control signal"
+    # §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting, for sequencer and
+    # off-low&pump control applications (0..100%).
+    control_of_special_applications_maximum_relative_modulation_level_setting:
+      name: "Control of Special Applications: Maximum relative modulation level setting"
+      initial_value: 100
 
 binary_sensor:
   - platform: opentherm42
@@ -287,6 +295,14 @@ binary_sensor:
     # §5.3.5 Class 5, ID 86 LB bit 0: Nominal ventilation value [ read-only, read/write ]
     pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value:
       name: "Pre-Defined Remote Boiler Parameters: Read-write flags ventilation-heat-recovery: Nominal ventilation value"
+    # §5.3.8.3 Class 8, ID 100 LB bit 0: Manual change priority [ disable overruling remote Setpoint
+    # by manual Setpoint change, enable overruling remote Setpoint by manual Setpoint change ]
+    control_of_special_applications_remote_override_room_setpoint_function_manual_change_priority:
+      name: "Control of Special Applications: Remote Override Room Setpoint function: Manual change priority"
+    # §5.3.8.3 Class 8, ID 100 LB bit 1: Program change priority [ disable overruling remote Setpoint
+    # by program Setpoint change, enable overruling remote Setpoint by program Setpoint change ]
+    control_of_special_applications_remote_override_room_setpoint_function_program_change_priority:
+      name: "Control of Special Applications: Remote Override Room Setpoint function: Program change priority"
 
 button:
   - platform: opentherm42
@@ -330,6 +346,10 @@ button:
     # §5.3.3 Class 3, ID 4 HB = 12: Automatic hydronic air purge.
     remote_request_automatic_hydronic_air_purge:
       name: "Remote Request: Automatic hydronic air purge"
+    # §5.3.8.3 Class 8, ID 99 HB bit 4: Manual DHW push2 -- rises the DHW temperature once to Comfort
+    # level and returns to the previous Operating Mode.
+    control_of_special_applications_manual_dhw_push2:
+      name: "Control of Special Applications: Manual DHW push2"
 
 text_sensor:
   - platform: opentherm42
@@ -594,3 +614,29 @@ sensor:
     fault_history_data_fault_buffer_solar_storage:
       - index: 0
         name: "Fault History Data: Fault Buffer 0 Solar Storage"
+    # §5.3.8.2 Class 8, ID 15 HB: Maximum boiler capacity (0..255 kW), expressed as a percentage of
+    # the maximum capacity.
+    control_of_special_applications_maximum_boiler_capacity:
+      name: "Control of Special Applications: Maximum boiler capacity"
+    # §5.3.8.2 Class 8, ID 15 LB: Minimum modulation level (0..100%).
+    control_of_special_applications_minimum_modulation_level:
+      name: "Control of Special Applications: Minimum modulation level"
+    # §5.3.8.3 Class 8, ID 9: Remote Override Room Setpoint (degrees C, 0..30).
+    # 0 = No override, 1..30 = Remote override room Setpoint.
+    control_of_special_applications_remote_override_room_setpoint:
+      name: "Control of Special Applications: Remote Override Room Setpoint"
+    # §5.3.8.3 Class 8, ID 39: Remote Override Room Setpoint 2 (degrees C, 0..30), same encoding.
+    control_of_special_applications_remote_override_room_setpoint_2:
+      name: "Control of Special Applications: Remote Override Room Setpoint 2"
+    # §5.3.8.3 Class 8, ID 99 HB bits 0-3: Remote Override Operating Mode DHW (0..15).
+    # 0=No override, 1=Auto, 2=Anti-Legionella, 3=Comfort, 4=Reduced, 5=Protection, 6=Off, 7..15=reserved.
+    control_of_special_applications_remote_override_operating_mode_dhw:
+      name: "Control of Special Applications: Remote Override Operating Mode DHW"
+    # §5.3.8.3 Class 8, ID 99 LB bits 0-3: Remote Override Operating Mode Heating HC1 (0..15).
+    # 0=No override, 1=Auto, 2=Comfort, 3=Precomfort, 4=Reduced, 5=Protection, 6=Off, 7..15=reserved.
+    control_of_special_applications_remote_override_operating_mode_heating_hc1:
+      name: "Control of Special Applications: Remote Override Operating Mode Heating HC1"
+    # §5.3.8.3 Class 8, ID 99 LB bits 4-7: Remote Override Operating Mode Heating HC2 (0..15), same
+    # encoding as HC1.
+    control_of_special_applications_remote_override_operating_mode_heating_hc2:
+      name: "Control of Special Applications: Remote Override Operating Mode Heating HC2"

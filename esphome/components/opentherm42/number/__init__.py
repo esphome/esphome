@@ -8,6 +8,8 @@ from ..const import (
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_2_TSETCH2,
     CONF_CONTROL_AND_STATUS_INFORMATION_CONTROL_SETPOINT_VENTILATION_HEAT_RECOVERY,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_COOLING_CONTROL_SIGNAL,
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING,
     CONF_OPENTHERM42_ID,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_DHW_SETPOINT_SET,
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_MAX_CH_WATER_SETPOINT_SET,
@@ -129,6 +131,17 @@ TYPES: dict[str, tuple[cv.Schema, dict]] = {
     # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
     CONF_PRE_DEFINED_REMOTE_BOILER_PARAMETERS_NOMINAL_VENTILATION_VALUE_SET: (
         _number_schema("%", 0, 100, 50),
+        {"min_value": 0, "max_value": 100, "step": 1},
+    ),
+    # §5.3.8.1 Class 8, ID 7: Cooling control signal -- signal for the cooling plant (0..100%).
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_COOLING_CONTROL_SIGNAL: (
+        _number_schema("%", 0, 100, 0),
+        {"min_value": 0, "max_value": 100, "step": 1},
+    ),
+    # §5.3.8.2 Class 8, ID 14: Maximum relative modulation level setting, for sequencer and
+    # off-low&pump control applications (0..100%).
+    CONF_CONTROL_OF_SPECIAL_APPLICATIONS_MAXIMUM_RELATIVE_MODULATION_LEVEL_SETTING: (
+        _number_schema("%", 0, 100, 100),
         {"min_value": 0, "max_value": 100, "step": 1},
     ),
 }
