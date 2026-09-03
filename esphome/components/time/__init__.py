@@ -464,7 +464,7 @@ async def register_time(time_var, config):
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     if CORE.using_zephyr:
-        zephyr_add_prj_conf("POSIX_CLOCK", True)
+        zephyr_add_prj_conf("POSIX_API", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 

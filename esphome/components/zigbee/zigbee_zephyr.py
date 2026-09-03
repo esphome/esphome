@@ -95,7 +95,7 @@ zephyr_number = cv.Schema(
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
-    zephyr_add_prj_conf("ZIGBEE", True)
+    zephyr_add_prj_conf("ZIGBEE_ADD_ON", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     if config[CONF_ROUTER]:
         zephyr_add_prj_conf("ZIGBEE_ROLE_ROUTER", True)

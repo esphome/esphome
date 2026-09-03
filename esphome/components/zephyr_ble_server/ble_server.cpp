@@ -28,7 +28,7 @@ static const bt_data SD[] = {
 #endif
 };
 
-const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN;
+const bt_le_adv_param *const ADV_PARAM = BT_LE_ADV_CONN_FAST_2;
 
 static void advertise(k_work *work) {
   int rc = bt_le_adv_stop();

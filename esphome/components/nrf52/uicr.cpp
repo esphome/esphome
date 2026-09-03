@@ -4,11 +4,16 @@
 #include <zephyr/init.h>
 #include <hal/nrf_power.h>
 #include <zephyr/sys/printk.h>
+#ifdef USE_NRF52_UICR_ERASE
+// nrfx_nvmc_uicr_erase()'s return type changed between nrfx releases (nrfx_err_t -> int);
+// include the real declaration instead of hand-forward-declaring a type that can drift.
+#include <drivers/nrfx_errors.h>
+#include <nrfx_nvmc.h>
+#endif
 
 extern "C" {
 void nvmc_config(uint32_t mode);
 void nvmc_wait();
-nrfx_err_t nrfx_nvmc_uicr_erase();
 }
 
 // NOLINTBEGIN(clang-analyzer-core.FixedAddressDereference) -- NRF_UICR / NRF_TIMER2 are MMIO at fixed addresses
@@ -95,7 +100,7 @@ static int board_esphome_init() {
 
 #ifdef USE_NRF52_UICR_ERASE
   if (status & StatusFlags::NEED_ERASE) {
-    nrfx_err_t ret = nrfx_nvmc_uicr_erase();
+    auto ret = nrfx_nvmc_uicr_erase();
     if (ret != NRFX_SUCCESS) {
 #ifdef CONFIG_PRINTK
       printk("nrfx_nvmc_uicr_erase failed %d\n", ret);
