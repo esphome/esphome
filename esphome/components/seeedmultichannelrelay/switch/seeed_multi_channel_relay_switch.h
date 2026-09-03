@@ -8,7 +8,9 @@
 namespace esphome {
 namespace seeedmultichannelrelay {
 
-class Seeed_Multi_Channel_Relay_Switch : public Component, public switch_::Switch, public Parented<seeed_multi_channel_relay> {
+class Seeed_Multi_Channel_Relay_Switch : public Component,
+                                         public switch_::Switch,
+                                         public Parented<seeed_multi_channel_relay> {
  public:
   float get_setup_priority() const override;
 
@@ -27,5 +29,5 @@ class Seeed_Multi_Channel_Relay_Switch : public Component, public switch_::Switc
   uint32_t interlock_wait_time_{0};
 };
 
-}  // namespace seeed_multi_channel_relay
+}  // namespace seeedmultichannelrelay
 }  // namespace esphome
