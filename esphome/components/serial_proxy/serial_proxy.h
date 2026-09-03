@@ -108,12 +108,6 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Get the port type
   api::enums::SerialProxyPortType get_port_type() const { return this->port_type_; }
 
-  /// Set the initial mode (from YAML configuration)
-  void set_mode(api::enums::SerialProxyMode mode) { this->mode_ = mode; }
-
-  /// Get the current mode
-  api::enums::SerialProxyMode get_mode() const { return this->mode_; }
-
   /// Handle a mode change requested by an API client
   SerialProxyResult set_mode_from_client(api::APIConnection *api_connection, api::enums::SerialProxyMode mode);
 
@@ -167,12 +161,20 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Write bytes originating from the tap rather than from a client. Bypasses the
   /// subscriber ownership check, but only while the tap is being served bytes -- so a
-  /// port in RAW mode with a subscriber attached stays inert.
-  void write_from_tap(const uint8_t *data, size_t len) {
-    if (this->tap_observing_()) {
-      this->write_array(data, len);
+  /// port in RAW mode with a subscriber attached stays inert. Returns false when the
+  /// bytes were dropped for that reason.
+  bool write_from_tap(const uint8_t *data, size_t len) {
+    if (!this->tap_observing_()) {
+      return false;
     }
+    this->write_array(data, len);
+    return true;
   }
+
+  /// Whether the tap is currently being served bytes. Can flip false with no callback
+  /// (a subscriber attaching in RAW mode, say), so a tap should check before starting
+  /// protocol work and when a reply seems overdue.
+  bool tap_is_observed() const { return this->tap_observing_(); }
 
   /// Resume reading after a tap's needs change. loop() disables itself when there is
   /// neither a subscriber nor a tap that wants the port, so a tap starting fresh work
@@ -185,7 +187,8 @@ class SerialProxy final : public uart::UARTDevice, public Component {
 
   /// Run one read-and-dispatch cycle immediately. Lets a tap make progress before the
   /// main loop is running -- during setup, for instance, while a component is still
-  /// blocking on can_proceed().
+  /// blocking on can_proceed(). Must not be called from on_device_rx() or
+  /// on_client_tx(): each nested cycle costs a 256-byte stack frame.
   void tap_pump();
 #endif
 
