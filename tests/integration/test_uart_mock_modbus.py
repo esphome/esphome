@@ -26,8 +26,14 @@ import pytest
 from .state_utils import SensorTracker, find_entity, require_entity, wait_for_state
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
-# Byte-swapped raw U_WORD view of reg_u_word_s (0x1234 -> 0x3412)
-MESH_RAW_U_WORD_S = 13330
+
+def _swap16(value: int) -> int:
+    """Byte-swapped view of a 16-bit register as the raw U_WORD wire value."""
+    return ((value & 0xFF) << 8) | (value >> 8)
+
+
+# Raw U_WORD view of reg_u_word_s's initial 0x1234
+MESH_RAW_U_WORD_S = _swap16(4660)
 
 # Initial values of the mesh fixture's address 1 registers; the
 # server_controller test reads them and the write test uses them as baseline.
@@ -384,7 +390,7 @@ async def test_uart_mock_modbus_server_controller_write(
             name: pytest.approx(value, abs=0.01) if isinstance(value, float) else value
             for name, (_, value) in register_writes.items()
         }
-        | {"reg_u_word_s_raw": 8515}  # 0x4321 -> 0x2143
+        | {"reg_u_word_s_raw": _swap16(register_writes["reg_u_word_s"][1])}
     )
 
     async with (
