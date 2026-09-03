@@ -204,9 +204,14 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   bool is_subscriber_(api::APIConnection *api_connection) const { return this->api_connection_ == api_connection; }
 #endif
 
-  /// Return the port to RAW when a subscriber goes away, so the mode never outlives it.
-  /// Not tap-gated: the mode is a client-visible property whether or not a tap acts on it.
+#ifdef USE_SERIAL_PROXY_TAP
+  /// Return the port to RAW when a subscriber goes away, so the mode never outlives it
   void reset_mode_();
+#else
+  /// Without a tap, PROTOCOL is refused, so the mode is fixed at RAW and there is
+  /// nothing to reset
+  void reset_mode_() {}
+#endif
 
 #ifdef USE_SERIAL_PROXY_TAP
   /// True when the tap should be shown the traffic passing through this port
@@ -230,8 +235,10 @@ class SerialProxy final : public uart::UARTDevice, public Component {
   /// Port type
   api::enums::SerialProxyPortType port_type_{};
 
+#ifdef USE_SERIAL_PROXY_TAP
   /// How the bytes passing through are treated; zero is SERIAL_PROXY_MODE_RAW
   api::enums::SerialProxyMode mode_{};
+#endif
 
   /// Optional GPIO pins for modem control
   GPIOPin *rts_pin_{nullptr};

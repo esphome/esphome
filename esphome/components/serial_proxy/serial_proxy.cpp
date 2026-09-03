@@ -43,6 +43,7 @@ void SerialProxy::setup() {
   this->disable_loop();
 }
 
+#ifdef USE_SERIAL_PROXY_TAP
 void SerialProxy::reset_mode_() {
   // The mode belongs to a session, not to the port. Carrying a departed client's choice
   // over to the next one would inject protocol bytes into a stream that never asked for
@@ -55,6 +56,7 @@ void SerialProxy::reset_mode_() {
   ESP_LOGD(TAG, "Session ended, returning serial proxy [%" PRIu32 "] to RAW mode", this->instance_index_);
   this->mode_ = api::enums::SERIAL_PROXY_MODE_RAW;
 }
+#endif
 
 void SerialProxy::loop() {
 #ifdef USE_API
@@ -261,10 +263,8 @@ SerialProxyResult SerialProxy::set_mode_from_client(api::APIConnection *api_conn
 #ifdef USE_SERIAL_PROXY_TAP
   const bool leaving_protocol_mode =
       this->mode_ != api::enums::SERIAL_PROXY_MODE_RAW && mode == api::enums::SERIAL_PROXY_MODE_RAW;
-#endif
   this->mode_ = mode;
 
-#ifdef USE_SERIAL_PROXY_TAP
   // Only for an explicit client request, not for reset_mode_() at the end of a session:
   // an ordinary disconnect says nothing about the device, whereas a client deliberately
   // asking for raw bytes usually precedes changing what the device is.
