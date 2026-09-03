@@ -325,11 +325,16 @@ def zephyr_only_on_variant(*variant_names: str):
 
 def zephyr_setup_i2c_pinctrl(
     board: str, bus_label: str, sda: int | None, scl: int | None
-) -> tuple[int, int]:
-    """Resolve I2C pin assignments and add the variant-specific pinctrl overlay.
+) -> tuple[str, str]:
+    """Resolve I2C pin assignments and add the variant-specific pinctrl overlay,
+    returning (sda, scl) as dump_config display strings.
 
-    If sda/scl are not provided, attempts to read them from the board's DTS.
-    Raises cv.Invalid if the pins cannot be determined. Returns (sda, scl).
+    If sda/scl are not provided, attempts to read them from the board's DTS via
+    this variant's pinctrl extractor (currently esp32-family, silabs). A variant
+    with no extractor and no explicit sda/scl reaches this still None -- rather
+    than fail, the board's own pre-wired pinctrl default is left untouched (no
+    overlay generated) and the display strings just say "board default", since
+    there's no real pin number to report.
     """
     variant_name = zephyr_data().get("variant") or ""
 
@@ -353,13 +358,9 @@ def zephyr_setup_i2c_pinctrl(
                 )
 
     if sda is None or scl is None:
-        raise cv.Invalid(
-            "Could not determine I2C pin assignments for this board.\n"
-            "Add explicit pin numbers to your i2c: configuration:\n"
-            "  i2c:\n"
-            "    sda: 26\n"
-            "    scl: 27"
-        )
+        # Caller already enables the bus unconditionally before this call -- nothing
+        # more to do when there's no extractor and no explicit pins to act on.
+        return "board default", "board default"
 
     if variant_name == ZEPHYR_VARIANT_NATIVE_SIM:
         # No pinctrl node -- the emulated controller has no physical pins.
@@ -372,35 +373,31 @@ def zephyr_setup_i2c_pinctrl(
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
-                    {bus_label}_default: {bus_label}_default {{
+                    {bus_label}_default {{
                         group1 {{
                             psels = <NRF_PSEL(TWIM_SDA, {sda // 32}, {sda % 32})>,
                                 <NRF_PSEL(TWIM_SCL, {scl // 32}, {scl % 32})>;
                         }};
                     }};
-                    {bus_label}_sleep: {bus_label}_sleep {{
+                    {bus_label}_sleep {{
                         group1 {{
                             psels = <NRF_PSEL(TWIM_SDA, {sda // 32}, {sda % 32})>,
                                 <NRF_PSEL(TWIM_SCL, {scl // 32}, {scl % 32})>;
-                            low-power-enable;
                         }};
                     }};
                 }};
             """
         )
     elif zephyr_variant_family() == "esp32":
-        # Override the board's fixed i2c*_default pinctrl node so the pins actually
-        # used match the user's sda:/scl: YAML instead of the board's own defaults.
+        # i2c*_default keeps SDA+SCL in one group1 -- override just `pinmux` so the
+        # board's own properties (bias-pull-up etc.) merge through untouched.
         prefix = bus_label.upper()
         pinctrl_overlay = f"""
             &pinctrl {{
-                {bus_label}_default: {bus_label}_default {{
+                {bus_label}_default {{
                     group1 {{
                         pinmux = <{prefix}_SDA_GPIO{sda}>,
                             <{prefix}_SCL_GPIO{scl}>;
-                        bias-pull-up;
-                        drive-open-drain;
-                        output-high;
                     }};
                 }};
             }};
@@ -420,10 +417,8 @@ def zephyr_setup_i2c_pinctrl(
             """
         zephyr_add_overlay(pinctrl_overlay)
     elif zephyr_variant_family() == "silabs":
-        # Same reasoning as esp32 above: override the board's fixed i2c*_default
-        # pinctrl node so the pins actually used match the user's sda:/scl: YAML.
-        # Silicon Labs' pinctrl macros are lettered-port form ({BUS}_{SIGNAL}_P{port}{n},
-        # e.g. I2C0_SDA_PC5) rather than ESP32's flat GPIO{n} form.
+        # Same reasoning as esp32, override just `pins`. Silabs macros are lettered-port
+        # form ({BUS}_{SIGNAL}_P{port}{n}, e.g. I2C0_SDA_PC5), not ESP32's flat GPIO{n}.
         prefix = bus_label.upper()
         port_width = VARIANTS[variant_name].gpio_port_width
         sda_letter, sda_pin = chr(ord("A") + sda // port_width), sda % port_width
@@ -431,20 +426,23 @@ def zephyr_setup_i2c_pinctrl(
         zephyr_add_overlay(
             f"""
                 &pinctrl {{
-                    {bus_label}_default: {bus_label}_default {{
+                    {bus_label}_default {{
                         group0 {{
                             pins = <{prefix}_SCL_P{scl_letter}{scl_pin}>,
                                 <{prefix}_SDA_P{sda_letter}{sda_pin}>;
-                            bias-pull-up;
-                            drive-open-drain;
                         }};
                     }};
                 }};
             """
         )
-    # Other variants: pinctrl already defined in board DTS; no overlay needed.
+    else:
+        # No overlay-generation branch for this family -- don't silently ignore the pins.
+        raise EsphomeError(
+            f"sda:/scl: are not supported for I2C on this Zephyr variant "
+            f"('{variant_name}') -- remove them to use the board's default I2C pins."
+        )
 
-    return sda, scl
+    return f"GPIO{sda}", f"GPIO{scl}"
 
 
 # Families whose boards ship SPI with fixed, already-wired pinctrl in the board DTS --

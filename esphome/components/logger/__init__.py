@@ -205,6 +205,13 @@ def uart_selection(value: Any) -> str:
     if CORE.is_nrf52:
         return cv.one_of(*UART_SELECTION_NRF52, upper=True)(value)
     if CORE.is_zephyr:
+        from esphome.components.zephyr.dts_lookup import validate_uart_label_override
+
+        if (
+            isinstance(value, str)
+            and (override := validate_uart_label_override(value)) is not None
+        ):
+            return override
         if zephyr_variant() in (
             ZEPHYR_VARIANT_ESP32_H2,
             ZEPHYR_VARIANT_ESP32_C6,
@@ -421,11 +428,16 @@ async def to_code(config: ConfigType) -> None:
     # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
     # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
     if CONF_HARDWARE_UART in config:
-        cg.add(
-            log.set_uart_selection(
-                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
-            )
+        hw_uart = config[CONF_HARDWARE_UART]
+        # An explicit "&<label>" override is always a plain hardware UART -- on Zephyr,
+        # UART_SELECTION_UART0/UART1 both resolve identically via LOGGER_UART_NODE_LABEL
+        # (see logger_zephyr.cpp), so either works as the runtime discriminator.
+        selected_uart = (
+            logger_ns.UART_SELECTION_UART0
+            if hw_uart.startswith("&")
+            else HARDWARE_UART_TO_UART_SELECTION[hw_uart]
         )
+        cg.add(log.set_uart_selection(selected_uart))
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
@@ -567,14 +579,22 @@ async def _late_logger_init(config: ConfigType) -> None:
         # instances (uart20/uart30) instead of nRF52/ESP32's uart0/uart1 -- and some
         # variants (e.g. stm32l4) declare no portable mapping at all, resolved per board
         # from DTS instead. See resolve_uart_node_label()'s own docstring.
-        if hw_uart in (UART0, UART1, UART2):
-            from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
+        if hw_uart.startswith("&") or hw_uart in (UART0, UART1, UART2):
+            if hw_uart.startswith("&"):
+                from esphome.components.zephyr.dts_lookup import (
+                    validate_dts_label_exists,
+                )
 
-            node = resolve_uart_node_label(
-                zephyr_data()[KEY_BOARD],
-                hw_uart,
-                VARIANTS[zephyr_variant()].uart_node_labels,
-            )
+                node = hw_uart[1:]
+                validate_dts_label_exists("uart", zephyr_data()[KEY_BOARD], node)
+            else:
+                from esphome.components.zephyr.dts_lookup import resolve_uart_node_label
+
+                node = resolve_uart_node_label(
+                    zephyr_data()[KEY_BOARD],
+                    hw_uart,
+                    VARIANTS[zephyr_variant()].uart_node_labels,
+                )
             zephyr_add_overlay(f"""&{node} {{ status = "okay";}};""")
             zephyr_add_overlay(
                 f"""/ {{ chosen {{ zephyr,console = &{node}; zephyr,shell-uart = &{node}; }}; }};"""

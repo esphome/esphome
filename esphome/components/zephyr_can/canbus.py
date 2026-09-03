@@ -19,7 +19,11 @@ from esphome.components.zephyr import (
     zephyr_variant_family,
 )
 from esphome.components.zephyr.const import KEY_BOARD
-from esphome.components.zephyr.dts_lookup import get_can_controller_labels
+from esphome.components.zephyr.dts_lookup import (
+    get_can_controller_labels,
+    normalize_dts_label,
+    validate_dts_label_exists,
+)
 from esphome.components.zephyr.variants import VARIANTS
 import esphome.config_validation as cv
 from esphome.const import (
@@ -57,7 +61,7 @@ CAN_MODES = {
 
 
 def _validate_instance(value: str) -> str:
-    value = cv.string_strict(value).lower()
+    value = normalize_dts_label(cv.string_strict(value))
     if not _INSTANCE_RE.fullmatch(value):
         raise cv.Invalid(
             f"'{value}' is not a CAN controller devicetree node label, "
@@ -142,7 +146,11 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("CAN_ACCEPT_RTR", True)
 
     board = zephyr_dts_board_id(zephyr_data()[KEY_BOARD])
-    instance = config.get(CONF_INSTANCE) or _resolve_instance(board)
+    if explicit_instance := config.get(CONF_INSTANCE):
+        validate_dts_label_exists("can", board, explicit_instance)
+        instance = explicit_instance
+    else:
+        instance = _resolve_instance(board)
 
     rx_queue = f"{config[CONF_ID]}_rx_queue"
     cg.add_global(

@@ -258,8 +258,15 @@ class ZephyrVariant:
     # GPIOs the ESP32 GPIO matrix can route to a UART TX/RX signal, from Zephyr's
     # dt-bindings pinctrl header -- a fixed per-chip pinmux fact, not always identical
     # between tx/rx (e.g. original ESP32's GPIO34-39 are RX-only). Empty = no
-    # GPIO-matrix UART pin override wired up.
+    # GPIO-matrix UART pin override wired up. Only for a free-mux family where any valid
+    # tx/rx pin works on any instance -- see uart_valid_pins_by_instance otherwise.
     uart_valid_pins: dict[str, frozenset[int]] = field(default_factory=dict)
+    # Like uart_valid_pins, but keyed by instance ("UART0", "UART1", ...) first -- for a
+    # family (e.g. RP2040) whose GPIO function-select mux ties each pin to exactly one
+    # fixed instance+role, verified against its real pinctrl dt-bindings header.
+    uart_valid_pins_by_instance: dict[str, dict[str, frozenset[int]]] = field(
+        default_factory=dict
+    )
     # Devicetree node labels backing the `logger: hardware_uart: UART0`/`UART1` symbolic
     # selections. ESP32-family and nRF52 boards both label their two console-capable UARTs
     # uart0/uart1, so that's the default; nRF54 series numbers peripheral instances instead

@@ -58,6 +58,7 @@ VARIANT = ZephyrVariant(
     swap_methods=frozenset({"scratch", "move", "direct"}),
     # https://github.com/espressif/esp-idf/blob/master/components/soc/esp32/include/soc/adc_channel.h
     adc1_channel_map={36: 0, 37: 1, 38: 2, 39: 3, 32: 4, 33: 5, 34: 6, 35: 7},
+    uart_node_labels={},
     # https://github.com/zephyrproject-rtos/zephyr/blob/main/include/zephyr/dt-bindings/pinctrl/esp32-pinctrl.h
     # No GPIO 24, 28-31 (SPI flash pins, not exposed via UART0/1_{TX,RX}_GPIO* macros).
     # TX additionally excludes GPIO34-39: input-only pins on original ESP32, no output driver.

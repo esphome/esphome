@@ -71,6 +71,20 @@ VARIANT = ZephyrVariant(
     swap_methods=frozenset({"move", "offset"}),
     gpio_port_width=30,
     adc1_channel_map=_ADC_CHANNEL_MAP,
+    uart_node_labels={},
+    # RP2040's GPIO function-select mux ties each pin to exactly one fixed UART
+    # instance+role, repeating every 4 pins -- verified against
+    # dt-bindings/pinctrl/rpi-pico-pinctrl-common.h. No overlap between uart0/uart1.
+    uart_valid_pins_by_instance={
+        "UART0": {
+            "tx": frozenset({0, 12, 16, 28}),
+            "rx": frozenset({1, 13, 17, 29}),
+        },
+        "UART1": {
+            "tx": frozenset({4, 8, 20, 24}),
+            "rx": frozenset({5, 9, 21, 25}),
+        },
+    },
     # A single "pwm" controller node covers all 8 slices reachable within the 30
     # GPIOs this variant exposes (P0-P29) -- repeat the label once per slice so
     # zephyr_pwm's block-count math (len(pwm_node_labels)) still works unmodified.

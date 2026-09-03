@@ -54,6 +54,7 @@ VARIANT = ZephyrVariant(
     # to ADC1 channel 0-5 (devicetree channel@N address IS the real silicon channel, same
     # as esp32_c6/esp32_h2).
     adc1_channel_map={0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5},
+    uart_node_labels={},
     uart_valid_pins={"tx": _UART_VALID_PINS, "rx": _UART_VALID_PINS},
 )
 
