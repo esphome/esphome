@@ -19,12 +19,18 @@ class I2SAudioSpeaker final : public I2SAudioSpeakerBase {
   void dump_config() override;
 
   void set_i2s_comm_fmt(I2SCommFmt fmt) { this->i2s_comm_fmt_ = fmt; }
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+  void set_expand_to_slot_width(bool expand) { this->expand_to_slot_width_ = expand; }
+#endif
 
  protected:
   void run_speaker_task() override;
   esp_err_t start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) override;
 
   I2SCommFmt i2s_comm_fmt_{I2SCommFmt::STANDARD};
+#ifdef USE_I2S_AUDIO_EXPAND_TO_SLOT_WIDTH
+  bool expand_to_slot_width_{false};
+#endif
 };
 
 }  // namespace esphome::i2s_audio
