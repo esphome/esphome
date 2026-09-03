@@ -38,14 +38,14 @@ CoverTraits HE60rCover::get_traits() {
 
 void HE60rCover::dump_config() {
   LOG_COVER("", "HE60R Cover", this);
-  this->check_uart_settings(1200, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
   ESP_LOGCONFIG(TAG,
                 "  Open Duration: %.1fs\n"
                 "  Close Duration: %.1fs",
                 this->open_duration_ / 1e3f, this->close_duration_ / 1e3f);
   auto restore = this->restore_state_();
-  if (restore.has_value())
+  if (restore.has_value()) {
     ESP_LOGCONFIG(TAG, "  Saved position %d%%", (int) (restore->position * 100.f));
+  }
 }
 
 void HE60rCover::endstop_reached_(CoverOperation operation) {
@@ -77,8 +77,9 @@ void HE60rCover::process_rx_(uint8_t data) {
   ESP_LOGV(TAG, "Process RX data %X", data);
   if (!this->query_seen_) {
     this->query_seen_ = data == QUERY_BYTE;
-    if (!this->query_seen_)
+    if (!this->query_seen_) {
       ESP_LOGD(TAG, "RX Byte %02X", data);
+    }
     return;
   }
   switch (data) {

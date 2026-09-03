@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <driver/gpio.h>
-#include <esp_lcd_panel_rgb.h>
+#include <esp_lcd_panel_ops.h>
 #include <span>
 
 namespace esphome::mipi_rgb {
@@ -177,11 +177,6 @@ void MipiRgb::common_setup_() {
   ESP_LOGCONFIG(TAG, "MipiRgb setup complete");
 }
 
-void MipiRgb::loop() {
-  if (this->handle_ != nullptr)
-    esp_lcd_rgb_panel_restart(this->handle_);
-}
-
 void MipiRgb::update() {
   if (this->is_failed())
     return;
@@ -243,8 +238,9 @@ void MipiRgb::write_to_display_(int x_start, int y_start, int w, int h, const ui
       ptr += stride;  // next line
     }
   }
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_lcd_panel_draw_bitmap failed: %s", esp_err_to_name(err));
+  }
 }
 
 bool MipiRgb::check_buffer_() {
