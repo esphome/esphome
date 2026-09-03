@@ -134,6 +134,21 @@ enum class RequestKind : uint8_t {
   CH_PUMP_OPERATION_HOURS,               // ID 121
   DHW_PUMP_VALVE_OPERATION_HOURS,        // ID 122
   DHW_BURNER_OPERATION_HOURS,            // ID 123
+
+  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable + read/write flags for DHW Setpoint / max
+  // CHsetpoint (HB and LB read in one conversation).
+  REMOTE_PARAMETER_FLAGS,
+  // §5.3.5 Class 5, ID 86: same, for ventilation/heat-recovery's Nominal ventilation value.
+  REMOTE_PARAMETER_FLAGS_VENTILATION,
+  // §5.3.5 Class 5, ID 48: HB DHWsetp upp-bound, LB DHWsetp low-bound (two signed 8-bit values).
+  DHWSETP_BOUNDS,
+  // §5.3.5 Class 5, ID 49: HB max CHsetp upp-bound, LB max CHsetp low-bnd.
+  MAX_CHSETP_BOUNDS,
+  // §5.3.5 Class 5, IDs 56/57/87: R/W ids -- WRITE_DATA if the "_set" number is configured, otherwise
+  // READ_DATA if the plain sensor is configured (same pattern as Class 4's IDs 27/38/78/79).
+  DHW_SETPOINT,
+  MAX_CH_WATER_SETPOINT,
+  NOMINAL_VENTILATION_VALUE,
 };
 
 class OpenTherm42Hub;
@@ -455,6 +470,38 @@ class OpenTherm42Hub : public Component {
   OT42_SET_SENSOR(sensor_and_informational_data_dhw_pump_valve_operation_hours, dhw_pump_valve_operation_hours_sensor_)
   OT42_SET_SENSOR(sensor_and_informational_data_dhw_burner_operation_hours, dhw_burner_operation_hours_sensor_)
 
+  // §5.3.5 Class 5, ID 6: Remote-parameter transfer-enable/read-write flags.
+  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint,
+                     remote_parameter_transfer_enable_flags_read_, 0)
+  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint,
+                     remote_parameter_transfer_enable_flags_read_, 1)
+  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint,
+                     remote_parameter_read_write_flags_read_, 0)
+  OT42_FLAG_READ_BIT(pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint,
+                     remote_parameter_read_write_flags_read_, 1)
+
+  // §5.3.5 Class 5, ID 86: same flags, for ventilation/heat-recovery's Nominal ventilation value.
+  OT42_FLAG_READ_BIT(
+      pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value,
+      remote_parameter_transfer_enable_flags_ventilation_read_, 0)
+  OT42_FLAG_READ_BIT(
+      pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value,
+      remote_parameter_read_write_flags_ventilation_read_, 0)
+
+  // §5.3.5 Class 5, IDs 48/49: adjustment bounds.
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhwsetp_upper_bound, dhwsetp_upper_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhwsetp_lower_bound, dhwsetp_lower_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_upper_bound, max_chsetp_upper_bound_sensor_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_chsetp_lower_bound, max_chsetp_lower_bound_sensor_)
+
+  // §5.3.5 Class 5, IDs 56/57/87: the remote boiler parameters themselves.
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_dhw_setpoint_set, dhw_setpoint_number_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_dhw_setpoint, dhw_setpoint_sensor_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set, max_ch_water_setpoint_number_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_max_ch_water_setpoint, max_ch_water_setpoint_sensor_)
+  OT42_SET_NUMBER(pre_defined_remote_boiler_parameters_nominal_ventilation_value_set, nominal_ventilation_value_number_)
+  OT42_SET_SENSOR(pre_defined_remote_boiler_parameters_nominal_ventilation_value, nominal_ventilation_value_sensor_)
+
  protected:
   // §4.3.1: minimum time between the end of one conversation and the start of the next.
   static constexpr uint32_t MASTER_WAIT_TIME_MS = 100;
@@ -624,6 +671,24 @@ class OpenTherm42Hub : public Component {
   sensor::Sensor *ch_pump_operation_hours_sensor_{nullptr};
   sensor::Sensor *dhw_pump_valve_operation_hours_sensor_{nullptr};
   sensor::Sensor *dhw_burner_operation_hours_sensor_{nullptr};
+
+  // §5.3.5 Class 5 entities.
+  FlagReadBits remote_parameter_transfer_enable_flags_read_;
+  FlagReadBits remote_parameter_read_write_flags_read_;
+  FlagReadBits remote_parameter_transfer_enable_flags_ventilation_read_;
+  FlagReadBits remote_parameter_read_write_flags_ventilation_read_;
+
+  sensor::Sensor *dhwsetp_upper_bound_sensor_{nullptr};
+  sensor::Sensor *dhwsetp_lower_bound_sensor_{nullptr};
+  sensor::Sensor *max_chsetp_upper_bound_sensor_{nullptr};
+  sensor::Sensor *max_chsetp_lower_bound_sensor_{nullptr};
+
+  number::Number *dhw_setpoint_number_{nullptr};
+  sensor::Sensor *dhw_setpoint_sensor_{nullptr};
+  number::Number *max_ch_water_setpoint_number_{nullptr};
+  sensor::Sensor *max_ch_water_setpoint_sensor_{nullptr};
+  number::Number *nominal_ventilation_value_number_{nullptr};
+  sensor::Sensor *nominal_ventilation_value_sensor_{nullptr};
 };
 
 }  // namespace esphome::opentherm42

@@ -124,6 +124,23 @@ number:
       name: "Sensor and Informational Data: CO2 level (set)"
       initial_value: 0
       restore_value: true
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature setpoint (degrees C, 0..127).
+    # Takes priority over the sensor platform's plain dhw_setpoint (reading the boiler's own value).
+    pre_defined_remote_boiler_parameters_dhw_setpoint_set:
+      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint (set)"
+      initial_value: 60.0
+      restore_value: true
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint -- maximum allowable CH water Setpoint (degrees C, 0..127).
+    pre_defined_remote_boiler_parameters_max_ch_water_setpoint_set:
+      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint (set)"
+      initial_value: 80.0
+      restore_value: true
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value -- nominal relative value for ventilation
+    # (0-100%), i.e. the value for the mid position in case of a 3-speed ventilation system.
+    pre_defined_remote_boiler_parameters_nominal_ventilation_value_set:
+      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value (set)"
+      initial_value: 50
+      restore_value: true
 
 binary_sensor:
   - platform: opentherm42
@@ -240,6 +257,24 @@ binary_sensor:
     # [ 0 = DHW preheat system, 1 = DHW parallel system ]
     configuration_information_solar_storage_configuration_system_type:
       name: "Configuration Information: Solar Storage configuration: System type"
+    # §5.3.5 Class 5, ID 6 HB bit 0: DHW Setpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 HB bit 1: max CHsetpoint [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter transfer-enable flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 0: DHW Setpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: DHW Setpoint"
+    # §5.3.5 Class 5, ID 6 LB bit 1: max CHsetpoint [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_max_chsetpoint:
+      name: "Pre-Defined Remote Boiler Parameters: Remote-parameter read-write flags: max CHsetpoint"
+    # §5.3.5 Class 5, ID 86 HB bit 0: Nominal ventilation value [ transfer disabled, transfer enabled ]
+    pre_defined_remote_boiler_parameters_transfer_enable_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Transfer-enable flags ventilation-heat-recovery: Nominal ventilation value"
+    # §5.3.5 Class 5, ID 86 LB bit 0: Nominal ventilation value [ read-only, read/write ]
+    pre_defined_remote_boiler_parameters_read_write_flags_ventilation_heat_recovery_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Read-write flags ventilation-heat-recovery: Nominal ventilation value"
 
 button:
   - platform: opentherm42
@@ -493,3 +528,27 @@ sensor:
     # §5.3.4 Class 4, ID 123: Number of hours the burner is in operation during DHW mode.
     sensor_and_informational_data_dhw_burner_operation_hours:
       name: "Sensor and Informational Data: DHW burner operation hours"
+    # §5.3.5 Class 5, ID 48 HB: DHWsetp upp-bound -- upper bound for adjustment of DHW setp (degrees C).
+    pre_defined_remote_boiler_parameters_dhwsetp_upper_bound:
+      name: "Pre-Defined Remote Boiler Parameters: DHWsetp upp-bound"
+    # §5.3.5 Class 5, ID 48 LB: DHWsetp low-bound -- lower bound for adjustment of DHW setp (degrees C).
+    pre_defined_remote_boiler_parameters_dhwsetp_lower_bound:
+      name: "Pre-Defined Remote Boiler Parameters: DHWsetp low-bound"
+    # §5.3.5 Class 5, ID 49 HB: max CHsetp upp-bound -- upper bound for adjustment of maxCHsetp (degrees C).
+    pre_defined_remote_boiler_parameters_max_chsetp_upper_bound:
+      name: "Pre-Defined Remote Boiler Parameters: max CHsetp upp-bound"
+    # §5.3.5 Class 5, ID 49 LB: max CHsetp low-bnd -- lower bound for adjustment of maxCHsetp (degrees C).
+    pre_defined_remote_boiler_parameters_max_chsetp_lower_bound:
+      name: "Pre-Defined Remote Boiler Parameters: max CHsetp low-bnd"
+    # §5.3.5 Class 5, ID 56: DHW Setpoint -- domestic hot water temperature Setpoint (degrees C), read
+    # from the boiler. Only used if the number platform's dhw_setpoint_set is NOT configured.
+    pre_defined_remote_boiler_parameters_dhw_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: DHW Setpoint"
+    # §5.3.5 Class 5, ID 57: max CH water Setpoint (degrees C), read from the boiler. Only used if the
+    # number platform's max_ch_water_setpoint_set is NOT configured.
+    pre_defined_remote_boiler_parameters_max_ch_water_setpoint:
+      name: "Pre-Defined Remote Boiler Parameters: max CH water Setpoint"
+    # §5.3.5 Class 5, ID 87 HB: Nominal ventilation value (0-100%), read from the boiler. Only used if
+    # the number platform's nominal_ventilation_value_set is NOT configured.
+    pre_defined_remote_boiler_parameters_nominal_ventilation_value:
+      name: "Pre-Defined Remote Boiler Parameters: Nominal ventilation value"

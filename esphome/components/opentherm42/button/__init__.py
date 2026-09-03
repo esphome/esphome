@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 
 from .. import OpenTherm42Hub, opentherm42_ns
 from ..const import (
+    CONF_OPENTHERM42_ID,
     CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE,
     CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE,
     CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET,
@@ -18,8 +19,6 @@ from ..const import (
     CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST,
     CONF_REMOTE_REQUEST_SERVICE_TEST_1,
 )
-
-CONF_OPENTHERM42_ID = "opentherm42_id"
 
 OpenTherm42RemoteRequestButton = opentherm42_ns.class_(
     "OpenTherm42RemoteRequestButton", button.Button, cg.Component

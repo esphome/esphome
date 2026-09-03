@@ -7,9 +7,8 @@ from ..const import (
     CONF_CONFIGURATION_INFORMATION_BRAND,
     CONF_CONFIGURATION_INFORMATION_BRAND_SERIAL_NUMBER,
     CONF_CONFIGURATION_INFORMATION_BRAND_VERSION,
+    CONF_OPENTHERM42_ID,
 )
-
-CONF_OPENTHERM42_ID = "opentherm42_id"
 
 TYPES: dict[str, cv.Schema] = {
     # §5.3.2 Class 2, ID 93: Brand -- the boiler manufacturer's brand name, read one ASCII character
