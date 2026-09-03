@@ -1,0 +1,11 @@
+sensor:
+  - platform: template
+    id: hisense_arg_temp_sensor
+    lambda: "return 24;"
+
+climate:
+  - platform: hisense_arg
+    name: Hisense AC
+    id: hisense_arg_ac
+    sensor: hisense_arg_temp_sensor
+    receiver_id: rcvr
