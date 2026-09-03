@@ -44,6 +44,16 @@ This document provides essential context for AI models interacting with this pro
 
 ## 4. Coding Conventions & Style Guide
 
+**Read the developer documentation before writing a component.** https://developers.esphome.io covers the
+component lifecycle, the main loop, and the reasoning behind the rules below in far more depth than this
+file does, and it is the authority when they disagree. The most useful starting points:
+
+*   https://developers.esphome.io/architecture/components/ - component lifecycle, `setup()`, `loop()`,
+    setup priorities, and how a component is registered.
+*   https://developers.esphome.io/architecture/components/advanced/ - choosing between `loop()`,
+    `set_interval`, `set_timeout` and `defer`; waking the loop from another thread; the RAM cost of each.
+*   https://developers.esphome.io/contributing/code/ - contribution rules, public API and breaking changes.
+
 *   **Formatting:**
     *   **Python:** Uses `ruff` and `flake8` for linting and formatting. Configuration is in `pyproject.toml`.
     *   **C++:** Uses `clang-format` for formatting. Configuration is in `.clang-format`.
@@ -142,6 +152,47 @@ This document provides essential context for AI models interacting with this pro
     *   **Indentation:** Use spaces (two per indentation level), not tabs
     *   **Type aliases:** Prefer `using type_t = int;` over `typedef int type_t;`
     *   **Line length:** Wrap lines at no more than 120 characters
+    *   **Timing in `loop()`:** Never call `millis()` in a `loop()` body. The current tick's timestamp is
+        already cached - use `App.get_loop_component_start_time()` (from `esphome/core/application.h`).
+        Only reach for `millis()` when you genuinely need sub-tick resolution inside a long operation.
+    *   **The main loop runs every 16 ms.** A rate-limit gate shorter than that does nothing: the check
+        passes on essentially every pass of the loop, so it costs a comparison and buys nothing. Pick an
+        interval comfortably coarser than 16 ms, or drop the gate entirely and accept running every loop.
+        ```cpp
+        // Bad - a 10ms gate against a 16ms loop never holds anything back
+        static constexpr uint32_t POLL_INTERVAL_MS = 10;
+        const uint32_t now = millis();
+        if (now - this->last_poll_ < POLL_INTERVAL_MS)
+          return;
+        this->last_poll_ = now;
+        ```
+        ```cpp
+        // Good - an interval that actually rate limits, off the cached timestamp
+        static constexpr uint32_t POLL_INTERVAL_MS = 100;
+        const uint32_t now = App.get_loop_component_start_time();
+        if (now - this->last_poll_ < POLL_INTERVAL_MS)
+          return;
+        this->last_poll_ = now;
+        ```
+        Pick the primitive by cadence: under 250 ms use a gated `loop()`; 500 ms and above use
+        `set_interval`. Full reasoning, including why `set_interval` costs more below 500 ms:
+        https://developers.esphome.io/architecture/components/advanced/#quick-rule-of-thumb
+    *   **Don't override a default with the same value:** if a base class method already returns what you
+        want, do not override it. `Component::get_setup_priority()` returns `setup_priority::DATA`, so a
+        component that wants `DATA` should simply leave it alone.
+        ```cpp
+        // Bad - this is exactly what the base class already does
+        float get_setup_priority() const override { return setup_priority::DATA; }
+        ```
+    *   **Logging string literals:** wrap literals passed as `%s` arguments in `LOG_STR_LITERAL()` so they
+        can be stored in flash rather than RAM.
+        ```cpp
+        // Bad
+        ESP_LOGV(TAG, "Key %u %s", key, pressed ? "pressed" : "released");
+
+        // Good
+        ESP_LOGV(TAG, "Key %u %s", key, pressed ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL("released"));
+        ```
     *   **Constructor parameters vs setters:** Component properties that are both **required** and **invariant**
         (never change after construction) should be constructor parameters rather than set via setter methods.
         This makes the dependency explicit and prevents use of the object in an incompletely-initialized state.
@@ -562,6 +613,33 @@ This document provides essential context for AI models interacting with this pro
            Use `cg.add_define("MAX_SERVICES", count)` to set the size from Python configuration.
            Like `std::array` but with vector-like API (`push_back()`, `size()`) and no STL reallocation code.
 
+           **Listener and child-entity registration lists are the most common case, and the most commonly
+           missed.** A `register_*()` method called once per child at code generation time has a count that
+           is known at compile time, so it should never be a `std::vector`. Use `cg.slot_counter()`: it
+           returns a function that each consumer calls once per slot it will occupy, and after every
+           `to_code` has run it emits the define with the final count. When nothing registers, no define is
+           emitted and the storage plus its registration method compile out entirely.
+           ```python
+           # hub component's __init__.py
+           _request_listener_slot = cg.slot_counter("MY_COMPONENT_LISTENER_COUNT")
+
+
+           async def register_listener(hub: MockObj, var: MockObj) -> None:
+               _request_listener_slot()
+               cg.add(hub.register_listener(var))
+           ```
+           ```cpp
+           #ifdef MY_COMPONENT_LISTENER_COUNT
+             void register_listener(MyComponentListener *listener);
+           #endif
+            protected:
+           #ifdef MY_COMPONENT_LISTENER_COUNT
+             StaticVector<MyComponentListener *, MY_COMPONENT_LISTENER_COUNT> listeners_;
+           #endif
+           ```
+           Request slots from `to_code`, not from a job that runs after `CoroPriority.FINAL` - a late
+           request raises rather than silently undercounting.
+
         3. **Runtime-known sizes:** Use `FixedVector` from `esphome/core/helpers.h` when the size is only known at runtime initialization.
            ```cpp
            // Bad - generates STL realloc code (_M_realloc_insert)
@@ -599,9 +677,25 @@ This document provides essential context for AI models interacting with this pro
            ```
            Linear search on small datasets (1-16 elements) is often faster than hashing/tree overhead, but this depends on lookup frequency and access patterns. For frequent lookups in hot code paths, the O(1) vs O(n) complexity difference may still matter even for small datasets. `std::vector` with simple structs is usually fine—it's the heavy containers (`map`, `set`, `unordered_map`) that should be avoided for small datasets unless profiling shows otherwise.
 
-        5. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
+        5. **Strings set once from configuration:** Use `StringRef` (`esphome/core/string_ref.h`) rather than
+           `std::string`. Code generation passes a string literal that lives in flash for the life of the
+           program, so storing a `std::string` copies it onto the heap for nothing. `StringRef` is a
+           non-owning pointer plus length; it does not copy, and it must only ever refer to storage that
+           outlives it (a string literal, or a buffer owned elsewhere).
+           ```cpp
+           // Bad - heap copy of a literal that is already in flash
+           void set_keys(std::string keys) { this->keys_ = std::move(keys); }
+           std::string keys_;
+           ```
+           ```cpp
+           // Good - no allocation
+           void set_keys(const char *keys) { this->keys_ = StringRef(keys); }
+           StringRef keys_;
+           ```
 
-        6. **Detection:** Look for these patterns in compiler output:
+        6. **Avoid `std::deque`:** It allocates in 512-byte blocks regardless of element size, guaranteeing at least 512 bytes of RAM usage immediately. This is a major source of crashes on memory-constrained devices.
+
+        7. **Detection:** Look for these patterns in compiler output:
            - Large code sections with STL symbols (vector, map, set)
            - `alloc`, `realloc`, `dealloc` in symbol names
            - `_M_realloc_insert`, `_M_default_append` (vector reallocation)
