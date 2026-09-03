@@ -72,6 +72,8 @@ enum class RequestKind : uint8_t {
   BRAND_VERSION,
   // §5.3.2 Class 2, ID 95: brand serial number string, same protocol as ID 93.
   BRAND_SERIAL_NUMBER,
+  // §5.3.3 Class 3, ID 4: a remote request command. Sent on demand (button press), not scheduled.
+  REMOTE_REQUEST,
 };
 
 // The order startup-only conversations happen in, before the main essential/informational rotation
@@ -294,6 +296,15 @@ class OpenTherm42Hub : public Component {
   OT42_SET_TEXT_SENSOR(configuration_information_brand_version, brand_version_)
   OT42_SET_TEXT_SENSOR(configuration_information_brand_serial_number, brand_serial_number_)
 
+  // §5.3.3 Class 3, ID 4: queues a remote request to be sent from the next available conversation
+  // slot. Called by OpenTherm42RemoteRequestButton::press_action(); code is one of the values listed
+  // under the ID 4 HB table (0 = back to normal operation, 1 = boiler lock-out reset, ...).
+  void send_remote_request(uint8_t code) {
+    this->remote_request_pending_ = true;
+    this->remote_request_code_ = code;
+  }
+  OT42_SET_SENSOR(remote_request_last_response_code, remote_request_last_response_code_sensor_)
+
  protected:
   // §4.3.1: minimum time between the end of one conversation and the start of the next.
   static constexpr uint32_t MASTER_WAIT_TIME_MS = 100;
@@ -394,6 +405,11 @@ class OpenTherm42Hub : public Component {
   BrandRead brand_;
   BrandRead brand_version_;
   BrandRead brand_serial_number_;
+
+  // §5.3.3 Class 3 entities.
+  bool remote_request_pending_{false};
+  uint8_t remote_request_code_{0};
+  sensor::Sensor *remote_request_last_response_code_sensor_{nullptr};
 };
 
 }  // namespace esphome::opentherm42

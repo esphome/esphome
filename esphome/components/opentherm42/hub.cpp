@@ -110,6 +110,15 @@ Frame OpenTherm42Hub::build_next_request_() {
   if (this->startup_phase_ != StartupPhase::DONE) {
     return this->build_startup_request_();
   }
+  if (this->remote_request_pending_) {
+    this->remote_request_pending_ = false;
+    this->pending_request_kind_ = RequestKind::REMOTE_REQUEST;
+    Frame frame{};
+    frame.type = static_cast<uint8_t>(MessageType::WRITE_DATA);
+    frame.id = 4;
+    frame.value_hb = this->remote_request_code_;
+    return frame;
+  }
 
   Frame frame{};
   RequestKind kind;
@@ -548,6 +557,18 @@ void OpenTherm42Hub::handle_response_(const Frame &frame) {
     case RequestKind::BRAND_SERIAL_NUMBER:
       this->handle_brand_response_(frame, this->brand_serial_number_, "Brand serial number (id=95)");
       return;
+
+    case RequestKind::REMOTE_REQUEST:
+      if (type != MessageType::WRITE_ACK) {
+        ESP_LOGW(TAG, "Remote request (id=4, code=%u) was rejected (message type %u)", this->remote_request_code_,
+                 frame.type);
+        this->invalidate_response_(RequestKind::REMOTE_REQUEST);
+        return;
+      }
+      if (this->remote_request_last_response_code_sensor_ != nullptr) {
+        this->remote_request_last_response_code_sensor_->publish_state(frame.value_lb);
+      }
+      return;
   }
 }
 
@@ -722,6 +743,12 @@ void OpenTherm42Hub::invalidate_response_(RequestKind kind) {
       }
       if (this->solar_storage_product_version_sensor_ != nullptr) {
         this->solar_storage_product_version_sensor_->set_has_state(false);
+      }
+      return;
+
+    case RequestKind::REMOTE_REQUEST:
+      if (this->remote_request_last_response_code_sensor_ != nullptr) {
+        this->remote_request_last_response_code_sensor_->set_has_state(false);
       }
       return;
   }

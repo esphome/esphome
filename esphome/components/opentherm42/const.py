@@ -212,3 +212,39 @@ CONF_CONFIGURATION_INFORMATION_BRAND_VERSION = "configuration_information_brand_
 CONF_CONFIGURATION_INFORMATION_BRAND_SERIAL_NUMBER = (
     "configuration_information_brand_serial_number"
 )
+
+# §5.3.3 Class 3, ID 4 HB: one button per Request-Code value.
+CONF_REMOTE_REQUEST_BACK_TO_NORMAL_OPERATION_MODE = (
+    "remote_request_back_to_normal_operation_mode"
+)
+CONF_REMOTE_REQUEST_BOILER_LOCKOUT_RESET = "remote_request_boiler_lockout_reset"
+CONF_REMOTE_REQUEST_CH_WATER_FILLING = "remote_request_ch_water_filling"
+CONF_REMOTE_REQUEST_SERVICE_MODE_MAXIMUM_POWER = (
+    "remote_request_service_mode_maximum_power"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_MINIMUM_POWER = (
+    "remote_request_service_mode_minimum_power"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_SPARK_TEST = "remote_request_service_mode_spark_test"
+CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MAXIMUM_SPEED = (
+    "remote_request_service_mode_fan_maximum_speed"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_FAN_MINIMUM_SPEED = (
+    "remote_request_service_mode_fan_minimum_speed"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_CH = (
+    "remote_request_service_mode_3_way_valve_to_ch"
+)
+CONF_REMOTE_REQUEST_SERVICE_MODE_3_WAY_VALVE_TO_DHW = (
+    "remote_request_service_mode_3_way_valve_to_dhw"
+)
+CONF_REMOTE_REQUEST_RESET_SERVICE_REQUEST_FLAG = (
+    "remote_request_reset_service_request_flag"
+)
+CONF_REMOTE_REQUEST_SERVICE_TEST_1 = "remote_request_service_test_1"
+CONF_REMOTE_REQUEST_AUTOMATIC_HYDRONIC_AIR_PURGE = (
+    "remote_request_automatic_hydronic_air_purge"
+)
+
+# §5.3.3 Class 3, ID 4 LB: the most recent Request-Response-Code (0..127 = refused, 128..255 = accepted).
+CONF_REMOTE_REQUEST_LAST_RESPONSE_CODE = "remote_request_last_response_code"
