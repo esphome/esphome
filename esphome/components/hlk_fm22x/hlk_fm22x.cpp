@@ -7,7 +7,6 @@
 namespace esphome::hlk_fm22x {
 
 static const char *const TAG = "hlk_fm22x";
-static constexpr uint32_t BAUD_RATE = 115200;
 // Longest pause allowed between two bytes of one frame before the parser looks for a new frame
 static constexpr uint32_t FRAME_TIMEOUT_MS = 100;
 // The module answers most commands within 2 s and deletes within 5 s
@@ -223,8 +222,9 @@ void HlkFm22xComponent::enroll_face(const std::string &name, HlkFm22xFaceDirecti
     timeout_s = HLK_FM22X_DEFAULT_TIMEOUT_S;
   }
   const bool single_frame = direction == HlkFm22xFaceDirection::FACE_DIRECTION_UNDEFINED;
-  ESP_LOGI(TAG, "Enrolling '%s'%s, %s, timeout %us", name.c_str(), admin ? " as admin" : "",
-           single_frame ? "single frame" : "one direction", timeout_s);
+  ESP_LOGI(TAG, "Enrolling '%s'%s, %s, timeout %us", name.c_str(),
+           admin ? LOG_STR_LITERAL(" as admin") : LOG_STR_LITERAL(""),
+           single_frame ? LOG_STR_LITERAL("single frame") : LOG_STR_LITERAL("one direction"), timeout_s);
   const uint16_t reply_timeout_s = timeout_s + ALGORITHM_TIMEOUT_MARGIN_S;
 
   uint8_t data[HLK_FM22X_MAX_COMMAND_SIZE]{};
@@ -258,7 +258,7 @@ void HlkFm22xComponent::cancel() {
   this->drop_queued_(is_scan_or_enroll);
   if (is_scan_or_enroll(this->pending_command_)) {
     const bool enrolling = this->pending_command_ != HlkFm22xCommand::VERIFY;
-    ESP_LOGI(TAG, "Cancelling %s", enrolling ? "enrollment" : "scan");
+    ESP_LOGI(TAG, "Cancelling %s", enrolling ? LOG_STR_LITERAL("enrollment") : LOG_STR_LITERAL("scan"));
     // RESET makes the module stop what it is doing; FACE_RESET then forgets the directions captured so far
     this->interrupt_with_(HlkFm22xCommand::RESET);
     if (enrolling) {
@@ -615,7 +615,8 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
     case HlkFm22xCommand::DELETE_FACE:
     case HlkFm22xCommand::DELETE_ALL_FACES:
       if (result == HlkFm22xResult::SUCCEEDED) {
-        ESP_LOGI(TAG, "%s deleted", command == HlkFm22xCommand::DELETE_FACE ? "Face" : "All faces");
+        ESP_LOGI(TAG, "%s deleted",
+                 command == HlkFm22xCommand::DELETE_FACE ? LOG_STR_LITERAL("Face") : LOG_STR_LITERAL("All faces"));
       }
       this->refresh_face_count_();
       break;
@@ -655,7 +656,8 @@ void HlkFm22xComponent::handle_scan_reply_(uint8_t result, const uint8_t *data, 
       this->face_scan_invalid_callback_.call(HlkFm22xResult::FAILED4_UNKNOWNREASON);
       return;
     }
-    ESP_LOGI(TAG, "Face matched: ID %d, name '%.*s'%s", face_id, (int) name_length, name, admin ? " (admin)" : "");
+    ESP_LOGI(TAG, "Face matched: ID %d, name '%.*s'%s", face_id, (int) name_length, name,
+             admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
     if (this->last_face_id_sensor_ != nullptr) {
       this->last_face_id_sensor_->publish_state(face_id);
     }
@@ -714,7 +716,8 @@ void HlkFm22xComponent::handle_face_details_reply_(uint8_t result, const uint8_t
     ESP_LOGE(TAG, "Face details reply too short: %zu bytes", length);
     return;
   }
-  ESP_LOGD(TAG, "Face %d: name '%.*s'%s", face_id, (int) name_length, name, admin ? " (admin)" : "");
+  ESP_LOGD(TAG, "Face %d: name '%.*s'%s", face_id, (int) name_length, name,
+           admin ? LOG_STR_LITERAL(" (admin)") : LOG_STR_LITERAL(""));
   this->face_details_callback_.call(face_id, std::string(name, name_length), admin);
 }
 
@@ -867,7 +870,6 @@ void HlkFm22xComponent::publish_face_state_(int16_t state) {
 
 void HlkFm22xComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HLK-FM22X:");
-  this->check_uart_settings(BAUD_RATE);
   LOG_BINARY_SENSOR("  ", "Enrolling", this->enrolling_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Scanning", this->scanning_binary_sensor_);
   LOG_SENSOR("  ", "Face Count", this->face_count_sensor_);
