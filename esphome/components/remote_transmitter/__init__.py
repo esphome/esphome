@@ -4,11 +4,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt, remote_base
 from esphome.components.libretiny import get_libretiny_family
-from esphome.components.libretiny.const import (
-    FAMILY_BK7231N,
-    FAMILY_BK7238,
-    FAMILY_RTL8720C,
-)
+from esphome.components.libretiny.const import FAMILY_BK7238, FAMILY_RTL8720C
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -49,7 +45,9 @@ DigitalWriteAction = remote_transmitter_ns.class_(
 )
 
 
-_NON_BLOCKING_LIBRETINY_FAMILIES = (FAMILY_RTL8720C, FAMILY_BK7231N, FAMILY_BK7238)
+# Keep in sync with the USE_LIBRETINY_VARIANT_RTL8720C / REMOTE_TRANSMITTER_BK_PWM gates in
+# remote_transmitter.h, which decide where set_non_blocking() is declared
+_NON_BLOCKING_LIBRETINY_FAMILIES = (FAMILY_RTL8720C, FAMILY_BK7238)
 
 
 def _validate_non_blocking_platform(value: bool) -> bool:
@@ -59,9 +57,7 @@ def _validate_non_blocking_platform(value: bool) -> bool:
         return cv.boolean(value)
     if CORE.is_libretiny and get_libretiny_family() in _NON_BLOCKING_LIBRETINY_FAMILIES:
         return cv.boolean(value)
-    raise cv.Invalid(
-        "non_blocking is only supported on ESP32, RTL8720C, BK7231N and BK7238"
-    )
+    raise cv.Invalid("non_blocking is only supported on ESP32, RTL8720C and BK7238")
 
 
 MULTI_CONF = True
