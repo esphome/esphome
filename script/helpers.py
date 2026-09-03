@@ -1104,8 +1104,8 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
 
 
 _TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
-_SHARED_YAML_RE = re.compile(r"pytest\.mark\.shared_yaml\([\"'](\w+)[\"']\)")
-_SHARED_YAML_USE_RE = re.compile(r"pytest\.mark\.shared_yaml\(")
+_SHARED_YAML_RE = re.compile(r"mark\.shared_yaml\([\"'](\w+)[\"']\)")
+_SHARED_YAML_USE_RE = re.compile(r"\bmark\.shared_yaml\b")
 
 
 @cache

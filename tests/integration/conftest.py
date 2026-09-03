@@ -339,6 +339,7 @@ def _read_stamp(stamp: Path, shared_dir: Path) -> Path | None:
         warnings.warn(f"Cannot read {stamp}: {err}", stacklevel=2)
         return None
     if not text:
+        warnings.warn(f"Ignoring empty stamp {stamp}", stacklevel=2)
         return None
     built = Path(text)
     # Never trust a stamp pointing outside its own build dir as an unlink target
@@ -361,8 +362,9 @@ def _unused_since(stale: Path, cutoff: float) -> bool:
         except NotADirectoryError:
             return True  # a stray file where a dir should be; reclaimable
         except OSError as err:
+            # Treat as reclaimable; the prune attempt will surface the error
             warnings.warn(f"Cannot age-probe {stale}: {err}", stacklevel=2)
-            return False
+            return True
         newest = mtime if newest is None else max(newest, mtime)
     return newest is not None and newest < cutoff
 
@@ -387,7 +389,8 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
         except FileNotFoundError:
             continue  # pruned by another worker meanwhile
         except NotADirectoryError:
-            stale.unlink(missing_ok=True)  # a stray file, not a build dir
+            warnings.warn(f"Removing stray file {stale}", stacklevel=2)
+            stale.unlink(missing_ok=True)
             continue
         except OSError as err:
             warnings.warn(f"Cannot prune {stale}: {err}", stacklevel=2)
@@ -514,7 +517,14 @@ async def compile_esphome(
         # Hand-rolled rather than filelock.FileLock: non-blocking retries keep
         # the wait cancellable, while a blocking acquire in an executor thread
         # would survive test cancellation holding the fd
-        with (shared_dir / ".lock").open("w") as lock_file:
+        try:
+            lock_file = (shared_dir / ".lock").open("w")
+        except FileNotFoundError:
+            # A peer run pruning divergent hashes reaped the dir between our
+            # mkdir and this open; recreate it and pay a full rebuild
+            shared_dir.mkdir(parents=True, exist_ok=True)
+            lock_file = (shared_dir / ".lock").open("w")
+        with lock_file:
             start = time.monotonic()
             last_report = start
             while True:
