@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 import fcntl
+from functools import partial
 import hashlib
 import logging
 import os
@@ -20,6 +21,7 @@ import sys
 import tempfile
 import time
 from typing import TextIO
+import warnings
 
 from aioesphomeapi import APIClient, APIConnectionError, LogParser, ReconnectLogic
 import pytest
@@ -131,7 +133,9 @@ def shared_platformio_cache() -> Generator[Path]:
                 init_dir = Path(tmpdir)
                 fixture_path = Path(__file__).parent / "fixtures" / "cache_init.yaml"
                 config_path = init_dir / "cache_init.yaml"
-                config_path.write_text(fixture_path.read_text())
+                config_path.write_text(
+                    fixture_path.read_text(encoding="utf-8"), encoding="utf-8"
+                )
 
                 # Run compilation to populate the cache
                 # We must succeed here to avoid race conditions where multiple
@@ -215,7 +219,9 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
         raise FileNotFoundError(f"Fixture file not found: {fixture_path}")
 
     loop = asyncio.get_running_loop()
-    content = await loop.run_in_executor(None, fixture_path.read_text)
+    content = await loop.run_in_executor(
+        None, partial(fixture_path.read_text, encoding="utf-8")
+    )
 
     # Replace the port in the config if it contains api section
     if "api:" in content:
@@ -263,7 +269,9 @@ async def write_yaml_config(
             filename = f"{base_name}.yaml"
         config_path = integration_test_dir / filename
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, config_path.write_text, content)
+        await loop.run_in_executor(
+            None, partial(config_path.write_text, content, encoding="utf-8")
+        )
         return config_path
 
     yield _write_config
@@ -323,7 +331,7 @@ def _prune_one_build(stale: Path) -> None:
         # else would grow builds/ without bound, so make it visible
         if not isinstance(exc, FileNotFoundError):
             failed = True
-            _LOGGER.warning("Failed to prune %s: %s", path, exc)
+            warnings.warn(f"Failed to prune {path}: {exc}", stacklevel=2)
 
     shutil.rmtree(stale, onexc=_onexc)
     if failed and stale.exists():
@@ -332,7 +340,7 @@ def _prune_one_build(stale: Path) -> None:
         try:
             stale.rename(stale.with_name(stale.name + ".broken"))
         except OSError as err:
-            _LOGGER.warning("Cannot quarantine %s: %s", stale, err)
+            warnings.warn(f"Cannot quarantine {stale}: {err}", stacklevel=2)
 
 
 def _prune_stale_builds(name: str, keep: Path) -> None:
@@ -355,7 +363,8 @@ def _prune_stale_builds(name: str, keep: Path) -> None:
                 try:
                     if stale.stat().st_mtime >= cutoff:
                         continue
-                except OSError:
+                except OSError as err:
+                    _LOGGER.warning("Cannot age-probe %s: %s", stale, err)
                     continue
             except OSError as err:
                 _LOGGER.warning("Cannot check %s for pruning: %s", stale, err)
@@ -460,7 +469,9 @@ async def compile_esphome(
         await loop.run_in_executor(None, _prune_stale_builds, name, shared_dir)
         shared_config = shared_dir / f"{name}.yaml"
         private_binary = integration_test_dir / f"{name}.elf"
-        content = await loop.run_in_executor(None, config_path.read_text)
+        content = await loop.run_in_executor(
+            None, partial(config_path.read_text, encoding="utf-8")
+        )
         if content != getattr(request.node, "_shared_yaml_content", None):
             # The dir is keyed by the fixture source; a mutated config would be
             # cached under a hash that does not describe it
@@ -490,10 +501,18 @@ async def compile_esphome(
                             f"build of {shared_dir.name}"
                         )
                     await asyncio.sleep(0.1)
-            previous = await loop.run_in_executor(
-                None, _read_text_if_exists, shared_config
+            # A config without the stamp is a leftover of an interrupted build
+            # and cannot vouch for the ELF, so force the freshness check
+            stamp = shared_dir / ".built"
+            previous = (
+                await loop.run_in_executor(None, _read_text_if_exists, shared_config)
+                if stamp.exists()
+                else None
             )
-            await loop.run_in_executor(None, shared_config.write_text, content)
+            stamp.unlink(missing_ok=True)
+            await loop.run_in_executor(
+                None, partial(shared_config.write_text, content, encoding="utf-8")
+            )
             compile_start = time.time()
             await _run_esphome_compile(shared_config, shared_dir, env)
             built = _shared_elf_paths.get(shared_dir)
@@ -506,7 +525,11 @@ async def compile_esphome(
             # untouched ELF here means an interrupted build left a stale one.
             # An unchanged config legitimately skips the relink
             if content != previous and built.stat().st_mtime < compile_start:
-                raise RuntimeError(f"Compile did not relink stale {built}")
+                await loop.run_in_executor(None, built.unlink)
+                await _run_esphome_compile(shared_config, shared_dir, env)
+                if built.stat().st_mtime < compile_start:
+                    raise RuntimeError(f"Compile did not relink stale {built}")
+            stamp.touch()
             # Copy out before unlocking: another worker may relink firmware.elf
             # while this test is still running its private copy
             await loop.run_in_executor(None, shutil.copy2, built, private_binary)
@@ -730,6 +753,12 @@ async def run_binary(
     # This is needed because the ESPHome host logger checks isatty()
     controller_fd, device_fd = pty.openpty()
 
+    # Isolate host prefs per test: fixtures sharing a device name would
+    # otherwise share $HOME/.esphome/prefs/<name>.prefs. A monkeypatched
+    # ESPHOME_PREFDIR wins via setdefault
+    env = os.environ.copy()
+    env.setdefault("ESPHOME_PREFDIR", str(binary_path.parent / "prefs"))
+
     # Run the compiled binary with PTY
     process = await asyncio.create_subprocess_exec(
         str(binary_path),
@@ -740,6 +769,7 @@ async def run_binary(
         start_new_session=True,
         pass_fds=(device_fd,),
         close_fds=False,
+        env=env,
     )
 
     # Close the device end in the parent process
