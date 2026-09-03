@@ -14,6 +14,15 @@ display:
       position:
         x: 100
         y: 100
+    snapshot_key: SDLK_F12
+
+  - platform: sdl
+    id: headless_display
+    headless: true
+    show_test_card: true
+    dimensions:
+      width: 320
+      height: 240
 
   - platform: sdl
     id: second_display
@@ -46,3 +55,21 @@ binary_sensor:
     sdl_id: sdl_sdl_display
     id: key_enter
     key: SDLK_RETURN
+
+esphome:
+  # A name of your own is only good for one snapshot - a second one under the same name fails
+  # rather than writing over the first - so these run once rather than on a repeating interval.
+  on_boot:
+    - delay: 2s
+    - snapshot.take:
+        id: headless_display
+        filename: test_card.bmp
+    - snapshot.take:
+        id: headless_display
+        filename: !lambda 'return "shot.bmp";'
+
+interval:
+  # A generated name has the time in it, so this one can repeat.
+  - interval: 10s
+    then:
+      - snapshot.take: sdl_sdl_display
